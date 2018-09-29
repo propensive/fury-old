@@ -1,5 +1,6 @@
-# Fury
+![Fury](https://storage.googleapis.com/revivalist/images/furybuild/furylogo.png)
 
+# Fury
 ## About
 
 Fury is an experimental dependency manager and build tool for Scala. It is
@@ -12,5 +13,7 @@ Full information about Fury is available on the [Fury website](https://fury.buil
 ## Status
 
 Fury is under active development, and is currently in private beta. It is
-hoped that a full release can be made at the end of October 2018.
+hoped that the code will be open-sourced under the Apache 2.0 License, and a full
+release can be made at the end of October 2018.
 
+In the meantime, this repository plozi
