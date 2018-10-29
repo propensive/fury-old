@@ -8,8 +8,10 @@ still under active development, and is in private beta.
 Full information about Fury is available on the [Fury website](https://fury.build/).
 
 ### Status
-Fury is under active development, and is currently in private beta. It is
-hoped that the code will be open-sourced under the Apache 2.0 License, and a full
-release can be made at the end of October 2018.
+Fury is under active development, but is not publicly available yet. The code
+will be open-sourced under the Apache 2.0 License in mid-November 2019, and an
+experimental binary release will be made at the end of November 2018.
 
-In the meantime, this repository will serve to track issues with Fury.
+Until then, this repository will serve to track issues with Fury, and manage
+the project.
+
