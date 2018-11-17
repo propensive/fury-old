@@ -80,7 +80,7 @@ object Ogdl {
     def parse(buffer: ByteBuffer): Ogdl = {
 
       def readString(mark: Int): String = {
-        val array = new Array[Byte](buffer.position - mark - 1)
+        val array = new Array[Byte](buffer.position() - mark - 1)
         buffer.position(mark)
         buffer.get(array)
         buffer.get()
@@ -93,7 +93,7 @@ object Ogdl {
           case '\t' =>
             readIndent(i + 1)
           case other =>
-            buffer.position(buffer.position - 1)
+            buffer.position(buffer.position() - 1)
             i
         }
 
