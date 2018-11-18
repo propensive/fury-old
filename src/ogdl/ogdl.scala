@@ -65,13 +65,14 @@ object Ogdl {
       serialize(sb, Ogdl(t), i, c)
   }
 
-  def write[T: OgdlWriter](value: T, path: Path)(implicit fs: FsSession): Result[Unit, ~ | FileWriteError] =
+  def write[T: OgdlWriter](value: T, path: Path): Result[Unit, ~ | FileWriteError] =
     Result.rescue[IOException](_ => FileWriteError(path)) {
       val bak = path.rename { f => s".$f.bak" }
       if(path.exists()) path.copyTo(bak)
       val sb = new StringBuilder()
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
-      path.writeln(sb.toString).unit
+      sb.append('\n')
+      path.writeSync(sb.toString).unit
     }
 
   def read[T: OgdlReader](path: Path): Result[T, ~ | FileNotFound |
@@ -227,29 +228,6 @@ final case class Ogdl(values: Vector[(String, Ogdl)]) {
   def apply[T: OgdlReader](key: String): T = implicitly[OgdlReader[T]].read(map(key))
 }
 
-class FsSession() {
-  private[this] val bufferedWriters: HashMap[Path, java.io.BufferedWriter] = new HashMap()
-
-  def close() = synchronized {
-    bufferedWriters.foreach { case (path, writer) =>
-      try {
-        writer.flush()
-        writer.close()
-        bufferedWriters -= path
-      } catch {
-        case e: java.io.IOException => () // we tried
-      }
-    }
-  }
-
-  def writer(path: Path): Result[java.io.BufferedWriter, ~ | FileWriteError] =
-    Result.rescue[java.io.IOException](FileWriteError(path)) {
-      bufferedWriters.getOrElseUpdate(path,
-          new java.io.BufferedWriter(new java.io.FileWriter(path.javaPath.toFile)))
-    }
-
-}
-
 case class ZipfileEntry(name: String, inputStream: () => java.io.InputStream)
 
 object Path {
@@ -341,26 +319,18 @@ case class Path(value: String) {
     if(file.isDirectory) file.listFiles.foldLeft(true)(_ && recursiveDelete(_)) && file.delete()
     else file.delete()
 
-  def writeln(content: String)(implicit fs: FsSession): Result[Unit, ~ | FileWriteError] = write(content+'\n')
-
   def writeSync(content: String): Result[Unit, ~ | FileWriteError] = try {
     val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
     writer.write(content)
     Answer(writer.close())
   } catch { case e: java.io.IOException => Result.abort(FileWriteError(this)) }
   
-  def write(content: String)(implicit fs: FsSession): Result[Unit, ~ | FileWriteError] = for {
-    writer <- fs.writer(this)
-  } yield writer.write(content).unit
-
-  def appendln(content: String)(implicit fs: FsSession): Result[Unit, ~ | FileWriteError] = append(content+'\n')
-
-  def append(content: String)(implicit fs: FsSession): Result[Unit, ~ | FileWriteError] = for {
-    writer <- fs.writer(this)
-  } yield writer.append(content).unit
-
-  def pipe(out: String => Unit): Unit = scala.io.Source.fromFile(javaPath.toFile).getLines.foreach(out(_))
-
+  def appendSync(content: String): Result[Unit, ~ | FileWriteError] = try {
+    val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
+    writer.append(content)
+    Answer(writer.close())
+  } catch { case e: java.io.IOException => Result.abort(FileWriteError(this)) }
+  
   def exists(): Boolean = javaPath.toFile.exists()
 
   def directory: Result[Path, ~ | FileWriteError] = {

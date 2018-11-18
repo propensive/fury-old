@@ -21,9 +21,7 @@ import mitigation._
 import totalitarian._
 import guillotine._
 
-case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, workspace: Workspace) {
-  implicit val fs: FsSession = new FsSession()
-}
+case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, workspace: Workspace)
 
 object SchemaCli {
 

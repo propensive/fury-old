@@ -62,19 +62,15 @@ object Bloop {
                    (implicit layout: Layout, env: Environment, shell: Shell)
                    : Result[Set[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
                        UnknownCompiler | ItemNotFound | InvalidValue] = {
-    implicit val fs: FsSession = new FsSession()
-    val paths = artifacts.map { artifact => for {
+    artifacts.map { artifact => for {
       path       <- layout.bloopConfig(artifact).mkParents()
       jsonString <- makeConfig(artifact)
-      _          <- path.writeln(jsonString)
+      _          <- path.writeSync(jsonString)
     } yield List(path) }.sequence.map(_.flatten)
-    
-    fs.close()
-    paths
   }
 
   private def makeConfig(artifact: Artifact)
-                        (implicit layout: Layout, shell: Shell, fs: FsSession)
+                        (implicit layout: Layout, shell: Shell)
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
                             UnknownCompiler | ItemNotFound | InvalidValue] =
     for {

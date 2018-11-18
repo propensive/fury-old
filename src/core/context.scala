@@ -22,5 +22,4 @@ class MenuContext(val cli: Cli[CliParam[_]], val layout: Layout, val config: Con
   implicit def implicitLayout: Layout = layout
   implicit def implicitShell: Shell = cli.shell
   implicit def implicitEnv: Environment = cli.env
-  implicit def implicitFs: FsSession = cli.fs
 }
