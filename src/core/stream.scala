@@ -19,7 +19,9 @@ final class Multiplexer[K, V](keys: List[K]) {
     val t0 = System.currentTimeMillis
     val snapshot = state.clone().to[List]
     // FIXME: This could be written more efficiently with a builder
-    val changes = snapshot.zip(lastSnapshot).flatMap { case (a, b) => a.take(a.length - b.length).reverse }
+    val changes = snapshot.zip(lastSnapshot).flatMap { case (a, b) =>
+      a.take(a.length - b.length).reverse
+    }
     lastSnapshot = snapshot
     
     val time = System.currentTimeMillis - t0

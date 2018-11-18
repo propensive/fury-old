@@ -550,8 +550,16 @@ case class StartCompile(ref: ModuleRef) extends CompileEvent
 case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
 case class SkipCompile(ref: ModuleRef) extends CompileEvent
 
-case class Artifact(workspace: Workspace, schema: Schema, project: Project, module: Module, intransitive: Boolean) {
+case class CompileResult(success: Boolean, output: String)
+
+case class Artifact(workspace: Workspace,
+                    schema: Schema,
+                    project: Project,
+                    module: Module,
+                    intransitive: Boolean) {
+
   lazy val ref: ModuleRef = ModuleRef(project.id, module.id)
+  
   def encoded: String = str"${schema.id}-${project.id}-${module.id}"
 
   def saveJars(cli: Cli[_])
@@ -569,8 +577,8 @@ case class Artifact(workspace: Workspace, schema: Schema, project: Project, modu
     manifestFile <- Manifest.file(layout.manifestFile(this), binFiles.map(_._2).flatten, None)
     path         <- ~(dest / str"${project.id.key}-${module.id.key}.jar")
     io           <- ~io.println(msg"Saving JAR file $path")
-    io           <- ~io.map(shell.aggregatedJar(path, files, manifestFile))
-    io           <- ~io.map(binPaths.flatten.map { p => p.copyTo(dest / p.name) })
+    io           <- ~io.effect(shell.aggregatedJar(path, files, manifestFile))
+    io           <- ~io.effect(binPaths.flatten.map { p => p.copyTo(dest / p.name) })
   } yield io
 
   def classpath(implicit shell: Shell, layout: Layout)
@@ -580,29 +588,53 @@ case class Artifact(workspace: Workspace, schema: Schema, project: Project, modu
     bins <- deps.flatMap(_.module.binaries).map(_.paths).sequence.map(_.flatten)
   } yield (dirs ++ bins)
 
-  def compile(multiplexer: Multiplexer[ModuleRef, CompileEvent])
+
+  def compile(multiplexer: Multiplexer[ModuleRef, CompileEvent],
+              futures: Map[ModuleRef, Future[CompileResult]] = Map())
              (implicit layout: Layout, shell: Shell)
-             : Future[(String, Boolean)] = {
-    Future.sequence(dependencies.opt.get.map(_.compile(multiplexer))).flatMap { case inputs: List[(String, Boolean)] =>
-      if(!inputs.forall(_._2)) {
+             : Map[ModuleRef, Future[CompileResult]] = {
+
+    val deps = dependencies.opt.get
+    
+    val newFutures = deps.foldLeft(futures) { (futures, dep) =>
+      if(futures.contains(dep.ref)) futures
+      else dep.compile(multiplexer, futures)
+    }
+
+    val dependencyFutures = Future.sequence(deps.map { d => newFutures(d.ref) })
+
+    val thisFuture = dependencyFutures.flatMap { inputs =>
+      if(inputs.exists(!_.success)) {
         multiplexer(ref) = SkipCompile(ref)
         multiplexer.close(ref)
-        Future.successful(("", false))
-      } else Future { blocking {
-        multiplexer(ref) = StartCompile(ref)
-        val out = new StringBuilder()
-        val result = if(module.kind == Application) {
-          shell.bloop.run(encoded, false) { ln => out.append(ln+"\n").unit }.await()
-        } else shell.bloop.compile(encoded, false) { ln => out.append(ln+"\n").unit }.await()
-        val success = result == 0
-        multiplexer(ref) = StopCompile(ref, out.toString, success)
-        multiplexer.close(ref)
-        (out.toString, success)
-      } }
+        Future.successful(CompileResult(false, ""))
+      } else compileThis(multiplexer)
+    }
+
+    newFutures.updated(ref, thisFuture)
+  }
+
+  private def compileThis(multiplexer: Multiplexer[ModuleRef, CompileEvent])
+                         (implicit shell: Shell)
+                         : Future[CompileResult] = {
+    Future {
+      val out = new StringBuilder()
+      multiplexer(ref) = StartCompile(ref)
+      
+      val result = blocking {
+        shell.bloop.compile(encoded, module.kind == Application) { ln =>
+          out.append(ln)
+          out.append("\n")
+        }.await()
+      }
+
+      multiplexer(ref) = StopCompile(ref, out.toString, result == 0)
+      multiplexer.close(ref)
+      CompileResult(result == 0, out.toString)
     }
   }
 
-  def clean(recursive: Boolean)(implicit layout: Layout, shell: Shell): Result[Unit, ~] = Answer {
+  def clean(recursive: Boolean)(implicit layout: Layout, shell: Shell): Unit = {
     if(recursive) dependencies.foreach(_.foreach(_.clean(true)))
     layout.classesDir.delete().unit
   }
