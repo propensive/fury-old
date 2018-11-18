@@ -96,9 +96,9 @@ want to make this change to all schemas, please add the --force/-F argument.""")
       val errorString = s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
       val result = for {
         layout <- cli.layout
-        fs <- Answer(new FsSession())
-        _ <- layout.errorLogfile.write(errorString)(fs)
-        _ = fs.close()
+        io     <- cli.io()
+        _      <- ~io.effect(layout.errorLogfile.writeSync(errorString))
+        _      <- ~io.await()
       } yield cli.abort {
         msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}."
       }
@@ -107,7 +107,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
               s"be logged to disk.\n\n$errorString")
 
       result.recover(
-        on[FileWriteError].use(unloggable), on[FileNotFound].use(unloggable)
+        on[FileWriteError].use(unloggable), on[FileNotFound].use(unloggable),
+        on[EarlyCompletions].use(cli.abort(""))
       )
     }
   )

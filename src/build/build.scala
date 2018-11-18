@@ -44,7 +44,6 @@ object ConfigCli {
 
   def set(ctx: Context) = {
     import ctx._
-    implicit val fs: FsSession = new FsSession()
     for {
       cli           <- cli.hint(ThemeArg, Theme.all)
       io            <- cli.io()
@@ -128,7 +127,6 @@ object BuildCli {
   def notImplemented(cli: Cli[CliParam[_]]): Result[ExitStatus, ~] = Answer(Abort)
 
   def init(cli: Cli[CliParam[_]]) = {
-    implicit val fs: FsSession = new FsSession()
     for {
       layout        <- cli.layout
       config        <- Config.read()(cli.env, layout)
@@ -224,7 +222,6 @@ object BuildCli {
       artifacts      <- artifact.transitiveDependencies(layout, cli.shell)
       io             <- Bloop.server(cli)(io)
       files          <- ~Bloop.generateFiles(artifacts)(layout, cli.env, cli.shell)
-      _              <- ~cli.fs.close()
       graph          <- artifact.dependencyGraph(layout, cli.shell)
       debugStr       <- ~io(DebugArg).opt
       io             <- ~io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module))

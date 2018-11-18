@@ -114,8 +114,7 @@ case class Cli[+Hinted <: CliParam[_]]
                args: ParamMap,
                command: Option[Int],
                optCompletions: List[Cli.OptCompletion[_]],
-               env: Environment,
-               fs: FsSession = new FsSession()) {
+               env: Environment) {
  
   private[this] val exec = Executors.newSingleThreadExecutor()
   private[this] implicit val execContext: ExecutionContext = ExecutionContext.fromExecutor(exec)
@@ -160,11 +159,6 @@ case class Cli[+Hinted <: CliParam[_]]
     }
 
   lazy val config: Config = layout.flatMap(Config.read()(env, _)).opt.getOrElse(Config())
-
-  /*def done(implicit fs: FsSession = new FsSession()): ExitStatus = {
-    fs.close()
-    Done
-  }*/
 
   def next: Option[String] = args.prefix.headOption.map(_.value)
   

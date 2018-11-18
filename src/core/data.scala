@@ -656,11 +656,11 @@ case class Artifact(workspace: Workspace,
     }
 
   // FIXME: Handle errors
-  def writePlugin()(implicit layout: Layout, fs: FsSession): Unit = if(module.kind == Plugin) {
+  def writePlugin()(implicit layout: Layout): Unit = if(module.kind == Plugin) {
     val file = layout.classesDir(this, true) / "scalac-plugin.xml"
     
     module.main.foreach { main =>
-      file.write(str"<plugin><name>${module.id}</name><classname>${main}</classname></plugin>")
+      file.writeSync(str"<plugin><name>${module.id}</name><classname>${main}</classname></plugin>")
     }
   }
 
