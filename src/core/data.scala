@@ -140,15 +140,23 @@ case class Projects(values: Map[ProjectId, Project] = Map()) {
   def ++(that: Projects): Projects = Projects(values ++ that.values)
 }
 
-case class Schemata(schema: Schema, inherited: Set[Schemata]) {
+case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
   def projects: Result[Projects, ~ | ProjectConflict] = {
     val localProjectIds = schema.projects.map(_.id)
-    inherited.foldLeft(Answer(Projects()): Result[Projects, ~ | ProjectConflict]) { (projects, schemata) => projects.flatMap { projects =>
-      schemata.projects.flatMap { nextProjects =>
-        val conflictIds = projects.ids.intersect(nextProjects.ids).filter { id => projects(id) != nextProjects(id) } -- localProjectIds
-        if(conflictIds.isEmpty) Answer(projects ++ nextProjects) else Result.abort(ProjectConflict(conflictIds))
-      }.map(_ ++ Projects(schema.projects.map { p => (p.id, p) }.toMap))
-    } }
+    val empty: Result[Projects, ~ | ProjectConflict] = Answer(Projects())
+    
+    inherited.foldLeft(empty) { (projects, schemaTree) =>
+      projects.flatMap { projects =>
+        schemaTree.projects.flatMap { nextProjects =>
+          val conflictIds = projects.ids.intersect(nextProjects.ids).filter { id =>
+            projects(id) != nextProjects(id)
+          } -- localProjectIds
+          
+          if(conflictIds.isEmpty) Answer(projects ++ nextProjects)
+          else Result.abort(ProjectConflict(conflictIds))
+        }.map(_ ++ Projects(schema.projects.map { p => (p.id, p) }.toMap))
+      }
+    }
   }
 }
 
@@ -193,11 +201,11 @@ case class Schema(id: SchemaId,
       else List(str"$ref")
     }
 
-  def schemata(implicit layout: Layout, shell: Shell): Result[Schemata, ~ | ItemNotFound | FileWriteError | ShellFailure | FileNotFound | ConfigFormatError | InvalidValue] =
+  def schemaTree(implicit layout: Layout, shell: Shell): Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure | FileNotFound | ConfigFormatError | InvalidValue] =
     for {
       imports <- importedSchemas
-      inherited <- imports.map(_.schemata).sequence
-    } yield Schemata(this, inherited.to[Set])
+      inherited <- imports.map(_.schemaTree).sequence
+    } yield SchemaTree(this, inherited.to[Set])
 
   def importedSchemas(implicit layout: Layout, shell: Shell)
                      : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
@@ -205,7 +213,7 @@ case class Schema(id: SchemaId,
     imports.map { ref =>
       for {
         repo <- repos.findBy(ref.repo)
-        repoDir <- AsyncRepos.get(repo.repo)//.await()
+        repoDir <- AsyncRepos.get(repo.repo)
         workspace <- Ogdl.read[Workspace](Layout(layout.home, repoDir).furyConfig)
         resolved <- workspace.schemas.findBy(ref.schema)
       } yield resolved
@@ -309,7 +317,7 @@ case class Workspace(schemas: SortedSet[Schema],
                      FileNotFound | ConfigFormatError | InvalidValue] =
     mainSchema.flatMap(_.allProjects)
   
-  def moduleRefs(implicit laayout: Layout, shell: Shell)
+  def moduleRefs(implicit layout: Layout, shell: Shell)
                 : Result[List[ModuleRef], ~ | ItemNotFound | FileWriteError | ShellFailure |
                     FileNotFound | ConfigFormatError | InvalidValue] =
     allProjects.map(_.flatMap(_.moduleRefs))
@@ -319,19 +327,12 @@ case class Workspace(schemas: SortedSet[Schema],
                       ConfigFormatError | FileNotFound | InvalidValue] =
     allProjects.map(_.flatMap(_.compilerRefs))
  
-  def moduleRefStrings(project: Project)(implicit laayout: Layout, shell: Shell): List[String] =
+  def moduleRefStrings(project: Project)(implicit layout: Layout, shell: Shell): List[String] =
     moduleRefs.opt.to[List].flatten.flatMap { ref =>
       if(ref.projectId == project.id) List(str"$ref", str"${ref.moduleId}")
       else List(str"$ref")
     }
 
-  def remoteSources(artifact: Artifact)
-             (implicit layout: Layout, shell: Shell)
-             : Result[List[(Repo, Set[Path])], ~ | ItemNotFound | FileWriteError | InvalidValue] =
-    for {
-      sources  <- artifact.module.sources.map(_.remoteSource(artifact.schema)).sequence
-    } yield sources.flatten.groupBy(_._1).mapValues(_.map(_._2)).to[List]
-  
   def sources(schemaId: SchemaId, moduleRef: ModuleRef)
              (implicit layout: Layout, shell: Shell)
              : Result[List[Path], ~ | ItemNotFound | FileWriteError | InvalidValue] =
@@ -837,8 +838,3 @@ object Parameter {
 case class Parameter(name: String) { def parameter = str"-$name" }
 
 abstract class Key(val kind: UserMsg) { def key: String }
-
-
-class ProjectSpace(val projects: Set[Project]) {
-  
-}
