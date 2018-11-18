@@ -198,7 +198,7 @@ object BuildCli {
       artifact     <- schema.artifact(workspace, module.ref(project))
       io           <- Bloop.server(cli)(io)
       recursive    <- ~io(RecursiveArg).opt.isDefined
-      _            <- artifact.clean(recursive)
+      io           <- ~io.effect(artifact.clean(recursive))
     } yield io.await()
   }
   
@@ -228,17 +228,14 @@ object BuildCli {
       graph          <- artifact.dependencyGraph(layout, cli.shell)
       debugStr       <- ~io(DebugArg).opt
       io             <- ~io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module))
-      debugModuleRef <- debugStr.map { ref =>
-                          ModuleRef.parse(project, ref, false)
-                        }.to[List].sequence.map(_.headOption)
       allDeps        <- artifact.transitiveDependencies
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](allDeps.map(_.ref).to[List]))
-      future         <- ~artifact.compile(multiplexer)
+      future         <- ~artifact.compile(multiplexer).apply(module.ref(project))
       io             <- ~Graph.live(cli)(io, graph, multiplexer.stream(100, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
       io             <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
-      io             <- ~io.map(Thread.sleep(300))
-    } yield io.await(Await.result(future, duration.Duration.Inf)._2)
+      io             <- ~io.effect(Thread.sleep(100))
+    } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
  
   def getPrompt(workspace: Workspace, theme: Theme): Result[String, ~ | ItemNotFound] = for {

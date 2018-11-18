@@ -88,17 +88,12 @@ case class Shell()(implicit env: Environment) {
       sh"ng --nailgun-port 8212 help".exec[Exit[String]].status == 0
     }
 
-    def run(name: String, watch: Boolean)(output: String => Unit): Running = {
-      val watchArg = if(watch) List("--watch") else Nil
-      sh"ng --nailgun-port 8212 run $name $watchArg".async(output(_), output(_))
-    }
-    
     def clean(name: String)(output: String => Unit): Running =
       sh"ng --nailgun-port 8212 clean $name".async(output(_), output(_))
 
-    def compile(name: String, watch: Boolean)(output: String => Unit): Running = {
-      val watchArg = if(watch) List("--watch") else Nil
-      sh"ng --nailgun-port 8212 compile $name $watchArg".async(output(_), output(_))
+    def compile(name: String, run: Boolean)(output: String => Unit): Running = {
+      val action = if(run) "run" else "compile"
+      sh"ng --nailgun-port 8212 $action $name".async(output(_), output(_))
     }
 
     def startServer(): Running =

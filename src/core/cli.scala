@@ -22,12 +22,14 @@ import escritoire._
 import mitigation._
 import kaleidoscope._
 
-
 import java.util.NoSuchElementException
 
-import scala.concurrent._, ExecutionContext.Implicits.global
+import scala.concurrent._
 import scala.collection.immutable.SortedSet
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{HashMap, Queue}
+import java.util.concurrent.Executors
+
+import scala.annotation.tailrec
 
 case class EarlyCompletions() extends Exception
 
@@ -85,10 +87,7 @@ object Cli {
 
 }
 
-object Descriptor extends Descriptor_1 {
-}
-
-trait Descriptor_1 {
+object Descriptor {
   implicit def noDescription[T]: Descriptor[T] = new Descriptor[T] {
     def describe(value: T): UserMsg = msg""
     
@@ -110,7 +109,6 @@ trait Descriptor[T] {
   }
 }
 
-// This is effectively an IO applicative
 case class Cli[+Hinted <: CliParam[_]]
               (output: java.io.PrintStream,
                args: ParamMap,
@@ -119,18 +117,22 @@ case class Cli[+Hinted <: CliParam[_]]
                env: Environment,
                fs: FsSession = new FsSession()) {
  
-  class Io private[Cli] (private[this] val future: Future[Unit] = Future.successful(())) {
-  
+  private[this] val exec = Executors.newSingleThreadExecutor()
+  private[this] implicit val execContext: ExecutionContext = ExecutionContext.fromExecutor(exec)
+
+  class Io private[Cli] (private val future: Future[Unit]) {
+
     def apply[T](param: CliParam[T])
                 (implicit ev: Hinted <:< param.type)
                 : Result[T, ~ | MissingArg | InvalidArgValue] = args.get(param.param)
 
+    def effect(fn: => Unit): Io = new Io(future.map { unit => fn })
     
-    def map(fn: => Unit): Io = new Io(future.map(_ => fn))
-    def print(msg: UserMsg): Io = map(output.print(msg.string(config.theme)))
-    def println(msg: UserMsg): Io = map(output.println(msg.string(config.theme)))
+    def print(msg: UserMsg): Io = effect(output.print(msg.string(config.theme)))
+    
+    def println(msg: UserMsg): Io = effect(output.println(msg.string(config.theme)))
 
-    def save[T: OgdlWriter](value: T, path: Path): Io = map {
+    def save[T: OgdlWriter](value: T, path: Path): Io = effect {
       val stringBuilder: StringBuilder = new StringBuilder()
       Ogdl.serialize(stringBuilder, implicitly[OgdlWriter[T]].write(value))
       val content: String = stringBuilder.toString
@@ -143,10 +145,10 @@ case class Cli[+Hinted <: CliParam[_]]
     }
     
     def await(success: Boolean = true): ExitStatus = {
-      if(Await.ready(future, duration.Duration.Inf).value.get.isSuccess && success) {
-        output.flush()
-        Done
-      } else Abort
+      effect(output.flush())
+      val result = Await.ready(future, duration.Duration.Inf).value.get.isSuccess
+      exec.shutdown()
+      if(success && result) Done else Abort
     }
   }
 
@@ -199,7 +201,7 @@ case class Cli[+Hinted <: CliParam[_]]
   }
 
   def io(): Result[Io, ~ | EarlyCompletions] = {
-    val io = new Io()
+    val io = new Io(Future(()))
     if(completion) {
       io.println(optCompletions.flatMap(_.output).mkString("\n")).await()
       Result.abort(EarlyCompletions())
@@ -213,7 +215,7 @@ case class Cli[+Hinted <: CliParam[_]]
         case act: Action[_] => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val io = new Io()
+      val io = new Io(Future(()))
       io.println(optCompletions.flatMap(_.output).mkString("\n")).await()
       Result.abort(EarlyCompletions())
     }.getOrElse {
