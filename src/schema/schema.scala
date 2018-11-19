@@ -212,7 +212,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       dir       <- io(DirArg)
       retry     <- ~io(RetryArg).successful
-      _         <- ~AsyncRepos.get(repo.repo)(layout, cli.shell)
+      _         <- repo.repo.fetch()(layout, cli.shell)
       newRepo   <- repo.moveTo(dir)(layout)
       lens      <- ~Lenses.workspace.repos(schema.id)
       workspace <- ~(lens.modify(workspace)(_ - repo + newRepo))
@@ -268,7 +268,7 @@ object RepoCli {
       workspace      <- optImportRef.map { importRef =>
                           Lenses.updateSchemas(optSchemaArg, workspace, true)(Lenses.workspace.imports(_))(_.modify(_)(_ :+ importRef))
                         }.getOrElse(~workspace)
-      _              <- ~AsyncRepos.get(sourceRepo.repo)(layout, cli.shell)
+      _              <- sourceRepo.repo.fetch()(layout, cli.shell)
       io             <- ~io.save(workspace, layout.furyConfig)
     } yield io.await()
   }

@@ -433,8 +433,7 @@ object SourceCli {
       dSchema   <- defaultSchema
       repos     <- ~dSchema.allRepos.opt.to[List].flatten
       sources   <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sources({ n => n.endsWith(".scala") || n.endsWith(".java") },
-                         project.id).map(_.to[List])).to[List]
+                     repos.map(_.sourceCandidates { n => n.endsWith(".scala") || n.endsWith(".java") }).to[List]
                    }.sequence.map(_.flatten)
       cli       <- cli.hint(SourceArg, sources)
       io        <- cli.io()

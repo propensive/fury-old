@@ -36,10 +36,15 @@ case class Shell()(implicit env: Environment) {
     def sparseCheckout(from: Path, dir: Path, sources: List[Path], commit: String): Result[String, ~ | ShellFailure | FileWriteError] = for {
       _   <- sh"git -C ${dir.value} init".exec[Out]
       _   <- sh"git -C ${dir.value} config core.sparseCheckout true".exec[Out]
-      _   <- (dir / "git" / "info" / "sparse-checkout").writeSync(sources.map(_.value).mkString("\n"))
+      _   <- (dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value).mkString("", "/*\n", "/*\n"))
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Out]
-      str <- sh"git pull origin $commit".exec[Out]
+      str <- sh"git -C ${dir.value} pull origin $commit".exec[Out]
     } yield str
+
+    def lsTree(dir: Path, commit: String): Result[List[Path], ~ | ShellFailure] = for {
+      string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Out]
+      files  <- ~string.split("\n").to[List].map(Path(_))
+    } yield files
 
     def checkout(dir: Path, commit: String): Out =
       sh"git -C ${dir.value} checkout $commit".exec[Out]
