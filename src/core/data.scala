@@ -172,6 +172,8 @@ case class Schema(id: SchemaId,
                   imports: List[SchemaRef] = List(),
                   main: Option[ProjectId] = None) {
   
+  def repo(repoId: RepoId): Result[SourceRepo, ~ | ItemNotFound] = repos.findBy(repoId)
+
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   
   def compilerRefs(implicit layout: Layout, shell: Shell): List[ModuleRef] =
@@ -180,19 +182,8 @@ case class Schema(id: SchemaId,
   def mainProject: Result[Option[Project], ~ | ItemNotFound] =
     main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
 
-  def importCandidates(implicit layout: Layout): List[String] = for {
-    repo   <- repos.to[List]
-    dir     = repo.directory
-    ws     <- Ogdl.read[Workspace](Layout(layout.home, dir).furyConfig).opt.to[List]
-    schema <- ws.schemas.to[List]
-  } yield s"${repo.id.key}:${schema.id.key}"
-
-
-  def allDependencies: SortedSet[ModuleRef] = for {
-    project <- projects
-    module <- project.modules
-    dependency <- module.after
-  } yield dependency
+  def importCandidates(implicit layout: Layout, shell: Shell): List[String] =
+    repos.to[List].flatMap(_.importCandidates(this).opt.to[List].flatten)
 
   def moduleRefStrings(project: Project)(implicit layout: Layout, shell: Shell): List[String] =
     importedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings(project))) ++
@@ -201,11 +192,12 @@ case class Schema(id: SchemaId,
       else List(str"$ref")
     }
 
-  def schemaTree(implicit layout: Layout, shell: Shell): Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure | FileNotFound | ConfigFormatError | InvalidValue] =
-    for {
-      imports <- importedSchemas
-      inherited <- imports.map(_.schemaTree).sequence
-    } yield SchemaTree(this, inherited.to[Set])
+  def schemaTree(implicit layout: Layout, shell: Shell)
+                : Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure |
+                    FileNotFound | ConfigFormatError | InvalidValue] = for {
+    imports <- importedSchemas
+    inherited <- imports.map(_.schemaTree).sequence
+  } yield SchemaTree(this, inherited.to[Set])
 
   def importedSchemas(implicit layout: Layout, shell: Shell)
                      : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
@@ -333,7 +325,7 @@ case class Workspace(schemas: SortedSet[Schema],
       else List(str"$ref")
     }
 
-  def sources(schemaId: SchemaId, moduleRef: ModuleRef)
+  /*def sources(schemaId: SchemaId, moduleRef: ModuleRef)
              (implicit layout: Layout, shell: Shell)
              : Result[List[Path], ~ | ItemNotFound | FileWriteError | InvalidValue] =
     for {
@@ -342,7 +334,7 @@ case class Workspace(schemas: SortedSet[Schema],
                       ItemNotFound(moduleRef.projectId))
       artifact <- resolved.artifact(this, moduleRef.moduleId)
       paths    <- artifact.module.sources.to[List].map(_.dirPath(schema)).sequence
-    } yield paths
+    } yield paths*/
 }
 
 object Workspace {
@@ -446,55 +438,44 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
 
-  def hash = (repo, refSpec).digest[Sha256]
-  def path = Path(hash.encoded[Base64Url])
-  
-  def directory(implicit layout: Layout): Path =
-    path in layout.refsDir
-
   def listFiles()(implicit layout: Layout, shell: Shell) = for {
     dir   <- repo.fetch()
     files <- shell.git.lsTree(dir, refSpec.id)
   } yield files
 
-  def checkout(sources: List[Source])(implicit shell: Shell, layout: Layout) = for {
-    bareRepo <- repo.fetch()
-    dir <- ~directory
-  } yield if(!dir.exists) {
-    dir.mkdir()
-    shell.git.sparseCheckout(bareRepo, dir, sources.map(_.path), refSpec.id)
-  } else dir
+  def importCandidates(schema: Schema)
+                      (implicit layout: Layout, shell: Shell)
+                      : Result[List[String], ~ | ConfigFormatError | ItemNotFound | FileNotFound | InvalidValue | FileWriteError | ShellFailure] = for {
+    dirs       <- checkout(schema, List())
+    workspaces <- dirs.map { dir => Ogdl.read[Workspace](Layout(layout.home, dir).furyConfig) }.sequence
+    schemas    <- ~workspaces.flatMap(_.schemas.to[List])
+  } yield schemas.map { schema => s"${id.key}:${schema.id.key}" }
+
+  def checkout(schema: Schema, sources: List[Source])
+              (implicit shell: Shell, layout: Layout)
+              : Result[List[Path], ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
+    sources.map { source =>
+      for {
+        repo     <- schema.repo(id)
+        bareRepo <- repo.repo.fetch()
+        dir      <- source.path(schema)
+      } yield if(!dir.exists) {
+        dir.mkdir()
+        shell.git.sparseCheckout(bareRepo, dir, sources.map(_.path), refSpec.id)
+        dir
+      } else dir
+    }.sequence
 
   def current(implicit shell: Shell, layout: Layout)
-             : Result[RefSpec, ~ | FileWriteError | ShellFailure | InvalidValue] =
-    for {
-      commit <- shell.git.getCommit(directory)
-    } yield RefSpec(commit)
+             : Result[RefSpec, ~ | FileWriteError | ShellFailure | InvalidValue] = for {
+    dir    <- repo.fetch()
+    commit <- shell.git.getCommit(dir)
+  } yield RefSpec(commit)
 
   def sourceCandidates(pred: String => Boolean)
                       (implicit layout: Layout, shell: Shell)
                       : Result[Set[Source], ~ | ShellFailure | FileWriteError | InvalidValue] =
     listFiles().map { files => files.filter { f => pred(f.filename) }.map { p => Source(id, p.parent) }.to[Set] }
-
-  def sources(pred: String => Boolean, projectId: ProjectId)
-             (implicit layout: Layout)
-             : Result[Set[Source], ~ | FileWriteError | InvalidValue] = for {
-    dirs    <- Answer(directory.findSubdirsContaining(pred).map(_.relativize(directory)))
-    sources <- Answer(dirs.map(Source(id, _)))
-  } yield sources
-
-  def moveTo(path: Path)(implicit layout: Layout): Result[SourceRepo, ~ | FileWriteError | InvalidValue] = for {
-    newRepoDir <- directory.moveTo(path)
-  } yield SourceRepo(id, repo, refSpec, Some(path))
-
-  def update(cli: Cli[_])(implicit layout: Layout): Result[Unit, ~ | FileWriteError | EarlyCompletions | ShellFailure | InvalidValue] = for {
-    oldCommit <- cli.shell.git.getCommit(directory)
-    _         <- cli.shell.git.pull(directory, Some(refSpec))
-    newCommit <- cli.shell.git.getCommit(directory)
-    msg       <- ~(if(oldCommit != newCommit) msg"Repository ${id} updated to new commit $newCommit"
-                   else msg"Repository ${id} is unchanged")
-    //_         <- cli.write(msg)
-  } yield ()
 }
 
 case class BinRepoId(id: String)
@@ -508,6 +489,16 @@ object BinRepoId {
 case class Repo(url: String) {
 
   def hash: Digest = url.digest[Sha256]
+
+  def update()
+            (implicit shell: Shell, layout: Layout)
+            : Result[UserMsg, ~ | FileWriteError | EarlyCompletions | ShellFailure | InvalidValue] = for {
+    oldCommit <- shell.git.getCommit(path in layout.reposDir)
+    _         <- shell.git.pull(path in layout.reposDir, None)
+    newCommit <- shell.git.getCommit(path in layout.reposDir)
+    msg       <- ~(if(oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
+                   else msg"Repository ${url} is unchanged")
+  } yield msg
 
   def fetch()
            (implicit layout: Layout, shell: Shell)
@@ -822,28 +813,18 @@ object Source {
 }
 
 case class Source(repoId: RepoId, path: Path) {
-  
   def description: String = str"${repoId}:${path.value}"
-  
-  def remoteSource(schema: Schema)
-             : Result[List[(Repo, Path)], ~ | FileWriteError | ItemNotFound | InvalidValue] =
-    repoId match {
-      case RepoId.Local => Answer(Nil)
-      case _ => schema.repos.findBy(repoId).map { r => List((r.repo, path)) }
-    }
 
-  def dirPath(schema: Schema)(implicit layout: Layout)
-             : Result[Path, ~ | FileWriteError | ItemNotFound | InvalidValue] =
-    repoId match {
-      case RepoId.Local => Answer(path in layout.pwd)
-      case _ => for(repo <- schema.repos.findBy(repoId)) yield path.in(repo.directory)
-    }
+  def hash(schema: Schema): Result[Digest, ~ | ItemNotFound] =
+    schema.repo(repoId).map((path, _).digest[Sha256])
+ 
+  def path(schema: Schema)(implicit layout: Layout): Result[Path, ~ | ItemNotFound] =
+    hash(schema).map(layout.refsDir / _.encoded[Base64Url])
 }
 
 object RepoId {
   implicit val msgShow: MsgShow[RepoId] = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
-  
   final val Local: RepoId = RepoId("local")
 }  
 

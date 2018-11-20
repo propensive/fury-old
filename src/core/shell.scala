@@ -35,8 +35,8 @@ case class Shell()(implicit env: Environment) {
 
     def sparseCheckout(from: Path, dir: Path, sources: List[Path], commit: String): Result[String, ~ | ShellFailure | FileWriteError] = for {
       _   <- sh"git -C ${dir.value} init".exec[Out]
-      _   <- sh"git -C ${dir.value} config core.sparseCheckout true".exec[Out]
-      _   <- (dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value).mkString("", "/*\n", "/*\n"))
+      _   <- if(!sources.isEmpty) sh"git -C ${dir.value} config core.sparseCheckout true".exec[Out] else Answer(())
+      _   <- if(!sources.isEmpty) (dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value).mkString("", "/*\n", "/*\n")) else Answer(())
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Out]
       str <- sh"git -C ${dir.value} pull origin $commit".exec[Out]
     } yield str

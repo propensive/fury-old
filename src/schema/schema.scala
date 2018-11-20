@@ -136,7 +136,7 @@ object ImportCli {
       cli           <- cli.hint(SchemaArg, workspace.schemas.map(_.id))
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~workspace.schemas.findBy(schemaArg.getOrElse(workspace.main)).opt
-      cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(layout)).getOrElse(Nil))
+      cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(layout, cli.shell)).getOrElse(Nil))
       io            <- cli.io()
       schemaRef     <- io(ImportArg)
       workspace     <- Lenses.updateSchemas(schemaArg, workspace, true)(Lenses.workspace.imports(_))(_.modify(_)(_ :+ schemaRef))
@@ -212,8 +212,9 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       dir       <- io(DirArg)
       retry     <- ~io(RetryArg).successful
-      _         <- repo.repo.fetch()(layout, cli.shell)
-      newRepo   <- repo.moveTo(dir)(layout)
+      bareRepo  <- repo.repo.fetch()(layout, cli.shell)
+      io        <- ~io.effect(cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id))
+      newRepo   <- ~repo.copy(local = Some(dir))
       lens      <- ~Lenses.workspace.repos(schema.id)
       workspace <- ~(lens.modify(workspace)(_ - repo + newRepo))
       io        <- ~io.save(workspace, layout.furyConfig)
@@ -231,8 +232,9 @@ object RepoCli {
       io        <- cli.io()
       all       <- ~io(AllArg).opt
       optRepos  <- io(RepoIdArg).opt.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ => schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
-      repos     <- optRepos.map(schema.repos.findBy(_)).sequence
-      _         <- repos.map(_.update(cli)(layout)).sequence
+      repos     <- optRepos.map(schema.repo(_)).sequence
+      msgs      <- repos.map(_.repo.update()(cli.shell, layout)).sequence
+      io        <- ~msgs.foldLeft(io)(_.println(_))
     } yield io.await()
   }
 

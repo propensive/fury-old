@@ -72,13 +72,13 @@ object Bloop {
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
                             UnknownCompiler | ItemNotFound | InvalidValue] =
     for {
-      deps <- artifact.dependencies
-      _ = artifact.writePlugin()
-      optCompiler <- artifact.compiler
-      classpath <- artifact.classpath()
+      deps                 <- artifact.dependencies
+      _                     = artifact.writePlugin()
+      optCompiler          <- artifact.compiler
+      classpath            <- artifact.classpath()
       optCompilerClasspath <- optCompiler.map(_.classpath()).getOrElse(Answer(Nil))
-      params <- artifact.allParams
-      sourceDirs <- artifact.module.sources.to[List].map(_.dirPath(artifact.schema)).distinct.sequence
+      params               <- artifact.allParams
+      sourceDirs           <- artifact.module.sources.to[List].map(_.path(artifact.schema)).distinct.sequence
     } yield json(
       name = artifact.encoded,
       scalacOptions = params.map(_.parameter),
