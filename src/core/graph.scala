@@ -15,12 +15,7 @@
                                                                                                   */
 package fury
 
-import language.existentials
-import escritoire._
 import annotation.tailrec
-
-import scala.collection.mutable
-import scala.concurrent._, ExecutionContext.Implicits.global
 
 object Graph {
   private final val North = 8

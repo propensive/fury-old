@@ -15,8 +15,6 @@
                                                                                                   */
 package fury
 
-import escritoire._
-
 case class FileNotFound(path: Path) extends Exception
 case class FileWriteError(path: Path) extends Exception
 case class ConfigFormatError() extends Exception

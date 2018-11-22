@@ -17,21 +17,18 @@ package fury
 
 import scala.collection.generic.CanBuildFrom
 import java.io.IOException
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import java.nio.file.{Path => NioPath, Paths, Files}
+import java.nio.file.Files
 import magnolia._
 import kaleidoscope._
 import mitigation._
 
 import scala.annotation.tailrec
 import scala.annotation.switch
-import scala.collection.immutable.{SortedSet, TreeSet}
-import scala.collection.mutable.HashMap
+import scala.collection.immutable.SortedSet
 
 import language.experimental.macros, language.higherKinds
-import java.io.FileNotFoundException
 
 case class FileNotFound(path: Path) extends Exception
 case class FileWriteError(path: Path) extends Exception

@@ -1,6 +1,5 @@
 package fury
 
-import scala.reflect.ClassTag
 import scala.collection.immutable.Stream
 
 /** a streaming multiplexer optimized for concurrent writes */

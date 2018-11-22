@@ -15,8 +15,6 @@
                                                                                                   */
 package fury
 
-import escritoire._
-
 import scala.io._
 
 object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }

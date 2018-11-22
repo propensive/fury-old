@@ -16,9 +16,7 @@
 package fury
 
 import mitigation._
-import java.io.IOException
 import guillotine._
-import eucalyptus._
 import java.net._
 
 object Bloop {

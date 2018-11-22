@@ -16,7 +16,6 @@
 package fury
 
 import magnolia._
-import escritoire._
 import language.experimental.macros
 
 object Diff extends Diff_1 {

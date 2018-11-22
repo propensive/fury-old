@@ -17,21 +17,13 @@ package fury
 
 import mitigation._
 import guillotine._
-import escritoire._
-import eucalyptus._
 import gastronomy._
-import magnolia._
 import kaleidoscope._
 import exoskeleton.{InvalidArgValue, MissingArg}
 
 import scala.collection.mutable.HashMap
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.concurrent._, ExecutionContext.Implicits.global
-
-import scala.language.experimental.macros
-import scala.language.higherKinds
-
-import java.security.MessageDigest
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
