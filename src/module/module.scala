@@ -16,7 +16,6 @@
 package fury
 
 import mitigation._
-import totalitarian._
 import guillotine._
 import Args._
 
@@ -181,7 +180,6 @@ object DependencyCli {
       optProject: Option[Project], val optModule: Option[Module]) extends ModuleCli.Context(cli, layout, config, workspace, optSchemaId, optProject)
   
   def context(cli: Cli[CliParam[_]]) = {
-    import cli._
     for {
       ctx         <- ModuleCli.context(cli)
       cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
@@ -251,7 +249,6 @@ object BinaryCli {
   case class BinariesCtx(moduleCtx: ModuleCli.Context, optModule: Option[Module])
 
   def context(cli: Cli[CliParam[_]]) = {
-    import cli._
     for {
       ctx         <- ModuleCli.context(cli)
       cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))

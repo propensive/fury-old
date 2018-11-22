@@ -16,7 +16,6 @@
 package fury
 
 import mitigation._
-import escritoire._
 
 object Resolver {
   implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id

@@ -18,7 +18,6 @@ package fury
 import Args._
 
 import mitigation._
-import totalitarian._
 import guillotine._
 
 case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, workspace: Workspace)

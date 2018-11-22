@@ -16,8 +16,6 @@
 package fury
 
 import mitigation._
-import guillotine._
-import exoskeleton._
 
 object FuryMenu {
 

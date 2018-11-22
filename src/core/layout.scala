@@ -15,9 +15,6 @@
                                                                                                   */
 package fury
 
-import mitigation._
-import eucalyptus._
-
 case class Layout(home: Path, pwd: Path) {
   lazy val furyDir: Path = pwd / ".fury"
   lazy val bloopDir: Path = pwd / ".bloop"

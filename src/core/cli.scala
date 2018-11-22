@@ -17,19 +17,10 @@ package fury
 
 import exoskeleton._
 import guillotine._
-import optometry._
-import escritoire._
 import mitigation._
-import kaleidoscope._
-
-import java.util.NoSuchElementException
 
 import scala.concurrent._
-import scala.collection.immutable.SortedSet
-import scala.collection.mutable.{HashMap, Queue}
 import java.util.concurrent.Executors
-
-import scala.annotation.tailrec
 
 case class EarlyCompletions() extends Exception
 

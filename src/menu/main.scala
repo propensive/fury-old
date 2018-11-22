@@ -17,21 +17,10 @@ package fury
 
 import exoskeleton._
 import guillotine._
-import impromptu._
-import optometry._
-import escritoire._
-import eucalyptus._
-import mitigation._
-import kaleidoscope._
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 
 import com.martiansoftware.nailgun.NGContext
-
-import java.util.NoSuchElementException
-
-import Args._
 
 object Main {
 

@@ -16,7 +16,6 @@
 package fury
 
 import mitigation._
-import totalitarian._
 import guillotine._
 
 import scala.collection.immutable.SortedSet

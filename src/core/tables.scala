@@ -17,7 +17,6 @@ package fury
 
 import escritoire._
 import kaleidoscope._
-import mitigation._
 
 import scala.collection.immutable.SortedSet
 
