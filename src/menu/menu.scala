@@ -93,7 +93,7 @@ object FuryMenu {
         Action('select, msg"select the current schema", SchemaCli.select),
         Action('update, msg"update a schema", SchemaCli.update),
       ),
-      Menu('repo, msg"manage source repositories for the schema", SchemaCli.context, 'list)(
+      Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list)(
         Action('add, msg"add a source repository to the schema", RepoCli.add),
         Action('delete, msg"delete a source repository from the schema", RepoCli.delete),
         Action('fork, msg"fork a managed repository locally", RepoCli.fork),
