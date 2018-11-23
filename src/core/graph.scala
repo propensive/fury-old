@@ -31,7 +31,8 @@ object Graph {
   case object Skipped extends CompileState
 
   @tailrec
-  def live(cli: Cli[_])
+  def live(cli: Cli[_],
+           changed: Boolean = false)
           (io: cli.Io,
            graph: Map[ModuleRef, Set[ModuleRef]],
            stream: Stream[CompileEvent],
@@ -40,13 +41,14 @@ object Graph {
           : cli.Io =
     stream match {
       case Tick #:: tail =>
-        live(cli)(io.println(draw(graph, false, state).mkString("\n")).println(Ansi.up(graph.size + 1)()), graph, tail, state)
+        val next: String = draw(graph, false, state).mkString("\n")
+        live(cli, false)(if(!changed) io else io.println(next).println(Ansi.up(graph.size + 1)()), graph, tail, state)
       case StartCompile(ref) #:: tail =>
-        live(cli)(io, graph, tail, state.updated(ref, Compiling))
+        live(cli, true)(io, graph, tail, state.updated(ref, Compiling))
       case StopCompile(ref, out, success) #:: tail =>
-        live(cli)(io, graph, tail, state.updated(ref, if(success) Successful else Failed(out)))
+        live(cli, true)(io, graph, tail, state.updated(ref, if(success) Successful else Failed(out)))
       case SkipCompile(ref) #:: tail =>
-        live(cli)(io, graph, tail, state.updated(ref, Skipped))
+        live(cli, true)(io, graph, tail, state.updated(ref, Skipped))
       case Stream.Empty =>
         val output = state.collect { case (ref, Failed(out)) =>
           UserMsg { theme => (msg"Output from $ref:".string(theme)+"\n\n"+out) }
