@@ -217,10 +217,10 @@ object BuildCli {
       allDeps        <- artifact.transitiveDependencies
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](allDeps.map(_.ref).to[List]))
       future         <- ~artifact.compile(multiplexer).apply(module.ref(project))
-      io             <- ~Graph.live(cli)(io, graph, multiplexer.stream(100, Some(Tick)), Map())(config.theme)
+      io             <- ~Graph.live(cli)(io, graph, multiplexer.stream(50, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
       io             <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
-      io             <- ~io.effect(Thread.sleep(100))
+      io             <- ~io.effect(Thread.sleep(150))
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
  
