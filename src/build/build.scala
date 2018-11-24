@@ -186,7 +186,7 @@ object BuildCli {
       artifact     <- universe.artifact(module.ref(project))
       io           <- Bloop.server(cli)(io)
       recursive    <- ~io(RecursiveArg).opt.isDefined
-      io           <- ~io.effect(artifact.clean(universe, recursive))
+      io           <- ~io.effect(universe.clean(artifact, recursive))
     } yield io.await()
   }
   
@@ -210,10 +210,10 @@ object BuildCli {
       module         <- optModule.ascribe(UnspecifiedModule())
       universe       <- schema.universe
       artifact       <- universe.artifact(module.ref(project))
-      artifacts      <- artifact.transitiveDependencies(universe)(layout, cli.shell)
+      artifacts      <- universe.transitiveDependencies(artifact)(cli.shell)
       io             <- Bloop.server(cli)(io)
       files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
-      graph          <- artifact.dependencyGraph(universe)(layout, cli.shell)
+      graph          <- universe.dependencyGraph(artifact)(cli.shell)
       debugStr       <- ~io(DebugArg).opt
       io             <- ~io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module))
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](artifacts.map(_.ref).to[List]))
@@ -288,7 +288,7 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
-      classpath    <- artifact.classpath(universe)
+      classpath    <- universe.classpath(artifact)
       io           <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
@@ -312,7 +312,7 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
-      graph        <- artifact.dependencyGraph(universe)(layout, cli.shell)
+      graph        <- universe.dependencyGraph(artifact)(cli.shell)
       io           <- ~Graph.draw(graph, true, Map())(config.theme).foldLeft(io)(_.println(_))
     } yield io.await()
   }

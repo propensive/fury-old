@@ -146,6 +146,50 @@ case class Universe(values: Map[ProjectId, (Schema, Project)] = Map()) extends A
   } yield Artifact(schemaProject._1, schemaProject._2, module, moduleRef.intransitive)
 
   def ++(that: Universe): Universe = Universe(values ++ that.values)
+  
+  def classpath(artifact: Artifact)
+               (implicit layout: Layout, shell: Shell)
+               : Result[Set[Path], ~ | ShellFailure | ItemNotFound] = for {
+    deps <- transitiveDependencies(artifact)
+    dirs <- ~deps.map(layout.classesDir(_, false))
+    bins <- deps.flatMap(_.module.binaries).map(_.paths).sequence.map(_.flatten)
+  } yield (dirs ++ bins)
+
+  def dependencies(current: Artifact)(implicit shell: Shell): Result[List[Artifact], ~ | ItemNotFound] =
+    current.module.after.to[List].map(artifact).sequence
+
+  def transitiveDependencies(current: Artifact)(implicit shell: Shell): Result[Set[Artifact], ~ | ItemNotFound] = for {
+    after      <- dependencies(current)
+    dep        <- after.map(transitiveDependencies).sequence
+    transitive  = dep.flatten.filterNot(_.intransitive).to[Set]
+  } yield transitive + current
+  
+  def compiler(current: Artifact): Result[Option[Artifact], ~ | ItemNotFound | ProjectConflict] =
+    current.module.compiler match {
+      case ModuleRef.JavaRef => Answer(None)
+      case compiler => artifact(compiler).map(Some(_))
+    }
+  
+  def clean(current: Artifact, recursive: Boolean)(implicit layout: Layout, shell: Shell): Unit = {
+    if(recursive) transitiveDependencies(current).foreach(_.foreach(clean(_, true)))
+    layout.classesDir.delete().unit
+  }
+
+  def allParams(current: Artifact)(implicit layout: Layout, shell: Shell): Result[List[Parameter], ~ | ItemNotFound] = {
+    val pluginParams = for {
+      dependencies <- dependencies(current)
+      plugins <- ~transitiveDependencies(current).opt.to[List].flatten.filter(_.module.kind == Plugin)
+    } yield plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin, false)}") }
+
+    pluginParams.map(_ ++ current.module.params)
+  }
+
+  def dependencyGraph(current: Artifact)(implicit shell: Shell)
+                     : Result[Map[ModuleRef, Set[ModuleRef]], ~ | ItemNotFound] =
+    transitiveDependencies(current).map { after =>
+      after.map { art => (art.ref, art.module.after) }.toMap
+    }
+
 }
 
 case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
@@ -545,7 +589,7 @@ case class Artifact(schema: Schema, project: Project, module: Module, intransiti
               (implicit shell: Shell, layout: Layout)
               : Result[cli.Io, ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
     dest         <- dest.directory
-    deps         <- transitiveDependencies(universe)
+    deps         <- universe.transitiveDependencies(this)
     dirs         <- ~deps.map(layout.classesDir(_, false))
     files        <- ~dirs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
     bins         <- ~deps.flatMap(_.module.binaries)
@@ -559,20 +603,13 @@ case class Artifact(schema: Schema, project: Project, module: Module, intransiti
     io           <- ~io.effect(binPaths.flatten.map { p => p.copyTo(dest / p.name) })
   } yield io
 
-  def classpath(universe: Universe)(implicit shell: Shell, layout: Layout)
-               : Result[Set[Path], ~ | ShellFailure | ItemNotFound] = for {
-    deps <- transitiveDependencies(universe)
-    dirs <- ~deps.map(layout.classesDir(_, false))
-    bins <- deps.flatMap(_.module.binaries).map(_.paths).sequence.map(_.flatten)
-  } yield (dirs ++ bins)
-
   def compile(universe: Universe,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[ModuleRef, Future[CompileResult]] = Map())
              (implicit layout: Layout, shell: Shell)
              : Map[ModuleRef, Future[CompileResult]] = {
 
-    val deps = dependencies(universe).opt.get
+    val deps = universe.dependencies(this).opt.get
     
     val newFutures = deps.foldLeft(futures) { (futures, dep) =>
       if(futures.contains(dep.ref)) futures
@@ -612,27 +649,6 @@ case class Artifact(schema: Schema, project: Project, module: Module, intransiti
     }
   }
 
-  def clean(universe: Universe, recursive: Boolean)(implicit layout: Layout, shell: Shell): Unit = {
-    if(recursive) dependencies(universe).foreach(_.foreach(_.clean(universe, true)))
-    layout.classesDir.delete().unit
-  }
-
-  def allParams(universe: Universe)(implicit layout: Layout, shell: Shell): Result[List[Parameter], ~ | ItemNotFound] = {
-    
-    val pluginParams = for {
-      dependencies <- dependencies(universe)
-      plugins <- ~transitiveDependencies(universe).opt.to[List].flatten.filter(_.module.kind == Plugin)
-    } yield plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin, false)}") }
-
-    pluginParams.map(_ ++ module.params)
-  }
-
-  def dependencyGraph(universe: Universe)(implicit layout: Layout, shell: Shell)
-                     : Result[Map[ModuleRef, Set[ModuleRef]], ~ | ItemNotFound] =
-    transitiveDependencies(universe).map { after =>
-      after.map { art => (art.ref, art.module.after) }.toMap
-    }
-
   // FIXME: Handle errors
   def writePlugin()(implicit layout: Layout): Unit = if(module.kind == Plugin) {
     val file = layout.classesDir(this, true) / "scalac-plugin.xml"
@@ -642,22 +658,6 @@ case class Artifact(schema: Schema, project: Project, module: Module, intransiti
     }
   }
 
-  def compiler(universe: Universe)(implicit layout: Layout, shell: Shell): Result[Option[Artifact], ~ | ItemNotFound | ProjectConflict] =
-    module.compiler match {
-      case ModuleRef.JavaRef => Answer(None)
-      case compiler => universe.artifact(compiler).map(Some(_))
-    }
-
-  def dependencies(universe: Universe)(implicit layout: Layout, shell: Shell)
-                  : Result[List[Artifact], ~ | ItemNotFound] =
-    module.after.to[List].map(universe.artifact).sequence
-
-  def transitiveDependencies(universe: Universe)(implicit layout: Layout, shell: Shell)
-                            : Result[Set[Artifact], ~ | ItemNotFound] = for {
-        after <- dependencies(universe)
-        dep <- after.map(_.transitiveDependencies(universe)).sequence
-        transitive = dep.flatten.filterNot(_.intransitive).to[Set]
-      } yield transitive + this
 }
 
 object Project {

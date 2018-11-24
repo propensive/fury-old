@@ -72,12 +72,12 @@ object Bloop {
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
                             UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
     for {
-      deps                 <- artifact.dependencies(universe)
+      deps                 <- universe.dependencies(artifact)
       _                     = artifact.writePlugin()
-      optCompiler          <- artifact.compiler(universe)
-      classpath            <- artifact.classpath(universe)
-      optCompilerClasspath <- optCompiler.map(_.classpath(universe)).getOrElse(Answer(Nil))
-      params               <- artifact.allParams(universe)
+      optCompiler          <- universe.compiler(artifact)
+      classpath            <- universe.classpath(artifact)
+      optCompilerClasspath <- optCompiler.map(universe.classpath).getOrElse(Answer(Nil))
+      params               <- universe.allParams(artifact)
       sourceDirs           <- artifact.module.sources.to[List].map(_.path(artifact.schema)).distinct.sequence
     } yield json(
       name = artifact.encoded,
