@@ -30,14 +30,14 @@ case class Action[T](command: Symbol, description: UserMsg, action: T => Result[
                     FileNotFound | MissingArg | UnknownCommand | UnknownCompiler | ItemNotFound |
                     UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError |
                     ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized |
-                    InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions], show: Boolean = true) extends MenuStructure[T]
+                    InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict], show: Boolean = true) extends MenuStructure[T]
 
 case class Menu[T, S](command: Symbol, description: UserMsg, action: T => Result[S, ~ |
                          FileWriteError | FileNotFound | MissingArg |
                          UnknownCommand | UnknownCompiler | ItemNotFound | UnspecifiedProject |
                          UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure |
                          ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized |
-                         InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions], default: Symbol, show: Boolean = true)
+                         InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict], default: Symbol, show: Boolean = true)
                      (val items: MenuStructure[S]*)
                      extends MenuStructure[T] {
 
@@ -46,7 +46,7 @@ case class Menu[T, S](command: Symbol, description: UserMsg, action: T => Result
                FileNotFound | UnknownCompiler | ItemNotFound | UnspecifiedProject |
                UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure |
                ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue |
-               InitFailure | SchemaDifferences | EarlyCompletions] =
+               InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict] =
     cli.args.prefix.headOption match {
       case None =>
         if(cli.completion) cli.completeCommand(this)

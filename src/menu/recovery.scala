@@ -27,10 +27,13 @@ object Recovery {
                  ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue |
                  ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists |
                  AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences |
-                 EarlyCompletions])
+                 EarlyCompletions | ProjectConflict])
              : ExitStatus = result.recover(
     on[EarlyCompletions].map { case EarlyCompletions() =>
       Done
+    },
+    on[ProjectConflict].map { case ProjectConflict(ps) =>
+      cli.abort(msg"""Your dependency tree contains references to two or more conflicting projects: ${ps.mkString(", ")}""")
     },
     on[SchemaDifferences].map { e =>
       cli.abort(msg"""You are attempting to make this change to all schemas, however the value you are

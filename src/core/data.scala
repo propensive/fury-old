@@ -134,14 +134,23 @@ object BloopSpec {
 
 case class BloopSpec(org: String, name: String, version: String)
 
-case class Projects(values: Map[ProjectId, Project] = Map()) {
+case class Projects(values: Map[ProjectId, (Schema, Project)] = Map()) extends AnyVal {
   def ids: Set[ProjectId] = values.keySet
-  def apply(id: ProjectId): Project = values(id)
+  
+  def apply(id: ProjectId): Result[(Schema, Project), ~ | ItemNotFound] =
+    values.get(id).ascribe(ItemNotFound(id))
+  
+  def artifact(moduleRef: ModuleRef): Result[Artifact, ~ | ItemNotFound] = for {
+    schemaProject <- apply(moduleRef.projectId)
+    module        <- schemaProject._2(moduleRef.moduleId)
+  } yield Artifact(schemaProject._1, schemaProject._2, module, moduleRef.intransitive)
+
   def ++(that: Projects): Projects = Projects(values ++ that.values)
 }
 
 case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
-  def projects: Result[Projects, ~ | ProjectConflict] = {
+
+  lazy val projects: Result[Projects, ~ | ProjectConflict] = {
     val localProjectIds = schema.projects.map(_.id)
     val empty: Result[Projects, ~ | ProjectConflict] = Answer(Projects())
     
@@ -154,7 +163,7 @@ case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
           
           if(conflictIds.isEmpty) Answer(projects ++ nextProjects)
           else Result.abort(ProjectConflict(conflictIds))
-        }.map(_ ++ Projects(schema.projects.map { p => (p.id, p) }.toMap))
+        }.map(_ ++ Projects(schema.projects.map { p => (p.id, (schema, p)) }.toMap))
       }
     }
   }
@@ -226,33 +235,12 @@ case class Schema(id: SchemaId,
     } yield repos + SourceRepo(RepoId.Local, Repo(remote), RefSpec(commit), Some(layout.pwd))
   }
 
-  def artifact(workspace: Workspace, moduleRef: ModuleRef)
-              (implicit layout: Layout, shell: Shell)
-              : Result[Artifact, ~ | ItemNotFound] =
-    for {
-      project <- projects.findBy(moduleRef.projectId)
-      module <- project.modules.findBy(moduleRef.moduleId)
-    } yield Artifact(workspace, this, project, module, moduleRef.intransitive)
-
   def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
     case None => Answer(projectId)
     case Some(m) => Result.abort(ProjectAlreadyExists(m.id))
   }
   
   def duplicate(id: String) = copy(id = SchemaId(id))
-
-  def resolve(projectId: ProjectId)
-             (implicit layout: Layout, shell: Shell)
-             : Option[ResolvedProject] =
-    projects.findBy(projectId).opt.map(ResolvedProject(this, _)).orElse {
-      (for {
-        schemas <- importedSchemas
-      } yield for {
-        schema <- schemas
-        _ <- schema.repos.map(_.repo.fetch())
-        project <- schema.resolve(projectId)
-      } yield project).opt.flatMap(_.headOption)
-    }
 }
 
 object GitTag {
@@ -324,17 +312,6 @@ case class Workspace(schemas: SortedSet[Schema],
       if(ref.projectId == project.id) List(str"$ref", str"${ref.moduleId}")
       else List(str"$ref")
     }
-
-  /*def sources(schemaId: SchemaId, moduleRef: ModuleRef)
-             (implicit layout: Layout, shell: Shell)
-             : Result[List[Path], ~ | ItemNotFound | FileWriteError | InvalidValue] =
-    for {
-      schema   <- workspace(schemaId)
-      resolved <- schema.resolve(moduleRef.projectId).ascribe(
-                      ItemNotFound(moduleRef.projectId))
-      artifact <- resolved.artifact(this, moduleRef.moduleId)
-      paths    <- artifact.module.sources.to[List].map(_.dirPath(schema)).sequence
-    } yield paths*/
 }
 
 object Workspace {
@@ -543,13 +520,6 @@ object SchemaRef {
 
 case class SchemaRef(repo: RepoId, schema: SchemaId)
 
-case class ResolvedProject(schema: Schema, project: Project) {
-  def artifact(workspace: Workspace, moduleId: ModuleId): Result[Artifact, ~ | ItemNotFound] =
-    project.modules.findBy(moduleId).map { module =>
-      Artifact(workspace, schema, project, module, false)
-    }
-}
-
 sealed trait CompileEvent
 case object Tick extends CompileEvent
 case class StartCompile(ref: ModuleRef) extends CompileEvent
@@ -558,22 +528,22 @@ case class SkipCompile(ref: ModuleRef) extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
 
-case class Artifact(workspace: Workspace,
-                    schema: Schema,
-                    project: Project,
-                    module: Module,
-                    intransitive: Boolean) {
+case class Artifact(schema: Schema, project: Project, module: Module, intransitive: Boolean) {
 
   lazy val ref: ModuleRef = ModuleRef(project.id, module.id)
-  
-  def encoded: String = str"${schema.id}-${project.id}-${module.id}"
+
+  // FIXME: Calculate hash correctly
+  def hash: String = (module.kind, module.main, module.manifest, module.compiler)//, module.after)//, module.params, module.sources, module.binaries, module.resources, module.bloopSpec)
+  .digest[Sha256].encoded[Base64Url]
+
+  def encoded: String = hash
 
   def saveJars(cli: Cli[_])
-              (io: cli.Io, dest: Path)
+              (io: cli.Io, projects: Projects, dest: Path)
               (implicit shell: Shell, layout: Layout)
               : Result[cli.Io, ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
     dest         <- dest.directory
-    deps         <- transitiveDependencies
+    deps         <- transitiveDependencies(projects)
     dirs         <- ~deps.map(layout.classesDir(_, false))
     files        <- ~dirs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
     bins         <- ~deps.flatMap(_.module.binaries)
@@ -587,24 +557,24 @@ case class Artifact(workspace: Workspace,
     io           <- ~io.effect(binPaths.flatten.map { p => p.copyTo(dest / p.name) })
   } yield io
 
-  def classpath(implicit shell: Shell, layout: Layout)
+  def classpath(projects: Projects)(implicit shell: Shell, layout: Layout)
                : Result[Set[Path], ~ | ShellFailure | ItemNotFound] = for {
-    deps <- transitiveDependencies
+    deps <- transitiveDependencies(projects)
     dirs <- ~deps.map(layout.classesDir(_, false))
     bins <- deps.flatMap(_.module.binaries).map(_.paths).sequence.map(_.flatten)
   } yield (dirs ++ bins)
 
-
-  def compile(multiplexer: Multiplexer[ModuleRef, CompileEvent],
+  def compile(projects: Projects,
+              multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[ModuleRef, Future[CompileResult]] = Map())
              (implicit layout: Layout, shell: Shell)
              : Map[ModuleRef, Future[CompileResult]] = {
 
-    val deps = dependencies.opt.get
+    val deps = dependencies(projects).opt.get
     
     val newFutures = deps.foldLeft(futures) { (futures, dep) =>
       if(futures.contains(dep.ref)) futures
-      else dep.compile(multiplexer, futures)
+      else dep.compile(projects, multiplexer, futures)
     }
 
     val dependencyFutures = Future.sequence(deps.map { d => newFutures(d.ref) })
@@ -640,24 +610,24 @@ case class Artifact(workspace: Workspace,
     }
   }
 
-  def clean(recursive: Boolean)(implicit layout: Layout, shell: Shell): Unit = {
-    if(recursive) dependencies.foreach(_.foreach(_.clean(true)))
+  def clean(projects: Projects, recursive: Boolean)(implicit layout: Layout, shell: Shell): Unit = {
+    if(recursive) dependencies(projects).foreach(_.foreach(_.clean(projects, true)))
     layout.classesDir.delete().unit
   }
 
-  def allParams(implicit layout: Layout, shell: Shell): Result[List[Parameter], ~ | ItemNotFound] = {
+  def allParams(projects: Projects)(implicit layout: Layout, shell: Shell): Result[List[Parameter], ~ | ItemNotFound] = {
     
     val pluginParams = for {
-      dependencies <- dependencies
-      plugins <- ~transitiveDependencies.opt.to[List].flatten.filter(_.module.kind == Plugin)
+      dependencies <- dependencies(projects)
+      plugins <- ~transitiveDependencies(projects).opt.to[List].flatten.filter(_.module.kind == Plugin)
     } yield plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin, false)}") }
 
     pluginParams.map(_ ++ module.params)
   }
 
-  def dependencyGraph(implicit layout: Layout, shell: Shell)
+  def dependencyGraph(projects: Projects)(implicit layout: Layout, shell: Shell)
                      : Result[Map[ModuleRef, Set[ModuleRef]], ~ | ItemNotFound] =
-    transitiveDependencies.map { after =>
+    transitiveDependencies(projects).map { after =>
       after.map { art => (art.ref, art.module.after) }.toMap
     }
 
@@ -670,39 +640,20 @@ case class Artifact(workspace: Workspace,
     }
   }
 
-  def classpath()
-               (implicit layout: Layout, shell: Shell)
-               : Result[List[Path], ~ | ItemNotFound | ShellFailure] = for {
-    dependencyArtifacts <- dependencies
-    binaryPaths <- module.binaries.map(_.paths).sequence
-    dependencyClasspath <- dependencyArtifacts.map(_.classpath()).sequence
-    // FIXME: Clean this up
-    paths     <- (for {
-                   artifact <- dependencyArtifacts
-                   binary   <- artifact.module.binaries
-                 } yield binary.paths.map(dependencyArtifacts.map(layout.classesDir(_, true)) ::: _)).sequence
-  } yield paths.flatten ++ binaryPaths.flatten ++ dependencyArtifacts.map(layout.classesDir(_, true)) ++ dependencyClasspath.flatten
-
-  def compiler(implicit layout: Layout, shell: Shell): Result[Option[Artifact], ~ | ItemNotFound] =
+  def compiler(projects: Projects)(implicit layout: Layout, shell: Shell): Result[Option[Artifact], ~ | ItemNotFound | ProjectConflict] =
     module.compiler match {
       case ModuleRef.JavaRef => Answer(None)
-      case compiler => for {
-        resolved <- schema.resolve(compiler.projectId).ascribe(ItemNotFound(compiler.projectId))
-        artifact <- resolved.artifact(workspace, compiler.moduleId)
-      } yield Some(artifact)
+      case compiler => projects.artifact(compiler).map(Some(_))
     }
 
-  def dependencies(implicit layout: Layout, shell: Shell)
+  def dependencies(projects: Projects)(implicit layout: Layout, shell: Shell)
                   : Result[List[Artifact], ~ | ItemNotFound] =
-    module.after.to[List].map { d =>
-      // FIXME: Cleanup
-      schema.resolve(d.projectId).ascribe(ItemNotFound(d.projectId)).flatMap(_.artifact(workspace, d.moduleId))
-    }.sequence
+    module.after.to[List].map(projects.artifact).sequence
 
-  def transitiveDependencies(implicit layout: Layout, shell: Shell)
+  def transitiveDependencies(projects: Projects)(implicit layout: Layout, shell: Shell)
                             : Result[Set[Artifact], ~ | ItemNotFound] = for {
-        after <- dependencies
-        dep <- after.map(_.transitiveDependencies).sequence
+        after <- dependencies(projects)
+        dep <- after.map(_.transitiveDependencies(projects)).sequence
         transitive = dep.flatten.filterNot(_.intransitive).to[Set]
       } yield transitive + this
 }
@@ -738,7 +689,7 @@ case class Project(id: ProjectId,
         Answer(moduleId)
     }
 
-  def apply(module: ModuleId): Option[Module] = modules.find(_.id == module)
+  def apply(module: ModuleId): Result[Module, ~ | ItemNotFound] = modules.findBy(module)
 }
 
 object License {

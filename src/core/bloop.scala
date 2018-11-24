@@ -56,28 +56,28 @@ object Bloop {
   }
 
 
-  def generateFiles(artifacts: Set[Artifact])
+  def generateFiles(artifacts: Set[Artifact], projects: Projects)
                    (implicit layout: Layout, env: Environment, shell: Shell)
                    : Result[Set[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
-                       UnknownCompiler | ItemNotFound | InvalidValue] = {
+                       UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] = {
     artifacts.map { artifact => for {
       path       <- layout.bloopConfig(artifact).mkParents()
-      jsonString <- makeConfig(artifact)
+      jsonString <- makeConfig(artifact, projects)
       _          <- path.writeSync(jsonString)
     } yield List(path) }.sequence.map(_.flatten)
   }
 
-  private def makeConfig(artifact: Artifact)
+  private def makeConfig(artifact: Artifact, projects: Projects)
                         (implicit layout: Layout, shell: Shell)
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
-                            UnknownCompiler | ItemNotFound | InvalidValue] =
+                            UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
     for {
-      deps                 <- artifact.dependencies
+      deps                 <- artifact.dependencies(projects)
       _                     = artifact.writePlugin()
-      optCompiler          <- artifact.compiler
-      classpath            <- artifact.classpath()
-      optCompilerClasspath <- optCompiler.map(_.classpath()).getOrElse(Answer(Nil))
-      params               <- artifact.allParams
+      optCompiler          <- artifact.compiler(projects)
+      classpath            <- artifact.classpath(projects)
+      optCompilerClasspath <- optCompiler.map(_.classpath(projects)).getOrElse(Answer(Nil))
+      params               <- artifact.allParams(projects)
       sourceDirs           <- artifact.module.sources.to[List].map(_.path(artifact.schema)).distinct.sequence
     } yield json(
       name = artifact.encoded,
@@ -88,10 +88,10 @@ object Bloop {
       fork = false,
       classesDir = str"${layout.classesDir(artifact, true).value}",
       outDir = str"${layout.outputDir(artifact, true).value}",
-      classpath = classpath.map(_.value),
+      classpath = classpath.map(_.value).to[List],
       baseDirectory = layout.pwd.value,
       javaOptions = Nil,
-      allScalaJars = optCompilerClasspath.map(_.value),
+      allScalaJars = optCompilerClasspath.map(_.value).to[List],
       sourceDirectories = sourceDirs.map(_.value),
       javacOptions = Nil,
       main = artifact.module.main
