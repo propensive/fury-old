@@ -182,12 +182,11 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      schemaTree   <- schema.schemaTree
-      projects     <- schemaTree.projects
-      artifact     <- projects.artifact(module.ref(project))
+      universe     <- schema.universe
+      artifact     <- universe.artifact(module.ref(project))
       io           <- Bloop.server(cli)(io)
       recursive    <- ~io(RecursiveArg).opt.isDefined
-      io           <- ~io.effect(artifact.clean(projects, recursive))
+      io           <- ~io.effect(artifact.clean(universe, recursive))
     } yield io.await()
   }
   
@@ -209,19 +208,16 @@ object BuildCli {
       optModuleId    <- ~io(ModuleArg).opt.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module         <- optModule.ascribe(UnspecifiedModule())
-      schemaTree     <- schema.schemaTree
-      projects       <- schemaTree.projects
-      artifact       <- projects.artifact(module.ref(project))
-      artifacts      <- artifact.transitiveDependencies(projects)(layout, cli.shell)
+      universe       <- schema.universe
+      artifact       <- universe.artifact(module.ref(project))
+      artifacts      <- artifact.transitiveDependencies(universe)(layout, cli.shell)
       io             <- Bloop.server(cli)(io)
-      schemaTree     <- schema.schemaTree
-      projects       <- schemaTree.projects
-      files          <- ~Bloop.generateFiles(artifacts, projects)(layout, cli.env, cli.shell)
-      graph          <- artifact.dependencyGraph(projects)(layout, cli.shell)
+      files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
+      graph          <- artifact.dependencyGraph(universe)(layout, cli.shell)
       debugStr       <- ~io(DebugArg).opt
       io             <- ~io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module))
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](artifacts.map(_.ref).to[List]))
-      future         <- ~artifact.compile(projects, multiplexer).apply(module.ref(project))
+      future         <- ~artifact.compile(universe, multiplexer).apply(module.ref(project))
       io             <- ~Graph.live(cli)(io, graph, multiplexer.stream(50, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
       io             <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
@@ -267,10 +263,9 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      schemaTree   <- schema.schemaTree
-      projects     <- schemaTree.projects
-      artifact     <- projects.artifact(module.ref(project))
-      io           <- artifact.saveJars(cli)(io, projects, dir in layout.pwd)
+      universe     <- schema.universe
+      artifact     <- universe.artifact(module.ref(project))
+      io           <- artifact.saveJars(cli)(io, universe, dir in layout.pwd)
     } yield io.await()
   }
   
@@ -291,10 +286,9 @@ object BuildCli {
       io           <- cli.io()
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      schemaTree   <- schema.schemaTree
-      projects     <- schemaTree.projects
-      artifact     <- projects.artifact(module.ref(project))
-      classpath    <- artifact.classpath(projects)
+      universe     <- schema.universe
+      artifact     <- universe.artifact(module.ref(project))
+      classpath    <- artifact.classpath(universe)
       io           <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
@@ -316,10 +310,9 @@ object BuildCli {
                       }
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      schemaTree   <- schema.schemaTree
-      projects     <- schemaTree.projects
-      artifact     <- projects.artifact(module.ref(project))
-      graph        <- artifact.dependencyGraph(projects)(layout, cli.shell)
+      universe     <- schema.universe
+      artifact     <- universe.artifact(module.ref(project))
+      graph        <- artifact.dependencyGraph(universe)(layout, cli.shell)
       io           <- ~Graph.draw(graph, true, Map())(config.theme).foldLeft(io)(_.println(_))
     } yield io.await()
   }

@@ -56,28 +56,28 @@ object Bloop {
   }
 
 
-  def generateFiles(artifacts: Set[Artifact], projects: Projects)
+  def generateFiles(artifacts: Set[Artifact], universe: Universe)
                    (implicit layout: Layout, env: Environment, shell: Shell)
                    : Result[Set[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
                        UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] = {
     artifacts.map { artifact => for {
       path       <- layout.bloopConfig(artifact).mkParents()
-      jsonString <- makeConfig(artifact, projects)
+      jsonString <- makeConfig(artifact, universe)
       _          <- path.writeSync(jsonString)
     } yield List(path) }.sequence.map(_.flatten)
   }
 
-  private def makeConfig(artifact: Artifact, projects: Projects)
+  private def makeConfig(artifact: Artifact, universe: Universe)
                         (implicit layout: Layout, shell: Shell)
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
                             UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
     for {
-      deps                 <- artifact.dependencies(projects)
+      deps                 <- artifact.dependencies(universe)
       _                     = artifact.writePlugin()
-      optCompiler          <- artifact.compiler(projects)
-      classpath            <- artifact.classpath(projects)
-      optCompilerClasspath <- optCompiler.map(_.classpath(projects)).getOrElse(Answer(Nil))
-      params               <- artifact.allParams(projects)
+      optCompiler          <- artifact.compiler(universe)
+      classpath            <- artifact.classpath(universe)
+      optCompilerClasspath <- optCompiler.map(_.classpath(universe)).getOrElse(Answer(Nil))
+      params               <- artifact.allParams(universe)
       sourceDirs           <- artifact.module.sources.to[List].map(_.path(artifact.schema)).distinct.sequence
     } yield json(
       name = artifact.encoded,
