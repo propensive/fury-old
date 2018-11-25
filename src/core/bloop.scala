@@ -17,6 +17,7 @@ package fury
 
 import mitigation._
 import guillotine._
+import gastronomy._
 import java.net._
 
 object Bloop {
@@ -56,7 +57,7 @@ object Bloop {
   }
 
 
-  def generateFiles(artifacts: Set[Artifact], universe: Universe)
+  def generateFiles(artifacts: Set[Artifact2], universe: Universe)
                    (implicit layout: Layout, env: Environment, shell: Shell)
                    : Result[Set[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
                        UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] = {
@@ -67,34 +68,33 @@ object Bloop {
     } yield List(path) }.sequence.map(_.flatten)
   }
 
-  private def makeConfig(artifact: Artifact, universe: Universe)
+  private def makeConfig(artifact: Artifact2, universe: Universe)
                         (implicit layout: Layout, shell: Shell)
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
                             UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
     for {
-      deps                 <- universe.dependencies(artifact)
+      deps                 <- universe.dependencies(artifact.ref)
       _                     = artifact.writePlugin()
-      optCompiler          <- universe.compiler(artifact)
-      classpath            <- universe.classpath(artifact)
-      optCompilerClasspath <- optCompiler.map(universe.classpath).getOrElse(Answer(Nil))
-      params               <- universe.allParams(artifact)
-      sourceDirs           <- artifact.module.sources.to[List].map(_.path(artifact.schema)).distinct.sequence
+      optCompiler           = artifact.compiler
+      classpath            <- universe.classpath(artifact.ref)
+      optCompilerClasspath <- optCompiler.map(_.ref).map(universe.classpath).getOrElse(Answer(Nil))
+      params               <- universe.allParams(artifact.ref)
     } yield json(
-      name = artifact.encoded,
-      scalacOptions = params.map(_.parameter),
+      name = artifact.hash.encoded[Base64Url],
+      scalacOptions = params,
       // FIXME: Don't hardcode this value
-      bloopSpec = optCompiler.map(_.module.bloopSpec.get).getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
-      dependencies = deps.map(_.encoded),
+      bloopSpec = optCompiler.map(_.bloopSpec.get).getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
+      dependencies = deps.map(_.hash.encoded[Base64Url]).to[List],
       fork = false,
       classesDir = str"${layout.classesDir(artifact, true).value}",
-      outDir = str"${layout.outputDir(artifact, true).value}",
+      outDir = str"${layout.outputDir(artifact.ref, true).value}",
       classpath = classpath.map(_.value).to[List],
       baseDirectory = layout.pwd.value,
       javaOptions = Nil,
       allScalaJars = optCompilerClasspath.map(_.value).to[List],
-      sourceDirectories = sourceDirs.map(_.value),
+      sourceDirectories = artifact.sources.map(_.value),
       javacOptions = Nil,
-      main = artifact.module.main
+      main = artifact.main
     )
         
   private def json(

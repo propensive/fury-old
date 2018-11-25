@@ -15,6 +15,8 @@
                                                                                                   */
 package fury
 
+import gastronomy._
+
 case class Layout(home: Path, pwd: Path) {
   lazy val furyDir: Path = pwd / ".fury"
   lazy val bloopDir: Path = pwd / ".bloop"
@@ -28,7 +30,7 @@ case class Layout(home: Path, pwd: Path) {
   lazy val userConfig: Path = home / ".fury.conf"
   lazy val logFile: Path = furyDir / "fury.log"
 
-  def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.encoded}.json"
+  def bloopConfig(artifact: Artifact2): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
  
   lazy val furyConfig: Path = pwd / "workspace.fury"
   lazy val signedConfig: Path = pwd / "workspace.fury.sig"
@@ -37,24 +39,23 @@ case class Layout(home: Path, pwd: Path) {
   
   def workspaceFile(workspaceId: String): Path = workspaceDir(workspaceId) / "workspace.fury"
 
-  def outputDir(artifact: Artifact, create: Boolean): Path = {
-    val path = classesDir / artifact.project.id.key / artifact.module.id.key / "output"
+  def outputDir(ref: ModuleRef, create: Boolean): Path = {
+    val path = classesDir / ref.projectId.key / ref.moduleId.key / "output"
     if(create) path.mkdir()
     path
   }
 
-  def runLogFile(artifact: Artifact, create: Boolean): Path = {
-    val path = runLogDir / artifact.project.id.key
-    if(create) path.mkdir()
-    path / s"${artifact.module.id.key}.log"
+  def runLogFile(artifact: Artifact2, create: Boolean): Path = {
+    if(create) runLogDir.mkdir()
+    runLogDir / s"${artifact.hash.encoded[Base64Url]}.log"
   }
 
-  def classesDir(artifact: Artifact, create: Boolean): Path = {
-    val path = classesDir / artifact.project.id.key / artifact.module.id.key / "classes"
+  def classesDir(artifact: Artifact2, create: Boolean): Path = {
+    val path = classesDir / artifact.hash.encoded[Base64Url]
     if(create) path.mkdir()
     path
   }
 
-  def manifestFile(artifact: Artifact): Path =
-    outputDir(artifact, true) / s"${artifact.encoded}.mf"
+  def manifestFile(ref: ModuleRef): Path =
+    outputDir(ref, true) / s"${ref.projectId.key}-${ref.moduleId.key}.mf"
 }

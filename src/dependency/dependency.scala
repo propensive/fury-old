@@ -76,8 +76,8 @@ object DependencyCli {
   def add(ctx: Context) = {
     import ctx._
     for {
-      cli           <- cli.hint(DependencyArg,
-                           optProject.to[List].flatMap(workspace.moduleRefStrings(_)))
+      optSchema     <- ~workspace.mainSchema.opt
+      cli           <- cli.hint(DependencyArg, optProject.map(_.moduleRefs).orElse(optSchema.map(_.moduleRefs)).getOrElse(List()))
       cli           <- cli.hint(IntransitiveArg)
       io            <- cli.io()
       project       <- optProject.ascribe(UnspecifiedProject())

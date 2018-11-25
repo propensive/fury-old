@@ -213,12 +213,12 @@ object BuildCli {
       artifacts      <- universe.transitiveDependencies(artifact)(cli.shell)
       io             <- Bloop.server(cli)(io)
       files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
-      graph          <- universe.dependencyGraph(artifact)(cli.shell)
+      compilation    <- universe.compilation(artifact)(cli.shell)
       debugStr       <- ~io(DebugArg).opt
       io             <- ~io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module))
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](artifacts.map(_.ref).to[List]))
-      future         <- ~artifact.compile(universe, multiplexer).apply(module.ref(project))
-      io             <- ~Graph.live(cli)(io, graph, multiplexer.stream(50, Some(Tick)), Map())(config.theme)
+      future         <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
+      io             <- ~Graph.live(cli)(io, compilation.graph, multiplexer.stream(50, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
       io             <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
       io             <- ~io.effect(Thread.sleep(150))
@@ -265,7 +265,7 @@ object BuildCli {
       module       <- optModule.ascribe(UnspecifiedModule())
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
-      io           <- artifact.saveJars(cli)(io, universe, dir in layout.pwd)
+      io           <- universe.saveJars(cli)(io, artifact, dir in layout.pwd)
     } yield io.await()
   }
   
@@ -312,8 +312,8 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
-      graph        <- universe.dependencyGraph(artifact)(cli.shell)
-      io           <- ~Graph.draw(graph, true, Map())(config.theme).foldLeft(io)(_.println(_))
+      compilation  <- universe.dependencyGraph(artifact)(cli.shell)
+      io           <- ~Graph.draw(compilation.graph, true, Map())(config.theme).foldLeft(io)(_.println(_))
     } yield io.await()
   }
 }
