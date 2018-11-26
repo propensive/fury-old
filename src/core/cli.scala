@@ -110,19 +110,21 @@ case class Cli[+Hinted <: CliParam[_]]
   private[this] val exec = Executors.newSingleThreadExecutor()
   private[this] implicit val execContext: ExecutionContext = ExecutionContext.fromExecutor(exec)
 
-  class Io private[Cli] (private val future: Future[Unit]) {
+  class Io[A] private[Cli] (private val future: Future[A]) {
 
     def apply[T](param: CliParam[T])
                 (implicit ev: Hinted <:< param.type)
                 : Result[T, ~ | MissingArg | InvalidArgValue] = args.get(param.param)
 
-    def effect(fn: => Unit): Io = new Io(future.map { unit => fn })
+    def map[B](fn: A => B): Io[B] = new Io(future.map(fn))
     
-    def print(msg: UserMsg): Io = effect(output.print(msg.string(config.theme)))
+    def print(msg: UserMsg): Io[Unit] = map { _ => output.print(msg.string(config.theme)) }
     
-    def println(msg: UserMsg): Io = effect(output.println(msg.string(config.theme)))
+    def println(msg: UserMsg): Io[Unit] = map { _ => output.println(msg.string(config.theme)) }
 
-    def save[T: OgdlWriter](value: T, path: Path): Io = effect {
+    def unit: Io[Unit] = map { _ => () }
+
+    def save[T: OgdlWriter](value: T, path: Path): Io[Unit] = map { _ =>
       val stringBuilder: StringBuilder = new StringBuilder()
       Ogdl.serialize(stringBuilder, implicitly[OgdlWriter[T]].write(value))
       val content: String = stringBuilder.toString
@@ -135,8 +137,7 @@ case class Cli[+Hinted <: CliParam[_]]
     }
     
     def await(success: Boolean = true): ExitStatus = {
-      effect(output.flush())
-      val result = Await.ready(future, duration.Duration.Inf).value.get.isSuccess
+      val result = Await.ready(map { _ => output.flush() }.future, duration.Duration.Inf).value.get.isSuccess
       exec.shutdown()
       if(success && result) Done else Abort
     }
@@ -185,8 +186,8 @@ case class Cli[+Hinted <: CliParam[_]]
     output.flush()
   }
 
-  def io(): Result[Io, ~ | EarlyCompletions] = {
-    val io = new Io(Future(()))
+  def io(): Result[Io[Unit], ~ | EarlyCompletions] = {
+    val io = new Io(Future.successful(()))
     if(completion) {
       io.println(optCompletions.flatMap(_.output).mkString("\n")).await()
       Result.abort(EarlyCompletions())

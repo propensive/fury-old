@@ -30,8 +30,8 @@ case class Shell()(implicit env: Environment) {
     def clone(repo: Repo, dir: Path): Out =
       sh"git clone ${repo.url} ${dir.value}".exec[Out]
 
-    def cloneBare(repo: Repo, dir: Path): Out =
-      sh"git clone --bare ${repo.url} ${dir.value}".exec[Out]
+    def cloneBare(url: String, dir: Path): Out =
+      sh"git clone --bare $url ${dir.value}".exec[Out]
 
     def sparseCheckout(from: Path, dir: Path, sources: List[Path], commit: String): Result[String, ~ | ShellFailure | FileWriteError] = for {
       _   <- sh"git -C ${dir.value} init".exec[Out]

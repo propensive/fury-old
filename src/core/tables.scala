@@ -129,7 +129,7 @@ case class Tables(config: Config) {
     Heading("REPO", _.id),
     Heading("REMOTE", _.repo),
     Heading("REFSPEC", _.refSpec),
-    Heading("COMMIT", _.current.opt),
+    //Heading("COMMIT", _.current.opt),
     Heading("LOCAL", _.local),
   )
 

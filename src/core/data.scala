@@ -17,7 +17,7 @@ package fury
 
 import mitigation._
 import guillotine._
-import gastronomy._
+import gastronomy._, ByteEncoder.base64Url
 import kaleidoscope._
 import exoskeleton.{InvalidArgValue, MissingArg}
 
@@ -119,6 +119,7 @@ case class Module(id: ModuleId,
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
 }
 
+
 object BloopSpec {
   implicit val msgShow: MsgShow[BloopSpec] = v => msg"${v.org}:${v.name}"
   implicit val stringShow: StringShow[BloopSpec] = bs => s"${bs.org}:${bs.name}"
@@ -135,48 +136,55 @@ object BloopSpec {
 case class BloopSpec(org: String, name: String, version: String)
 
 case class Compilation(graph: Map[ModuleRef, Set[Digest]],
-                       artifacts: Map[ModuleRef, Artifact2]) {
+                       checkouts: Set[Checkout],
+                       artifacts: Map[ModuleRef, Artifact]) {
 
-  def apply(ref: ModuleRef): Result[Artifact2, ~ | ItemNotFound] =
+  def apply(ref: ModuleRef): Result[Artifact, ~ | ItemNotFound] =
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
 }
 
 /** A Universe represents a the fully-resolved set of projects available in the workspace */
-case class Universe(values: Map[ProjectId, (Schema, Project)] = Map()) extends AnyVal {
-  def ids: Set[ProjectId] = values.keySet
+case class Universe(projects: Map[ProjectId, Project] = Map(),
+                    schemas: Map[ProjectId, Schema] = Map()) {
+  def ids: Set[ProjectId] = projects.keySet
   
-  def apply(id: ProjectId): Result[(Schema, Project), ~ | ItemNotFound] =
-    values.get(id).ascribe(ItemNotFound(id))
+  def project(id: ProjectId): Result[Project, ~ | ItemNotFound] =
+    projects.get(id).ascribe(ItemNotFound(id))
   
-  def artifact(moduleRef: ModuleRef): Result[Artifact, ~ | ItemNotFound] = for {
-    schemaProject <- apply(moduleRef.projectId)
-    module        <- schemaProject._2(moduleRef.moduleId)
-  } yield Artifact(schemaProject._1, schemaProject._2, module, moduleRef.intransitive)
+  def schema(id: ProjectId): Result[Schema, ~ | ItemNotFound] =
+    schemas.get(id).ascribe(ItemNotFound(id))
+  
+  def artifact(moduleRef: ModuleRef): Result[Artifact, ~ | ItemNotFound] = ???
 
-  def artifact2(moduleRef: ModuleRef): Result[Artifact2, ~ | ItemNotFound] = ???
+  def checkout(ref: ModuleRef): Result[Set[Checkout], ~ | ItemNotFound] = for {
+    project   <- project(ref.projectId)
+    schema    <- schema(ref.projectId)
+    module    <- project(ref.moduleId)
+    repos     <- module.sources.groupBy(_.repoId).map { case (k, v) => schema.repo(k).map(_ -> v) }.sequence
+  } yield repos.map { case (repo, paths) => Checkout(repo.repo, repo.refSpec, paths.map(_.path).to[List]) }.to[Set]
 
-  def sourceDirs(cli: Cli[_])
-                (io: cli.Io, ref: ModuleRef)
-                (implicit shell: Shell, layout: Layout)
-                : Result[(cli.Io, Set[SourceRepo]), ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] = {
+  def fetchAll(cli: Cli[_])
+              (io: cli.Io[_], ref: ModuleRef)
+              (implicit shell: Shell, layout: Layout)
+              : Result[cli.Io[Set[SourceRepo]], ~ | ItemNotFound | ShellFailure | FileWriteError |
+                  InvalidValue] = {
     
-    val result: Result[cli.Io, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
-      Answer(io)
+    val result: Result[cli.Io[Set[SourceRepo]], ~ | ItemNotFound | ShellFailure | FileWriteError |
+        InvalidValue] = Answer(io.map { _ => Set() })
     
     for {
-      schemaProject <- apply(ref.projectId)
-      project       <- ~schemaProject._2
-      schema        <- ~schemaProject._1
+      project       <- project(ref.projectId)
+      schema        <- schema(ref.projectId)
       module        <- project(ref.moduleId)
       srcRepos      <- module.sources.map { src => schema.repo(src.repoId) }.sequence
       io            <- srcRepos.foldLeft(result) { (result, next) =>
                          result.flatMap(next.checkout(cli)(_, schema, module.sources))
                        }
-      compiler      <- artifact2(module.compiler)
-    } yield (io, srcRepos)
+      compiler      <- artifact(module.compiler)
+    } yield io
   }
 
-  def ++(that: Universe): Universe = Universe(values ++ that.values)
+  def ++(that: Universe): Universe = Universe(projects ++ that.projects, schemas ++ that.schemas)
   
   def classpath(ref: ModuleRef)
                (implicit layout: Layout, shell: Shell)
@@ -188,15 +196,15 @@ case class Universe(values: Map[ProjectId, (Schema, Project)] = Map()) extends A
 
   def dependencies(ref: ModuleRef)
                   (implicit shell: Shell)
-                  : Result[Set[Artifact2], ~ | ItemNotFound] = for {
-    project <- apply(ref.projectId).map(_._2)
+                  : Result[Set[Artifact], ~ | ItemNotFound] = for {
+    project <- project(ref.projectId)
     module  <- project(ref.moduleId)
-    deps    <- module.after.map(artifact2).sequence
+    deps    <- module.after.map(artifact).sequence
   } yield deps
 
   def transitiveDependencies(ref: ModuleRef)
                             (implicit shell: Shell)
-                            : Result[Set[Artifact2], ~ | ItemNotFound] = for {
+                            : Result[Set[Artifact], ~ | ItemNotFound] = for {
     after      <- dependencies(ref)
     tDeps      <- after.map(_.ref).map(transitiveDependencies).sequence
     itDeps      = tDeps.flatten.filterNot(_.intransitive).to[Set]
@@ -210,22 +218,23 @@ case class Universe(values: Map[ProjectId, (Schema, Project)] = Map()) extends A
                : Result[List[String], ~ | ItemNotFound] = for {
     tDeps        <- transitiveDependencies(ref)
     plugins      <- ~tDeps.filter(_.kind == Plugin)
-    artifact     <- artifact2(ref)
+    artifact     <- artifact(ref)
   } yield artifact.params ++ plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin, false)}") }.map(_.parameter)
 
   def compilation(ref: ModuleRef)
                  (implicit shell: Shell, layout: Layout)
                  : Result[Compilation, ~ | ItemNotFound] = for {
     graph     <- transitiveDependencies(ref).map(_.map { a => (a.ref, a.dependencies) }.toMap)
-    artifacts <- graph.keys.map { key => artifact2(key).map(key -> _) }.sequence.map(_.toMap)
-  } yield Compilation(graph, artifacts)
+    artifacts <- graph.keys.map { key => artifact(key).map(key -> _) }.sequence.map(_.toMap)
+    checkouts <- graph.keys.map { key => checkout(key) }.sequence
+  } yield Compilation(graph, checkouts.reduce(_ ++ _), artifacts)
 
   def saveJars(cli: Cli[_])
-              (io: cli.Io, ref: ModuleRef, dest: Path)
+              (io: cli.Io[_], ref: ModuleRef, dest: Path)
               (implicit shell: Shell, layout: Layout)
-              : Result[cli.Io, ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
+              : Result[cli.Io[Unit], ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
     dest         <- dest.directory
-    current      <- artifact2(ref)
+    current      <- artifact(ref)
     deps         <- transitiveDependencies(ref)
     dirs         <- ~deps.map(layout.classesDir(_, false))
     files        <- ~dirs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
@@ -235,11 +244,11 @@ case class Universe(values: Map[ProjectId, (Schema, Project)] = Map()) extends A
     manifestFile <- Manifest.file(layout.manifestFile(ref), binFiles.map(_._2).flatten, None)
     path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
     io           <- ~io.println(msg"Saving JAR file $path")
-    io           <- ~io.effect(shell.aggregatedJar(path, files, manifestFile))
-    io           <- ~io.effect(binFiles.map { p => p.copyTo(dest / p.name) })
+    io           <- ~io.map { _ => shell.aggregatedJar(path, files, manifestFile) }
+    io           <- ~io.map { _ => binFiles.map { p => p.copyTo(dest / p.name) } }
   } yield io
 
-  def compile(artifact: Artifact2,
+  def compile(artifact: Artifact,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[ModuleRef, Future[CompileResult]] = Map())
              (implicit layout: Layout, shell: Shell)
@@ -265,7 +274,7 @@ case class Universe(values: Map[ProjectId, (Schema, Project)] = Map()) extends A
         multiplexer(artifact.ref) = StartCompile(artifact.ref)
         
         val result: Boolean = blocking {
-          shell.bloop.compile(artifact.hash.encoded[Base64Url], artifact.kind == Application) { ln =>
+          shell.bloop.compile(artifact.hash.encoded, artifact.kind == Application) { ln =>
             out.append(ln)
             out.append("\n")
           }.await() == 0
@@ -292,12 +301,16 @@ case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
       projects.flatMap { projects =>
         schemaTree.universe.flatMap { nextProjects =>
           val conflictIds = projects.ids.intersect(nextProjects.ids).filter { id =>
-            projects(id) != nextProjects(id)
+            projects.project(id) != nextProjects.project(id)
           } -- localProjectIds
           
           if(conflictIds.isEmpty) Answer(projects ++ nextProjects)
           else Result.abort(ProjectConflict(conflictIds))
-        }.map(_ ++ Universe(schema.projects.map { p => (p.id, (schema, p)) }.toMap))
+        }.map { old =>
+          val newProjects = schema.projects.map { p => p.id -> p }.toMap
+          val newSchemas = schema.projects.map(_.id -> schema).toMap
+          old ++ Universe(newProjects, newSchemas)
+        }
       }
     }
   }
@@ -319,47 +332,50 @@ case class Schema(id: SchemaId,
 
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   
-  def compilerRefs(cli: Cli[_])(io: cli.Io)(implicit layout: Layout, shell: Shell): List[ModuleRef] =
-    allProjects(cli)(io).opt.to[List].flatten.flatMap(_.compilerRefs)
+  def compilerRefs(cli: Cli[_])(io: cli.Io[_])(implicit layout: Layout, shell: Shell): List[ModuleRef] =
+    allProjects(cli)(io).opt.to[List].flatMap(_.map(_.flatMap(_.compilerRefs)))
 
   def mainProject: Result[Option[Project], ~ | ItemNotFound] =
     main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
 
-  def importCandidates(cli: Cli[_])(io: cli.Io)(implicit layout: Layout, shell: Shell): List[String] =
+  def importCandidates(cli: Cli[_])(io: cli.Io[_])(implicit layout: Layout, shell: Shell): List[String] =
     repos.to[List].flatMap(_.importCandidates(cli)(io, this).opt.to[List].flatten)
 
-  def moduleRefStrings(cli: Cli[_])(io: cli.Io, project: Project)(implicit layout: Layout, shell: Shell): List[String] =
+  def moduleRefStrings(cli: Cli[_])
+                      (io: cli.Io[_], project: Project)
+                      (implicit layout: Layout, shell: Shell)
+                      : cli.Io[List[String]] =
     importedSchemas(cli)(io).opt.to[List].flatMap(_.flatMap(_.moduleRefStrings(cli)(io, project))) ++
         moduleRefs.to[List].flatMap { ref =>
       if(ref.projectId == project.id) List(str"$ref", str"${ref.moduleId}")
       else List(str"$ref")
     }
 
-  private def schemaTree(cli: Cli[_])(io: cli.Io)(implicit layout: Layout, shell: Shell)
+  private def schemaTree(cli: Cli[_])(io: cli.Io[_])(implicit layout: Layout, shell: Shell)
                         : Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure |
                             FileNotFound | ConfigFormatError | InvalidValue] = for {
-    imports <- importedSchemas(cli)(io)
+    imports   <- importedSchemas(cli)(io)
     inherited <- imports.map(_.schemaTree(cli)(io)).sequence
   } yield SchemaTree(this, inherited.to[Set])
 
-  def universe(cli: Cli[_])(io: cli.Io)(implicit layout: Layout, shell: Shell) = schemaTree(cli)(io).flatMap(_.universe)
+  def universe(cli: Cli[_])(io: cli.Io[_])(implicit layout: Layout, shell: Shell) = schemaTree(cli)(io).flatMap(_.universe)
 
-  def importedSchemas(cli: Cli[_])(io: cli.Io)(implicit layout: Layout, shell: Shell)
+  def importedSchemas(cli: Cli[_])(io: cli.Io[_])(implicit layout: Layout, shell: Shell)
                      : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
                          FileNotFound | ConfigFormatError | InvalidValue] =
     imports.map { ref =>
       for {
-        repo <- repos.findBy(ref.repo)
-        repoDir <- repo.repo.fetch(cli)(io)
-        workspace <- Ogdl.read[Workspace](Layout(layout.home, repoDir).furyConfig)
-        resolved <- workspace.schemas.findBy(ref.schema)
+        repo      <- repos.findBy(ref.repo)
+        io        <- repo.repo.fetch(cli)(io)
+        workspace <- ~io.map { dir => Ogdl.read[Workspace](Layout(layout.home, dir).furyConfig) }
+        resolved  <- workspace.schemas.findBy(ref.schema)
       } yield resolved
     }.sequence
 
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id) + RepoId.Local
 
-  def allProjects(cli: Cli[_])(io: cli.Io)(implicit layout: Layout, shell: Shell)
-                 : Result[List[Project], ~ | ItemNotFound | FileWriteError | ShellFailure |
+  def allProjects(cli: Cli[_])(io: cli.Io[_])(implicit layout: Layout, shell: Shell)
+                 : Result[cli.Io[List[Project]], ~ | ItemNotFound | FileWriteError | ShellFailure |
                      FileNotFound | ConfigFormatError | InvalidValue] =
     importedSchemas(cli)(io).flatMap(_.map(_.allProjects(cli)(io)).sequence.map(_.flatten)).map(_ ++ projects.to[List])
 
@@ -522,6 +538,22 @@ object Repo {
   }
 }
 
+case class Checkout(repo: Repo, refSpec: RefSpec, sources: List[Path]) {
+
+  def hash: Digest = this.digest[Md5]
+  def path(implicit layout: Layout): Path = layout.reposDir / hash.encoded
+  
+  def checkout(cli: Cli[_])
+              (io: cli.Io[_])
+              (implicit shell: Shell, layout: Layout)
+              : Result[cli.Io[_], ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
+    for(io <- repo.fetch(cli)(io)) yield if(!path.exists) {
+      path.mkdir()
+      io.println(msg"Checking out sources ${path}")
+        .map { _ => shell.git.sparseCheckout(repo.path, path, sources, refSpec.id) }
+    } else io
+}
+
 object SourceRepo {
   implicit val msgShow: MsgShow[SourceRepo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[SourceRepo] = _.id.key
@@ -530,45 +562,31 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
 
-  def listFiles(cli: Cli[_])(io: cli.Io)(implicit layout: Layout, shell: Shell) = for {
-    dir   <- repo.fetch(cli)(io)
-    files <- shell.git.lsTree(dir, refSpec.id)
+  def listFiles(cli: Cli[_])(io: cli.Io[_])(implicit layout: Layout, shell: Shell) = for {
+    io    <- repo.fetch(cli)(io)
+    files <- shell.git.lsTree(repo.path, refSpec.id)
   } yield files
 
-  def importCandidates(cli: Cli[_])(io: cli.Io, schema: Schema)
+  def fullCheckout: Checkout = Checkout(repo, refSpec, List())
+
+  def importCandidates(cli: Cli[_])(io: cli.Io[_], schema: Schema)
                       (implicit layout: Layout, shell: Shell)
-                      : Result[List[String], ~ | ConfigFormatError | ItemNotFound | FileNotFound | InvalidValue | FileWriteError | ShellFailure] = for {
-    dirs       <- checkout(cli)(io, schema, SortedSet())
+                      : Result[List[String], ~ | ConfigFormatError | ItemNotFound | FileNotFound |
+                          InvalidValue | FileWriteError | ShellFailure] = for {
+    io         <- fullCheckout.checkout(cli)(io)
     workspaces <- dirs.map { dir =>
                     Ogdl.read[Workspace](Layout(layout.home, dir).furyConfig)
                   }.sequence
     schemas    <- ~workspaces.flatMap(_.schemas.to[List])
   } yield schemas.map { schema => s"${id.key}:${schema.id.key}" }
 
-  def checkout(cli: Cli[_])
-              (io: cli.Io, schema: Schema, sources: SortedSet[Source])
-              (implicit shell: Shell, layout: Layout)
-              : Result[cli.Io, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
-    sources.map { source =>
-      for {
-        repo     <- schema.repo(id)
-        io       <- ~io.println(msg"Cloning repository ${repo.repo}")
-        dir      <- repo.repo.fetch(cli)(io)
-        dir      <- source.path(schema)
-      } yield if(!dir.exists) {
-        dir.mkdir()
-        io.println(msg"Checking out repository ${dir}")
-          .effect(shell.git.sparseCheckout(bareRepo, dir, sources.map(_.path), refSpec.id))
-      } else io
-    }.to[List].sequence
-
-  def current(cli: Cli[_])(io: cli.Io)(implicit shell: Shell, layout: Layout)
+  def current(cli: Cli[_])(io: cli.Io[_])(implicit shell: Shell, layout: Layout)
              : Result[RefSpec, ~ | FileWriteError | ShellFailure | InvalidValue] = for {
-    dir    <- repo.fetch(cli)(io)
-    commit <- shell.git.getCommit(dir)
+    io     <- repo.fetch(cli)(io)
+    commit <- io.map(shell.git.getCommit)
   } yield RefSpec(commit)
 
-  def sourceCandidates(cli: Cli[_])(io: cli.Io, pred: String => Boolean)
+  def sourceCandidates(cli: Cli[_])(io: cli.Io[_], pred: String => Boolean)
                       (implicit layout: Layout, shell: Shell)
                       : Result[Set[Source], ~ | ShellFailure | FileWriteError | InvalidValue] =
     listFiles(cli)(io).map { files => files.filter { f => pred(f.filename) }.map { p => Source(id, p.parent) }.to[Set] }
@@ -583,8 +601,8 @@ object BinRepoId {
 }
 
 case class Repo(url: String) {
-
-  def hash: Digest = url.digest[Sha256]
+  def hash: Digest = url.digest[Md5]
+  def path(implicit layout: Layout): Path = layout.reposDir / hash.encoded
 
   def update()
             (implicit shell: Shell, layout: Layout)
@@ -597,14 +615,13 @@ case class Repo(url: String) {
   } yield msg
 
   def fetch(cli: Cli[_])
-           (io: cli.Io)
+           (io: cli.Io[_])
            (implicit layout: Layout, shell: Shell)
-           : Result[Path, ~ | ShellFailure | InvalidValue | FileWriteError] = {
-    val dir = path in layout.reposDir
-    if(!dir.exists) {
-      dir.mkdir()
-      shell.git.cloneBare(this, dir).map { _ => dir }
-    } else Answer(dir)
+           : Result[cli.Io[Path], ~ | ShellFailure | InvalidValue | FileWriteError] = {
+    if(!path.exists) {
+      path.mkdir()
+      io.map { _ => shell.git.cloneBare(url, dir).map { _ => dir } }
+    } else Answer(io)
   }
 
   def simplified: String = url match {
@@ -618,8 +635,6 @@ case class Repo(url: String) {
     case r".*/$project@([^\/]*).git" => Answer(RepoId(project))
     case value => Result.abort(InvalidValue(value))
   }
-
-  def path: Path = Path(hash.encoded[Base64Url])
 }
 
 object SchemaRef {
@@ -648,19 +663,20 @@ case class SkipCompile(ref: ModuleRef) extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
 
-case class Artifact2(ref: ModuleRef,
-                     kind: Kind,
-                     main: Option[String],
-                     sources: List[Path],
-                     binaries: List[Path],
-                     dependencies: Set[Digest],
-                     compiler: Option[Artifact2],
-                     bloopSpec: Option[BloopSpec],
-                     params: List[String],
-                     intransitive: Boolean) {
+case class Artifact(ref: ModuleRef,
+                    kind: Kind,
+                    main: Option[String],
+                    repos: Set[Repo],
+                    checkouts: Set[Checkout],
+                    binaries: List[Path],
+                    dependencies: Set[Digest],
+                    compiler: Option[Artifact],
+                    bloopSpec: Option[BloopSpec],
+                    params: List[String],
+                    intransitive: Boolean) {
 
   def hash: Digest =
-    (kind, main, sources, binaries, dependencies, compiler, params).digest[Sha256]
+    (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Sha256]
   
   def writePlugin()(implicit layout: Layout): Unit = if(kind == Plugin) {
     val file = layout.classesDir(this, true) / "scalac-plugin.xml"
@@ -670,19 +686,8 @@ case class Artifact2(ref: ModuleRef,
     }
   }
 
-}
+  def sourcePaths: List[Path] = checkouts.flatMap { c => c.sources.map(_ in c.path) }
 
-case class Artifact(schema: Schema, project: Project, module: Module, intransitive: Boolean) {
-
-  lazy val ref: ModuleRef = ModuleRef(project.id, module.id)
-
-  // FIXME: Calculate hash correctly
-  lazy val hash: String = (module.kind, module.main, module.manifest, module.compiler)//, module.after)//, module.params, module.sources, module.binaries, module.resources, module.bloopSpec)
-  .digest[Sha256].encoded[Base64Url]
-
-  def encoded: String = hash
-
-  // FIXME: Handle errors
 }
 
 object Project {
@@ -797,7 +802,7 @@ case class Source(repoId: RepoId, path: Path) {
     schema.repo(repoId).map((path, _).digest[Sha256])
  
   def path(schema: Schema)(implicit layout: Layout): Result[Path, ~ | ItemNotFound] =
-    hash(schema).map(layout.refsDir / _.encoded[Base64Url])
+    hash(schema).map(layout.refsDir / _.encoded)
 }
 
 object RepoId {

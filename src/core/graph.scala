@@ -33,22 +33,22 @@ object Graph {
   @tailrec
   def live(cli: Cli[_],
            changed: Boolean = false)
-          (io: cli.Io,
+          (io: cli.Io[_],
            graph: Map[ModuleRef, Set[ModuleRef]],
            stream: Stream[CompileEvent],
            state: Map[ModuleRef, CompileState])
           (implicit theme: Theme)
-          : cli.Io =
+          : cli.Io[Unit] =
     stream match {
       case Tick #:: tail =>
         val next: String = draw(graph, false, state).mkString("\n")
-        live(cli, false)(if(!changed) io else io.println(next).println(Ansi.up(graph.size + 1)()), graph, tail, state)
+        live(cli, false)(if(!changed) io.unit else io.println(next).println(Ansi.up(graph.size + 1)()), graph, tail, state)
       case StartCompile(ref) #:: tail =>
-        live(cli, true)(io, graph, tail, state.updated(ref, Compiling))
+        live(cli, true)(io.unit, graph, tail, state.updated(ref, Compiling))
       case StopCompile(ref, out, success) #:: tail =>
-        live(cli, true)(io, graph, tail, state.updated(ref, if(success) Successful else Failed(out)))
+        live(cli, true)(io.unit, graph, tail, state.updated(ref, if(success) Successful else Failed(out)))
       case SkipCompile(ref) #:: tail =>
-        live(cli, true)(io, graph, tail, state.updated(ref, Skipped))
+        live(cli, true)(io.unit, graph, tail, state.updated(ref, Skipped))
       case Stream.Empty =>
         val output = state.collect { case (ref, Failed(out)) =>
           UserMsg { theme => (msg"Output from $ref:".string(theme)+"\n\n"+out) }

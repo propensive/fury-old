@@ -30,7 +30,7 @@ case class Layout(home: Path, pwd: Path) {
   lazy val userConfig: Path = home / ".fury.conf"
   lazy val logFile: Path = furyDir / "fury.log"
 
-  def bloopConfig(artifact: Artifact2): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
+  def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
  
   lazy val furyConfig: Path = pwd / "workspace.fury"
   lazy val signedConfig: Path = pwd / "workspace.fury.sig"
@@ -45,12 +45,12 @@ case class Layout(home: Path, pwd: Path) {
     path
   }
 
-  def runLogFile(artifact: Artifact2, create: Boolean): Path = {
+  def runLogFile(artifact: Artifact, create: Boolean): Path = {
     if(create) runLogDir.mkdir()
     runLogDir / s"${artifact.hash.encoded[Base64Url]}.log"
   }
 
-  def classesDir(artifact: Artifact2, create: Boolean): Path = {
+  def classesDir(artifact: Artifact, create: Boolean): Path = {
     val path = classesDir / artifact.hash.encoded[Base64Url]
     if(create) path.mkdir()
     path

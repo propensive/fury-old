@@ -27,20 +27,20 @@ object Bloop {
   private[this] def testServer(): Result[Unit, ~] =
     Answer(new Socket("localhost", 8212).close().unit)
 
-  def server(cli: Cli[_])(io: cli.Io)(implicit shell: Shell): Result[cli.Io, ~ | InitFailure] = synchronized {
+  def server(cli: Cli[_])(io: cli.Io[_])(implicit shell: Shell): Result[cli.Io[Unit], ~ | InitFailure] = synchronized {
     try {
       testServer()
-      Answer(io)
+      Answer(io.unit)
     } catch {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
         val io2 = io.print("Starting bloop compile server")
         val running = shell.bloop.startServer()
         
-        def checkStarted(io: cli.Io): cli.Io = try {
+        def checkStarted(io: cli.Io[_]): cli.Io[Unit] = try {
           Thread.sleep(50)
           if(!testServer().successful) checkStarted(io.print("."))
-          else io
+          else io.unit
         } catch { case e: Exception => checkStarted(io.print(".")) }
         
         val io3 = checkStarted(io2).println("done")
@@ -57,7 +57,7 @@ object Bloop {
   }
 
 
-  def generateFiles(artifacts: Set[Artifact2], universe: Universe)
+  def generateFiles(artifacts: Set[Artifact], universe: Universe)
                    (implicit layout: Layout, env: Environment, shell: Shell)
                    : Result[Set[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
                        UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] = {
@@ -68,7 +68,7 @@ object Bloop {
     } yield List(path) }.sequence.map(_.flatten)
   }
 
-  private def makeConfig(artifact: Artifact2, universe: Universe)
+  private def makeConfig(artifact: Artifact, universe: Universe)
                         (implicit layout: Layout, shell: Shell)
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
                             UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
@@ -92,7 +92,7 @@ object Bloop {
       baseDirectory = layout.pwd.value,
       javaOptions = Nil,
       allScalaJars = optCompilerClasspath.map(_.value).to[List],
-      sourceDirectories = artifact.sources.map(_.value),
+      sourceDirectories = artifact.sourcePaths.map(_.value),
       javacOptions = Nil,
       main = artifact.main
     )
