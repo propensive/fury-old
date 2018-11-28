@@ -143,7 +143,7 @@ case class Compilation(graph: Map[ModuleRef, List[ModuleRef]],
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
 }
 
-/** A Universe represents a the fully-resolved set of projects available in the workspace */
+/** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(projects: Map[ProjectId, Project] = Map(),
                     schemas: Map[ProjectId, Schema] = Map()) {
   def ids: Set[ProjectId] = projects.keySet
@@ -339,8 +339,8 @@ case class Schema(id: SchemaId,
       for {
         repo      <- repos.findBy(ref.repo)
         dir       <- repo.repo.fetch
-        workspace <- Ogdl.read[Workspace](Layout(layout.home, dir).furyConfig)
-        resolved  <- workspace.schemas.findBy(ref.schema)
+        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+        resolved  <- layer.schemas.findBy(ref.schema)
       } yield resolved
     }.sequence
 
@@ -403,9 +403,9 @@ object Alias {
 
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
-case class Workspace(schemas: SortedSet[Schema],
-                     main: SchemaId,
-                     aliases: SortedSet[Alias] = TreeSet()) { workspace =>
+case class Layer(schemas: SortedSet[Schema],
+                 main: SchemaId,
+                 aliases: SortedSet[Alias] = TreeSet()) { layer =>
   
   def mainSchema: Result[Schema, ~ | ItemNotFound] = schemas.findBy(main)
 
@@ -417,14 +417,14 @@ case class Workspace(schemas: SortedSet[Schema],
   def projects: Result[SortedSet[Project], ~ | ItemNotFound] = mainSchema.map(_.projects)
 }
 
-object Workspace {
-  def empty() = Workspace(SortedSet(Schema(SchemaId.default)), SchemaId.default)
+object Layer {
+  def empty() = Layer(SortedSet(Schema(SchemaId.default)), SchemaId.default)
 
   def read(file: Path)
           (implicit layout: Layout)
-          : Result[Workspace, ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError |
+          : Result[Layer, ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError |
               FileWriteError | AlreadyInitialized] =
-    Ogdl.read[Workspace](file).abide(fury.Workspace.empty())
+    Ogdl.read[Layer](file).abide(Layer.empty())
 }
 
 object ModuleRef {
@@ -543,8 +543,8 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
                       : Result[List[String], ~ | ConfigFormatError | ItemNotFound | FileNotFound |
                           InvalidValue | FileWriteError | ShellFailure] = for {
     dir       <- fullCheckout.checkout
-    workspace <- Ogdl.read[Workspace](Layout(layout.home, dir).furyConfig)
-    schemas   <- ~workspace.schemas.to[List]
+    layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+    schemas   <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
   def current(implicit shell: Shell, layout: Layout)
@@ -661,8 +661,8 @@ object Project {
   implicit val stringShow: StringShow[Project] = _.id.key
   implicit def diff: Diff[Project] = Diff.gen[Project]
   
-  def available(projectId: ProjectId, workspace: Workspace): Boolean =
-    !workspace.projects.opt.to[List].flatten.findBy(projectId).successful
+  def available(projectId: ProjectId, layer: Layer): Boolean =
+    !layer.projects.opt.to[List].flatten.findBy(projectId).successful
 }
 
 case class Project(id: ProjectId,

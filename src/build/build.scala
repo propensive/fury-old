@@ -48,8 +48,8 @@ object AliasCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout    <- cli.layout
     config    <- Config.read()(cli.env, layout)
-    workspace <- Workspace.read(layout.furyConfig)(layout)
-  } yield new MenuContext(cli, layout, config, workspace)
+    layer     <- Layer.read(layout.furyConfig)(layout)
+  } yield new MenuContext(cli, layout, config, layer)
 
 
   def list(ctx: MenuContext) = {
@@ -59,7 +59,7 @@ object AliasCli {
       io      <- cli.io()
       raw     <- ~io(RawArg).successful
       cols    <- Answer(Terminal.columns.getOrElse(100))
-      rows    <- ~workspace.aliases.to[List]
+      rows    <- ~layer.aliases.to[List]
       table   <- ~Tables(config).show(Tables(config).aliases, cols, rows, raw)(identity(_))
       io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, true)) else io)
       io      <- ~io.println(UserMsg { theme => table.mkString("\n") })
@@ -69,24 +69,24 @@ object AliasCli {
   def delete(ctx: MenuContext) = {
     import ctx._
     for {
-      cli           <- cli.hint(AliasArg, workspace.aliases.map(_.cmd))
+      cli           <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
       io            <- cli.io()
       aliasArg      <- io(AliasArg)
-      aliasToDel    <- ~workspace.aliases.find(_.cmd == aliasArg)
-      workspace     <- Lenses.updateSchemas(None, workspace, true) { s =>
-                           Lenses.workspace.aliases } (_(_) --= aliasToDel)
-      io            <- ~io.save(workspace, layout.furyConfig)
+      aliasToDel    <- ~layer.aliases.find(_.cmd == aliasArg)
+      layer         <- Lenses.updateSchemas(None, layer, true) { s =>
+                           Lenses.layer.aliases } (_(_) --= aliasToDel)
+      io            <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def add(ctx: MenuContext) = {
     import ctx._
     for {
-      cli           <- cli.hint(SchemaArg, workspace.schemas)
+      cli           <- cli.hint(SchemaArg, layer.schemas)
       optSchemaArg  <- ~cli.peek(SchemaArg)
       cli           <- cli.hint(AliasArg)
       cli           <- cli.hint(DescriptionArg)
-      optDefaultSchema <- ~optSchemaArg.flatMap(workspace.schemas.findBy(_).opt).orElse(workspace.mainSchema.opt)
+      optDefaultSchema <- ~optSchemaArg.flatMap(layer.schemas.findBy(_).opt).orElse(layer.mainSchema.opt)
       cli           <- cli.hint(ProjectArg, optDefaultSchema.map(_.projects).getOrElse(Nil))
       optProjectId  <- ~cli.peek(ProjectArg)
       optProject    <- ~optProjectId.orElse(optDefaultSchema.flatMap(_.main)).flatMap(id => optDefaultSchema.flatMap(_.projects.findBy(id).opt)).to[List].headOption
@@ -99,9 +99,9 @@ object AliasCli {
       aliasArg      <- io(AliasArg)
       description   <- io(DescriptionArg)
       alias         <- ~Alias(aliasArg, description, optSchemaArg, moduleRef)
-      workspace     <- Lenses.updateSchemas(None, workspace, true) { s =>
-                           Lenses.workspace.aliases } (_(_) += alias)
-      io            <- ~io.save(workspace, layout.furyConfig)
+      layer         <- Lenses.updateSchemas(None, layer, true) { s =>
+                           Lenses.layer.aliases } (_(_) += alias)
+      io            <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
@@ -110,8 +110,8 @@ object BuildCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout    <- cli.layout
     config    <- Config.read()(cli.env, layout)
-    workspace <- Workspace.read(layout.furyConfig)(layout)
-  } yield new MenuContext(cli, layout, config, workspace)
+    layer     <- Layer.read(layout.furyConfig)(layout)
+  } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Result[ExitStatus, ~] = Answer(Abort)
 
@@ -122,10 +122,10 @@ object BuildCli {
       cli           <- cli.hint(ForceArg)
       io            <- cli.io()
       force         <- ~io(ForceArg).opt.isDefined
-      workspace     <- ~Workspace.empty()
+      layer         <- ~Layer.empty()
       io            <- ~io.println("Initializing new build directory: ./.fury")
       _             <- layout.furyConfig.mkParents()
-      io            <- ~io.save(workspace, layout.furyConfig)
+      io            <- ~io.save(layer, layout.furyConfig)
       _             <- cli.shell.git.init(layout.pwd)
       io            <- ~io.println("Initialized new git repository")
       _             <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
@@ -169,9 +169,9 @@ object BuildCli {
   def clean(ctx: MenuContext) = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, workspace.schemas)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema       <- workspace.schemas.findBy(schemaArg)
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
@@ -191,9 +191,9 @@ object BuildCli {
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])(ctx: MenuContext) = {
     import ctx._
     for {
-      cli            <- cli.hint(SchemaArg, workspace.schemas)
-      schemaArg      <- ~cli.peek(SchemaArg).orElse(optSchema).getOrElse(workspace.main)
-      schema         <- workspace.schemas.findBy(schemaArg)
+      cli            <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg      <- ~cli.peek(SchemaArg).orElse(optSchema).getOrElse(layer.main)
+      schema         <- layer.schemas.findBy(schemaArg)
       cli            <- cli.hint(ProjectArg, schema.projects)
       optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
       optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
@@ -213,7 +213,7 @@ object BuildCli {
       files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
       compilation    <- universe.compilation(module.ref(project))(cli.shell, layout)
       debugStr       <- ~io(DebugArg).opt
-      io             <- ~io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module))
+      io             <- ~io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module))
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](artifacts.map(_.ref).to[List]))
       future         <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
       io             <- ~Graph.live(cli)(io, compilation.graph.mapValues(_.to[Set]), multiplexer.stream(50, Some(Tick)), Map())(config.theme)
@@ -223,23 +223,23 @@ object BuildCli {
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
  
-  def getPrompt(workspace: Workspace, theme: Theme): Result[String, ~ | ItemNotFound] = for {
-    schemaId        <- ~workspace.main
-    schema          <- workspace.schemas.findBy(schemaId)
-    schemaPart      <- ~(if(workspace.schemas.size == 1) "*" else schemaId.key)
+  def getPrompt(layer: Layer, theme: Theme): Result[String, ~ | ItemNotFound] = for {
+    schemaId        <- ~layer.main
+    schema          <- layer.schemas.findBy(schemaId)
+    schemaPart      <- ~(if(layer.schemas.size == 1) "*" else schemaId.key)
     optProjectId    <- ~schema.main
     optProject      <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
     projectPart     <- ~optProjectId.map(_.key).getOrElse("-")
     optModuleId     <- ~optProject.flatMap(_.main)
     optModule       <- ~optModuleId.flatMap { mId => optProject.flatMap(_.modules.findBy(mId).opt) }
     modulePart      <- ~optModuleId.map(_.key).getOrElse("-")
-  } yield Prompt.zsh(workspace, schema, optProject, optModule)(theme)
+  } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
   def prompt(cli: Cli[CliParam[_]]) = for {
     layout    <- cli.layout
     config    <- Config.read()(cli.env, layout)
-    workspace <- ~Workspace.read(layout.furyConfig)(layout).opt
-    msg       <- workspace.map(getPrompt(_, config.theme)).getOrElse(Answer(Prompt.empty(config)(config.theme)))
+    layer     <- ~Layer.read(layout.furyConfig)(layout).opt
+    msg       <- layer.map(getPrompt(_, config.theme)).getOrElse(Answer(Prompt.empty(config)(config.theme)))
     io        <- cli.io()
     io        <- ~io.println(msg)
   } yield io.await()
@@ -247,9 +247,9 @@ object BuildCli {
   def save(ctx: MenuContext) = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, workspace.schemas)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema       <- workspace.schemas.findBy(schemaArg)
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
@@ -270,9 +270,9 @@ object BuildCli {
   def classpath(ctx: MenuContext) = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, workspace.schemas)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema       <- workspace.schemas.findBy(schemaArg)
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
@@ -294,9 +294,9 @@ object BuildCli {
   def describe(ctx: MenuContext) = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, workspace.schemas)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema       <- workspace.schemas.findBy(schemaArg)
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
@@ -316,9 +316,9 @@ object BuildCli {
   }
 }
 
-object WorkspaceCli {
+object LayerCli {
   
-  case class WorkspaceCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, workspace: Workspace,
+  case class LayerCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer,
       schema: Schema) {
     implicit def implicitLayout: Layout = layout
     implicit def implicitEnv: Environment = cli.env
@@ -328,13 +328,13 @@ object WorkspaceCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout    <- cli.layout
     config    <- Config.read()(cli.env, layout)
-    workspace <- Workspace.read(layout.furyConfig)(layout)
-    cli       <- cli.hint(SchemaArg, workspace.schemas)
-    schemaArg <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-    schema    <- workspace.schemas.findBy(schemaArg)
-  } yield WorkspaceCtx(cli, layout, config, workspace, schema)
+    layer     <- Layer.read(layout.furyConfig)(layout)
+    cli       <- cli.hint(SchemaArg, layer.schemas)
+    schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+    schema    <- layer.schemas.findBy(schemaArg)
+  } yield LayerCtx(cli, layout, config, layer, schema)
 
-  def projects(ctx: WorkspaceCtx) = {
+  def projects(ctx: LayerCtx) = {
     import ctx._
     for {
       cols     <- Answer(Terminal.columns.getOrElse(100))
@@ -343,12 +343,12 @@ object WorkspaceCli {
       raw      <- ~io(RawArg).successful
       projects <- schema.allProjects
       table    <- ~Tables(config).show(Tables(config).projects(None), cols, projects.distinct, raw)(_.id)
-      io       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema)) else io)
+      io       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
       io       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
-  def publish(ctx: WorkspaceCtx) = {
+  def publish(ctx: LayerCtx) = {
     import ctx._
     for {
       suggestedTags <- cli.shell.git.tags(layout.pwd)
@@ -358,10 +358,7 @@ object WorkspaceCli {
       io            <- cli.io()
       tag           <- io(TagArg)
       key           <- io(KeyArg)
-      _             <- layout.signedConfig.delete()
-      _             <- cli.shell.gpg.sign(layout.furyConfig, layout.signedConfig, key)
-      _             <- cli.shell.git.add(layout.pwd,
-                           List(layout.signedConfig, layout.furyConfig))
+      _             <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
       _             <- cli.shell.git.commit(layout.pwd, s"Tagged version $tag")
       _             <- cli.shell.git.tag(layout.pwd, tag)
       io            <- ~io.println(msg"Comitted tag $tag.")

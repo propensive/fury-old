@@ -19,7 +19,7 @@ object Prompt {
   
   private def escape(code: AnsiCode): String = s"%{${code()}%}"
   
-  def zsh(workspace: Workspace,
+  def zsh(layer: Layer,
           schema: Schema,
           optProject: Option[Project],
           optModule: Option[Module])
@@ -27,7 +27,7 @@ object Prompt {
     val schemaId = schema.id.key
     val projectId = optProject.map(_.id.key).getOrElse("-")
     val moduleId = optModule.map(_.id.key).getOrElse("-")
-    val schemaText = if(workspace.schemas.size <= 1) "" else s"${escape(theme.schema)}$schemaId${escape(theme.gray)}/"
+    val schemaText = if(layer.schemas.size <= 1) "" else s"${escape(theme.schema)}$schemaId${escape(theme.gray)}/"
     
     msg" ${escape(theme.gray)}[$schemaText${escape(theme.project)}$projectId${escape(theme.gray)}/${escape(theme.module)}$moduleId${escape(theme.gray)}]${escape(Ansi.reset)}".string(theme)
   }

@@ -26,25 +26,25 @@ object ModuleCli {
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
                      override val config: Config,
-                     override val workspace: Workspace,
+                     override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project])
-      extends MenuContext(cli, layout, config, workspace, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId = optSchemaId.getOrElse(workspace.main)
-    def defaultSchema: Result[Schema, ~ | ItemNotFound] = workspace.schemas.findBy(defaultSchemaId)
+      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+    def defaultSchemaId: SchemaId = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Result[Schema, ~ | ItemNotFound] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- Config.read()(cli.env, layout)
-    workspace    <- Workspace.read(layout.furyConfig)(layout)
-    cli          <- cli.hint(SchemaArg, workspace.schemas)
+    layer        <- Layer.read(layout.furyConfig)(layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
-    schema       <- ~workspace.schemas.findBy(schemaArg.getOrElse(workspace.main)).opt
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).opt) }
-  } yield new Context(cli, layout, config, workspace, schema, optProject)
+  } yield new Context(cli, layout, config, layer, schema, optProject)
      
   def select(ctx: Context) = {
     import ctx._
@@ -55,9 +55,9 @@ object ModuleCli {
       project   <- optProject.ascribe(UnspecifiedProject())
       moduleId  <- ~io(ModuleArg).opt
       moduleId  <- moduleId.ascribe(UnspecifiedModule())
-      lens      <- ~Lenses.workspace.mainModule(schema.id, project.id)
-      workspace <- ~(lens(workspace) = Some(moduleId))
-      io        <- ~io.save(workspace, layout.furyConfig)
+      lens      <- ~Lenses.layer.mainModule(schema.id, project.id)
+      layer     <- ~(lens(layer) = Some(moduleId))
+      io        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -72,7 +72,7 @@ object ModuleCli {
       rows    <- ~project.modules.to[List]
       table   <- ~Tables(config).show(Tables(config).modules(project.id, project.main), cols, rows, raw)(_.id)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project)) else io)
+      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project)) else io)
       io      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
@@ -100,13 +100,13 @@ object ModuleCli {
       module      <- ~io(MainArg).opt.map { m =>
                        module.copy(main = if(m == "") None else Some(m))
                      }.getOrElse(module)
-      workspace   <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.modules(_, project.id)) { (lens, ws) =>
-                       lens.modify(workspace)((_: SortedSet[Module]) + module)
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.modules(_, project.id)) { (lens, ws) =>
+                       lens.modify(layer)((_: SortedSet[Module]) + module)
                      }
-      workspace   <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.mainModule(_, project.id)) { (lens, ws) =>
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                        lens(ws) = Some(module.id)
                      }
-      io          <- ~io.save(workspace, layout.furyConfig)
+      io          <- ~io.save(layer, layout.furyConfig)
       io          <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
@@ -123,13 +123,13 @@ object ModuleCli {
       moduleId  <- io(ModuleArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- project.modules.findBy(moduleId)
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.modules(_, project.id)) { (lens, ws) =>
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.modules(_, project.id)) { (lens, ws) =>
                      lens.modify(ws)((_: SortedSet[Module]).filterNot(_.id == module.id))
                    }
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.mainModule(_, project.id)) { (lens, ws) =>
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                      if(lens(ws) == Some(moduleId)) lens(ws) = None else ws
                    }
-      io        <- ~io.save(workspace, layout.furyConfig)
+      io        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -168,12 +168,12 @@ object ModuleCli {
       newId          <- ~nameArg.flatMap(project.unused(_).opt).getOrElse(module.id)
       bloopSpec      <- io(BloopSpecArg).opt.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
       force          <- ~io(ForceArg).successful
-      workspace      <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.moduleKind(_, project.id, module.id))(_(_) = kind)
-      workspace      <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.moduleCompiler(_, project.id, module.id))(_(_) = compilerRef)
-      workspace      <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.moduleBloopSpec(_, project.id, module.id))(_(_) = bloopSpec)
-      workspace      <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.moduleMainClass(_, project.id, module.id))(_(_) = mainClass)
-      workspace      <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.moduleId(_, project.id, module.id))(_(_) = newId)
-      io             <- ~io.save(workspace, layout.furyConfig)
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleKind(_, project.id, module.id))(_(_) = kind)
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleCompiler(_, project.id, module.id))(_(_) = compilerRef)
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleBloopSpec(_, project.id, module.id))(_(_) = bloopSpec)
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleMainClass(_, project.id, module.id))(_(_) = mainClass)
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleId(_, project.id, module.id))(_(_) = newId)
+      io             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
@@ -208,7 +208,7 @@ object BinaryCli {
       rows    <- ~module.binaries.to[List]
       schema  <- defaultSchema
       table   <- ~Tables(config).show(Tables(config).binaries, cols, rows, raw)(identity)
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module)) else io)
+      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
       io      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
@@ -224,8 +224,8 @@ object BinaryCli {
       project     <- optProject.ascribe(UnspecifiedProject())
       binaryToDel <- ~module.binaries.find(_.spec == binaryArg)
       force       <- ~io(ForceArg).successful
-      workspace   <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
-      io          <- ~io.save(workspace, layout.furyConfig)
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
+      io          <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -240,8 +240,8 @@ object BinaryCli {
       binaryArg <- io(BinaryArg)
       repoId    <- ~io(BinaryRepoArg).opt.getOrElse(BinRepoId.Central)
       binary    <- Binary.unapply(repoId, binaryArg)
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.binaries(_, project.id, module.id))(_(_) += binary)
-      io        <- ~io.save(workspace, layout.furyConfig)
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
+      io        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
@@ -275,7 +275,7 @@ object ParamCli {
       rows    <- ~module.params.to[List]
       table   <- ~Tables(config).show(Tables(config).params, cols, rows, raw)(_.name)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module)) else io)
+      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
       io      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
@@ -290,8 +290,8 @@ object ParamCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
       force       <- ~io(ForceArg).successful
-      workspace   <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.params(_, project.id, module.id))(_(_) -= paramArg)
-      io          <- ~io.save(workspace, layout.furyConfig)
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
+      io          <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -303,8 +303,8 @@ object ParamCli {
       module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
       param     <- io(ParamArg)
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.params(_, project.id, module.id))(_(_) += param)
-      io        <- ~io.save(workspace, layout.furyConfig)
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(_(_) += param)
+      io        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

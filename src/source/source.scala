@@ -9,22 +9,22 @@ object SourceCli {
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
                      override val config: Config,
-                     override val workspace: Workspace,
+                     override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project],
                      optModule: Option[Module])
-      extends MenuContext(cli, layout, config, workspace, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId = optSchemaId.getOrElse(workspace.main)
-    def defaultSchema: Result[Schema, ~ | ItemNotFound] = workspace.schemas.findBy(defaultSchemaId)
+      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+    def defaultSchemaId: SchemaId = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Result[Schema, ~ | ItemNotFound] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- Config.read()(cli.env, layout)
-    workspace    <- Workspace.read(layout.furyConfig)(layout)
-    cli          <- cli.hint(SchemaArg, workspace.schemas)
+    layer        <- Layer.read(layout.furyConfig)(layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
-    schema       <- ~workspace.schemas.findBy(schemaArg.getOrElse(workspace.main)).opt
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).opt) }
@@ -35,7 +35,7 @@ object SourceCli {
                       moduleId <- optModuleId
                       module   <- project.modules.findBy(moduleId).opt
                     } yield module }
-  } yield new Context(cli, layout, config, workspace, schema, optProject, optModule)
+  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
 
   def list(ctx: Context) = {
     import ctx._
@@ -49,7 +49,7 @@ object SourceCli {
       rows    <- ~module.sources.to[List]
       table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoId)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module)) else io)
+      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
       io      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
@@ -66,8 +66,8 @@ object SourceCli {
       project     <- optProject.ascribe(UnspecifiedProject())
       sourceToDel <- ~module.sources.find(Some(_) == source)
       force       <- ~io(ForceArg).successful
-      workspace   <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.sources(_, project.id, module.id))(_(_) --= sourceToDel)
-      io          <- ~io.save(workspace, layout.furyConfig)
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
+      io          <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -86,8 +86,8 @@ object SourceCli {
       project   <- optProject.ascribe(UnspecifiedProject())
       sourceArg <- io(SourceArg)
       source    <- ~Source.unapply(sourceArg)
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.sources(_, project.id, module.id))(_(_) ++= source)
-      io        <- ~io.save(workspace, layout.furyConfig)
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)
+      io        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

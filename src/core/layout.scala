@@ -20,7 +20,7 @@ import gastronomy._
 case class Layout(home: Path, pwd: Path) {
   lazy val furyDir: Path = pwd / ".fury"
   lazy val bloopDir: Path = pwd / ".bloop"
-  lazy val workspacesDir: Path = furyDir / "workspaces"
+  lazy val layersDir: Path = furyDir / "layers"
   lazy val classesDir: Path = furyDir / "classes"
   lazy val runLogDir: Path = furyDir / "log"
   lazy val reposDir: Path = furyDir / "repos"
@@ -32,12 +32,11 @@ case class Layout(home: Path, pwd: Path) {
 
   def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
  
-  lazy val furyConfig: Path = pwd / "workspace.fury"
-  lazy val signedConfig: Path = pwd / "workspace.fury.sig"
+  lazy val furyConfig: Path = pwd / "layer.fury"
   
-  def workspaceDir(workspaceId: String): Path = workspacesDir / workspaceId
+  def layerDir(layerId: String): Path = layersDir / layerId
   
-  def workspaceFile(workspaceId: String): Path = workspaceDir(workspaceId) / "workspace.fury"
+  def layerFile(layerId: String): Path = layerDir(layerId) / "layer.fury"
 
   def outputDir(ref: ModuleRef, create: Boolean): Path = {
     val path = classesDir / ref.projectId.key / ref.moduleId.key / "output"

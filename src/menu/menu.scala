@@ -23,8 +23,8 @@ object FuryMenu {
     Menu('main, "main menu", (x: Cli[CliParam[_]]) => Answer(x), 'build)((List(
       Action('about, msg"about Fury", BuildCli.about),
       Menu('alias, msg"view and edit command aliases", AliasCli.context, 'list)(
-        Action('add, msg"add a command alias to the workspace", AliasCli.add),
-        Action('delete, msg"delete a command alias from the workspace", AliasCli.delete),
+        Action('add, msg"add a command alias to the layer", AliasCli.add),
+        Action('delete, msg"delete a command alias from the layer", AliasCli.delete),
         Action('list, msg"list command aliases", AliasCli.list),
       ),
       Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
@@ -56,7 +56,7 @@ object FuryMenu {
         Action('delete, msg"delete a previously imported schema", ImportCli.delete),
         Action('list, msg"list imported schemas", ImportCli.list),
       ),
-      Action('init, msg"initialize a new Fury workspace", BuildCli.init),
+      Action('init, msg"initialize a new Fury layer", BuildCli.init),
       Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
         Action('add, msg"add a new module to the project", ModuleCli.add),
         Action('delete, msg"delete a module from the project", ModuleCli.delete),
@@ -86,10 +86,10 @@ object FuryMenu {
       ),
       Action('stop, msg"stop the Fury server", BuildCli.about),
       Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
-        Action('add, msg"add a schema to the workspace", SchemaCli.add),
-        Action('delete, msg"delete a schema from the workspace", SchemaCli.delete),
+        Action('add, msg"add a schema to the layer", SchemaCli.add),
+        Action('delete, msg"delete a schema from the layer", SchemaCli.delete),
         Action('diff, msg"compare this schema to another one", SchemaCli.diff),
-        Action('list, msg"list schemas for the workspace", SchemaCli.list),
+        Action('list, msg"list schemas for the layer", SchemaCli.list),
         Action('select, msg"select the current schema", SchemaCli.select),
         Action('update, msg"update a schema", SchemaCli.update),
       ),
@@ -101,9 +101,9 @@ object FuryMenu {
         Action('pull, msg"pull the latest version of the source repo from the remote", RepoCli.pull),
       ),
       Action('undo, msg"undo the previous modification", BuildCli.undo),
-      Menu('workspace, msg"view and edit the workspace", WorkspaceCli.context, 'describe)(
-        Action('projects, msg"show all available projectts", WorkspaceCli.projects),
-        Action('publish, msg"publish the workspace to git", WorkspaceCli.publish),
+      Menu('layer, msg"view and edit the layer", LayerCli.context, 'describe)(
+        Action('projects, msg"show all available projectts", LayerCli.projects),
+        Action('publish, msg"publish the layer to git", LayerCli.publish),
       ),
     ) ::: aliases): _*)
   }

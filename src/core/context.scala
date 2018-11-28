@@ -17,7 +17,7 @@ package fury
 
 import guillotine._
 
-class MenuContext(val cli: Cli[CliParam[_]], val layout: Layout, val config: Config, val workspace: Workspace,
+class MenuContext(val cli: Cli[CliParam[_]], val layout: Layout, val config: Config, val layer: Layer,
     val optSchemaId: Option[SchemaId] = None) {
   implicit def implicitLayout: Layout = layout
   implicit def implicitShell: Shell = cli.shell

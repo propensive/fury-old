@@ -28,8 +28,8 @@ case class Tables(config: Config) {
     if(raw) rows.map(main).map { e => implicitly[MsgShow[S]].show(e).string(Theme.NoColor) }
     else table.tabulate(cols, rows)
 
-  def contextString(workspace: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
-    (if(showSchema) elements else elements.tail).foldLeft(workspace) { (l, r) =>
+  def contextString(layer: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
+    (if(showSchema) elements else elements.tail).foldLeft(layer) { (l, r) =>
       UserMsg { theme => s"${l.string(theme)}/${r.string(theme)}" }
     }
 

@@ -10,24 +10,24 @@ object RepoCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout     <- cli.layout
     config     <- fury.Config.read()(cli.env, layout)
-    workspace  <- fury.Workspace.read(layout.furyConfig)(layout)
-  } yield Context(cli, layout, config, workspace)
+    layer      <- Layer.read(layout.furyConfig)(layout)
+  } yield Context(cli, layout, config, layer)
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, workspace: Workspace)
+  case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
   
   def list(ctx: Context) = {
   import ctx._
     for {
-      cli       <- ctx.cli.hint(SchemaArg, ctx.workspace.schemas.map(_.id))
+      cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       cols      <- Answer(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
       io        <- cli.io()
       raw       <- ~io(RawArg).successful
-      schemaArg <- io(SchemaArg).remedy(ctx.workspace.main)
-      schema    <- ctx.workspace.schemas.findBy(schemaArg)
+      schemaArg <- io(SchemaArg).remedy(ctx.layer.main)
+      schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- schema.allRepos(ctx.layout, cli.shell).map(_.to[List].sortBy(_.id))
       table     <- ~Tables(config).show(Tables(config).repositories(ctx.layout, cli.shell), cols, rows, raw)(_.id)
-      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema)) else io)
+      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
       io        <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
@@ -35,9 +35,9 @@ object RepoCli {
   def fork(ctx: Context) = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, workspace.schemas.map(_.id))
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema    <- workspace.schemas.findBy(schemaArg)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(DirArg)
       cli       <- cli.hint(RetryArg)
       cli       <- cli.hint(RepoIdArg, schema.repos)
@@ -49,18 +49,18 @@ object RepoCli {
       bareRepo  <- repo.repo.fetch(layout, cli.shell)
       io        <- ~io.map { _ => cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id) }
       newRepo   <- ~repo.copy(local = Some(dir))
-      lens      <- ~Lenses.workspace.repos(schema.id)
-      workspace <- ~(lens.modify(workspace)(_ - repo + newRepo))
-      io        <- ~io.save(workspace, layout.furyConfig)
+      lens      <- ~Lenses.layer.repos(schema.id)
+      layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+      io        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def pull(ctx: Context) = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, workspace.schemas.map(_.id))
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema    <- workspace.schemas.findBy(schemaArg)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoIdArg, schema.repos)
       cli       <- cli.hint(AllArg, Nil)
       io        <- cli.io()
@@ -75,7 +75,7 @@ object RepoCli {
   def add(ctx: Context) = {
     import ctx._
     for {
-      cli            <- cli.hint(SchemaArg, workspace.schemas.map(_.id))
+      cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli            <- cli.hint(RepoArg)
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(RetryArg)
@@ -86,8 +86,8 @@ object RepoCli {
       io             <- cli.io()
       optImport      <- ~io(ImportArg2).opt
       optSchemaArg   <- ~io(SchemaArg).opt
-      schemaArg      <- ~optSchemaArg.getOrElse(workspace.main)
-      schema         <- workspace.schemas.findBy(schemaArg)
+      schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
+      schema         <- layer.schemas.findBy(schemaArg)
       remote         <- ~io(RepoArg).opt
       retry          <- ~io(RetryArg).successful
       dir            <- ~io(DirArg).opt
@@ -98,14 +98,14 @@ object RepoCli {
       sourceRepo     <- repo.map(SourceRepo(nameArg, _, version, dir)).orElse(dir.map { d =>
                           SourceRepo(nameArg, fury.Repo(""), RefSpec.master, Some(d))
                         }).ascribe(exoskeleton.MissingArg("repo"))
-      lens           <- ~Lenses.workspace.repos(schema.id)
-      workspace      <- ~(lens.modify(workspace)(_ + sourceRepo))
+      lens           <- ~Lenses.layer.repos(schema.id)
+      layer          <- ~(lens.modify(layer)(_ + sourceRepo))
       optImportRef   <- ~optImport.map(SchemaRef(sourceRepo.id, _))
-      workspace      <- optImportRef.map { importRef =>
-                          Lenses.updateSchemas(optSchemaArg, workspace, true)(Lenses.workspace.imports(_))(_.modify(_)(_ :+ importRef))
-                        }.getOrElse(~workspace)
+      layer          <- optImportRef.map { importRef =>
+                          Lenses.updateSchemas(optSchemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ :+ importRef))
+                        }.getOrElse(~layer)
       _              <- sourceRepo.repo.fetch(layout, cli.shell)
-      io             <- ~io.save(workspace, layout.furyConfig)
+      io             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -113,8 +113,8 @@ object RepoCli {
     import ctx._
     for {
       cli       <- cli.hint(AllArg)
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema    <- workspace.schemas.findBy(schemaArg)
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoIdArg, schema.repos)
       io        <- cli.io()
       repoId    <- io(RepoIdArg).opt.ascribe(UnspecifiedRepo())
@@ -126,16 +126,16 @@ object RepoCli {
   def delete(ctx: Context) = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, workspace.schemas.map(_.id))
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(workspace.main)
-      schema    <- workspace.schemas.findBy(schemaArg)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoIdArg, schema.repos)
       io        <- cli.io()
       repoId    <- io(RepoIdArg)
       repo      <- schema.repos.findBy(repoId)
-      lens      <- ~Lenses.workspace.repos(schema.id)
-      workspace <- ~(lens(workspace) -= repo)
-      io        <- ~io.save(workspace, layout.furyConfig)
+      lens      <- ~Lenses.layer.repos(schema.id)
+      layer     <- ~(lens(layer) -= repo)
+      io        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

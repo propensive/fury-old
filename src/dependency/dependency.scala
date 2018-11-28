@@ -11,22 +11,22 @@ object DependencyCli {
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
                      override val config: Config,
-                     override val workspace: Workspace,
+                     override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project],
                      optModule: Option[Module])
-      extends MenuContext(cli, layout, config, workspace, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId = optSchemaId.getOrElse(workspace.main)
-    def defaultSchema: Result[Schema, ~ | ItemNotFound] = workspace.schemas.findBy(defaultSchemaId)
+      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+    def defaultSchemaId: SchemaId = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Result[Schema, ~ | ItemNotFound] = layer.schemas.findBy(defaultSchemaId)
   }
   
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- Config.read()(cli.env, layout)
-    workspace    <- Workspace.read(layout.furyConfig)(layout)
-    cli          <- cli.hint(SchemaArg, workspace.schemas)
+    layer        <- Layer.read(layout.furyConfig)(layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
-    schema       <- ~workspace.schemas.findBy(schemaArg.getOrElse(workspace.main)).opt
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).opt) }
@@ -37,7 +37,7 @@ object DependencyCli {
                                moduleId <- optModuleId
                                module   <- project.modules.findBy(moduleId).opt
                              } yield module }
-    } yield new Context(cli, layout, config, workspace, schema, optProject, optModule)
+    } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
 
   def list(ctx: Context) = {
     import ctx._
@@ -51,7 +51,7 @@ object DependencyCli {
       rows    <- ~module.after.to[List].sorted
       table   <- ~Tables(config).show(Tables(config).dependencies, cols, rows, raw)(identity)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module)) else io)
+      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
       io      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
@@ -68,15 +68,15 @@ object DependencyCli {
       module        <- optModule.ascribe(UnspecifiedModule())
       moduleRef     <- ModuleRef.parse(project, dependencyArg, false)
       force         <- ~io(ForceArg).successful
-      workspace     <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.after(_, project.id, module.id))(_(_) -= moduleRef)
-      io            <- ~io.save(workspace, layout.furyConfig)
+      layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
+      io            <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def add(ctx: Context) = {
     import ctx._
     for {
-      optSchema     <- ~workspace.mainSchema.opt
+      optSchema     <- ~layer.mainSchema.opt
       cli           <- cli.hint(DependencyArg, optProject.map(_.moduleRefs).orElse(optSchema.map(_.moduleRefs)).getOrElse(List()))
       cli           <- cli.hint(IntransitiveArg)
       io            <- cli.io()
@@ -85,8 +85,8 @@ object DependencyCli {
       intransitive  <- ~io(IntransitiveArg).successful
       dependencyArg <- io(DependencyArg)
       moduleRef     <- ModuleRef.parse(project, dependencyArg, intransitive)
-      workspace     <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.after(_, project.id, module.id))(_(_) += moduleRef)
-      io            <- ~io.save(workspace, layout.furyConfig)
+      layer         <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)
+      io            <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
