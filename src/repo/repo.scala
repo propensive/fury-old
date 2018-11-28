@@ -46,8 +46,8 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       dir       <- io(DirArg)
       retry     <- ~io(RetryArg).successful
-      bareRepo  <- repo.repo.fetch()(layout, cli.shell)
-      io        <- ~io.effect(cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id))
+      bareRepo  <- repo.repo.fetch(layout, cli.shell)
+      io        <- ~io.map { _ => cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id) }
       newRepo   <- ~repo.copy(local = Some(dir))
       lens      <- ~Lenses.workspace.repos(schema.id)
       workspace <- ~(lens.modify(workspace)(_ - repo + newRepo))
@@ -104,7 +104,7 @@ object RepoCli {
       workspace      <- optImportRef.map { importRef =>
                           Lenses.updateSchemas(optSchemaArg, workspace, true)(Lenses.workspace.imports(_))(_.modify(_)(_ :+ importRef))
                         }.getOrElse(~workspace)
-      _              <- sourceRepo.repo.fetch()(layout, cli.shell)
+      _              <- sourceRepo.repo.fetch(layout, cli.shell)
       io             <- ~io.save(workspace, layout.furyConfig)
     } yield io.await()
   }

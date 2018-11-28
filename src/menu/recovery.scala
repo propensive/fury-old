@@ -100,7 +100,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
       val result = for {
         layout <- cli.layout
         io     <- cli.io()
-        _      <- ~io.effect(layout.errorLogfile.writeSync(errorString))
+        _      <- ~io.map { _ => layout.errorLogfile.writeSync(errorString) }
         _      <- ~io.await()
       } yield cli.abort {
         msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}."

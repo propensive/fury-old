@@ -15,12 +15,12 @@
                                                                                                   */
 package fury
 
+import Args._
+
 import guillotine._
 import mitigation._
 
 import scala.concurrent._
-
-import Args._
 
 object ConfigCli {
 
@@ -176,7 +176,6 @@ object BuildCli {
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli          <- cli.hint(RecursiveArg)
       io           <- cli.io()
       project      <- optProject.ascribe(UnspecifiedProject())
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
@@ -185,8 +184,7 @@ object BuildCli {
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
       io           <- Bloop.server(cli)(io)
-      recursive    <- ~io(RecursiveArg).opt.isDefined
-      io           <- ~io.effect(universe.clean(artifact, recursive))
+      io           <- ~io.map { _ => universe.clean(module.ref(project)) }
     } yield io.await()
   }
   
@@ -210,18 +208,18 @@ object BuildCli {
       module         <- optModule.ascribe(UnspecifiedModule())
       universe       <- schema.universe
       artifact       <- universe.artifact(module.ref(project))
-      artifacts      <- universe.transitiveDependencies(artifact)(cli.shell)
+      artifacts      <- universe.transitiveDependencies(module.ref(project))(cli.shell)
       io             <- Bloop.server(cli)(io)
       files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
-      compilation    <- universe.compilation(artifact)(cli.shell)
+      compilation    <- universe.compilation(module.ref(project))(cli.shell, layout)
       debugStr       <- ~io(DebugArg).opt
       io             <- ~io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema, project, module))
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](artifacts.map(_.ref).to[List]))
       future         <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
-      io             <- ~Graph.live(cli)(io, compilation.graph, multiplexer.stream(50, Some(Tick)), Map())(config.theme)
+      io             <- ~Graph.live(cli)(io, compilation.graph.mapValues(_.to[Set]), multiplexer.stream(50, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
       io             <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
-      io             <- ~io.effect(Thread.sleep(150))
+      //io             <- ~io.map(Thread.sleep(150))
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
  
@@ -265,7 +263,7 @@ object BuildCli {
       module       <- optModule.ascribe(UnspecifiedModule())
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
-      io           <- universe.saveJars(cli)(io, artifact, dir in layout.pwd)
+      io           <- universe.saveJars(cli)(io, module.ref(project), dir in layout.pwd)
     } yield io.await()
   }
   
@@ -288,7 +286,7 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
-      classpath    <- universe.classpath(artifact)
+      classpath    <- universe.classpath(module.ref(project))
       io           <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
@@ -312,8 +310,8 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
-      compilation  <- universe.dependencyGraph(artifact)(cli.shell)
-      io           <- ~Graph.draw(compilation.graph, true, Map())(config.theme).foldLeft(io)(_.println(_))
+      compilation  <- universe.compilation(module.ref(project))
+      io           <- ~Graph.draw(compilation.graph.mapValues(_.to[Set]), true, Map())(config.theme).foldLeft(io)(_.println(_))
     } yield io.await()
   }
 }
