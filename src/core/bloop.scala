@@ -38,7 +38,7 @@ object Bloop {
         val running = shell.bloop.startServer()
         
         def checkStarted(io: cli.Io[_]): cli.Io[Unit] = try {
-          Thread.sleep(50)
+          Thread.sleep(150)
           if(!testServer().successful) checkStarted(io.print("."))
           else io.unit
         } catch { case e: Exception => checkStarted(io.print(".")) }
@@ -64,7 +64,7 @@ object Bloop {
     artifacts.map { artifact => for {
       path       <- layout.bloopConfig(artifact).mkParents()
       jsonString <- makeConfig(artifact, universe)
-      _          <- path.writeSync(jsonString)
+      _          <- ~(if(!path.exists) path.writeSync(jsonString))
     } yield List(path) }.sequence.map(_.flatten)
   }
 
@@ -73,17 +73,16 @@ object Bloop {
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
                             UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
     for {
-      deps                 <- universe.dependencies(artifact.ref)
-      _                     = artifact.writePlugin()
-      optCompiler           = artifact.compiler
-      classpath            <- universe.classpath(artifact.ref)
-      optCompilerClasspath <- optCompiler.map(_.ref).map(universe.classpath).getOrElse(Answer(Nil))
-      params               <- universe.allParams(artifact.ref)
+      deps              <- universe.dependencies(artifact.ref)
+      _                  = artifact.writePlugin()
+      compiler           = artifact.compiler
+      classpath         <- universe.classpath(artifact.ref)
+      compilerClasspath <- compiler.map { c => universe.classpath(c.ref) }.getOrElse(Answer(Set()))
     } yield json(
       name = artifact.hash.encoded[Base64Url],
-      scalacOptions = params,
+      scalacOptions = artifact.params,
       // FIXME: Don't hardcode this value
-      bloopSpec = optCompiler.map(_.bloopSpec.get).getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
+      bloopSpec = compiler.flatMap(_.bloopSpec).getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
       dependencies = deps.map(_.hash.encoded[Base64Url]).to[List],
       fork = false,
       classesDir = str"${layout.classesDir(artifact, true).value}",
@@ -91,7 +90,7 @@ object Bloop {
       classpath = classpath.map(_.value).to[List],
       baseDirectory = layout.pwd.value,
       javaOptions = Nil,
-      allScalaJars = optCompilerClasspath.map(_.value).to[List],
+      allScalaJars = compilerClasspath.map(_.value).to[List],
       sourceDirectories = artifact.sourcePaths.map(_.value),
       javacOptions = Nil,
       main = artifact.main

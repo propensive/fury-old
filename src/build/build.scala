@@ -213,7 +213,6 @@ object BuildCli {
       files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
       compilation    <- universe.compilation(module.ref(project))(cli.shell, layout)
       debugStr       <- ~io(DebugArg).opt
-      io             <- ~io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module))
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](artifacts.map(_.ref).to[List]))
       future         <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
       io             <- ~Graph.live(cli)(io, compilation.graph.mapValues(_.to[Set]), multiplexer.stream(50, Some(Tick)), Map())(config.theme)
@@ -311,6 +310,7 @@ object BuildCli {
       universe     <- schema.universe
       artifact     <- universe.artifact(module.ref(project))
       compilation  <- universe.compilation(module.ref(project))
+      io           <- ~io.println(compilation.toString)
       io           <- ~Graph.draw(compilation.graph.mapValues(_.to[Set]), true, Map())(config.theme).foldLeft(io)(_.println(_))
     } yield io.await()
   }
@@ -352,7 +352,7 @@ object LayerCli {
     import ctx._
     for {
       suggestedTags <- cli.shell.git.tags(layout.pwd)
-      cli           <- cli.hint(TagArg, GitTag.suggested(suggestedTags))
+      cli           <- cli.hint(TagArg)
       keys          <- cli.shell.gpg.keys()
       cli           <- cli.hint(KeyArg, keys)
       io            <- cli.io()

@@ -36,7 +36,7 @@ case class Shell()(implicit env: Environment) {
     def sparseCheckout(from: Path, dir: Path, sources: List[Path], commit: String): Result[String, ~ | ShellFailure | FileWriteError] = for {
       _   <- sh"git -C ${dir.value} init".exec[Out]
       _   <- if(!sources.isEmpty) sh"git -C ${dir.value} config core.sparseCheckout true".exec[Out] else Answer(())
-      _   <- if(!sources.isEmpty) (dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value).mkString("", "/*\n", "/*\n")) else Answer(())
+      _   <- Answer { sources.foreach { src => (dir / ".git" / "info" / "sparse-checkout").appendSync(src+"\n") } }
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Out]
       str <- sh"git -C ${dir.value} pull origin $commit".exec[Out]
     } yield str
@@ -94,11 +94,11 @@ case class Shell()(implicit env: Environment) {
     }
 
     def clean(name: String)(output: String => Unit): Running =
-      sh"ng --nailgun-port 8212 clean $name".async(output(_), output(_))
+      sh"ng --nailgun-port 8212 clean -c .fury/bloop $name".async(output(_), output(_))
 
     def compile(name: String, run: Boolean)(output: String => Unit): Running = {
       val action = if(run) "run" else "compile"
-      sh"ng --nailgun-port 8212 $action $name".async(output(_), output(_))
+      sh"ng --nailgun-port 8212 $action -c .fury/bloop $name".async(output(_), output(_))
     }
 
     def startServer(): Running =

@@ -19,12 +19,12 @@ import gastronomy._
 
 case class Layout(home: Path, pwd: Path) {
   lazy val furyDir: Path = pwd / ".fury"
-  lazy val bloopDir: Path = pwd / ".bloop"
+  lazy val bloopDir: Path = furyDir / "bloop"
   lazy val layersDir: Path = furyDir / "layers"
   lazy val classesDir: Path = furyDir / "classes"
   lazy val runLogDir: Path = furyDir / "log"
   lazy val reposDir: Path = furyDir / "repos"
-  lazy val refsDir: Path = furyDir / "refs"
+  lazy val srcsDir: Path = furyDir / "srcs"
   lazy val tmpDir: Path = furyDir / "tmp"
   lazy val errorLogfile: Path = pwd / ".fury.log"
   lazy val userConfig: Path = home / ".fury.conf"

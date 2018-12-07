@@ -51,7 +51,7 @@ case class Tables(config: Config) {
       val extra = (if(intransitive) msg"*" else msg"")
       if(p == projectId) msg"${theme.module(m.key)}$extra"
       else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"
-  }.foldLeft(msg"")(_ + "\n" + _).string(theme)
+  }.foldLeft(msg"")(_ + _ + "\n").string(theme)
 
   implicit private def compilerRef(implicit show: AnsiShow[ModuleRef])
                                         : AnsiShow[Option[ModuleRef]] = {
