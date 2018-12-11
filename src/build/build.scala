@@ -213,12 +213,12 @@ object BuildCli {
       files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
       compilation    <- universe.compilation(module.ref(project))(cli.shell, layout)
       debugStr       <- ~io(DebugArg).opt
-      multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](artifacts.map(_.ref).to[List]))
+      multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](module.ref(project) :: artifacts.map(_.ref).to[List]))
       future         <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
       io             <- ~Graph.live(cli)(io, compilation.graph.mapValues(_.to[Set]), multiplexer.stream(50, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
       io             <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
-      //io             <- ~io.map(Thread.sleep(150))
+      io             <- ~io.map { _ => Thread.sleep(200) }
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
  

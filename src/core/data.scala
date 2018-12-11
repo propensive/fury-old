@@ -187,10 +187,14 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
   def classpath(ref: ModuleRef)
                (implicit layout: Layout, shell: Shell)
                : Result[Set[Path], ~ | ShellFailure | ItemNotFound] = for {
+    art  <- artifact(ref)
     deps <- transitiveDependencies(ref)
+    _    <- ~println(str"deps: $ref = "+deps)
     dirs <- ~deps.map(layout.classesDir(_, false))
+    _    <- ~println(str"dirs: $ref = "+dirs)
     bins <- ~deps.flatMap(_.binaries)
-  } yield (dirs ++ bins)
+    _    <- ~println(str"bins: $ref = "+bins)
+  } yield (dirs ++ bins ++ art.binaries)
 
   def dependencies(ref: ModuleRef)
                   (implicit shell: Shell)
@@ -222,7 +226,8 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
   def compilation(ref: ModuleRef)
                  (implicit shell: Shell, layout: Layout)
                  : Result[Compilation, ~ | ItemNotFound | ShellFailure] = for {
-    graph     <- transitiveDependencies(ref).map(_.map { a => (a.ref, a.dependencies) }.toMap)
+    art       <- artifact(ref)
+    graph     <- transitiveDependencies(ref).map(_.map { a => (a.ref, a.dependencies) }.toMap.updated(art.ref, art.dependencies))
     artifacts <- graph.keys.map { key => artifact(key).map(key -> _) }.sequence.map(_.toMap)
     checkouts <- graph.keys.map { key => checkout(key) }.sequence
   } yield Compilation(graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
@@ -450,6 +455,8 @@ case class ModuleRef(projectId: ProjectId, moduleId: ModuleId, intransitive: Boo
   }
 
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode
+
+  override def toString: String = str"$projectId/$moduleId"
 }
 
 object SchemaId {
