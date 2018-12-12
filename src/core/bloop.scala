@@ -27,27 +27,32 @@ object Bloop {
   private[this] def testServer(): Result[Unit, ~] =
     Answer(new Socket("localhost", 8212).close().unit)
 
-  def server(cli: Cli[_])(io: cli.Io[_])(implicit shell: Shell): Result[cli.Io[Unit], ~ | InitFailure] = synchronized {
+  def server(cli: Cli[_])(io: cli.Io): Result[Unit, ~ | InitFailure] = synchronized {
     try {
       testServer()
-      Answer(io.unit)
+      Answer(())
     } catch {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
         val io2 = io.print("Starting bloop compile server")
-        val running = shell.bloop.startServer()
+        val running = cli.shell.bloop.startServer()
         
-        def checkStarted(io: cli.Io[_]): cli.Io[Unit] = try {
+        def checkStarted(): Unit = try {
           Thread.sleep(150)
-          if(!testServer().successful) checkStarted(io.print("."))
-          else io.unit
-        } catch { case e: Exception => checkStarted(io.print(".")) }
+          if(!testServer().successful) {
+            io.print(".")
+            checkStarted()
+          }
+        } catch { case e: Exception =>
+          io.print(".")
+          checkStarted()
+        }
         
-        val io3 = checkStarted(io2).println("done")
+        io.println("done")
 
         try {
           bloopServer = Some(running)
-          Answer(io3)
+          Answer(())
         } catch {
           case e: ConnectException =>
             bloopServer = None

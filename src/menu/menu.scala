@@ -108,17 +108,16 @@ object FuryMenu {
     ) ::: aliases): _*)
   }
   
-  def help(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | EarlyCompletions] =
-    cli.io().map(_.println(
-              s"""|Usage: fury <command> [<subcommands>] [<args>]
-                  |
-                  |Command and subcommand reference:
-                  |${menu(Nil).reference(Theme.NoColor).join("\n")}
-                  |
-                  |More help is available on the Fury website: https://fury.build/
-                  |""".stripMargin).await())
-
-
-
+  def help(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | EarlyCompletions] = for {
+    io <- cli.io()
+    _  <- ~io.println(
+            s"""|Usage: fury <command> [<subcommands>] [<args>]
+                |
+                |Command and subcommand reference:
+                |${menu(Nil).reference(Theme.NoColor).join("\n")}
+                |
+                |More help is available on the Fury website: https://fury.build/
+                |""".stripMargin)
+  } yield io.await()
 }
 

@@ -38,7 +38,7 @@ object SchemaCli {
       schemaId      <- io(SchemaArg)
       lens          <- ~Lenses.layer.mainSchema
       layer         <- ~(lens(layer) = schemaId)
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -54,8 +54,8 @@ object SchemaCli {
       raw       <- ~io(RawArg).successful
       rows      <- ~layer.schemas.to[List]
       table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cols, rows, raw)(_.id)
-      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io        <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 
@@ -74,8 +74,8 @@ object SchemaCli {
       cols      <- Answer(Terminal.columns(cli.env).getOrElse(100))
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~Tables(config).show(Tables(config).differences(schema.id.key, other.id.key), cols, rows, raw)(_.label)
-      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io        <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 
@@ -92,7 +92,7 @@ object SchemaCli {
       lens      <- ~Lenses.layer.schemas
       layer     <- ~lens.modify(layer)(_ - schema + newSchema)
       layer     <- ~(if(layer.main == schema.id) layer.copy(main = newSchema.id) else layer)
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
   
@@ -109,7 +109,7 @@ object SchemaCli {
       lens      <- ~Lenses.layer.schemas
       layer     <- ~lens.modify(layer)(_ + newSchema)
       layer     <- ~layer.copy(main = newSchema.id)
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
   
@@ -122,7 +122,7 @@ object SchemaCli {
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.schemas
       layer     <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
   
@@ -140,7 +140,7 @@ object ImportCli {
       io            <- cli.io()
       schemaRef     <- io(ImportArg)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ :+ schemaRef))
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
   
@@ -157,7 +157,7 @@ object ImportCli {
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
   
@@ -174,8 +174,8 @@ object ImportCli {
       raw       <- ~io(RawArg).successful
       rows      <- schema.importedSchemas(layout, cli.shell)
       table     <- ~Tables(config).show(Tables(config).schemas(Some(layer.main)), cols, rows, raw)(_.id)
-      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io        <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 }
@@ -193,8 +193,8 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- schema.allRepos(ctx.layout, cli.shell).map(_.to[List].sortBy(_.id))
       table     <- ~Tables(config).show(Tables(config).repositories(ctx.layout, cli.shell), cols, rows, raw)(_.id)
-      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io        <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 
@@ -213,11 +213,11 @@ object RepoCli {
       dir       <- io(DirArg)
       retry     <- ~io(RetryArg).successful
       bareRepo  <- repo.repo.fetch(layout, cli.shell)
-      io        <- ~io.map { _ => cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id) }
+      _         <- ~cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id)
       newRepo   <- ~repo.copy(local = Some(dir))
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -234,7 +234,7 @@ object RepoCli {
       optRepos  <- io(RepoIdArg).opt.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ => schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
       repos     <- optRepos.map(schema.repo(_)).sequence
       msgs      <- repos.map(_.repo.update()(cli.shell, layout)).sequence
-      io        <- ~msgs.foldLeft(io)(_.println(_))
+      _         <- ~msgs.foreach(io.println(_))
     } yield io.await()
   }
 
@@ -271,7 +271,7 @@ object RepoCli {
                           Lenses.updateSchemas(optSchemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ :+ importRef))
                         }.getOrElse(~layer)
       _              <- sourceRepo.repo.fetch(layout, cli.shell)
-      io             <- ~io.save(layer, layout.furyConfig)
+      _              <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -301,7 +301,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

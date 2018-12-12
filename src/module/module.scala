@@ -57,7 +57,7 @@ object ModuleCli {
       moduleId  <- moduleId.ascribe(UnspecifiedModule())
       lens      <- ~Lenses.layer.mainModule(schema.id, project.id)
       layer     <- ~(lens(layer) = Some(moduleId))
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -72,8 +72,8 @@ object ModuleCli {
       rows    <- ~project.modules.to[List]
       table   <- ~Tables(config).show(Tables(config).modules(project.id, project.main), cols, rows, raw)(_.id)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project)) else io)
-      io      <- ~io.println(table.mkString("\n"))
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project)))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
      
@@ -106,8 +106,8 @@ object ModuleCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                        lens(ws) = Some(module.id)
                      }
-      io          <- ~io.save(layer, layout.furyConfig)
-      io          <- ~io.println(msg"Set current module to ${module.id}")
+      _           <- ~io.save(layer, layout.furyConfig)
+      _           <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
 
@@ -129,7 +129,7 @@ object ModuleCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                      if(lens(ws) == Some(moduleId)) lens(ws) = None else ws
                    }
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -173,7 +173,7 @@ object ModuleCli {
       layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleBloopSpec(_, project.id, module.id))(_(_) = bloopSpec)
       layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleMainClass(_, project.id, module.id))(_(_) = mainClass)
       layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.moduleId(_, project.id, module.id))(_(_) = newId)
-      io             <- ~io.save(layer, layout.furyConfig)
+      _              <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
@@ -208,8 +208,8 @@ object BinaryCli {
       rows    <- ~module.binaries.to[List]
       schema  <- defaultSchema
       table   <- ~Tables(config).show(Tables(config).binaries, cols, rows, raw)(identity)
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
-      io      <- ~io.println(table.mkString("\n"))
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -225,7 +225,7 @@ object BinaryCli {
       binaryToDel <- ~module.binaries.find(_.spec == binaryArg)
       force       <- ~io(ForceArg).successful
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
-      io          <- ~io.save(layer, layout.furyConfig)
+      _           <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -241,7 +241,7 @@ object BinaryCli {
       repoId    <- ~io(BinaryRepoArg).opt.getOrElse(BinRepoId.Central)
       binary    <- Binary.unapply(repoId, binaryArg)
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
@@ -275,8 +275,8 @@ object ParamCli {
       rows    <- ~module.params.to[List]
       table   <- ~Tables(config).show(Tables(config).params, cols, rows, raw)(_.name)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
-      io      <- ~io.println(table.mkString("\n"))
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -291,7 +291,7 @@ object ParamCli {
       project     <- optProject.ascribe(UnspecifiedProject())
       force       <- ~io(ForceArg).successful
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
-      io          <- ~io.save(layer, layout.furyConfig)
+      _           <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -304,7 +304,7 @@ object ParamCli {
       project   <- optProject.ascribe(UnspecifiedProject())
       param     <- io(ParamArg)
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(_(_) += param)
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

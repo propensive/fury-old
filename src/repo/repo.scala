@@ -27,8 +27,8 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- schema.allRepos(ctx.layout, cli.shell).map(_.to[List].sortBy(_.id))
       table     <- ~Tables(config).show(Tables(config).repositories(ctx.layout, cli.shell), cols, rows, raw)(_.id)
-      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io        <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 
@@ -47,11 +47,11 @@ object RepoCli {
       dir       <- io(DirArg)
       retry     <- ~io(RetryArg).successful
       bareRepo  <- repo.repo.fetch(layout, cli.shell)
-      io        <- ~io.map { _ => cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id) }
+      _         <- ~cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id)
       newRepo   <- ~repo.copy(local = Some(dir))
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -68,7 +68,7 @@ object RepoCli {
       optRepos  <- io(RepoIdArg).opt.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ => schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
       repos     <- optRepos.map(schema.repo(_)).sequence
       msgs      <- repos.map(_.repo.update()(cli.shell, layout)).sequence
-      io        <- ~msgs.foldLeft(io)(_.println(_))
+      _         <- ~msgs.foreach(io.println(_))
     } yield io.await()
   }
 
@@ -105,7 +105,7 @@ object RepoCli {
                           Lenses.updateSchemas(optSchemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ :+ importRef))
                         }.getOrElse(~layer)
       _              <- sourceRepo.repo.fetch(layout, cli.shell)
-      io             <- ~io.save(layer, layout.furyConfig)
+      _              <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -135,7 +135,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

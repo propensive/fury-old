@@ -232,23 +232,22 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
     checkouts <- graph.keys.map { key => checkout(key) }.sequence
   } yield Compilation(graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
 
-  def saveJars(cli: Cli[_])
-              (io: cli.Io[_], ref: ModuleRef, dest: Path)
+  def saveJars(cli: Cli[_])(io: cli.Io, ref: ModuleRef, dest: Path)
               (implicit shell: Shell, layout: Layout)
-              : Result[cli.Io[Unit], ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
+              : Result[Unit, ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
     dest         <- dest.directory
     current      <- artifact(ref)
     deps         <- transitiveDependencies(ref)
     dirs         <- ~deps.map(layout.classesDir(_, false))
     files        <- ~dirs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
     bins         <- ~deps.flatMap(_.binaries)
-    io           <- ~io.println(msg"Writing manifest file ${layout.manifestFile(ref)}")
+    _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(ref)}")
     manifestFile <- Manifest.file(layout.manifestFile(ref), bins.map(_.name), None)
     path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-    io           <- ~io.println(msg"Saving JAR file $path")
-    io           <- ~io.map { _ => shell.aggregatedJar(path, files, manifestFile) }
-    io           <- ~io.map { _ => bins.foreach { b => b.copyTo(dest / b.name) } }
-  } yield io
+    _            <- ~io.println(msg"Saving JAR file $path")
+    _            <- shell.aggregatedJar(path, files, manifestFile)
+    _            <- ~bins.foreach { b => b.copyTo(dest / b.name) }
+  } yield ()
 
   def compile(artifact: Artifact,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
@@ -340,7 +339,7 @@ case class Schema(id: SchemaId,
     repos.to[List].flatMap(_.importCandidates(this).opt.to[List].flatten)
 
   def moduleRefStrings(implicit layout: Layout, shell: Shell): List[String] =
-    importedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
+    knownImportedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
         moduleRefs.to[List].map { ref => str"$ref" }
 
   private def schemaTree(implicit layout: Layout, shell: Shell)
@@ -350,7 +349,7 @@ case class Schema(id: SchemaId,
     inherited <- imports.map(_.schemaTree).sequence
   } yield SchemaTree(this, inherited.to[Set])
 
-  def universe(implicit layout: Layout, shell: Shell): Result[Universe, ~ | ItemNotFound |
+  def universe()(implicit layout: Layout, shell: Shell): Result[Universe, ~ | ItemNotFound |
       FileWriteError | ShellFailure | FileNotFound | ConfigFormatError | InvalidValue |
       ProjectConflict] = schemaTree.flatMap(_.universe)
 
@@ -366,12 +365,24 @@ case class Schema(id: SchemaId,
       } yield resolved
     }.sequence
 
+  def knownImportedSchemas(implicit layout: Layout, shell: Shell)
+                          : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
+                              FileNotFound | ConfigFormatError | InvalidValue] =
+    imports.map { ref =>
+      for {
+        repo      <- repos.findBy(ref.repo)
+        dir       <- ~repo.fullCheckout.path
+        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+        resolved  <- layer.schemas.findBy(ref.schema)
+      } yield resolved
+    }.sequence
+
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id) + RepoId.Local
 
   def allProjects(implicit layout: Layout, shell: Shell)
                  : Result[List[Project], ~ | ItemNotFound | FileWriteError | ShellFailure |
                      FileNotFound | ConfigFormatError | InvalidValue] =
-    importedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
+    knownImportedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
 
   def allRepos(implicit layout: Layout, shell: Shell): Result[Set[SourceRepo], ~ | ShellFailure] = {
     val remote = shell.git.getRemote(layout.pwd).opt.getOrElse("")
@@ -544,7 +555,7 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
                       (implicit layout: Layout, shell: Shell)
                       : Result[List[String], ~ | ConfigFormatError | ItemNotFound | FileNotFound |
                           InvalidValue | FileWriteError | ShellFailure] = for {
-    dir       <- fullCheckout.checkout
+    dir       <- ~fullCheckout.path
     layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
     schemas   <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }

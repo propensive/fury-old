@@ -42,7 +42,7 @@ object ProjectCli {
       projectId     <- projectId.ascribe(UnspecifiedProject())
       force         <- ~io(ForceArg).opt.isDefined
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_))(_(_) = Some(projectId))
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -56,8 +56,8 @@ object ProjectCli {
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
-      io     <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io     <- ~io.println(table.mkString("\n"))
+      _      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -72,8 +72,8 @@ object ProjectCli {
       project   <- ~fury.Project(projectId, license = license)
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(_.modify(_)((_: SortedSet[Project]) + project))
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(_(_) = Some(project.id))
-      io        <- ~io.save(layer, layout.furyConfig)
-      io        <- ~io.println(msg"Set current project to ${project.id}")
+      _         <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
   }
 
@@ -91,7 +91,7 @@ object ProjectCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                      if(lens(ws) == Some(projectId)) (lens(ws) = None) else ws
                    }
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -117,7 +117,7 @@ object ProjectCli {
       project        <- ~oldProject.copy(id = newId, license = licenseArg, description = descriptionArg)
       force          <- ~io(ForceArg).opt.isDefined
       layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.project(_, oldProject.id))(_(_) = project)
-      io             <- ~io.save(layer, layout.furyConfig)
+      _              <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

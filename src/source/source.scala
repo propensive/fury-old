@@ -49,8 +49,8 @@ object SourceCli {
       rows    <- ~module.sources.to[List]
       table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoId)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
-      io      <- ~io.println(table.mkString("\n"))
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -67,7 +67,7 @@ object SourceCli {
       sourceToDel <- ~module.sources.find(Some(_) == source)
       force       <- ~io(ForceArg).successful
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
-      io          <- ~io.save(layer, layout.furyConfig)
+      _           <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -87,7 +87,7 @@ object SourceCli {
       sourceArg <- io(SourceArg)
       source    <- ~Source.unapply(sourceArg)
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

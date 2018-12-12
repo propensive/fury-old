@@ -38,7 +38,7 @@ object ConfigCli {
       io            <- cli.io()
       newTheme      <- ~io(ThemeArg).opt
       config        <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
-      io            <- ~io.save(config, layout.userConfig)
+      _             <- ~io.save(config, layout.userConfig)
     } yield io.await()
   }
 }
@@ -61,8 +61,8 @@ object AliasCli {
       cols    <- Answer(Terminal.columns.getOrElse(100))
       rows    <- ~layer.aliases.to[List]
       table   <- ~Tables(config).show(Tables(config).aliases, cols, rows, raw)(identity(_))
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, true)) else io)
-      io      <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, true)))
+      _       <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 
@@ -75,7 +75,7 @@ object AliasCli {
       aliasToDel    <- ~layer.aliases.find(_.cmd == aliasArg)
       layer         <- Lenses.updateSchemas(None, layer, true) { s =>
                            Lenses.layer.aliases } (_(_) --= aliasToDel)
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -101,7 +101,7 @@ object AliasCli {
       alias         <- ~Alias(aliasArg, description, optSchemaArg, moduleRef)
       layer         <- Lenses.updateSchemas(None, layer, true) { s =>
                            Lenses.layer.aliases } (_(_) += alias)
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
@@ -123,37 +123,38 @@ object BuildCli {
       io            <- cli.io()
       force         <- ~io(ForceArg).opt.isDefined
       layer         <- ~Layer.empty()
-      io            <- ~io.println("Initializing new build directory: ./.fury")
+      _             <- ~io.println("Initializing new build directory: ./.fury")
       _             <- layout.furyConfig.mkParents()
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
       _             <- cli.shell.git.init(layout.pwd)
-      io            <- ~io.println("Initialized new git repository")
+      _             <- ~io.println("Initialized new git repository")
       _             <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
-      io            <- ~io.println("Added files to git repository")
+      _             <- ~io.println("Added files to git repository")
       _             <- cli.shell.git.commit(layout.pwd, "Initial commit")
-      io            <- ~io.println("Committed files")
+      _             <- ~io.println("Committed files")
     } yield io.await()
   }
 
-  def about(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | EarlyCompletions] = {
-    cli.io().map(_.println(
-      str"""|     _____ 
-            |    / ___/__ __ ____ __ __
-            |   / __/ / // // ._// // /
-            |  /_/    \_._//_/  _\_. /
-            |                   \___/
-            |
-            |Fury build tool for Scala, version ${Version.current}.
-            |This software is provided under the Apache 2.0 License.
-            |Fury depends on Bloop, Coursier, Git and Nailgun.
-            |© Copyright 2018 Jon Pretty, Propensive Ltd.
-            |
-            |See the Fury website at https://fury.build/, or follow @propensive on Twtter
-            |for more information.
-            |
-            |For help on using Fury, run: fury help
-            |""".stripMargin).await())
-  }
+  def about(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | EarlyCompletions] = for {
+    io <- cli.io()
+    _  <- ~io.println(
+            str"""|     _____ 
+                  |    / ___/__ __ ____ __ __
+                  |   / __/ / // // ._// // /
+                  |  /_/    \_._//_/  _\_. /
+                  |                   \___/
+                  |
+                  |Fury build tool for Scala, version ${Version.current}.
+                  |This software is provided under the Apache 2.0 License.
+                  |Fury depends on Bloop, Coursier, Git and Nailgun.
+                  |© Copyright 2018 Jon Pretty, Propensive Ltd.
+                  |
+                  |See the Fury website at https://fury.build/, or follow @propensive on Twtter
+                  |for more information.
+                  |
+                  |For help on using Fury, run: fury help
+                  |""".stripMargin)
+  } yield io.await()
 
   def undo(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | FileNotFound | EarlyCompletions] = {
     import cli._
@@ -181,10 +182,10 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      universe     <- schema.universe
+      universe     <- schema.universe()
       artifact     <- universe.artifact(module.ref(project))
-      io           <- Bloop.server(cli)(io)
-      io           <- ~io.map { _ => universe.clean(module.ref(project)) }
+      _            <- Bloop.server(cli)(io)
+      _            <- ~universe.clean(module.ref(project))
     } yield io.await()
   }
   
@@ -206,19 +207,19 @@ object BuildCli {
       optModuleId    <- ~io(ModuleArg).opt.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module         <- optModule.ascribe(UnspecifiedModule())
-      universe       <- schema.universe
+      universe       <- schema.universe()
       artifact       <- universe.artifact(module.ref(project))
       artifacts      <- universe.transitiveDependencies(module.ref(project))(cli.shell)
-      io             <- Bloop.server(cli)(io)
-      files          <- ~Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
+      _              <- Bloop.server(cli)(io)
+      _              <- Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
       compilation    <- universe.compilation(module.ref(project))(cli.shell, layout)
       debugStr       <- ~io(DebugArg).opt
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](module.ref(project) :: artifacts.map(_.ref).to[List]))
       future         <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
-      io             <- ~Graph.live(cli)(io, compilation.graph.mapValues(_.to[Set]), multiplexer.stream(50, Some(Tick)), Map())(config.theme)
+      _              <- ~Graph.live(cli)(io, compilation.graph.mapValues(_.to[Set]), multiplexer.stream(50, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
-      io             <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
-      io             <- ~io.map { _ => Thread.sleep(200) }
+      _              <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
+      _              <- ~Thread.sleep(200)
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
  
@@ -240,7 +241,7 @@ object BuildCli {
     layer     <- ~Layer.read(layout.furyConfig)(layout).opt
     msg       <- layer.map(getPrompt(_, config.theme)).getOrElse(Answer(Prompt.empty(config)(config.theme)))
     io        <- cli.io()
-    io        <- ~io.println(msg)
+    _         <- ~io.println(msg)
   } yield io.await()
  
   def save(ctx: MenuContext) = {
@@ -260,9 +261,9 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      universe     <- schema.universe
+      universe     <- schema.universe()
       artifact     <- universe.artifact(module.ref(project))
-      io           <- universe.saveJars(cli)(io, module.ref(project), dir in layout.pwd)
+      _            <- universe.saveJars(cli)(io, module.ref(project), dir in layout.pwd)
     } yield io.await()
   }
   
@@ -283,10 +284,10 @@ object BuildCli {
       io           <- cli.io()
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      universe     <- schema.universe
+      universe     <- schema.universe()
       artifact     <- universe.artifact(module.ref(project))
       classpath    <- universe.classpath(module.ref(project))
-      io           <- ~io.println(classpath.map(_.value).join(":"))
+      _            <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
   
@@ -307,11 +308,11 @@ object BuildCli {
                       }
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      universe     <- schema.universe
+      universe     <- schema.universe()
       artifact     <- universe.artifact(module.ref(project))
       compilation  <- universe.compilation(module.ref(project))
-      io           <- ~io.println(compilation.toString)
-      io           <- ~Graph.draw(compilation.graph.mapValues(_.to[Set]), true, Map())(config.theme).foldLeft(io)(_.println(_))
+      _            <- ~io.println(compilation.toString)
+      _            <- ~Graph.draw(compilation.graph.mapValues(_.to[Set]), true, Map())(config.theme).foreach(io.println(_))
     } yield io.await()
   }
 }
@@ -343,8 +344,8 @@ object LayerCli {
       raw      <- ~io(RawArg).successful
       projects <- schema.allProjects
       table    <- ~Tables(config).show(Tables(config).projects(None), cols, projects.distinct, raw)(_.id)
-      io       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io       <- ~io.println(table.mkString("\n"))
+      _        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _        <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -361,9 +362,9 @@ object LayerCli {
       _             <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
       _             <- cli.shell.git.commit(layout.pwd, s"Tagged version $tag")
       _             <- cli.shell.git.tag(layout.pwd, tag)
-      io            <- ~io.println(msg"Comitted tag $tag.")
+      _             <- ~io.println(msg"Comitted tag $tag.")
       _             <- cli.shell.git.push(layout.pwd, all = true)
-      io            <- ~io.println(msg"Pushed git repository.")
+      _             <- ~io.println(msg"Pushed git repository.")
     } yield io.await()
   }
 

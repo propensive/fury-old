@@ -51,8 +51,8 @@ object DependencyCli {
       rows    <- ~module.after.to[List].sorted
       table   <- ~Tables(config).show(Tables(config).dependencies, cols, rows, raw)(identity)
       schema  <- defaultSchema
-      io      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)) else io)
-      io      <- ~io.println(table.mkString("\n"))
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -69,7 +69,7 @@ object DependencyCli {
       moduleRef     <- ModuleRef.parse(project, dependencyArg, false)
       force         <- ~io(ForceArg).successful
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -86,7 +86,7 @@ object DependencyCli {
       dependencyArg <- io(DependencyArg)
       moduleRef     <- ModuleRef.parse(project, dependencyArg, intransitive)
       layer         <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
