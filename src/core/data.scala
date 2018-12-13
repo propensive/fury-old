@@ -141,6 +141,14 @@ case class Compilation(graph: Map[ModuleRef, List[ModuleRef]],
 
   def apply(ref: ModuleRef): Result[Artifact, ~ | ItemNotFound] =
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
+
+  def checkoutAll()(implicit layout: Layout, shell: Shell): Unit =
+    checkouts.foreach(_.get.unit)
+
+  def generateFiles(universe: Universe)
+                   (implicit layout: Layout, env: Environment, shell: Shell)
+                   : Result[Iterable[Path], ~ | ItemNotFound | InvalidValue | ProjectConflict | ShellFailure | UnknownCompiler | FileWriteError | FileNotFound] =
+    Bloop.generateFiles(artifacts.values, universe)
 }
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
@@ -189,11 +197,8 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
                : Result[Set[Path], ~ | ShellFailure | ItemNotFound] = for {
     art  <- artifact(ref)
     deps <- transitiveDependencies(ref)
-    _    <- ~println(str"deps: $ref = "+deps)
-    dirs <- ~deps.map(layout.classesDir(_, false))
-    _    <- ~println(str"dirs: $ref = "+dirs)
+    dirs <- ~deps.map(layout.classesDir(_))
     bins <- ~deps.flatMap(_.binaries)
-    _    <- ~println(str"bins: $ref = "+bins)
   } yield (dirs ++ bins ++ art.binaries)
 
   def dependencies(ref: ModuleRef)
@@ -221,7 +226,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
     tDeps        <- transitiveDependencies(ref)
     plugins      <- ~tDeps.filter(_.kind == Plugin)
     artifact     <- artifact(ref)
-  } yield artifact.params ++ plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin, false)}") }.map(_.parameter)
+  } yield artifact.params ++ plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin)}") }.map(_.parameter)
 
   def compilation(ref: ModuleRef)
                  (implicit shell: Shell, layout: Layout)
@@ -238,11 +243,11 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
     dest         <- dest.directory
     current      <- artifact(ref)
     deps         <- transitiveDependencies(ref)
-    dirs         <- ~deps.map(layout.classesDir(_, false))
+    dirs         <- ~deps.map(layout.classesDir(_))
     files        <- ~dirs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
     bins         <- ~deps.flatMap(_.binaries)
-    _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(ref)}")
-    manifestFile <- Manifest.file(layout.manifestFile(ref), bins.map(_.name), None)
+    _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(current)}")
+    manifestFile <- Manifest.file(layout.manifestFile(current), bins.map(_.name), None)
     path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
     _            <- ~io.println(msg"Saving JAR file $path")
     _            <- shell.aggregatedJar(path, files, manifestFile)
@@ -342,16 +347,12 @@ case class Schema(id: SchemaId,
     knownImportedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
         moduleRefs.to[List].map { ref => str"$ref" }
 
-  private def schemaTree(implicit layout: Layout, shell: Shell)
+  def schemaTree()(implicit layout: Layout, shell: Shell)
                         : Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure |
                             FileNotFound | ConfigFormatError | InvalidValue] = for {
     imports   <- importedSchemas
     inherited <- imports.map(_.schemaTree).sequence
   } yield SchemaTree(this, inherited.to[Set])
-
-  def universe()(implicit layout: Layout, shell: Shell): Result[Universe, ~ | ItemNotFound |
-      FileWriteError | ShellFailure | FileNotFound | ConfigFormatError | InvalidValue |
-      ProjectConflict] = schemaTree.flatMap(_.universe)
 
   def importedSchemas(implicit layout: Layout, shell: Shell)
                      : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
@@ -359,7 +360,7 @@ case class Schema(id: SchemaId,
     imports.map { ref =>
       for {
         repo      <- repos.findBy(ref.repo)
-        dir       <- repo.fullCheckout.checkout
+        dir       <- repo.fullCheckout.get
         layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
         resolved  <- layer.schemas.findBy(ref.schema)
       } yield resolved
@@ -527,13 +528,24 @@ case class Checkout(repo: Repo, refSpec: RefSpec, sources: List[Path]) {
 
   def hash: Digest = this.digest[Md5]
   def path(implicit layout: Layout): Path = layout.srcsDir / hash.encoded
-  
-  def checkout(implicit shell: Shell, layout: Layout)
-              : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
+ 
+  def get(implicit shell: Shell, layout: Layout)
+         : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] = for {
+    repoDir    <- repo.fetch
+    workingDir <- checkout
+  } yield workingDir
+                                                 
+
+  private def checkout(implicit shell: Shell, layout: Layout)
+                      : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
     if(!path.exists) {
+      println(s"Checking out sources ${if(sources.isEmpty) "" else sources.map(_.value).mkString("", ", ", " ")}in refspec ${refSpec.id}.")
       path.mkdir()
       shell.git.sparseCheckout(repo.path, path, sources, refSpec.id).map { _ => path }
-    } else Answer(path)
+    } else {
+      println(s"Using existing checkout of sources in ${path.value}")
+      Answer(path)
+    }
 }
 
 object SourceRepo {
@@ -597,6 +609,7 @@ case class Repo(url: String) {
   def fetch(implicit layout: Layout, shell: Shell)
            : Result[Path, ~ | ShellFailure | InvalidValue | FileWriteError] = {
     if(!path.exists) {
+      println(s"Fetching Git repository $url.")
       path.mkdir()
       shell.git.cloneBare(url, path).map { _ => path }
     } else Answer(path)
@@ -657,7 +670,7 @@ case class Artifact(ref: ModuleRef,
     (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Sha256]
   
   def writePlugin()(implicit layout: Layout): Unit = if(kind == Plugin) {
-    val file = layout.classesDir(this, true) / "scalac-plugin.xml"
+    val file = layout.classesDir(this) / "scalac-plugin.xml"
     
     main.foreach { main =>
       file.writeSync(str"<plugin><name>${ref.moduleId.key}</name><classname>${main}</classname></plugin>")

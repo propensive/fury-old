@@ -22,9 +22,11 @@ case class Layout(home: Path, pwd: Path) {
   lazy val bloopDir: Path = furyDir / "bloop"
   lazy val layersDir: Path = furyDir / "layers"
   lazy val classesDir: Path = furyDir / "classes"
+  lazy val analysisDir: Path = furyDir / "analysis"
+  lazy val resourcesDir: Path = furyDir / "resources"
   lazy val runLogDir: Path = furyDir / "log"
   lazy val reposDir: Path = furyDir / "repos"
-  lazy val srcsDir: Path = furyDir / "srcs"
+  lazy val srcsDir: Path = furyDir / "sources"
   lazy val tmpDir: Path = furyDir / "tmp"
   lazy val errorLogfile: Path = pwd / ".fury.log"
   lazy val userConfig: Path = home / ".fury.conf"
@@ -38,23 +40,26 @@ case class Layout(home: Path, pwd: Path) {
   
   def layerFile(layerId: String): Path = layerDir(layerId) / "layer.fury"
 
-  def outputDir(ref: ModuleRef, create: Boolean): Path = {
-    val path = classesDir / ref.projectId.key / ref.moduleId.key / "output"
-    if(create) path.mkdir()
+  def outputDir(artifact: Artifact): Path = {
+    val path = analysisDir / artifact.hash.encoded[Base64Url]
+    path.mkdir()
     path
   }
 
-  def runLogFile(artifact: Artifact, create: Boolean): Path = {
-    if(create) runLogDir.mkdir()
+  def runLogFile(artifact: Artifact): Path = {
+    runLogDir.mkdir()
     runLogDir / s"${artifact.hash.encoded[Base64Url]}.log"
   }
 
-  def classesDir(artifact: Artifact, create: Boolean): Path = {
+  def classesDir(artifact: Artifact): Path = {
     val path = classesDir / artifact.hash.encoded[Base64Url]
-    if(create) path.mkdir()
+    path.mkdir()
     path
   }
 
-  def manifestFile(ref: ModuleRef): Path =
-    outputDir(ref, true) / s"${ref.projectId.key}-${ref.moduleId.key}.mf"
+  def manifestFile(artifact: Artifact): Path = {
+    val path = resourcesDir / artifact.hash.encoded[Base64Url]
+    path.mkdir()
+    path / s"manifest.mf"
+  }
 }

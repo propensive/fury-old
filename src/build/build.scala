@@ -182,7 +182,8 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      universe     <- schema.universe()
+      schemaTree   <- schema.schemaTree()
+      universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       _            <- Bloop.server(cli)(io)
       _            <- ~universe.clean(module.ref(project))
@@ -207,12 +208,14 @@ object BuildCli {
       optModuleId    <- ~io(ModuleArg).opt.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module         <- optModule.ascribe(UnspecifiedModule())
-      universe       <- schema.universe()
+      schemaTree     <- schema.schemaTree()
+      universe       <- schemaTree.universe
       artifact       <- universe.artifact(module.ref(project))
       artifacts      <- universe.transitiveDependencies(module.ref(project))(cli.shell)
       _              <- Bloop.server(cli)(io)
-      _              <- Bloop.generateFiles(artifacts, universe)(layout, cli.env, cli.shell)
       compilation    <- universe.compilation(module.ref(project))(cli.shell, layout)
+      _              <- ~compilation.checkoutAll()
+      _              <- compilation.generateFiles(universe)(layout, cli.env, cli.shell)
       debugStr       <- ~io(DebugArg).opt
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](module.ref(project) :: artifacts.map(_.ref).to[List]))
       future         <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
@@ -261,7 +264,8 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      universe     <- schema.universe()
+      schemaTree   <- schema.schemaTree()
+      universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       _            <- universe.saveJars(cli)(io, module.ref(project), dir in layout.pwd)
     } yield io.await()
@@ -284,7 +288,8 @@ object BuildCli {
       io           <- cli.io()
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      universe     <- schema.universe()
+      schemaTree   <- schema.schemaTree()
+      universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       classpath    <- universe.classpath(module.ref(project))
       _            <- ~io.println(classpath.map(_.value).join(":"))
@@ -308,7 +313,8 @@ object BuildCli {
                       }
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      universe     <- schema.universe()
+      schemaTree   <- schema.schemaTree()
+      universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       compilation  <- universe.compilation(module.ref(project))
       _            <- ~io.println(compilation.toString)

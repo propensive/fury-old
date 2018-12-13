@@ -62,9 +62,9 @@ object Bloop {
   }
 
 
-  def generateFiles(artifacts: Set[Artifact], universe: Universe)
+  def generateFiles(artifacts: Iterable[Artifact], universe: Universe)
                    (implicit layout: Layout, env: Environment, shell: Shell)
-                   : Result[Set[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
+                   : Result[Iterable[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
                        UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] = {
     artifacts.map { artifact => for {
       path       <- layout.bloopConfig(artifact).mkParents()
@@ -90,9 +90,9 @@ object Bloop {
       bloopSpec = compiler.flatMap(_.bloopSpec).getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
       dependencies = deps.map(_.hash.encoded[Base64Url]).to[List],
       fork = false,
-      classesDir = str"${layout.classesDir(artifact, true).value}",
-      outDir = str"${layout.outputDir(artifact.ref, true).value}",
-      classpath = classpath.map(_.value).to[List],
+      classesDir = str"${layout.classesDir(artifact).value}",
+      outDir = str"${layout.outputDir(artifact).value}",
+      classpath = classpath.map(_.value).to[List].distinct,
       baseDirectory = layout.pwd.value,
       javaOptions = Nil,
       allScalaJars = compilerClasspath.map(_.value).to[List],
