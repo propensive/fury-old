@@ -17,7 +17,7 @@ package fury
 
 import mitigation._
 import guillotine._
-import gastronomy._
+import gastronomy._, ByteEncoder.base64Url
 import kaleidoscope._
 import exoskeleton.{InvalidArgValue, MissingArg}
 
@@ -119,6 +119,7 @@ case class Module(id: ModuleId,
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
 }
 
+
 object BloopSpec {
   implicit val msgShow: MsgShow[BloopSpec] = v => msg"${v.org}:${v.name}"
   implicit val stringShow: StringShow[BloopSpec] = bs => s"${bs.org}:${bs.name}"
@@ -134,21 +135,186 @@ object BloopSpec {
 
 case class BloopSpec(org: String, name: String, version: String)
 
-case class Projects(values: Map[ProjectId, Project] = Map()) {
-  def ids: Set[ProjectId] = values.keySet
-  def apply(id: ProjectId): Project = values(id)
-  def ++(that: Projects): Projects = Projects(values ++ that.values)
+case class Compilation(graph: Map[ModuleRef, List[ModuleRef]],
+                       checkouts: Set[Checkout],
+                       artifacts: Map[ModuleRef, Artifact]) {
+
+  def apply(ref: ModuleRef): Result[Artifact, ~ | ItemNotFound] =
+    artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
+
+  def checkoutAll()(implicit layout: Layout, shell: Shell): Unit =
+    checkouts.foreach(_.get.unit)
+
+  def generateFiles(universe: Universe)
+                   (implicit layout: Layout, env: Environment, shell: Shell)
+                   : Result[Iterable[Path], ~ | ItemNotFound | InvalidValue | ProjectConflict | ShellFailure | UnknownCompiler | FileWriteError | FileNotFound] =
+    Bloop.generateFiles(artifacts.values, universe)
 }
 
-case class Schemata(schema: Schema, inherited: Set[Schemata]) {
-  def projects: Result[Projects, ~ | ProjectConflict] = {
+/** A Universe represents a the fully-resolved set of projects available in the layer */
+case class Universe(projects: Map[ProjectId, Project] = Map(),
+                    schemas: Map[ProjectId, Schema] = Map()) {
+  def ids: Set[ProjectId] = projects.keySet
+  
+  def project(id: ProjectId): Result[Project, ~ | ItemNotFound] =
+    projects.get(id).ascribe(ItemNotFound(id))
+  
+  def schema(id: ProjectId): Result[Schema, ~ | ItemNotFound] =
+    schemas.get(id).ascribe(ItemNotFound(id))
+  
+  def artifact(ref: ModuleRef)(implicit shell: Shell): Result[Artifact, ~ | ShellFailure | ItemNotFound] = for {
+    project   <- project(ref.projectId)
+    schema    <- schema(ref.projectId)
+    module    <- project(ref.moduleId)
+    compiler  <- if(module.compiler == ModuleRef.JavaRef) Answer(None) else artifact(module.compiler).map(Some(_))
+    binaries  <- module.binaries.map(_.paths).sequence.map(_.flatten)
+    checkouts <- checkout(ref)
+  } yield Artifact(ref,
+                   module.kind,
+                   module.main,
+                   schema.repos.map(_.repo).to[List],
+                   checkouts.to[List],
+                   binaries.to[List],
+                   module.after.to[List],
+                   compiler,
+                   module.bloopSpec,
+                   module.params.map(_.name).to[List],
+                   ref.intransitive)
+
+  def checkout(ref: ModuleRef): Result[Set[Checkout], ~ | ItemNotFound] = for {
+    project   <- project(ref.projectId)
+    schema    <- schema(ref.projectId)
+    module    <- project(ref.moduleId)
+    repos     <- module.sources.groupBy(_.repoId).map { case (k, v) => schema.repo(k).map(_ -> v) }.sequence
+  } yield repos.map { case (repo, paths) =>
+    Checkout(repo.repo, repo.refSpec, paths.map(_.path).to[List])
+  }.to[Set]
+
+  def ++(that: Universe): Universe = Universe(projects ++ that.projects, schemas ++ that.schemas)
+  
+  def classpath(ref: ModuleRef)
+               (implicit layout: Layout, shell: Shell)
+               : Result[Set[Path], ~ | ShellFailure | ItemNotFound] = for {
+    art  <- artifact(ref)
+    deps <- transitiveDependencies(ref)
+    dirs <- ~deps.map(layout.classesDir(_))
+    bins <- ~deps.flatMap(_.binaries)
+  } yield (dirs ++ bins ++ art.binaries)
+
+  def dependencies(ref: ModuleRef)
+                  (implicit shell: Shell)
+                  : Result[Set[Artifact], ~ | ShellFailure | ItemNotFound] = for {
+    project <- project(ref.projectId)
+    module  <- project(ref.moduleId)
+    deps    <- module.after.map(artifact).sequence
+  } yield deps
+
+  def transitiveDependencies(ref: ModuleRef)
+                            (implicit shell: Shell)
+                            : Result[Set[Artifact], ~ | ShellFailure | ItemNotFound] = for {
+    after      <- dependencies(ref)
+    tDeps      <- after.map(_.ref).map(transitiveDependencies).sequence
+    itDeps      = tDeps.flatten.filterNot(_.intransitive).to[Set]
+  } yield after ++ itDeps
+  
+  def clean(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Unit =
+    layout.classesDir.delete().unit
+
+  def allParams(ref: ModuleRef)
+               (implicit layout: Layout, shell: Shell)
+               : Result[List[String], ~ | ShellFailure | ItemNotFound] = for {
+    tDeps        <- transitiveDependencies(ref)
+    plugins      <- ~tDeps.filter(_.kind == Plugin)
+    artifact     <- artifact(ref)
+  } yield artifact.params ++ plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin)}") }.map(_.parameter)
+
+  def compilation(ref: ModuleRef)
+                 (implicit shell: Shell, layout: Layout)
+                 : Result[Compilation, ~ | ItemNotFound | ShellFailure] = for {
+    art       <- artifact(ref)
+    graph     <- transitiveDependencies(ref).map(_.map { a => (a.ref, a.dependencies) }.toMap.updated(art.ref, art.dependencies))
+    artifacts <- graph.keys.map { key => artifact(key).map(key -> _) }.sequence.map(_.toMap)
+    checkouts <- graph.keys.map { key => checkout(key) }.sequence
+  } yield Compilation(graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
+
+  def saveJars(cli: Cli[_])(io: cli.Io, ref: ModuleRef, dest: Path)
+              (implicit shell: Shell, layout: Layout)
+              : Result[Unit, ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
+    dest         <- dest.directory
+    current      <- artifact(ref)
+    deps         <- transitiveDependencies(ref)
+    dirs         <- ~deps.map(layout.classesDir(_))
+    files        <- ~dirs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
+    bins         <- ~deps.flatMap(_.binaries)
+    _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(current)}")
+    manifestFile <- Manifest.file(layout.manifestFile(current), bins.map(_.name), None)
+    path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
+    _            <- ~io.println(msg"Saving JAR file $path")
+    _            <- shell.aggregatedJar(path, files, manifestFile)
+    _            <- ~bins.foreach { b => b.copyTo(dest / b.name) }
+  } yield ()
+
+  def compile(artifact: Artifact,
+              multiplexer: Multiplexer[ModuleRef, CompileEvent],
+              futures: Map[ModuleRef, Future[CompileResult]] = Map())
+             (implicit layout: Layout, shell: Shell)
+             : Map[ModuleRef, Future[CompileResult]] = {
+
+    // FIXME: don't .get
+    val deps = dependencies(artifact.ref).opt.get
+    
+    val newFutures = deps.foldLeft(futures) { (futures, dep) =>
+      if(futures.contains(dep.ref)) futures
+      else compile(dep, multiplexer, futures)
+    }
+
+    val dependencyFutures = Future.sequence(deps.map(_.ref).map(newFutures))
+
+    val future = dependencyFutures.flatMap { inputs =>
+      if(inputs.exists(!_.success)) {
+        multiplexer(artifact.ref) = SkipCompile(artifact.ref)
+        multiplexer.close(artifact.ref)
+        Future.successful(CompileResult(false, ""))
+      } else Future {
+        val out = new StringBuilder()
+        multiplexer(artifact.ref) = StartCompile(artifact.ref)
+        
+        val result: Boolean = blocking {
+          shell.bloop.compile(artifact.hash.encoded, artifact.kind == Application) { ln =>
+            out.append(ln)
+            out.append("\n")
+          }.await() == 0
+        }
+
+        multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, result)
+        multiplexer.close(artifact.ref)
+        CompileResult(result, out.toString)
+      }
+    }
+
+    newFutures.updated(artifact.ref, future)
+  }
+
+}
+
+case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
+
+  lazy val universe: Result[Universe, ~ | ProjectConflict] = {
     val localProjectIds = schema.projects.map(_.id)
-    inherited.foldLeft(Answer(Projects()): Result[Projects, ~ | ProjectConflict]) { (projects, schemata) => projects.flatMap { projects =>
-      schemata.projects.flatMap { nextProjects =>
-        val conflictIds = projects.ids.intersect(nextProjects.ids).filter { id => projects(id) != nextProjects(id) } -- localProjectIds
-        if(conflictIds.isEmpty) Answer(projects ++ nextProjects) else Result.abort(ProjectConflict(conflictIds))
-      }.map(_ ++ Projects(schema.projects.map { p => (p.id, p) }.toMap))
-    } }
+    val empty: Result[Universe, ~ | ProjectConflict] = Answer(Universe())
+    inherited.foldLeft(empty) { (projects, schemaTree) =>
+      projects.flatMap { projects =>
+        schemaTree.universe.flatMap { nextProjects =>
+          val conflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+          if(conflictIds.isEmpty) Answer(projects ++ nextProjects)
+          else Result.abort(ProjectConflict(conflictIds))
+        }
+      }
+    }.map { old =>
+      val newProjects = schema.projects.map { p => p.id -> p }.toMap
+      val newSchemas = schema.projects.map(_.id -> schema).toMap
+      old ++ Universe(newProjects, newSchemas)
+    }
   }
 }
 
@@ -164,50 +330,51 @@ case class Schema(id: SchemaId,
                   imports: List[SchemaRef] = List(),
                   main: Option[ProjectId] = None) {
   
+  def repo(repoId: RepoId): Result[SourceRepo, ~ | ItemNotFound] = repos.findBy(repoId)
+
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   
   def compilerRefs(implicit layout: Layout, shell: Shell): List[ModuleRef] =
-    allProjects.opt.to[List].flatten.flatMap(_.compilerRefs)
+    allProjects.opt.to[List].flatMap(_.flatMap(_.compilerRefs))
 
   def mainProject: Result[Option[Project], ~ | ItemNotFound] =
     main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
 
-  def importCandidates(implicit layout: Layout): List[String] = for {
-    repo   <- repos.to[List]
-    dir    <- repo.directory.opt.to[List]
-    ws     <- Ogdl.read[Workspace](Layout(layout.home, dir).furyConfig).opt.to[List]
-    schema <- ws.schemas.to[List]
-  } yield s"${repo.id.key}:${schema.id.key}"
+  def importCandidates(implicit layout: Layout, shell: Shell): List[String] =
+    repos.to[List].flatMap(_.importCandidates(this).opt.to[List].flatten)
 
+  def moduleRefStrings(implicit layout: Layout, shell: Shell): List[String] =
+    knownImportedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
+        moduleRefs.to[List].map { ref => str"$ref" }
 
-  def allDependencies: SortedSet[ModuleRef] = for {
-    project <- projects
-    module <- project.modules
-    dependency <- module.after
-  } yield dependency
-
-  def moduleRefStrings(project: Project)(implicit layout: Layout, shell: Shell): List[String] =
-    importedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings(project))) ++
-        moduleRefs.to[List].flatMap { ref =>
-      if(ref.projectId == project.id) List(str"$ref", str"${ref.moduleId}")
-      else List(str"$ref")
-    }
-
-  def schemata(implicit layout: Layout, shell: Shell): Result[Schemata, ~ | ItemNotFound | FileWriteError | ShellFailure | FileNotFound | ConfigFormatError | InvalidValue] =
-    for {
-      imports <- importedSchemas
-      inherited <- imports.map(_.schemata).sequence
-    } yield Schemata(this, inherited.to[Set])
+  def schemaTree()(implicit layout: Layout, shell: Shell)
+                        : Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure |
+                            FileNotFound | ConfigFormatError | InvalidValue] = for {
+    imports   <- importedSchemas
+    inherited <- imports.map(_.schemaTree).sequence
+  } yield SchemaTree(this, inherited.to[Set])
 
   def importedSchemas(implicit layout: Layout, shell: Shell)
                      : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
                          FileNotFound | ConfigFormatError | InvalidValue] =
     imports.map { ref =>
       for {
-        repo <- repos.findBy(ref.repo)
-        repoDir <- AsyncRepos.get(repo.repo)//.await()
-        workspace <- Ogdl.read[Workspace](Layout(layout.home, repoDir).furyConfig)
-        resolved <- workspace.schemas.findBy(ref.schema)
+        repo      <- repos.findBy(ref.repo)
+        dir       <- repo.fullCheckout.get
+        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+        resolved  <- layer.schemas.findBy(ref.schema)
+      } yield resolved
+    }.sequence
+
+  def knownImportedSchemas(implicit layout: Layout, shell: Shell)
+                          : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
+                              FileNotFound | ConfigFormatError | InvalidValue] =
+    imports.map { ref =>
+      for {
+        repo      <- repos.findBy(ref.repo)
+        dir       <- ~repo.fullCheckout.path
+        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+        resolved  <- layer.schemas.findBy(ref.schema)
       } yield resolved
     }.sequence
 
@@ -216,7 +383,7 @@ case class Schema(id: SchemaId,
   def allProjects(implicit layout: Layout, shell: Shell)
                  : Result[List[Project], ~ | ItemNotFound | FileWriteError | ShellFailure |
                      FileNotFound | ConfigFormatError | InvalidValue] =
-    importedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
+    knownImportedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
 
   def allRepos(implicit layout: Layout, shell: Shell): Result[Set[SourceRepo], ~ | ShellFailure] = {
     val remote = shell.git.getRemote(layout.pwd).opt.getOrElse("")
@@ -226,55 +393,12 @@ case class Schema(id: SchemaId,
     } yield repos + SourceRepo(RepoId.Local, Repo(remote), RefSpec(commit), Some(layout.pwd))
   }
 
-  def artifact(workspace: Workspace, moduleRef: ModuleRef)
-              (implicit layout: Layout, shell: Shell)
-              : Result[Artifact, ~ | ItemNotFound] =
-    for {
-      project <- projects.findBy(moduleRef.projectId)
-      module <- project.modules.findBy(moduleRef.moduleId)
-    } yield Artifact(workspace, this, project, module, moduleRef.intransitive)
-
   def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
     case None => Answer(projectId)
     case Some(m) => Result.abort(ProjectAlreadyExists(m.id))
   }
   
   def duplicate(id: String) = copy(id = SchemaId(id))
-
-  def resolve(projectId: ProjectId)
-             (implicit layout: Layout, shell: Shell)
-             : Option[ResolvedProject] =
-    projects.findBy(projectId).opt.map(ResolvedProject(this, _)).orElse {
-      (for {
-        schemas <- importedSchemas
-      } yield for {
-        schema <- schemas
-        _ <- schema.repos.map(_.repo).map(AsyncRepos.get(_))//.await())
-        project <- schema.resolve(projectId)
-      } yield project).opt.flatMap(_.headOption)
-    }
-}
-
-object GitTag {
-  def suggested(tags: List[String]): List[String] = {
-    implicit def ordering: Ordering[List[Int]] = {
-      case (Nil, Nil) => 0
-      case (Nil, h2 :: t2) => -1
-      case (h1 :: t1, Nil) => 1
-      case (h1 :: t1, h2 :: t2) =>
-        if(h1 == h2) ordering.compare(t1, t2) else implicitly[Ordering[Int]].compare(h1, h2)
-    }
-
-    tags.flatMap {
-      case r"$prefix@([a-z]*)$version@(([0-9]*\.)*[0-9][0-9]*)" => List((prefix, version))
-      case _ => Nil
-    }.groupBy(_._1).to[List].flatMap { case (prefix, version) =>
-      val ver = version.map(_._2.split("\\.").to[List].map(_.toInt)).max
-      ver.inits.to[List].init.map { init =>
-        prefix+(init.init :+ (init.last + 1)).padTo(ver.length, 0).mkString(".")
-      }
-    }
-  }
 }
 
 object AliasCmd {
@@ -291,9 +415,9 @@ object Alias {
 
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
-case class Workspace(schemas: SortedSet[Schema],
-                     main: SchemaId,
-                     aliases: SortedSet[Alias] = TreeSet()) { workspace =>
+case class Layer(schemas: SortedSet[Schema],
+                 main: SchemaId,
+                 aliases: SortedSet[Alias] = TreeSet()) { layer =>
   
   def mainSchema: Result[Schema, ~ | ItemNotFound] = schemas.findBy(main)
 
@@ -303,55 +427,16 @@ case class Workspace(schemas: SortedSet[Schema],
     schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
 
   def projects: Result[SortedSet[Project], ~ | ItemNotFound] = mainSchema.map(_.projects)
-  
-  def allProjects(implicit layout: Layout, shell: Shell)
-                 : Result[List[Project], ~ | ItemNotFound | FileWriteError | ShellFailure |
-                     FileNotFound | ConfigFormatError | InvalidValue] =
-    mainSchema.flatMap(_.allProjects)
-  
-  def moduleRefs(implicit laayout: Layout, shell: Shell)
-                : Result[List[ModuleRef], ~ | ItemNotFound | FileWriteError | ShellFailure |
-                    FileNotFound | ConfigFormatError | InvalidValue] =
-    allProjects.map(_.flatMap(_.moduleRefs))
-  
-  def compilerRefs(implicit layout: Layout, shell: Shell)
-                  : Result[List[ModuleRef], ~ | ItemNotFound | FileWriteError | ShellFailure |
-                      ConfigFormatError | FileNotFound | InvalidValue] =
-    allProjects.map(_.flatMap(_.compilerRefs))
- 
-  def moduleRefStrings(project: Project)(implicit laayout: Layout, shell: Shell): List[String] =
-    moduleRefs.opt.to[List].flatten.flatMap { ref =>
-      if(ref.projectId == project.id) List(str"$ref", str"${ref.moduleId}")
-      else List(str"$ref")
-    }
-
-  def remoteSources(artifact: Artifact)
-             (implicit layout: Layout, shell: Shell)
-             : Result[List[(Repo, Set[Path])], ~ | ItemNotFound | FileWriteError | InvalidValue] =
-    for {
-      sources  <- artifact.module.sources.map(_.remoteSource(artifact.schema)).sequence
-    } yield sources.flatten.groupBy(_._1).mapValues(_.map(_._2)).to[List]
-  
-  def sources(schemaId: SchemaId, moduleRef: ModuleRef)
-             (implicit layout: Layout, shell: Shell)
-             : Result[List[Path], ~ | ItemNotFound | FileWriteError | InvalidValue] =
-    for {
-      schema   <- workspace(schemaId)
-      resolved <- schema.resolve(moduleRef.projectId).ascribe(
-                      ItemNotFound(moduleRef.projectId))
-      artifact <- resolved.artifact(this, moduleRef.moduleId)
-      paths    <- artifact.module.sources.to[List].map(_.dirPath(schema)).sequence
-    } yield paths
 }
 
-object Workspace {
-  def empty() = Workspace(SortedSet(Schema(SchemaId.default)), SchemaId.default)
+object Layer {
+  def empty() = Layer(SortedSet(Schema(SchemaId.default)), SchemaId.default)
 
   def read(file: Path)
           (implicit layout: Layout)
-          : Result[Workspace, ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError |
+          : Result[Layer, ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError |
               FileWriteError | AlreadyInitialized] =
-    Ogdl.read[Workspace](file).abide(fury.Workspace.empty())
+    Ogdl.read[Layer](file).abide(Layer.empty())
 }
 
 object ModuleRef {
@@ -382,6 +467,8 @@ case class ModuleRef(projectId: ProjectId, moduleId: ModuleId, intransitive: Boo
   }
 
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode
+
+  override def toString: String = str"$projectId/$moduleId"
 }
 
 object SchemaId {
@@ -437,6 +524,30 @@ object Repo {
   }
 }
 
+case class Checkout(repo: Repo, refSpec: RefSpec, sources: List[Path]) {
+
+  def hash: Digest = this.digest[Md5]
+  def path(implicit layout: Layout): Path = layout.srcsDir / hash.encoded
+ 
+  def get(implicit shell: Shell, layout: Layout)
+         : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] = for {
+    repoDir    <- repo.fetch
+    workingDir <- checkout
+  } yield workingDir
+                                                 
+
+  private def checkout(implicit shell: Shell, layout: Layout)
+                      : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
+    if(!path.exists) {
+      println(s"Checking out sources ${if(sources.isEmpty) "" else sources.map(_.value).mkString("", ", ", " ")}in refspec ${refSpec.id}.")
+      path.mkdir()
+      shell.git.sparseCheckout(repo.path, path, sources, refSpec.id).map { _ => path }
+    } else {
+      println(s"Using existing checkout of sources in ${path.value}")
+      Answer(path)
+    }
+}
+
 object SourceRepo {
   implicit val msgShow: MsgShow[SourceRepo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[SourceRepo] = _.id.key
@@ -445,38 +556,32 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
 
-  def directory(implicit layout: Layout): Result[Path, ~ | FileWriteError | InvalidValue] =
-    repo.path.map(_ in layout.refsDir)
+  def listFiles(implicit layout: Layout, shell: Shell) = for {
+    dir   <- local.map(Answer(_)).getOrElse(repo.fetch)
+    files <- shell.git.lsTree(dir, refSpec.id)
+  } yield files
+
+  def fullCheckout: Checkout = Checkout(repo, refSpec, List())
+
+  def importCandidates(schema: Schema)
+                      (implicit layout: Layout, shell: Shell)
+                      : Result[List[String], ~ | ConfigFormatError | ItemNotFound | FileNotFound |
+                          InvalidValue | FileWriteError | ShellFailure] = for {
+    dir       <- ~fullCheckout.path
+    layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+    schemas   <- ~layer.schemas.to[List]
+  } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
   def current(implicit shell: Shell, layout: Layout)
-             : Result[RefSpec, ~ | FileWriteError | ShellFailure | InvalidValue] =
-    for {
-      dir <- directory
-      commit <- shell.git.getCommit(dir)
-    } yield RefSpec(commit)
+             : Result[RefSpec, ~ | FileWriteError | ShellFailure | InvalidValue] = for {
+    dir    <- local.map(Answer(_)).getOrElse(repo.fetch)
+    commit <- shell.git.getCommit(dir)
+  } yield RefSpec(commit)
 
-  def sources(pred: String => Boolean, projectId: ProjectId)
-             (implicit layout: Layout)
-             : Result[Set[Source], ~ | FileWriteError | InvalidValue] = for {
-    repoDir <- directory
-    dirs    <- Answer(repoDir.findSubdirsContaining(pred).map(_.relativize(repoDir)))
-    sources <- Answer(dirs.map(Source(id, _)))
-  } yield sources
-
-  def moveTo(path: Path)(implicit layout: Layout): Result[SourceRepo, ~ | FileWriteError | InvalidValue] = for {
-    repoDir <- directory
-    newRepoDir <- repoDir.moveTo(path)
-  } yield SourceRepo(id, repo, refSpec, Some(path))
-
-  def update(cli: Cli[_])(implicit layout: Layout): Result[Unit, ~ | FileWriteError | EarlyCompletions | ShellFailure | InvalidValue] = for {
-    dir       <- directory
-    oldCommit <- cli.shell.git.getCommit(dir)
-    _         <- cli.shell.git.pull(dir, Some(refSpec))
-    newCommit <- cli.shell.git.getCommit(dir)
-    msg       <- ~(if(oldCommit != newCommit) msg"Repository ${id} updated to new commit $newCommit"
-                   else msg"Repository ${id} is unchanged")
-    //_         <- cli.write(msg)
-  } yield ()
+  def sourceCandidates(pred: String => Boolean)
+                      (implicit layout: Layout, shell: Shell)
+                      : Result[Set[Source], ~ | ShellFailure | FileWriteError | InvalidValue] =
+    listFiles.map { files => files.filter { f => pred(f.filename) }.map { p => Source(id, p.parent) }.to[Set] }
 }
 
 case class BinRepoId(id: String)
@@ -488,8 +593,27 @@ object BinRepoId {
 }
 
 case class Repo(url: String) {
+  def hash: Digest = url.digest[Md5]
+  def path(implicit layout: Layout): Path = layout.reposDir / hash.encoded
 
-  def hash: Digest = url.digest[Sha256]
+  def update()
+            (implicit shell: Shell, layout: Layout)
+            : Result[UserMsg, ~ | FileWriteError | EarlyCompletions | ShellFailure | InvalidValue] = for {
+    oldCommit <- shell.git.getCommit(path)
+    _         <- shell.git.pull(path, None)
+    newCommit <- shell.git.getCommit(path)
+    msg       <- ~(if(oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
+                   else msg"Repository ${url} is unchanged")
+  } yield msg
+
+  def fetch(implicit layout: Layout, shell: Shell)
+           : Result[Path, ~ | ShellFailure | InvalidValue | FileWriteError] = {
+    if(!path.exists) {
+      println(s"Fetching Git repository $url.")
+      path.mkdir()
+      shell.git.cloneBare(url, path).map { _ => path }
+    } else Answer(path)
+  }
 
   def simplified: String = url match {
     case r"git@github.com:$group@(.*)/$project@(.*)\.git" => s"gh:$group/$project"
@@ -501,13 +625,6 @@ case class Repo(url: String) {
   def projectName: Result[RepoId, ~ | InvalidValue] = url match {
     case r".*/$project@([^\/]*).git" => Answer(RepoId(project))
     case value => Result.abort(InvalidValue(value))
-  }
-
-  def path: Result[Path, ~ | InvalidValue] = url match {
-    case r"[a-z0-9]+@$domain@([0-9a-z_\-]*):$path@([A-Za-z0-9\/]*).git" =>
-      Answer(Path(s"$domain/$path"))
-    case value =>
-      Result.abort(InvalidValue(value))
   }
 }
 
@@ -529,13 +646,6 @@ object SchemaRef {
 
 case class SchemaRef(repo: RepoId, schema: SchemaId)
 
-case class ResolvedProject(schema: Schema, project: Project) {
-  def artifact(workspace: Workspace, moduleId: ModuleId): Result[Artifact, ~ | ItemNotFound] =
-    project.modules.findBy(moduleId).map { module =>
-      Artifact(workspace, schema, project, module, false)
-    }
-}
-
 sealed trait CompileEvent
 case object Tick extends CompileEvent
 case class StartCompile(ref: ModuleRef) extends CompileEvent
@@ -544,153 +654,32 @@ case class SkipCompile(ref: ModuleRef) extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
 
-case class Artifact(workspace: Workspace,
-                    schema: Schema,
-                    project: Project,
-                    module: Module,
+case class Artifact(ref: ModuleRef,
+                    kind: Kind,
+                    main: Option[String],
+                    repos: List[Repo],
+                    checkouts: List[Checkout],
+                    binaries: List[Path],
+                    dependencies: List[ModuleRef],
+                    compiler: Option[Artifact],
+                    bloopSpec: Option[BloopSpec],
+                    params: List[String],
                     intransitive: Boolean) {
 
-  lazy val ref: ModuleRef = ModuleRef(project.id, module.id)
+  def hash: Digest =
+    (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Sha256]
   
-  def encoded: String = str"${schema.id}-${project.id}-${module.id}"
-
-  def saveJars(cli: Cli[_])
-              (io: cli.Io, dest: Path)
-              (implicit shell: Shell, layout: Layout)
-              : Result[cli.Io, ~ | FileWriteError | ItemNotFound | ShellFailure] = for {
-    dest         <- dest.directory
-    deps         <- transitiveDependencies
-    dirs         <- ~deps.map(layout.classesDir(_, false))
-    files        <- ~dirs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
-    bins         <- ~deps.flatMap(_.module.binaries)
-    binPaths     <- bins.map(_.paths).sequence
-    binFiles     <- ~binPaths.flatten.map { bin => (bin.parent, List(bin.name)) }
-    io           <- ~io.println(msg"Writing manifest file ${layout.manifestFile(this)}")
-    manifestFile <- Manifest.file(layout.manifestFile(this), binFiles.map(_._2).flatten, None)
-    path         <- ~(dest / str"${project.id.key}-${module.id.key}.jar")
-    io           <- ~io.println(msg"Saving JAR file $path")
-    io           <- ~io.effect(shell.aggregatedJar(path, files, manifestFile))
-    io           <- ~io.effect(binPaths.flatten.map { p => p.copyTo(dest / p.name) })
-  } yield io
-
-  def classpath(implicit shell: Shell, layout: Layout)
-               : Result[Set[Path], ~ | ShellFailure | ItemNotFound] = for {
-    deps <- transitiveDependencies
-    dirs <- ~deps.map(layout.classesDir(_, false))
-    bins <- deps.flatMap(_.module.binaries).map(_.paths).sequence.map(_.flatten)
-  } yield (dirs ++ bins)
-
-
-  def compile(multiplexer: Multiplexer[ModuleRef, CompileEvent],
-              futures: Map[ModuleRef, Future[CompileResult]] = Map())
-             (implicit layout: Layout, shell: Shell)
-             : Map[ModuleRef, Future[CompileResult]] = {
-
-    val deps = dependencies.opt.get
+  def writePlugin()(implicit layout: Layout): Unit = if(kind == Plugin) {
+    val file = layout.classesDir(this) / "scalac-plugin.xml"
     
-    val newFutures = deps.foldLeft(futures) { (futures, dep) =>
-      if(futures.contains(dep.ref)) futures
-      else dep.compile(multiplexer, futures)
-    }
-
-    val dependencyFutures = Future.sequence(deps.map { d => newFutures(d.ref) })
-
-    val thisFuture = dependencyFutures.flatMap { inputs =>
-      if(inputs.exists(!_.success)) {
-        multiplexer(ref) = SkipCompile(ref)
-        multiplexer.close(ref)
-        Future.successful(CompileResult(false, ""))
-      } else compileThis(multiplexer)
-    }
-
-    newFutures.updated(ref, thisFuture)
-  }
-
-  private def compileThis(multiplexer: Multiplexer[ModuleRef, CompileEvent])
-                         (implicit shell: Shell)
-                         : Future[CompileResult] = {
-    Future {
-      val out = new StringBuilder()
-      multiplexer(ref) = StartCompile(ref)
-      
-      val result = blocking {
-        shell.bloop.compile(encoded, module.kind == Application) { ln =>
-          out.append(ln)
-          out.append("\n")
-        }.await()
-      }
-
-      multiplexer(ref) = StopCompile(ref, out.toString, result == 0)
-      multiplexer.close(ref)
-      CompileResult(result == 0, out.toString)
+    main.foreach { main =>
+      file.writeSync(str"<plugin><name>${ref.moduleId.key}</name><classname>${main}</classname></plugin>")
     }
   }
 
-  def clean(recursive: Boolean)(implicit layout: Layout, shell: Shell): Unit = {
-    if(recursive) dependencies.foreach(_.foreach(_.clean(true)))
-    layout.classesDir.delete().unit
-  }
+  def sourcePaths(implicit layout: Layout): List[Path] =
+    checkouts.flatMap { c => c.sources.map(_ in c.path) }
 
-  def allParams(implicit layout: Layout, shell: Shell): Result[List[Parameter], ~ | ItemNotFound] = {
-    
-    val pluginParams = for {
-      dependencies <- dependencies
-      plugins <- ~transitiveDependencies.opt.to[List].flatten.filter(_.module.kind == Plugin)
-    } yield plugins.map { plugin => Parameter(str"Xplugin:${layout.classesDir(plugin, false)}") }
-
-    pluginParams.map(_ ++ module.params)
-  }
-
-  def dependencyGraph(implicit layout: Layout, shell: Shell)
-                     : Result[Map[ModuleRef, Set[ModuleRef]], ~ | ItemNotFound] =
-    transitiveDependencies.map { after =>
-      after.map { art => (art.ref, art.module.after) }.toMap
-    }
-
-  // FIXME: Handle errors
-  def writePlugin()(implicit layout: Layout): Unit = if(module.kind == Plugin) {
-    val file = layout.classesDir(this, true) / "scalac-plugin.xml"
-    
-    module.main.foreach { main =>
-      file.writeSync(str"<plugin><name>${module.id}</name><classname>${main}</classname></plugin>")
-    }
-  }
-
-  def classpath()
-               (implicit layout: Layout, shell: Shell)
-               : Result[List[Path], ~ | ItemNotFound | ShellFailure] = for {
-    dependencyArtifacts <- dependencies
-    binaryPaths <- module.binaries.map(_.paths).sequence
-    dependencyClasspath <- dependencyArtifacts.map(_.classpath()).sequence
-    // FIXME: Clean this up
-    paths     <- (for {
-                   artifact <- dependencyArtifacts
-                   binary   <- artifact.module.binaries
-                 } yield binary.paths.map(dependencyArtifacts.map(layout.classesDir(_, true)) ::: _)).sequence
-  } yield paths.flatten ++ binaryPaths.flatten ++ dependencyArtifacts.map(layout.classesDir(_, true)) ++ dependencyClasspath.flatten
-
-  def compiler(implicit layout: Layout, shell: Shell): Result[Option[Artifact], ~ | ItemNotFound] =
-    module.compiler match {
-      case ModuleRef.JavaRef => Answer(None)
-      case compiler => for {
-        resolved <- schema.resolve(compiler.projectId).ascribe(ItemNotFound(compiler.projectId))
-        artifact <- resolved.artifact(workspace, compiler.moduleId)
-      } yield Some(artifact)
-    }
-
-  def dependencies(implicit layout: Layout, shell: Shell)
-                  : Result[List[Artifact], ~ | ItemNotFound] =
-    module.after.to[List].map { d =>
-      // FIXME: Cleanup
-      schema.resolve(d.projectId).ascribe(ItemNotFound(d.projectId)).flatMap(_.artifact(workspace, d.moduleId))
-    }.sequence
-
-  def transitiveDependencies(implicit layout: Layout, shell: Shell)
-                            : Result[Set[Artifact], ~ | ItemNotFound] = for {
-        after <- dependencies
-        dep <- after.map(_.transitiveDependencies).sequence
-        transitive = dep.flatten.filterNot(_.intransitive).to[Set]
-      } yield transitive + this
 }
 
 object Project {
@@ -698,8 +687,8 @@ object Project {
   implicit val stringShow: StringShow[Project] = _.id.key
   implicit def diff: Diff[Project] = Diff.gen[Project]
   
-  def available(projectId: ProjectId, workspace: Workspace): Boolean =
-    !workspace.projects.opt.to[List].flatten.findBy(projectId).successful
+  def available(projectId: ProjectId, layer: Layer): Boolean =
+    !layer.projects.opt.to[List].flatten.findBy(projectId).successful
 }
 
 case class Project(id: ProjectId,
@@ -724,7 +713,7 @@ case class Project(id: ProjectId,
         Answer(moduleId)
     }
 
-  def apply(module: ModuleId): Option[Module] = modules.find(_.id == module)
+  def apply(module: ModuleId): Result[Module, ~ | ItemNotFound] = modules.findBy(module)
 }
 
 object License {
@@ -799,31 +788,18 @@ object Source {
 }
 
 case class Source(repoId: RepoId, path: Path) {
-  
   def description: String = str"${repoId}:${path.value}"
-  
-  def remoteSource(schema: Schema)
-             : Result[List[(Repo, Path)], ~ | FileWriteError | ItemNotFound | InvalidValue] =
-    repoId match {
-      case RepoId.Local => Answer(Nil)
-      case _ => schema.repos.findBy(repoId).map { r => List((r.repo, path)) }
-    }
 
-  def dirPath(schema: Schema)(implicit layout: Layout)
-             : Result[Path, ~ | FileWriteError | ItemNotFound | InvalidValue] =
-    repoId match {
-      case RepoId.Local => Answer(path in layout.pwd)
-      case _ => for {
-        repo <- schema.repos.findBy(repoId)
-        repoDir <- repo.directory
-      } yield path.in(repoDir)
-    }
+  def hash(schema: Schema): Result[Digest, ~ | ItemNotFound] =
+    schema.repo(repoId).map((path, _).digest[Sha256])
+ 
+  def path(schema: Schema)(implicit layout: Layout): Result[Path, ~ | ItemNotFound] =
+    hash(schema).map(layout.srcsDir / _.encoded)
 }
 
 object RepoId {
   implicit val msgShow: MsgShow[RepoId] = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
-  
   final val Local: RepoId = RepoId("local")
 }  
 
@@ -837,8 +813,3 @@ object Parameter {
 case class Parameter(name: String) { def parameter = str"-$name" }
 
 abstract class Key(val kind: UserMsg) { def key: String }
-
-
-class ProjectSpace(val projects: Set[Project]) {
-  
-}

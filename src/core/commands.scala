@@ -25,7 +25,7 @@ object Install {
   private val fishrc = List()
 
   def alias(name: String, dir: Path, module: ModuleRef): String =
-    str"alias $name='fury --workspace=$dir '"
+    str"alias $name='fury --layer=$dir '"
 
 }
 

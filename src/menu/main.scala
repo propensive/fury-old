@@ -26,13 +26,13 @@ object Main {
 
   def invoke(cli: Cli[CliParam[_]]): ExitStatus = {
     
-    val workspace = for {
+    val layer = for {
       layout    <- cli.layout
       config    <- fury.Config.read()(cli.env, layout)
-      workspace <- fury.Workspace.read(layout.furyConfig)(layout)
-    } yield workspace
+      layer     <- Layer.read(layout.furyConfig)(layout)
+    } yield layer
     
-    val actions = workspace.opt.to[List].flatMap { ws => ws.aliases }.map { alias =>
+    val actions = layer.opt.to[List].flatMap { ws => ws.aliases }.map { alias =>
       def action(cli: Cli[CliParam[_]]) = AliasCli.context(cli).flatMap(BuildCli.compile(alias.schema, Some(alias.module)))
       Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli[CliParam[_]]) => action(cli))
     }

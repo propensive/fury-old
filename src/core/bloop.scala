@@ -17,6 +17,7 @@ package fury
 
 import mitigation._
 import guillotine._
+import gastronomy._
 import java.net._
 
 object Bloop {
@@ -26,27 +27,32 @@ object Bloop {
   private[this] def testServer(): Result[Unit, ~] =
     Answer(new Socket("localhost", 8212).close().unit)
 
-  def server(cli: Cli[_])(io: cli.Io)(implicit shell: Shell): Result[cli.Io, ~ | InitFailure] = synchronized {
+  def server(cli: Cli[_])(io: cli.Io): Result[Unit, ~ | InitFailure] = synchronized {
     try {
       testServer()
-      Answer(io)
+      Answer(())
     } catch {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
         val io2 = io.print("Starting bloop compile server")
-        val running = shell.bloop.startServer()
+        val running = cli.shell.bloop.startServer()
         
-        def checkStarted(io: cli.Io): cli.Io = try {
-          Thread.sleep(50)
-          if(!testServer().successful) checkStarted(io.print("."))
-          else io
-        } catch { case e: Exception => checkStarted(io.print(".")) }
+        def checkStarted(): Unit = try {
+          Thread.sleep(150)
+          if(!testServer().successful) {
+            io.print(".")
+            checkStarted()
+          }
+        } catch { case e: Exception =>
+          io.print(".")
+          checkStarted()
+        }
         
-        val io3 = checkStarted(io2).println("done")
+        io.println("done")
 
         try {
           bloopServer = Some(running)
-          Answer(io3)
+          Answer(())
         } catch {
           case e: ConnectException =>
             bloopServer = None
@@ -56,45 +62,43 @@ object Bloop {
   }
 
 
-  def generateFiles(artifacts: Set[Artifact])
+  def generateFiles(artifacts: Iterable[Artifact], universe: Universe)
                    (implicit layout: Layout, env: Environment, shell: Shell)
-                   : Result[Set[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
-                       UnknownCompiler | ItemNotFound | InvalidValue] = {
+                   : Result[Iterable[Path], ~ | FileWriteError | ShellFailure | FileNotFound |
+                       UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] = {
     artifacts.map { artifact => for {
       path       <- layout.bloopConfig(artifact).mkParents()
-      jsonString <- makeConfig(artifact)
-      _          <- path.writeSync(jsonString)
+      jsonString <- makeConfig(artifact, universe)
+      _          <- ~(if(!path.exists) path.writeSync(jsonString))
     } yield List(path) }.sequence.map(_.flatten)
   }
 
-  private def makeConfig(artifact: Artifact)
+  private def makeConfig(artifact: Artifact, universe: Universe)
                         (implicit layout: Layout, shell: Shell)
                         : Result[String, ~ | FileNotFound | FileWriteError | ShellFailure |
-                            UnknownCompiler | ItemNotFound | InvalidValue] =
+                            UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
     for {
-      deps <- artifact.dependencies
-      _ = artifact.writePlugin()
-      optCompiler <- artifact.compiler
-      classpath <- artifact.classpath()
-      optCompilerClasspath <- optCompiler.map(_.classpath()).getOrElse(Answer(Nil))
-      params <- artifact.allParams
-      sourceDirs <- artifact.module.sources.to[List].map(_.dirPath(artifact.schema)).distinct.sequence
+      deps              <- universe.dependencies(artifact.ref)
+      _                  = artifact.writePlugin()
+      compiler           = artifact.compiler
+      classpath         <- universe.classpath(artifact.ref)
+      compilerClasspath <- compiler.map { c => universe.classpath(c.ref) }.getOrElse(Answer(Set()))
     } yield json(
-      name = artifact.encoded,
-      scalacOptions = params.map(_.parameter),
+      name = artifact.hash.encoded[Base64Url],
+      scalacOptions = artifact.params,
       // FIXME: Don't hardcode this value
-      bloopSpec = optCompiler.map(_.module.bloopSpec.get).getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
-      dependencies = deps.map(_.encoded),
+      bloopSpec = compiler.flatMap(_.bloopSpec).getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
+      dependencies = deps.map(_.hash.encoded[Base64Url]).to[List],
       fork = false,
-      classesDir = str"${layout.classesDir(artifact, true).value}",
-      outDir = str"${layout.outputDir(artifact, true).value}",
-      classpath = classpath.map(_.value),
+      classesDir = str"${layout.classesDir(artifact).value}",
+      outDir = str"${layout.outputDir(artifact).value}",
+      classpath = classpath.map(_.value).to[List].distinct,
       baseDirectory = layout.pwd.value,
       javaOptions = Nil,
-      allScalaJars = optCompilerClasspath.map(_.value),
-      sourceDirectories = sourceDirs.map(_.value),
+      allScalaJars = compilerClasspath.map(_.value).to[List],
+      sourceDirectories = artifact.sourcePaths.map(_.value),
       javacOptions = Nil,
-      main = artifact.module.main
+      main = artifact.main
     )
         
   private def json(

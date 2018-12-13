@@ -38,11 +38,15 @@ object Graph {
            stream: Stream[CompileEvent],
            state: Map[ModuleRef, CompileState])
           (implicit theme: Theme)
-          : cli.Io =
+          : Unit =
     stream match {
       case Tick #:: tail =>
         val next: String = draw(graph, false, state).mkString("\n")
-        live(cli, false)(if(!changed) io else io.println(next).println(Ansi.up(graph.size + 1)()), graph, tail, state)
+        if(changed) {
+          io.println(next)
+          io.println(Ansi.up(graph.size + 1)())
+        }
+        live(cli, false)(io, graph, tail, state)
       case StartCompile(ref) #:: tail =>
         live(cli, true)(io, graph, tail, state.updated(ref, Compiling))
       case StopCompile(ref, out, success) #:: tail =>
@@ -53,7 +57,8 @@ object Graph {
         val output = state.collect { case (ref, Failed(out)) =>
           UserMsg { theme => (msg"Output from $ref:".string(theme)+"\n\n"+out) }
         }.foldLeft(msg"")(_ + _)
-        io.println(Ansi.down(graph.size + 1)()).println(output)
+        io.println(Ansi.down(graph.size + 1)())
+        io.println(output)
     }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],

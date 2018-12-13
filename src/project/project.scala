@@ -26,23 +26,23 @@ object ProjectCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- fury.Config.read()(cli.env, layout)
-    workspace    <- fury.Workspace.read(layout.furyConfig)(layout)
-    cli          <- cli.hint(SchemaArg, workspace.schemas)
+    layer        <- Layer.read(layout.furyConfig)(layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
     optSchemaArg <- ~cli.peek(SchemaArg)
-  } yield new MenuContext(cli, layout, config, workspace, optSchemaArg)
+  } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
 
   def select(ctx: MenuContext) = {
     import ctx._
     for { 
-      dSchema       <- workspace.schemas.findBy(optSchemaId.getOrElse(workspace.main))
+      dSchema       <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli           <- cli.hint(ProjectArg, dSchema.projects)
       cli           <- cli.hint(ForceArg)
       io            <- cli.io()
       projectId     <- ~cli.peek(ProjectArg)
       projectId     <- projectId.ascribe(UnspecifiedProject())
       force         <- ~io(ForceArg).opt.isDefined
-      workspace     <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.mainProject(_))(_(_) = Some(projectId))
-      io            <- ~io.save(workspace, layout.furyConfig)
+      layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_))(_(_) = Some(projectId))
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -53,11 +53,11 @@ object ProjectCli {
       cli    <- cli.hint(RawArg)
       io     <- cli.io()
       raw    <- ~io(RawArg).successful
-      schema <- workspace.schemas.findBy(optSchemaId.getOrElse(workspace.main))
+      schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
-      io     <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, workspace.showSchema, schema)) else io)
-      io     <- ~io.println(table.mkString("\n"))
+      _      <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+      _      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -70,35 +70,35 @@ object ProjectCli {
       projectId <- io(ProjectNameArg)
       license   <- io(LicenseArg).remedy(License.unknown)
       project   <- ~fury.Project(projectId, license = license)
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.projects(_))(_.modify(_)((_: SortedSet[Project]) + project))
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, true)(Lenses.workspace.mainProject(_))(_(_) = Some(project.id))
-      io        <- ~io.save(workspace, layout.furyConfig)
-      io        <- ~io.println(msg"Set current project to ${project.id}")
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(_.modify(_)((_: SortedSet[Project]) + project))
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(_(_) = Some(project.id))
+      _         <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
   }
 
   def delete(ctx: MenuContext) = {
     import ctx._
     for {
-      dSchema   <- workspace.schemas.findBy(optSchemaId.getOrElse(workspace.main))
+      dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       io        <- cli.io()
       projectId <- io(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
       force     <- ~io(ForceArg).opt.isDefined
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.projects(_))(_.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
-      workspace <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.mainProject(_)) { (lens, ws) =>
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(_.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                      if(lens(ws) == Some(projectId)) (lens(ws) = None) else ws
                    }
-      io        <- ~io.save(workspace, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def update(ctx: MenuContext) = {
     import ctx._
     for {
-      dSchema        <- ~workspace.schemas.findBy(optSchemaId.getOrElse(workspace.main)).opt
+      dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).opt
       cli            <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
       cli            <- cli.hint(DescriptionArg)
       cli            <- cli.hint(ForceArg)
@@ -107,7 +107,7 @@ object ProjectCli {
       cli            <- cli.hint(ProjectNameArg, projectId)
       io             <- cli.io()
       projectId      <- projectId.ascribe(UnspecifiedProject())
-      schema         <- workspace.schemas.findBy(optSchemaId.getOrElse(workspace.main))
+      schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       oldProject     <- schema.projects.findBy(projectId)
       nameArg        <- ~io(ProjectNameArg).opt
       newId          <- ~nameArg.flatMap(schema.unused(_).opt).getOrElse {
@@ -116,8 +116,8 @@ object ProjectCli {
       descriptionArg <- io(DescriptionArg).remedy(oldProject.description)
       project        <- ~oldProject.copy(id = newId, license = licenseArg, description = descriptionArg)
       force          <- ~io(ForceArg).opt.isDefined
-      workspace      <- Lenses.updateSchemas(optSchemaId, workspace, force)(Lenses.workspace.project(_, oldProject.id))(_(_) = project)
-      io             <- ~io.save(workspace, layout.furyConfig)
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.project(_, oldProject.id))(_(_) = project)
+      _              <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

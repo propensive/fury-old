@@ -18,12 +18,12 @@ package fury
 import mitigation._
 
 object Validate {
-  def apply(workspace: Workspace): Result[Workspace, ~] = {
+  def apply(layer: Layer): Result[Layer, ~] = {
     for {
-      schema <- workspace.schemas
+      schema <- layer.schemas
       project <- schema.projects
       module <- project.modules
     } ()
-    Answer(workspace)
+    Answer(layer)
   }
 }

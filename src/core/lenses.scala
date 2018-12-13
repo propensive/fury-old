@@ -21,17 +21,17 @@ import scala.collection.immutable.SortedSet
 
 object Lenses {
 
-  def updateSchemas[A](schemaId: Option[SchemaId], workspace: Workspace, force: Boolean)
-             (lens: SchemaId => Lens[Workspace, A, A])
-             (modify: (Lens[Workspace, A, A], Workspace) => Workspace)
-             : Result[Workspace, ~ | SchemaDifferences] = {
+  def updateSchemas[A](schemaId: Option[SchemaId], layer: Layer, force: Boolean)
+             (lens: SchemaId => Lens[Layer, A, A])
+             (modify: (Lens[Layer, A, A], Layer) => Layer)
+             : Result[Layer, ~ | SchemaDifferences] = {
     val lenses = schemaId match {
       case Some(schemaId) => List(lens(schemaId))
-      case None => workspace.schemas.map(_.id).to[List].map(lens(_))
+      case None => layer.schemas.map(_.id).to[List].map(lens(_))
     }
 
-    for(lenses <- if(force || lenses.map(_(workspace)).to[Set].size == 1) Answer(lenses) else Result.abort(SchemaDifferences()))
-    yield lenses.foldLeft(workspace) { case (workspace, lens) => modify(lens, workspace) }
+    for(lenses <- if(force || lenses.map(_(layer)).to[Set].size == 1) Answer(lenses) else Result.abort(SchemaDifferences()))
+    yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
   }
 
   object on {
@@ -63,7 +63,7 @@ object Lenses {
     val theme = lens(_.theme)
   }
 
-  object workspace extends Lens.Partial[Workspace]() {
+  object layer extends Lens.Partial[Layer]() {
     val schemas = lens(_.schemas)
     val mainSchema = lens(_.main)
 

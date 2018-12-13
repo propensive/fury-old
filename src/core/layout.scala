@@ -15,46 +15,51 @@
                                                                                                   */
 package fury
 
+import gastronomy._
+
 case class Layout(home: Path, pwd: Path) {
   lazy val furyDir: Path = pwd / ".fury"
-  lazy val bloopDir: Path = pwd / ".bloop"
-  lazy val workspacesDir: Path = furyDir / "workspaces"
+  lazy val bloopDir: Path = furyDir / "bloop"
+  lazy val layersDir: Path = furyDir / "layers"
   lazy val classesDir: Path = furyDir / "classes"
+  lazy val analysisDir: Path = furyDir / "analysis"
+  lazy val resourcesDir: Path = furyDir / "resources"
   lazy val runLogDir: Path = furyDir / "log"
   lazy val reposDir: Path = furyDir / "repos"
-  lazy val refsDir: Path = furyDir / "refs"
+  lazy val srcsDir: Path = furyDir / "sources"
   lazy val tmpDir: Path = furyDir / "tmp"
   lazy val errorLogfile: Path = pwd / ".fury.log"
   lazy val userConfig: Path = home / ".fury.conf"
   lazy val logFile: Path = furyDir / "fury.log"
 
-  def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.encoded}.json"
+  def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
  
-  lazy val furyConfig: Path = pwd / "workspace.fury"
-  lazy val signedConfig: Path = pwd / "workspace.fury.sig"
+  lazy val furyConfig: Path = pwd / "layer.fury"
   
-  def workspaceDir(workspaceId: String): Path = workspacesDir / workspaceId
+  def layerDir(layerId: String): Path = layersDir / layerId
   
-  def workspaceFile(workspaceId: String): Path = workspaceDir(workspaceId) / "workspace.fury"
+  def layerFile(layerId: String): Path = layerDir(layerId) / "layer.fury"
 
-  def outputDir(artifact: Artifact, create: Boolean): Path = {
-    val path = classesDir / artifact.project.id.key / artifact.module.id.key / "output"
-    if(create) path.mkdir()
+  def outputDir(artifact: Artifact): Path = {
+    val path = analysisDir / artifact.hash.encoded[Base64Url]
+    path.mkdir()
     path
   }
 
-  def runLogFile(artifact: Artifact, create: Boolean): Path = {
-    val path = runLogDir / artifact.project.id.key
-    if(create) path.mkdir()
-    path / s"${artifact.module.id.key}.log"
+  def runLogFile(artifact: Artifact): Path = {
+    runLogDir.mkdir()
+    runLogDir / s"${artifact.hash.encoded[Base64Url]}.log"
   }
 
-  def classesDir(artifact: Artifact, create: Boolean): Path = {
-    val path = classesDir / artifact.project.id.key / artifact.module.id.key / "classes"
-    if(create) path.mkdir()
+  def classesDir(artifact: Artifact): Path = {
+    val path = classesDir / artifact.hash.encoded[Base64Url]
+    path.mkdir()
     path
   }
 
-  def manifestFile(artifact: Artifact): Path =
-    outputDir(artifact, true) / s"${artifact.encoded}.mf"
+  def manifestFile(artifact: Artifact): Path = {
+    val path = resourcesDir / artifact.hash.encoded[Base64Url]
+    path.mkdir()
+    path / s"manifest.mf"
+  }
 }

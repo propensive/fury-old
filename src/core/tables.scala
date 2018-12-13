@@ -28,8 +28,8 @@ case class Tables(config: Config) {
     if(raw) rows.map(main).map { e => implicitly[MsgShow[S]].show(e).string(Theme.NoColor) }
     else table.tabulate(cols, rows)
 
-  def contextString(workspace: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
-    (if(showSchema) elements else elements.tail).foldLeft(workspace) { (l, r) =>
+  def contextString(layer: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
+    (if(showSchema) elements else elements.tail).foldLeft(layer) { (l, r) =>
       UserMsg { theme => s"${l.string(theme)}/${r.string(theme)}" }
     }
 
@@ -51,7 +51,7 @@ case class Tables(config: Config) {
       val extra = (if(intransitive) msg"*" else msg"")
       if(p == projectId) msg"${theme.module(m.key)}$extra"
       else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"
-  }.foldLeft(msg"")(_ + "\n" + _).string(theme)
+  }.foldLeft(msg"")(_ + _ + "\n").string(theme)
 
   implicit private def compilerRef(implicit show: AnsiShow[ModuleRef])
                                         : AnsiShow[Option[ModuleRef]] = {
@@ -129,7 +129,7 @@ case class Tables(config: Config) {
     Heading("REPO", _.id),
     Heading("REMOTE", _.repo),
     Heading("REFSPEC", _.refSpec),
-    Heading("COMMIT", _.current.opt),
+    //Heading("COMMIT", _.current.opt),
     Heading("LOCAL", _.local),
   )
 

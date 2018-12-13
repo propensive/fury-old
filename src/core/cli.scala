@@ -19,9 +19,6 @@ import exoskeleton._
 import guillotine._
 import mitigation._
 
-import scala.concurrent._
-import java.util.concurrent.Executors
-
 case class EarlyCompletions() extends Exception
 
 sealed class ExitStatus(val code: Int)
@@ -107,22 +104,17 @@ case class Cli[+Hinted <: CliParam[_]]
                optCompletions: List[Cli.OptCompletion[_]],
                env: Environment) {
  
-  private[this] val exec = Executors.newSingleThreadExecutor()
-  private[this] implicit val execContext: ExecutionContext = ExecutionContext.fromExecutor(exec)
-
-  class Io private[Cli] (private val future: Future[Unit]) {
+  class Io private[Cli]() {
 
     def apply[T](param: CliParam[T])
                 (implicit ev: Hinted <:< param.type)
                 : Result[T, ~ | MissingArg | InvalidArgValue] = args.get(param.param)
 
-    def effect(fn: => Unit): Io = new Io(future.map { unit => fn })
+    def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
     
-    def print(msg: UserMsg): Io = effect(output.print(msg.string(config.theme)))
-    
-    def println(msg: UserMsg): Io = effect(output.println(msg.string(config.theme)))
+    def println(msg: UserMsg): Unit = output.println(msg.string(config.theme))
 
-    def save[T: OgdlWriter](value: T, path: Path): Io = effect {
+    def save[T: OgdlWriter](value: T, path: Path): Unit = {
       val stringBuilder: StringBuilder = new StringBuilder()
       Ogdl.serialize(stringBuilder, implicitly[OgdlWriter[T]].write(value))
       val content: String = stringBuilder.toString
@@ -135,10 +127,8 @@ case class Cli[+Hinted <: CliParam[_]]
     }
     
     def await(success: Boolean = true): ExitStatus = {
-      effect(output.flush())
-      val result = Await.ready(future, duration.Duration.Inf).value.get.isSuccess
-      exec.shutdown()
-      if(success && result) Done else Abort
+      output.flush()
+      if(success) Done else Abort
     }
   }
 
@@ -186,9 +176,10 @@ case class Cli[+Hinted <: CliParam[_]]
   }
 
   def io(): Result[Io, ~ | EarlyCompletions] = {
-    val io = new Io(Future(()))
+    val io = new Io()
     if(completion) {
-      io.println(optCompletions.flatMap(_.output).mkString("\n")).await()
+      io.println(optCompletions.flatMap(_.output).mkString("\n"))
+      io.await()
       Result.abort(EarlyCompletions())
     } else Answer(io)
   }
@@ -200,8 +191,9 @@ case class Cli[+Hinted <: CliParam[_]]
         case act: Action[_] => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val io = new Io(Future(()))
-      io.println(optCompletions.flatMap(_.output).mkString("\n")).await()
+      val io = new Io()
+      io.println(optCompletions.flatMap(_.output).mkString("\n"))
+      io.await()
       Result.abort(EarlyCompletions())
     }.getOrElse {
       args.prefix.headOption.map { arg =>

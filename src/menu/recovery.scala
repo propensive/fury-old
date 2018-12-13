@@ -27,10 +27,13 @@ object Recovery {
                  ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue |
                  ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists |
                  AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences |
-                 EarlyCompletions])
+                 EarlyCompletions | ProjectConflict])
              : ExitStatus = result.recover(
     on[EarlyCompletions].map { case EarlyCompletions() =>
       Done
+    },
+    on[ProjectConflict].map { case ProjectConflict(ps) =>
+      cli.abort(msg"""Your dependency tree contains references to two or more conflicting projects: ${ps.mkString(", ")}""")
     },
     on[SchemaDifferences].map { e =>
       cli.abort(msg"""You are attempting to make this change to all schemas, however the value you are
@@ -45,7 +48,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
       cli.abort(msg"Couldn't write to file $path.")
     },
     on[FileNotFound].map { case FileNotFound(path) =>
-      cli.abort(msg"""Could not find the file $path. Run `fury init` to create a new workspace.""")
+      cli.abort(msg"""Could not find the file $path. Run `fury init` to create a new layer.""")
     },
     on[MissingArg].map { case MissingArg(param) =>
       cli.abort(msg"The parameter --$param was not provided.")
@@ -97,7 +100,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
       val result = for {
         layout <- cli.layout
         io     <- cli.io()
-        _      <- ~io.effect(layout.errorLogfile.writeSync(errorString))
+        _      <- ~layout.errorLogfile.writeSync(errorString)
         _      <- ~io.await()
       } yield cli.abort {
         msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}."
