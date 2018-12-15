@@ -66,7 +66,7 @@ object RepoCli {
       io        <- cli.io()
       all       <- ~io(AllArg).opt
       optRepos  <- io(RepoIdArg).opt.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ => schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
-      repos     <- optRepos.map(schema.repo(_)).sequence
+      repos     <- optRepos.map(schema.repo(_)(layout, cli.shell)).sequence
       msgs      <- repos.map(_.repo.update()(cli.shell, layout)).sequence
       _         <- ~msgs.foreach(io.println(_))
     } yield io.await()

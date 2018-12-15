@@ -27,9 +27,6 @@ object FuryMenu {
         Action('delete, msg"delete a command alias from the layer", AliasCli.delete),
         Action('list, msg"list command aliases", AliasCli.list),
       ),
-      Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
-        Action('set, msg"change a settings", ConfigCli.set),
-      ),
       Menu('binary, msg"manage binary dependencies for the module", BinaryCli.context,
           'list)(
         Action('add, msg"add a binary dependency to the module", BinaryCli.add),
@@ -44,6 +41,9 @@ object FuryMenu {
         Action('save, msg"save a JAR file", BuildCli.save),
       ),
       Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
+      Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
+        Action('set, msg"change a settings", ConfigCli.set),
+      ),
       Menu('dependency, msg"manage dependencies for the module", DependencyCli.context,
           'list)(
         Action('add, msg"add a dependency on another module", DependencyCli.add),
