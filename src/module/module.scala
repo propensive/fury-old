@@ -147,7 +147,7 @@ object ModuleCli {
                           module   <- project.modules.findBy(moduleId).opt
                         } yield module }
       cli            <- cli.hint(ModuleNameArg, optModuleId.to[List])
-      optKind        <- ~cli.peek(KindArg)
+      optKind        <- ~cli.peek(KindArg).orElse(optModule.map(_.kind))
       cli            <- optKind match {
                           case Some(Application | Plugin) =>
                             for(cli <- cli.hint(MainArg)) yield cli
