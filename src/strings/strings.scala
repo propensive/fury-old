@@ -21,7 +21,9 @@ object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
 
 object Version {
   final val current: String =
-    Source.fromResource(".version", getClass.getClassLoader).getLines.next
+    try Source.fromResource(".version", getClass.getClassLoader).getLines.next catch {
+      case e: NullPointerException => "unknown"
+    }
 }
 
 case class UserMsg(string: Theme => String) {
