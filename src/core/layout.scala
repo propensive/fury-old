@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.0. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
