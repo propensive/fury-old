@@ -51,7 +51,7 @@ object FuryMenu {
         Action('list, msg"list dependencies for the module", DependencyCli.list),
       ),
       Action('help, msg"help on using Fury", help),
-      Menu('import, msg"manage imported schemas", SchemaCli.context, 'list)(
+      Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
         Action('add, msg"add an imported schema", ImportCli.add),
         Action('delete, msg"delete a previously imported schema", ImportCli.delete),
         Action('list, msg"list imported schemas", ImportCli.list),
