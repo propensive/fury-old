@@ -549,10 +549,7 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
       println(s"Checking out ${if(sources.isEmpty) "all sources" else sources.map(_.value).mkString(", ")} in refspec ${refSpec.id} of ${repo.url} at ${path.value}.")
       path.mkdir()
       shell.git.sparseCheckout(repo.path, path, sources, refSpec.id).map { _ => path }
-    } else {
-      println(s"Using checked-out sources ${if(sources.isEmpty) "" else sources.map(_.value).mkString(", ")} in refspec ${refSpec.id} of ${repo.url} at ${path.value}.")
-      Answer(path)
-    }
+    } else Answer(path)
 }
 
 object SourceRepo {
@@ -638,9 +635,9 @@ case class Repo(url: String) {
 object SchemaRef {
   
   implicit val msgShow: MsgShow[SchemaRef] =
-    v => UserMsg { theme => msg"${v.repo}${theme.gray("/")}${v.schema}".string(theme) }
+    v => UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
   
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}/${sr.schema}"
+  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
   implicit def diff: Diff[SchemaRef] = Diff.gen[SchemaRef]
   
   def unapply(value: String): Option[SchemaRef] = value match {
