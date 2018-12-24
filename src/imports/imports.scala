@@ -1,5 +1,7 @@
 package fury
 
+import Args._
+
 object ImportCli {
 
   def add(ctx: SchemaCtx) = {
