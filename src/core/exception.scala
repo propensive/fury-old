@@ -15,9 +15,6 @@
                                                                                                   */
 package fury
 
-case class FileNotFound(path: Path) extends Exception
-case class FileWriteError(path: Path) extends Exception
-case class ConfigFormatError() extends Exception
 case class NotInitialized(dir: Path) extends Exception
 case class ModuleAlreadyExists(module: ModuleId) extends Exception
 case class ProjectAlreadyExists(project: ProjectId) extends Exception
