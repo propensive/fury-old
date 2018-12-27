@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.0. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.0. Copyright 2018 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -21,17 +21,23 @@ import kaleidoscope._
 
 case class Shell()(implicit env: Environment) {
   type Out = Result[String, ~ | ShellFailure]
- 
+
+  val environment: Environment = env
+
   object git {
 
     def setRemote(repo: Repo): Out =
       sh"git remote add origin ${repo.url}".exec[Out]
 
-    def clone(repo: Repo, dir: Path): Out =
+    def clone(repo: Repo, dir: Path): Out = {
+      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       sh"git clone ${repo.url} ${dir.value}".exec[Out]
+    }
 
-    def cloneBare(url: String, dir: Path): Out =
+    def cloneBare(url: String, dir: Path): Out = {
+      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       sh"git clone --bare $url ${dir.value}".exec[Out]
+    }
 
     def sparseCheckout(from: Path, dir: Path, sources: List[Path], commit: String): Result[String, ~ | ShellFailure | FileWriteError] = for {
       _   <- sh"git -C ${dir.value} init".exec[Out]
@@ -75,6 +81,12 @@ case class Shell()(implicit env: Environment) {
 
     def getCommit(dir: Path): Out =
       sh"git -C ${dir.value} rev-parse --short HEAD".exec[Out]
+
+    def getBranchHead(dir: Path, branch: String): Out =
+      sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Out]
+
+    def getTag(dir: Path, tag: String): Out =
+      sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Out]
 
     def getRemote(dir: Path): Out =
       sh"git -C ${dir.value} remote get-url origin".exec[Out]
