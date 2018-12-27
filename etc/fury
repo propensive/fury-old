@@ -5,7 +5,7 @@ CLASSPATH="$FURYHOME/lib/fury-menu.jar:$FURYHOME/lib/nailgun-server-0.9.1.jar:$F
 MAIN="com.martiansoftware.nailgun.NGServer"
 
 startFury() {
-  nohup $FURYHOME/bin/scala -cp "$CLASSPATH" "$MAIN" $PORT &> /dev/null &
+  nohup $FURYHOME/bin/scala -cp "$CLASSPATH" "$MAIN" $PORT > /dev/null 2>&1 &
   local RUNNING='0'
   printf 'Fury daemon is starting'
   for I in $(seq 1 25); do
@@ -26,21 +26,21 @@ case "$1" in
     startFury
     ;;
   "stop")
-    ng --nailgun-port "$PORT" ng-stop &> /dev/null
+    ng --nailgun-port "$PORT" ng-stop > /dev/null 2>&1
     printf 'Fury daemon has shut down.\n'
     ;;
   "restart")
     fury stop && fury start
     ;;
   "prompt")
-    ng --nailgun-port "$PORT" "fury.Main" $@ 2> /dev/null || printf " \e[0;30m[ ]"
+    ng --nailgun-port "$PORT" "fury.Main" -- "$@" 2> /dev/null || printf " \e[0;30m[ ]"
     ;;
   "completion")
-    ng --nailgun-port "$PORT" "fury.Main" $@ 2> /dev/null || \
+    ng --nailgun-port "$PORT" "fury.Main" -- "$@" 2> /dev/null || \
       printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   *)
-    ng --nailgun-port "$PORT" "fury.Main" $@
+    ng --nailgun-port "$PORT" "fury.Main" -- "$@"
     ;;
 esac
 
