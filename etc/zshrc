@@ -1,2 +1,1 @@
-PATH=$PATH:$FURYHOME/bin
 autoload -U +X compinit && compinit
