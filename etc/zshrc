@@ -1,5 +1,4 @@
 PATH=$PATH:$FURYHOME/bin
-fpath=($FURYHOME/etc/completion/zsh $fpath)
 if ! (( $+functions[compdef] ))
 then
   autoload -U +X compinit && compinit
