@@ -1,11 +1,12 @@
 #!/bin/sh
 
 PORT="8462"
-CLASSPATH="$FURYHOME/lib/fury-menu.jar:$FURYHOME/lib/nailgun-server-0.9.1.jar:$FURYHOME/lib/jna-4.5.1.jar:$FURYHOME/lib/directory-watcher-0.8.0.jar"
+CLASSPATH="$FURYHOME/lib/fury-menu.jar"
 MAIN="com.martiansoftware.nailgun.NGServer"
 
 startFury() {
-  nohup $FURYHOME/bin/scala -cp "$CLASSPATH" "$MAIN" $PORT > /dev/null 2>&1 &
+  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.martiansoftware:nailgun-server:0.9.1)
+  nohup java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
   local RUNNING='0'
   printf 'Fury daemon is starting'
   for I in $(seq 1 25); do
@@ -21,9 +22,17 @@ startFury() {
   printf 'Starting Fury is taking longer than expected.\n'
 }
 
+startFuryStandalone() {
+  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.martiansoftware:nailgun-server:0.9.1)
+  java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT"
+}
+
 case "$1" in
   "start")
     startFury
+    ;;
+  "standalone")
+    startFuryStandalone
     ;;
   "stop")
     ng --nailgun-port "$PORT" ng-stop > /dev/null 2>&1
@@ -33,7 +42,7 @@ case "$1" in
     fury stop && fury start
     ;;
   "prompt")
-    ng --nailgun-port "$PORT" "fury.Main" -- "$@" 2> /dev/null || printf " \e[0;30m[ ]"
+    ng --nailgun-port "$PORT" "fury.Main" -- "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
     ng --nailgun-port "$PORT" "fury.Main" -- "$@" 2> /dev/null || \
