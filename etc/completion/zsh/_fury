@@ -1,0 +1,19 @@
+#compdef fury
+
+_fury() {
+  oldIfs=$IFS
+  IFS=$'\n'
+  words2=($(
+    for w in $words; do
+      echo $w | sed 's/^-$/\\-/'
+    done
+  ))
+  results=($(fury completion --shell zsh --paramNo $CURRENT -- $words2))
+  results=($results '*:dummy:')
+  IFS=$oldIfs
+  _arguments -C $results
+}
+
+_fury 
+
+return 0
