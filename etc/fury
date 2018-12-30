@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PORT="8462"
-CLASSPATH="$FURYHOME/lib/fury-menu.jar"
+CLASSPATH="$FURYHOME/lib/fury.jar"
 MAIN="com.martiansoftware.nailgun.NGServer"
 
 startFury() {
