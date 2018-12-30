@@ -1,5 +1,2 @@
 PATH=$PATH:$FURYHOME/bin
-if ! (( $+functions[compdef] ))
-then
-  autoload -U +X compinit && compinit
-fi
+autoload -U +X compinit && compinit
