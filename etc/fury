@@ -8,7 +8,7 @@ startFury() {
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.martiansoftware:nailgun-server:0.9.1)
   nohup java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
   local RUNNING='0'
-  printf 'Fury daemon is starting'
+  printf 'Fury daemon is starting...'
   for I in $(seq 1 25); do
     fury help > /dev/null 2> /dev/null && RUNNING='1';
     if [ "$RUNNING" -eq '1' ]; then
