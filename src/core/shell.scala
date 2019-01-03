@@ -98,7 +98,7 @@ case class Shell()(implicit env: Environment) {
 
   object bloop {
     def start(): Running = {
-      sh"sh -c 'launcher > /dev/null'".async(_ => (), _ => ())
+      sh"sh -c 'launcher 1.2.1 > /dev/null'".async(_ => (), _ => ())
     }
       
     def running(): Boolean = {
