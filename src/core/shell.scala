@@ -119,7 +119,7 @@ case class Shell()(implicit env: Environment) {
 
   object coursier {
     def fetch(artifact: String): Result[List[Path], ~ | ShellFailure] = for {
-      string <- sh"blp-coursier fetch --repository central $artifact".exec[Out]
+      string <- sh"coursier fetch --repository central $artifact".exec[Out]
     } yield string.split("\n").to[List].map(Path(_))
   }
 
