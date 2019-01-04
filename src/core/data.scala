@@ -561,8 +561,9 @@ object SourceRepo {
 case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
 
   def listFiles(implicit layout: Layout, shell: Shell): Result[List[Path], ~ | ShellFailure | InvalidValue | FileWriteError] = for {
-    dir   <- local.map(Answer(_)).getOrElse(repo.fetch)
-    files <- local.map { _ => Answer(dir.children.map(Path(_)).to[List]) }.getOrElse(shell.git.lsTree(dir, refSpec.id))
+    dir    <- local.map(Answer(_)).getOrElse(repo.fetch)
+    commit <- ~shell.git.getTag(dir, refSpec.id).opt.orElse(shell.git.getBranchHead(dir, refSpec.id).opt).getOrElse(refSpec.id)
+    files  <- local.map { _ => Answer(dir.children.map(Path(_)).to[List]) }.getOrElse(shell.git.lsTree(dir, commit))
   } yield files
 
   def fullCheckout: Checkout = Checkout(repo, local.isDefined, refSpec, List())
