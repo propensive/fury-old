@@ -92,7 +92,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema     <- ~layer.mainSchema.opt
-      cli           <- cli.hint(DependencyArg, optProject.map(_.moduleRefs).orElse(optSchema.map(_.moduleRefs)).getOrElse(List()))
+      cli           <- cli.hint(DependencyArg, optSchema.map(_.moduleRefs).getOrElse(List()))
       cli           <- cli.hint(IntransitiveArg)
       io            <- cli.io()
       project       <- optProject.ascribe(UnspecifiedProject())
