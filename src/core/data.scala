@@ -17,7 +17,7 @@ package fury
 
 import mitigation._
 import guillotine._
-import gastronomy._, ByteEncoder.base64Url
+import gastronomy._
 import kaleidoscope._
 import exoskeleton.{InvalidArgValue, MissingArg}
 
