@@ -102,15 +102,15 @@ case class Shell()(implicit env: Environment) {
     }
       
     def running(): Boolean = {
-      sh"ng --nailgun-port 8212 help".exec[Exit[String]].status == 0
+      sh"bloop help".exec[Exit[String]].status == 0
     }
 
     def clean(name: String)(output: String => Unit): Running =
-      sh"ng --nailgun-port 8212 clean -c .fury/bloop $name".async(output(_), output(_))
+      sh"bloop clean --config-dir .fury/bloop $name".async(output(_), output(_))
 
     def compile(name: String, run: Boolean)(output: String => Unit): Running = {
       val action = if(run) "run" else "compile"
-      sh"ng --nailgun-port 8212 $action -c .fury/bloop $name".async(output(_), output(_))
+      sh"bloop $action --config-dir .fury/bloop $name".async(output(_), output(_))
     }
 
     def startServer(): Running =
