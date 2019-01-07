@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -147,7 +147,7 @@ object ModuleCli {
                           module   <- project.modules.findBy(moduleId).opt
                         } yield module }
       cli            <- cli.hint(ModuleNameArg, optModuleId.to[List])
-      optKind        <- ~cli.peek(KindArg)
+      optKind        <- ~cli.peek(KindArg).orElse(optModule.map(_.kind))
       cli            <- optKind match {
                           case Some(Application | Plugin) =>
                             for(cli <- cli.hint(MainArg)) yield cli

@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -16,6 +16,7 @@
 package fury
 
 import escritoire._
+import gastronomy._
 import eucalyptus._
 import scala.collection.immutable.SortedSet
 import language.implicitConversions
@@ -46,4 +47,7 @@ object `package` {
   implicit val msgShowPath: MsgShow[Path] = path => UserMsg(_.path(path.value))
   implicit val stringShow: StringShow[Path] = _.value
   implicit val diff: Diff[Path] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
+
+  implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
+    ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
 }

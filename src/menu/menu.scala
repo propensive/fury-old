@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -27,9 +27,6 @@ object FuryMenu {
         Action('delete, msg"delete a command alias from the layer", AliasCli.delete),
         Action('list, msg"list command aliases", AliasCli.list),
       ),
-      Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
-        Action('set, msg"change a settings", ConfigCli.set),
-      ),
       Menu('binary, msg"manage binary dependencies for the module", BinaryCli.context,
           'list)(
         Action('add, msg"add a binary dependency to the module", BinaryCli.add),
@@ -44,6 +41,9 @@ object FuryMenu {
         Action('save, msg"save a JAR file", BuildCli.save),
       ),
       Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
+      Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
+        Action('set, msg"change a settings", ConfigCli.set),
+      ),
       Menu('dependency, msg"manage dependencies for the module", DependencyCli.context,
           'list)(
         Action('add, msg"add a dependency on another module", DependencyCli.add),
@@ -51,7 +51,7 @@ object FuryMenu {
         Action('list, msg"list dependencies for the module", DependencyCli.list),
       ),
       Action('help, msg"help on using Fury", help),
-      Menu('import, msg"manage imported schemas", SchemaCli.context, 'list)(
+      Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
         Action('add, msg"add an imported schema", ImportCli.add),
         Action('delete, msg"delete a previously imported schema", ImportCli.delete),
         Action('list, msg"list imported schemas", ImportCli.list),

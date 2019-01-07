@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -211,7 +211,7 @@ object BuildCli {
       schemaTree     <- schema.schemaTree()
       universe       <- schemaTree.universe
       artifact       <- universe.artifact(module.ref(project))
-      artifacts      <- universe.transitiveDependencies(module.ref(project))(cli.shell)
+      artifacts      <- universe.transitiveDependencies(module.ref(project))(cli.shell, layout)
       _              <- Bloop.server(cli)(io)
       compilation    <- universe.compilation(module.ref(project))(cli.shell, layout)
       _              <- ~compilation.checkoutAll()

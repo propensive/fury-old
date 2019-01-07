@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -15,9 +15,6 @@
                                                                                                   */
 package fury
 
-case class FileNotFound(path: Path) extends Exception
-case class FileWriteError(path: Path) extends Exception
-case class ConfigFormatError() extends Exception
 case class NotInitialized(dir: Path) extends Exception
 case class ModuleAlreadyExists(module: ModuleId) extends Exception
 case class ProjectAlreadyExists(project: ProjectId) extends Exception

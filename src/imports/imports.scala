@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -22,7 +22,15 @@ import guillotine._
 
 object ImportCli {
 
-  def add(ctx: SchemaCtx) = {
+  case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
+
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout <- cli.layout
+    config <- fury.Config.read()(cli.env, layout)
+    layer  <- Layer.read(layout.furyConfig)(layout)
+  } yield Context(cli, layout, config, layer)
+
+  def add(ctx: Context) = {
     import ctx._
     for {
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -32,11 +40,11 @@ object ImportCli {
       io            <- cli.io()
       schemaRef     <- io(ImportArg)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ :+ schemaRef))
-      io            <- ~io.save(layer, layout.furyConfig)
+      _             <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
   
-  def delete(ctx: SchemaCtx) = {
+  def delete(ctx: Context) = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -49,12 +57,12 @@ object ImportCli {
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
-      io        <- ~io.save(layer, layout.furyConfig)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
   
 
-  def list(ctx: SchemaCtx) = {
+  def list(ctx: Context) = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -66,8 +74,8 @@ object ImportCli {
       raw       <- ~io(RawArg).successful
       rows      <- schema.importedSchemas(layout, cli.shell)
       table     <- ~Tables(config).show(Tables(config).schemas(Some(layer.main)), cols, rows, raw)(_.id)
-      io        <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
-      io        <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)) else io)
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 }

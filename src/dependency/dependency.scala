@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -92,7 +92,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema     <- ~layer.mainSchema.opt
-      cli           <- cli.hint(DependencyArg, optProject.map(_.moduleRefs).orElse(optSchema.map(_.moduleRefs)).getOrElse(List()))
+      cli           <- cli.hint(DependencyArg, optSchema.map(_.moduleRefs).getOrElse(List()))
       cli           <- cli.hint(IntransitiveArg)
       io            <- cli.io()
       project       <- optProject.ascribe(UnspecifiedProject())

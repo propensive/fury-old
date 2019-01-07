@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -21,22 +21,28 @@ import kaleidoscope._
 
 case class Shell()(implicit env: Environment) {
   type Out = Result[String, ~ | ShellFailure]
- 
+
+  val environment: Environment = env
+
   object git {
 
     def setRemote(repo: Repo): Out =
       sh"git remote add origin ${repo.url}".exec[Out]
 
-    def clone(repo: Repo, dir: Path): Out =
+    def clone(repo: Repo, dir: Path): Out = {
+      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       sh"git clone ${repo.url} ${dir.value}".exec[Out]
+    }
 
-    def cloneBare(url: String, dir: Path): Out =
+    def cloneBare(url: String, dir: Path): Out = {
+      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       sh"git clone --bare $url ${dir.value}".exec[Out]
+    }
 
     def sparseCheckout(from: Path, dir: Path, sources: List[Path], commit: String): Result[String, ~ | ShellFailure | FileWriteError] = for {
       _   <- sh"git -C ${dir.value} init".exec[Out]
       _   <- if(!sources.isEmpty) sh"git -C ${dir.value} config core.sparseCheckout true".exec[Out] else Answer(())
-      _   <- Answer { sources.foreach { src => (dir / ".git" / "info" / "sparse-checkout").appendSync(src.value+"/*\n") } }
+      _   <- Answer { (dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value+"/*\n").mkString) }
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Out]
       str <- sh"git -C ${dir.value} pull origin $commit".exec[Out]
     } yield str
@@ -76,6 +82,12 @@ case class Shell()(implicit env: Environment) {
     def getCommit(dir: Path): Out =
       sh"git -C ${dir.value} rev-parse --short HEAD".exec[Out]
 
+    def getBranchHead(dir: Path, branch: String): Out =
+      sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Out]
+
+    def getTag(dir: Path, tag: String): Out =
+      sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Out]
+
     def getRemote(dir: Path): Out =
       sh"git -C ${dir.value} remote get-url origin".exec[Out]
 
@@ -86,19 +98,19 @@ case class Shell()(implicit env: Environment) {
 
   object bloop {
     def start(): Running = {
-      sh"sh -c 'bloop server > /dev/null'".async(_ => (), _ => ())
+      sh"sh -c 'launcher 1.2.1 > /dev/null'".async(_ => (), _ => ())
     }
       
     def running(): Boolean = {
-      sh"ng --nailgun-port 8212 help".exec[Exit[String]].status == 0
+      sh"bloop help".exec[Exit[String]].status == 0
     }
 
     def clean(name: String)(output: String => Unit): Running =
-      sh"ng --nailgun-port 8212 clean -c .fury/bloop $name".async(output(_), output(_))
+      sh"bloop clean --config-dir .fury/bloop $name".async(output(_), output(_))
 
     def compile(name: String, run: Boolean)(output: String => Unit): Running = {
       val action = if(run) "run" else "compile"
-      sh"ng --nailgun-port 8212 $action -c .fury/bloop $name".async(output(_), output(_))
+      sh"bloop $action --config-dir .fury/bloop $name".async(output(_), output(_))
     }
 
     def startServer(): Running =

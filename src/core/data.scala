@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -17,7 +17,7 @@ package fury
 
 import mitigation._
 import guillotine._
-import gastronomy._, ByteEncoder.base64Url
+import gastronomy._
 import kaleidoscope._
 import exoskeleton.{InvalidArgValue, MissingArg}
 
@@ -143,7 +143,7 @@ case class Compilation(graph: Map[ModuleRef, List[ModuleRef]],
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def checkoutAll()(implicit layout: Layout, shell: Shell): Unit =
-    checkouts.foreach(_.get.unit)
+    checkouts.filter(!_.local).foreach(_.get.unit)
 
   def generateFiles(universe: Universe)
                    (implicit layout: Layout, env: Environment, shell: Shell)
@@ -162,7 +162,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
   def schema(id: ProjectId): Result[Schema, ~ | ItemNotFound] =
     schemas.get(id).ascribe(ItemNotFound(id))
   
-  def artifact(ref: ModuleRef)(implicit shell: Shell): Result[Artifact, ~ | ShellFailure | ItemNotFound] = for {
+  def artifact(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Result[Artifact, ~ | ShellFailure | ItemNotFound] = for {
     project   <- project(ref.projectId)
     schema    <- schema(ref.projectId)
     module    <- project(ref.moduleId)
@@ -181,13 +181,13 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
                    module.params.map(_.name).to[List],
                    ref.intransitive)
 
-  def checkout(ref: ModuleRef): Result[Set[Checkout], ~ | ItemNotFound] = for {
+  def checkout(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Result[Set[Checkout], ~ | ShellFailure | ItemNotFound] = for {
     project   <- project(ref.projectId)
     schema    <- schema(ref.projectId)
     module    <- project(ref.moduleId)
     repos     <- module.sources.groupBy(_.repoId).map { case (k, v) => schema.repo(k).map(_ -> v) }.sequence
   } yield repos.map { case (repo, paths) =>
-    Checkout(repo.repo, repo.refSpec, paths.map(_.path).to[List])
+    Checkout(repo.repo, repo.local.isDefined, repo.refSpec, paths.map(_.path).to[List])
   }.to[Set]
 
   def ++(that: Universe): Universe = Universe(projects ++ that.projects, schemas ++ that.schemas)
@@ -202,7 +202,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
   } yield (dirs ++ bins ++ art.binaries)
 
   def dependencies(ref: ModuleRef)
-                  (implicit shell: Shell)
+                  (implicit layout: Layout, shell: Shell)
                   : Result[Set[Artifact], ~ | ShellFailure | ItemNotFound] = for {
     project <- project(ref.projectId)
     module  <- project(ref.moduleId)
@@ -210,7 +210,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
   } yield deps
 
   def transitiveDependencies(ref: ModuleRef)
-                            (implicit shell: Shell)
+                            (implicit shell: Shell, layout: Layout)
                             : Result[Set[Artifact], ~ | ShellFailure | ItemNotFound] = for {
     after      <- dependencies(ref)
     tDeps      <- after.map(_.ref).map(transitiveDependencies).sequence
@@ -330,7 +330,13 @@ case class Schema(id: SchemaId,
                   imports: List[SchemaRef] = List(),
                   main: Option[ProjectId] = None) {
   
-  def repo(repoId: RepoId): Result[SourceRepo, ~ | ItemNotFound] = repos.findBy(repoId)
+  def repo(repoId: RepoId)(implicit layout: Layout, shell: Shell): Result[SourceRepo, ~ | ShellFailure | ItemNotFound] = {
+    if(repoId != RepoId.Local) repos.findBy(repoId)
+    else for {
+      remote <- shell.git.getRemote(layout.pwd)
+      commit <- shell.git.getCommit(layout.pwd)
+    } yield SourceRepo(RepoId.Local, Repo(remote), RefSpec(commit), Some(layout.pwd))
+  }
 
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   
@@ -385,12 +391,13 @@ case class Schema(id: SchemaId,
                      FileNotFound | ConfigFormatError | InvalidValue] =
     knownImportedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
 
-  def allRepos(implicit layout: Layout, shell: Shell): Result[Set[SourceRepo], ~ | ShellFailure] = {
+  def allRepos(implicit layout: Layout, shell: Shell): Result[Set[SourceRepo], ~ | ShellFailure | ItemNotFound] = {
     val remote = shell.git.getRemote(layout.pwd).opt.getOrElse("")
     
     for {
       commit <- shell.git.getCommit(layout.pwd)
-    } yield repos + SourceRepo(RepoId.Local, Repo(remote), RefSpec(commit), Some(layout.pwd))
+      local  <- repo(RepoId.Local)
+    } yield repos + local
   }
 
   def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
@@ -524,7 +531,7 @@ object Repo {
   }
 }
 
-case class Checkout(repo: Repo, refSpec: RefSpec, sources: List[Path]) {
+case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[Path]) {
 
   def hash: Digest = this.digest[Md5]
   def path(implicit layout: Layout): Path = layout.srcsDir / hash.encoded
@@ -539,13 +546,10 @@ case class Checkout(repo: Repo, refSpec: RefSpec, sources: List[Path]) {
   private def checkout(implicit shell: Shell, layout: Layout)
                       : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
     if(!path.exists) {
-      println(s"Checking out sources ${if(sources.isEmpty) "" else sources.map(_.value).mkString("", ", ", " ")}in refspec ${refSpec.id}.")
+      println(s"Checking out ${if(sources.isEmpty) "all sources" else sources.map(_.value).mkString(", ")} in refspec ${refSpec.id} of ${repo.url} at ${path.value}.")
       path.mkdir()
       shell.git.sparseCheckout(repo.path, path, sources, refSpec.id).map { _ => path }
-    } else {
-      println(s"Using existing checkout of sources in ${path.value}")
-      Answer(path)
-    }
+    } else Answer(path)
 }
 
 object SourceRepo {
@@ -556,12 +560,13 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
 
-  def listFiles(implicit layout: Layout, shell: Shell) = for {
-    dir   <- local.map(Answer(_)).getOrElse(repo.fetch)
-    files <- shell.git.lsTree(dir, refSpec.id)
+  def listFiles(implicit layout: Layout, shell: Shell): Result[List[Path], ~ | ShellFailure | InvalidValue | FileWriteError] = for {
+    dir    <- local.map(Answer(_)).getOrElse(repo.fetch)
+    commit <- ~shell.git.getTag(dir, refSpec.id).opt.orElse(shell.git.getBranchHead(dir, refSpec.id).opt).getOrElse(refSpec.id)
+    files  <- local.map { _ => Answer(dir.children.map(Path(_)).to[List]) }.getOrElse(shell.git.lsTree(dir, commit))
   } yield files
 
-  def fullCheckout: Checkout = Checkout(repo, refSpec, List())
+  def fullCheckout: Checkout = Checkout(repo, local.isDefined, refSpec, List())
 
   def importCandidates(schema: Schema)
                       (implicit layout: Layout, shell: Shell)
@@ -631,9 +636,9 @@ case class Repo(url: String) {
 object SchemaRef {
   
   implicit val msgShow: MsgShow[SchemaRef] =
-    v => UserMsg { theme => msg"${v.repo}${theme.gray("/")}${v.schema}".string(theme) }
+    v => UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
   
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}/${sr.schema}"
+  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
   implicit def diff: Diff[SchemaRef] = Diff.gen[SchemaRef]
   
   def unapply(value: String): Option[SchemaRef] = value match {
@@ -667,7 +672,7 @@ case class Artifact(ref: ModuleRef,
                     intransitive: Boolean) {
 
   def hash: Digest =
-    (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Sha256]
+    (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
   
   def writePlugin()(implicit layout: Layout): Unit = if(kind == Plugin) {
     val file = layout.classesDir(this) / "scalac-plugin.xml"
@@ -678,7 +683,9 @@ case class Artifact(ref: ModuleRef,
   }
 
   def sourcePaths(implicit layout: Layout): List[Path] =
-    checkouts.flatMap { c => c.sources.map(_ in c.path) }
+    checkouts.flatMap { c =>
+      if(c.local) c.sources.map(_ in layout.pwd) else c.sources.map(_ in c.path)
+    }
 
 }
 
@@ -790,10 +797,10 @@ object Source {
 case class Source(repoId: RepoId, path: Path) {
   def description: String = str"${repoId}:${path.value}"
 
-  def hash(schema: Schema): Result[Digest, ~ | ItemNotFound] =
-    schema.repo(repoId).map((path, _).digest[Sha256])
+  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Digest, ~ | ShellFailure | ItemNotFound] =
+    schema.repo(repoId).map((path, _).digest[Md5])
  
-  def path(schema: Schema)(implicit layout: Layout): Result[Path, ~ | ItemNotFound] =
+  def path(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound] =
     hash(schema).map(layout.srcsDir / _.encoded)
 }
 

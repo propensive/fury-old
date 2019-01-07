@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.1.2. Copyright 2018 Jon Pretty, Propensive Ltd.
+  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -15,13 +15,13 @@
                                                                                                   */
 package fury
 
-import scala.io._
-
 object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
 
 object Version {
   final val current: String =
-    Source.fromResource(".version", getClass.getClassLoader).getLines.next
+    try scala.io.Source.fromResource(".version", getClass.getClassLoader).getLines.next catch {
+      case e: NullPointerException => "unknown"
+    }
 }
 
 case class UserMsg(string: Theme => String) {
