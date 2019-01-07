@@ -15,24 +15,27 @@
                                                                                                   */
 package fury
 
-import scala.collection.generic.CanBuildFrom
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
-import magnolia._
+
 import kaleidoscope._
+import magnolia._
 import mitigation._
 
-import scala.annotation.tailrec
-import scala.annotation.switch
+import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.SortedSet
-
-import language.experimental.macros, language.higherKinds
+import scala.language.experimental.macros
+import scala.language.higherKinds
 
 case class FileNotFound(path: Path) extends Exception
 case class FileWriteError(path: Path) extends Exception
 case class ConfigFormatError(path: Path) extends Exception
+
+final case class Ogdl(values: Vector[(String, Ogdl)]) {
+  def only: String = values.head._1
+}
 
 object Ogdl {
 
@@ -72,69 +75,29 @@ object Ogdl {
       path.writeSync(sb.toString).unit
     }
 
-  def read[T: OgdlReader](path: Path): Result[T, ~ | FileNotFound |
-                                                                    ConfigFormatError] = {
+  def read[T: OgdlReader](path: Path): Result[T, ~ | FileNotFound | ConfigFormatError] = {
 
-    def parse(buffer: ByteBuffer): Ogdl = {
+    Result.rescue[IOException]{ _: IOException => FileNotFound(path) }{
+      val buffer = readToBuffer(path)
+      val ogdl = OgdlParser.parse(buffer)
 
-      def readString(mark: Int): String = {
-        val array = new Array[Byte](buffer.position() - mark - 1)
-        buffer.position(mark)
-        buffer.get(array)
-        buffer.get()
-        val out = new String(array, "UTF-8")
-        out
-      }
-      
-      def readIndent(i: Int): Int =
-        if(buffer.remaining == 0) i else (buffer.get(): @switch) match {
-          case '\t' =>
-            readIndent(i + 1)
-          case other =>
-            buffer.position(buffer.position() - 1)
-            i
-        }
-
-      def append(ogdl: Ogdl, string: String, index: Int): Ogdl = ogdl match {
-        case Ogdl(Vector()) =>
-          if (index == 0) Ogdl(Vector((string, Ogdl(Vector())))) else {
-            throw new Exception(s"Attempt to access '$string', index $index in $ogdl")
-          }
-        case Ogdl(lm) =>
-          if (index == 0) Ogdl(lm :+ ((string, Ogdl(Vector()))))
-          else Ogdl(lm.init :+ ((lm.last._1, append(lm.last._2, string, index - 1))))
-      }
-
-
-      @tailrec
-      def parse(root: Ogdl, focus: Int, mark: Int): Ogdl =
-        if(buffer.remaining == 0) root
-        else (buffer.get(): @switch) match {
-          case '\n' =>
-            val key: String = readString(mark)
-            val cur = readIndent(0)
-            parse(append(root, key, focus), cur, buffer.position)
-          case '\t' =>
-            val key: String = readString(mark)
-            parse(append(root, key, focus), focus + 1, buffer.position)
-          case other =>
-            parse(root, focus, mark)
-        }
-
-      parse(Ogdl(Vector()), 0, 0)
-
+      implicitly[OgdlReader[T]].read(ogdl)
     }
+  }
 
+  private[this] def readToBuffer(path: Path): ByteBuffer = {
+    val inChannel = FileChannel.open(path.javaPath)
 
-    Result.rescue[IOException] { (e: IOException) => FileNotFound(path) } {
-      val inChannel: FileChannel = FileChannel.open(path.javaPath)
-      val size = inChannel.size
-      val buffer = ByteBuffer.allocate(size.toInt)
+    try {
+      val size = inChannel.size.toInt
+      val buffer = ByteBuffer.allocate(size)
+
       inChannel.read(buffer)
       buffer.flip()
-      val ogdl = parse(buffer)
+
+      buffer
+    } finally {
       inChannel.close()
-      implicitly[OgdlReader[T]].read(ogdl)
     }
   }
 }
@@ -219,12 +182,6 @@ object OgdlReader {
 
 trait OgdlReader[T] { def read(ogdl: Ogdl): T }
 
-final case class Ogdl(values: Vector[(String, Ogdl)]) {
-  def only: String = values.head._1
-  private lazy val map = values.toMap
-  def apply[T: OgdlReader](key: String): T = implicitly[OgdlReader[T]].read(map(key))
-}
-
 case class ZipfileEntry(name: String, inputStream: () => java.io.InputStream)
 
 object Path {
@@ -242,8 +199,9 @@ case class Path(value: String) {
 
   def name = javaPath.toFile.getName
 
-  import java.util.zip._
   import java.io.FileNotFoundException
+  import java.util.zip._
+
   import scala.collection.JavaConverters._
   def zipfileEntries: Result[List[ZipfileEntry], ~ | FileNotFound] = for {
     zipFile <- Result.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
