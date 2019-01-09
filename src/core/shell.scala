@@ -15,9 +15,10 @@
                                                                                                   */
 package fury
 
+import fury.io._
 import guillotine._
-import mitigation._
 import kaleidoscope._
+import mitigation._
 
 case class Shell()(implicit env: Environment) {
   type Out = Result[String, ~ | ShellFailure]

@@ -15,6 +15,7 @@
                                                                                                   */
 package fury
 
+import fury.io.Path
 import gastronomy._
 
 case class Layout(home: Path, pwd: Path) {

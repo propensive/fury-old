@@ -15,6 +15,8 @@
                                                                                                   */
 package fury
 
+import fury.io.Path
+
 object Install {
   private val zshrc = List(
     "autoload -Uz compinit",
