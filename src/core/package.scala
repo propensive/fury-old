@@ -16,10 +16,12 @@
 package fury
 
 import escritoire._
-import gastronomy._
 import eucalyptus._
+import fury.io.Path
+import gastronomy._
+
 import scala.collection.immutable.SortedSet
-import language.implicitConversions
+import scala.language.implicitConversions
 
 object `package` {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)

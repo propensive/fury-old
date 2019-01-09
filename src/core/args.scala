@@ -15,7 +15,9 @@
                                                                                                   */
 package fury
 
-import exoskeleton._, Param.{Extractor => TExtractor}
+import exoskeleton.Param.{Extractor => TExtractor}
+import exoskeleton._
+import fury.io.Path
 
 object Args {
   private implicit val schemaId: TExtractor[SchemaId] = _.headOption.map(SchemaId(_))

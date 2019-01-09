@@ -15,15 +15,18 @@
                                                                                                   */
 package fury
 
-import mitigation._
-import guillotine._
-import gastronomy._
-import kaleidoscope._
 import exoskeleton.{InvalidArgValue, MissingArg}
+import fury.io._
+import fury.ogdl._
+import gastronomy._
+import guillotine._
+import kaleidoscope._
+import mitigation._
 
-import scala.collection.mutable.HashMap
 import scala.collection.immutable.{SortedSet, TreeSet}
-import scala.concurrent._, ExecutionContext.Implicits.global
+import scala.collection.mutable.HashMap
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent._
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key

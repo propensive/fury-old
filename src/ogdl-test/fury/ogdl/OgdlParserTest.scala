@@ -3,7 +3,6 @@ package fury.tests
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
 
-import fury._
 import probation._
 
 import scala.language.implicitConversions

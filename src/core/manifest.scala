@@ -15,6 +15,7 @@
                                                                                                   */
 package fury
 
+import fury.io._
 import mitigation._
 
 object Manifest {

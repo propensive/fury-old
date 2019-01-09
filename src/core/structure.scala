@@ -15,9 +15,10 @@
                                                                                                   */
 package fury
 
-import mitigation._
-import guillotine._
 import exoskeleton._
+import fury.io._
+import guillotine._
+import mitigation._
 
 sealed trait MenuStructure[T] {
   def command: Symbol
