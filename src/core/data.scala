@@ -798,7 +798,6 @@ object Source {
 
 trait Source {
   def description: String
-  def dir(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound]
   def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Digest, ~ | ShellFailure | ItemNotFound]
   def path: Path
   def repoIdentifier: RepoId
@@ -810,9 +809,6 @@ case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Digest, ~ | ShellFailure | ItemNotFound] =
     schema.repo(repoId).map((path, _).digest[Md5])
  
-  def dir(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound] =
-    hash(schema).map(layout.srcsDir / _.encoded)
-
   def repoIdentifier: RepoId = repoId
 }
 
@@ -822,9 +818,6 @@ case class LocalSource(path: Path) extends Source {
   def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Digest, ~ | ShellFailure | ItemNotFound] =
     Answer((-1, path).digest[Md5])
  
-  def dir(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound] =
-    Answer(layout.pwd)
-  
   def repoIdentifier: RepoId = RepoId("-")
 }
 
