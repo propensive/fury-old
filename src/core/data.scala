@@ -536,7 +536,7 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
   private def checkout(implicit shell: Shell, layout: Layout)
                       : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
     if(!path.exists) {
-      println(s"Checking out ${if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")} of ${repo.id}.")
+      println(s"Checking out ${if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")}.")
       path.mkdir()
       shell.git.sparseCheckout(repo.path, path, sources, refSpec.id).map { _ => path }
     } else Answer(path)

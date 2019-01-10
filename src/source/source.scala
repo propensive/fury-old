@@ -91,10 +91,11 @@ object SourceCli {
     import ctx._
     for {
       repos     <- defaultSchema.map(_.repos)
-      sources   <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sourceCandidates { n => n.endsWith(".scala") || n.endsWith(".java") }).to[List]
+      extSrcs   <- optProject.to[List].flatMap { project =>
+                     repos.map(_.sourceCandidates { n => n.endsWith(".scala") || n.endsWith(".java") })
                    }.sequence.map(_.flatten)
-      cli       <- cli.hint(SourceArg, sources)
+      localSrcs <- ~layout.pwd.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(".java") }.map(LocalSource(_))
+      cli       <- cli.hint(SourceArg, extSrcs ++ localSrcs)
       io        <- cli.io()
       module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
