@@ -62,7 +62,7 @@ object SourceCli {
       project <- optProject.ascribe(UnspecifiedProject())
       cols    <- Answer(Terminal.columns.getOrElse(100))
       rows    <- ~module.sources.to[List]
-      table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoId)
+      table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)))
       _       <- ~io.println(table.mkString("\n"))
@@ -90,12 +90,12 @@ object SourceCli {
   def add(ctx: Context) = {
     import ctx._
     for {
-      dSchema   <- defaultSchema
-      repos     <- ~dSchema.allRepos.opt.to[List].flatten
-      sources   <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sourceCandidates { n => n.endsWith(".scala") || n.endsWith(".java") }).to[List]
+      repos     <- defaultSchema.map(_.repos)
+      extSrcs   <- optProject.to[List].flatMap { project =>
+                     repos.map(_.sourceCandidates { n => n.endsWith(".scala") || n.endsWith(".java") })
                    }.sequence.map(_.flatten)
-      cli       <- cli.hint(SourceArg, sources)
+      localSrcs <- ~layout.pwd.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(".java") }.map(LocalSource(_))
+      cli       <- cli.hint(SourceArg, extSrcs ++ localSrcs)
       io        <- cli.io()
       module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())

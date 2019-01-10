@@ -59,7 +59,7 @@ case class Path(value: String) {
   def fileCount(pred: String => Boolean): Int = {
     Option(javaPath.toFile.listFiles).map{ files =>
       val found = files.count{ f => pred(f.getName) }
-      found + files.filter(_.isDirectory).map{ f => Path(f.getAbsolutePath).fileCount(pred) }.sum
+      found + files.filter(_.isDirectory).map { f => Path(f.getAbsolutePath).fileCount(pred) }.sum
     }.getOrElse(0)
   }
 
@@ -85,14 +85,19 @@ case class Path(value: String) {
       java.nio.file.Files.move(javaPath, path.javaPath).unit()
     }
 
+  def relativeSubdirsContaining(predicate: String => Boolean): Set[Path] = {
+    val prefix = value.length + 1
+    findSubdirsContaining(predicate).map { p => Path(p.value.drop(prefix)) }
+  }
+
   def findSubdirsContaining(predicate: String => Boolean): Set[Path] = {
-    Option(javaPath.toFile.listFiles).map{ files =>
-      val found = if(files.exists{ f => predicate(f.getName) }) Set(this) else Set()
+    Option(javaPath.toFile.listFiles).map { files =>
+      val found = if(files.exists { f => predicate(f.getName) }) Set(this) else Set()
 
       val subdirs = files
         .filter(_.isDirectory)
         .filterNot(_.getName.startsWith("."))
-        .map(p => Path(p.getAbsolutePath))
+        .map { p => Path(p.toString) }
         .to[Set]
 
       subdirs.flatMap(_.findSubdirsContaining(predicate)) ++ found

@@ -134,14 +134,6 @@ object Bloop {
         "version" -> JsonString(bloopSpec.version),
         "options" -> JsonArray(scalacOptions.map(JsonString(_)): _*),
         "jars" -> JsonArray(allScalaJars.map(JsonString(_)): _*),
-        "setup" -> JsonObject(
-          "order" -> JsonString("mixed"),
-          "addLibraryToBootClasspath" -> JsonBoolean(true),
-          "addCompilerToClasspath" -> JsonBoolean(false),
-          "addExtraJarsToClasspath" -> JsonBoolean(false),
-          "manageBootClasspath" -> JsonBoolean(true),
-          "filterLibraryFromClasspath" -> JsonBoolean(true),
-        ),
       ),
       "java" -> JsonObject(
         "options" -> JsonArray(javaOptions.map(JsonString(_)): _*),
