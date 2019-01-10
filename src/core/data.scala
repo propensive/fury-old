@@ -146,7 +146,7 @@ case class Compilation(graph: Map[ModuleRef, List[ModuleRef]],
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def checkoutAll()(implicit layout: Layout, shell: Shell): Unit =
-    checkouts.filter(!_.local).foreach(_.get.unit)
+    checkouts.foreach(_.get.unit)
 
   def generateFiles(universe: Universe)
                    (implicit layout: Layout, env: Environment, shell: Shell)
@@ -333,13 +333,7 @@ case class Schema(id: SchemaId,
                   imports: List[SchemaRef] = List(),
                   main: Option[ProjectId] = None) {
   
-  def repo(repoId: RepoId)(implicit layout: Layout, shell: Shell): Result[SourceRepo, ~ | ShellFailure | ItemNotFound] = {
-    if(repoId != RepoId.Local) repos.findBy(repoId)
-    else for {
-      remote <- shell.git.getRemote(layout.pwd)
-      commit <- shell.git.getCommit(layout.pwd)
-    } yield SourceRepo(RepoId.Local, Repo(remote), RefSpec(commit), Some(layout.pwd))
-  }
+  def repo(repoId: RepoId)(implicit layout: Layout, shell: Shell): Result[SourceRepo, ~ | ShellFailure | ItemNotFound] = repos.findBy(repoId)
 
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   
@@ -387,21 +381,12 @@ case class Schema(id: SchemaId,
       } yield resolved
     }.sequence
 
-  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id) + RepoId.Local
+  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def allProjects(implicit layout: Layout, shell: Shell)
                  : Result[List[Project], ~ | ItemNotFound | FileWriteError | ShellFailure |
                      FileNotFound | ConfigFormatError | InvalidValue] =
     knownImportedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
-
-  def allRepos(implicit layout: Layout, shell: Shell): Result[Set[SourceRepo], ~ | ShellFailure | ItemNotFound] = {
-    val remote = shell.git.getRemote(layout.pwd).opt.getOrElse("")
-    
-    for {
-      commit <- shell.git.getCommit(layout.pwd)
-      local  <- repo(RepoId.Local)
-    } yield repos + local
-  }
 
   def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
     case None => Answer(projectId)
@@ -810,7 +795,6 @@ case class Source(repoId: RepoId, path: Path) {
 object RepoId {
   implicit val msgShow: MsgShow[RepoId] = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
-  final val Local: RepoId = RepoId("local")
 }  
 
 case class RepoId(key: String) extends Key(msg"repository")

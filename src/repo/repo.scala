@@ -40,7 +40,7 @@ object RepoCli {
       raw       <- ~io(RawArg).successful
       schemaArg <- io(SchemaArg).remedy(ctx.layer.main)
       schema    <- ctx.layer.schemas.findBy(schemaArg)
-      rows      <- schema.allRepos(ctx.layout, cli.shell).map(_.to[List].sortBy(_.id))
+      rows      <- ~schema.repos.to[List].sortBy(_.id)
       table     <- ~Tables(config).show(Tables(config).repositories(ctx.layout, cli.shell), cols, rows, raw)(_.id)
       _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _         <- ~io.println(UserMsg { theme => table.mkString("\n") })

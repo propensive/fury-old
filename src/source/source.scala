@@ -90,8 +90,7 @@ object SourceCli {
   def add(ctx: Context) = {
     import ctx._
     for {
-      dSchema   <- defaultSchema
-      repos     <- ~dSchema.allRepos.opt.to[List].flatten
+      repos     <- defaultSchema.map(_.repos)
       sources   <- optProject.to[List].flatMap { project =>
                      repos.map(_.sourceCandidates { n => n.endsWith(".scala") || n.endsWith(".java") }).to[List]
                    }.sequence.map(_.flatten)
