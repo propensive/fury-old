@@ -120,6 +120,8 @@ case class Module(id: ModuleId,
                   bloopSpec: Option[BloopSpec] = None,
                  ) {
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
+
+  def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
 }
 
 
@@ -188,7 +190,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
     project   <- project(ref.projectId)
     schema    <- schema(ref.projectId)
     module    <- project(ref.moduleId)
-    repos     <- module.sources.groupBy(_.repoId).map { case (k, v) => schema.repo(k).map(_ -> v) }.sequence
+    repos     <- module.externalSources.groupBy(_.repoId).map { case (k, v) => schema.repo(k).map(_ -> v) }.sequence
   } yield repos.map { case (repo, paths) =>
     Checkout(repo.repo, repo.local.isDefined, repo.refSpec, paths.map(_.path).to[List])
   }.to[Set]
@@ -534,7 +536,7 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
   private def checkout(implicit shell: Shell, layout: Layout)
                       : Result[Path, ~ | ItemNotFound | ShellFailure | FileWriteError | InvalidValue] =
     if(!path.exists) {
-      println(s"Checking out ${if(sources.isEmpty) "all sources" else sources.map(_.value).mkString(", ")} in refspec ${refSpec.id} of ${repo.url} at ${path.value}.")
+      println(s"Checking out ${if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")} of ${repo.id}.")
       path.mkdir()
       shell.git.sparseCheckout(repo.path, path, sources, refSpec.id).map { _ => path }
     } else Answer(path)
@@ -574,7 +576,7 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
   def sourceCandidates(pred: String => Boolean)
                       (implicit layout: Layout, shell: Shell)
                       : Result[Set[Source], ~ | ShellFailure | FileWriteError | InvalidValue] =
-    listFiles.map { files => files.filter { f => pred(f.filename) }.map { p => Source(id, p.parent) }.to[Set] }
+    listFiles.map { files => files.filter { f => pred(f.filename) }.map { p => ExternalSource(id, p.parent): Source }.to[Set] }
 }
 
 case class BinRepoId(id: String)
@@ -774,22 +776,56 @@ object Source {
   implicit val stringShow: StringShow[Source] = _.description
   
   implicit val msgShow: MsgShow[Source] = v =>
-    UserMsg { theme => msg"${theme.repo(v.repoId.key)}${theme.gray(":")}${theme.path(v.path.value)}".string(theme) }
+    UserMsg { theme => v match {
+      case ExternalSource(repoId, path) => msg"${theme.repo(repoId.key)}${theme.gray(":")}${theme.path(path.value)}".string(theme)
+      case LocalSource(path) => msg"${theme.path(path.value)}".string(theme)
+    } }
 
   def unapply(string: String): Option[Source] = string match {
-    case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$path@(.*)" => Some(Source(RepoId(repo), Path(path)))
+    case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$path@(.*)" => Some(ExternalSource(RepoId(repo), Path(path)))
+    case r"$path@(.*)" => Some(LocalSource(Path(path)))
+    case _ => None
+  }
+
+  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src.only).get // FIXME
+  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.description)
+
+  def repoId(src: Source): Option[RepoId] = src match {
+    case ExternalSource(repoId, _) => Some(repoId)
     case _ => None
   }
 }
 
-case class Source(repoId: RepoId, path: Path) {
+trait Source {
+  def description: String
+  def dir(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound]
+  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Digest, ~ | ShellFailure | ItemNotFound]
+  def path: Path
+  def repoIdentifier: RepoId
+}
+
+case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def description: String = str"${repoId}:${path.value}"
 
   def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Digest, ~ | ShellFailure | ItemNotFound] =
     schema.repo(repoId).map((path, _).digest[Md5])
  
-  def path(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound] =
+  def dir(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound] =
     hash(schema).map(layout.srcsDir / _.encoded)
+
+  def repoIdentifier: RepoId = repoId
+}
+
+case class LocalSource(path: Path) extends Source {
+  def description: String = str"${path.value}"
+
+  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Digest, ~ | ShellFailure | ItemNotFound] =
+    Answer((-1, path).digest[Md5])
+ 
+  def dir(schema: Schema)(implicit shell: Shell, layout: Layout): Result[Path, ~ | ShellFailure | ItemNotFound] =
+    Answer(layout.pwd)
+  
+  def repoIdentifier: RepoId = RepoId("-")
 }
 
 object RepoId {

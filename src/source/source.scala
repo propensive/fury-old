@@ -62,7 +62,7 @@ object SourceCli {
       project <- optProject.ascribe(UnspecifiedProject())
       cols    <- Answer(Terminal.columns.getOrElse(100))
       rows    <- ~module.sources.to[List]
-      table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoId)
+      table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema, project, module)))
       _       <- ~io.println(table.mkString("\n"))

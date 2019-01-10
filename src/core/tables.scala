@@ -94,7 +94,7 @@ case class Tables(config: Config) {
   )
 
   val sources: Tabulation[Source] = Tabulation(
-    Heading("REPO", _.repoId),
+    Heading("REPO", _.repoIdentifier),
     Heading("PATH", _.path),
   )
 
