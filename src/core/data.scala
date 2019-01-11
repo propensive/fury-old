@@ -367,7 +367,7 @@ case class Schema(id: SchemaId,
                for {
                  repo     <- repos.findBy(ref.repo)
                  repoDir  <- repo.fullCheckout.get
-                 layer    <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+                 layer    <- Ogdl.read[Layer](Layout(layout.home, repoDir).furyConfig)
                  resolved <- layer.schemas.findBy(ref.schema)
                  tree     <- resolved.schemaTree(repoDir)
                } yield tree
