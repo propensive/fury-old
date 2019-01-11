@@ -182,7 +182,7 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      schemaTree   <- schema.schemaTree()
+      schemaTree   <- schema.schemaTree(layout.pwd)
       universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       _            <- Bloop.server(cli)(io)
@@ -208,7 +208,7 @@ object BuildCli {
       optModuleId    <- ~io(ModuleArg).opt.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module         <- optModule.ascribe(UnspecifiedModule())
-      schemaTree     <- schema.schemaTree()
+      schemaTree     <- schema.schemaTree(layout.pwd)
       universe       <- schemaTree.universe
       artifact       <- universe.artifact(module.ref(project))
       artifacts      <- universe.transitiveDependencies(module.ref(project))(cli.shell, layout)
@@ -264,7 +264,7 @@ object BuildCli {
       optModuleId  <- ~io(ModuleArg).opt.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
       module       <- optModule.ascribe(UnspecifiedModule())
-      schemaTree   <- schema.schemaTree()
+      schemaTree   <- schema.schemaTree(layout.pwd)
       universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       _            <- universe.saveJars(cli)(io, module.ref(project), dir in layout.pwd)
@@ -288,7 +288,7 @@ object BuildCli {
       io           <- cli.io()
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      schemaTree   <- schema.schemaTree()
+      schemaTree   <- schema.schemaTree(layout.pwd)
       universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       classpath    <- universe.classpath(module.ref(project))
@@ -313,7 +313,7 @@ object BuildCli {
                       }
       module       <- optModule.ascribe(UnspecifiedModule())
       project      <- optProject.ascribe(UnspecifiedProject())
-      schemaTree   <- schema.schemaTree()
+      schemaTree   <- schema.schemaTree(layout.pwd)
       universe     <- schemaTree.universe
       artifact     <- universe.artifact(module.ref(project))
       compilation  <- universe.compilation(module.ref(project))

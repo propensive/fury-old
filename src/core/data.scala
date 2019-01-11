@@ -302,7 +302,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
 
 }
 
-case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
+case class SchemaTree(schema: Schema, dir: Path, inherited: Set[SchemaTree]) {
 
   lazy val universe: Result[Universe, ~ | ProjectConflict] = {
     val localProjectIds = schema.projects.map(_.id)
@@ -352,24 +352,24 @@ case class Schema(id: SchemaId,
     importedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
         moduleRefs.to[List].map { ref => str"$ref" }
 
-  def schemaTree()(implicit layout: Layout, shell: Shell)
+  def schemaTree(dir: Path)(implicit layout: Layout, shell: Shell)
                         : Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure |
                             FileNotFound | ConfigFormatError | InvalidValue] = for {
-    imports   <- importedSchemas
-    inherited <- imports.map(_.schemaTree).sequence
-  } yield SchemaTree(this, inherited.to[Set])
+    imps   <- imports.map { ref =>
+               for {
+                 repo     <- repos.findBy(ref.repo)
+                 repoDir  <- repo.fullCheckout.get
+                 layer    <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+                 resolved <- layer.schemas.findBy(ref.schema)
+                 tree     <- resolved.schemaTree(repoDir)
+               } yield tree
+             }.sequence
+  } yield SchemaTree(this, dir, imps.to[Set])
 
   def importedSchemas(implicit layout: Layout, shell: Shell)
                      : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
                          FileNotFound | ConfigFormatError | InvalidValue] =
-    imports.map { ref =>
-      for {
-        repo      <- repos.findBy(ref.repo)
-        dir       <- repo.fullCheckout.get
-        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
-        resolved  <- layer.schemas.findBy(ref.schema)
-      } yield resolved
-    }.sequence
+    imports.map(_.resolve(this)).sequence
 
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
@@ -627,7 +627,16 @@ object SchemaRef {
   }
 }
 
-case class SchemaRef(repo: RepoId, schema: SchemaId)
+case class SchemaRef(repo: RepoId, schema: SchemaId) {
+  def resolve(base: Schema)(implicit layout: Layout, shell: Shell)
+             : Result[Schema, ~ | ItemNotFound | FileWriteError | ShellFailure |
+                 FileNotFound | ConfigFormatError | InvalidValue] = for {
+    repo      <- base.repos.findBy(repo)
+    dir       <- repo.fullCheckout.get
+    layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+    resolved  <- layer.schemas.findBy(schema)
+  } yield resolved
+}
 
 sealed trait CompileEvent
 case object Tick extends CompileEvent
