@@ -222,7 +222,6 @@ object BuildCli {
       _              <- ~Graph.live(cli)(io, compilation.graph.mapValues(_.to[Set]), multiplexer.stream(50, Some(Tick)), Map())(config.theme)
       t1             <- Answer(System.currentTimeMillis - t0)
       _              <- ~io.println(s"Total time: ${if(t1 >= 10000) s"${t1/1000}s" else s"${t1}ms"}\n")
-      _              <- ~Thread.sleep(200)
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
  
