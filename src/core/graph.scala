@@ -26,7 +26,7 @@ object Graph {
 
   sealed trait CompileState
   case object Compiling extends CompileState
-  case object Successful extends CompileState
+  case class Successful(content: Option[String]) extends CompileState
   case class Failed(output: String) extends CompileState
   case object Skipped extends CompileState
 
@@ -50,12 +50,17 @@ object Graph {
       case StartCompile(ref) #:: tail =>
         live(cli, true)(io, graph, tail, state.updated(ref, Compiling))
       case StopCompile(ref, out, success) #:: tail =>
-        live(cli, true)(io, graph, tail, state.updated(ref, if(success) Successful else Failed(out)))
+        live(cli, true)(io, graph, tail, state.updated(ref, if(success) Successful(None) else Failed(out)))
+      case RunOutput(ref, content) #:: tail =>
+        live(cli, true)(io, graph, tail, state.updated(ref, Successful(Some(content))))
       case SkipCompile(ref) #:: tail =>
         live(cli, true)(io, graph, tail, state.updated(ref, Skipped))
       case Stream.Empty =>
-        val output = state.collect { case (ref, Failed(out)) =>
-          UserMsg { theme => (msg"Output from $ref:".string(theme)+"\n\n"+out) }
+        val output = state.collect {
+          case (ref, Failed(out)) =>
+            UserMsg { theme => (msg"Output from $ref:".string(theme)+"\n\n"+out) }
+          case (ref, Successful(Some(out))) =>
+            UserMsg { theme => (msg"Output from $ref:".string(theme)+"\n\n"+out) }
         }.foldLeft(msg"")(_ + _)
         io.println(Ansi.down(graph.size + 1)())
         io.println(output)
@@ -116,7 +121,7 @@ object Graph {
       
       val errors = state.get(moduleRef) match {
         case Some(Failed(_)) => theme.failure("!")
-        case Some(Successful) => theme.success("*")
+        case Some(Successful(_)) => theme.success("*")
         case _ => theme.bold(theme.failure(" "))
       }
 

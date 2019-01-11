@@ -213,6 +213,14 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
     bins <- ~deps.flatMap(_.binaries)
   } yield (dirs ++ bins ++ art.binaries)
 
+  def runtimeClasspath(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Result[Set[Path], ~ | ShellFailure | ItemNotFound] =
+    for {
+      cp         <- classpath(ref)
+      art        <- artifact(ref)
+      compiler   <- ~art.compiler
+      compilerCp <- compiler.map { c => classpath(c.ref) }.getOrElse(Answer(Set()))
+    } yield compilerCp ++ cp + layout.classesDir(art)
+
   def dependencies(ref: ModuleRef)
                   (implicit layout: Layout, shell: Shell)
                   : Result[Set[Artifact], ~ | ShellFailure | ItemNotFound] = for {
@@ -289,18 +297,25 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
         Future.successful(CompileResult(false, ""))
       } else Future {
         val out = new StringBuilder()
+        val out2 = new StringBuilder()
         multiplexer(artifact.ref) = StartCompile(artifact.ref)
         
         val result: Boolean = blocking {
-          shell.bloop.compile(artifact.hash.encoded, artifact.kind == Application) { ln =>
+          shell.bloop.compile(artifact.hash.encoded) { ln =>
             out.append(ln)
             out.append("\n")
           }.await() == 0
         }
+        // This is temporary until the `bloop run` command is working
+        val result2 = result && (artifact.kind != Application || shell.runJava(runtimeClasspath(artifact.ref).opt.get.to[List].map(_.value), artifact.main.getOrElse("")) { ln =>
+            out2.append(ln)
+            out2.append("\n")
+          }.await() == 0)
 
-        multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, result)
+        multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, result2)
+        if(artifact.kind == Application) multiplexer(artifact.ref) = RunOutput(artifact.ref, out2.toString)
         multiplexer.close(artifact.ref)
-        CompileResult(result, out.toString)
+        CompileResult(result2, out.toString)
       }
     }
 
@@ -651,6 +666,7 @@ case object Tick extends CompileEvent
 case class StartCompile(ref: ModuleRef) extends CompileEvent
 case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
 case class SkipCompile(ref: ModuleRef) extends CompileEvent
+case class RunOutput(ref: ModuleRef, content: String) extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
 
