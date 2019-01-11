@@ -122,6 +122,7 @@ case class Module(id: ModuleId,
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
 
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
+  def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
 }
 
 
@@ -158,12 +159,16 @@ case class Compilation(graph: Map[ModuleRef, List[ModuleRef]],
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(projects: Map[ProjectId, Project] = Map(),
-                    schemas: Map[ProjectId, Schema] = Map()) {
+                    schemas: Map[ProjectId, Schema] = Map(),
+                    dirs: Map[ProjectId, Path] = Map()) {
   def ids: Set[ProjectId] = projects.keySet
   
   def project(id: ProjectId): Result[Project, ~ | ItemNotFound] =
     projects.get(id).ascribe(ItemNotFound(id))
-  
+ 
+  def dir(id: ProjectId): Result[Path, ~ | ItemNotFound] =
+    dirs.get(id).ascribe(ItemNotFound(id))
+
   def schema(id: ProjectId): Result[Schema, ~ | ItemNotFound] =
     schemas.get(id).ascribe(ItemNotFound(id))
   
@@ -171,6 +176,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
     project   <- project(ref.projectId)
     schema    <- schema(ref.projectId)
     module    <- project(ref.moduleId)
+    dir       <- dir(ref.projectId)
     compiler  <- if(module.compiler == ModuleRef.JavaRef) Answer(None) else artifact(module.compiler).map(Some(_))
     binaries  <- module.binaries.map(_.paths).sequence.map(_.flatten)
     checkouts <- checkout(ref)
@@ -184,7 +190,8 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
                    compiler,
                    module.bloopSpec,
                    module.params.map(_.name).to[List],
-                   ref.intransitive)
+                   ref.intransitive,
+                   module.localSources.map(_ in dir).to[List])
 
   def checkout(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Result[Set[Checkout], ~ | ShellFailure | ItemNotFound] = for {
     project   <- project(ref.projectId)
@@ -195,7 +202,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
     Checkout(repo.repo, repo.local.isDefined, repo.refSpec, paths.map(_.path).to[List])
   }.to[Set]
 
-  def ++(that: Universe): Universe = Universe(projects ++ that.projects, schemas ++ that.schemas)
+  def ++(that: Universe): Universe = Universe(projects ++ that.projects, schemas ++ that.schemas, dirs ++ that.dirs)
   
   def classpath(ref: ModuleRef)
                (implicit layout: Layout, shell: Shell)
@@ -302,7 +309,7 @@ case class Universe(projects: Map[ProjectId, Project] = Map(),
 
 }
 
-case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
+case class SchemaTree(schema: Schema, dir: Path, inherited: Set[SchemaTree]) {
 
   lazy val universe: Result[Universe, ~ | ProjectConflict] = {
     val localProjectIds = schema.projects.map(_.id)
@@ -318,7 +325,8 @@ case class SchemaTree(schema: Schema, inherited: Set[SchemaTree]) {
     }.map { old =>
       val newProjects = schema.projects.map { p => p.id -> p }.toMap
       val newSchemas = schema.projects.map(_.id -> schema).toMap
-      old ++ Universe(newProjects, newSchemas)
+      val newDirs = schema.projects.map(_.id -> dir).toMap
+      old ++ Universe(newProjects, newSchemas, newDirs)
     }
   }
 }
@@ -349,46 +357,34 @@ case class Schema(id: SchemaId,
     repos.to[List].flatMap(_.importCandidates(this).opt.to[List].flatten)
 
   def moduleRefStrings(implicit layout: Layout, shell: Shell): List[String] =
-    knownImportedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
+    importedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
         moduleRefs.to[List].map { ref => str"$ref" }
 
-  def schemaTree()(implicit layout: Layout, shell: Shell)
+  def schemaTree(dir: Path)(implicit layout: Layout, shell: Shell)
                         : Result[SchemaTree, ~ | ItemNotFound | FileWriteError | ShellFailure |
                             FileNotFound | ConfigFormatError | InvalidValue] = for {
-    imports   <- importedSchemas
-    inherited <- imports.map(_.schemaTree).sequence
-  } yield SchemaTree(this, inherited.to[Set])
+    imps   <- imports.map { ref =>
+               for {
+                 repo     <- repos.findBy(ref.repo)
+                 repoDir  <- repo.fullCheckout.get
+                 layer    <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+                 resolved <- layer.schemas.findBy(ref.schema)
+                 tree     <- resolved.schemaTree(repoDir)
+               } yield tree
+             }.sequence
+  } yield SchemaTree(this, dir, imps.to[Set])
 
   def importedSchemas(implicit layout: Layout, shell: Shell)
                      : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
                          FileNotFound | ConfigFormatError | InvalidValue] =
-    imports.map { ref =>
-      for {
-        repo      <- repos.findBy(ref.repo)
-        dir       <- repo.fullCheckout.get
-        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
-        resolved  <- layer.schemas.findBy(ref.schema)
-      } yield resolved
-    }.sequence
-
-  def knownImportedSchemas(implicit layout: Layout, shell: Shell)
-                          : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
-                              FileNotFound | ConfigFormatError | InvalidValue] =
-    imports.map { ref =>
-      for {
-        repo      <- repos.findBy(ref.repo)
-        dir       <- ~repo.fullCheckout.path
-        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
-        resolved  <- layer.schemas.findBy(ref.schema)
-      } yield resolved
-    }.sequence
+    imports.map(_.resolve(this)).sequence
 
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def allProjects(implicit layout: Layout, shell: Shell)
                  : Result[List[Project], ~ | ItemNotFound | FileWriteError | ShellFailure |
                      FileNotFound | ConfigFormatError | InvalidValue] =
-    knownImportedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
+    importedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
 
   def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
     case None => Answer(projectId)
@@ -639,7 +635,16 @@ object SchemaRef {
   }
 }
 
-case class SchemaRef(repo: RepoId, schema: SchemaId)
+case class SchemaRef(repo: RepoId, schema: SchemaId) {
+  def resolve(base: Schema)(implicit layout: Layout, shell: Shell)
+             : Result[Schema, ~ | ItemNotFound | FileWriteError | ShellFailure |
+                 FileNotFound | ConfigFormatError | InvalidValue] = for {
+    repo      <- base.repos.findBy(repo)
+    dir       <- repo.fullCheckout.get
+    layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+    resolved  <- layer.schemas.findBy(schema)
+  } yield resolved
+}
 
 sealed trait CompileEvent
 case object Tick extends CompileEvent
@@ -659,7 +664,8 @@ case class Artifact(ref: ModuleRef,
                     compiler: Option[Artifact],
                     bloopSpec: Option[BloopSpec],
                     params: List[String],
-                    intransitive: Boolean) {
+                    intransitive: Boolean,
+                    localSources: List[Path]) {
 
   def hash: Digest =
     (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
@@ -673,7 +679,7 @@ case class Artifact(ref: ModuleRef,
   }
 
   def sourcePaths(implicit layout: Layout): List[Path] =
-    checkouts.flatMap { c =>
+    localSources ++ checkouts.flatMap { c =>
       if(c.local) c.sources.map(_ in layout.pwd) else c.sources.map(_ in c.path)
     }
 
