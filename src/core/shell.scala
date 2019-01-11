@@ -25,6 +25,9 @@ case class Shell()(implicit env: Environment) {
 
   val environment: Environment = env
 
+  def runJava(classpath: List[String], main: String)(output: String => Unit): Running =
+    sh"java -cp ${classpath.mkString(":")} $main".async(output(_), output(_))
+
   object git {
 
     def setRemote(repo: Repo): Out =
@@ -97,6 +100,8 @@ case class Shell()(implicit env: Environment) {
     } yield output.split("\n").to[List]
   }
 
+
+
   object bloop {
     def start(): Running = {
       sh"sh -c 'launcher 1.2.1 > /dev/null'".async(_ => (), _ => ())
@@ -109,10 +114,8 @@ case class Shell()(implicit env: Environment) {
     def clean(name: String)(output: String => Unit): Running =
       sh"bloop clean --config-dir .fury/bloop $name".async(output(_), output(_))
 
-    def compile(name: String, run: Boolean)(output: String => Unit): Running = {
-      val action = if(run) "run" else "compile"
-      sh"bloop $action --config-dir .fury/bloop $name".async(output(_), output(_))
-    }
+    def compile(name: String)(output: String => Unit): Running =
+      sh"bloop compile $name --config-dir .fury/bloop".async(output(_), output(_))
 
     def startServer(): Running =
       sh"bloop server".async(_ => (), _ => ())
