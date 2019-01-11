@@ -15,12 +15,11 @@
                                                                                                   */
 package fury
 
+import com.facebook.nailgun.NGContext
 import exoskeleton._
 import guillotine._
 
 import scala.collection.JavaConverters._
-
-import com.martiansoftware.nailgun.NGContext
 
 object Main {
 
