@@ -349,7 +349,7 @@ case class Schema(id: SchemaId,
     repos.to[List].flatMap(_.importCandidates(this).opt.to[List].flatten)
 
   def moduleRefStrings(implicit layout: Layout, shell: Shell): List[String] =
-    knownImportedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
+    importedSchemas.opt.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
         moduleRefs.to[List].map { ref => str"$ref" }
 
   def schemaTree()(implicit layout: Layout, shell: Shell)
@@ -371,24 +371,12 @@ case class Schema(id: SchemaId,
       } yield resolved
     }.sequence
 
-  def knownImportedSchemas(implicit layout: Layout, shell: Shell)
-                          : Result[List[Schema], ~ | ItemNotFound | FileWriteError | ShellFailure |
-                              FileNotFound | ConfigFormatError | InvalidValue] =
-    imports.map { ref =>
-      for {
-        repo      <- repos.findBy(ref.repo)
-        dir       <- ~repo.fullCheckout.path
-        layer     <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
-        resolved  <- layer.schemas.findBy(ref.schema)
-      } yield resolved
-    }.sequence
-
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def allProjects(implicit layout: Layout, shell: Shell)
                  : Result[List[Project], ~ | ItemNotFound | FileWriteError | ShellFailure |
                      FileNotFound | ConfigFormatError | InvalidValue] =
-    knownImportedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
+    importedSchemas.flatMap(_.map(_.allProjects).sequence.map(_.flatten)).map(_ ++ projects.to[List])
 
   def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
     case None => Answer(projectId)
