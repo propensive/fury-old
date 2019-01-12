@@ -24,10 +24,9 @@ import scala.util._
 
 object Recovery {
 
-  def recover(
-      cli: Cli[CliParam[_]]
-    )(result: Outcome[ExitStatus]): ExitStatus = result match {
-      case Failure(err) => err match {
+  def recover(cli: Cli[CliParam[_]])(result: Outcome[ExitStatus]): ExitStatus = result match {
+    case Failure(err) =>
+      err match {
         case EarlyCompletions() =>
           Done
         case ProjectConflict(ps) =>
@@ -36,7 +35,7 @@ object Recovery {
                 .mkString(", ")}""")
         case e: SchemaDifferences =>
           cli.abort(
-            msg"""You are attempting to make this change to all schemas, however the value you are
+              msg"""You are attempting to make this change to all schemas, however the value you are
 trying to change is different in different schemas. To make the change to just
 one schema, please specify the schema with --schema/-s, or if you are sure you
 want to make this change to all schemas, please add the --force/-F argument.""")
@@ -58,25 +57,25 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"The configuration file could not be read.")
         case e: InvalidValue =>
           cli.abort(msg"'${e.value}' is not a valid value.")
-      case e: ItemNotFound =>
-        cli.abort(msg"The ${e.kind} ${e.item} was not found.")
-      case e: UnspecifiedProject =>
-        cli.abort(msg"The project has not been specified.")
-      case e: UnspecifiedRepo =>
-        cli.abort(msg"The repository has not been specified.")
-      case e: UnspecifiedModule =>
-        cli.abort(msg"The module has not been specified.")
-      case e: UnknownCompiler =>
-        cli.abort(msg"This compiler is not known.")
-      case e: ShellFailure =>
-        cli.abort(
-            msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
-      case e: ModuleAlreadyExists =>
-        cli.abort(msg"The module '${e.module}' already exists.")
-      case e: ProjectAlreadyExists =>
-        cli.abort(msg"The project '${e.project}' already exists.")
-      case e: AlreadyInitialized =>
-        cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
+        case e: ItemNotFound =>
+          cli.abort(msg"The ${e.kind} ${e.item} was not found.")
+        case e: UnspecifiedProject =>
+          cli.abort(msg"The project has not been specified.")
+        case e: UnspecifiedRepo =>
+          cli.abort(msg"The repository has not been specified.")
+        case e: UnspecifiedModule =>
+          cli.abort(msg"The module has not been specified.")
+        case e: UnknownCompiler =>
+          cli.abort(msg"This compiler is not known.")
+        case e: ShellFailure =>
+          cli.abort(
+              msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
+        case e: ModuleAlreadyExists =>
+          cli.abort(msg"The module '${e.module}' already exists.")
+        case e: ProjectAlreadyExists =>
+          cli.abort(msg"The project '${e.project}' already exists.")
+        case e: AlreadyInitialized =>
+          cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
         case e =>
           val errorString =
             s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
@@ -96,10 +95,10 @@ want to make this change to all schemas, please add the --force/-F argument.""")
                   s"be logged to disk.\n\n$errorString")
 
           result.recover {
-            case e: FileWriteError => unloggable
-            case e: FileNotFound => unloggable
+            case e: FileWriteError   => unloggable
+            case e: FileNotFound     => unloggable
             case e: EarlyCompletions => cli.abort("")
           }.toOption.get
       }
-    }
+  }
 }

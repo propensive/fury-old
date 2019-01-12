@@ -20,11 +20,7 @@ import fury.error._
 
 object Manifest {
 
-  def file(
-      file: Path,
-      classpath: Set[String],
-      mainClass: Option[String]
-    ): Outcome[Path] = {
+  def file(file: Path, classpath: Set[String], mainClass: Option[String]): Outcome[Path] = {
     val classpathString = classpath.join(" ")
 
     val content: String = List(

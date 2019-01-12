@@ -114,10 +114,8 @@ case class Cli[+Hinted <: CliParam[_]](
 
   class Io private[Cli] () {
 
-    def apply[T](
-        param: CliParam[T]
-      )(implicit ev: Hinted <:< param.type
-      ): Outcome[T] = args.get(param.param).toTry
+    def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Outcome[T] =
+      args.get(param.param).toTry
 
     def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
 
@@ -198,9 +196,7 @@ case class Cli[+Hinted <: CliParam[_]](
     } else Success(io)
   }
 
-  def completeCommand(
-      cmd: MenuStructure[_]
-    ): Outcome[Nothing] =
+  def completeCommand(cmd: MenuStructure[_]): Outcome[Nothing] =
     command.map { no =>
       val name = if (no == 1) "Command" else "Subcommand"
       val optCompletions = List(Cli.CmdCompletion(no - 1, name, cmd match {

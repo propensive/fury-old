@@ -28,9 +28,6 @@ trait Resolver[-T, I] { def matchOn(id: I, value: T): Boolean }
 
 class ResolverExt[T](items: Traversable[T]) {
 
-  def findBy[I <: Key: MsgShow](
-      id: I
-    )(implicit resolver: Resolver[T, I]
-    ): Outcome[T] =
+  def findBy[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Outcome[T] =
     items.find(resolver.matchOn(id, _)).ascribe(ItemNotFound(id))
 }

@@ -198,7 +198,11 @@ object ModuleCli {
       mainClass <- ~io(MainArg).toOption
       nameArg <- ~io(ModuleNameArg).toOption
       newId <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
-      bloopSpec <- io(BloopSpecArg).toOption.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
+      bloopSpec <- io(BloopSpecArg).toOption
+                    .to[List]
+                    .map(BloopSpec.parse(_))
+                    .sequence
+                    .map(_.headOption)
       force <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.moduleKind(_, project.id, module.id))(_(_) = kind)
