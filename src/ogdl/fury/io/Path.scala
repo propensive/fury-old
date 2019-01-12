@@ -76,7 +76,7 @@ case class Path(value: String) {
     }.getOrElse(0)
 
   def touch(): Outcome[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
-    if(!exists()) new java.io.FileOutputStream(javaPath.toFile).close()
+    if (!exists()) new java.io.FileOutputStream(javaPath.toFile).close()
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
   }
 

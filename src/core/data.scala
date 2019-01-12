@@ -611,12 +611,13 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
 
   private def checkout(implicit shell: Shell, layout: Layout): Outcome[Path] =
     if (!(path / ".done").exists) {
-      
-      if(path.exists()) {
-        println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")}.")
+
+      if (path.exists()) {
+        println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources"
+        else sources.map(_.value).mkString("[", ", ", "]")}.")
         path.delete()
       }
-      
+
       println(s"Checking out ${if (sources.isEmpty) "all sources"
       else sources.map(_.value).mkString("[", ", ", "]")}.")
       path.mkdir()
@@ -706,11 +707,11 @@ case class Repo(url: String) {
 
   def fetch(implicit layout: Layout, shell: Shell): Outcome[Path] =
     if (!(path / ".done").exists) {
-      if(path.exists()) {
+      if (path.exists()) {
         println(s"Found incomplete clone of $url.")
         path.delete()
       }
-      
+
       println(s"Cloning Git repository $url.")
       path.mkdir()
       shell.git.cloneBare(url, path).map { _ =>
