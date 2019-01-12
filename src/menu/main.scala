@@ -31,7 +31,7 @@ object Main {
       layer <- Layer.read(layout.furyConfig)(layout)
     } yield layer
 
-    val actions = layer.opt
+    val actions = layer.toOption
       .to[List]
       .flatMap { ws =>
         ws.aliases

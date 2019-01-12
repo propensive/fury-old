@@ -15,10 +15,12 @@
  */
 package fury
 
-import exoskeleton._
 import fury.io._
+import fury.error._
 import guillotine._
-import mitigation._
+import exoskeleton._
+
+import scala.util._
 
 sealed trait MenuStructure[T] {
   def command: Symbol
@@ -29,26 +31,20 @@ sealed trait MenuStructure[T] {
 case class Action[T](
     command: Symbol,
     description: UserMsg,
-    action: T => Result[
-        ExitStatus,
-        ~ | FileWriteError | FileNotFound | MissingArg | UnknownCommand | UnknownCompiler | ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict],
+    action: T => Outcome[ExitStatus],
     show: Boolean = true)
     extends MenuStructure[T]
 
 case class Menu[T, S](
     command: Symbol,
     description: UserMsg,
-    action: T => Result[
-        S,
-        ~ | FileWriteError | FileNotFound | MissingArg | UnknownCommand | UnknownCompiler | ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict],
+    action: T => Outcome[S],
     default: Symbol,
     show: Boolean = true
   )(val items: MenuStructure[S]*)
     extends MenuStructure[T] {
 
-  def apply(cli: Cli[CliParam[_]], ctx: T): Result[
-      ExitStatus,
-      ~ | UnknownCommand | FileWriteError | MissingArg | FileNotFound | UnknownCompiler | ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict] =
+  def apply(cli: Cli[CliParam[_]], ctx: T): Outcome[ExitStatus] =
     cli.args.prefix.headOption match {
       case None =>
         if (cli.completion) cli.completeCommand(this)
@@ -57,7 +53,7 @@ case class Menu[T, S](
         items.find(_.command.name == next.value) match {
           case None =>
             if (cli.completion) cli.completeCommand(this)
-            else Result.abort(UnknownCommand(next.value))
+            else Failure(UnknownCommand(next.value))
           case Some(item @ Menu(_, _, _, _, _)) =>
             action(ctx).flatMap(item(cli.tail, _))
           case Some(item @ Action(_, _, _, _)) =>

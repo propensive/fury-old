@@ -18,16 +18,18 @@
 
 package fury.io
 
+import fury._, error._
+
 import java.io.FileNotFoundException
 import java.nio.file.{Files, Paths, Path => JPath}
 import java.util.zip.ZipFile
 
 import kaleidoscope._
-import mitigation._
 
 import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 import scala.language.higherKinds
+import scala.util._
 
 object Path {
 
@@ -45,9 +47,9 @@ case class Path(value: String) {
 
   def name: String = javaPath.getFileName.toString
 
-  def zipfileEntries: Result[List[ZipfileEntry], ~ | FileNotFound] =
+  def zipfileEntries: Outcome[List[ZipfileEntry]] =
     for {
-      zipFile <- Result.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
+      zipFile <- Outcome.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
       entries <- ~zipFile.entries
       entriesList = entries.asScala.to[List]
     } yield
@@ -96,9 +98,9 @@ case class Path(value: String) {
         .sum
     }.getOrElse(0)
 
-  def moveTo(path: Path): Result[Unit, ~ | FileWriteError] =
-    Result.rescue[java.io.IOException](FileWriteError(this)) {
-      java.nio.file.Files.move(javaPath, path.javaPath).unit()
+  def moveTo(path: Path): Outcome[Unit] =
+    Outcome.rescue[java.io.IOException](FileWriteError(this)) {
+      java.nio.file.Files.move(javaPath, path.javaPath).unit
     }
 
   def relativeSubdirsContaining(predicate: String => Boolean): Set[Path] = {
@@ -126,12 +128,12 @@ case class Path(value: String) {
       subdirs.flatMap(_.findSubdirsContaining(predicate)) ++ found
     }.getOrElse(Set())
 
-  def delete(): Result[Boolean, ~ | FileWriteError] = {
+  def delete(): Outcome[Boolean] = {
     def delete(file: java.io.File): Boolean =
       if (file.isDirectory) file.listFiles.forall(delete) && file.delete()
       else file.delete()
 
-    Result.rescue[java.io.IOException](FileWriteError(this)) {
+    Outcome.rescue[java.io.IOException](FileWriteError(this)) {
       delete(javaPath.toFile)
     }
   }
@@ -141,55 +143,55 @@ case class Path(value: String) {
     if (f.exists) f.listFiles.to[List].map(_.getName) else Nil
   }
 
-  def writeSync(content: String): Result[Unit, ~ | FileWriteError] =
+  def writeSync(content: String): Outcome[Unit] =
     try {
       val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
       writer.write(content)
-      Answer(writer.close())
+      Success(writer.close())
     } catch {
-      case e: java.io.IOException => Result.abort(FileWriteError(this))
+      case e: java.io.IOException => Failure(FileWriteError(this))
     }
 
-  def appendSync(content: String): Result[Unit, ~ | FileWriteError] =
+  def appendSync(content: String): Outcome[Unit] =
     try {
       val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
       writer.append(content)
-      Answer(writer.close())
+      Success(writer.close())
     } catch {
-      case e: java.io.IOException => Result.abort(FileWriteError(this))
+      case e: java.io.IOException => Failure(FileWriteError(this))
     }
 
   def exists(): Boolean = Files.exists(javaPath)
 
-  def directory: Result[Path, ~ | FileWriteError] = {
+  def directory: Outcome[Path] = {
     val file = javaPath.toFile
     if (!file.exists()) {
       mkdir()
-      if (file.exists()) Answer(this) else Result.abort(FileWriteError(this))
-    } else if (file.isDirectory) Answer(this)
-    else Result.abort(FileWriteError(this))
+      if (file.exists()) Success(this) else Failure(FileWriteError(this))
+    } else if (file.isDirectory) Success(this)
+    else Failure(FileWriteError(this))
   }
 
-  def copyTo(path: Path): Result[Path, ~ | FileWriteError] =
-    Result.rescue[java.io.IOException](FileWriteError(path)) {
+  def copyTo(path: Path): Outcome[Path] =
+    Outcome.rescue[java.io.IOException](FileWriteError(path)) {
       Files.copy(javaPath, path.javaPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
       path
     }
 
-  def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath).unit()
+  def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath).unit
 
   def parent = Path(javaPath.getParent.toString)
 
   def rename(fn: String => String): Path = parent / fn(name)
 
-  def mkParents(): Result[Path, ~ | FileWriteError] =
-    Result.rescue[java.io.IOException](_ => FileWriteError(parent)) {
+  def mkParents(): Outcome[Path] =
+    Outcome.rescue[java.io.IOException](FileWriteError(parent)) {
       java.nio.file.Files.createDirectories(parent.javaPath)
       this
     }
 }
 
-case class FileNotFound(path: Path) extends Exception
-case class FileWriteError(path: Path) extends Exception
-case class ConfigFormatError(path: Path) extends Exception
+case class FileNotFound(path: Path) extends FuryException
+case class FileWriteError(path: Path) extends FuryException
+case class ConfigFormatError(path: Path) extends FuryException
 case class ZipfileEntry(name: String, inputStream: () => java.io.InputStream)

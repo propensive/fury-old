@@ -15,11 +15,13 @@
  */
 package fury
 
-import mitigation._
+import fury.error._
+
 import guillotine._
 import Args._
 
 import scala.collection.immutable.SortedSet
+import scala.util._
 
 object DependencyCli {
 
@@ -33,7 +35,7 @@ object DependencyCli {
       optModule: Option[Module])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
     def defaultSchemaId: SchemaId = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Result[Schema, ~ | ItemNotFound] = layer.schemas.findBy(defaultSchemaId)
+    def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =
@@ -43,21 +45,21 @@ object DependencyCli {
       layer <- Layer.read(layout.furyConfig)(layout)
       cli <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
-      schema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
+      schema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
                        cli.peek(ProjectArg).orElse(s.main)
                      }
       optProject <- ~schema.flatMap { s =>
-                     optProjectId.flatMap(s.projects.findBy(_).opt)
+                     optProjectId.flatMap(s.projects.findBy(_).toOption)
                    }
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-      optModule <- Answer {
+      optModule <- Success {
                     for {
                       project <- optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).opt
+                      module <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
     } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
@@ -67,10 +69,10 @@ object DependencyCli {
     for {
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module <- optModule.ascribe(UnspecifiedModule())
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      cols <- Success(Terminal.columns.getOrElse(100))
       rows <- ~module.after.to[List].sorted
       table <- ~Tables(config).show(Tables(config).dependencies, cols, rows, raw)(identity)
       schema <- defaultSchema
@@ -93,7 +95,7 @@ object DependencyCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module <- optModule.ascribe(UnspecifiedModule())
       moduleRef <- ModuleRef.parse(project, dependencyArg, false)
-      force <- ~io(ForceArg).successful
+      force <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
       _ <- ~io.save(layer, layout.furyConfig)
@@ -103,13 +105,13 @@ object DependencyCli {
   def add(ctx: Context) = {
     import ctx._
     for {
-      optSchema <- ~layer.mainSchema.opt
+      optSchema <- ~layer.mainSchema.toOption
       cli <- cli.hint(DependencyArg, optSchema.map(_.moduleRefs).getOrElse(List()))
       cli <- cli.hint(IntransitiveArg)
       io <- cli.io()
       project <- optProject.ascribe(UnspecifiedProject())
       module <- optModule.ascribe(UnspecifiedModule())
-      intransitive <- ~io(IntransitiveArg).successful
+      intransitive <- ~io(IntransitiveArg).isSuccess
       dependencyArg <- io(DependencyArg)
       moduleRef <- ModuleRef.parse(project, dependencyArg, intransitive)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(

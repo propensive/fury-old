@@ -18,21 +18,24 @@ package fury
 import java.net._
 
 import fury.io._
+import fury.error._
 import gastronomy._
 import guillotine._
-import mitigation._
+import mercator._
+
+import scala.util._
 
 object Bloop {
 
   private[this] var bloopServer: Option[Running] = None
 
-  private[this] def testServer(): Result[Unit, ~] =
-    Answer(new Socket("localhost", 8212).close().unit)
+  private[this] def testServer(): Outcome[Unit] =
+    Success(new Socket("localhost", 8212).close().unit)
 
-  def server(cli: Cli[_])(io: cli.Io): Result[Unit, ~ | InitFailure] = synchronized {
+  def server(cli: Cli[_])(io: cli.Io): Outcome[Unit] = synchronized {
     try {
       testServer()
-      Answer(())
+      Success(())
     } catch {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
@@ -42,7 +45,7 @@ object Bloop {
         def checkStarted(): Unit =
           try {
             Thread.sleep(150)
-            if (!testServer().successful) {
+            if (!testServer().isSuccess) {
               io.print(".")
               checkStarted()
             }
@@ -56,11 +59,11 @@ object Bloop {
 
         try {
           bloopServer = Some(running)
-          Answer(())
+          Success(())
         } catch {
           case e: ConnectException =>
             bloopServer = None
-            Result.abort(InitFailure())
+            Failure(InitFailure())
         }
     }
   }
@@ -71,25 +74,21 @@ object Bloop {
     )(implicit layout: Layout,
       env: Environment,
       shell: Shell
-    ): Result[
-      Iterable[Path],
-      ~ | FileWriteError | ShellFailure | FileNotFound | UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
-    artifacts.map { artifact =>
+    ): Outcome[Iterable[Path]] =
+    new CollOps(artifacts.map { artifact =>
       for {
         path <- layout.bloopConfig(artifact).mkParents()
         jsonString <- makeConfig(artifact, universe)
         _ <- ~(if (!path.exists) path.writeSync(jsonString))
       } yield List(path)
-    }.sequence.map(_.flatten)
+    }).sequence.map(_.flatten)
 
   private def makeConfig(
       artifact: Artifact,
       universe: Universe
     )(implicit layout: Layout,
       shell: Shell
-    ): Result[
-      String,
-      ~ | FileNotFound | FileWriteError | ShellFailure | UnknownCompiler | ItemNotFound | InvalidValue | ProjectConflict] =
+    ): Outcome[String] =
     for {
       deps <- universe.dependencies(artifact.ref)
       _ = artifact.writePlugin()
@@ -97,7 +96,7 @@ object Bloop {
       classpath <- universe.classpath(artifact.ref)
       compilerClasspath <- compiler.map { c =>
                             universe.classpath(c.ref)
-                          }.getOrElse(Answer(Set()))
+                          }.getOrElse(Success(Set()))
     } yield
       json(
           name = artifact.hash.encoded[Base64Url],

@@ -18,17 +18,18 @@ package fury
 import exoskeleton._
 import fury.io._
 import fury.ogdl._
+import fury.error._
 import guillotine._
-import mitigation._
+
+import scala.util._
 
 object Config {
 
   def read(
     )(implicit env: Environment,
       layout: Layout
-    ): Result[Config,
-              ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError | FileWriteError | AlreadyInitialized] =
-    Ogdl.read[Config](layout.userConfig).remedy(Config())
+    ): Outcome[Config] =
+    Success(Ogdl.read[Config](layout.userConfig).toOption.getOrElse(Config()))
 }
 
 case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5)

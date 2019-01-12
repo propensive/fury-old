@@ -17,96 +17,67 @@ package fury
 
 import exoskeleton._
 import fury.io._
+import fury.error._
 import guillotine._
-import mitigation._
+
+import scala.util._
 
 object Recovery {
 
   def recover(
       cli: Cli[CliParam[_]]
-    )(result: Result[
-          ExitStatus,
-          ~ | MissingCommand | FileWriteError | FileNotFound | MissingArg | UnknownCommand | UnknownCompiler | UnspecifiedRepo | ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict]
-    ): ExitStatus = result.recover(
-      on[EarlyCompletions].map {
+    )(result: Outcome[ExitStatus]): ExitStatus = result match {
+      case Failure(err) => err match {
         case EarlyCompletions() =>
           Done
-      },
-      on[ProjectConflict].map {
         case ProjectConflict(ps) =>
           cli.abort(
               msg"""Your dependency tree contains references to two or more conflicting projects: ${ps
                 .mkString(", ")}""")
-      },
-      on[SchemaDifferences].map { e =>
-        cli.abort(
+        case e: SchemaDifferences =>
+          cli.abort(
             msg"""You are attempting to make this change to all schemas, however the value you are
 trying to change is different in different schemas. To make the change to just
 one schema, please specify the schema with --schema/-s, or if you are sure you
 want to make this change to all schemas, please add the --force/-F argument.""")
-      },
-      on[InitFailure].map {
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
-      },
-      on[FileWriteError].map {
         case FileWriteError(path) =>
           cli.abort(msg"Couldn't write to file $path.")
-      },
-      on[FileNotFound].map {
         case FileNotFound(path) =>
           cli.abort(msg"""Could not find the file $path. Run `fury init` to create a new layer.""")
-      },
-      on[MissingArg].map {
         case MissingArg(param) =>
           cli.abort(msg"The parameter $param was not provided.")
-      },
-      on[MissingCommand].map { e =>
-        cli.abort(msg"No command was provided.")
-      },
-      on[UnknownCommand].map { e =>
-        cli.abort(msg"The command '${e.command}' was not recognized.")
-      },
-      on[InvalidArgValue].map {
+        case e: MissingCommand =>
+          cli.abort(msg"No command was provided.")
+        case e: UnknownCommand =>
+          cli.abort(msg"The command '${e.command}' was not recognized.")
         case InvalidArgValue(param, arg) =>
           cli.abort(msg"The argument '$arg' was not a valid value for the parameter '$param'.")
-      },
-      on[ConfigFormatError].map { err =>
-        cli.abort(msg"The configuration file could not be read.")
-      },
-      on[InvalidValue].map { e =>
-        cli.abort(msg"'${e.value}' is not a valid value.")
-      },
-      on[ItemNotFound].map { e =>
+        case e: ConfigFormatError =>
+          cli.abort(msg"The configuration file could not be read.")
+        case e: InvalidValue =>
+          cli.abort(msg"'${e.value}' is not a valid value.")
+      case e: ItemNotFound =>
         cli.abort(msg"The ${e.kind} ${e.item} was not found.")
-      },
-      on[UnspecifiedProject].map { e =>
+      case e: UnspecifiedProject =>
         cli.abort(msg"The project has not been specified.")
-      },
-      on[UnspecifiedRepo].map { e =>
+      case e: UnspecifiedRepo =>
         cli.abort(msg"The repository has not been specified.")
-      },
-      on[UnspecifiedModule].map { e =>
+      case e: UnspecifiedModule =>
         cli.abort(msg"The module has not been specified.")
-      },
-      on[UnknownCompiler].map { e =>
+      case e: UnknownCompiler =>
         cli.abort(msg"This compiler is not known.")
-      },
-      on[ShellFailure].map { e =>
+      case e: ShellFailure =>
         cli.abort(
             msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
-      },
-      on[ModuleAlreadyExists].map { e =>
+      case e: ModuleAlreadyExists =>
         cli.abort(msg"The module '${e.module}' already exists.")
-      },
-      on[ProjectAlreadyExists].map { e =>
+      case e: ProjectAlreadyExists =>
         cli.abort(msg"The project '${e.project}' already exists.")
-      },
-      on[AlreadyInitialized].map { e =>
+      case e: AlreadyInitialized =>
         cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
-      },
-      otherwise.map {
-        case Surprise(e) =>
+        case e =>
           val errorString =
             s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
@@ -124,11 +95,11 @@ want to make this change to all schemas, please add the --force/-F argument.""")
                 "An unexpected error occurred which could not " +
                   s"be logged to disk.\n\n$errorString")
 
-          result.recover(
-              on[FileWriteError].use(unloggable),
-              on[FileNotFound].use(unloggable),
-              on[EarlyCompletions].use(cli.abort(""))
-          )
+          result.recover {
+            case e: FileWriteError => unloggable
+            case e: FileNotFound => unloggable
+            case e: EarlyCompletions => cli.abort("")
+          }.toOption.get
       }
-  )
+    }
 }

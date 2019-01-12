@@ -15,16 +15,18 @@
  */
 package fury
 
-import mitigation._
+import fury.error._
+
+import scala.util._
 
 object Validate {
 
-  def apply(layer: Layer): Result[Layer, ~] = {
+  def apply(layer: Layer): Outcome[Layer] = {
     for {
       schema <- layer.schemas
       project <- schema.projects
       module <- project.modules
     } ()
-    Answer(layer)
+    Success(layer)
   }
 }

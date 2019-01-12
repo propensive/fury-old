@@ -15,10 +15,12 @@
  */
 package fury
 
+import fury.error._
+
 import Args._
 
-import mitigation._
 import guillotine._
+import scala.util._
 
 object ImportCli {
 
@@ -36,7 +38,7 @@ object ImportCli {
     for {
       cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg)
-      defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
+      defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli <- cli.hint(ImportArg,
                       defaultSchema.map(_.importCandidates(layout, cli.shell)).getOrElse(Nil))
       io <- cli.io()
@@ -52,10 +54,10 @@ object ImportCli {
     for {
       cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg)
-      dSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
+      dSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli <- cli.hint(ImportArg, dSchema.map(_.imports).getOrElse(Nil))
       io <- cli.io()
-      schemaId <- io(SchemaArg).remedy(layer.main)
+      schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
       importArg <- io(ImportArg)
       schema <- layer.schemas.findBy(schemaId)
       lens <- ~Lenses.layer.imports(schema.id)
@@ -70,10 +72,10 @@ object ImportCli {
       cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaArg)
-      cols <- Answer(Terminal.columns(cli.env).getOrElse(100))
+      cols <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       rows <- schema.importedSchemas(layout, cli.shell)
       table <- ~Tables(config).show(Tables(config).schemas(Some(layer.main)), cols, rows, raw)(_.id)
       _ <- ~(if (!raw)

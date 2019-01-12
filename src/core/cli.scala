@@ -17,11 +17,13 @@ package fury
 
 import exoskeleton._
 import fury.io._
+import fury.error._
 import fury.ogdl._
 import guillotine._
-import mitigation._
 
-case class EarlyCompletions() extends Exception
+import scala.util._
+
+case class EarlyCompletions() extends FuryException
 
 sealed class ExitStatus(val code: Int)
 case object Done extends ExitStatus(0)
@@ -115,7 +117,7 @@ case class Cli[+Hinted <: CliParam[_]](
     def apply[T](
         param: CliParam[T]
       )(implicit ev: Hinted <:< param.type
-      ): Result[T, ~ | MissingArg | InvalidArgValue] = args.get(param.param)
+      ): Outcome[T] = args.get(param.param).toTry
 
     def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
 
@@ -125,7 +127,7 @@ case class Cli[+Hinted <: CliParam[_]](
       val stringBuilder: StringBuilder = new StringBuilder()
       Ogdl.serialize(stringBuilder, implicitly[OgdlWriter[T]].write(value))
       val content: String = stringBuilder.toString
-      Result
+      Outcome
         .rescue[java.io.IOException](FileWriteError(path)) {
           val writer = new java.io.BufferedWriter(new java.io.FileWriter(path.javaPath.toFile))
           writer.write(content).unit
@@ -143,12 +145,12 @@ case class Cli[+Hinted <: CliParam[_]](
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).opt
 
-  lazy val layout: Result[Layout, ~ | FileNotFound] =
+  lazy val layout: Outcome[Layout] =
     env.workDir.ascribe(FileNotFound(Path("/"))).map { pwd =>
       Layout(Path(env.variables("HOME")), Path(pwd))
     }
 
-  lazy val config: Config = layout.flatMap(Config.read()(env, _)).opt.getOrElse(Config())
+  lazy val config: Config = layout.flatMap(Config.read()(env, _)).toOption.getOrElse(Config())
 
   def next: Option[String] = args.prefix.headOption.map(_.value)
 
@@ -167,38 +169,38 @@ case class Cli[+Hinted <: CliParam[_]](
 
   lazy val shell: Shell = Shell()(env)
 
-  def opt[T: Default](param: CliParam[T]): Result[Option[T], ~] = Answer(args(param.param).opt)
+  def opt[T: Default](param: CliParam[T]): Outcome[Option[T]] = Success(args(param.param).opt)
 
   def hint[T: StringShow: Descriptor](
       arg: CliParam[_],
       hints: Traversable[T]
-    ): Answer[_ <: Cli[Hinted with arg.type]] = {
+    ): Outcome[Cli[Hinted with arg.type]] = {
     val newHints =
       Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
-    Answer(copy(optCompletions = newHints :: optCompletions))
+    Success(copy(optCompletions = newHints :: optCompletions))
   }
 
   def hint(arg: CliParam[_]) =
-    Answer(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
+    Success(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
 
   private[this] def write(msg: UserMsg): Unit = {
     output.println(msg.string(config.theme))
     output.flush()
   }
 
-  def io(): Result[Io, ~ | EarlyCompletions] = {
+  def io(): Outcome[Io] = {
     val io = new Io()
     if (completion) {
       io.println(optCompletions.flatMap(_.output).mkString("\n"))
       io.await()
-      Result.abort(EarlyCompletions())
-    } else Answer(io)
+      Failure(EarlyCompletions())
+    } else Success(io)
   }
 
   def completeCommand(
       cmd: MenuStructure[_]
-    ): Result[Nothing, ~ | UnknownCommand | EarlyCompletions] =
+    ): Outcome[Nothing] =
     command.map { no =>
       val name = if (no == 1) "Command" else "Subcommand"
       val optCompletions = List(Cli.CmdCompletion(no - 1, name, cmd match {
@@ -208,11 +210,11 @@ case class Cli[+Hinted <: CliParam[_]](
       val io = new Io()
       io.println(optCompletions.flatMap(_.output).mkString("\n"))
       io.await()
-      Result.abort(EarlyCompletions())
+      Failure(EarlyCompletions())
     }.getOrElse {
       args.prefix.headOption.map { arg =>
-        Result.abort(UnknownCommand(arg.value))
-      }.getOrElse(Result.abort(UnknownCommand("")))
+        Failure(UnknownCommand(arg.value))
+      }.getOrElse(Failure(UnknownCommand("")))
     }
 
 }
