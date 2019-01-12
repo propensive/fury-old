@@ -90,9 +90,7 @@ object Binary {
         Failure(InvalidArgValue("binary", string))
     }
 
-  private val compilerVersionCache: HashMap[
-      Binary,
-      Outcome[String]] =
+  private val compilerVersionCache: HashMap[Binary, Outcome[String]] =
     HashMap()
 
   private val coursierCache: HashMap[Binary, Outcome[List[Path]]] = HashMap()
@@ -104,9 +102,7 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
   def paths(implicit shell: Shell): Outcome[List[Path]] =
     Binary.coursierCache.getOrElseUpdate(this, shell.coursier.fetch(spec))
 
-  def detectCompilerVersion(
-      implicit shell: Shell
-    ): Outcome[String] =
+  def detectCompilerVersion(implicit shell: Shell): Outcome[String] =
     Binary.compilerVersionCache.getOrElseUpdate(
         this,
         (for {
@@ -134,8 +130,7 @@ case class Module(
     sources: SortedSet[Source] = TreeSet(),
     binaries: SortedSet[Binary] = TreeSet(),
     resources: SortedSet[Path] = TreeSet(),
-    bloopSpec: Option[BloopSpec] = None
-) {
+    bloopSpec: Option[BloopSpec] = None) {
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
 
   def externalSources: SortedSet[ExternalSource] = sources.collect {
@@ -195,11 +190,7 @@ case class Universe(
   def schema(id: ProjectId): Outcome[Schema] =
     schemas.get(id).ascribe(ItemNotFound(id))
 
-  def artifact(
-      ref: ModuleRef
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Artifact] =
+  def artifact(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Artifact] =
     for {
       project <- project(ref.projectId)
       schema <- schema(ref.projectId)
@@ -225,11 +216,7 @@ case class Universe(
           module.localSources.map(_ in dir).to[List]
       )
 
-  def checkout(
-      ref: ModuleRef
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Set[Checkout]] =
+  def checkout(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Checkout]] =
     for {
       project <- project(ref.projectId)
       schema <- schema(ref.projectId)
@@ -247,11 +234,7 @@ case class Universe(
   def ++(that: Universe): Universe =
     Universe(projects ++ that.projects, schemas ++ that.schemas, dirs ++ that.dirs)
 
-  def classpath(
-      ref: ModuleRef
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Set[Path]] =
+  def classpath(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Path]] =
     for {
       art <- artifact(ref)
       deps <- transitiveDependencies(ref)
@@ -259,11 +242,7 @@ case class Universe(
       bins <- ~deps.flatMap(_.binaries)
     } yield (dirs ++ bins ++ art.binaries)
 
-  def runtimeClasspath(
-      ref: ModuleRef
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Set[Path]] =
+  def runtimeClasspath(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Path]] =
     for {
       cp <- classpath(ref)
       art <- artifact(ref)
@@ -273,11 +252,7 @@ case class Universe(
                    }.getOrElse(Success(Set()))
     } yield compilerCp ++ cp + layout.classesDir(art)
 
-  def dependencies(
-      ref: ModuleRef
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Set[Artifact]] =
+  def dependencies(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Artifact]] =
     for {
       project <- project(ref.projectId)
       module <- project(ref.moduleId)
@@ -298,11 +273,7 @@ case class Universe(
   def clean(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Unit =
     layout.classesDir.delete().unit
 
-  def allParams(
-      ref: ModuleRef
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[List[String]] =
+  def allParams(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[List[String]] =
     for {
       tDeps <- transitiveDependencies(ref)
       plugins <- ~tDeps.filter(_.kind == Plugin)
@@ -312,11 +283,7 @@ case class Universe(
         Parameter(str"Xplugin:${layout.classesDir(plugin)}")
       }.map(_.parameter)
 
-  def compilation(
-      ref: ModuleRef
-    )(implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Compilation] =
+  def compilation(ref: ModuleRef)(implicit shell: Shell, layout: Layout): Outcome[Compilation] =
     for {
       art <- artifact(ref)
       graph <- transitiveDependencies(ref).map(_.map { a =>
@@ -455,11 +422,8 @@ case class Schema(
     imports: List[SchemaRef] = List(),
     main: Option[ProjectId] = None) {
 
-  def repo(
-      repoId: RepoId
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[SourceRepo] = repos.findBy(repoId)
+  def repo(repoId: RepoId)(implicit layout: Layout, shell: Shell): Outcome[SourceRepo] =
+    repos.findBy(repoId)
 
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
 
@@ -478,11 +442,7 @@ case class Schema(
         str"$ref"
       }
 
-  def schemaTree(
-      dir: Path
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[SchemaTree] =
+  def schemaTree(dir: Path)(implicit layout: Layout, shell: Shell): Outcome[SchemaTree] =
     for {
       imps <- imports.map { ref =>
                for {
@@ -495,18 +455,12 @@ case class Schema(
              }.sequence
     } yield SchemaTree(this, dir, imps.to[Set])
 
-  def importedSchemas(
-      implicit layout: Layout,
-      shell: Shell
-    ): Outcome[List[Schema]] =
+  def importedSchemas(implicit layout: Layout, shell: Shell): Outcome[List[Schema]] =
     imports.map(_.resolve(this)).sequence
 
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
-  def allProjects(
-      implicit layout: Layout,
-      shell: Shell
-    ): Outcome[List[Project]] =
+  def allProjects(implicit layout: Layout, shell: Shell): Outcome[List[Project]] =
     importedSchemas
       .flatMap(_.map(_.allProjects).sequence.map(_.flatten))
       .map(_ ++ projects.to[List])
@@ -551,10 +505,7 @@ case class Layer(
 object Layer {
   def empty() = Layer(SortedSet(Schema(SchemaId.default)), SchemaId.default)
 
-  def read(
-      file: Path
-    )(implicit layout: Layout
-    ): Outcome[Layer] =
+  def read(file: Path)(implicit layout: Layout): Outcome[Layer] =
     Success(Ogdl.read[Layer](file).toOption.getOrElse(Layer.empty()))
 }
 
@@ -572,11 +523,7 @@ object ModuleRef {
 
   val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
 
-  def parse(
-      project: Project,
-      string: String,
-      intransitive: Boolean
-    ): Outcome[ModuleRef] =
+  def parse(project: Project, string: String, intransitive: Boolean): Outcome[ModuleRef] =
     string match {
       case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
         Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
@@ -656,19 +603,13 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
   def hash: Digest = this.digest[Md5]
   def path(implicit layout: Layout): Path = layout.srcsDir / hash.encoded
 
-  def get(
-      implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Path] =
+  def get(implicit shell: Shell, layout: Layout): Outcome[Path] =
     for {
       repoDir <- repo.fetch
       workingDir <- checkout
     } yield workingDir
 
-  private def checkout(
-      implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Path] =
+  private def checkout(implicit shell: Shell, layout: Layout): Outcome[Path] =
     if (!path.exists) {
       println(s"Checking out ${if (sources.isEmpty) "all sources"
       else sources.map(_.value).mkString("[", ", ", "]")}.")
@@ -687,10 +628,7 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
 
-  def listFiles(
-      implicit layout: Layout,
-      shell: Shell
-    ): Outcome[List[Path]] =
+  def listFiles(implicit layout: Layout, shell: Shell): Outcome[List[Path]] =
     for {
       dir <- local.map(Success(_)).getOrElse(repo.fetch)
       commit <- ~shell.git
@@ -719,10 +657,7 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
         str"${id.key}:${schema.id.key}"
       }
 
-  def current(
-      implicit shell: Shell,
-      layout: Layout
-    ): Outcome[RefSpec] =
+  def current(implicit shell: Shell, layout: Layout): Outcome[RefSpec] =
     for {
       dir <- local.map(Success(_)).getOrElse(repo.fetch)
       commit <- shell.git.getCommit(dir)
@@ -754,10 +689,7 @@ case class Repo(url: String) {
   def hash: Digest = url.digest[Md5]
   def path(implicit layout: Layout): Path = layout.reposDir / hash.encoded
 
-  def update(
-    )(implicit shell: Shell,
-      layout: Layout
-    ): Outcome[UserMsg] =
+  def update()(implicit shell: Shell, layout: Layout): Outcome[UserMsg] =
     for {
       oldCommit <- shell.git.getCommit(path)
       _ <- shell.git.pull(path, None)
@@ -766,10 +698,7 @@ case class Repo(url: String) {
                else msg"Repository ${url} is unchanged")
     } yield msg
 
-  def fetch(
-      implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Path] =
+  def fetch(implicit layout: Layout, shell: Shell): Outcome[Path] =
     if (!path.exists) {
       println(s"Fetching Git repository $url.")
       path.mkdir()
@@ -812,11 +741,7 @@ object SchemaRef {
 
 case class SchemaRef(repo: RepoId, schema: SchemaId) {
 
-  def resolve(
-      base: Schema
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Schema] =
+  def resolve(base: Schema)(implicit layout: Layout, shell: Shell): Outcome[Schema] =
     for {
       repo <- base.repos.findBy(repo)
       dir <- repo.fullCheckout.get
@@ -994,11 +919,7 @@ object Source {
 trait Source {
   def description: String
 
-  def hash(
-      schema: Schema
-    )(implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Digest]
+  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest]
   def path: Path
   def repoIdentifier: RepoId
 }
@@ -1006,11 +927,7 @@ trait Source {
 case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def description: String = str"${repoId}:${path.value}"
 
-  def hash(
-      schema: Schema
-    )(implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Digest] =
+  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest] =
     schema.repo(repoId).map((path, _).digest[Md5])
 
   def repoIdentifier: RepoId = repoId
@@ -1019,11 +936,7 @@ case class ExternalSource(repoId: RepoId, path: Path) extends Source {
 case class LocalSource(path: Path) extends Source {
   def description: String = str"${path.value}"
 
-  def hash(
-      schema: Schema
-    )(implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Digest] =
+  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest] =
     Success((-1, path).digest[Md5])
 
   def repoIdentifier: RepoId = RepoId("-")

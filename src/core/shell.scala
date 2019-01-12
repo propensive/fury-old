@@ -53,7 +53,8 @@ case class Shell()(implicit env: Environment) {
       ): Outcome[String] =
       for {
         _ <- sh"git -C ${dir.value} init".exec[Outcome[String]]
-        _ <- if (!sources.isEmpty) sh"git -C ${dir.value} config core.sparseCheckout true".exec[Outcome[String]]
+        _ <- if (!sources.isEmpty)
+              sh"git -C ${dir.value} config core.sparseCheckout true".exec[Outcome[String]]
             else Success(())
         _ <- Success {
               (dir / ".git" / "info" / "sparse-checkout")
@@ -140,11 +141,7 @@ case class Shell()(implicit env: Environment) {
       } yield string.split("\n").to[List].map(Path(_))
   }
 
-  private def jar(
-      dest: Path,
-      files: Set[(Path, List[String])],
-      manifestFile: Path
-    ): Outcome[Unit] =
+  private def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Outcome[Unit] =
     sh"jar cmf ${manifestFile.value} ${dest.value}".exec[Outcome[String]].map { str =>
       val params = files.to[List].flatMap {
         case (path, files) =>

@@ -25,10 +25,7 @@ import scala.util._
 
 object Config {
 
-  def read(
-    )(implicit env: Environment,
-      layout: Layout
-    ): Outcome[Config] =
+  def read()(implicit env: Environment, layout: Layout): Outcome[Config] =
     Success(Ogdl.read[Config](layout.userConfig).toOption.getOrElse(Config()))
 }
 
