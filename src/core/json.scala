@@ -12,15 +12,18 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
 sealed trait Json { def serialize: String }
 
 case class JsonObject(elements: (String, Json)*) extends Json {
-  def serialize: String = elements.map { case (k, v) =>
-    s"""${JsonString(k).serialize}: ${v.serialize}"""
-  }.join("{ ", ", ", " }")
+
+  def serialize: String =
+    elements.map {
+      case (k, v) =>
+        s"""${JsonString(k).serialize}: ${v.serialize}"""
+    }.join("{ ", ", ", " }")
 }
 
 case class JsonArray(elements: Json*) extends Json {
@@ -32,8 +35,9 @@ case class JsonDecimal(number: BigDecimal) extends Json {
 }
 
 case class JsonString(string: String) extends Json {
+
   def serialize: String =
-    "\""+string.replaceAll("\n", "\\n").replaceAll("\r", "\\r").replaceAll("\"", "\\\"")+"\""
+    "\"" + string.replaceAll("\n", "\\n").replaceAll("\r", "\\r").replaceAll("\"", "\\\"") + "\""
 }
 
 case object JsonNull extends Json {

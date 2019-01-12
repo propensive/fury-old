@@ -12,7 +12,7 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury.tests
 
 import mitigation._
@@ -21,6 +21,7 @@ import guillotine._, environments.enclosing
 import impromptu._, scala.concurrent.ExecutionContext.Implicits.global
 
 object Tests extends TestApp {
+
   def tests(): Unit = {
 
     val rebuild = Async {
@@ -34,28 +35,36 @@ object Tests extends TestApp {
     }
 
     val initAlpha = Async.after(container) { implicit env =>
-      test("initialize alpha") { for {
-        container <- container().value
-        out       <- ~container.alpha.run(sh"fury init -p pname")
-        checksum  <- ~container.alpha.run(sh"md5sum layer.fury")
-      } yield checksum.take(32) }.assert(_ == Answer("d41d8cd98f00b204e9800998ecf8427e"))
+      test("initialize alpha") {
+        for {
+          container <- container().value
+          out <- ~container.alpha.run(sh"fury init -p pname")
+          checksum <- ~container.alpha.run(sh"md5sum layer.fury")
+        } yield checksum.take(32)
+      }.assert(_ == Answer("d41d8cd98f00b204e9800998ecf8427e"))
     }
 
     val initBeta = Async.after(container) { implicit env =>
-      test("initialize beta") { for {
-        container <- container().value
-        out       <- ~container.beta.run(sh"fury init -p pname")
-        checksum  <- ~container.beta.run(sh"md5sum layer.fury")
-      } yield checksum.take(32) }.assert(_ == Answer("d41d8cd98f00b204e9800998ecf8427e"))
+      test("initialize beta") {
+        for {
+          container <- container().value
+          out <- ~container.beta.run(sh"fury init -p pname")
+          checksum <- ~container.beta.run(sh"md5sum layer.fury")
+        } yield checksum.take(32)
+      }.assert(_ == Answer("d41d8cd98f00b204e9800998ecf8427e"))
     }
 
-    Async.after(initAlpha, initBeta, container) { implicit env =>
-      test("stop container") { for {
-        container <- container().value
-        _         <- container.stop()
-        _         <- Docker.prune()
-      } yield () }.assert(_.successful)
-    }.await().unit
+    Async
+      .after(initAlpha, initBeta, container) { implicit env =>
+        test("stop container") {
+          for {
+            container <- container().value
+            _ <- container.stop()
+            _ <- Docker.prune()
+          } yield ()
+        }.assert(_.successful)
+      }
+      .await()
+      .unit
   }
 }
-
