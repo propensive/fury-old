@@ -25,6 +25,8 @@ import scala.util._
 object Recovery {
 
   def recover(cli: Cli[CliParam[_]])(result: Outcome[ExitStatus]): ExitStatus = result match {
+    case Success(exitStatus) =>
+      exitStatus
     case Failure(err) =>
       err match {
         case EarlyCompletions() =>
