@@ -84,7 +84,7 @@ object DependencyCli {
     } yield io.await()
   }
 
-  def delete(ctx: Context) = {
+  def remove(ctx: Context) = {
     import ctx._
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))

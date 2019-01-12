@@ -125,7 +125,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def delete(ctx: SchemaCtx) = {
+  def remove(ctx: SchemaCtx) = {
     import ctx._
     for {
       cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))

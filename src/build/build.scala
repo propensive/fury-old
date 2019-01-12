@@ -72,7 +72,7 @@ object AliasCli {
     } yield io.await()
   }
 
-  def delete(ctx: MenuContext) = {
+  def remove(ctx: MenuContext) = {
     import ctx._
     for {
       cli <- cli.hint(AliasArg, layer.aliases.map(_.cmd))

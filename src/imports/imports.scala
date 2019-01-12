@@ -49,7 +49,7 @@ object ImportCli {
     } yield io.await()
   }
 
-  def delete(ctx: Context) = {
+  def remove(ctx: Context) = {
     import ctx._
     for {
       cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))

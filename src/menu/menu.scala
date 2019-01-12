@@ -25,12 +25,12 @@ object FuryMenu {
         Action('about, msg"about Fury", BuildCli.about),
         Menu('alias, msg"view and edit command aliases", AliasCli.context, 'list)(
             Action('add, msg"add a command alias to the layer", AliasCli.add),
-            Action('delete, msg"delete a command alias from the layer", AliasCli.delete),
+            Action('remove, msg"remove a command alias from the layer", AliasCli.remove),
             Action('list, msg"list command aliases", AliasCli.list)
         ),
         Menu('binary, msg"manage binary dependencies for the module", BinaryCli.context, 'list)(
             Action('add, msg"add a binary dependency to the module", BinaryCli.add),
-            Action('delete, msg"delete a binary dependency from the module", BinaryCli.delete),
+            Action('remove, msg"remove a binary dependency from the module", BinaryCli.remove),
             Action('list, msg"list binary dependencies for the module", BinaryCli.list)
         ),
         Menu('build, msg"perform build actions", BuildCli.context, 'compile)(
@@ -46,31 +46,31 @@ object FuryMenu {
         ),
         Menu('dependency, msg"manage dependencies for the module", DependencyCli.context, 'list)(
             Action('add, msg"add a dependency on another module", DependencyCli.add),
-            Action('delete, msg"delete a dependency", DependencyCli.delete),
+            Action('remove, msg"remove a dependency", DependencyCli.remove),
             Action('list, msg"list dependencies for the module", DependencyCli.list)
         ),
         Action('help, msg"help on using Fury", help),
         Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
             Action('add, msg"add an imported schema", ImportCli.add),
-            Action('delete, msg"delete a previously imported schema", ImportCli.delete),
+            Action('remove, msg"remove a previously imported schema", ImportCli.remove),
             Action('list, msg"list imported schemas", ImportCli.list)
         ),
         Action('init, msg"initialize a new Fury layer", BuildCli.init),
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
-            Action('delete, msg"delete a module from the project", ModuleCli.delete),
+            Action('remove, msg"remove a module from the project", ModuleCli.remove),
             Action('list, msg"list modules for the project", ModuleCli.list),
             Action('select, msg"select the current module", ModuleCli.select),
             Action('update, msg"update the module", ModuleCli.update)
         ),
         Menu('param, msg"manage compiler parameters for the module", ParamCli.context, 'list)(
             Action('add, msg"add a compiler parameter to the module", ParamCli.add),
-            Action('delete, msg"delete a compiler parameter from the module", ParamCli.delete),
+            Action('remove, msg"remove a compiler parameter from the module", ParamCli.remove),
             Action('list, msg"list compiler parameters for the module", ParamCli.list)
         ),
         Menu('project, msg"manage projects", ProjectCli.context, 'list)(
             Action('add, msg"add a new project to the schema", ProjectCli.add),
-            Action('delete, msg"delete a project from the schema", ProjectCli.delete),
+            Action('remove, msg"remove a project from the schema", ProjectCli.remove),
             Action('list, msg"list projects for the schema", ProjectCli.list),
             Action('select, msg"select the current project", ProjectCli.select),
             Action('update, msg"update a project", ProjectCli.update)
@@ -79,13 +79,13 @@ object FuryMenu {
         Action('restart, msg"restart the Fury server", BuildCli.notImplemented),
         Menu('source, msg"manage sources for the module", SourceCli.context, 'list)(
             Action('add, msg"add a source directory to the module", SourceCli.add),
-            Action('delete, msg"delete a source directory from the module", SourceCli.delete),
+            Action('remove, msg"remove a source directory from the module", SourceCli.remove),
             Action('list, msg"list sources for the module", SourceCli.list)
         ),
         Action('stop, msg"stop the Fury server", BuildCli.about),
         Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
             Action('add, msg"add a schema to the layer", SchemaCli.add),
-            Action('delete, msg"delete a schema from the layer", SchemaCli.delete),
+            Action('remove, msg"remove a schema from the layer", SchemaCli.remove),
             Action('diff, msg"compare this schema to another one", SchemaCli.diff),
             Action('list, msg"list schemas for the layer", SchemaCli.list),
             Action('select, msg"select the current schema", SchemaCli.select),
@@ -93,7 +93,7 @@ object FuryMenu {
         ),
         Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list)(
             Action('add, msg"add a source repository to the schema", RepoCli.add),
-            Action('delete, msg"delete a source repository from the schema", RepoCli.delete),
+            Action('remove, msg"remove a source repository from the schema", RepoCli.remove),
             Action('fork, msg"fork a managed repository locally", RepoCli.fork),
             Action('list, msg"list source repositories", RepoCli.list),
             Action('pull,
