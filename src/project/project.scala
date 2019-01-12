@@ -15,8 +15,9 @@
  */
 package fury
 
-import mitigation._
 import guillotine._
+import scala.util._
+import fury.error._
 
 import scala.collection.immutable.SortedSet
 
@@ -41,7 +42,7 @@ object ProjectCli {
       io <- cli.io()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
-      force <- ~io(ForceArg).opt.isDefined
+      force <- ~io(ForceArg).toOption.isDefined
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_))(
                   _(_) = Some(projectId))
       _ <- ~io.save(layer, layout.furyConfig)
@@ -51,10 +52,10 @@ object ProjectCli {
   def list(ctx: MenuContext) = {
     import ctx._
     for {
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      cols <- Success(Terminal.columns.getOrElse(100))
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows <- ~schema.projects.to[List]
       table <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
@@ -71,7 +72,7 @@ object ProjectCli {
       cli <- cli.hint(LicenseArg, License.standardLicenses)
       io <- cli.io()
       projectId <- io(ProjectNameArg)
-      license <- io(LicenseArg).remedy(License.unknown)
+      license <- Success(io(LicenseArg).toOption.getOrElse(License.unknown))
       project <- ~fury.Project(projectId, license = license)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
@@ -91,7 +92,7 @@ object ProjectCli {
       io <- cli.io()
       projectId <- io(ProjectArg)
       project <- dSchema.projects.findBy(projectId)
-      force <- ~io(ForceArg).opt.isDefined
+      force <- ~io(ForceArg).toOption.isDefined
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) {
@@ -105,7 +106,7 @@ object ProjectCli {
   def update(ctx: MenuContext) = {
     import ctx._
     for {
-      dSchema <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).opt
+      dSchema <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
       cli <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
       cli <- cli.hint(DescriptionArg)
       cli <- cli.hint(ForceArg)
@@ -116,14 +117,14 @@ object ProjectCli {
       projectId <- projectId.ascribe(UnspecifiedProject())
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       oldProject <- schema.projects.findBy(projectId)
-      nameArg <- ~io(ProjectNameArg).opt
-      newId <- ~nameArg.flatMap(schema.unused(_).opt).getOrElse {
+      nameArg <- ~io(ProjectNameArg).toOption
+      newId <- ~nameArg.flatMap(schema.unused(_).toOption).getOrElse {
                 oldProject.id
               }
-      licenseArg <- io(LicenseArg).remedy(oldProject.license)
-      descriptionArg <- io(DescriptionArg).remedy(oldProject.description)
+      licenseArg <- ~(io(LicenseArg).toOption.getOrElse(oldProject.license))
+      descriptionArg <- ~io(DescriptionArg).toOption.getOrElse(oldProject.description)
       project <- ~oldProject.copy(id = newId, license = licenseArg, description = descriptionArg)
-      force <- ~io(ForceArg).opt.isDefined
+      force <- ~io(ForceArg).toOption.isDefined
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.project(_, oldProject.id))(_(_) = project)
       _ <- ~io.save(layer, layout.furyConfig)

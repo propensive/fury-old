@@ -22,9 +22,8 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
-import fury.io._
+import fury._, error._, io._
 import fury.ogdl.OgdlParser.parse
-import mitigation._
 
 import scala.collection.JavaConverters._
 import scala.language.experimental.macros
@@ -62,8 +61,8 @@ object Ogdl {
       serialize(sb, Ogdl(t), i, c)
   }
 
-  def write[T: OgdlWriter](value: T, path: Path): Result[Unit, ~ | FileWriteError] =
-    Result.rescue[IOException](_ => FileWriteError(path)) {
+  def write[T: OgdlWriter](value: T, path: Path): Outcome[Unit] =
+    Outcome.rescue[IOException](FileWriteError(path)) {
       val bak = path.rename { f =>
         s".$f.bak"
       }
@@ -74,8 +73,8 @@ object Ogdl {
       path.writeSync(sb.toString).unit
     }
 
-  def read[T: OgdlReader](path: Path): Result[T, ~ | FileNotFound | ConfigFormatError] =
-    Result.rescue[IOException] { _: IOException =>
+  def read[T: OgdlReader](path: Path): Outcome[T] =
+    Outcome.rescue[IOException] { _: IOException =>
       FileNotFound(path)
     } {
       val buffer = readToBuffer(path)

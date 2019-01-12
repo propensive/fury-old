@@ -16,7 +16,7 @@
 package fury
 
 import fury.io._
-import mitigation._
+import fury.error._
 
 object Manifest {
 
@@ -24,7 +24,7 @@ object Manifest {
       file: Path,
       classpath: Set[String],
       mainClass: Option[String]
-    ): Result[Path, ~ | FileWriteError] = {
+    ): Outcome[Path] = {
     val classpathString = classpath.join(" ")
 
     val content: String = List(

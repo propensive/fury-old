@@ -17,10 +17,11 @@ package fury
 
 import fury.Args._
 import fury.io._
+import fury.error._
 import guillotine._
-import mitigation._
 
 import scala.concurrent._
+import scala.util._
 
 object ConfigCli {
 
@@ -29,7 +30,7 @@ object ConfigCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- ~Config.read()(cli.env, layout).opt.getOrElse(Config())
+      config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
     } yield new Context(cli, layout, config)
 
   def set(ctx: Context) = {
@@ -37,7 +38,7 @@ object ConfigCli {
     for {
       cli <- cli.hint(ThemeArg, Theme.all)
       io <- cli.io()
-      newTheme <- ~io(ThemeArg).opt
+      newTheme <- ~io(ThemeArg).toOption
       config <- ~newTheme.map { th =>
                  config.copy(theme = th)
                }.getOrElse(config)
@@ -60,8 +61,8 @@ object AliasCli {
     for {
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      raw <- ~io(RawArg).isSuccess
+      cols <- Success(Terminal.columns.getOrElse(100))
       rows <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cols, rows, raw)(identity(_))
       _ <- ~(if (!raw) io.println(Tables(config).contextString(layout.pwd, true)))
@@ -93,13 +94,13 @@ object AliasCli {
       cli <- cli.hint(AliasArg)
       cli <- cli.hint(DescriptionArg)
       optDefaultSchema <- ~optSchemaArg
-                           .flatMap(layer.schemas.findBy(_).opt)
-                           .orElse(layer.mainSchema.opt)
+                           .flatMap(layer.schemas.findBy(_).toOption)
+                           .orElse(layer.mainSchema.toOption)
       cli <- cli.hint(ProjectArg, optDefaultSchema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~cli.peek(ProjectArg)
       optProject <- ~optProjectId
                      .orElse(optDefaultSchema.flatMap(_.main))
-                     .flatMap(id => optDefaultSchema.flatMap(_.projects.findBy(id).opt))
+                     .flatMap(id => optDefaultSchema.flatMap(_.projects.findBy(id).toOption))
                      .to[List]
                      .headOption
       cli <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
@@ -128,7 +129,7 @@ object BuildCli {
       layer <- Layer.read(layout.furyConfig)(layout)
     } yield new MenuContext(cli, layout, config, layer)
 
-  def notImplemented(cli: Cli[CliParam[_]]): Result[ExitStatus, ~] = Answer(Abort)
+  def notImplemented(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = Success(Abort)
 
   def init(cli: Cli[CliParam[_]]) =
     for {
@@ -136,7 +137,7 @@ object BuildCli {
       config <- Config.read()(cli.env, layout)
       cli <- cli.hint(ForceArg)
       io <- cli.io()
-      force <- ~io(ForceArg).opt.isDefined
+      force <- ~io(ForceArg).toOption.isDefined
       layer <- ~Layer.empty()
       _ <- ~io.println("Initializing new build directory: ./.fury")
       _ <- layout.furyConfig.mkParents()
@@ -149,7 +150,7 @@ object BuildCli {
       _ <- ~io.println("Committed files")
     } yield io.await()
 
-  def about(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | EarlyCompletions] =
+  def about(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
     for {
       io <- cli.io()
       _ <- ~io.println(str"""|     _____ 
@@ -170,7 +171,7 @@ object BuildCli {
                              |""".stripMargin)
     } yield io.await()
 
-  def undo(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | FileNotFound | EarlyCompletions] = {
+  def undo(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = {
     import cli._
     for {
       layout <- layout
@@ -179,7 +180,7 @@ object BuildCli {
       bak <- ~path.rename { f =>
               s".$f.bak"
             }
-      _ <- if (bak.exists) Answer(bak.copyTo(path)) else Result.abort(FileNotFound(bak))
+      _ <- if (bak.exists) Success(bak.copyTo(path)) else Failure(FileNotFound(bak))
     } yield io.await()
   }
 
@@ -191,12 +192,12 @@ object BuildCli {
       schema <- layer.schemas.findBy(schemaArg)
       cli <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
+      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       io <- cli.io()
       project <- optProject.ascribe(UnspecifiedProject())
-      optModuleId <- ~io(ModuleArg).opt.orElse(project.main)
-      optModule <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
+      optModuleId <- ~io(ModuleArg).toOption.orElse(project.main)
+      optModule <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module <- optModule.ascribe(UnspecifiedModule())
       schemaTree <- schema.schemaTree(layout.pwd)
       universe <- schemaTree.universe
@@ -214,16 +215,16 @@ object BuildCli {
       schema <- layer.schemas.findBy(schemaArg)
       cli <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
-      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
+      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli <- cli.hint(WatchArg)
       cli <- cli.hint(DebugArg,
                       optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
       io <- cli.io()
-      t0 <- Answer(System.currentTimeMillis)
+      t0 <- Success(System.currentTimeMillis)
       project <- optProject.ascribe(UnspecifiedProject())
-      optModuleId <- ~io(ModuleArg).opt.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
-      optModule <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
+      optModuleId <- ~io(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
+      optModule <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module <- optModule.ascribe(UnspecifiedModule())
       schemaTree <- schema.schemaTree(layout.pwd)
       universe <- schemaTree.universe
@@ -233,7 +234,7 @@ object BuildCli {
       compilation <- universe.compilation(module.ref(project))(cli.shell, layout)
       _ <- ~compilation.checkoutAll()
       _ <- compilation.generateFiles(universe)(layout, cli.env, cli.shell)
-      debugStr <- ~io(DebugArg).opt
+      debugStr <- ~io(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
                         module.ref(project) :: artifacts.map(_.ref).to[List]))
       future <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
@@ -241,22 +242,22 @@ object BuildCli {
                             compilation.graph.mapValues(_.to[Set]),
                             multiplexer.stream(50, Some(Tick)),
                             Map())(config.theme)
-      t1 <- Answer(System.currentTimeMillis - t0)
+      t1 <- Success(System.currentTimeMillis - t0)
       _ <- ~io.println(s"Total time: ${if (t1 >= 10000) s"${t1 / 1000}s" else s"${t1}ms"}\n")
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
 
-  def getPrompt(layer: Layer, theme: Theme): Result[String, ~ | ItemNotFound] =
+  def getPrompt(layer: Layer, theme: Theme): Outcome[String] =
     for {
       schemaId <- ~layer.main
       schema <- layer.schemas.findBy(schemaId)
       schemaPart <- ~(if (layer.schemas.size == 1) "*" else schemaId.key)
       optProjectId <- ~schema.main
-      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
+      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       projectPart <- ~optProjectId.map(_.key).getOrElse("-")
       optModuleId <- ~optProject.flatMap(_.main)
       optModule <- ~optModuleId.flatMap { mId =>
-                    optProject.flatMap(_.modules.findBy(mId).opt)
+                    optProject.flatMap(_.modules.findBy(mId).toOption)
                   }
       modulePart <- ~optModuleId.map(_.key).getOrElse("-")
     } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
@@ -265,10 +266,10 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer <- ~Layer.read(layout.furyConfig)(layout).opt
+      layer <- ~Layer.read(layout.furyConfig)(layout).toOption
       msg <- layer
               .map(getPrompt(_, config.theme))
-              .getOrElse(Answer(Prompt.empty(config)(config.theme)))
+              .getOrElse(Success(Prompt.empty(config)(config.theme)))
       io <- cli.io()
       _ <- ~io.println(msg)
     } yield io.await()
@@ -281,14 +282,14 @@ object BuildCli {
       schema <- layer.schemas.findBy(schemaArg)
       cli <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
+      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli <- cli.hint(DirArg)
       io <- cli.io()
       dir <- io(DirArg)
       project <- optProject.ascribe(UnspecifiedProject())
-      optModuleId <- ~io(ModuleArg).opt.orElse(project.main)
-      optModule <- ~optModuleId.flatMap(project.modules.findBy(_).opt)
+      optModuleId <- ~io(ModuleArg).toOption.orElse(project.main)
+      optModule <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module <- optModule.ascribe(UnspecifiedModule())
       schemaTree <- schema.schemaTree(layout.pwd)
       universe <- schemaTree.universe
@@ -305,11 +306,11 @@ object BuildCli {
       schema <- layer.schemas.findBy(schemaArg)
       cli <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
+      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
       optModule <- ~optModuleId.flatMap { arg =>
-                    optProject.flatMap(_.modules.findBy(arg).opt)
+                    optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
       io <- cli.io()
       module <- optModule.ascribe(UnspecifiedModule())
@@ -330,12 +331,12 @@ object BuildCli {
       schema <- layer.schemas.findBy(schemaArg)
       cli <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).opt)
+      optProject <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       io <- cli.io()
-      optModuleId <- ~io(ModuleArg).opt.orElse(optProject.flatMap(_.main))
+      optModuleId <- ~io(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
       optModule <- ~optModuleId.flatMap { arg =>
-                    optProject.flatMap(_.modules.findBy(arg).opt)
+                    optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
       module <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
@@ -377,10 +378,10 @@ object LayerCli {
   def projects(ctx: LayerCtx) = {
     import ctx._
     for {
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      cols <- Success(Terminal.columns.getOrElse(100))
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       projects <- schema.allProjects
       table <- ~Tables(config).show(Tables(config).projects(None), cols, projects.distinct, raw)(
                   _.id)

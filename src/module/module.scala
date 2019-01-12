@@ -15,11 +15,14 @@
  */
 package fury
 
-import mitigation._
+import fury.error._
+
 import guillotine._
+import mercator._
 import Args._
 
 import scala.collection.immutable.SortedSet
+import scala.util._
 
 object ModuleCli {
 
@@ -32,7 +35,7 @@ object ModuleCli {
       optProject: Option[Project])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
     def defaultSchemaId: SchemaId = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Result[Schema, ~ | ItemNotFound] = layer.schemas.findBy(defaultSchemaId)
+    def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =
@@ -42,13 +45,13 @@ object ModuleCli {
       layer <- Layer.read(layout.furyConfig)(layout)
       cli <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
-      schema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
+      schema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
                        cli.peek(ProjectArg).orElse(s.main)
                      }
       optProject <- ~schema.flatMap { s =>
-                     optProjectId.flatMap(s.projects.findBy(_).opt)
+                     optProjectId.flatMap(s.projects.findBy(_).toOption)
                    }
     } yield new Context(cli, layout, config, layer, schema, optProject)
 
@@ -59,7 +62,7 @@ object ModuleCli {
       io <- cli.io()
       schema <- defaultSchema
       project <- optProject.ascribe(UnspecifiedProject())
-      moduleId <- ~io(ModuleArg).opt
+      moduleId <- ~io(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
       lens <- ~Lenses.layer.mainModule(schema.id, project.id)
       layer <- ~(lens(layer) = Some(moduleId))
@@ -70,11 +73,11 @@ object ModuleCli {
   def list(ctx: Context) = {
     import ctx._
     for {
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      cols <- Success(Terminal.columns.getOrElse(100))
       project <- optProject.ascribe(UnspecifiedProject())
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       rows <- ~project.modules.to[List]
       table <- ~Tables(config).show(Tables(config).modules(project.id, project.main),
                                     cols,
@@ -93,7 +96,7 @@ object ModuleCli {
     for {
       cli <- cli.hint(ModuleNameArg)
       cli <- cli.hint(CompilerArg,
-                      ModuleRef.JavaRef :: defaultSchema.opt.to[List].flatMap(_.compilerRefs))
+                      ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
       cli <- cli.hint(KindArg, Kind.all)
       optKind <- ~cli.peek(KindArg)
       cli <- optKind match {
@@ -105,17 +108,17 @@ object ModuleCli {
       project <- optProject.ascribe(UnspecifiedProject())
       moduleArg <- io(ModuleNameArg)
       moduleId <- fury.Module.available(moduleArg, project)
-      compilerId <- ~io(CompilerArg).opt
+      compilerId <- ~io(CompilerArg).toOption
       optCompilerRef <- compilerId
                          .map(ModuleRef.parse(project, _, true))
                          .to[List]
                          .sequence
                          .map(_.headOption)
       module <- ~fury.Module(moduleId, compiler = optCompilerRef.getOrElse(ModuleRef.JavaRef))
-      module <- ~io(KindArg).opt.map { k =>
+      module <- ~io(KindArg).toOption.map { k =>
                  module.copy(kind = k)
                }.getOrElse(module)
-      module <- ~io(MainArg).opt.map { m =>
+      module <- ~io(MainArg).toOption.map { m =>
                  module.copy(main = if (m == "") None else Some(m))
                }.getOrElse(module)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.modules(_, project.id)) {
@@ -136,10 +139,10 @@ object ModuleCli {
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       schema <- defaultSchema
-      cli <- cli.hint(CompilerArg, defaultSchema.opt.to[List].flatMap(_.compilerRefs))
+      cli <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
       cli <- cli.hint(ForceArg)
       io <- cli.io()
-      force <- ~io(ForceArg).successful
+      force <- ~io(ForceArg).isSuccess
       moduleId <- io(ModuleArg)
       project <- optProject.ascribe(UnspecifiedProject())
       module <- project.modules.findBy(moduleId)
@@ -161,14 +164,14 @@ object ModuleCli {
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli <- cli.hint(CompilerArg,
-                      ModuleRef.JavaRef :: defaultSchema.opt.to[List].flatMap(_.compilerRefs))
+                      ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
       cli <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-      optModule <- Answer {
+      optModule <- Success {
                     for {
                       project <- optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).opt
+                      module <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
       cli <- cli.hint(ModuleNameArg, optModuleId.to[List])
@@ -183,7 +186,7 @@ object ModuleCli {
             }
       cli <- cli.hint(ForceArg)
       io <- cli.io()
-      compilerId <- ~io(CompilerArg).opt
+      compilerId <- ~io(CompilerArg).toOption
       project <- optProject.ascribe(UnspecifiedProject())
       module <- optModule.ascribe(UnspecifiedModule())
       compilerRef <- compilerId
@@ -192,11 +195,11 @@ object ModuleCli {
                       .sequence
                       .map(_.headOption.getOrElse(module.compiler))
       kind <- ~optKind.getOrElse(module.kind)
-      mainClass <- ~io(MainArg).opt
-      nameArg <- ~io(ModuleNameArg).opt
-      newId <- ~nameArg.flatMap(project.unused(_).opt).getOrElse(module.id)
-      bloopSpec <- io(BloopSpecArg).opt.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
-      force <- ~io(ForceArg).successful
+      mainClass <- ~io(MainArg).toOption
+      nameArg <- ~io(ModuleNameArg).toOption
+      newId <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
+      bloopSpec <- io(BloopSpecArg).toOption.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
+      force <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.moduleKind(_, project.id, module.id))(_(_) = kind)
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
@@ -221,11 +224,11 @@ object BinaryCli {
       ctx <- ModuleCli.context(cli)
       cli <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
       optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
-      optModule <- Answer {
+      optModule <- Success {
                     for {
                       project <- ctx.optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).opt
+                      module <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
     } yield BinariesCtx(ctx, optModule)
@@ -235,10 +238,10 @@ object BinaryCli {
     for {
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module <- optModule.ascribe(UnspecifiedModule())
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      cols <- Success(Terminal.columns.getOrElse(100))
       rows <- ~module.binaries.to[List]
       schema <- defaultSchema
       table <- ~Tables(config).show(Tables(config).binaries, cols, rows, raw)(identity)
@@ -260,7 +263,7 @@ object BinaryCli {
       module <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
       binaryToDel <- ~module.binaries.find(_.spec == binaryArg)
-      force <- ~io(ForceArg).successful
+      force <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
       _ <- ~io.save(layer, layout.furyConfig)
@@ -276,7 +279,7 @@ object BinaryCli {
       module <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
       binaryArg <- io(BinaryArg)
-      repoId <- ~io(BinaryRepoArg).opt.getOrElse(BinRepoId.Central)
+      repoId <- ~io(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
       binary <- Binary.unapply(repoId, binaryArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
@@ -294,11 +297,11 @@ object ParamCli {
       ctx <- ModuleCli.context(cli)
       cli <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
       optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
-      optModule <- Answer {
+      optModule <- Success {
                     for {
                       project <- ctx.optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).opt
+                      module <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
     } yield ParamCtx(ctx, optModule)
@@ -308,10 +311,10 @@ object ParamCli {
     for {
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module <- optModule.ascribe(UnspecifiedModule())
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      cols <- Success(Terminal.columns.getOrElse(100))
       rows <- ~module.params.to[List]
       table <- ~Tables(config).show(Tables(config).params, cols, rows, raw)(_.name)
       schema <- defaultSchema
@@ -332,7 +335,7 @@ object ParamCli {
       paramArg <- io(ParamArg)
       module <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
-      force <- ~io(ForceArg).successful
+      force <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
       _ <- ~io.save(layer, layout.furyConfig)

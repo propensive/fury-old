@@ -15,7 +15,6 @@
  */
 package fury.tests
 
-import mitigation._
 import probation._
 import guillotine._, environments.enclosing
 import impromptu._, scala.concurrent.ExecutionContext.Implicits.global
@@ -31,7 +30,7 @@ object Tests extends TestApp {
     }
 
     val container = Async.after(rebuild) { implicit env =>
-      test("start container") { Docker.start() }.assert(_.successful)
+      test("start container") { Docker.start() }.assert(_.isRight)
     }
 
     val initAlpha = Async.after(container) { implicit env =>
@@ -41,7 +40,7 @@ object Tests extends TestApp {
           out <- ~container.alpha.run(sh"fury init -p pname")
           checksum <- ~container.alpha.run(sh"md5sum layer.fury")
         } yield checksum.take(32)
-      }.assert(_ == Answer("d41d8cd98f00b204e9800998ecf8427e"))
+      }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
     }
 
     val initBeta = Async.after(container) { implicit env =>
@@ -51,7 +50,7 @@ object Tests extends TestApp {
           out <- ~container.beta.run(sh"fury init -p pname")
           checksum <- ~container.beta.run(sh"md5sum layer.fury")
         } yield checksum.take(32)
-      }.assert(_ == Answer("d41d8cd98f00b204e9800998ecf8427e"))
+      }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
     }
 
     Async
@@ -62,7 +61,7 @@ object Tests extends TestApp {
             _ <- container.stop()
             _ <- Docker.prune()
           } yield ()
-        }.assert(_.successful)
+        }.assert(_.isRight)
       }
       .await()
       .unit

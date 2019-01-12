@@ -15,9 +15,12 @@
  */
 package fury
 
-import mitigation._
+import fury.error._
+
 import guillotine._
+import mercator._
 import Args._
+import scala.util._
 
 object SourceCli {
 
@@ -31,7 +34,7 @@ object SourceCli {
       optModule: Option[Module])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
     def defaultSchemaId: SchemaId = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Result[Schema, ~ | ItemNotFound] = layer.schemas.findBy(defaultSchemaId)
+    def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =
@@ -41,21 +44,21 @@ object SourceCli {
       layer <- Layer.read(layout.furyConfig)(layout)
       cli <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
-      schema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).opt
+      schema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
                        cli.peek(ProjectArg).orElse(s.main)
                      }
       optProject <- ~schema.flatMap { s =>
-                     optProjectId.flatMap(s.projects.findBy(_).opt)
+                     optProjectId.flatMap(s.projects.findBy(_).toOption)
                    }
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-      optModule <- Answer {
+      optModule <- Success {
                     for {
                       project <- optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).opt
+                      module <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
     } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
@@ -65,10 +68,10 @@ object SourceCli {
     for {
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       module <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
-      cols <- Answer(Terminal.columns.getOrElse(100))
+      cols <- Success(Terminal.columns.getOrElse(100))
       rows <- ~module.sources.to[List]
       table <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoIdentifier)
       schema <- defaultSchema
@@ -91,7 +94,7 @@ object SourceCli {
       module <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
       sourceToDel <- ~module.sources.find(Some(_) == source)
-      force <- ~io(ForceArg).successful
+      force <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
       _ <- ~io.save(layer, layout.furyConfig)

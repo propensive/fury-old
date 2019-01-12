@@ -15,10 +15,13 @@
  */
 package fury
 
+import fury.error._
+
 import Args._
 
-import mitigation._
 import guillotine._
+import mercator._
+import scala.util._
 
 object RepoCli {
 
@@ -35,11 +38,11 @@ object RepoCli {
     import ctx._
     for {
       cli <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
-      cols <- Answer(Terminal.columns(cli.env).getOrElse(100))
+      cols <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
-      schemaArg <- io(SchemaArg).remedy(ctx.layer.main)
+      raw <- ~io(RawArg).isSuccess
+      schemaArg <- ~io(SchemaArg).toOption.getOrElse(ctx.layer.main)
       schema <- ctx.layer.schemas.findBy(schemaArg)
       rows <- ~schema.repos.to[List].sortBy(_.id)
       table <- ~Tables(config).show(Tables(config).repositories(ctx.layout, cli.shell),
@@ -67,7 +70,7 @@ object RepoCli {
       repoId <- io(RepoIdArg)
       repo <- schema.repos.findBy(repoId)
       dir <- io(DirArg)
-      retry <- ~io(RetryArg).successful
+      retry <- ~io(RetryArg).isSuccess
       bareRepo <- repo.repo.fetch(layout, cli.shell)
       _ <- ~cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id)
       newRepo <- ~repo.copy(local = Some(dir))
@@ -86,8 +89,8 @@ object RepoCli {
       cli <- cli.hint(RepoIdArg, schema.repos)
       cli <- cli.hint(AllArg, Nil)
       io <- cli.io()
-      all <- ~io(AllArg).opt
-      optRepos <- io(RepoIdArg).opt
+      all <- ~io(AllArg).toOption
+      optRepos <- io(RepoIdArg).toOption
                    .map(scala.collection.immutable.SortedSet(_))
                    .orElse(all.map(_ => schema.repos.map(_.id)))
                    .ascribe(exoskeleton.MissingArg("repo"))
@@ -105,25 +108,25 @@ object RepoCli {
       cli <- cli.hint(DirArg)
       cli <- cli.hint(RetryArg)
       cli <- cli.hint(ImportArg2)
-      projectNameOpt <- ~cli.peek(RepoArg).map(fury.Repo.fromString).flatMap(_.projectName.opt)
+      projectNameOpt <- ~cli.peek(RepoArg).map(fury.Repo.fromString).flatMap(_.projectName.toOption)
       cli <- cli.hint(RepoNameArg, projectNameOpt)
       cli <- cli.hint(VersionArg)
       io <- cli.io()
-      optImport <- ~io(ImportArg2).opt
-      optSchemaArg <- ~io(SchemaArg).opt
+      optImport <- ~io(ImportArg2).toOption
+      optSchemaArg <- ~io(SchemaArg).toOption
       schemaArg <- ~optSchemaArg.getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaArg)
-      remote <- ~io(RepoArg).opt
-      retry <- ~io(RetryArg).successful
-      dir <- ~io(DirArg).opt
-      version <- ~io(VersionArg).opt.getOrElse(RefSpec.master)
+      remote <- ~io(RepoArg).toOption
+      retry <- ~io(RetryArg).isSuccess
+      dir <- ~io(DirArg).toOption
+      version <- ~io(VersionArg).toOption.getOrElse(RefSpec.master)
       repo <- ~remote.map(fury.Repo.fromString(_))
-      suggested <- (repo.flatMap(_.projectName.opt): Option[RepoId])
+      suggested <- (repo.flatMap(_.projectName.toOption): Option[RepoId])
                     .orElse(dir.map { d =>
                       RepoId(d.value.split("/").last)
                     })
                     .ascribe(exoskeleton.MissingArg("repo"))
-      nameArg <- ~io(RepoNameArg).opt.getOrElse(suggested)
+      nameArg <- ~io(RepoNameArg).toOption.getOrElse(suggested)
       sourceRepo <- repo
                      .map(SourceRepo(nameArg, _, version, dir))
                      .orElse(dir.map { d =>
@@ -150,8 +153,8 @@ object RepoCli {
       schema <- layer.schemas.findBy(schemaArg)
       cli <- cli.hint(RepoIdArg, schema.repos)
       io <- cli.io()
-      repoId <- io(RepoIdArg).opt.ascribe(UnspecifiedRepo())
-      all <- ~io(AllArg).successful
+      repoId <- io(RepoIdArg).toOption.ascribe(UnspecifiedRepo())
+      all <- ~io(AllArg).isSuccess
       repos <- if (all) ~schema.repos else schema.repos.findBy(repoId)
     } yield io.await()
   }

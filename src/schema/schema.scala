@@ -15,10 +15,12 @@
  */
 package fury
 
+import fury.error._
+
 import Args._
 
-import mitigation._
 import guillotine._
+import scala.util._
 
 case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
 
@@ -49,10 +51,10 @@ object SchemaCli {
       cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaArg)
-      cols <- Answer(Terminal.columns(cli.env).getOrElse(100))
+      cols <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
+      raw <- ~io(RawArg).isSuccess
       rows <- ~layer.schemas.to[List]
       table <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
@@ -70,12 +72,12 @@ object SchemaCli {
       cli <- ctx.cli.hint(CompareArg, ctx.layer.schemas.map(_.id))
       cli <- cli.hint(RawArg)
       io <- cli.io()
-      raw <- ~io(RawArg).successful
-      schemaArg <- io(SchemaArg).remedy(layer.main)
+      raw <- ~io(RawArg).isSuccess
+      schemaArg <- ~io(SchemaArg).toOption.getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaArg)
       otherArg <- io(CompareArg)
       other <- layer.schemas.findBy(otherArg)
-      cols <- Answer(Terminal.columns(cli.env).getOrElse(100))
+      cols <- Success(Terminal.columns(cli.env).getOrElse(100))
       rows <- ~Diff.gen[Schema].diff(schema, other)
       table <- ~Tables(config).show(Tables(config).differences(schema.id.key, other.id.key),
                                     cols,
@@ -96,7 +98,7 @@ object SchemaCli {
       cli <- cli.hint(SchemaNameArg)
       io <- cli.io()
       name <- io(SchemaNameArg)
-      schemaId <- io(SchemaArg).remedy(layer.main)
+      schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaId)
       newSchema <- ~schema.copy(id = name)
       lens <- ~Lenses.layer.schemas
@@ -113,7 +115,7 @@ object SchemaCli {
       cli <- cli.hint(SchemaNameArg)
       io <- cli.io()
       name <- io(SchemaNameArg)
-      schemaId <- io(SchemaArg).remedy(layer.main)
+      schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaId)
       newSchema <- ~schema.copy(id = name)
       lens <- ~Lenses.layer.schemas
@@ -128,7 +130,7 @@ object SchemaCli {
     for {
       cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       io <- cli.io()
-      schemaId <- io(SchemaArg).remedy(layer.main)
+      schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaId)
       lens <- ~Lenses.layer.schemas
       layer <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))

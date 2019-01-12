@@ -15,7 +15,7 @@
  */
 package fury
 
-import mitigation._
+import fury.error._
 
 object Resolver {
   implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id
@@ -31,6 +31,6 @@ class ResolverExt[T](items: Traversable[T]) {
   def findBy[I <: Key: MsgShow](
       id: I
     )(implicit resolver: Resolver[T, I]
-    ): Result[T, ~ | ItemNotFound] =
+    ): Outcome[T] =
     items.find(resolver.matchOn(id, _)).ascribe(ItemNotFound(id))
 }

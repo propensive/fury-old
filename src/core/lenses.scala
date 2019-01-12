@@ -15,9 +15,12 @@
  */
 package fury
 
+import fury.error._
+
 import optometry._
-import mitigation._
 import scala.collection.immutable.SortedSet
+
+import scala.util._
 
 object Lenses {
 
@@ -27,14 +30,14 @@ object Lenses {
       force: Boolean
     )(lens: SchemaId => Lens[Layer, A, A]
     )(modify: (Lens[Layer, A, A], Layer) => Layer
-    ): Result[Layer, ~ | SchemaDifferences] = {
+    ): Outcome[Layer] = {
     val lenses = schemaId match {
       case Some(schemaId) => List(lens(schemaId))
       case None           => layer.schemas.map(_.id).to[List].map(lens(_))
     }
 
-    for (lenses <- if (force || lenses.map(_(layer)).to[Set].size == 1) Answer(lenses)
-                  else Result.abort(SchemaDifferences()))
+    for (lenses <- if (force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
+                  else Failure(SchemaDifferences()))
       yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
   }
 

@@ -15,12 +15,13 @@
  */
 package fury
 
-import mitigation._
+import fury.error._
+import scala.util._
 
 object FuryMenu {
 
   def menu(aliases: List[Action[Cli[CliParam[_]]]]): Menu[Cli[CliParam[_]], _] =
-    Menu('main, "main menu", (x: Cli[CliParam[_]]) => Answer(x), 'build)((List(
+    Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)((List(
         Action('about, msg"about Fury", BuildCli.about),
         Menu('alias, msg"view and edit command aliases", AliasCli.context, 'list)(
             Action('add, msg"add a command alias to the layer", AliasCli.add),
@@ -106,7 +107,7 @@ object FuryMenu {
         )
     ) ::: aliases): _*)
 
-  def help(cli: Cli[CliParam[_]]): Result[ExitStatus, ~ | EarlyCompletions] =
+  def help(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
     for {
       io <- cli.io()
       _ <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
