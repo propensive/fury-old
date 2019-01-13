@@ -616,7 +616,6 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
     } yield workingDir
 
   private def checkout(implicit shell: Shell, layout: Layout): Outcome[Path] =
-
     if (!(path / ".done").exists) {
 
       if (path.exists()) {
