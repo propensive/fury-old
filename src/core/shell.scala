@@ -27,8 +27,16 @@ case class Shell()(implicit env: Environment) {
 
   val environment: Environment = env
 
-  def runJava(classpath: List[String], main: String)(output: String => Unit): Running =
+  def runJava(
+      classpath: List[String],
+      main: String
+    )(output: String => Unit
+    )(implicit layout: Layout
+    ): Running = {
+    layout.sharedDir.mkdir()
+    implicit val env = environment.append("SHARED", layout.sharedDir.value)
     sh"java -cp ${classpath.mkString(":")} $main".async(output(_), output(_))
+  }
 
   object git {
 
