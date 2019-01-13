@@ -140,7 +140,7 @@ case class Module(
   def sharedSources: SortedSet[SharedSource] = sources.collect {
     case src: SharedSource => src
   }
-  
+
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
 }
 
@@ -494,8 +494,9 @@ object Alias {
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
 case class Layer(
-    schemas: SortedSet[Schema],
-    main: SchemaId,
+    version: Int = Layer.CurrentVersion,
+    schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
+    main: SchemaId = SchemaId.default,
     aliases: SortedSet[Alias] = TreeSet()) { layer =>
 
   def mainSchema: Outcome[Schema] = schemas.findBy(main)
@@ -509,10 +510,10 @@ case class Layer(
 }
 
 object Layer {
-  def empty() = Layer(SortedSet(Schema(SchemaId.default)), SchemaId.default)
+  val CurrentVersion = 1
 
   def read(file: Path)(implicit layout: Layout): Outcome[Layer] =
-    Success(Ogdl.read[Layer](file).toOption.getOrElse(Layer.empty()))
+    Success(Ogdl.read[Layer](file).toOption.getOrElse(Layer()))
 }
 
 object ModuleRef {
@@ -791,6 +792,7 @@ case class Artifact(
     intransitive: Boolean,
     localSources: List[Path],
     sharedSources: List[Path]) {
+
   def hash: Digest =
     (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
 
