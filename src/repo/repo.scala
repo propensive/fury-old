@@ -110,7 +110,10 @@ object RepoCli {
       cli <- cli.hint(ImportArg2)
       projectNameOpt <- ~cli.peek(RepoArg).map(fury.Repo.fromString).flatMap(_.projectName.toOption)
       cli <- cli.hint(RepoNameArg, projectNameOpt)
-      cli <- cli.hint(VersionArg)
+      remoteOpt <- ~cli.peek(RepoArg)
+      repoOpt <- ~remoteOpt.map(fury.Repo.fromString(_))
+      versions <- repoOpt.map { repo => cli.shell.git.lsRemote(repo.url) }.to[List].sequence.map(_.flatten).recover { case e => Nil }
+      cli <- cli.hint(VersionArg, versions)
       io <- cli.io()
       optImport <- ~io(ImportArg2).toOption
       optSchemaArg <- ~io(SchemaArg).toOption
