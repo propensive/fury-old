@@ -494,8 +494,9 @@ object Alias {
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
 case class Layer(
-    schemas: SortedSet[Schema],
-    main: SchemaId,
+    version: Int = Layer.CurrentVersion,
+    schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
+    main: SchemaId = SchemaId.default,
     aliases: SortedSet[Alias] = TreeSet()) { layer =>
 
   def mainSchema: Outcome[Schema] = schemas.findBy(main)
@@ -509,10 +510,10 @@ case class Layer(
 }
 
 object Layer {
-  def empty() = Layer(SortedSet(Schema(SchemaId.default)), SchemaId.default)
+  val CurrentVersion = 1
 
   def read(file: Path)(implicit layout: Layout): Outcome[Layer] =
-    Success(Ogdl.read[Layer](file).toOption.getOrElse(Layer.empty()))
+    Success(Ogdl.read[Layer](file).toOption.getOrElse(Layer()))
 }
 
 object ModuleRef {

@@ -138,7 +138,7 @@ object BuildCli {
       cli <- cli.hint(ForceArg)
       io <- cli.io()
       force <- ~io(ForceArg).toOption.isDefined
-      layer <- ~Layer.empty()
+      layer <- ~Layer()
       _ <- ~io.println("Initializing new build directory: ./.fury")
       _ <- layout.furyConfig.mkParents()
       _ <- ~io.save(layer, layout.furyConfig)
