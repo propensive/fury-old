@@ -83,7 +83,7 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def delete(ctx: MenuContext) = {
+  def remove(ctx: MenuContext) = {
     import ctx._
     for {
       dSchema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))

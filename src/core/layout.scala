@@ -28,7 +28,7 @@ case class Layout(home: Path, pwd: Path) {
   lazy val runLogDir: Path = furyDir / "log"
   lazy val reposDir: Path = furyDir / "repos"
   lazy val srcsDir: Path = furyDir / "sources"
-  lazy val tmpDir: Path = furyDir / "tmp"
+  lazy val sharedDir: Path = furyDir / "shared"
   lazy val errorLogfile: Path = pwd / ".fury.log"
   lazy val userConfig: Path = home / ".fury.conf"
   lazy val logFile: Path = furyDir / "fury.log"

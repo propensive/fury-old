@@ -21,6 +21,7 @@ package fury.io
 import fury._, error._
 
 import java.io.FileNotFoundException
+import java.io.FileOutputStream
 import java.nio.file.{Files, Paths, Path => JPath}
 import java.util.zip.ZipFile
 
@@ -73,6 +74,11 @@ case class Path(value: String) {
         }
         .sum
     }.getOrElse(0)
+
+  def touch(): Outcome[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
+    if (!exists()) new java.io.FileOutputStream(javaPath.toFile).close()
+    else javaPath.toFile.setLastModified(System.currentTimeMillis())
+  }
 
   def describe(pred: String => Boolean): String = {
     val size = fileSize(pred)

@@ -136,6 +136,10 @@ case class Module(
   def externalSources: SortedSet[ExternalSource] = sources.collect {
     case src: ExternalSource => src
   }
+
+  def sharedSources: SortedSet[SharedSource] = sources.collect {
+    case src: SharedSource => src
+  }
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
 }
 
@@ -213,7 +217,8 @@ case class Universe(
           module.bloopSpec,
           module.params.map(_.name).to[List],
           ref.intransitive,
-          module.localSources.map(_ in dir).to[List]
+          module.localSources.map(_ in dir).to[List],
+          module.sharedSources.map(_.path in layout.sharedDir).to[List]
       )
 
   def checkout(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Checkout]] =
@@ -610,7 +615,15 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
     } yield workingDir
 
   private def checkout(implicit shell: Shell, layout: Layout): Outcome[Path] =
-    if (!path.exists) {
+
+    if (!(path / ".done").exists) {
+
+      if (path.exists()) {
+        println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources"
+        else sources.map(_.value).mkString("[", ", ", "]")}.")
+        path.delete()
+      }
+
       println(s"Checking out ${if (sources.isEmpty) "all sources"
       else sources.map(_.value).mkString("[", ", ", "]")}.")
       path.mkdir()
@@ -699,8 +712,15 @@ case class Repo(url: String) {
     } yield msg
 
   def fetch(implicit layout: Layout, shell: Shell): Outcome[Path] =
-    if (!path.exists) {
-      println(s"Fetching Git repository $url.")
+
+    if (!(path / ".done").exists) {
+      if (path.exists()) {
+        println(s"Found incomplete clone of $url.")
+        path.delete()
+      }
+
+      println(s"Cloning Git repository $url.")
+
       path.mkdir()
       shell.git.cloneBare(url, path).map { _ =>
         path
@@ -771,7 +791,8 @@ case class Artifact(
     bloopSpec: Option[BloopSpec],
     params: List[String],
     intransitive: Boolean,
-    localSources: List[Path]) {
+    localSources: List[Path],
+    sharedSources: List[Path]) {
 
   def hash: Digest =
     (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
@@ -786,7 +807,7 @@ case class Artifact(
   }
 
   def sourcePaths(implicit layout: Layout): List[Path] =
-    localSources ++ checkouts.flatMap { c =>
+    localSources ++ sharedSources ++ checkouts.flatMap { c =>
       if (c.local) c.sources.map(_ in layout.pwd) else c.sources.map(_ in c.path)
     }
 
@@ -896,11 +917,15 @@ object Source {
       v match {
         case ExternalSource(repoId, path) =>
           msg"${theme.repo(repoId.key)}${theme.gray(":")}${theme.path(path.value)}".string(theme)
+        case SharedSource(path) =>
+          msg"${theme.repo("shared")}${theme.gray(":")}${theme.path(path.value)}".string(theme)
         case LocalSource(path) => msg"${theme.path(path.value)}".string(theme)
       }
     }
 
   def unapply(string: String): Option[Source] = string match {
+    case r"shared:$path@(.*)" =>
+      Some(SharedSource(Path(path)))
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$path@(.*)" =>
       Some(ExternalSource(RepoId(repo), Path(path)))
     case r"$path@(.*)" => Some(LocalSource(Path(path)))
@@ -931,6 +956,15 @@ case class ExternalSource(repoId: RepoId, path: Path) extends Source {
     schema.repo(repoId).map((path, _).digest[Md5])
 
   def repoIdentifier: RepoId = repoId
+}
+
+case class SharedSource(path: Path) extends Source {
+  def description: String = str"shared:${path.value}"
+
+  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest] =
+    Success((-2, path).digest[Md5])
+
+  def repoIdentifier: RepoId = RepoId("-")
 }
 
 case class LocalSource(path: Path) extends Source {
