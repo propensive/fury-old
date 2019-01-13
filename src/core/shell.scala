@@ -22,6 +22,7 @@ import guillotine._
 import kaleidoscope._
 
 import scala.util._
+import scala.collection.mutable.HashMap
 
 case class Shell()(implicit env: Environment) {
 
@@ -86,6 +87,9 @@ case class Shell()(implicit env: Environment) {
         string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Outcome[String]]
         files <- ~string.split("\n").to[List].map(Path(_))
       } yield files
+    
+    def lsRemote(url: String): Outcome[List[String]] =
+      Cached.lsRemote.getOrElseUpdate(url, sh"git ls-remote --tags --heads $url".exec[Outcome[String]].map(_.split("\n").to[List].map(_.split("/").last)))
 
     def checkout(dir: Path, commit: String): Outcome[String] =
       sh"git -C ${dir.value} checkout $commit".exec[Outcome[String]].map { out =>
@@ -201,4 +205,8 @@ case class Shell()(implicit env: Environment) {
         output <- sh"gpg --list-secret-keys".exec[Outcome[String]]
       } yield output.split("\n").to[List].collect { case r"uid.*<$key@([^>]+)>.*" => key }
   }
+}
+
+object Cached {
+  val lsRemote: HashMap[String, Outcome[List[String]]] = new HashMap()
 }

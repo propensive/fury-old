@@ -161,7 +161,7 @@ case class Cli[+Hinted <: CliParam[_]](
   def defaultTo(defaultCmd: Cmd) = copy(args = args + defaultCmd.cmd)
 
   def abort(msg: UserMsg): ExitStatus = {
-    write(msg)
+    if(!completion) write(msg)
     Abort
   }
 
