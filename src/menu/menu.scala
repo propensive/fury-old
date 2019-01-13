@@ -55,7 +55,6 @@ object FuryMenu {
             Action('remove, msg"remove a previously imported schema", ImportCli.remove),
             Action('list, msg"list imported schemas", ImportCli.list)
         ),
-        Action('init, msg"initialize a new Fury layer", BuildCli.init),
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
             Action('remove, msg"remove a module from the project", ModuleCli.remove),
@@ -102,6 +101,7 @@ object FuryMenu {
         ),
         Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", LayerCli.context, 'describe)(
+            Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('projects, msg"show all available projects", LayerCli.projects),
             Action('publish, msg"publish the layer to git", LayerCli.publish)
         )
