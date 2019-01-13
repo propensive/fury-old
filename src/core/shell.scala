@@ -27,8 +27,16 @@ case class Shell()(implicit env: Environment) {
 
   val environment: Environment = env
 
-  def runJava(classpath: List[String], main: String)(output: String => Unit): Running =
+  def runJava(
+      classpath: List[String],
+      main: String
+    )(output: String => Unit
+    )(implicit layout: Layout
+    ): Running = {
+    layout.sharedDir.mkdir()
+    implicit val env = environment.append("SHARED", layout.sharedDir.value)
     sh"java -cp ${classpath.mkString(":")} $main".async(output(_), output(_))
+  }
 
   object git {
 
@@ -37,6 +45,7 @@ case class Shell()(implicit env: Environment) {
 
     def clone(repo: Repo, dir: Path): Outcome[String] = {
       implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+
       sh"git clone ${repo.url} ${dir.value}".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
         out
@@ -45,6 +54,7 @@ case class Shell()(implicit env: Environment) {
 
     def cloneBare(url: String, dir: Path): Outcome[String] = {
       implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+
       sh"git clone --bare $url ${dir.value}".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
         out
@@ -69,6 +79,7 @@ case class Shell()(implicit env: Environment) {
         _ <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Outcome[String]]
         str <- sh"git -C ${dir.value} pull origin $commit".exec[Outcome[String]]
         _ <- ~(dir / ".done").touch()
+
       } yield str
 
     def lsTree(dir: Path, commit: String): Outcome[List[Path]] =

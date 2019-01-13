@@ -134,7 +134,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def delete(ctx: Context) = {
+  def remove(ctx: Context) = {
     import ctx._
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -257,7 +257,7 @@ object BinaryCli {
     } yield io.await()
   }
 
-  def delete(ctx: BinariesCtx) = {
+  def remove(ctx: BinariesCtx) = {
     import ctx._, moduleCtx._
     for {
       cli <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
@@ -330,7 +330,7 @@ object ParamCli {
     } yield io.await()
   }
 
-  def delete(ctx: ParamCtx) = {
+  def remove(ctx: ParamCtx) = {
     import ctx._, moduleCtx._
     for {
       cli <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))

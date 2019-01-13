@@ -83,7 +83,7 @@ object SourceCli {
     } yield io.await()
   }
 
-  def delete(ctx: Context) = {
+  def remove(ctx: Context) = {
     import ctx._
     for {
       cli <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
