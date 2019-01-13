@@ -140,7 +140,7 @@ case class Module(
   def sharedSources: SortedSet[SharedSource] = sources.collect {
     case src: SharedSource => src
   }
-  
+
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
 }
 
@@ -792,6 +792,7 @@ case class Artifact(
     intransitive: Boolean,
     localSources: List[Path],
     sharedSources: List[Path]) {
+
   def hash: Digest =
     (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
 
