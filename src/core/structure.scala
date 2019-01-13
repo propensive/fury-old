@@ -12,7 +12,7 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
- */
+                                                                                                  */
 package fury
 
 import exoskeleton._
@@ -26,43 +26,40 @@ sealed trait MenuStructure[T] {
   def show: Boolean
 }
 
-case class Action[T](
-    command: Symbol,
-    description: UserMsg,
-    action: T => Result[
-        ExitStatus,
-        ~ | FileWriteError | FileNotFound | MissingArg | UnknownCommand | UnknownCompiler | ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict],
-    show: Boolean = true)
-    extends MenuStructure[T]
+case class Action[T](command: Symbol, description: UserMsg, action: T => Result[ExitStatus, ~ |
+                    FileWriteError |
+                    FileNotFound | MissingArg | UnknownCommand | UnknownCompiler | ItemNotFound |
+                    UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError |
+                    ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized |
+                    InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict], show: Boolean = true) extends MenuStructure[T]
 
-case class Menu[T, S](
-    command: Symbol,
-    description: UserMsg,
-    action: T => Result[
-        S,
-        ~ | FileWriteError | FileNotFound | MissingArg | UnknownCommand | UnknownCompiler | ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict],
-    default: Symbol,
-    show: Boolean = true
-  )(val items: MenuStructure[S]*)
-    extends MenuStructure[T] {
+case class Menu[T, S](command: Symbol, description: UserMsg, action: T => Result[S, ~ |
+                         FileWriteError | FileNotFound | MissingArg |
+                         UnknownCommand | UnknownCompiler | ItemNotFound | UnspecifiedProject |
+                         UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure |
+                         ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized |
+                         InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict], default: Symbol, show: Boolean = true)
+                     (val items: MenuStructure[S]*)
+                     extends MenuStructure[T] {
 
-  def apply(cli: Cli[CliParam[_]], ctx: T): Result[
-      ExitStatus,
-      ~ | UnknownCommand | FileWriteError | MissingArg | FileNotFound | UnknownCompiler | ItemNotFound | UnspecifiedProject | UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure | ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue | InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict] =
+  def apply(cli: Cli[CliParam[_]], ctx: T)
+           : Result[ExitStatus, ~ | UnknownCommand | FileWriteError | MissingArg |
+               FileNotFound | UnknownCompiler | ItemNotFound | UnspecifiedProject |
+               UnspecifiedModule | InvalidArgValue | ConfigFormatError | ShellFailure |
+               ModuleAlreadyExists | ProjectAlreadyExists | AlreadyInitialized | InvalidValue |
+               InitFailure | SchemaDifferences | EarlyCompletions | ProjectConflict] =
     cli.args.prefix.headOption match {
       case None =>
-        if (cli.completion) cli.completeCommand(this)
+        if(cli.completion) cli.completeCommand(this)
         else apply(cli.prefix(default.name), ctx)
-      case Some(next) =>
-        items.find(_.command.name == next.value) match {
-          case None =>
-            if (cli.completion) cli.completeCommand(this)
-            else Result.abort(UnknownCommand(next.value))
-          case Some(item @ Menu(_, _, _, _, _)) =>
-            action(ctx).flatMap(item(cli.tail, _))
-          case Some(item @ Action(_, _, _, _)) =>
-            action(ctx).flatMap(item.action)
-        }
+      case Some(next) => items.find(_.command.name == next.value) match {
+        case None =>
+          if(cli.completion) cli.completeCommand(this) else Result.abort(UnknownCommand(next.value))
+        case Some(item@Menu(_, _, _, _, _)) =>
+          action(ctx).flatMap(item(cli.tail, _))
+        case Some(item@Action(_, _, _, _)) =>
+          action(ctx).flatMap(item.action)
+      }
     }
 
   def reference(implicit theme: Theme): Seq[String] = {
@@ -73,7 +70,8 @@ case class Menu[T, S](
         List(msg"  ${item.command.name.padTo(width, ' ')} ${item.description}".string(theme))
       case item: Menu[_, _] =>
         "" +: msg"  ${item.command.name.padTo(width, ' ')} ${item.description}".string(theme) +:
-          item.reference.map("  " + _)
+            item.reference.map("  "+_)
     }
   }
 }
+

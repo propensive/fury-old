@@ -12,16 +12,12 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
- */
+                                                                                                  */
 package fury
 
 import guillotine._
 
-class MenuContext(
-    val cli: Cli[CliParam[_]],
-    val layout: Layout,
-    val config: Config,
-    val layer: Layer,
+class MenuContext(val cli: Cli[CliParam[_]], val layout: Layout, val config: Config, val layer: Layer,
     val optSchemaId: Option[SchemaId] = None) {
   implicit def implicitLayout: Layout = layout
   implicit def implicitShell: Shell = cli.shell
