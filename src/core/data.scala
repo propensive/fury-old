@@ -615,6 +615,7 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
     } yield workingDir
 
   private def checkout(implicit shell: Shell, layout: Layout): Outcome[Path] =
+
     if (!(path / ".done").exists) {
 
       if (path.exists()) {
@@ -711,6 +712,7 @@ case class Repo(url: String) {
     } yield msg
 
   def fetch(implicit layout: Layout, shell: Shell): Outcome[Path] =
+
     if (!(path / ".done").exists) {
       if (path.exists()) {
         println(s"Found incomplete clone of $url.")
@@ -718,6 +720,7 @@ case class Repo(url: String) {
       }
 
       println(s"Cloning Git repository $url.")
+
       path.mkdir()
       shell.git.cloneBare(url, path).map { _ =>
         path
