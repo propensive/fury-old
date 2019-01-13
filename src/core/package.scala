@@ -41,7 +41,7 @@ object `package` {
   implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] =
     xs =>
       UserMsg { theme =>
-        xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join(" ")
+        xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n")
       }
 
   implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
