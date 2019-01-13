@@ -12,7 +12,7 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
- */
+                                                                                                  */
 package fury
 
 import fury.io.Path
@@ -33,9 +33,9 @@ case class ProjectConflict(ids: Set[ProjectId]) extends Exception
 case class SchemaDifferences() extends Exception
 
 object ItemNotFound {
-
   def apply[K <: Key: MsgShow](key: K): ItemNotFound =
     ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
 
 case class ItemNotFound(item: UserMsg, kind: UserMsg) extends Exception
+

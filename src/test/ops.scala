@@ -12,7 +12,7 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
- */
+                                                                                                  */
 package fury.tests
 
 import mitigation._
@@ -22,14 +22,11 @@ sealed trait Op[-E <: Exception]
 
 case class Container(id: String) {
   case class Dir(dir: String) {
-
     def run(cmd: Command): String = {
       val shellCmd = sh"docker exec --workdir $dir $id sh -c ${cmd}"
-      shellCmd
-        .exec[Result[String, ~ | ShellFailure]]
-        .recover(
-            on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
-        )
+      shellCmd.exec[Result[String, ~ | ShellFailure]].recover(
+        on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
+      )
     }
   }
 
@@ -44,11 +41,10 @@ case class Container(id: String) {
   lazy val iota = Dir("/work/iota")
   lazy val kappa = Dir("/work/kappa")
 
-  def stop(): Result[Unit, ~ | ShellFailure] =
-    for {
-      killed <- sh"docker kill $id".exec[Result[String, ~ | ShellFailure]]
-      removed <- sh"docker rm $id".exec[Result[String, ~ | ShellFailure]]
-    } yield ()
+  def stop(): Result[Unit, ~ | ShellFailure] = for {
+    killed <- sh"docker kill $id".exec[Result[String, ~ | ShellFailure]]
+    removed <- sh"docker rm $id".exec[Result[String, ~ | ShellFailure]]
+  } yield ()
 }
 
 object Docker {

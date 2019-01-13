@@ -12,7 +12,7 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
- */
+                                                                                                  */
 package fury
 
 import exoskeleton._
@@ -22,12 +22,10 @@ import guillotine._
 import mitigation._
 
 object Config {
-
-  def read(
-    )(implicit env: Environment,
-      layout: Layout
-    ): Result[Config,
-              ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError | FileWriteError | AlreadyInitialized] =
+  def read()
+          (implicit env: Environment, layout: Layout)
+          : Result[Config, ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError |
+              FileWriteError | AlreadyInitialized] =
     Ogdl.read[Config](layout.userConfig).remedy(Config())
 }
 
