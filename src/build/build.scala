@@ -131,25 +131,6 @@ object BuildCli {
 
   def notImplemented(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = Success(Abort)
 
-  def init(cli: Cli[CliParam[_]]) =
-    for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      cli <- cli.hint(ForceArg)
-      io <- cli.io()
-      force <- ~io(ForceArg).toOption.isDefined
-      layer <- ~Layer()
-      _ <- ~io.println("Initializing new build directory: ./.fury")
-      _ <- layout.furyConfig.mkParents()
-      _ <- ~io.save(layer, layout.furyConfig)
-      _ <- cli.shell.git.init(layout.pwd)
-      _ <- ~io.println("Initialized new git repository")
-      _ <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
-      _ <- ~io.println("Added files to git repository")
-      _ <- cli.shell.git.commit(layout.pwd, "Initial commit")
-      _ <- ~io.println("Committed files")
-    } yield io.await()
-
   def about(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
     for {
       io <- cli.io()
@@ -374,6 +355,25 @@ object LayerCli {
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema <- layer.schemas.findBy(schemaArg)
     } yield LayerCtx(cli, layout, config, layer, schema)
+
+  def init(cli: Cli[CliParam[_]]) =
+    for {
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      cli <- cli.hint(ForceArg)
+      io <- cli.io()
+      force <- ~io(ForceArg).toOption.isDefined
+      layer <- ~Layer()
+      _ <- ~io.println("Initializing new build directory: ./.fury")
+      _ <- layout.furyConfig.mkParents()
+      _ <- ~io.save(layer, layout.furyConfig)
+      _ <- cli.shell.git.init(layout.pwd)
+      _ <- ~io.println("Initialized new git repository")
+      _ <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
+      _ <- ~io.println("Added files to git repository")
+      _ <- cli.shell.git.commit(layout.pwd, "Initial commit")
+      _ <- ~io.println("Committed files")
+    } yield io.await()
 
   def projects(ctx: LayerCtx) = {
     import ctx._
