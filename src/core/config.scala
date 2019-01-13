@@ -12,21 +12,21 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
 import exoskeleton._
 import fury.io._
 import fury.ogdl._
+import fury.error._
 import guillotine._
-import mitigation._
+
+import scala.util._
 
 object Config {
-  def read()
-          (implicit env: Environment, layout: Layout)
-          : Result[Config, ~ | FileNotFound | MissingArg | InvalidArgValue | ConfigFormatError |
-              FileWriteError | AlreadyInitialized] =
-    Ogdl.read[Config](layout.userConfig).remedy(Config())
+
+  def read()(implicit env: Environment, layout: Layout): Outcome[Config] =
+    Success(Ogdl.read[Config](layout.userConfig).toOption.getOrElse(Config()))
 }
 
 case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5)

@@ -12,21 +12,24 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury.tests
 
-import mitigation._
 import guillotine._, environments.enclosing
+import fury.error._
 
 sealed trait Op[-E <: Exception]
 
 case class Container(id: String) {
   case class Dir(dir: String) {
+
     def run(cmd: Command): String = {
       val shellCmd = sh"docker exec --workdir $dir $id sh -c ${cmd}"
-      shellCmd.exec[Result[String, ~ | ShellFailure]].recover(
-        on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
-      )
+      shellCmd
+        .exec[Outcome[String]]
+        .recover(
+            on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
+        )
     }
   }
 
@@ -41,18 +44,19 @@ case class Container(id: String) {
   lazy val iota = Dir("/work/iota")
   lazy val kappa = Dir("/work/kappa")
 
-  def stop(): Result[Unit, ~ | ShellFailure] = for {
-    killed <- sh"docker kill $id".exec[Result[String, ~ | ShellFailure]]
-    removed <- sh"docker rm $id".exec[Result[String, ~ | ShellFailure]]
-  } yield ()
+  def stop(): Outcome[Unit] =
+    for {
+      killed <- sh"docker kill $id".exec[Outcome[String]]
+      removed <- sh"docker rm $id".exec[Outcome[String]]
+    } yield ()
 }
 
 object Docker {
 
-  def start(): Result[Container, ~ | ShellFailure] =
-    sh"docker run --detach fury:latest".exec[Result[String, ~ | ShellFailure]].map(Container(_))
+  def start(): Outcome[Container] =
+    sh"docker run --detach fury:latest".exec[Outcome[String]].map(Container(_))
 
-  def prune(): Result[String, ~ | ShellFailure] =
-    sh"docker system prune --force".exec[Result[String, ~ | ShellFailure]]
+  def prune(): Outcome[String] =
+    sh"docker system prune --force".exec[Outcome[String]]
 
 }

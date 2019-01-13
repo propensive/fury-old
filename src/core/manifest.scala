@@ -12,26 +12,27 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
 import fury.io._
-import mitigation._
+import fury.error._
 
 object Manifest {
 
-  def file(file: Path, classpath: Set[String], mainClass: Option[String])
-          : Result[Path, ~ | FileWriteError] = {
+  def file(file: Path, classpath: Set[String], mainClass: Option[String]): Outcome[Path] = {
     val classpathString = classpath.join(" ")
-    
+
     val content: String = List(
-      List("Manifest-Version" -> "1.0"),
-      mainClass.to[List].map("Main-Class" -> _),
-      List("Class-Path" -> classpathString),
-      List("Created-By" -> str"Fury ${Version.current}"),
+        List("Manifest-Version" -> "1.0"),
+        mainClass.to[List].map("Main-Class" -> _),
+        List("Class-Path" -> classpathString),
+        List("Created-By" -> str"Fury ${Version.current}")
     ).flatten.map { case (k, v) => s"$k: $v" }.join("", "\n", "\n")
-    
-    file.writeSync(content).map { _ => file }
+
+    file.writeSync(content).map { _ =>
+      file
+    }
   }
 
 }

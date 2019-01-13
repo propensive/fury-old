@@ -12,10 +12,10 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
-import mitigation._
+import fury.error._
 
 object Resolver {
   implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id
@@ -27,6 +27,7 @@ object Resolver {
 trait Resolver[-T, I] { def matchOn(id: I, value: T): Boolean }
 
 class ResolverExt[T](items: Traversable[T]) {
-  def findBy[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Result[T, ~ | ItemNotFound] =
+
+  def findBy[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Outcome[T] =
     items.find(resolver.matchOn(id, _)).ascribe(ItemNotFound(id))
 }

@@ -12,30 +12,38 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
+import fury.error._
+
 import optometry._
-import mitigation._
 import scala.collection.immutable.SortedSet
+
+import scala.util._
 
 object Lenses {
 
-  def updateSchemas[A](schemaId: Option[SchemaId], layer: Layer, force: Boolean)
-             (lens: SchemaId => Lens[Layer, A, A])
-             (modify: (Lens[Layer, A, A], Layer) => Layer)
-             : Result[Layer, ~ | SchemaDifferences] = {
+  def updateSchemas[A](
+      schemaId: Option[SchemaId],
+      layer: Layer,
+      force: Boolean
+    )(lens: SchemaId => Lens[Layer, A, A]
+    )(modify: (Lens[Layer, A, A], Layer) => Layer
+    ): Outcome[Layer] = {
     val lenses = schemaId match {
       case Some(schemaId) => List(lens(schemaId))
-      case None => layer.schemas.map(_.id).to[List].map(lens(_))
+      case None           => layer.schemas.map(_.id).to[List].map(lens(_))
     }
 
-    for(lenses <- if(force || lenses.map(_(layer)).to[Set].size == 1) Answer(lenses) else Result.abort(SchemaDifferences()))
-    yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
+    for (lenses <- if (force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
+                  else Failure(SchemaDifferences()))
+      yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
   }
 
   object on {
     type Id[T] = T
+
     def apply[A, AId](id: AId)(implicit resolver: Resolver[A, AId]): Optic[SortedSet, Id, A] =
       new Optic[SortedSet, Id, A]("focus") {
         def map[B](v: SortedSet[A])(fn: A => B): B = fn(v.find(resolver.matchOn(id, _)).get)
@@ -92,7 +100,7 @@ object Lenses {
 
     def module(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)))
-  
+
     def moduleKind(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).kind)
 
@@ -110,18 +118,17 @@ object Lenses {
 
     def after(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).after)
-  
+
     def sources(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).sources)
-  
+
     def binaries(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).binaries)
-    
+
     def params(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).params)
-  
+
     val aliases = lens(_.aliases)
-  
+
   }
 }
-

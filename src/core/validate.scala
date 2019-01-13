@@ -12,18 +12,21 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
-import mitigation._
+import fury.error._
+
+import scala.util._
 
 object Validate {
-  def apply(layer: Layer): Result[Layer, ~] = {
+
+  def apply(layer: Layer): Outcome[Layer] = {
     for {
       schema <- layer.schemas
       project <- schema.projects
       module <- project.modules
     } ()
-    Answer(layer)
+    Success(layer)
   }
 }

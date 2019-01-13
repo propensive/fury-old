@@ -12,7 +12,7 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
 import fury.io.Path
@@ -28,17 +28,17 @@ case class Layout(home: Path, pwd: Path) {
   lazy val runLogDir: Path = furyDir / "log"
   lazy val reposDir: Path = furyDir / "repos"
   lazy val srcsDir: Path = furyDir / "sources"
-  lazy val tmpDir: Path = furyDir / "tmp"
+  lazy val sharedDir: Path = furyDir / "shared"
   lazy val errorLogfile: Path = pwd / ".fury.log"
   lazy val userConfig: Path = home / ".fury.conf"
   lazy val logFile: Path = furyDir / "fury.log"
 
   def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
- 
+
   lazy val furyConfig: Path = pwd / "layer.fury"
-  
+
   def layerDir(layerId: String): Path = layersDir / layerId
-  
+
   def layerFile(layerId: String): Path = layerDir(layerId) / "layer.fury"
 
   def outputDir(artifact: Artifact): Path = {

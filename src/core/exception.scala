@@ -12,30 +12,31 @@
   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
-                                                                                                  */
+ */
 package fury
 
 import fury.io.Path
+import fury.error._
 
-case class NotInitialized(dir: Path) extends Exception
-case class ModuleAlreadyExists(module: ModuleId) extends Exception
-case class ProjectAlreadyExists(project: ProjectId) extends Exception
-case class MissingCommand() extends Exception
-case class UnknownCommand(command: String) extends Exception
-case class AlreadyInitialized() extends Exception
-case class UnknownCompiler() extends Exception
-case class InvalidValue(value: String) extends Exception
-case class InitFailure() extends Exception
-case class UnspecifiedProject() extends Exception
-case class UnspecifiedModule() extends Exception
-case class UnspecifiedRepo() extends Exception
-case class ProjectConflict(ids: Set[ProjectId]) extends Exception
-case class SchemaDifferences() extends Exception
+case class NotInitialized(dir: Path) extends FuryException
+case class ModuleAlreadyExists(module: ModuleId) extends FuryException
+case class ProjectAlreadyExists(project: ProjectId) extends FuryException
+case class MissingCommand() extends FuryException
+case class UnknownCommand(command: String) extends FuryException
+case class AlreadyInitialized() extends FuryException
+case class UnknownCompiler() extends FuryException
+case class InvalidValue(value: String) extends FuryException
+case class InitFailure() extends FuryException
+case class UnspecifiedProject() extends FuryException
+case class UnspecifiedModule() extends FuryException
+case class UnspecifiedRepo() extends FuryException
+case class ProjectConflict(ids: Set[ProjectId]) extends FuryException
+case class SchemaDifferences() extends FuryException
 
 object ItemNotFound {
+
   def apply[K <: Key: MsgShow](key: K): ItemNotFound =
     ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
 
-case class ItemNotFound(item: UserMsg, kind: UserMsg) extends Exception
-
+case class ItemNotFound(item: UserMsg, kind: UserMsg) extends FuryException
