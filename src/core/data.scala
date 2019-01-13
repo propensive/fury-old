@@ -140,6 +140,7 @@ case class Module(
   def sharedSources: SortedSet[SharedSource] = sources.collect {
     case src: SharedSource => src
   }
+  
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
 }
 
@@ -712,7 +713,6 @@ case class Repo(url: String) {
     } yield msg
 
   def fetch(implicit layout: Layout, shell: Shell): Outcome[Path] =
-
     if (!(path / ".done").exists) {
       if (path.exists()) {
         println(s"Found incomplete clone of $url.")
@@ -720,7 +720,6 @@ case class Repo(url: String) {
       }
 
       println(s"Cloning Git repository $url.")
-
       path.mkdir()
       shell.git.cloneBare(url, path).map { _ =>
         path
@@ -793,7 +792,6 @@ case class Artifact(
     intransitive: Boolean,
     localSources: List[Path],
     sharedSources: List[Path]) {
-
   def hash: Digest =
     (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
 
