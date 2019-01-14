@@ -325,7 +325,6 @@ object BuildCli {
       universe <- schemaTree.universe
       artifact <- universe.artifact(module.ref(project))
       compilation <- universe.compilation(module.ref(project))
-      _ <- ~io.println(compilation.toString)
       _ <- ~Graph
             .draw(compilation.graph.mapValues(_.to[Set]), true, Map())(config.theme)
             .foreach(io.println(_))

@@ -216,7 +216,7 @@ case class Universe(
           module.after.to[List],
           compiler,
           module.bloopSpec,
-          module.params.map(_.name).to[List],
+          module.params.to[List],
           ref.intransitive,
           module.localSources.map(_ in dir).to[List],
           module.sharedSources.map(_.path in layout.sharedDir).to[List]
@@ -279,15 +279,16 @@ case class Universe(
   def clean(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Unit =
     layout.classesDir.delete().unit
 
-  def allParams(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[List[String]] =
+  def allParams(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[List[String]] = {
     for {
       tDeps <- transitiveDependencies(ref)
       plugins <- ~tDeps.filter(_.kind == Plugin)
       artifact <- artifact(ref)
     } yield
-      artifact.params ++ plugins.map { plugin =>
+      (artifact.params ++ plugins.map { plugin =>
         Parameter(str"Xplugin:${layout.classesDir(plugin)}")
-      }.map(_.parameter)
+      }).map(_.parameter)
+  }
 
   def compilation(ref: ModuleRef)(implicit shell: Shell, layout: Layout): Outcome[Compilation] =
     for {
@@ -788,7 +789,7 @@ case class Artifact(
     dependencies: List[ModuleRef],
     compiler: Option[Artifact],
     bloopSpec: Option[BloopSpec],
-    params: List[String],
+    params: List[Parameter],
     intransitive: Boolean,
     localSources: List[Path],
     sharedSources: List[Path]) {
@@ -801,7 +802,7 @@ case class Artifact(
 
     main.foreach { main =>
       file.writeSync(
-          str"<plugin><name>${ref.moduleId.key}</name><classname>${main}</classname></plugin>")
+          str"<plugin><name>${ref.projectId.key}/${ref.moduleId.key}</name><classname>${main}</classname></plugin>")
     }
   }
 
