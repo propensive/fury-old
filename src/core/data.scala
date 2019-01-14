@@ -664,9 +664,10 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
       shell: Shell
     ): Outcome[List[String]] =
     for {
-      dir     <- ~fullCheckout.path
-      layer   <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
-      schemas <- ~layer.schemas.to[List]
+      repoDir     <- repo.fetch
+      layerString <- shell.git.showFile(repoDir, "layer.fury")
+      layer       <- ~Ogdl.read[Layer](layerString)
+      schemas     <- ~layer.schemas.to[List]
     } yield
       schemas.map { schema =>
         str"${id.key}:${schema.id.key}"

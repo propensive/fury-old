@@ -119,6 +119,9 @@ case class Shell()(implicit env: Environment) {
     def push(dir: Path, all: Boolean): Outcome[String] =
       (if (all) sh"git -C ${dir.value} push --all" else sh"git push").exec[Outcome[String]]
 
+    def showFile(dir: Path, file: String): Outcome[String] =
+      sh"git -C ${dir.value} show HEAD:$file".exec[Outcome[String]]
+
     def tag(dir: Path, tag: String): Outcome[String] =
       sh"git -C ${dir.value} tag $tag".exec[Outcome[String]]
 
