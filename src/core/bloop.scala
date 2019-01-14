@@ -97,10 +97,11 @@ object Bloop {
       compilerClasspath <- compiler.map { c =>
                             universe.classpath(c.ref)
                           }.getOrElse(Success(Set()))
+      params <- universe.allParams(artifact.ref)
     } yield
       json(
           name = artifact.hash.encoded[Base64Url],
-          scalacOptions = artifact.params,
+          scalacOptions = params,
           // FIXME: Don't hardcode this value
           bloopSpec = compiler
             .flatMap(_.bloopSpec)
