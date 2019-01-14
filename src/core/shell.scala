@@ -22,7 +22,7 @@ import guillotine._
 import kaleidoscope._
 
 import scala.util._
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{HashMap, ListBuffer}
 
 case class Shell()(implicit env: Environment) {
 
@@ -166,10 +166,12 @@ case class Shell()(implicit env: Environment) {
 
   object coursier {
 
-    def fetch(artifact: String): Outcome[List[Path]] =
-      for {
-        string <- sh"coursier fetch --repository central $artifact".exec[Outcome[String]]
-      } yield string.split("\n").to[List].map(Path(_))
+    def fetch(artifact: String): Outcome[List[Path]] = {
+      val items = new ListBuffer[String]()
+      val running = sh"coursier fetch --progress --repository central $artifact".async(items.append(_), println(_))
+      val result = running.await()
+      if(result == 0) Success(items.to[List].map(Path(_))) else Failure(ItemNotFound(msg"$artifact", msg"binary"))
+    }
   }
 
   private def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Outcome[Unit] =
