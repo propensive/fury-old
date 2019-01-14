@@ -77,8 +77,11 @@ object ImportCli {
       cli       <- cli.hint(RawArg)
       io        <- cli.io()
       raw       <- ~io(RawArg).isSuccess
-      rows      <- schema.importedSchemas(layout, cli.shell)
-      table     <- ~Tables(config).show(Tables(config).schemas(Some(layer.main)), cols, rows, raw)(_.id)
+      rows <- ~schema.imports.map { i =>
+               (i, i.resolve(schema)(layout, cli.shell))
+             }
+      table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
+                  _._1.schema.key)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema))
              else io)
