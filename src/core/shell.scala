@@ -77,19 +77,23 @@ case class Shell()(implicit env: Environment) {
               (dir / ".git" / "info" / "sparse-checkout")
                 .writeSync(sources.map(_.value + "/*\n").mkString)
             }
-        _ <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Outcome[String]]
+        _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Outcome[String]]
         str <- sh"git -C ${dir.value} pull origin $commit".exec[Outcome[String]]
-        _ <- ~(dir / ".done").touch()
+        _   <- ~(dir / ".done").touch()
       } yield str
 
     def lsTree(dir: Path, commit: String): Outcome[List[Path]] =
       for {
         string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Outcome[String]]
-        files <- ~string.split("\n").to[List].map(Path(_))
+        files  <- ~string.split("\n").to[List].map(Path(_))
       } yield files
-    
+
     def lsRemote(url: String): Outcome[List[String]] =
-      Cached.lsRemote.getOrElseUpdate(url, sh"git ls-remote --tags --heads $url".exec[Outcome[String]].map(_.split("\n").to[List].map(_.split("/").last)))
+      Cached.lsRemote.getOrElseUpdate(
+          url,
+          sh"git ls-remote --tags --heads $url"
+            .exec[Outcome[String]]
+            .map(_.split("\n").to[List].map(_.split("/").last)))
 
     def checkout(dir: Path, commit: String): Outcome[String] =
       sh"git -C ${dir.value} checkout $commit".exec[Outcome[String]].map { out =>
@@ -189,10 +193,10 @@ case class Shell()(implicit env: Environment) {
     ): Outcome[Unit] =
     for {
       dir <- ~(dest.parent / "staging")
-      _ <- ~dir.mkdir()
-      _ <- ~(for ((p, fs) <- files; f <- fs) copyTo(p / f, dir / f))
-      _ <- ~jar(dest, Set((dir, dir.children)), manifestFile)
-      _ <- dir.delete()
+      _   <- ~dir.mkdir()
+      _   <- ~(for ((p, fs) <- files; f <- fs) copyTo(p / f, dir / f))
+      _   <- ~jar(dest, Set((dir, dir.children)), manifestFile)
+      _   <- dir.delete()
     } yield ()
 
   object gpg {

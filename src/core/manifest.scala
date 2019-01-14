@@ -24,10 +24,10 @@ object Manifest {
     val classpathString = classpath.join(" ")
 
     val content: String = List(
-        List("Manifest-Version" -> "1.0"),
+        List("Manifest-Version"             -> "1.0"),
         mainClass.to[List].map("Main-Class" -> _),
-        List("Class-Path" -> classpathString),
-        List("Created-By" -> str"Fury ${Version.current}")
+        List("Class-Path"                   -> classpathString),
+        List("Created-By"                   -> str"Fury ${Version.current}")
     ).flatten.map { case (k, v) => s"$k: $v" }.join("", "\n", "\n")
 
     file.writeSync(content).map { _ =>

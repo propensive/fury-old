@@ -39,7 +39,7 @@ object Bloop {
     } catch {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
-        val io2 = io.print("Starting bloop compile server")
+        val io2     = io.print("Starting bloop compile server")
         val running = cli.shell.bloop.startServer()
 
         def checkStarted(): Unit =
@@ -77,9 +77,9 @@ object Bloop {
     ): Outcome[Iterable[Path]] =
     new CollOps(artifacts.map { artifact =>
       for {
-        path <- layout.bloopConfig(artifact).mkParents()
+        path       <- layout.bloopConfig(artifact).mkParents()
         jsonString <- makeConfig(artifact, universe)
-        _ <- ~(if (!path.exists) path.writeSync(jsonString))
+        _          <- ~(if (!path.exists) path.writeSync(jsonString))
       } yield List(path)
     }).sequence.map(_.flatten)
 
@@ -90,9 +90,9 @@ object Bloop {
       shell: Shell
     ): Outcome[String] =
     for {
-      deps <- universe.dependencies(artifact.ref)
-      _ = artifact.writePlugin()
-      compiler = artifact.compiler
+      deps      <- universe.dependencies(artifact.ref)
+      _         = artifact.writePlugin()
+      compiler  = artifact.compiler
       classpath <- universe.classpath(artifact.ref)
       compilerClasspath <- compiler.map { c =>
                             universe.classpath(c.ref)
@@ -138,19 +138,19 @@ object Bloop {
     JsonObject(
         "version" -> JsonString("1.0.0"),
         "project" -> JsonObject(
-            "name" -> JsonString(name),
-            "directory" -> JsonString(baseDirectory),
-            "sources" -> JsonArray(sourceDirectories.map(JsonString(_)): _*),
+            "name"         -> JsonString(name),
+            "directory"    -> JsonString(baseDirectory),
+            "sources"      -> JsonArray(sourceDirectories.map(JsonString(_)): _*),
             "dependencies" -> JsonArray(),
-            "classpath" -> JsonArray(((classpath ++ allScalaJars).map(JsonString(_))): _*),
-            "out" -> JsonString(outDir),
-            "classesDir" -> JsonString(classesDir),
+            "classpath"    -> JsonArray(((classpath ++ allScalaJars).map(JsonString(_))): _*),
+            "out"          -> JsonString(outDir),
+            "classesDir"   -> JsonString(classesDir),
             "scala" -> JsonObject(
                 "organization" -> JsonString(bloopSpec.org),
-                "name" -> JsonString(bloopSpec.name),
-                "version" -> JsonString(bloopSpec.version),
-                "options" -> JsonArray(scalacOptions.map(JsonString(_)): _*),
-                "jars" -> JsonArray(allScalaJars.map(JsonString(_)): _*)
+                "name"         -> JsonString(bloopSpec.name),
+                "version"      -> JsonString(bloopSpec.version),
+                "options"      -> JsonArray(scalacOptions.map(JsonString(_)): _*),
+                "jars"         -> JsonArray(allScalaJars.map(JsonString(_)): _*)
             ),
             "java" -> JsonObject(
                 "options" -> JsonArray(javaOptions.map(JsonString(_)): _*)
@@ -158,14 +158,14 @@ object Bloop {
             "test" -> JsonObject(
                 "frameworks" -> JsonArray(),
                 "options" -> JsonObject(
-                    "excludes" -> JsonArray(),
+                    "excludes"  -> JsonArray(),
                     "arguments" -> JsonArray()
                 )
             ),
             "platform" -> JsonObject(
                 "name" -> JsonString("jvm"),
                 "config" -> JsonObject(
-                    "home" -> JsonString(""),
+                    "home"    -> JsonString(""),
                     "options" -> JsonArray()
                 ),
                 "mainClass" -> JsonArray(main.to[List].map(JsonString(_)): _*)

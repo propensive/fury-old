@@ -26,23 +26,23 @@ object ProjectCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- fury.Config.read()(cli.env, layout)
-      layer <- Layer.read(layout.furyConfig)(layout)
-      cli <- cli.hint(SchemaArg, layer.schemas)
+      layout       <- cli.layout
+      config       <- fury.Config.read()(cli.env, layout)
+      layer        <- Layer.read(layout.furyConfig)(layout)
+      cli          <- cli.hint(SchemaArg, layer.schemas)
       optSchemaArg <- ~cli.peek(SchemaArg)
     } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
 
   def select(ctx: MenuContext) = {
     import ctx._
     for {
-      dSchema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-      cli <- cli.hint(ProjectArg, dSchema.projects)
-      cli <- cli.hint(ForceArg)
-      io <- cli.io()
+      dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      cli       <- cli.hint(ProjectArg, dSchema.projects)
+      cli       <- cli.hint(ForceArg)
+      io        <- cli.io()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
-      force <- ~io(ForceArg).toOption.isDefined
+      force     <- ~io(ForceArg).toOption.isDefined
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_))(
                   _(_) = Some(projectId))
       _ <- ~io.save(layer, layout.furyConfig)
@@ -52,13 +52,13 @@ object ProjectCli {
   def list(ctx: MenuContext) = {
     import ctx._
     for {
-      cols <- Success(Terminal.columns.getOrElse(100))
-      cli <- cli.hint(RawArg)
-      io <- cli.io()
-      raw <- ~io(RawArg).isSuccess
+      cols   <- Success(Terminal.columns.getOrElse(100))
+      cli    <- cli.hint(RawArg)
+      io     <- cli.io()
+      raw    <- ~io(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-      rows <- ~schema.projects.to[List]
-      table <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
+      rows   <- ~schema.projects.to[List]
+      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
@@ -68,12 +68,12 @@ object ProjectCli {
   def add(ctx: MenuContext) = {
     import ctx._
     for {
-      cli <- cli.hint(ProjectNameArg)
-      cli <- cli.hint(LicenseArg, License.standardLicenses)
-      io <- cli.io()
+      cli       <- cli.hint(ProjectNameArg)
+      cli       <- cli.hint(LicenseArg, License.standardLicenses)
+      io        <- cli.io()
       projectId <- io(ProjectNameArg)
-      license <- Success(io(LicenseArg).toOption.getOrElse(License.unknown))
-      project <- ~fury.Project(projectId, license = license)
+      license   <- Success(io(LicenseArg).toOption.getOrElse(License.unknown))
+      project   <- ~fury.Project(projectId, license = license)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
@@ -86,13 +86,13 @@ object ProjectCli {
   def remove(ctx: MenuContext) = {
     import ctx._
     for {
-      dSchema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-      cli <- cli.hint(ProjectArg, dSchema.projects)
-      cli <- cli.hint(ForceArg)
-      io <- cli.io()
+      dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      cli       <- cli.hint(ProjectArg, dSchema.projects)
+      cli       <- cli.hint(ForceArg)
+      io        <- cli.io()
       projectId <- io(ProjectArg)
-      project <- dSchema.projects.findBy(projectId)
-      force <- ~io(ForceArg).toOption.isDefined
+      project   <- dSchema.projects.findBy(projectId)
+      force     <- ~io(ForceArg).toOption.isDefined
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) {
@@ -106,25 +106,25 @@ object ProjectCli {
   def update(ctx: MenuContext) = {
     import ctx._
     for {
-      dSchema <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
-      cli <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
-      cli <- cli.hint(DescriptionArg)
-      cli <- cli.hint(ForceArg)
-      projectId <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
-      cli <- cli.hint(LicenseArg, License.standardLicenses)
-      cli <- cli.hint(ProjectNameArg, projectId)
-      io <- cli.io()
-      projectId <- projectId.ascribe(UnspecifiedProject())
-      schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      dSchema    <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
+      cli        <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
+      cli        <- cli.hint(DescriptionArg)
+      cli        <- cli.hint(ForceArg)
+      projectId  <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
+      cli        <- cli.hint(LicenseArg, License.standardLicenses)
+      cli        <- cli.hint(ProjectNameArg, projectId)
+      io         <- cli.io()
+      projectId  <- projectId.ascribe(UnspecifiedProject())
+      schema     <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       oldProject <- schema.projects.findBy(projectId)
-      nameArg <- ~io(ProjectNameArg).toOption
+      nameArg    <- ~io(ProjectNameArg).toOption
       newId <- ~nameArg.flatMap(schema.unused(_).toOption).getOrElse {
                 oldProject.id
               }
-      licenseArg <- ~(io(LicenseArg).toOption.getOrElse(oldProject.license))
+      licenseArg     <- ~(io(LicenseArg).toOption.getOrElse(oldProject.license))
       descriptionArg <- ~io(DescriptionArg).toOption.getOrElse(oldProject.description)
-      project <- ~oldProject.copy(id = newId, license = licenseArg, description = descriptionArg)
-      force <- ~io(ForceArg).toOption.isDefined
+      project        <- ~oldProject.copy(id = newId, license = licenseArg, description = descriptionArg)
+      force          <- ~io(ForceArg).toOption.isDefined
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.project(_, oldProject.id))(_(_) = project)
       _ <- ~io.save(layer, layout.furyConfig)

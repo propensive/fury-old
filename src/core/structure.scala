@@ -63,7 +63,7 @@ case class Menu[T, S](
 
   def reference(implicit theme: Theme): Seq[String] = {
     val shownItems = items.filter(_.show)
-    val width = 12
+    val width      = 12
     shownItems.sortBy { case _: Action[_] => 0; case _ => 1 }.flatMap {
       case item: Action[_] =>
         List(msg"  ${item.command.name.padTo(width, ' ')} ${item.description}".string(theme))

@@ -33,22 +33,23 @@ object Diff extends Diff_1 {
       }
 
   def dispatch[T: StringShow](sealedTrait: SealedTrait[Diff, T]): Diff[T] = { (l, r) =>
-    val leftSubtype = sealedTrait.subtypes.find(_.cast.isDefinedAt(l)).get
+    val leftSubtype  = sealedTrait.subtypes.find(_.cast.isDefinedAt(l)).get
     val rightSubtype = sealedTrait.subtypes.find(_.cast.isDefinedAt(r)).get
     if (leftSubtype == rightSubtype)
       leftSubtype.typeclass.diff(leftSubtype.cast(l), leftSubtype.cast(r))
     else
       List(
-          Difference(msg"${sealedTrait.typeName.short.toLowerCase}",
-                     msg"",
-                     msg"${leftSubtype.typeName.short.toLowerCase}",
-                     msg"${rightSubtype.typeName.short.toLowerCase}"))
+          Difference(
+              msg"${sealedTrait.typeName.short.toLowerCase}",
+              msg"",
+              msg"${leftSubtype.typeName.short.toLowerCase}",
+              msg"${rightSubtype.typeName.short.toLowerCase}"))
   }
 
   implicit def traversableDiff[T: Diff: MsgShow: EntityName](
       implicit stringShow: StringShow[T]
     ): Diff[Traversable[T]] = { (l, r) =>
-    val leftSet: Set[T] = l.to[Set]
+    val leftSet: Set[T]  = l.to[Set]
     val rightSet: Set[T] = r.to[Set]
     val leftOnly: Set[T] = (leftSet.map(stringShow.show) -- rightSet.map(stringShow.show)).flatMap {
       id =>
@@ -85,23 +86,25 @@ object Diff extends Diff_1 {
     else if (l.isEmpty && r.isEmpty) Nil
     else if (l.isEmpty)
       List(
-          Difference(msg"optional ${implicitly[EntityName[T]].name}",
-                     msg"",
-                     msg"${Ansi.yellow("none")}",
-                     implicitly[MsgShow[T]].show(r.get)))
+          Difference(
+              msg"optional ${implicitly[EntityName[T]].name}",
+              msg"",
+              msg"${Ansi.yellow("none")}",
+              implicitly[MsgShow[T]].show(r.get)))
     else
       List(
-          Difference(msg"optional ${implicitly[EntityName[T]].name}",
-                     msg"",
-                     implicitly[MsgShow[T]].show(l.get),
-                     msg"${Ansi.yellow("none")}"))
+          Difference(
+              msg"optional ${implicitly[EntityName[T]].name}",
+              msg"",
+              implicitly[MsgShow[T]].show(l.get),
+              msg"${Ansi.yellow("none")}"))
   }
 
   implicit val stringDiff: Diff[String] = (l, r) =>
     if (l == r) Nil else List(Difference(msg"value", msg"", msg"$l", msg"$r"))
 
-  implicit val intDiff: Diff[Int] = (l, r) => stringDiff.diff(l.toString, r.toString)
-  implicit val booleanDiff: Diff[Boolean] = (l, r) => stringDiff.diff(l.toString, r.toString)
+  implicit val intDiff: Diff[Int]             = (l, r) => stringDiff.diff(l.toString, r.toString)
+  implicit val booleanDiff: Diff[Boolean]     = (l, r) => stringDiff.diff(l.toString, r.toString)
   implicit val parameterDiff: Diff[Parameter] = (l, r) => stringDiff.diff(l.name, r.name)
 
   implicit val moduleRefDiff: Diff[ModuleRef] =

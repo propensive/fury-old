@@ -19,19 +19,19 @@ import fury.io.Path
 import gastronomy._
 
 case class Layout(home: Path, pwd: Path) {
-  lazy val furyDir: Path = pwd / ".fury"
-  lazy val bloopDir: Path = furyDir / "bloop"
-  lazy val layersDir: Path = furyDir / "layers"
-  lazy val classesDir: Path = furyDir / "classes"
-  lazy val analysisDir: Path = furyDir / "analysis"
+  lazy val furyDir: Path      = pwd / ".fury"
+  lazy val bloopDir: Path     = furyDir / "bloop"
+  lazy val layersDir: Path    = furyDir / "layers"
+  lazy val classesDir: Path   = furyDir / "classes"
+  lazy val analysisDir: Path  = furyDir / "analysis"
   lazy val resourcesDir: Path = furyDir / "resources"
-  lazy val runLogDir: Path = furyDir / "log"
-  lazy val reposDir: Path = furyDir / "repos"
-  lazy val srcsDir: Path = furyDir / "sources"
-  lazy val sharedDir: Path = furyDir / "shared"
+  lazy val runLogDir: Path    = furyDir / "log"
+  lazy val reposDir: Path     = furyDir / "repos"
+  lazy val srcsDir: Path      = furyDir / "sources"
+  lazy val sharedDir: Path    = furyDir / "shared"
   lazy val errorLogfile: Path = pwd / ".fury.log"
-  lazy val userConfig: Path = home / ".fury.conf"
-  lazy val logFile: Path = furyDir / "fury.log"
+  lazy val userConfig: Path   = home / ".fury.conf"
+  lazy val logFile: Path      = furyDir / "fury.log"
 
   def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
 

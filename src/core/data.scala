@@ -58,15 +58,15 @@ object Kind {
 }
 
 case class Kind(val name: String)
-object Library extends Kind("library")
-object Compiler extends Kind("compiler")
-object Plugin extends Kind("plugin")
+object Library     extends Kind("library")
+object Compiler    extends Kind("compiler")
+object Plugin      extends Kind("plugin")
 object Application extends Kind("application")
 
 object Module {
-  implicit val msgShow: MsgShow[Module] = v => UserMsg(_.module(v.id.key))
+  implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
   implicit val stringShow: StringShow[Module] = _.id.key
-  implicit val diff: Diff[Module] = Diff.gen[Module]
+  implicit val diff: Diff[Module]             = Diff.gen[Module]
 
   def available(id: ModuleId, project: Project): Outcome[ModuleId] =
     project.modules
@@ -78,9 +78,9 @@ object Module {
 }
 
 object Binary {
-  implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
+  implicit val msgShow: MsgShow[Binary]       = v => UserMsg(_.binary(v.spec))
   implicit val stringShow: StringShow[Binary] = _.spec
-  implicit def diff: Diff[Binary] = Diff.gen[Binary]
+  implicit def diff: Diff[Binary]             = Diff.gen[Binary]
 
   def unapply(service: BinRepoId, string: String): Outcome[Binary] =
     string match {
@@ -106,8 +106,8 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
     Binary.compilerVersionCache.getOrElseUpdate(
         this,
         (for {
-          path <- paths
-          entries <- path.map(_.zipfileEntries).sequence
+          path       <- paths
+          entries    <- path.map(_.zipfileEntries).sequence
           properties <- ~entries.flatten.filter(_.name == "compiler.properties")
           line <- ~properties.flatMap { p =>
                    scala.io.Source.fromInputStream(p.inputStream()).getLines
@@ -145,9 +145,9 @@ case class Module(
 }
 
 object BloopSpec {
-  implicit val msgShow: MsgShow[BloopSpec] = v => msg"${v.org}:${v.name}"
+  implicit val msgShow: MsgShow[BloopSpec]       = v => msg"${v.org}:${v.name}"
   implicit val stringShow: StringShow[BloopSpec] = bs => s"${bs.org}:${bs.name}"
-  implicit def diff: Diff[BloopSpec] = Diff.gen[BloopSpec]
+  implicit def diff: Diff[BloopSpec]             = Diff.gen[BloopSpec]
 
   def parse(str: String): Outcome[BloopSpec] = str match {
     case r"$org@([a-z][a-z0-9_\-\.]*):$id@([a-z][a-z0-9_\-\.]*):$version@([0-9a-z][A-Za-z0-9_\-\.]*)" =>
@@ -198,12 +198,12 @@ case class Universe(
   def artifact(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Artifact] =
     for {
       project <- project(ref.projectId)
-      schema <- schema(ref.projectId)
-      module <- project(ref.moduleId)
-      dir <- dir(ref.projectId)
+      schema  <- schema(ref.projectId)
+      module  <- project(ref.moduleId)
+      dir     <- dir(ref.projectId)
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
                  else artifact(module.compiler).map(Some(_))
-      binaries <- module.binaries.map(_.paths).sequence.map(_.flatten)
+      binaries  <- module.binaries.map(_.paths).sequence.map(_.flatten)
       checkouts <- checkout(ref)
     } yield
       Artifact(
@@ -225,8 +225,8 @@ case class Universe(
   def checkout(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Checkout]] =
     for {
       project <- project(ref.projectId)
-      schema <- schema(ref.projectId)
-      module <- project(ref.moduleId)
+      schema  <- schema(ref.projectId)
+      module  <- project(ref.moduleId)
       repos <- module.externalSources
                 .groupBy(_.repoId)
                 .map { case (k, v) => schema.repo(k).map(_ -> v) }
@@ -242,7 +242,7 @@ case class Universe(
 
   def classpath(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Path]] =
     for {
-      art <- artifact(ref)
+      art  <- artifact(ref)
       deps <- transitiveDependencies(ref)
       dirs <- ~deps.map(layout.classesDir(_))
       bins <- ~deps.flatMap(_.binaries)
@@ -250,8 +250,8 @@ case class Universe(
 
   def runtimeClasspath(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Path]] =
     for {
-      cp <- classpath(ref)
-      art <- artifact(ref)
+      cp       <- classpath(ref)
+      art      <- artifact(ref)
       compiler <- ~art.compiler
       compilerCp <- compiler.map { c =>
                      classpath(c.ref)
@@ -261,8 +261,8 @@ case class Universe(
   def dependencies(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Artifact]] =
     for {
       project <- project(ref.projectId)
-      module <- project(ref.moduleId)
-      deps <- module.after.map(artifact).sequence
+      module  <- project(ref.moduleId)
+      deps    <- module.after.map(artifact).sequence
     } yield deps
 
   def transitiveDependencies(
@@ -271,24 +271,23 @@ case class Universe(
       layout: Layout
     ): Outcome[Set[Artifact]] =
     for {
-      after <- dependencies(ref)
-      tDeps <- after.map(_.ref).map(transitiveDependencies).sequence
+      after  <- dependencies(ref)
+      tDeps  <- after.map(_.ref).map(transitiveDependencies).sequence
       itDeps = tDeps.flatten.filterNot(_.intransitive).to[Set]
     } yield after ++ itDeps
 
   def clean(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Unit =
     layout.classesDir.delete().unit
 
-  def allParams(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[List[String]] = {
+  def allParams(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[List[String]] =
     for {
-      tDeps <- transitiveDependencies(ref)
-      plugins <- ~tDeps.filter(_.kind == Plugin)
+      tDeps    <- transitiveDependencies(ref)
+      plugins  <- ~tDeps.filter(_.kind == Plugin)
       artifact <- artifact(ref)
     } yield
       (artifact.params ++ plugins.map { plugin =>
         Parameter(str"Xplugin:${layout.classesDir(plugin)}")
       }).map(_.parameter)
-  }
 
   def compilation(ref: ModuleRef)(implicit shell: Shell, layout: Layout): Outcome[Compilation] =
     for {
@@ -313,19 +312,19 @@ case class Universe(
       layout: Layout
     ): Outcome[Unit] =
     for {
-      dest <- dest.directory
+      dest    <- dest.directory
       current <- artifact(ref)
-      deps <- transitiveDependencies(ref)
-      dirs <- ~deps.map(layout.classesDir(_))
+      deps    <- transitiveDependencies(ref)
+      dirs    <- ~deps.map(layout.classesDir(_))
       files <- ~dirs.map { dir =>
                 (dir, dir.children)
               }.filter(_._2.nonEmpty)
-      bins <- ~deps.flatMap(_.binaries)
-      _ <- ~io.println(msg"Writing manifest file ${layout.manifestFile(current)}")
+      bins         <- ~deps.flatMap(_.binaries)
+      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(current)}")
       manifestFile <- Manifest.file(layout.manifestFile(current), bins.map(_.name), None)
-      path <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _ <- ~io.println(msg"Saving JAR file $path")
-      _ <- shell.aggregatedJar(path, files, manifestFile)
+      path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
+      _            <- ~io.println(msg"Saving JAR file $path")
+      _            <- shell.aggregatedJar(path, files, manifestFile)
       _ <- ~bins.foreach { b =>
             b.copyTo(dest / b.name)
           }
@@ -356,7 +355,7 @@ case class Universe(
         Future.successful(CompileResult(false, ""))
       } else
         Future {
-          val out = new StringBuilder()
+          val out  = new StringBuilder()
           val out2 = new StringBuilder()
           multiplexer(artifact.ref) = StartCompile(artifact.ref)
 
@@ -370,8 +369,9 @@ case class Universe(
           }
           // This is temporary until the `bloop run` command is working
           val result2 = result && (artifact.kind != Application || shell
-            .runJava(runtimeClasspath(artifact.ref).toOption.get.to[List].map(_.value),
-                     artifact.main.getOrElse("")) { ln =>
+            .runJava(
+                runtimeClasspath(artifact.ref).toOption.get.to[List].map(_.value),
+                artifact.main.getOrElse("")) { ln =>
               out2.append(ln)
               out2.append("\n")
             }
@@ -393,7 +393,7 @@ case class Universe(
 case class SchemaTree(schema: Schema, dir: Path, inherited: Set[SchemaTree]) {
 
   lazy val universe: Outcome[Universe] = {
-    val localProjectIds = schema.projects.map(_.id)
+    val localProjectIds          = schema.projects.map(_.id)
     val empty: Outcome[Universe] = Success(Universe())
     inherited
       .foldLeft(empty) { (projects, schemaTree) =>
@@ -410,16 +410,16 @@ case class SchemaTree(schema: Schema, dir: Path, inherited: Set[SchemaTree]) {
           p.id -> p
         }.toMap
         val newSchemas = schema.projects.map(_.id -> schema).toMap
-        val newDirs = schema.projects.map(_.id -> dir).toMap
+        val newDirs    = schema.projects.map(_.id -> dir).toMap
         old ++ Universe(newProjects, newSchemas, newDirs)
       }
   }
 }
 
 object Schema {
-  implicit val msgShow: MsgShow[Schema] = v => UserMsg(_.schema(v.id.key))
+  implicit val msgShow: MsgShow[Schema]       = v => UserMsg(_.schema(v.id.key))
   implicit val stringShow: StringShow[Schema] = _.id.key
-  implicit def diff: Diff[Schema] = Diff.gen[Schema]
+  implicit def diff: Diff[Schema]             = Diff.gen[Schema]
 }
 
 case class Schema(
@@ -453,11 +453,11 @@ case class Schema(
     for {
       imps <- imports.map { ref =>
                for {
-                 repo <- repos.findBy(ref.repo)
-                 repoDir <- repo.fullCheckout.get
-                 layer <- Ogdl.read[Layer](Layout(layout.home, repoDir).furyConfig)
+                 repo     <- repos.findBy(ref.repo)
+                 repoDir  <- repo.fullCheckout.get
+                 layer    <- Ogdl.read[Layer](Layout(layout.home, repoDir).furyConfig)
                  resolved <- layer.schemas.findBy(ref.schema)
-                 tree <- resolved.schemaTree(repoDir)
+                 tree     <- resolved.schemaTree(repoDir)
                } yield tree
              }.sequence
     } yield SchemaTree(this, dir, imps.to[Set])
@@ -481,14 +481,14 @@ case class Schema(
 }
 
 object AliasCmd {
-  implicit val msgShow: MsgShow[AliasCmd] = v => UserMsg(_.module(v.key))
+  implicit val msgShow: MsgShow[AliasCmd]       = v => UserMsg(_.module(v.key))
   implicit val stringShow: StringShow[AliasCmd] = _.key
 }
 
 case class AliasCmd(key: String)
 
 object Alias {
-  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.cmd.key))
+  implicit val msgShow: MsgShow[Alias]       = v => UserMsg(_.module(v.cmd.key))
   implicit val stringShow: StringShow[Alias] = _.cmd.key
 }
 
@@ -554,7 +554,7 @@ case class ModuleRef(projectId: ProjectId, moduleId: ModuleId, intransitive: Boo
 }
 
 object SchemaId {
-  implicit val msgShow: MsgShow[SchemaId] = v => UserMsg(_.schema(v.key))
+  implicit val msgShow: MsgShow[SchemaId]       = v => UserMsg(_.schema(v.key))
   implicit val stringShow: StringShow[SchemaId] = _.key
 
   implicit val diff: Diff[SchemaId] =
@@ -573,24 +573,24 @@ object SchemaId {
 case class SchemaId(key: String) extends Key(msg"schema")
 
 object ProjectId {
-  implicit val msgShow: MsgShow[ProjectId] = p => UserMsg(_.project(p.key))
+  implicit val msgShow: MsgShow[ProjectId]       = p => UserMsg(_.project(p.key))
   implicit val stringShow: StringShow[ProjectId] = _.key
-  implicit def diff: Diff[ProjectId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit def diff: Diff[ProjectId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 }
 
 case class ProjectId(key: String) extends Key(msg"project")
 
 object ModuleId {
-  implicit val msgShow: MsgShow[ModuleId] = m => UserMsg(_.module(m.key))
+  implicit val msgShow: MsgShow[ModuleId]       = m => UserMsg(_.module(m.key))
   implicit val stringShow: StringShow[ModuleId] = _.key
-  implicit def diff: Diff[ModuleId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  final val Core: ModuleId = ModuleId("core")
+  implicit def diff: Diff[ModuleId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  final val Core: ModuleId                      = ModuleId("core")
 }
 
 case class ModuleId(key: String) extends Key(msg"module")
 
 object Repo {
-  implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.url(r.simplified))
+  implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
   implicit val stringShow: StringShow[Repo] = _.simplified
 
   def fromString(str: String): Repo = str match {
@@ -608,12 +608,12 @@ object Repo {
 
 case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[Path]) {
 
-  def hash: Digest = this.digest[Md5]
+  def hash: Digest                        = this.digest[Md5]
   def path(implicit layout: Layout): Path = layout.srcsDir / hash.encoded
 
   def get(implicit shell: Shell, layout: Layout): Outcome[Path] =
     for {
-      repoDir <- repo.fetch
+      repoDir    <- repo.fetch
       workingDir <- checkout
     } yield workingDir
 
@@ -636,9 +636,9 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
 }
 
 object SourceRepo {
-  implicit val msgShow: MsgShow[SourceRepo] = r => UserMsg(_.repo(r.id.key))
+  implicit val msgShow: MsgShow[SourceRepo]       = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[SourceRepo] = _.id.key
-  implicit def diff: Diff[SourceRepo] = Diff.gen[SourceRepo]
+  implicit def diff: Diff[SourceRepo]             = Diff.gen[SourceRepo]
 }
 
 case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
@@ -664,8 +664,8 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
       shell: Shell
     ): Outcome[List[String]] =
     for {
-      dir <- ~fullCheckout.path
-      layer <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+      dir     <- ~fullCheckout.path
+      layer   <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
       schemas <- ~layer.schemas.to[List]
     } yield
       schemas.map { schema =>
@@ -674,7 +674,7 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
 
   def current(implicit shell: Shell, layout: Layout): Outcome[RefSpec] =
     for {
-      dir <- local.map(Success(_)).getOrElse(repo.fetch)
+      dir    <- local.map(Success(_)).getOrElse(repo.fetch)
       commit <- shell.git.getCommit(dir)
     } yield RefSpec(commit)
 
@@ -695,19 +695,19 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
 case class BinRepoId(id: String)
 
 object BinRepoId {
-  implicit val msgShow: MsgShow[BinRepoId] = v => UserMsg(_.repo(v.id))
+  implicit val msgShow: MsgShow[BinRepoId]       = v => UserMsg(_.repo(v.id))
   implicit val stringShow: StringShow[BinRepoId] = _.id
-  final val Central: BinRepoId = BinRepoId("central")
+  final val Central: BinRepoId                   = BinRepoId("central")
 }
 
 case class Repo(url: String) {
-  def hash: Digest = url.digest[Md5]
+  def hash: Digest                        = url.digest[Md5]
   def path(implicit layout: Layout): Path = layout.reposDir / hash.encoded
 
   def update()(implicit shell: Shell, layout: Layout): Outcome[UserMsg] =
     for {
       oldCommit <- shell.git.getCommit(path)
-      _ <- shell.git.pull(path, None)
+      _         <- shell.git.pull(path, None)
       newCommit <- shell.git.getCommit(path)
       msg <- ~(if (oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
                else msg"Repository ${url} is unchanged")
@@ -749,7 +749,7 @@ object SchemaRef {
       }
 
   implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
-  implicit def diff: Diff[SchemaRef] = Diff.gen[SchemaRef]
+  implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
 
   def unapply(value: String): Option[SchemaRef] = value match {
     case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-z0-9\-\.]*[a-z0-9])$$" =>
@@ -763,19 +763,19 @@ case class SchemaRef(repo: RepoId, schema: SchemaId) {
 
   def resolve(base: Schema)(implicit layout: Layout, shell: Shell): Outcome[Schema] =
     for {
-      repo <- base.repos.findBy(repo)
-      dir <- repo.fullCheckout.get
-      layer <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+      repo     <- base.repos.findBy(repo)
+      dir      <- repo.fullCheckout.get
+      layer    <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
       resolved <- layer.schemas.findBy(schema)
     } yield resolved
 }
 
 sealed trait CompileEvent
-case object Tick extends CompileEvent
-case class StartCompile(ref: ModuleRef) extends CompileEvent
+case object Tick                                                         extends CompileEvent
+case class StartCompile(ref: ModuleRef)                                  extends CompileEvent
 case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
-case class SkipCompile(ref: ModuleRef) extends CompileEvent
-case class RunOutput(ref: ModuleRef, content: String) extends CompileEvent
+case class SkipCompile(ref: ModuleRef)                                   extends CompileEvent
+case class RunOutput(ref: ModuleRef, content: String)                    extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
 
@@ -814,9 +814,9 @@ case class Artifact(
 }
 
 object Project {
-  implicit val msgShow: MsgShow[Project] = v => UserMsg(_.project(v.id.key))
+  implicit val msgShow: MsgShow[Project]       = v => UserMsg(_.project(v.id.key))
   implicit val stringShow: StringShow[Project] = _.id.key
-  implicit def diff: Diff[Project] = Diff.gen[Project]
+  implicit def diff: Diff[Project]             = Diff.gen[Project]
 
   def available(projectId: ProjectId, layer: Layer): Boolean =
     !layer.projects.toOption.to[List].flatten.findBy(projectId).isSuccess
@@ -850,7 +850,7 @@ case class Project(
 }
 
 object License {
-  implicit val msgShow: MsgShow[License] = v => UserMsg(_.license(v.id.key))
+  implicit val msgShow: MsgShow[License]       = v => UserMsg(_.license(v.id.key))
   implicit val stringShow: StringShow[License] = _.id.key
 
   val unknown = LicenseId("unknown")
@@ -893,7 +893,7 @@ object License {
 }
 
 object LicenseId {
-  implicit val msgShow: MsgShow[LicenseId] = v => UserMsg(_.license(v.key))
+  implicit val msgShow: MsgShow[LicenseId]       = v => UserMsg(_.license(v.key))
   implicit val stringShow: StringShow[LicenseId] = _.key
 }
 case class LicenseId(key: String) extends Key(msg"license")
@@ -901,7 +901,7 @@ case class LicenseId(key: String) extends Key(msg"license")
 case class License(id: LicenseId, name: String)
 
 object RefSpec {
-  implicit val msgShow: MsgShow[RefSpec] = v => UserMsg(_.version(v.id))
+  implicit val msgShow: MsgShow[RefSpec]       = v => UserMsg(_.version(v.id))
   implicit val stringShow: StringShow[RefSpec] = _.id
 
   val master = RefSpec("master")
@@ -977,7 +977,7 @@ case class LocalSource(path: Path) extends Source {
 }
 
 object RepoId {
-  implicit val msgShow: MsgShow[RepoId] = r => UserMsg(_.repo(r.key))
+  implicit val msgShow: MsgShow[RepoId]       = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
 }
 
@@ -985,7 +985,7 @@ case class RepoId(key: String) extends Key(msg"repository")
 
 object Parameter {
   implicit val stringShow: StringShow[Parameter] = _.name
-  implicit val msgShow: MsgShow[Parameter] = v => UserMsg(_.param(v.name))
+  implicit val msgShow: MsgShow[Parameter]       = v => UserMsg(_.param(v.name))
 }
 
 case class Parameter(name: String) { def parameter = str"-$name" }

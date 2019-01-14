@@ -24,7 +24,7 @@ object Outcome {
 
 object `package` {
   type Outcome[+T] = Try[T]
-  implicit class Unitize[T](t: T) { def unit: Unit = () }
+  implicit class Unitize[T](t: T)   { def unit: Unit       = ()         }
   implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
   implicit class Ascribe[T](value: Option[T]) {
     def ascribe(e: Exception): Outcome[T] = value.map(Success(_)).getOrElse(Failure(e))

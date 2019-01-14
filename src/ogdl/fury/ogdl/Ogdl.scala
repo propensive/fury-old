@@ -78,7 +78,7 @@ object Ogdl {
       FileNotFound(path)
     } {
       val buffer = readToBuffer(path)
-      val ogdl = parse(buffer)
+      val ogdl   = parse(buffer)
 
       implicitly[OgdlReader[T]].read(ogdl)
     }
@@ -87,7 +87,7 @@ object Ogdl {
     val inChannel = FileChannel.open(path.javaPath)
 
     try {
-      val size = inChannel.size.toInt
+      val size   = inChannel.size.toInt
       val buffer = ByteBuffer.allocate(size)
 
       inChannel.read(buffer)
