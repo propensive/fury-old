@@ -19,6 +19,7 @@ import escritoire._
 import kaleidoscope._
 
 import scala.collection.immutable.SortedSet
+import scala.util._
 
 case class Tables(config: Config) {
 
@@ -118,6 +119,30 @@ case class Tables(config: Config) {
       Heading("GROUP", _.group),
       Heading("ARTIFACT", _.artifact),
       Heading("VERSION", _.version)
+  )
+
+  def imports(current: Option[SchemaId]): Tabulation[(SchemaRef, Try[Schema])] = Tabulation(
+      Heading("", s => Some(s._1.schema.key) == current),
+      Heading("REPO", _._1.repo),
+      Heading("SCHEMA", _._1.schema),
+      Heading(
+          "PROJECTS",
+          s =>
+            s._2.toOption.map { s =>
+              bar(s.projects.size)
+            }.getOrElse(msg"-")),
+      Heading(
+          "REPOS",
+          s =>
+            s._2.toOption.map { s =>
+              bar(s.sourceRepoIds.size)
+            }.getOrElse(msg"-")),
+      Heading(
+          "IMPORTS",
+          s =>
+            s._2.toOption.map { s =>
+              bar(s.imports.size)
+            }.getOrElse(msg"-"))
   )
 
   def schemas(current: Option[SchemaId]): Tabulation[Schema] = Tabulation(
