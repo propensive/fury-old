@@ -1,4 +1,4 @@
-package fury.tests
+package fury.ogdl
 
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
