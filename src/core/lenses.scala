@@ -46,7 +46,7 @@ object Lenses {
 
     def apply[A, AId](id: AId)(implicit resolver: Resolver[A, AId]): Optic[SortedSet, Id, A] =
       new Optic[SortedSet, Id, A]("focus") {
-        def map[B](v: SortedSet[A])(fn: A => B): B = fn(v.find(resolver.matchOn(id, _)).get)
+        def map[B](v: SortedSet[A])(fn: A => B): B     = fn(v.find(resolver.matchOn(id, _)).get)
         def comap(f: SortedSet[A], g: A): SortedSet[A] = f.filterNot(resolver.matchOn(id, _)) + g
       }
   }
@@ -58,13 +58,13 @@ object Lenses {
   object project extends Lens.Partial[Project]() {
     def module(moduleId: ModuleId) = lens(_.modules(on(moduleId)))
 
-    val modules = lens(_.modules)
+    val modules    = lens(_.modules)
     val mainModule = lens(_.main)
   }
 
   object schema extends Lens.Partial[Schema]() {
     val mainProject = lens(_.main)
-    val projects = lens(_.projects)
+    val projects    = lens(_.projects)
   }
 
   object config extends Lens.Partial[Config]() {
@@ -72,7 +72,7 @@ object Lenses {
   }
 
   object layer extends Lens.Partial[Layer]() {
-    val schemas = lens(_.schemas)
+    val schemas    = lens(_.schemas)
     val mainSchema = lens(_.main)
 
     def schema(schemaId: SchemaId) = lens(_.schemas(on(schemaId)))

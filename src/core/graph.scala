@@ -19,16 +19,16 @@ import annotation.tailrec
 
 object Graph {
   final private val North = 8
-  final private val East = 4
+  final private val East  = 4
   final private val South = 2
-  final private val West = 1
+  final private val West  = 1
   final private val chars = "   ┐ ─┌┬ ┘│┤└┴├┼".toCharArray
 
   sealed trait CompileState
-  case object Compiling extends CompileState
+  case object Compiling                          extends CompileState
   case class Successful(content: Option[String]) extends CompileState
-  case class Failed(output: String) extends CompileState
-  case object Skipped extends CompileState
+  case class Failed(output: String)              extends CompileState
+  case object Skipped                            extends CompileState
 
   @tailrec
   def live(
@@ -51,10 +51,11 @@ object Graph {
       case StartCompile(ref) #:: tail =>
         live(cli, true)(io, graph, tail, state.updated(ref, Compiling))
       case StopCompile(ref, out, success) #:: tail =>
-        live(cli, true)(io,
-                        graph,
-                        tail,
-                        state.updated(ref, if (success) Successful(None) else Failed(out)))
+        live(cli, true)(
+            io,
+            graph,
+            tail,
+            state.updated(ref, if (success) Successful(None) else Failed(out)))
       case RunOutput(ref, content) #:: tail =>
         live(cli, true)(io, graph, tail, state.updated(ref, Successful(Some(content))))
       case SkipCompile(ref) #:: tail =>
@@ -174,7 +175,7 @@ object Diamond {
       right: UserMsg,
       bottom: UserMsg
     ): List[UserMsg] = {
-    def width = left.length.max(topLeft.length - 2)
+    def width   = left.length.max(topLeft.length - 2)
     val padding = " " * width
 
     List(

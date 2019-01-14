@@ -26,9 +26,9 @@ object Prompt {
       optModule: Option[Module]
     )(implicit theme: Theme
     ): String = {
-    val schemaId = schema.id.key
+    val schemaId  = schema.id.key
     val projectId = optProject.map(_.id.key).getOrElse("-")
-    val moduleId = optModule.map(_.id.key).getOrElse("-")
+    val moduleId  = optModule.map(_.id.key).getOrElse("-")
     val schemaText =
       if (layer.schemas.size <= 1) "" else s"${escape(theme.schema)}$schemaId${escape(theme.gray)}/"
 

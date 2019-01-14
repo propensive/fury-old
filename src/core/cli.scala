@@ -26,7 +26,7 @@ import scala.util._
 case class EarlyCompletions() extends FuryException
 
 sealed class ExitStatus(val code: Int)
-case object Done extends ExitStatus(0)
+case object Done  extends ExitStatus(0)
 case object Abort extends ExitStatus(1)
 
 object NoCommand { def unapply(cli: Cli[CliParam[_]]): Boolean = cli.args.isEmpty }
@@ -38,7 +38,7 @@ abstract class Cmd(val cmd: String, val description: String) {
   }
 
   def completions: List[Cmd] = Nil
-  def default: Option[Cmd] = None
+  def default: Option[Cmd]   = None
 }
 
 case class CliParam[T: Param.Extractor](shortName: Char, longName: Symbol, description: String) {
@@ -48,11 +48,12 @@ case class CliParam[T: Param.Extractor](shortName: Char, longName: Symbol, descr
 object Cli {
 
   def asCompletion[H <: CliParam[_]](menu: => Menu[Cli[H], _])(cli: Cli[H]) = {
-    val newCli = Cli[H](cli.output,
-                        ParamMap(cli.args.suffix.map(_.value).tail: _*),
-                        cli.args(Args.ParamNoArg).opt,
-                        cli.optCompletions,
-                        cli.env)
+    val newCli = Cli[H](
+        cli.output,
+        ParamMap(cli.args.suffix.map(_.value).tail: _*),
+        cli.args(Args.ParamNoArg).opt,
+        cli.optCompletions,
+        cli.env)
 
     menu(newCli, newCli)
   }
@@ -161,7 +162,7 @@ case class Cli[+Hinted <: CliParam[_]](
   def defaultTo(defaultCmd: Cmd) = copy(args = args + defaultCmd.cmd)
 
   def abort(msg: UserMsg): ExitStatus = {
-    if(!completion) write(msg)
+    if (!completion) write(msg)
     Abort
   }
 

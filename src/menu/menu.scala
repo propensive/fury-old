@@ -95,9 +95,10 @@ object FuryMenu {
             Action('remove, msg"remove a source repository from the schema", RepoCli.remove),
             Action('fork, msg"fork a managed repository locally", RepoCli.fork),
             Action('list, msg"list source repositories", RepoCli.list),
-            Action('pull,
-                   msg"pull the latest version of the source repo from the remote",
-                   RepoCli.pull)
+            Action(
+                'pull,
+                msg"pull the latest version of the source repo from the remote",
+                RepoCli.pull)
         ),
         Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", LayerCli.context, 'describe)(
@@ -110,7 +111,7 @@ object FuryMenu {
   def help(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
     for {
       io <- cli.io()
-      _ <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
+      _  <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
                            |${menu(Nil).reference(Theme.NoColor).join("\n")}

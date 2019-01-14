@@ -63,7 +63,7 @@ object OgdlParser {
         (buffer.get(): @switch) match {
           case '\n' =>
             val key: String = readString(mark)
-            val cur = readIndent(0)
+            val cur         = readIndent(0)
             parse(append(root, key, focus), cur, buffer.position)
           case '\t' =>
             val key: String = readString(mark)

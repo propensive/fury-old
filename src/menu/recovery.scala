@@ -83,9 +83,9 @@ want to make this change to all schemas, please add the --force/-F argument.""")
             s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            io <- cli.io()
-            _ <- ~layout.errorLogfile.writeSync(errorString)
-            _ <- ~io.await()
+            io     <- cli.io()
+            _      <- ~layout.errorLogfile.writeSync(errorString)
+            _      <- ~io.await()
           } yield
             cli.abort {
               msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}."

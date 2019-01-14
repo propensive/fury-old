@@ -58,7 +58,7 @@ case class StringContexts(context: StringContext) extends AnyVal {
 }
 
 case class Joinable(values: Traversable[String]) extends AnyVal {
-  def join: String = values.mkString
+  def join: String                    = values.mkString
   def join(separator: String): String = values.mkString(separator)
 
   def join(left: String, separator: String, right: String): String =
@@ -69,9 +69,9 @@ case class StringPart(string: String) extends AnyVal
 
 object StringShow {
   implicit val string: StringShow[String] = identity
-  implicit val char: StringShow[Char] = _.toString
-  implicit val long: StringShow[Long] = _.toString
-  implicit val int: StringShow[Int] = _.toString
+  implicit val char: StringShow[Char]     = _.toString
+  implicit val long: StringShow[Long]     = _.toString
+  implicit val int: StringShow[Int]       = _.toString
 }
 
 trait StringShow[-T] { def show(value: T): String }
@@ -79,10 +79,10 @@ trait StringShow[-T] { def show(value: T): String }
 object Compare {
 
   def editDistance(from: String, to: String) = {
-    val m = from.length
-    val n = to.length
+    val m       = from.length
+    val n       = to.length
     val oldDist = new Array[Int](n + 1)
-    val dist = new Array[Int](n + 1)
+    val dist    = new Array[Int](n + 1)
 
     for (j <- 1 to n) oldDist(j) = oldDist(j - 1) + 1
     for (i <- 1 to m) {

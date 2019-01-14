@@ -30,33 +30,33 @@ object SchemaCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer <- Layer.read(layout.furyConfig)(layout)
+      layer  <- Layer.read(layout.furyConfig)(layout)
     } yield SchemaCtx(cli, layout, config, layer)
 
   def select(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
-      io <- cli.io()
+      cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
+      io       <- cli.io()
       schemaId <- io(SchemaArg)
-      lens <- ~Lenses.layer.mainSchema
-      layer <- ~(lens(layer) = schemaId)
-      _ <- ~io.save(layer, layout.furyConfig)
+      lens     <- ~Lenses.layer.mainSchema
+      layer    <- ~(lens(layer) = schemaId)
+      _        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def list(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
-      schema <- layer.schemas.findBy(schemaArg)
-      cols <- Success(Terminal.columns(cli.env).getOrElse(100))
-      cli <- cli.hint(RawArg)
-      io <- cli.io()
-      raw <- ~io(RawArg).isSuccess
-      rows <- ~layer.schemas.to[List]
-      table <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cols, rows, raw)(_.id)
+      schema    <- layer.schemas.findBy(schemaArg)
+      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
+      cli       <- cli.hint(RawArg)
+      io        <- cli.io()
+      raw       <- ~io(RawArg).isSuccess
+      rows      <- ~layer.schemas.to[List]
+      table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
@@ -68,21 +68,22 @@ object SchemaCli {
   def diff(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
-      cli <- ctx.cli.hint(CompareArg, ctx.layer.schemas.map(_.id))
-      cli <- cli.hint(RawArg)
-      io <- cli.io()
-      raw <- ~io(RawArg).isSuccess
+      cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
+      cli       <- ctx.cli.hint(CompareArg, ctx.layer.schemas.map(_.id))
+      cli       <- cli.hint(RawArg)
+      io        <- cli.io()
+      raw       <- ~io(RawArg).isSuccess
       schemaArg <- ~io(SchemaArg).toOption.getOrElse(layer.main)
-      schema <- layer.schemas.findBy(schemaArg)
-      otherArg <- io(CompareArg)
-      other <- layer.schemas.findBy(otherArg)
-      cols <- Success(Terminal.columns(cli.env).getOrElse(100))
-      rows <- ~Diff.gen[Schema].diff(schema, other)
-      table <- ~Tables(config).show(Tables(config).differences(schema.id.key, other.id.key),
-                                    cols,
-                                    rows,
-                                    raw)(_.label)
+      schema    <- layer.schemas.findBy(schemaArg)
+      otherArg  <- io(CompareArg)
+      other     <- layer.schemas.findBy(otherArg)
+      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
+      rows      <- ~Diff.gen[Schema].diff(schema, other)
+      table <- ~Tables(config).show(
+                  Tables(config).differences(schema.id.key, other.id.key),
+                  cols,
+                  rows,
+                  raw)(_.label)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
@@ -94,47 +95,47 @@ object SchemaCli {
   def update(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli <- cli.hint(SchemaNameArg)
-      io <- cli.io()
-      name <- io(SchemaNameArg)
-      schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
-      schema <- layer.schemas.findBy(schemaId)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(SchemaNameArg)
+      io        <- cli.io()
+      name      <- io(SchemaNameArg)
+      schemaId  <- ~io(SchemaArg).toOption.getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaId)
       newSchema <- ~schema.copy(id = name)
-      lens <- ~Lenses.layer.schemas
-      layer <- ~lens.modify(layer)(_ - schema + newSchema)
-      layer <- ~(if (layer.main == schema.id) layer.copy(main = newSchema.id) else layer)
-      _ <- ~io.save(layer, layout.furyConfig)
+      lens      <- ~Lenses.layer.schemas
+      layer     <- ~lens.modify(layer)(_ - schema + newSchema)
+      layer     <- ~(if (layer.main == schema.id) layer.copy(main = newSchema.id) else layer)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def add(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli <- cli.hint(SchemaNameArg)
-      io <- cli.io()
-      name <- io(SchemaNameArg)
-      schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
-      schema <- layer.schemas.findBy(schemaId)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(SchemaNameArg)
+      io        <- cli.io()
+      name      <- io(SchemaNameArg)
+      schemaId  <- ~io(SchemaArg).toOption.getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaId)
       newSchema <- ~schema.copy(id = name)
-      lens <- ~Lenses.layer.schemas
-      layer <- ~lens.modify(layer)(_ + newSchema)
-      layer <- ~layer.copy(main = newSchema.id)
-      _ <- ~io.save(layer, layout.furyConfig)
+      lens      <- ~Lenses.layer.schemas
+      layer     <- ~lens.modify(layer)(_ + newSchema)
+      layer     <- ~layer.copy(main = newSchema.id)
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def remove(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      io <- cli.io()
+      cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      io       <- cli.io()
       schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
-      schema <- layer.schemas.findBy(schemaId)
-      lens <- ~Lenses.layer.schemas
-      layer <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
-      _ <- ~io.save(layer, layout.furyConfig)
+      schema   <- layer.schemas.findBy(schemaId)
+      lens     <- ~Lenses.layer.schemas
+      layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
+      _        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

@@ -18,9 +18,9 @@ package fury
 import fury.error._
 
 object Resolver {
-  implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id
-  implicit val projectResolver: Resolver[Project, ProjectId] = _ == _.id
-  implicit val schemaResolver: Resolver[Schema, SchemaId] = _ == _.id
+  implicit val moduleResolver: Resolver[Module, ModuleId]       = _ == _.id
+  implicit val projectResolver: Resolver[Project, ProjectId]    = _ == _.id
+  implicit val schemaResolver: Resolver[Schema, SchemaId]       = _ == _.id
   implicit val sourceRepoResolver: Resolver[SourceRepo, RepoId] = _ == _.id
 }
 

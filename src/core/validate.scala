@@ -23,9 +23,9 @@ object Validate {
 
   def apply(layer: Layer): Outcome[Layer] = {
     for {
-      schema <- layer.schemas
+      schema  <- layer.schemas
       project <- schema.projects
-      module <- project.modules
+      module  <- project.modules
     } ()
     Success(layer)
   }

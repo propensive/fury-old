@@ -34,19 +34,19 @@ object ModuleCli {
       optSchema: Option[Schema],
       optProject: Option[Project])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId = optSchemaId.getOrElse(layer.main)
+    def defaultSchemaId: SchemaId      = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      layer <- Layer.read(layout.furyConfig)(layout)
-      cli <- cli.hint(SchemaArg, layer.schemas)
+      layout    <- cli.layout
+      config    <- Config.read()(cli.env, layout)
+      layer     <- Layer.read(layout.furyConfig)(layout)
+      cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
-      schema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-      cli <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
+      schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+      cli       <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
                        cli.peek(ProjectArg).orElse(s.main)
                      }
@@ -58,31 +58,29 @@ object ModuleCli {
   def select(ctx: Context) = {
     import ctx._
     for {
-      cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      io <- cli.io()
-      schema <- defaultSchema
-      project <- optProject.ascribe(UnspecifiedProject())
+      cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      io       <- cli.io()
+      schema   <- defaultSchema
+      project  <- optProject.ascribe(UnspecifiedProject())
       moduleId <- ~io(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
-      lens <- ~Lenses.layer.mainModule(schema.id, project.id)
-      layer <- ~(lens(layer) = Some(moduleId))
-      _ <- ~io.save(layer, layout.furyConfig)
+      lens     <- ~Lenses.layer.mainModule(schema.id, project.id)
+      layer    <- ~(lens(layer) = Some(moduleId))
+      _        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def list(ctx: Context) = {
     import ctx._
     for {
-      cols <- Success(Terminal.columns.getOrElse(100))
+      cols    <- Success(Terminal.columns.getOrElse(100))
       project <- optProject.ascribe(UnspecifiedProject())
-      cli <- cli.hint(RawArg)
-      io <- cli.io()
-      raw <- ~io(RawArg).isSuccess
-      rows <- ~project.modules.to[List]
-      table <- ~Tables(config).show(Tables(config).modules(project.id, project.main),
-                                    cols,
-                                    rows,
-                                    raw)(_.id)
+      cli     <- cli.hint(RawArg)
+      io      <- cli.io()
+      raw     <- ~io(RawArg).isSuccess
+      rows    <- ~project.modules.to[List]
+      table <- ~Tables(config)
+                .show(Tables(config).modules(project.id, project.main), cols, rows, raw)(_.id)
       schema <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
@@ -95,19 +93,20 @@ object ModuleCli {
     import ctx._
     for {
       cli <- cli.hint(ModuleNameArg)
-      cli <- cli.hint(CompilerArg,
-                      ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
-      cli <- cli.hint(KindArg, Kind.all)
+      cli <- cli.hint(
+                CompilerArg,
+                ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
+      cli     <- cli.hint(KindArg, Kind.all)
       optKind <- ~cli.peek(KindArg)
       cli <- optKind match {
               case Some(Application | Plugin) =>
                 for (cli <- cli.hint(MainArg)) yield cli
               case None | Some(Library | Compiler) => ~cli
             }
-      io <- cli.io()
-      project <- optProject.ascribe(UnspecifiedProject())
-      moduleArg <- io(ModuleNameArg)
-      moduleId <- fury.Module.available(moduleArg, project)
+      io         <- cli.io()
+      project    <- optProject.ascribe(UnspecifiedProject())
+      moduleArg  <- io(ModuleNameArg)
+      moduleId   <- fury.Module.available(moduleArg, project)
       compilerId <- ~io(CompilerArg).toOption
       optCompilerRef <- compilerId
                          .map(ModuleRef.parse(project, _, true))
@@ -137,15 +136,15 @@ object ModuleCli {
   def remove(ctx: Context) = {
     import ctx._
     for {
-      cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      schema <- defaultSchema
-      cli <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
-      cli <- cli.hint(ForceArg)
-      io <- cli.io()
-      force <- ~io(ForceArg).isSuccess
+      cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      schema   <- defaultSchema
+      cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
+      cli      <- cli.hint(ForceArg)
+      io       <- cli.io()
+      force    <- ~io(ForceArg).isSuccess
       moduleId <- io(ModuleArg)
-      project <- optProject.ascribe(UnspecifiedProject())
-      module <- project.modules.findBy(moduleId)
+      project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- project.modules.findBy(moduleId)
       layer <- Lenses
                 .updateSchemas(optSchemaId, layer, force)(Lenses.layer.modules(_, project.id)) {
                   (lens, ws) =>
@@ -163,18 +162,19 @@ object ModuleCli {
     import ctx._
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli <- cli.hint(CompilerArg,
-                      ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
-      cli <- cli.hint(KindArg, Kind.all)
+      cli <- cli.hint(
+                CompilerArg,
+                ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
+      cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
       optModule <- Success {
                     for {
-                      project <- optProject
+                      project  <- optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).toOption
+                      module   <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
-      cli <- cli.hint(ModuleNameArg, optModuleId.to[List])
+      cli     <- cli.hint(ModuleNameArg, optModuleId.to[List])
       optKind <- ~cli.peek(KindArg).orElse(optModule.map(_.kind))
       cli <- optKind match {
               case Some(Application | Plugin) =>
@@ -184,20 +184,20 @@ object ModuleCli {
               case None | Some(Library) =>
                 ~cli
             }
-      cli <- cli.hint(ForceArg)
-      io <- cli.io()
+      cli        <- cli.hint(ForceArg)
+      io         <- cli.io()
       compilerId <- ~io(CompilerArg).toOption
-      project <- optProject.ascribe(UnspecifiedProject())
-      module <- optModule.ascribe(UnspecifiedModule())
+      project    <- optProject.ascribe(UnspecifiedProject())
+      module     <- optModule.ascribe(UnspecifiedModule())
       compilerRef <- compilerId
                       .map(ModuleRef.parse(project, _, true))
                       .to[List]
                       .sequence
                       .map(_.headOption.getOrElse(module.compiler))
-      kind <- ~optKind.getOrElse(module.kind)
+      kind      <- ~optKind.getOrElse(module.kind)
       mainClass <- ~io(MainArg).toOption
-      nameArg <- ~io(ModuleNameArg).toOption
-      newId <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
+      nameArg   <- ~io(ModuleNameArg).toOption
+      newId     <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
       bloopSpec <- io(BloopSpecArg).toOption
                     .to[List]
                     .map(BloopSpec.parse(_))
@@ -225,14 +225,14 @@ object BinaryCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      ctx <- ModuleCli.context(cli)
-      cli <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
+      ctx         <- ModuleCli.context(cli)
+      cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
       optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
       optModule <- Success {
                     for {
-                      project <- ctx.optProject
+                      project  <- ctx.optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).toOption
+                      module   <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
     } yield BinariesCtx(ctx, optModule)
@@ -240,15 +240,15 @@ object BinaryCli {
   def list(ctx: BinariesCtx) = {
     import ctx._, moduleCtx._
     for {
-      cli <- cli.hint(RawArg)
-      io <- cli.io()
-      raw <- ~io(RawArg).isSuccess
+      cli     <- cli.hint(RawArg)
+      io      <- cli.io()
+      raw     <- ~io(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
-      module <- optModule.ascribe(UnspecifiedModule())
-      cols <- Success(Terminal.columns.getOrElse(100))
-      rows <- ~module.binaries.to[List]
-      schema <- defaultSchema
-      table <- ~Tables(config).show(Tables(config).binaries, cols, rows, raw)(identity)
+      module  <- optModule.ascribe(UnspecifiedModule())
+      cols    <- Success(Terminal.columns.getOrElse(100))
+      rows    <- ~module.binaries.to[List]
+      schema  <- defaultSchema
+      table   <- ~Tables(config).show(Tables(config).binaries, cols, rows, raw)(identity)
       _ <- ~(if (!raw)
                io.println(
                    Tables(config)
@@ -260,14 +260,14 @@ object BinaryCli {
   def remove(ctx: BinariesCtx) = {
     import ctx._, moduleCtx._
     for {
-      cli <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
-      cli <- cli.hint(ForceArg)
-      io <- cli.io()
-      binaryArg <- io(BinaryArg)
-      module <- optModule.ascribe(UnspecifiedModule())
-      project <- optProject.ascribe(UnspecifiedProject())
+      cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
+      cli         <- cli.hint(ForceArg)
+      io          <- cli.io()
+      binaryArg   <- io(BinaryArg)
+      module      <- optModule.ascribe(UnspecifiedModule())
+      project     <- optProject.ascribe(UnspecifiedProject())
       binaryToDel <- ~module.binaries.find(_.spec == binaryArg)
-      force <- ~io(ForceArg).isSuccess
+      force       <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
       _ <- ~io.save(layer, layout.furyConfig)
@@ -277,14 +277,14 @@ object BinaryCli {
   def add(ctx: BinariesCtx) = {
     import ctx._, moduleCtx._
     for {
-      cli <- cli.hint(BinaryArg)
-      cli <- cli.hint(BinaryRepoArg, List(RepoId("central")))
-      io <- cli.io()
-      module <- optModule.ascribe(UnspecifiedModule())
-      project <- optProject.ascribe(UnspecifiedProject())
+      cli       <- cli.hint(BinaryArg)
+      cli       <- cli.hint(BinaryRepoArg, List(RepoId("central")))
+      io        <- cli.io()
+      module    <- optModule.ascribe(UnspecifiedModule())
+      project   <- optProject.ascribe(UnspecifiedProject())
       binaryArg <- io(BinaryArg)
-      repoId <- ~io(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
-      binary <- Binary.unapply(repoId, binaryArg)
+      repoId    <- ~io(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
+      binary    <- Binary.unapply(repoId, binaryArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
       _ <- ~io.save(layer, layout.furyConfig)
@@ -298,14 +298,14 @@ object ParamCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      ctx <- ModuleCli.context(cli)
-      cli <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
+      ctx         <- ModuleCli.context(cli)
+      cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
       optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
       optModule <- Success {
                     for {
-                      project <- ctx.optProject
+                      project  <- ctx.optProject
                       moduleId <- optModuleId
-                      module <- project.modules.findBy(moduleId).toOption
+                      module   <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
     } yield ParamCtx(ctx, optModule)
@@ -313,15 +313,15 @@ object ParamCli {
   def list(ctx: ParamCtx) = {
     import ctx._, moduleCtx._
     for {
-      cli <- cli.hint(RawArg)
-      io <- cli.io()
-      raw <- ~io(RawArg).isSuccess
+      cli     <- cli.hint(RawArg)
+      io      <- cli.io()
+      raw     <- ~io(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
-      module <- optModule.ascribe(UnspecifiedModule())
-      cols <- Success(Terminal.columns.getOrElse(100))
-      rows <- ~module.params.to[List]
-      table <- ~Tables(config).show(Tables(config).params, cols, rows, raw)(_.name)
-      schema <- defaultSchema
+      module  <- optModule.ascribe(UnspecifiedModule())
+      cols    <- Success(Terminal.columns.getOrElse(100))
+      rows    <- ~module.params.to[List]
+      table   <- ~Tables(config).show(Tables(config).params, cols, rows, raw)(_.name)
+      schema  <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
                    Tables(config)
@@ -333,13 +333,13 @@ object ParamCli {
   def remove(ctx: ParamCtx) = {
     import ctx._, moduleCtx._
     for {
-      cli <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
-      cli <- cli.hint(ForceArg)
-      io <- cli.io()
+      cli      <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
+      cli      <- cli.hint(ForceArg)
+      io       <- cli.io()
       paramArg <- io(ParamArg)
-      module <- optModule.ascribe(UnspecifiedModule())
-      project <- optProject.ascribe(UnspecifiedProject())
-      force <- ~io(ForceArg).isSuccess
+      module   <- optModule.ascribe(UnspecifiedModule())
+      project  <- optProject.ascribe(UnspecifiedProject())
+      force    <- ~io(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
       _ <- ~io.save(layer, layout.furyConfig)
@@ -349,11 +349,11 @@ object ParamCli {
   def add(ctx: ParamCtx) = {
     import ctx._, moduleCtx._
     for {
-      cli <- cli.hint(ParamArg)
-      io <- cli.io()
-      module <- optModule.ascribe(UnspecifiedModule())
+      cli     <- cli.hint(ParamArg)
+      io      <- cli.io()
+      module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
-      param <- io(ParamArg)
+      param   <- io(ParamArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) += param)
       _ <- ~io.save(layer, layout.furyConfig)

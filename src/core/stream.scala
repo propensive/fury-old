@@ -19,17 +19,17 @@ import scala.collection.immutable.Stream
 
 /** a streaming multiplexer optimized for concurrent writes */
 final class Multiplexer[K, V](keys: List[K]) {
-  private[this] val state: Array[List[V]] = Array.fill(keys.size)(Nil)
-  private[this] val refs: Map[K, Int] = keys.zipWithIndex.toMap
+  private[this] val state: Array[List[V]]       = Array.fill(keys.size)(Nil)
+  private[this] val refs: Map[K, Int]           = keys.zipWithIndex.toMap
   private[this] var lastSnapshot: List[List[V]] = state.to[List]
-  private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
+  private[this] val closed: Array[Boolean]      = Array.fill(keys.size)(false)
 
   private[this] def finished: Boolean = closed.forall(identity)
 
   // FIXME: See if it is possible to write this as a tail-recursive method, without the
   // `lastSnapshot` var.
   def stream(interval: Int, tick: Option[V] = None): Stream[V] = {
-    val t0 = System.currentTimeMillis
+    val t0       = System.currentTimeMillis
     val snapshot = state.clone().to[List]
     // FIXME: This could be written more efficiently with a builder
     val changes = snapshot.zip(lastSnapshot).flatMap {

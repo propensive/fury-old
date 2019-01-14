@@ -59,8 +59,8 @@ object OgdlParserTest extends TestApp {
 
   private[this] def read(string: String): Ogdl = OgdlParser.parse(string)
 
-  implicit private[this] def buffer(string: String): ByteBuffer = wrap(string.getBytes())
-  implicit private[this] def graph(values: (String, Ogdl)*): Ogdl = Ogdl(values.toVector)
+  implicit private[this] def buffer(string: String): ByteBuffer        = wrap(string.getBytes())
+  implicit private[this] def graph(values: (String, Ogdl)*): Ogdl      = Ogdl(values.toVector)
   implicit private[this] def leafToTuple(name: String): (String, Ogdl) = name -> empty
-  implicit private[this] def leafToGraph(name: String): Ogdl = graph(name -> empty)
+  implicit private[this] def leafToGraph(name: String): Ogdl           = graph(name -> empty)
 }

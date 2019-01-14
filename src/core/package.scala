@@ -25,7 +25,7 @@ import scala.language.implicitConversions
 
 object `package` {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
-  implicit def stringContexts(sc: StringContext): StringContexts = StringContexts(sc)
+  implicit def stringContexts(sc: StringContext): StringContexts     = StringContexts(sc)
 
   implicit def stringPart[T: StringShow](value: T): StringPart =
     StringPart(implicitly[StringShow[T]].show(value))
@@ -49,11 +49,11 @@ object `package` {
 
   implicit def joinable(values: Traversable[String]): Joinable = Joinable(values)
 
-  implicit val mainTag: Tag = Tag("fury")
+  implicit val mainTag: Tag                     = Tag("fury")
   implicit val msgShowBoolean: MsgShow[Boolean] = if (_) msg">" else msg""
-  implicit val msgShowPath: MsgShow[Path] = path => UserMsg(_.path(path.value))
-  implicit val stringShow: StringShow[Path] = _.value
-  implicit val diff: Diff[Path] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
+  implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
+  implicit val stringShow: StringShow[Path]     = _.value
+  implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
 
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')

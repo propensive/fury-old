@@ -50,8 +50,8 @@ case class Path(value: String) {
 
   def zipfileEntries: Outcome[List[ZipfileEntry]] =
     for {
-      zipFile <- Outcome.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
-      entries <- ~zipFile.entries
+      zipFile     <- Outcome.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
+      entries     <- ~zipFile.entries
       entriesList = entries.asScala.to[List]
     } yield
       entriesList.map { entry =>
@@ -81,7 +81,7 @@ case class Path(value: String) {
   }
 
   def describe(pred: String => Boolean): String = {
-    val size = fileSize(pred)
+    val size  = fileSize(pred)
     val count = fileCount(pred)
     val sizeStr =
       if (size < 1024) s"${size}B"
@@ -197,7 +197,7 @@ case class Path(value: String) {
     }
 }
 
-case class FileNotFound(path: Path) extends FuryException
-case class FileWriteError(path: Path) extends FuryException
+case class FileNotFound(path: Path)      extends FuryException
+case class FileWriteError(path: Path)    extends FuryException
 case class ConfigFormatError(path: Path) extends FuryException
 case class ZipfileEntry(name: String, inputStream: () => java.io.InputStream)

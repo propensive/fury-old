@@ -37,8 +37,8 @@ object Tests extends TestApp {
       test("initialize alpha") {
         for {
           container <- container().value
-          out <- ~container.alpha.run(sh"fury init -p pname")
-          checksum <- ~container.alpha.run(sh"md5sum layer.fury")
+          out       <- ~container.alpha.run(sh"fury init -p pname")
+          checksum  <- ~container.alpha.run(sh"md5sum layer.fury")
         } yield checksum.take(32)
       }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
     }
@@ -47,8 +47,8 @@ object Tests extends TestApp {
       test("initialize beta") {
         for {
           container <- container().value
-          out <- ~container.beta.run(sh"fury init -p pname")
-          checksum <- ~container.beta.run(sh"md5sum layer.fury")
+          out       <- ~container.beta.run(sh"fury init -p pname")
+          checksum  <- ~container.beta.run(sh"md5sum layer.fury")
         } yield checksum.take(32)
       }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
     }
@@ -58,8 +58,8 @@ object Tests extends TestApp {
         test("stop container") {
           for {
             container <- container().value
-            _ <- container.stop()
-            _ <- Docker.prune()
+            _         <- container.stop()
+            _         <- Docker.prune()
           } yield ()
         }.assert(_.isRight)
       }

@@ -28,7 +28,7 @@ object Main {
     val layer = for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer <- Layer.read(layout.furyConfig)(layout)
+      layer  <- Layer.read(layout.furyConfig)(layout)
     } yield layer
 
     val actions = layer.toOption
@@ -39,9 +39,10 @@ object Main {
       .map { alias =>
         def action(cli: Cli[CliParam[_]]) =
           AliasCli.context(cli).flatMap(BuildCli.compile(alias.schema, Some(alias.module)))
-        Action(Symbol(alias.cmd.key),
-               msg"${alias.description}",
-               (cli: Cli[CliParam[_]]) => action(cli))
+        Action(
+            Symbol(alias.cmd.key),
+            msg"${alias.description}",
+            (cli: Cli[CliParam[_]]) => action(cli))
       }
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(cli, cli))
