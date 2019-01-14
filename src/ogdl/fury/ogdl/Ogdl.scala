@@ -73,6 +73,13 @@ object Ogdl {
       path.writeSync(sb.toString).unit
     }
 
+  def read[T: OgdlReader](string: String): T = {
+    val buffer = ByteBuffer.wrap(string.getBytes("UTF-8"))
+    val ogdl   = parse(buffer)
+
+    implicitly[OgdlReader[T]].read(ogdl)
+  }
+
   def read[T: OgdlReader](path: Path): Outcome[T] =
     Outcome.rescue[IOException] { _: IOException =>
       FileNotFound(path)
@@ -94,8 +101,6 @@ object Ogdl {
       buffer.flip()
 
       buffer
-    } finally {
-      inChannel.close()
-    }
+    } finally inChannel.close()
   }
 }
