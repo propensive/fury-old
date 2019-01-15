@@ -123,6 +123,7 @@ case class Module(
     id: ModuleId,
     kind: Kind = Library,
     main: Option[String] = None,
+    plugin: Option[String] = None,
     manifest: List[ManifestEntry] = List(),
     compiler: ModuleRef = ModuleRef.JavaRef,
     after: SortedSet[ModuleRef] = TreeSet(),
@@ -212,6 +213,7 @@ case class Universe(
           ref,
           module.kind,
           module.main,
+          module.plugin,
           schema.repos.map(_.repo).to[List],
           checkouts.to[List],
           binaries.to[List],
@@ -787,6 +789,7 @@ case class Artifact(
     ref: ModuleRef,
     kind: Kind,
     main: Option[String],
+    plugin: Option[String],
     repos: List[Repo],
     checkouts: List[Checkout],
     binaries: List[Path],
@@ -806,7 +809,7 @@ case class Artifact(
 
     main.foreach { main =>
       file.writeSync(
-          str"<plugin><name>${ref.projectId.key}/${ref.moduleId.key}</name><classname>${main}</classname></plugin>")
+          str"<plugin><name>${plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
     }
   }
 
@@ -839,7 +842,7 @@ case class Project(
 
   def compilerRefs: List[ModuleRef] =
     modules.to[List].collect {
-      case m @ Module(_, Compiler, _, _, _, _, _, _, _, _, _) => m.ref(this)
+      case m @ Module(_, Compiler, _, _, _, _, _, _, _, _, _, _) => m.ref(this)
     }
 
   def unused(moduleId: ModuleId) =

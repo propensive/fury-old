@@ -110,6 +110,9 @@ object Lenses {
     def moduleMainClass(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).main)
 
+    def modulePluginName(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).plugin)
+
     def moduleCompiler(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).compiler)
 

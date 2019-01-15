@@ -64,6 +64,7 @@ object Args {
   val LicenseArg     = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg      = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg        = CliParam[String]('M', 'main, "specify a main class")
+  val PluginArg      = CliParam[String]('P', 'plugin, "specify the name of the plugin")
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
   val RepoNameArg    = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val SchemaNameArg  = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
