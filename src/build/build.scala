@@ -392,12 +392,9 @@ object LayerCli {
     import ctx._
     for {
       suggestedTags <- cli.shell.git.tags(layout.pwd)
-      cli           <- cli.hint(TagArg)
-      keys          <- cli.shell.gpg.keys()
-      cli           <- cli.hint(KeyArg, keys)
+      cli           <- cli.hint(TagArg, suggestedTags)
       io            <- cli.io()
       tag           <- io(TagArg)
-      key           <- io(KeyArg)
       _             <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
       _             <- cli.shell.git.commit(layout.pwd, s"Tagged version $tag")
       _             <- cli.shell.git.tag(layout.pwd, tag)
