@@ -203,17 +203,6 @@ case class Shell()(implicit env: Environment) {
       _   <- ~jar(dest, Set((dir, dir.children)), manifestFile)
       _   <- dir.delete()
     } yield ()
-
-  object gpg {
-
-    def sign(file: Path, signed: Path, key: String): Outcome[String] =
-      sh"gpg -a --output ${signed.value} --detach-sign ${file.value}".exec[Outcome[String]]
-
-    def keys(): Outcome[List[String]] =
-      for {
-        output <- sh"gpg --list-secret-keys".exec[Outcome[String]]
-      } yield output.split("\n").to[List].collect { case r"uid.*<$key@([^>]+)>.*" => key }
-  }
 }
 
 object Cached {
