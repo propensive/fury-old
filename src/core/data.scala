@@ -404,7 +404,9 @@ case class SchemaTree(schema: Schema, dir: Path, inherited: Set[SchemaTree]) {
         projects.flatMap { projects =>
           schemaTree.universe.flatMap { nextProjects =>
             val potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
-            val conflictIds = potentialConflictIds.filter { id => projects.project(id) != nextProjects.project(id) }
+            val conflictIds = potentialConflictIds.filter { id =>
+              projects.project(id) != nextProjects.project(id)
+            }
             if (conflictIds.isEmpty) Success(projects ++ nextProjects)
             else Failure(ProjectConflict(conflictIds))
           }
