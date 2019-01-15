@@ -99,8 +99,15 @@ object ModuleCli {
       cli     <- cli.hint(KindArg, Kind.all)
       optKind <- ~cli.peek(KindArg)
       cli <- optKind match {
-              case Some(Application | Plugin) =>
-                for (cli <- cli.hint(MainArg)) yield cli
+              case Some(Application) =>
+                for {
+                  cli <- cli.hint(MainArg)
+                } yield cli
+              case Some(Plugin) =>
+                for {
+                  cli <- cli.hint(MainArg)
+                  cli <- cli.hint(PluginArg)
+                } yield cli
               case None | Some(Library | Compiler) => ~cli
             }
       io         <- cli.io()
@@ -119,6 +126,9 @@ object ModuleCli {
                }.getOrElse(module)
       module <- ~io(MainArg).toOption.map { m =>
                  module.copy(main = if (m == "") None else Some(m))
+               }.getOrElse(module)
+      module <- ~io(PluginArg).toOption.map { p =>
+                 module.copy(plugin = if (p == "") None else Some(p))
                }.getOrElse(module)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.modules(_, project.id)) {
                 (lens, ws) =>
@@ -177,8 +187,15 @@ object ModuleCli {
       cli     <- cli.hint(ModuleNameArg, optModuleId.to[List])
       optKind <- ~cli.peek(KindArg).orElse(optModule.map(_.kind))
       cli <- optKind match {
-              case Some(Application | Plugin) =>
-                for (cli <- cli.hint(MainArg)) yield cli
+              case Some(Application) =>
+                for {
+                  cli <- cli.hint(MainArg)
+                } yield cli
+              case Some(Plugin) =>
+                for {
+                  cli <- cli.hint(MainArg)
+                  cli <- cli.hint(PluginArg)
+                } yield cli
               case Some(Compiler) =>
                 for (cli <- cli.hint(BloopSpecArg)) yield cli
               case None | Some(Library) =>
@@ -196,6 +213,7 @@ object ModuleCli {
                       .map(_.headOption.getOrElse(module.compiler))
       kind      <- ~optKind.getOrElse(module.kind)
       mainClass <- ~io(MainArg).toOption
+      pluginName <- ~io(PluginArg).toOption
       nameArg   <- ~io(ModuleNameArg).toOption
       newId     <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
       bloopSpec <- io(BloopSpecArg).toOption
@@ -212,6 +230,8 @@ object ModuleCli {
                   Lenses.layer.moduleBloopSpec(_, project.id, module.id))(_(_) = bloopSpec)
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.moduleMainClass(_, project.id, module.id))(_(_) = mainClass)
+      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
+                  Lenses.layer.modulePluginName(_, project.id, module.id))(_(_) = pluginName)
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.moduleId(_, project.id, module.id))(_(_) = newId)
       _ <- ~io.save(layer, layout.furyConfig)

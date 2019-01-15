@@ -64,11 +64,11 @@ object Graph {
         val output = state.collect {
           case (ref, Failed(out)) =>
             UserMsg { theme =>
-              (msg"\nOutput from $ref:".string(theme).trim + "\n" + out.trim)
+              (msg"Output from $ref:".string(theme).trim + "\n" + out.trim)
             }
           case (ref, Successful(Some(out))) =>
             UserMsg { theme =>
-              (msg"\nOutput from $ref:".string(theme) + "\n" + out.trim)
+              (msg"Output from $ref:".string(theme) + "\n" + out.trim)
             }
         }.foldLeft(msg"")(_ + _)
         io.println(Ansi.down(graph.size + 1)())
