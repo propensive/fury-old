@@ -189,6 +189,8 @@ case class Universe(
   def project(id: ProjectId): Outcome[Project] =
     projects.get(id).ascribe(ItemNotFound(id))
 
+  def contains(project: Project): Boolean = projects.get(project.id) == Some(project)
+
   def dir(id: ProjectId): Outcome[Path] =
     dirs.get(id).ascribe(ItemNotFound(id))
 
@@ -399,7 +401,8 @@ case class SchemaTree(schema: Schema, dir: Path, inherited: Set[SchemaTree]) {
       .foldLeft(empty) { (projects, schemaTree) =>
         projects.flatMap { projects =>
           schemaTree.universe.flatMap { nextProjects =>
-            val conflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+            val potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+            val conflictIds = potentialConflictIds.filter { id => projects.project(id) != nextProjects.project(id) }
             if (conflictIds.isEmpty) Success(projects ++ nextProjects)
             else Failure(ProjectConflict(conflictIds))
           }
