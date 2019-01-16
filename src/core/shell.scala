@@ -168,9 +168,11 @@ case class Shell()(implicit env: Environment) {
 
     def fetch(artifact: String): Outcome[List[Path]] = {
       val items = new ListBuffer[String]()
-      val running = sh"coursier fetch --progress --repository central $artifact".async(items.append(_), println(_))
+      val running = sh"coursier fetch --progress --repository central $artifact"
+        .async(items.append(_), println(_))
       val result = running.await()
-      if(result == 0) Success(items.to[List].map(Path(_))) else Failure(ItemNotFound(msg"$artifact", msg"binary"))
+      if (result == 0) Success(items.to[List].map(Path(_)))
+      else Failure(ItemNotFound(msg"$artifact", msg"binary"))
     }
   }
 

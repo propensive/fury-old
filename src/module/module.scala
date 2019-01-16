@@ -211,11 +211,11 @@ object ModuleCli {
                       .to[List]
                       .sequence
                       .map(_.headOption.getOrElse(module.compiler))
-      kind      <- ~optKind.getOrElse(module.kind)
-      mainClass <- ~io(MainArg).toOption
+      kind       <- ~optKind.getOrElse(module.kind)
+      mainClass  <- ~io(MainArg).toOption
       pluginName <- ~io(PluginArg).toOption
-      nameArg   <- ~io(ModuleNameArg).toOption
-      newId     <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
+      nameArg    <- ~io(ModuleNameArg).toOption
+      newId      <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
       bloopSpec <- io(BloopSpecArg).toOption
                     .to[List]
                     .map(BloopSpec.parse(_))
