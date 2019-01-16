@@ -45,7 +45,7 @@ object FuryMenu {
             Action('bloop, msg"clean bloop artifacts", CleanCli.cleanBloop),
             Action('classes, msg"clean compiled classes", CleanCli.cleanClasses),
             Action('repositories, msg"clean repositories", CleanCli.cleanRepos),
-            Action('sources, msg"clean checked out sources", CleanCli.cleanSources),
+            Action('sources, msg"clean checked out sources", CleanCli.cleanSources)
         ),
         Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
         Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(

@@ -238,7 +238,12 @@ case class Universe(
     } yield
       repos.map {
         case (repo, paths) =>
-          Checkout(repo.repo, repo.local.isDefined, repo.refSpec, paths.map(_.path).to[List])
+          Checkout(
+              repo.repo,
+              repo.local.isDefined,
+              repo.currentCheckout,
+              repo.refSpec,
+              paths.map(_.path).to[List])
       }.to[Set]
 
   def ++(that: Universe): Universe =
@@ -614,7 +619,12 @@ object Repo {
   }
 }
 
-case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[Path]) {
+case class Checkout(
+    repo: Repo,
+    local: Boolean,
+    commit: CheckoutId,
+    refSpec: RefSpec,
+    sources: List[Path]) {
 
   def hash: Digest                        = this.digest[Md5]
   def path(implicit layout: Layout): Path = layout.srcsDir / hash.encoded
@@ -637,9 +647,11 @@ case class Checkout(repo: Repo, local: Boolean, refSpec: RefSpec, sources: List[
       println(s"Checking out ${if (sources.isEmpty) "all sources"
       else sources.map(_.value).mkString("[", ", ", "]")}.")
       path.mkdir()
-      shell.git.sparseCheckout(repo.path, path, sources, refSpec.id).map { _ =>
-        path
-      }
+      shell.git
+        .sparseCheckout(repo.path, path, sources, refSpec = refSpec.id, commit = commit.id)
+        .map { _ =>
+          path
+        }
     } else Success(path)
 }
 
@@ -649,7 +661,12 @@ object SourceRepo {
   implicit def diff: Diff[SourceRepo]             = Diff.gen[SourceRepo]
 }
 
-case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Path]) {
+case class SourceRepo(
+    id: RepoId,
+    repo: Repo,
+    refSpec: RefSpec,
+    currentCheckout: CheckoutId,
+    local: Option[Path]) { // TODO: change Option[String] to RefSpec
 
   def listFiles(implicit layout: Layout, shell: Shell): Outcome[List[Path]] =
     for {
@@ -664,7 +681,7 @@ case class SourceRepo(id: RepoId, repo: Repo, refSpec: RefSpec, local: Option[Pa
               }.getOrElse(shell.git.lsTree(dir, commit))
     } yield files
 
-  def fullCheckout: Checkout = Checkout(repo, local.isDefined, refSpec, List())
+  def fullCheckout: Checkout = Checkout(repo, local.isDefined, currentCheckout, refSpec, List())
 
   def importCandidates(
       schema: Schema
@@ -716,11 +733,16 @@ case class Repo(url: String) {
   def update()(implicit shell: Shell, layout: Layout): Outcome[UserMsg] =
     for {
       oldCommit <- shell.git.getCommit(path)
-      _         <- shell.git.pull(path, None)
+      _         <- shell.git.fetch(path, None)
       newCommit <- shell.git.getCommit(path)
       msg <- ~(if (oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
                else msg"Repository ${url} is unchanged")
     } yield msg
+
+  def getCommitFromTag(implicit layout: Layout, shell: Shell, tag: RefSpec): Outcome[String] =
+    for {
+      commit <- shell.git.getCommitFromTag(path, tag.id)
+    } yield commit
 
   def fetch(implicit layout: Layout, shell: Shell): Outcome[Path] =
     if (!(path / ".done").exists) {
@@ -915,8 +937,12 @@ object RefSpec {
 
   val master = RefSpec("master")
 }
-
 case class RefSpec(id: String)
+
+object CheckoutId {
+  implicit val stringShow: StringShow[CheckoutId] = _.id
+}
+case class CheckoutId(id: String)
 
 object Source {
   implicit val stringShow: StringShow[Source] = _.description

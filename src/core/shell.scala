@@ -56,7 +56,7 @@ case class Shell()(implicit env: Environment) {
     def cloneBare(url: String, dir: Path): Outcome[String] = {
       implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
-      sh"git clone --bare $url ${dir.value}".exec[Outcome[String]].map { out =>
+      sh"git clone --mirror $url ${dir.value}".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
         out
       }
@@ -66,6 +66,7 @@ case class Shell()(implicit env: Environment) {
         from: Path,
         dir: Path,
         sources: List[Path],
+        refSpec: String,
         commit: String
       ): Outcome[String] =
       for {
@@ -78,7 +79,8 @@ case class Shell()(implicit env: Environment) {
                 .writeSync(sources.map(_.value + "/*\n").mkString)
             }
         _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Outcome[String]]
-        str <- sh"git -C ${dir.value} pull origin $commit".exec[Outcome[String]]
+        str <- sh"git -C ${dir.value} fetch origin $refSpec".exec[Outcome[String]]
+        _   <- sh"git -C ${dir.value} checkout $commit".exec[Outcome[String]]
         _   <- ~(dir / ".done").touch()
       } yield str
 
@@ -115,6 +117,9 @@ case class Shell()(implicit env: Environment) {
 
     def pull(dir: Path, refspec: Option[RefSpec]): Outcome[String] =
       sh"git -C ${dir.value} pull origin ${refspec.to[List].map(_.id)}".exec[Outcome[String]]
+
+    def fetch(dir: Path, refspec: Option[RefSpec]): Outcome[String] =
+      sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Outcome[String]]
 
     def push(dir: Path, all: Boolean): Outcome[String] =
       (if (all) sh"git -C ${dir.value} push --all" else sh"git push").exec[Outcome[String]]
