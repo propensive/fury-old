@@ -14,12 +14,12 @@ stopFury(){
   nailgun ng-stop > /dev/null 2>&1 && printf 'Fury daemon has shut down\n'
 }
 
-fury(){
-  nailgun "fury.Main" -- "$@"
-}
-
 isRunning(){
   nailgun "fury.Main" -- about > /dev/null 2> /dev/null
+}
+
+fury(){
+  (isRunning || startFury) && nailgun "fury.Main" -- "$@"
 }
 
 startFury() {
