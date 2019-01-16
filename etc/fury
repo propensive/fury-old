@@ -14,6 +14,10 @@ stopFury(){
   nailgun ng-stop > /dev/null 2>&1 && printf 'Fury daemon has shut down.\n'
 }
 
+fury(){
+  nailgun "fury.Main" -- "$@"
+}
+
 startFury() {
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
   nohup java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
@@ -51,14 +55,13 @@ case "$1" in
     stopFury && startFury && printf 'Fury daemon has been restarted.\n'
     ;;
   "prompt")
-    nailgun "fury.Main" -- "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
+    fury "$@"  || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
-    nailgun "fury.Main" -- "$@" 2> /dev/null || \
-      printf "1:Command:((start:'start the Fury daemon'))\n"
+    fury "$@"  || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   *)
-    nailgun "fury.Main" -- "$@"
+    fury "$@"
     ;;
 esac
 
