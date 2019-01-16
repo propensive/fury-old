@@ -23,6 +23,8 @@ isRunning(){
 }
 
 startFury() {
+  isRunning && printf "Fury daemon is running\n" && exit 0
+
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
   nohup java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
 
