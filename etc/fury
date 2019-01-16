@@ -18,17 +18,18 @@ fury(){
   nailgun "fury.Main" -- "$@"
 }
 
+isRunning(){
+  fury help > /dev/null 2> /dev/null
+}
+
 startFury() {
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
   nohup java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
-  local RUNNING='0'
+
   printf 'Fury daemon is starting...'
   for I in $(seq 1 25); do
-    fury help > /dev/null 2> /dev/null && RUNNING='1';
-    if [ "$RUNNING" -eq '1' ]; then
-      printf 'done\n'
-      exit 0
-    fi
+    isRunning && printf "\nFury daemon is running\n" && exit 0
+
     printf '.'
     sleep 0.15
   done
