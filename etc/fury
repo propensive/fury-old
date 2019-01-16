@@ -19,7 +19,7 @@ fury(){
 }
 
 isRunning(){
-  fury about > /dev/null 2> /dev/null
+  nailgun "fury.Main" -- about > /dev/null 2> /dev/null
 }
 
 startFury() {
