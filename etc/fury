@@ -55,7 +55,7 @@ case "$1" in
     stopFury
     ;;
   "restart")
-    stopFury && startFury && printf 'Fury daemon has been restarted.\n'
+    stopFury && startFury
     ;;
   "prompt")
     fury "$@"  || printf " %{\e[0;30m%}[ ]"
