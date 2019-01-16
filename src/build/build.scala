@@ -368,7 +368,7 @@ object LayerCli {
       _     <- cli.shell.git.init(layout.pwd)
       _     <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
       _     <- cli.shell.git.commit(layout.pwd, "Initial commit")
-      _     <- ~io.println("Initialized new git repo and Committed layer.fury.")
+      _     <- ~io.println("Initialized new git repo and committed layer.fury.")
     } yield io.await()
   }
 
@@ -398,7 +398,7 @@ object LayerCli {
       _             <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
       _             <- cli.shell.git.commit(layout.pwd, s"Tagged version $tag")
       _             <- cli.shell.git.tag(layout.pwd, tag)
-      _             <- ~io.println(msg"Comitted tag $tag.")
+      _             <- ~io.println(msg"Committed tag $tag.")
       _             <- cli.shell.git.push(layout.pwd, all = true)
       _             <- ~io.println(msg"Pushed git repository.")
     } yield io.await()
