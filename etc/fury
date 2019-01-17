@@ -1,25 +1,42 @@
 #!/bin/sh
 
+FURYHOME=$(dirname "$0")/..
+
 PORT="8462"
-CLASSPATH="$FURYHOME/lib/fury.jar"
+CLASSPATH="$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 
+nailgun(){
+  "${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$@"
+}
+
+stopFury(){
+  nailgun ng-stop > /dev/null 2>&1 && printf 'Fury daemon has shut down\n'
+}
+
+fury(){
+  nailgun "fury.Main" -- "$@"
+}
+
+isRunning(){
+  fury about > /dev/null 2> /dev/null
+}
+
 startFury() {
+  isRunning && printf "Fury daemon is running\n" && exit 0
+
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
   nohup java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
-  local RUNNING='0'
+
   printf 'Fury daemon is starting...'
   for I in $(seq 1 25); do
-    fury help > /dev/null 2> /dev/null && RUNNING='1';
-    if [ "$RUNNING" -eq '1' ]; then
-      printf 'done\n'
-      exit 0
-    fi
+    isRunning && printf "\nFury daemon is running\n" && exit 0
+
     printf '.'
     sleep 0.15
   done
   printf '\n'
-  printf 'Starting Fury is taking longer than expected.\n'
+  printf 'Starting Fury is taking longer than expected\n'
 }
 
 startFuryStandalone() {
@@ -35,21 +52,19 @@ case "$1" in
     startFuryStandalone
     ;;
   "stop")
-    ng --nailgun-port "$PORT" ng-stop > /dev/null 2>&1
-    printf 'Fury daemon has shut down.\n'
+    stopFury
     ;;
   "restart")
-    fury stop && fury start
+    stopFury && startFury
     ;;
   "prompt")
-    ng --nailgun-port "$PORT" "fury.Main" -- "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
+    fury "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
-    ng --nailgun-port "$PORT" "fury.Main" -- "$@" 2> /dev/null || \
-      printf "1:Command:((start:'start the Fury daemon'))\n"
+    fury "$@" 2> /dev/null || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   *)
-    ng --nailgun-port "$PORT" "fury.Main" -- "$@"
+    fury "$@"
     ;;
 esac
 
