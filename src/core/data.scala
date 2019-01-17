@@ -760,7 +760,7 @@ object SchemaRef {
   implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
 
   def unapply(value: String): Option[SchemaRef] = value match {
-    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-z0-9\-\.]*[a-z0-9])$$" =>
+    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
       Some(SchemaRef(RepoId(repo), SchemaId(schema)))
     case _ =>
       None
