@@ -1,4 +1,4 @@
-#!/usr/bin/sh
+#!/bin/sh
 
 rootdir=$(git rev-parse --show-toplevel)
 

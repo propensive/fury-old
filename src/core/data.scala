@@ -359,11 +359,10 @@ case class Universe(
         Future.successful(CompileResult(false, ""))
       } else
         Future {
-          val out  = new StringBuilder()
-          val out2 = new StringBuilder()
+          val out = new StringBuilder()
           multiplexer(artifact.ref) = StartCompile(artifact.ref)
 
-          val result: Boolean = blocking {
+          val compileResult: Boolean = blocking {
             shell.bloop
               .compile(artifact.hash.encoded) { ln =>
                 out.append(ln)
@@ -371,21 +370,23 @@ case class Universe(
               }
               .await() == 0
           }
-          // This is temporary until the `bloop run` command is working
-          val result2 = result && (artifact.kind != Application || shell
-            .runJava(
-                runtimeClasspath(artifact.ref).toOption.get.to[List].map(_.value),
-                artifact.main.getOrElse("")) { ln =>
-              out2.append(ln)
-              out2.append("\n")
-            }
-            .await() == 0)
 
-          multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, result2)
-          if (artifact.kind == Application)
-            multiplexer(artifact.ref) = RunOutput(artifact.ref, out2.toString)
+          val finalResult = if (compileResult && artifact.kind == Application) {
+            shell
+              .runJava(
+                  runtimeClasspath(artifact.ref).toOption.get.to[List].map(_.value),
+                  artifact.main.getOrElse("")) { ln =>
+                out.append(ln)
+                out.append("\n")
+              }
+              .await() == 0
+          } else compileResult
+
+          multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
+
           multiplexer.close(artifact.ref)
-          CompileResult(result2, out.toString)
+
+          CompileResult(finalResult, out.toString)
         }
     }
 
@@ -783,7 +784,6 @@ case object Tick                                                         extends
 case class StartCompile(ref: ModuleRef)                                  extends CompileEvent
 case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                                   extends CompileEvent
-case class RunOutput(ref: ModuleRef, content: String)                    extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
 

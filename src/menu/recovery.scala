@@ -46,7 +46,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
         case FileWriteError(path) =>
           cli.abort(msg"Couldn't write to file $path.")
         case FileNotFound(path) =>
-          cli.abort(msg"""Could not find the file $path. Run `fury layer init` to create a new layer.""")
+          cli.abort(
+              msg"""Could not find the file $path. Run `fury layer init` to create a new layer.""")
         case MissingArg(param) =>
           cli.abort(msg"The parameter $param was not provided.")
         case e: MissingCommand =>
