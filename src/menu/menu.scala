@@ -15,6 +15,7 @@
  */
 package fury
 
+import fury.clean._
 import fury.error._
 import scala.util._
 
@@ -39,6 +40,13 @@ object FuryMenu {
             Action('compile, msg"compile a module", BuildCli.compile(None, None)),
             Action('describe, msg"describe the build for a module", BuildCli.describe),
             Action('save, msg"save a JAR file", BuildCli.save)
+        ),
+        Menu('clean, msg"clean fury workspace", CleanCli.context, 'all)(
+            Action('all, msg"clean all", CleanCli.cleanAll),
+            Action('bloop, msg"clean bloop artifacts", CleanCli.cleanBloop),
+            Action('classes, msg"clean compiled classes", CleanCli.cleanClasses),
+            Action('repositories, msg"clean repositories", CleanCli.cleanRepos),
+            Action('sources, msg"clean sources", CleanCli.cleanSources),
         ),
         Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
         Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
