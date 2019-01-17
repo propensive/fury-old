@@ -1,8 +1,6 @@
-#!/usr/bin/sh
+#!/bin/sh
 
-rootdir=$(git rev-parse --show-toplevel)
-
-files=$(git diff --name-only HEAD | grep -E "[.]scala$")
+files=$(git diff --name-only HEAD '*.scala')
 if [ -z "$files" ]; then
     exit 0
 fi
@@ -15,6 +13,8 @@ fi
 if scalafmt --quiet --test --non-interactive $files; then
     exit 0
 else
+    rootdir=$(git rev-parse --show-toplevel)
+
     echo ""
     echo "==========================================================================="
     echo "Scala files not formatted with scalafmt. "

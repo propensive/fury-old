@@ -16,54 +16,60 @@
 package fury.tests
 
 import probation._
-import guillotine._, environments.enclosing
-import impromptu._, scala.concurrent.ExecutionContext.Implicits.global
+import fury.{ Binary, BinRepoId }
+//import guillotine._, environments.enclosing
+//import impromptu._, scala.concurrent.ExecutionContext.Implicits.global
 
 object Tests extends TestApp {
 
   def tests(): Unit = {
 
-    val rebuild = Async {
-      test("rebuild docker") {
-        sh"docker build -t fury .".exec[Exit[String]]
-      }.assert(_.status == 0)
-    }
+    val service = BinRepoId("baz")
+    test("hello") {
+      Binary.unapply("foo:bar:qux")
+    }.assert(_ == Success(Binary(service, "foo", "bar", "qux")))
 
-    val container = Async.after(rebuild) { implicit env =>
-      test("start container") { Docker.start() }.assert(_.isRight)
-    }
-
-    val initAlpha = Async.after(container) { implicit env =>
-      test("initialize alpha") {
-        for {
-          container <- container().value
-          out       <- ~container.alpha.run(sh"fury layer init -p pname")
-          checksum  <- ~container.alpha.run(sh"md5sum layer.fury")
-        } yield checksum.take(32)
-      }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
-    }
-
-    val initBeta = Async.after(container) { implicit env =>
-      test("initialize beta") {
-        for {
-          container <- container().value
-          out       <- ~container.beta.run(sh"fury layer init -p pname")
-          checksum  <- ~container.beta.run(sh"md5sum layer.fury")
-        } yield checksum.take(32)
-      }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
-    }
-
-    Async
-      .after(initAlpha, initBeta, container) { implicit env =>
-        test("stop container") {
-          for {
-            container <- container().value
-            _         <- container.stop()
-            _         <- Docker.prune()
-          } yield ()
-        }.assert(_.isRight)
-      }
-      .await()
-      .unit
+//    val rebuild = Async {
+//      test("rebuild docker") {
+//        sh"docker build -t fury .".exec[Exit[String]]
+//      }.assert(_.status == 0)
+//    }
+//
+//    val container = Async.after(rebuild) { implicit env =>
+//      test("start container") { Docker.start() }.assert(_.isRight)
+//    }
+//
+//    val initAlpha = Async.after(container) { implicit env =>
+//      test("initialize alpha") {
+//        for {
+//          container <- container().value
+//          out       <- ~container.alpha.run(sh"fury layer init -p pname")
+//          checksum  <- ~container.alpha.run(sh"md5sum layer.fury")
+//        } yield checksum.take(32)
+//      }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
+//    }
+//
+//    val initBeta = Async.after(container) { implicit env =>
+//      test("initialize beta") {
+//        for {
+//          container <- container().value
+//          out       <- ~container.beta.run(sh"fury layer init -p pname")
+//          checksum  <- ~container.beta.run(sh"md5sum layer.fury")
+//        } yield checksum.take(32)
+//      }.assert(_ == Right("d41d8cd98f00b204e9800998ecf8427e"))
+//    }
+//
+//    Async
+//      .after(initAlpha, initBeta, container) { implicit env =>
+//        test("stop container") {
+//          for {
+//            container <- container().value
+//            _         <- container.stop()
+//            _         <- Docker.prune()
+//          } yield ()
+//        }.assert(_.isRight)
+//      }
+//      .await()
+//      .unit
   }
 }

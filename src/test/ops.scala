@@ -15,48 +15,48 @@
  */
 package fury.tests
 
-import guillotine._, environments.enclosing
+//import guillotine._, environments.enclosing
 import fury.error._
 
-sealed trait Op[-E <: Exception]
-
-case class Container(id: String) {
-  case class Dir(dir: String) {
-
-    def run(cmd: Command): String = {
-      val shellCmd = sh"docker exec --workdir $dir $id sh -c ${cmd}"
-      shellCmd
-        .exec[Outcome[String]]
-        .recover(
-            on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
-        )
-    }
-  }
-
-  lazy val alpha   = Dir("/work/alpha")
-  lazy val beta    = Dir("/work/beta")
-  lazy val gamma   = Dir("/work/gamma")
-  lazy val delta   = Dir("/work/delta")
-  lazy val epsilon = Dir("/work/epsilon")
-  lazy val zeta    = Dir("/work/zeta")
-  lazy val eta     = Dir("/work/eta")
-  lazy val theta   = Dir("/work/theta")
-  lazy val iota    = Dir("/work/iota")
-  lazy val kappa   = Dir("/work/kappa")
-
-  def stop(): Outcome[Unit] =
-    for {
-      killed  <- sh"docker kill $id".exec[Outcome[String]]
-      removed <- sh"docker rm $id".exec[Outcome[String]]
-    } yield ()
-}
-
-object Docker {
-
-  def start(): Outcome[Container] =
-    sh"docker run --detach fury:latest".exec[Outcome[String]].map(Container(_))
-
-  def prune(): Outcome[String] =
-    sh"docker system prune --force".exec[Outcome[String]]
-
-}
+//sealed trait Op[-E <: Exception]
+//
+//case class Container(id: String) {
+//  case class Dir(dir: String) {
+//
+//    def run(cmd: Command): String = {
+//      val shellCmd = sh"docker exec --workdir $dir $id sh -c ${cmd}"
+//      shellCmd
+//        .exec[Outcome[String]]
+//        .recover(
+//            on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
+//        )
+//    }
+//  }
+//
+//  lazy val alpha   = Dir("/work/alpha")
+//  lazy val beta    = Dir("/work/beta")
+//  lazy val gamma   = Dir("/work/gamma")
+//  lazy val delta   = Dir("/work/delta")
+//  lazy val epsilon = Dir("/work/epsilon")
+//  lazy val zeta    = Dir("/work/zeta")
+//  lazy val eta     = Dir("/work/eta")
+//  lazy val theta   = Dir("/work/theta")
+//  lazy val iota    = Dir("/work/iota")
+//  lazy val kappa   = Dir("/work/kappa")
+//
+//  def stop(): Outcome[Unit] =
+//    for {
+//      killed  <- sh"docker kill $id".exec[Outcome[String]]
+//      removed <- sh"docker rm $id".exec[Outcome[String]]
+//    } yield ()
+//}
+//
+//object Docker {
+//
+//  def start(): Outcome[Container] =
+//    sh"docker run --detach fury:latest".exec[Outcome[String]].map(Container(_))
+//
+//  def prune(): Outcome[String] =
+//    sh"docker system prune --force".exec[Outcome[String]]
+//
+//}
