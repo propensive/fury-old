@@ -19,7 +19,7 @@ fury(){
 }
 
 isRunning(){
-  fury help > /dev/null 2> /dev/null
+  fury about > /dev/null 2> /dev/null
 }
 
 startFury() {
