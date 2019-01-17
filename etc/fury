@@ -58,10 +58,10 @@ case "$1" in
     stopFury && startFury
     ;;
   "prompt")
-    fury "$@"  || printf " %{\e[0;30m%}[ ]"
+    fury "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
-    fury "$@"  || printf "1:Command:((start:'start the Fury daemon'))\n"
+    fury "$@" 2> /dev/null || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   *)
     fury "$@"
