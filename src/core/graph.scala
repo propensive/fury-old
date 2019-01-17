@@ -56,8 +56,6 @@ object Graph {
             graph,
             tail,
             state.updated(ref, if (success) Successful(None) else Failed(out)))
-      case RunOutput(ref, content) #:: tail =>
-        live(cli, true)(io, graph, tail, state.updated(ref, Successful(Some(content))))
       case SkipCompile(ref) #:: tail =>
         live(cli, true)(io, graph, tail, state.updated(ref, Skipped))
       case Stream.Empty =>
