@@ -5,6 +5,7 @@ FURYHOME=$(dirname "$0")/..
 PORT="8462"
 CLASSPATH="$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
+FURY_MAIN="fury.Main"
 
 nailgun(){
   "${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$@"
@@ -15,11 +16,11 @@ stopFury(){
 }
 
 isRunning(){
-  nailgun "fury.Main" -- about > /dev/null 2> /dev/null
+  nailgun "${FURY_MAIN}" -- about > /dev/null 2> /dev/null
 }
 
 fury(){
-  (isRunning || startFury) && nailgun "fury.Main" -- "$@"
+  (isRunning || startFury) && nailgun "${FURY_MAIN}" -- "$@"
 }
 
 startFury() {
