@@ -36,7 +36,6 @@ object FuryMenu {
         ),
         Menu('build, msg"perform build actions", BuildCli.context, 'compile)(
             Action('classpath, msg"show a classpath for a module", BuildCli.classpath),
-            Action('clean, msg"clean a module", BuildCli.clean),
             Action('compile, msg"compile a module", BuildCli.compile(None, None)),
             Action('describe, msg"describe the build for a module", BuildCli.describe),
             Action('save, msg"save a JAR file", BuildCli.save)

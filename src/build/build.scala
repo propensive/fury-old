@@ -165,29 +165,6 @@ object BuildCli {
     } yield io.await()
   }
 
-  def clean(ctx: MenuContext) = {
-    import ctx._
-    for {
-      cli          <- cli.hint(SchemaArg, layer.schemas)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
-      schema       <- layer.schemas.findBy(schemaArg)
-      cli          <- cli.hint(ProjectArg, schema.projects)
-      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-      optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
-      cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      io           <- cli.io()
-      project      <- optProject.ascribe(UnspecifiedProject())
-      optModuleId  <- ~io(ModuleArg).toOption.orElse(project.main)
-      optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
-      module       <- optModule.ascribe(UnspecifiedModule())
-      schemaTree   <- schema.schemaTree(layout.pwd)
-      universe     <- schemaTree.universe
-      artifact     <- universe.artifact(module.ref(project))
-      _            <- Bloop.server(cli)(io)
-      _            <- ~universe.clean(module.ref(project))
-    } yield io.await()
-  }
-
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])(ctx: MenuContext) = {
     import ctx._
     for {
