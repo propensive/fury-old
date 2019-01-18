@@ -124,12 +124,10 @@ object RepoCli {
       dir          <- ~io(DirArg).toOption
       version      <- ~io(VersionArg).toOption.getOrElse(RefSpec.master)
       repo         <- ~remote.map(fury.Repo.fromString(_))
-      suggested <- (repo.flatMap(_.projectName.toOption): Option[RepoId])
-                    .orElse(dir.map { d =>
-                      RepoId(d.value.split("/").last)
-                    })
-                    .ascribe(exoskeleton.MissingArg("repo"))
-      nameArg <- ~io(RepoNameArg).toOption.getOrElse(suggested)
+      suggested <- ~(repo.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
+                    RepoId(d.value.split("/").last)
+                  })
+      nameArg <- io(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
       sourceRepo <- repo
                      .map(SourceRepo(nameArg, _, version, dir))
                      .orElse(dir.map { d =>
