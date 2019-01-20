@@ -70,11 +70,16 @@ object RepoCli {
       dir       <- io(DirArg)
       retry     <- ~io(RetryArg).isSuccess
       bareRepo  <- repo.repo.fetch(layout, cli.shell)
-      _         <- ~cli.shell.git.sparseCheckout(bareRepo, dir, List(), repo.refSpec.id)
-      newRepo   <- ~repo.copy(local = Some(dir))
-      lens      <- ~Lenses.layer.repos(schema.id)
-      layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~io.save(layer, layout.furyConfig)
+      _ <- ~cli.shell.git.sparseCheckout(
+              bareRepo,
+              dir,
+              List(),
+              refSpec = repo.refSpec.id,
+              commit = repo.currentCheckout.id)
+      newRepo <- ~repo.copy(local = Some(dir))
+      lens    <- ~Lenses.layer.repos(schema.id)
+      layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
+      _       <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -95,6 +100,27 @@ object RepoCli {
       repos <- optRepos.map(schema.repo(_)(layout, cli.shell)).sequence
       msgs  <- repos.map(_.repo.update()(cli.shell, layout)).sequence
       _     <- ~msgs.foreach(io.println(_))
+      lens  <- ~Lenses.layer.repos(schema.id)
+      newRepos <- repos
+                   .map(
+                       repo =>
+                         for {
+                           commit <- repo.repo
+                                      .getCommitFromTag(layout, cli.shell, repo.refSpec)
+                                      .map(CheckoutId(_))
+                           newRepo = repo.copy(currentCheckout = commit)
+                         } yield (newRepo, repo)
+                   )
+                   .sequence
+      newLayer = newRepos.foldLeft(layer) { (layer, repoDiff) =>
+        repoDiff match { case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
+      }
+      _ <- ~io.save(newLayer, layout.furyConfig)
+      _ <- ~newRepos.foreach {
+            case (newRepo, _) =>
+              io.println(
+                  s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.currentCheckout.id}]")
+          }
     } yield io.await()
   }
 
@@ -124,27 +150,29 @@ object RepoCli {
       dir          <- ~io(DirArg).toOption
       version      <- ~io(VersionArg).toOption.getOrElse(RefSpec.master)
       repo         <- ~remote.map(fury.Repo.fromString(_))
-      suggested <- (repo.flatMap(_.projectName.toOption): Option[RepoId])
-                    .orElse(dir.map { d =>
-                      RepoId(d.value.split("/").last)
-                    })
-                    .ascribe(exoskeleton.MissingArg("repo"))
-      nameArg <- ~io(RepoNameArg).toOption.getOrElse(suggested)
+      suggested <- ~(repo.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
+                    RepoId(d.value.split("/").last)
+                  })
+      nameArg <- io(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
+      _       <- repo.map(_.fetch(layout, cli.shell)).ascribe(exoskeleton.MissingArg("repo"))
+      tag <- repo
+              .map(_.getCommitFromTag(layout, cli.shell, version))
+              .getOrElse(Failure(exoskeleton.MissingArg("name")))
       sourceRepo <- repo
-                     .map(SourceRepo(nameArg, _, version, dir))
+                     .map(SourceRepo(nameArg, _, version, CheckoutId(tag), dir))
                      .orElse(dir.map { d =>
-                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, Some(d))
+                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, CheckoutId(tag), Some(d))
                      })
                      .ascribe(exoskeleton.MissingArg("repo"))
+
       lens         <- ~Lenses.layer.repos(schema.id)
-      layer        <- ~(lens.modify(layer)(_ + sourceRepo))
       optImportRef <- ~optImport.map(SchemaRef(sourceRepo.id, _))
       layer <- optImportRef.map { importRef =>
                 Lenses.updateSchemas(optSchemaArg, layer, true)(Lenses.layer.imports(_))(
                     _.modify(_)(_ :+ importRef))
               }.getOrElse(~layer)
-      _ <- sourceRepo.repo.fetch(layout, cli.shell)
-      _ <- ~io.save(layer, layout.furyConfig)
+      layer <- ~(lens.modify(layer)(_ + sourceRepo))
+      _     <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
