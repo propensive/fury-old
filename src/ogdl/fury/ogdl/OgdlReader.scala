@@ -39,7 +39,9 @@ object OgdlReader {
       else
         caseClass.construct { param =>
           if (map.contains(param.label)) param.typeclass.read(map(param.label))
-          else param.default.getOrElse(throw new RuntimeException(s"missing value ${param.label}"))
+          else
+            param.default.getOrElse(
+                throw new RuntimeException(s"missing value ${param.label} in ${list}"))
         }
   }
 
@@ -54,9 +56,9 @@ object OgdlReader {
         .read(map)
   }
 
-  implicit val string: OgdlReader[String]   = _.only
-  implicit val int: OgdlReader[Int]         = _.only.toInt
-  implicit val boolean: OgdlReader[Boolean] = _.only.toBoolean
+  implicit val string: OgdlReader[String]   = _()
+  implicit val int: OgdlReader[Int]         = _().toInt
+  implicit val boolean: OgdlReader[Boolean] = _().toBoolean
 
   implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader](
       implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]

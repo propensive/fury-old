@@ -30,7 +30,7 @@ object ImportCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout)
+      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
     } yield Context(cli, layout, config, layer)
 
   def add(ctx: Context) = {

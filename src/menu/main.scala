@@ -28,7 +28,7 @@ object Main {
     val layer = for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout)
+      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
     } yield layer
 
     val actions = layer.toOption
