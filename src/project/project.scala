@@ -43,6 +43,9 @@ object ProjectCli {
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
       force     <- ~io(ForceArg).toOption.isDefined
+      schemaId  <- ~optSchemaId.getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaId)
+      _         <- schema(projectId)
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_))(
                   _(_) = Some(projectId))
       _ <- ~io.save(layer, layout.furyConfig)

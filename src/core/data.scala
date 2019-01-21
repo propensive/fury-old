@@ -442,6 +442,8 @@ case class Schema(
     imports: List[SchemaRef] = List(),
     main: Option[ProjectId] = None) {
 
+  def apply(id: ProjectId) = projects.findBy(id)
+
   def repo(repoId: RepoId)(implicit layout: Layout, shell: Shell): Outcome[SourceRepo] =
     repos.findBy(repoId)
 
