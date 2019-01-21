@@ -39,6 +39,7 @@ object SchemaCli {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       io       <- cli.io()
       schemaId <- io(SchemaArg)
+      _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
       layer    <- ~(lens(layer) = schemaId)
       _        <- ~io.save(layer, layout.furyConfig)
