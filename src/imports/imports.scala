@@ -38,12 +38,13 @@ object ImportCli {
     for {
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg     <- ~cli.peek(SchemaArg)
-      defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+      defaultSchema <- layer.schemas.findBy(schemaArg.getOrElse(layer.main))
       cli <- cli.hint(
                 ImportArg,
-                defaultSchema.map(_.importCandidates(layout, cli.shell)).getOrElse(Nil))
+                defaultSchema.importCandidates(layout, cli.shell))
       io        <- cli.io()
       schemaRef <- io(ImportArg)
+      _     <-  schemaRef.resolve(defaultSchema)(layout, cli.shell)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
                   _.modify(_)(_ :+ schemaRef))
       _ <- ~io.save(layer, layout.furyConfig)
