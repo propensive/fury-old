@@ -64,6 +64,7 @@ object ModuleCli {
       project  <- optProject.ascribe(UnspecifiedProject())
       moduleId <- ~io(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
+      _        <- project(moduleId)
       lens     <- ~Lenses.layer.mainModule(schema.id, project.id)
       layer    <- ~(lens(layer) = Some(moduleId))
       _        <- ~io.save(layer, layout.furyConfig)
