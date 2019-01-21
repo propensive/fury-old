@@ -117,7 +117,10 @@ object SourceCli {
       localSrcs <- ~layout.pwd.relativeSubdirsContaining { n =>
                     n.endsWith(".scala") || n.endsWith(".java")
                   }.map(LocalSource(_))
-      cli       <- cli.hint(SourceArg, extSrcs ++ localSrcs)
+      sharedSrcs <- ~layout.sharedDir.relativeSubdirsContaining { n =>
+                     n.endsWith(".scala") || n.endsWith(".java")
+                   }.map(SharedSource(_))
+      cli       <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
       io        <- cli.io()
       module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
