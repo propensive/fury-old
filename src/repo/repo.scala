@@ -67,8 +67,9 @@ object RepoCli {
       io        <- cli.io()
       repoId    <- io(RepoIdArg)
       repo      <- schema.repos.findBy(repoId)
-      dir       <- io(DirArg)
+      dir       <- io(DirArg).map(_.relativizeTo(layout.pwd))
       retry     <- ~io(RetryArg).isSuccess
+      _         <- ~dir.mkdir()
       bareRepo  <- repo.repo.fetch(layout, cli.shell)
       _ <- ~cli.shell.git
             .sparseCheckout(bareRepo, dir, List(), refSpec = repo.track.id, commit = repo.commit.id)

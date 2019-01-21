@@ -35,7 +35,7 @@ import scala.util._
 object Path {
 
   def unapply(str: String): Option[Path] = str match {
-    case r"""$dir@([^*?:;,&|"\%<>]*)/""" =>
+    case r"""$dir@([^*?:;,&|"\%<>]*)/?""" =>
       Some(Path(if (dir.endsWith("/")) dir.dropRight(1) else dir))
     case _ => None
   }
@@ -185,6 +185,9 @@ case class Path(value: String) {
     }
 
   def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath).unit
+
+  def relativizeTo(dir: Path) =
+    if (value.startsWith("/")) this else Path(s"${dir.value}/$value")
 
   def parent = Path(javaPath.getParent.toString)
 
