@@ -241,8 +241,8 @@ case class Universe(
           Checkout(
               repo.repo,
               repo.local.isDefined,
-              repo.currentCheckout,
-              repo.refSpec,
+              repo.commit,
+              repo.track,
               paths.map(_.path).to[List])
       }.to[Set]
 
@@ -466,11 +466,12 @@ case class Schema(
     for {
       imps <- imports.map { ref =>
                for {
-                 repo     <- repos.findBy(ref.repo)
-                 repoDir  <- repo.fullCheckout.get
-                 layer    <- Ogdl.read[Layer](Layout(layout.home, repoDir).furyConfig)
-                 resolved <- layer.schemas.findBy(ref.schema)
-                 tree     <- resolved.schemaTree(repoDir)
+                 repo         <- repos.findBy(ref.repo)
+                 repoDir      <- repo.fullCheckout.get
+                 nestedLayout <- ~Layout(layout.home, repoDir)
+                 layer        <- Layer.read(nestedLayout.furyConfig)(nestedLayout, shell)
+                 resolved     <- layer.schemas.findBy(ref.schema)
+                 tree         <- resolved.schemaTree(repoDir)
                } yield tree
              }.sequence
     } yield SchemaTree(this, dir, imps.to[Set])
@@ -524,10 +525,34 @@ case class Layer(
 }
 
 object Layer {
-  val CurrentVersion = 1
+  val CurrentVersion = 2
 
-  def read(file: Path)(implicit layout: Layout): Outcome[Layer] =
-    Success(Ogdl.read[Layer](file).toOption.getOrElse(Layer()))
+  def read(string: String)(implicit layout: Layout, shell: Shell): Outcome[Layer] =
+    Success(Ogdl.read[Layer](string, upgrade(_)))
+
+  def read(file: Path)(implicit layout: Layout, shell: Shell): Outcome[Layer] =
+    Success(Ogdl.read[Layer](file, upgrade(_)).toOption.getOrElse(Layer()))
+
+  private def upgrade(ogdl: Ogdl)(implicit shell: Shell): Ogdl =
+    (try ogdl.version().toInt
+    catch { case e: Exception => 1 }) match {
+      case 1 =>
+        //io.println("Migrating layer.fury from file format v1")
+        ogdl.set(
+            schemas = ogdl.schemas.map { schema =>
+              schema.set(
+                  repos = schema.repos.map { repo =>
+                    //io.println(s"Checking commit hash for ${repo.repo()}")
+                    val commit = shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
+                    repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
+                  }
+              )
+            },
+            version = Ogdl(2)
+        )
+      case CurrentVersion => ogdl
+    }
+
 }
 
 object ModuleRef {
@@ -622,7 +647,7 @@ object Repo {
 case class Checkout(
     repo: Repo,
     local: Boolean,
-    commit: CheckoutId,
+    commit: Commit,
     refSpec: RefSpec,
     sources: List[Path]) {
 
@@ -661,27 +686,22 @@ object SourceRepo {
   implicit def diff: Diff[SourceRepo]             = Diff.gen[SourceRepo]
 }
 
-case class SourceRepo(
-    id: RepoId,
-    repo: Repo,
-    refSpec: RefSpec,
-    currentCheckout: CheckoutId,
-    local: Option[Path]) { // TODO: change Option[String] to RefSpec
+case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) { // TODO: change Option[String] to RefSpec
 
   def listFiles(implicit layout: Layout, shell: Shell): Outcome[List[Path]] =
     for {
       dir <- local.map(Success(_)).getOrElse(repo.fetch)
       commit <- ~shell.git
-                 .getTag(dir, refSpec.id)
+                 .getTag(dir, track.id)
                  .toOption
-                 .orElse(shell.git.getBranchHead(dir, refSpec.id).toOption)
-                 .getOrElse(refSpec.id)
+                 .orElse(shell.git.getBranchHead(dir, track.id).toOption)
+                 .getOrElse(track.id)
       files <- local.map { _ =>
                 Success(dir.children.map(Path(_)).to[List])
               }.getOrElse(shell.git.lsTree(dir, commit))
     } yield files
 
-  def fullCheckout: Checkout = Checkout(repo, local.isDefined, currentCheckout, refSpec, List())
+  def fullCheckout: Checkout = Checkout(repo, local.isDefined, commit, track, List())
 
   def importCandidates(
       schema: Schema
@@ -691,7 +711,7 @@ case class SourceRepo(
     for {
       repoDir     <- repo.fetch
       layerString <- shell.git.showFile(repoDir, "layer.fury")
-      layer       <- ~Ogdl.read[Layer](layerString)
+      layer       <- Layer.read(layerString)
       schemas     <- ~layer.schemas.to[List]
     } yield
       schemas.map { schema =>
@@ -796,7 +816,7 @@ case class SchemaRef(repo: RepoId, schema: SchemaId) {
     for {
       repo     <- base.repos.findBy(repo)
       dir      <- repo.fullCheckout.get
-      layer    <- Ogdl.read[Layer](Layout(layout.home, dir).furyConfig)
+      layer    <- Layer.read(Layout(layout.home, dir).furyConfig)
       resolved <- layer.schemas.findBy(schema)
     } yield resolved
 }
@@ -939,10 +959,11 @@ object RefSpec {
 }
 case class RefSpec(id: String)
 
-object CheckoutId {
-  implicit val stringShow: StringShow[CheckoutId] = _.id
+object Commit {
+  implicit val stringShow: StringShow[Commit] = _.id
+  implicit val msgShow: MsgShow[Commit]       = r => UserMsg(_.version(r.id.take(7)))
 }
-case class CheckoutId(id: String)
+case class Commit(id: String)
 
 object Source {
   implicit val stringShow: StringShow[Source] = _.description
@@ -967,7 +988,7 @@ object Source {
     case _             => None
   }
 
-  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src.only).get // FIXME
+  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
   implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.description)
 
   def repoId(src: Source): Option[RepoId] = src match {

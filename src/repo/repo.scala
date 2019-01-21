@@ -29,7 +29,7 @@ object RepoCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout)
+      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
     } yield Context(cli, layout, config, layer)
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
@@ -70,12 +70,8 @@ object RepoCli {
       dir       <- io(DirArg)
       retry     <- ~io(RetryArg).isSuccess
       bareRepo  <- repo.repo.fetch(layout, cli.shell)
-      _ <- ~cli.shell.git.sparseCheckout(
-              bareRepo,
-              dir,
-              List(),
-              refSpec = repo.refSpec.id,
-              commit = repo.currentCheckout.id)
+      _ <- ~cli.shell.git
+            .sparseCheckout(bareRepo, dir, List(), refSpec = repo.track.id, commit = repo.commit.id)
       newRepo <- ~repo.copy(local = Some(dir))
       lens    <- ~Lenses.layer.repos(schema.id)
       layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
@@ -98,17 +94,16 @@ object RepoCli {
                    .orElse(all.map(_ => schema.repos.map(_.id)))
                    .ascribe(exoskeleton.MissingArg("repo"))
       repos <- optRepos.map(schema.repo(_)(layout, cli.shell)).sequence
-      msgs  <- repos.map(_.repo.update()(cli.shell, layout)).sequence
-      _     <- ~msgs.foreach(io.println(_))
+      msgs  <- repos.map(_.repo.update()(cli.shell, layout).map(io.println(_))).sequence
       lens  <- ~Lenses.layer.repos(schema.id)
       newRepos <- repos
                    .map(
                        repo =>
                          for {
                            commit <- repo.repo
-                                      .getCommitFromTag(layout, cli.shell, repo.refSpec)
-                                      .map(CheckoutId(_))
-                           newRepo = repo.copy(currentCheckout = commit)
+                                      .getCommitFromTag(layout, cli.shell, repo.track)
+                                      .map(Commit(_))
+                           newRepo = repo.copy(commit = commit)
                          } yield (newRepo, repo)
                    )
                    .sequence
@@ -118,8 +113,7 @@ object RepoCli {
       _ <- ~io.save(newLayer, layout.furyConfig)
       _ <- ~newRepos.foreach {
             case (newRepo, _) =>
-              io.println(
-                  s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.currentCheckout.id}]")
+              io.println(s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.commit.id}]")
           }
     } yield io.await()
   }
@@ -159,9 +153,9 @@ object RepoCli {
               .map(_.getCommitFromTag(layout, cli.shell, version))
               .getOrElse(Failure(exoskeleton.MissingArg("name")))
       sourceRepo <- repo
-                     .map(SourceRepo(nameArg, _, version, CheckoutId(tag), dir))
+                     .map(SourceRepo(nameArg, _, version, Commit(tag), dir))
                      .orElse(dir.map { d =>
-                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, CheckoutId(tag), Some(d))
+                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, Commit(tag), Some(d))
                      })
                      .ascribe(exoskeleton.MissingArg("repo"))
 

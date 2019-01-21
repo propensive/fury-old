@@ -97,6 +97,11 @@ case class Shell()(implicit env: Environment) {
             .exec[Outcome[String]]
             .map(_.split("\n").to[List].map(_.split("/").last)))
 
+    def lsRemoteRefSpec(url: String, refSpec: String): Outcome[String] =
+      Cached.lsRemoteRefSpec.getOrElseUpdate(
+          (url, refSpec),
+          sh"git ls-remote $url $refSpec".exec[Outcome[String]].map(_.take(40)))
+
     def checkout(dir: Path, commit: String): Outcome[String] =
       sh"git -C ${dir.value} checkout $commit".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
@@ -213,5 +218,6 @@ case class Shell()(implicit env: Environment) {
 }
 
 object Cached {
-  val lsRemote: HashMap[String, Outcome[List[String]]] = new HashMap()
+  val lsRemote: HashMap[String, Outcome[List[String]]]            = new HashMap()
+  val lsRemoteRefSpec: HashMap[(String, String), Outcome[String]] = new HashMap()
 }

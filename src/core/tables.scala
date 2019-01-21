@@ -164,8 +164,8 @@ case class Tables(config: Config) {
   def repositories(implicit layout: Layout, shell: Shell): Tabulation[SourceRepo] = Tabulation(
       Heading("REPO", _.id),
       Heading("REMOTE", _.repo),
-      Heading("REFSPEC", _.refSpec),
-      //Heading("COMMIT", _.current.opt),
+      Heading("TRACK", _.track),
+      Heading("COMMIT", _.commit),
       Heading("LOCAL", _.local)
   )
 

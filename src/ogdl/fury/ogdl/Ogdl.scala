@@ -28,9 +28,30 @@ import fury.ogdl.OgdlParser.parse
 import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 import scala.language.higherKinds
+import scala.language.dynamics
 
-final case class Ogdl(values: Vector[(String, Ogdl)]) {
-  def only: String = values.head._1
+final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
+  def apply(): String                     = values.head._1
+  def applyDynamic(key: String)(): String = selectDynamic(key).apply()
+  def selectDynamic(key: String): Ogdl    = values.find(_._1 == key).get._2
+
+  // FIXME: Change the type of `set` to `"set"` when upgrading to Scala 2.13.x
+  def applyDynamicNamed(set: String)(updates: (String, Ogdl)*): Ogdl =
+    Ogdl(updates.foldLeft(values) {
+      case (vs, (key, value)) =>
+        vs.indexWhere(_._1 == key) match {
+          case -1 =>
+            vs :+ (key, value)
+          case idx =>
+            vs.patch(idx, Vector((key, value)), 1)
+        }
+    })
+
+  def map(fn: Ogdl => Ogdl) =
+    Ogdl(values.map {
+      case ("", v) => ("", v)
+      case (k, v)  => (k, fn(v))
+    })
 }
 
 object Ogdl {
@@ -73,21 +94,21 @@ object Ogdl {
       path.writeSync(sb.toString).unit
     }
 
-  def read[T: OgdlReader](string: String): T = {
+  def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
     val buffer = ByteBuffer.wrap(string.getBytes("UTF-8"))
     val ogdl   = parse(buffer)
 
     implicitly[OgdlReader[T]].read(ogdl)
   }
 
-  def read[T: OgdlReader](path: Path): Outcome[T] =
+  def read[T: OgdlReader](path: Path, preprocessor: Ogdl => Ogdl): Outcome[T] =
     Outcome.rescue[IOException] { _: IOException =>
       FileNotFound(path)
     } {
       val buffer = readToBuffer(path)
       val ogdl   = parse(buffer)
 
-      implicitly[OgdlReader[T]].read(ogdl)
+      implicitly[OgdlReader[T]].read(preprocessor(ogdl))
     }
 
   private[this] def readToBuffer(path: Path): ByteBuffer = {

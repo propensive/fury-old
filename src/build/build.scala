@@ -53,7 +53,7 @@ object AliasCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout)
+      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext) = {
@@ -126,7 +126,7 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout)
+      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
     } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = Success(Abort)
@@ -225,7 +225,7 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- ~Layer.read(layout.furyConfig)(layout).toOption
+      layer  <- ~Layer.read(layout.furyConfig)(layout, cli.shell).toOption
       msg <- layer
               .map(getPrompt(_, config.theme))
               .getOrElse(Success(Prompt.empty(config)(config.theme)))
@@ -327,7 +327,7 @@ object LayerCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(layout.furyConfig)(layout)
+      layer     <- Layer.read(layout.furyConfig)(layout, cli.shell)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)

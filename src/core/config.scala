@@ -26,7 +26,7 @@ import scala.util._
 object Config {
 
   def read()(implicit env: Environment, layout: Layout): Outcome[Config] =
-    Success(Ogdl.read[Config](layout.userConfig).toOption.getOrElse(Config()))
+    Success(Ogdl.read[Config](layout.userConfig, identity(_)).toOption.getOrElse(Config()))
 }
 
 case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5)
