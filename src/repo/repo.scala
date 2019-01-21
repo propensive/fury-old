@@ -55,6 +55,23 @@ object RepoCli {
     } yield io.await()
   }
 
+  def unfork(ctx: Context) = {
+    import ctx._
+    for {
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
+      cli       <- cli.hint(RepoIdArg, schema.repos)
+      io        <- cli.io()
+      repoId    <- io(RepoIdArg)
+      repo      <- schema.repos.findBy(repoId)
+      newRepo   <- ~repo.copy(local = None)
+      lens      <- ~Lenses.layer.repos(schema.id)
+      layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+      _         <- ~io.save(layer, layout.furyConfig)
+    } yield io.await()
+  }
+
   def fork(ctx: Context) = {
     import ctx._
     for {
