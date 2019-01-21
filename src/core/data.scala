@@ -537,12 +537,12 @@ object Layer {
     (try ogdl.version().toInt
     catch { case e: Exception => 1 }) match {
       case 1 =>
-        println("Migrating layer.fury from file format v1")
+        //io.println("Migrating layer.fury from file format v1")
         ogdl.set(
             schemas = ogdl.schemas.map { schema =>
               schema.set(
                   repos = schema.repos.map { repo =>
-                    println(s"Checking commit hash for ${repo.repo()}")
+                    //io.println(s"Checking commit hash for ${repo.repo()}")
                     val commit = shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
                     repo.set(commit = Ogdl(CheckoutId(commit)), track = repo.refSpec)
                   }
@@ -966,7 +966,7 @@ case class RefSpec(id: String)
 
 object CheckoutId {
   implicit val stringShow: StringShow[CheckoutId] = _.id
-  implicit val msgShow: MsgShow[CheckoutId]       = r => UserMsg(_.version(r.id))
+  implicit val msgShow: MsgShow[CheckoutId]       = r => UserMsg(_.version(r.id.take(7)))
 }
 case class CheckoutId(id: String)
 
