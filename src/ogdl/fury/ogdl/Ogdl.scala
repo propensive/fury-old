@@ -47,7 +47,11 @@ final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
         }
     })
 
-  def map(fn: Ogdl => Ogdl) = Ogdl(values.map { case (k, v) => (k, fn(v)) })
+  def map(fn: Ogdl => Ogdl) =
+    Ogdl(values.map {
+      case ("", v) => ("", v)
+      case (k, v)  => (k, fn(v))
+    })
 }
 
 object Ogdl {
