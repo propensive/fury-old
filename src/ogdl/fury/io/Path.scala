@@ -35,7 +35,7 @@ import scala.util._
 object Path {
 
   def unapply(str: String): Option[Path] = str match {
-    case r"""$dir@([^*?:;,&|"\%<>]*)/""" =>
+    case r"""$dir@([^*?:;,&|"\%<>]*)""" =>
       Some(Path(if (dir.endsWith("/")) dir.dropRight(1) else dir))
     case _ => None
   }
