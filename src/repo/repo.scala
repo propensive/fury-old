@@ -102,7 +102,7 @@ object RepoCli {
                          for {
                            commit <- repo.repo
                                       .getCommitFromTag(layout, cli.shell, repo.track)
-                                      .map(CheckoutId(_))
+                                      .map(Commit(_))
                            newRepo = repo.copy(commit = commit)
                          } yield (newRepo, repo)
                    )
@@ -153,9 +153,9 @@ object RepoCli {
               .map(_.getCommitFromTag(layout, cli.shell, version))
               .getOrElse(Failure(exoskeleton.MissingArg("name")))
       sourceRepo <- repo
-                     .map(SourceRepo(nameArg, _, version, CheckoutId(tag), dir))
+                     .map(SourceRepo(nameArg, _, version, Commit(tag), dir))
                      .orElse(dir.map { d =>
-                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, CheckoutId(tag), Some(d))
+                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, Commit(tag), Some(d))
                      })
                      .ascribe(exoskeleton.MissingArg("repo"))
 

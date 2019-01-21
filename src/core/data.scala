@@ -544,7 +544,7 @@ object Layer {
                   repos = schema.repos.map { repo =>
                     //io.println(s"Checking commit hash for ${repo.repo()}")
                     val commit = shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
-                    repo.set(commit = Ogdl(CheckoutId(commit)), track = repo.refSpec)
+                    repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
                   }
               )
             },
@@ -647,7 +647,7 @@ object Repo {
 case class Checkout(
     repo: Repo,
     local: Boolean,
-    commit: CheckoutId,
+    commit: Commit,
     refSpec: RefSpec,
     sources: List[Path]) {
 
@@ -686,12 +686,7 @@ object SourceRepo {
   implicit def diff: Diff[SourceRepo]             = Diff.gen[SourceRepo]
 }
 
-case class SourceRepo(
-    id: RepoId,
-    repo: Repo,
-    track: RefSpec,
-    commit: CheckoutId,
-    local: Option[Path]) { // TODO: change Option[String] to RefSpec
+case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) { // TODO: change Option[String] to RefSpec
 
   def listFiles(implicit layout: Layout, shell: Shell): Outcome[List[Path]] =
     for {
@@ -964,11 +959,11 @@ object RefSpec {
 }
 case class RefSpec(id: String)
 
-object CheckoutId {
-  implicit val stringShow: StringShow[CheckoutId] = _.id
-  implicit val msgShow: MsgShow[CheckoutId]       = r => UserMsg(_.version(r.id.take(7)))
+object Commit {
+  implicit val stringShow: StringShow[Commit] = _.id
+  implicit val msgShow: MsgShow[Commit]       = r => UserMsg(_.version(r.id.take(7)))
 }
-case class CheckoutId(id: String)
+case class Commit(id: String)
 
 object Source {
   implicit val stringShow: StringShow[Source] = _.description
