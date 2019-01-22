@@ -214,11 +214,11 @@ object RepoCli {
       remote      <- ~remoteArg.map(fury.Repo.fromString(_))
       nameArg     <- ~invoc(RepoNameArg).toOption
       force       <- ~invoc(ForceArg).toOption.isDefined
-      tweak       <- ~Lenses.setSchemas(optSchemaId, force)
-      layer       <- tweak(layer, _.lens(_.repos(on(repo.id)).repo), remote)
-      layer       <- tweak(layer, _.lens(_.repos(on(repo.id)).track), version)
-      layer       <- tweak(layer, _.lens(_.repos(on(repo.id)).local), dir.map(Some(_)))
-      layer       <- tweak(layer, _.lens(_.repos(on(repo.id)).id), nameArg)
+      focus       <- ~Lenses.focus(optSchemaId, force)
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
       _           <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }

@@ -41,11 +41,11 @@ object Lenses {
       yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
   }
 
-  def setSchemas(schemaId: Option[SchemaId], force: Boolean) = new SetSchemas(schemaId, force)
+  def focus(schemaId: Option[SchemaId], force: Boolean) = new Focus(schemaId, force)
 
-  class SetSchemas(schemaId: Option[SchemaId], force: Boolean) {
+  class Focus(schemaId: Option[SchemaId], force: Boolean) {
 
-    def apply[A](
+    def update[A](
         layer: Layer,
         partialLens: Lens.Partial[Schema] => Lens[Schema, A, A],
         value: Option[A]
