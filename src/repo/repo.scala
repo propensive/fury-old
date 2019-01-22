@@ -185,7 +185,7 @@ object RepoCli {
       optImportRef <- ~optImport.map(SchemaRef(sourceRepo.id, _))
       layer <- optImportRef.map { importRef =>
                 Lenses.updateSchemas(optSchemaArg, layer, true)(Lenses.layer.imports(_))(
-                    _.modify(_)(_ :+ importRef))
+                    _.modify(_)(_ + importRef))
               }.getOrElse(~layer)
       layer <- ~(lens.modify(layer)(_ + sourceRepo))
       _     <- ~io.save(layer, layout.furyConfig)

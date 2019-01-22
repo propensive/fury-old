@@ -423,7 +423,7 @@ case class Schema(
     id: SchemaId,
     projects: SortedSet[Project] = TreeSet(),
     repos: SortedSet[SourceRepo] = TreeSet(),
-    imports: List[SchemaRef] = List(),
+    imports: SortedSet[SchemaRef] = TreeSet(),
     main: Option[ProjectId] = None) {
 
   def apply(id: ProjectId) = projects.findBy(id)
@@ -460,10 +460,10 @@ case class Schema(
                  tree         <- resolved.schemaTree(repoDir, layout)
                } yield tree
              }.sequence
-    } yield SchemaTree(this, dir, imps.to[Set])
+    } yield SchemaTree(this, dir, imps)
 
   def importedSchemas(layout: Layout): Outcome[List[Schema]] =
-    imports.map(_.resolve(this, layout)).sequence
+    imports.to[List].map(_.resolve(this, layout)).sequence
 
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 

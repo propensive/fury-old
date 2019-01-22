@@ -44,7 +44,7 @@ object ImportCli {
       io            <- invoc.io()
       schemaRef     <- invoc(ImportArg)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
-                  _.modify(_)(_ :+ schemaRef))
+                  _.modify(_)(_ + schemaRef))
       _ <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
@@ -78,7 +78,7 @@ object ImportCli {
       invoc     <- cli.read()
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
-      rows <- ~schema.imports.map { i =>
+      rows <- ~schema.imports.to[List].map { i =>
                (i, i.resolve(schema, layout))
              }
       table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
