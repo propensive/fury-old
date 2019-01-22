@@ -32,7 +32,7 @@ object Bloop {
   private[this] def testServer(): Outcome[Unit] =
     Success(new Socket("localhost", 8212).close().unit)
 
-  def server(cli: Cli[_])(io: cli.Io): Outcome[Unit] = synchronized {
+  def server(shell: Shell, io: Io): Outcome[Unit] = synchronized {
     try {
       testServer()
       Success(())
@@ -40,7 +40,7 @@ object Bloop {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
         val io2     = io.print("Starting bloop compile server")
-        val running = cli.shell.bloop.startServer()
+        val running = shell.bloop.startServer()
 
         def checkStarted(): Unit =
           try {
@@ -70,34 +70,27 @@ object Bloop {
 
   def generateFiles(
       artifacts: Iterable[Artifact],
-      universe: Universe
-    )(implicit layout: Layout,
-      env: Environment,
-      shell: Shell
+      universe: Universe,
+      layout: Layout
     ): Outcome[Iterable[Path]] =
     new CollOps(artifacts.map { artifact =>
       for {
         path       <- layout.bloopConfig(artifact).mkParents()
-        jsonString <- makeConfig(artifact, universe)
+        jsonString <- makeConfig(artifact, universe, layout)
         _          <- ~(if (!path.exists) path.writeSync(jsonString))
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(
-      artifact: Artifact,
-      universe: Universe
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[String] =
+  private def makeConfig(artifact: Artifact, universe: Universe, layout: Layout): Outcome[String] =
     for {
-      deps      <- universe.dependencies(artifact.ref)
-      _         = artifact.writePlugin()
+      deps      <- universe.dependencies(artifact.ref, layout)
+      _         = artifact.writePlugin(layout)
       compiler  = artifact.compiler
-      classpath <- universe.classpath(artifact.ref)
+      classpath <- universe.classpath(artifact.ref, layout)
       compilerClasspath <- compiler.map { c =>
-                            universe.classpath(c.ref)
+                            universe.classpath(c.ref, layout)
                           }.getOrElse(Success(Set()))
-      params <- universe.allParams(artifact.ref)
+      params <- universe.allParams(artifact.ref, layout)
     } yield
       json(
           name = artifact.hash.encoded[Base64Url],
@@ -114,7 +107,7 @@ object Bloop {
           baseDirectory = layout.pwd.value,
           javaOptions = Nil,
           allScalaJars = compilerClasspath.map(_.value).to[List],
-          sourceDirectories = artifact.sourcePaths.map(_.value),
+          sourceDirectories = artifact.sourcePaths(layout).map(_.value),
           javacOptions = Nil,
           main = artifact.main
       )

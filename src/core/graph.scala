@@ -32,9 +32,8 @@ object Graph {
 
   @tailrec
   def live(
-      cli: Cli[_],
-      changed: Boolean = false
-    )(io: cli.Io,
+      changed: Boolean,
+      io: Io,
       graph: Map[ModuleRef, Set[ModuleRef]],
       stream: Stream[CompileEvent],
       state: Map[ModuleRef, CompileState]
@@ -47,17 +46,18 @@ object Graph {
           io.println(next)
           io.println(Ansi.up(graph.size + 1)())
         }
-        live(cli, false)(io, graph, tail, state)
+        live(false, io, graph, tail, state)
       case StartCompile(ref) #:: tail =>
-        live(cli, true)(io, graph, tail, state.updated(ref, Compiling))
+        live(true, io, graph, tail, state.updated(ref, Compiling))
       case StopCompile(ref, out, success) #:: tail =>
-        live(cli, true)(
+        live(
+            true,
             io,
             graph,
             tail,
             state.updated(ref, if (success) Successful(None) else Failed(out)))
       case SkipCompile(ref) #:: tail =>
-        live(cli, true)(io, graph, tail, state.updated(ref, Skipped))
+        live(true, io, graph, tail, state.updated(ref, Skipped))
       case Stream.Empty =>
         val output = state.collect {
           case (ref, Failed(out)) =>

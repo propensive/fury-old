@@ -37,8 +37,9 @@ object ConfigCli {
     import ctx._
     for {
       cli      <- cli.hint(ThemeArg, Theme.all)
-      io       <- cli.io()
-      newTheme <- ~io(ThemeArg).toOption
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      newTheme <- ~invoc(ThemeArg).toOption
       config <- ~newTheme.map { th =>
                  config.copy(theme = th)
                }.getOrElse(config)
@@ -53,15 +54,16 @@ object AliasCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext) = {
     import ctx._
     for {
       cli   <- cli.hint(RawArg)
-      io    <- cli.io()
-      raw   <- ~io(RawArg).isSuccess
+      invoc <- cli.read()
+      io    <- invoc.io()
+      raw   <- ~invoc(RawArg).isSuccess
       cols  <- Success(Terminal.columns.getOrElse(100))
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cols, rows, raw)(identity(_))
@@ -76,8 +78,9 @@ object AliasCli {
     import ctx._
     for {
       cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
-      io         <- cli.io()
-      aliasArg   <- io(AliasArg)
+      invoc      <- cli.read()
+      io         <- invoc.io()
+      aliasArg   <- invoc(AliasArg)
       aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
@@ -104,13 +107,14 @@ object AliasCli {
                      .to[List]
                      .headOption
       cli         <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-      io          <- cli.io()
-      moduleArg   <- io(ModuleArg)
+      invoc       <- cli.read()
+      io          <- invoc.io()
+      moduleArg   <- invoc(ModuleArg)
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- project.modules.findBy(moduleArg)
       moduleRef   <- ~module.ref(project)
-      aliasArg    <- io(AliasArg)
-      description <- io(DescriptionArg)
+      aliasArg    <- invoc(AliasArg)
+      description <- invoc(DescriptionArg)
       alias       <- ~Alias(aliasArg, description, optSchemaArg, moduleRef)
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
@@ -126,15 +130,16 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = Success(Abort)
 
   def about(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
     for {
-      io <- cli.io()
-      _  <- ~io.println(str"""|     _____ 
+      invoc <- cli.read()
+      io    <- invoc.io()
+      _     <- ~io.println(str"""|     _____ 
                              |    / ___/__ __ ____ __ __
                              |   / __/ / // // ._// // /
                              |  /_/    \_._//_/  _\_. /
@@ -157,7 +162,8 @@ object BuildCli {
     for {
       layout <- layout
       path   <- ~layout.furyConfig
-      io     <- cli.io()
+      invoc  <- cli.read()
+      io     <- invoc.io()
       bak <- ~path.rename { f =>
               s".$f.bak"
             }
@@ -178,25 +184,29 @@ object BuildCli {
       cli          <- cli.hint(WatchArg)
       cli <- cli
               .hint(DebugArg, optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
-      io          <- cli.io()
-      t0          <- Success(System.currentTimeMillis)
-      project     <- optProject.ascribe(UnspecifiedProject())
-      optModuleId <- ~io(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      t0      <- Success(System.currentTimeMillis)
+      project <- optProject.ascribe(UnspecifiedProject())
+      optModuleId <- ~invoc(ModuleArg).toOption
+                      .orElse(moduleRef.map(_.moduleId))
+                      .orElse(project.main)
       optModule   <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module      <- optModule.ascribe(UnspecifiedModule())
-      schemaTree  <- schema.schemaTree(layout.pwd)
+      schemaTree  <- schema.schemaTree(layout.pwd, layout)
       universe    <- schemaTree.universe
-      artifact    <- universe.artifact(module.ref(project))
-      artifacts   <- universe.transitiveDependencies(module.ref(project))(cli.shell, layout)
-      _           <- Bloop.server(cli)(io)
-      compilation <- universe.compilation(module.ref(project))(cli.shell, layout)
-      _           <- ~compilation.checkoutAll()
-      _           <- compilation.generateFiles(universe)(layout, cli.env, cli.shell)
-      debugStr    <- ~io(DebugArg).toOption
+      artifact    <- universe.artifact(module.ref(project), layout)
+      artifacts   <- universe.transitiveDependencies(module.ref(project), layout)
+      _           <- Bloop.server(layout.shell, io)
+      compilation <- universe.compilation(module.ref(project), layout)
+      _           <- ~compilation.checkoutAll(layout)
+      _           <- compilation.generateFiles(universe, layout)
+      debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
                         module.ref(project) :: artifacts.map(_.ref).to[List]))
-      future <- ~universe.compile(artifact, multiplexer).apply(module.ref(project))
-      _ <- ~Graph.live(cli)(
+      future <- ~universe.compile(artifact, multiplexer, Map(), layout).apply(module.ref(project))
+      _ <- ~Graph.live(
+              changed = false,
               io,
               compilation.graph.mapValues(_.to[Set]),
               multiplexer.stream(50, Some(Tick)),
@@ -225,12 +235,13 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- ~Layer.read(layout.furyConfig)(layout, cli.shell).toOption
+      layer  <- ~Layer.read(layout.furyConfig, layout).toOption
       msg <- layer
               .map(getPrompt(_, config.theme))
               .getOrElse(Success(Prompt.empty(config)(config.theme)))
-      io <- cli.io()
-      _  <- ~io.println(msg)
+      invoc <- cli.read()
+      io    <- invoc.io()
+      _     <- ~io.println(msg)
     } yield io.await()
 
   def save(ctx: MenuContext) = {
@@ -244,16 +255,17 @@ object BuildCli {
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(DirArg)
-      io           <- cli.io()
-      dir          <- io(DirArg)
+      invoc        <- cli.read()
+      io           <- invoc.io()
+      dir          <- invoc(DirArg)
       project      <- optProject.ascribe(UnspecifiedProject())
-      optModuleId  <- ~io(ModuleArg).toOption.orElse(project.main)
+      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      schemaTree   <- schema.schemaTree(layout.pwd)
+      schemaTree   <- schema.schemaTree(layout.pwd, layout)
       universe     <- schemaTree.universe
-      artifact     <- universe.artifact(module.ref(project))
-      _            <- universe.saveJars(cli)(io, module.ref(project), dir in layout.pwd)
+      artifact     <- universe.artifact(module.ref(project), layout)
+      _            <- universe.saveJars(io, module.ref(project), dir in layout.pwd, layout)
     } yield io.await()
   }
 
@@ -271,13 +283,14 @@ object BuildCli {
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
-      io         <- cli.io()
+      invoc      <- cli.read()
+      io         <- invoc.io()
       module     <- optModule.ascribe(UnspecifiedModule())
       project    <- optProject.ascribe(UnspecifiedProject())
-      schemaTree <- schema.schemaTree(layout.pwd)
+      schemaTree <- schema.schemaTree(layout.pwd, layout)
       universe   <- schemaTree.universe
-      artifact   <- universe.artifact(module.ref(project))
-      classpath  <- universe.classpath(module.ref(project))
+      artifact   <- universe.artifact(module.ref(project), layout)
+      classpath  <- universe.classpath(module.ref(project), layout)
       _          <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
@@ -292,17 +305,18 @@ object BuildCli {
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-      io           <- cli.io()
-      optModuleId  <- ~io(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
+      invoc        <- cli.read()
+      io           <- invoc.io()
+      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      schemaTree  <- schema.schemaTree(layout.pwd)
+      schemaTree  <- schema.schemaTree(layout.pwd, layout)
       universe    <- schemaTree.universe
-      artifact    <- universe.artifact(module.ref(project))
-      compilation <- universe.compilation(module.ref(project))
+      artifact    <- universe.artifact(module.ref(project), layout)
+      compilation <- universe.compilation(module.ref(project), layout)
       _ <- ~Graph
             .draw(compilation.graph.mapValues(_.to[Set]), true, Map())(config.theme)
             .foreach(io.println(_))
@@ -320,14 +334,14 @@ object LayerCli {
       schema: Schema) {
     implicit def implicitLayout: Layout   = layout
     implicit def implicitEnv: Environment = cli.env
-    implicit def implicitShell: Shell     = cli.shell
+    implicit def implicitShell: Shell     = layout.shell
   }
 
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer     <- Layer.read(layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
@@ -337,14 +351,15 @@ object LayerCli {
     import ctx._
     for {
       cli   <- cli.hint(ForceArg)
-      io    <- cli.io()
-      force <- ~io(ForceArg).toOption.isDefined
+      invoc <- cli.read()
+      io    <- invoc.io()
+      force <- ~invoc(ForceArg).toOption.isDefined
       layer <- ~Layer()
       _     <- layout.furyConfig.mkParents()
       _     <- ~io.save(layer, layout.furyConfig)
-      _     <- cli.shell.git.init(layout.pwd)
-      _     <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
-      _     <- cli.shell.git.commit(layout.pwd, "Initial commit")
+      _     <- layout.shell.git.init(layout.pwd)
+      _     <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
+      _     <- layout.shell.git.commit(layout.pwd, "Initial commit")
       _     <- ~io.println("Initialized new git repo and committed layer.fury.")
     } yield io.await()
   }
@@ -354,9 +369,10 @@ object LayerCli {
     for {
       cols     <- Success(Terminal.columns.getOrElse(100))
       cli      <- cli.hint(RawArg)
-      io       <- cli.io()
-      raw      <- ~io(RawArg).isSuccess
-      projects <- schema.allProjects
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      raw      <- ~invoc(RawArg).isSuccess
+      projects <- schema.allProjects(layout)
       table <- ~Tables(config).show(Tables(config).projects(None), cols, projects.distinct, raw)(
                   _.id)
       _ <- ~(if (!raw)
@@ -368,15 +384,16 @@ object LayerCli {
   def publish(ctx: LayerCtx) = {
     import ctx._
     for {
-      suggestedTags <- cli.shell.git.tags(layout.pwd)
+      suggestedTags <- layout.shell.git.tags(layout.pwd)
       cli           <- cli.hint(TagArg, suggestedTags)
-      io            <- cli.io()
-      tag           <- io(TagArg)
-      _             <- cli.shell.git.add(layout.pwd, List(layout.furyConfig))
-      _             <- cli.shell.git.commit(layout.pwd, s"Tagged version $tag")
-      _             <- cli.shell.git.tag(layout.pwd, tag)
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      tag           <- invoc(TagArg)
+      _             <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
+      _             <- layout.shell.git.commit(layout.pwd, s"Tagged version $tag")
+      _             <- layout.shell.git.tag(layout.pwd, tag)
       _             <- ~io.println(msg"Committed tag $tag.")
-      _             <- cli.shell.git.push(layout.pwd, all = true)
+      _             <- layout.shell.git.push(layout.pwd, all = true)
       _             <- ~io.println(msg"Pushed git repository.")
     } yield io.await()
   }

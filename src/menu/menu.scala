@@ -118,8 +118,9 @@ object FuryMenu {
 
   def help(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
     for {
-      io <- cli.io()
-      _  <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
+      invoc <- cli.read()
+      io    <- invoc.io()
+      _     <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
                            |${menu(Nil).reference(Theme.NoColor).join("\n")}

@@ -24,18 +24,19 @@ import kaleidoscope._
 import scala.util._
 import scala.collection.mutable.{HashMap, ListBuffer}
 
-case class Shell()(implicit env: Environment) {
+case class Shell(environment: Environment) {
 
-  val environment: Environment = env
+  implicit private[this] val defaultEnvironment: Environment = environment
 
   def runJava(
       classpath: List[String],
-      main: String
+      main: String,
+      layout: Layout
     )(output: String => Unit
-    )(implicit layout: Layout
     ): Running = {
     layout.sharedDir.mkdir()
-    implicit val env = environment.append("SHARED", layout.sharedDir.value)
+    implicit val defaultEnvironment: Environment =
+      environment.append("SHARED", layout.sharedDir.value)
     sh"java -cp ${classpath.mkString(":")} $main".async(output(_), output(_))
   }
 
@@ -45,7 +46,8 @@ case class Shell()(implicit env: Environment) {
       sh"git remote add origin ${repo.url}".exec[Outcome[String]]
 
     def clone(repo: Repo, dir: Path): Outcome[String] = {
-      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+      implicit val defaultEnvironment: Environment =
+        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
       sh"git clone ${repo.url} ${dir.value}".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
@@ -54,7 +56,8 @@ case class Shell()(implicit env: Environment) {
     }
 
     def cloneBare(url: String, dir: Path): Outcome[String] = {
-      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+      implicit val defaultEnvironment: Environment =
+        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
       sh"git clone --mirror $url ${dir.value}".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
