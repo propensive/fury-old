@@ -607,6 +607,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   //dirs: Map[ProjectId, Path] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
 
+  def contains(project: Project): Boolean = projects.get(project.id).contains(project)
+  
   def entity(id: ProjectId): Try[Entity] =
     entities.get(id).ascribe(ItemNotFound(id))
 
