@@ -42,7 +42,7 @@ object ModuleCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer     <- Layer.read(layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -98,7 +98,9 @@ object ModuleCli {
       cli <- cli.hint(ModuleNameArg)
       cli <- cli.hint(
                 CompilerArg,
-                ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
+                ModuleRef.JavaRef :: defaultSchema.toOption
+                  .to[List]
+                  .flatMap(_.compilerRefs(layout)))
       cli     <- cli.hint(KindArg, Kind.all)
       optKind <- ~cli.peek(KindArg)
       cli <- optKind match {
@@ -152,7 +154,7 @@ object ModuleCli {
     for {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       schema   <- defaultSchema
-      cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
+      cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(layout)))
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
       io       <- invoc.io()
@@ -179,7 +181,9 @@ object ModuleCli {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli <- cli.hint(
                 CompilerArg,
-                ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(_.compilerRefs))
+                ModuleRef.JavaRef :: defaultSchema.toOption
+                  .to[List]
+                  .flatMap(_.compilerRefs(layout)))
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
       optModule <- Success {

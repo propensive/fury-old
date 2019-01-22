@@ -30,7 +30,7 @@ object ImportCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
   def add(ctx: Context) = {
@@ -39,12 +39,10 @@ object ImportCli {
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-      cli <- cli.hint(
-                ImportArg,
-                defaultSchema.map(_.importCandidates(layout, cli.shell)).getOrElse(Nil))
-      invoc     <- cli.read()
-      io        <- invoc.io()
-      schemaRef <- invoc(ImportArg)
+      cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(layout)).getOrElse(Nil))
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      schemaRef     <- invoc(ImportArg)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
                   _.modify(_)(_ :+ schemaRef))
       _ <- ~io.save(layer, layout.furyConfig)
@@ -81,7 +79,7 @@ object ImportCli {
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
       rows <- ~schema.imports.map { i =>
-               (i, i.resolve(schema)(layout, cli.shell))
+               (i, i.resolve(schema, layout))
              }
       table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
                   _._1.schema.key)

@@ -28,7 +28,7 @@ object ProjectCli {
     for {
       layout       <- cli.layout
       config       <- fury.Config.read()(cli.env, layout)
-      layer        <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer        <- Layer.read(layout.furyConfig, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       optSchemaArg <- ~cli.peek(SchemaArg)
     } yield new MenuContext(cli, layout, config, layer, optSchemaArg)

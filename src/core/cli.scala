@@ -164,7 +164,7 @@ case class Cli[+Hinted <: CliParam[_]](
 
   lazy val layout: Outcome[Layout] =
     env.workDir.ascribe(FileNotFound(Path("/"))).map { pwd =>
-      Layout(Path(env.variables("HOME")), Path(pwd))
+      Layout(Path(env.variables("HOME")), Path(pwd), env)
     }
 
   lazy val config: Config = layout.flatMap(Config.read()(env, _)).toOption.getOrElse(Config())
@@ -181,8 +181,6 @@ case class Cli[+Hinted <: CliParam[_]](
     if (!completion) write(msg)
     Abort
   }
-
-  lazy val shell: Shell = Shell()(env)
 
   def opt[T: Default](param: CliParam[T]): Outcome[Option[T]] = Success(args(param.param).opt)
 

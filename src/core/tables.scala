@@ -161,7 +161,7 @@ case class Tables(config: Config) {
       Heading("LICENSE", _.license)
   )
 
-  def repositories(implicit layout: Layout, shell: Shell): Tabulation[SourceRepo] = Tabulation(
+  def repositories(layout: Layout): Tabulation[SourceRepo] = Tabulation(
       Heading("REPO", _.id),
       Heading("REMOTE", _.repo),
       Heading("TRACK", _.track),

@@ -30,7 +30,7 @@ object SchemaCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(layout.furyConfig, layout)
     } yield SchemaCtx(cli, layout, config, layer)
 
   def select(ctx: SchemaCtx) = {

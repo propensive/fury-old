@@ -99,14 +99,14 @@ object Binary {
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
 
-  def paths(implicit shell: Shell): Outcome[List[Path]] =
+  def paths(shell: Shell): Outcome[List[Path]] =
     Binary.coursierCache.getOrElseUpdate(this, shell.coursier.fetch(spec))
 
   def detectCompilerVersion(implicit shell: Shell): Outcome[String] =
     Binary.compilerVersionCache.getOrElseUpdate(
         this,
         (for {
-          path       <- paths
+          path       <- paths(shell)
           entries    <- path.map(_.zipfileEntries).sequence
           properties <- ~entries.flatten.filter(_.name == "compiler.properties")
           line <- ~properties.flatMap { p =>
@@ -168,16 +168,11 @@ case class Compilation(
   def apply(ref: ModuleRef): Outcome[Artifact] =
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
-  def checkoutAll()(implicit layout: Layout, shell: Shell): Unit =
-    checkouts.foreach(_.get.unit)
+  def checkoutAll(layout: Layout): Unit =
+    checkouts.foreach(_.get(layout).unit)
 
-  def generateFiles(
-      universe: Universe
-    )(implicit layout: Layout,
-      env: Environment,
-      shell: Shell
-    ): Outcome[Iterable[Path]] =
-    Bloop.generateFiles(artifacts.values, universe)
+  def generateFiles(universe: Universe, layout: Layout): Outcome[Iterable[Path]] =
+    Bloop.generateFiles(artifacts.values, universe, layout)
 }
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
@@ -198,16 +193,16 @@ case class Universe(
   def schema(id: ProjectId): Outcome[Schema] =
     schemas.get(id).ascribe(ItemNotFound(id))
 
-  def artifact(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Artifact] =
+  def artifact(ref: ModuleRef, layout: Layout): Outcome[Artifact] =
     for {
       project <- project(ref.projectId)
       schema  <- schema(ref.projectId)
       module  <- project(ref.moduleId)
       dir     <- dir(ref.projectId)
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
-                 else artifact(module.compiler).map(Some(_))
-      binaries  <- module.binaries.map(_.paths).sequence.map(_.flatten)
-      checkouts <- checkout(ref)
+                 else artifact(module.compiler, layout).map(Some(_))
+      binaries  <- module.binaries.map(_.paths(layout.shell)).sequence.map(_.flatten)
+      checkouts <- checkout(ref, layout)
     } yield
       Artifact(
           ref,
@@ -226,14 +221,14 @@ case class Universe(
           module.sharedSources.map(_.path in layout.sharedDir).to[List]
       )
 
-  def checkout(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Checkout]] =
+  def checkout(ref: ModuleRef, layout: Layout): Outcome[Set[Checkout]] =
     for {
       project <- project(ref.projectId)
       schema  <- schema(ref.projectId)
       module  <- project(ref.moduleId)
       repos <- module.externalSources
                 .groupBy(_.repoId)
-                .map { case (k, v) => schema.repo(k).map(_ -> v) }
+                .map { case (k, v) => schema.repo(k, layout).map(_ -> v) }
                 .sequence
     } yield
       repos.map {
@@ -249,80 +244,70 @@ case class Universe(
   def ++(that: Universe): Universe =
     Universe(projects ++ that.projects, schemas ++ that.schemas, dirs ++ that.dirs)
 
-  def classpath(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Path]] =
+  def classpath(ref: ModuleRef, layout: Layout): Outcome[Set[Path]] =
     for {
-      art  <- artifact(ref)
-      deps <- transitiveDependencies(ref)
+      art  <- artifact(ref, layout)
+      deps <- transitiveDependencies(ref, layout)
       dirs <- ~deps.map(layout.classesDir(_))
       bins <- ~deps.flatMap(_.binaries)
     } yield (dirs ++ bins ++ art.binaries)
 
-  def runtimeClasspath(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Path]] =
+  def runtimeClasspath(ref: ModuleRef, layout: Layout): Outcome[Set[Path]] =
     for {
-      cp       <- classpath(ref)
-      art      <- artifact(ref)
+      cp       <- classpath(ref, layout)
+      art      <- artifact(ref, layout)
       compiler <- ~art.compiler
       compilerCp <- compiler.map { c =>
-                     classpath(c.ref)
+                     classpath(c.ref, layout)
                    }.getOrElse(Success(Set()))
     } yield compilerCp ++ cp + layout.classesDir(art)
 
-  def dependencies(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[Set[Artifact]] =
+  def dependencies(ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
     for {
       project <- project(ref.projectId)
       module  <- project(ref.moduleId)
-      deps    <- module.after.map(artifact).sequence
+      deps    <- module.after.map(artifact(_, layout)).sequence
     } yield deps
 
-  def transitiveDependencies(
-      ref: ModuleRef
-    )(implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Set[Artifact]] =
+  def transitiveDependencies(ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
     for {
-      after  <- dependencies(ref)
-      tDeps  <- after.map(_.ref).map(transitiveDependencies).sequence
+      after  <- dependencies(ref, layout)
+      tDeps  <- after.map(_.ref).map(transitiveDependencies(_, layout)).sequence
       itDeps = tDeps.flatten.filterNot(_.intransitive).to[Set]
     } yield after ++ itDeps
 
-  def clean(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Unit =
+  def clean(ref: ModuleRef, layout: Layout): Unit =
     layout.classesDir.delete().unit
 
-  def allParams(ref: ModuleRef)(implicit layout: Layout, shell: Shell): Outcome[List[String]] =
+  def allParams(ref: ModuleRef, layout: Layout): Outcome[List[String]] =
     for {
-      tDeps    <- transitiveDependencies(ref)
+      tDeps    <- transitiveDependencies(ref, layout)
       plugins  <- ~tDeps.filter(_.kind == Plugin)
-      artifact <- artifact(ref)
+      artifact <- artifact(ref, layout)
     } yield
       (artifact.params ++ plugins.map { plugin =>
         Parameter(str"Xplugin:${layout.classesDir(plugin)}")
       }).map(_.parameter)
 
-  def compilation(ref: ModuleRef)(implicit shell: Shell, layout: Layout): Outcome[Compilation] =
+  def compilation(ref: ModuleRef, layout: Layout): Outcome[Compilation] =
     for {
-      art <- artifact(ref)
-      graph <- transitiveDependencies(ref).map(_.map { a =>
+      art <- artifact(ref, layout)
+      graph <- transitiveDependencies(ref, layout).map(_.map { a =>
                 (a.ref, a.dependencies)
               }.toMap.updated(art.ref, art.dependencies))
       artifacts <- graph.keys.map { key =>
-                    artifact(key).map(key -> _)
+                    artifact(key, layout).map(key -> _)
                   }.sequence.map(_.toMap)
       checkouts <- graph.keys.map { key =>
-                    checkout(key)
+                    checkout(key, layout)
                   }.sequence
     } yield Compilation(graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
 
-  def saveJars(
-      io: Io,
-      ref: ModuleRef,
-      dest: Path
-    )(implicit shell: Shell,
-      layout: Layout
-    ): Outcome[Unit] =
+  def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Outcome[Unit] =
     for {
       dest    <- dest.directory
-      current <- artifact(ref)
-      deps    <- transitiveDependencies(ref)
+      current <- artifact(ref, layout)
+      deps    <- transitiveDependencies(ref, layout)
       dirs    <- ~deps.map(layout.classesDir(_))
       files <- ~dirs.map { dir =>
                 (dir, dir.children)
@@ -332,7 +317,7 @@ case class Universe(
       manifestFile <- Manifest.file(layout.manifestFile(current), bins.map(_.name), None)
       path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _            <- ~io.println(msg"Saving JAR file $path")
-      _            <- shell.aggregatedJar(path, files, manifestFile)
+      _            <- layout.shell.aggregatedJar(path, files, manifestFile)
       _ <- ~bins.foreach { b =>
             b.copyTo(dest / b.name)
           }
@@ -341,17 +326,16 @@ case class Universe(
   def compile(
       artifact: Artifact,
       multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      futures: Map[ModuleRef, Future[CompileResult]] = Map()
-    )(implicit layout: Layout,
-      shell: Shell
+      futures: Map[ModuleRef, Future[CompileResult]] = Map(),
+      layout: Layout
     ): Map[ModuleRef, Future[CompileResult]] = {
 
     // FIXME: don't .get
-    val deps = dependencies(artifact.ref).toOption.get
+    val deps = dependencies(artifact.ref, layout).toOption.get
 
     val newFutures = deps.foldLeft(futures) { (futures, dep) =>
       if (futures.contains(dep.ref)) futures
-      else compile(dep, multiplexer, futures)
+      else compile(dep, multiplexer, futures, layout)
     }
 
     val dependencyFutures = Future.sequence(deps.map(_.ref).map(newFutures))
@@ -367,7 +351,7 @@ case class Universe(
           multiplexer(artifact.ref) = StartCompile(artifact.ref)
 
           val compileResult: Boolean = blocking {
-            shell.bloop
+            layout.shell.bloop
               .compile(artifact.hash.encoded) { ln =>
                 out.append(ln)
                 out.append("\n")
@@ -376,10 +360,11 @@ case class Universe(
           }
 
           val finalResult = if (compileResult && artifact.kind == Application) {
-            shell
+            layout.shell
               .runJava(
-                  runtimeClasspath(artifact.ref).toOption.get.to[List].map(_.value),
-                  artifact.main.getOrElse("")) { ln =>
+                  runtimeClasspath(artifact.ref, layout).toOption.get.to[List].map(_.value),
+                  artifact.main.getOrElse(""),
+                  layout) { ln =>
                 out.append(ln)
                 out.append("\n")
               }
@@ -443,48 +428,48 @@ case class Schema(
 
   def apply(id: ProjectId) = projects.findBy(id)
 
-  def repo(repoId: RepoId)(implicit layout: Layout, shell: Shell): Outcome[SourceRepo] =
+  def repo(repoId: RepoId, layout: Layout): Outcome[SourceRepo] =
     repos.findBy(repoId)
 
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
 
-  def compilerRefs(implicit layout: Layout, shell: Shell): List[ModuleRef] =
-    allProjects.toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
+  def compilerRefs(layout: Layout): List[ModuleRef] =
+    allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
   def mainProject: Outcome[Option[Project]] =
     main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
 
-  def importCandidates(implicit layout: Layout, shell: Shell): List[String] =
-    repos.to[List].flatMap(_.importCandidates(this).toOption.to[List].flatten)
+  def importCandidates(layout: Layout): List[String] =
+    repos.to[List].flatMap(_.importCandidates(this, layout).toOption.to[List].flatten)
 
-  def moduleRefStrings(implicit layout: Layout, shell: Shell): List[String] =
-    importedSchemas.toOption.to[List].flatMap(_.flatMap(_.moduleRefStrings)) ++
+  def moduleRefStrings(layout: Layout): List[String] =
+    importedSchemas(layout).toOption.to[List].flatMap(_.flatMap(_.moduleRefStrings(layout))) ++
       moduleRefs.to[List].map { ref =>
         str"$ref"
       }
 
-  def schemaTree(dir: Path)(implicit layout: Layout, shell: Shell): Outcome[SchemaTree] =
+  def schemaTree(dir: Path, layout: Layout): Outcome[SchemaTree] =
     for {
       imps <- imports.map { ref =>
                for {
                  repo         <- repos.findBy(ref.repo)
-                 repoDir      <- repo.fullCheckout.get
-                 nestedLayout <- ~Layout(layout.home, repoDir)
-                 layer        <- Layer.read(nestedLayout.furyConfig)(nestedLayout, shell)
+                 repoDir      <- repo.fullCheckout.get(layout)
+                 nestedLayout <- ~Layout(layout.home, repoDir, layout.env)
+                 layer        <- Layer.read(nestedLayout.furyConfig, nestedLayout)
                  resolved     <- layer.schemas.findBy(ref.schema)
-                 tree         <- resolved.schemaTree(repoDir)
+                 tree         <- resolved.schemaTree(repoDir, layout)
                } yield tree
              }.sequence
     } yield SchemaTree(this, dir, imps.to[Set])
 
-  def importedSchemas(implicit layout: Layout, shell: Shell): Outcome[List[Schema]] =
-    imports.map(_.resolve(this)).sequence
+  def importedSchemas(layout: Layout): Outcome[List[Schema]] =
+    imports.map(_.resolve(this, layout)).sequence
 
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
-  def allProjects(implicit layout: Layout, shell: Shell): Outcome[List[Project]] =
-    importedSchemas
-      .flatMap(_.map(_.allProjects).sequence.map(_.flatten))
+  def allProjects(layout: Layout): Outcome[List[Project]] =
+    importedSchemas(layout)
+      .flatMap(_.map(_.allProjects(layout)).sequence.map(_.flatten))
       .map(_ ++ projects.to[List])
 
   def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
@@ -528,13 +513,13 @@ case class Layer(
 object Layer {
   val CurrentVersion = 2
 
-  def read(string: String)(implicit layout: Layout, shell: Shell): Outcome[Layer] =
-    Success(Ogdl.read[Layer](string, upgrade(_)))
+  def read(string: String, layout: Layout): Outcome[Layer] =
+    Success(Ogdl.read[Layer](string, upgrade(_, layout)))
 
-  def read(file: Path)(implicit layout: Layout, shell: Shell): Outcome[Layer] =
-    Success(Ogdl.read[Layer](file, upgrade(_)).toOption.getOrElse(Layer()))
+  def read(file: Path, layout: Layout): Outcome[Layer] =
+    Success(Ogdl.read[Layer](file, upgrade(_, layout)).toOption.getOrElse(Layer()))
 
-  private def upgrade(ogdl: Ogdl)(implicit shell: Shell): Ogdl =
+  private def upgrade(ogdl: Ogdl, layout: Layout): Ogdl =
     (try ogdl.version().toInt
     catch { case e: Exception => 1 }) match {
       case 1 =>
@@ -544,7 +529,8 @@ object Layer {
               schema.set(
                   repos = schema.repos.map { repo =>
                     //io.println(s"Checking commit hash for ${repo.repo()}")
-                    val commit = shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
+                    val commit =
+                      layout.shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
                     repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
                   }
               )
@@ -652,33 +638,38 @@ case class Checkout(
     refSpec: RefSpec,
     sources: List[Path]) {
 
-  def hash: Digest                        = this.digest[Md5]
-  def path(implicit layout: Layout): Path = layout.srcsDir / hash.encoded
+  def hash: Digest               = this.digest[Md5]
+  def path(layout: Layout): Path = layout.srcsDir / hash.encoded
 
-  def get(implicit shell: Shell, layout: Layout): Outcome[Path] =
+  def get(layout: Layout): Outcome[Path] =
     for {
-      repoDir    <- repo.fetch
-      workingDir <- checkout
+      repoDir    <- repo.fetch(layout)
+      workingDir <- checkout(layout)
     } yield workingDir
 
-  private def checkout(implicit shell: Shell, layout: Layout): Outcome[Path] =
-    if (!(path / ".done").exists) {
+  private def checkout(layout: Layout): Outcome[Path] =
+    if (!(path(layout) / ".done").exists) {
 
-      if (path.exists()) {
+      if (path(layout).exists()) {
         println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources"
         else sources.map(_.value).mkString("[", ", ", "]")}.")
-        path.delete()
+        path(layout).delete()
       }
 
       println(s"Checking out ${if (sources.isEmpty) "all sources"
       else sources.map(_.value).mkString("[", ", ", "]")}.")
-      path.mkdir()
-      shell.git
-        .sparseCheckout(repo.path, path, sources, refSpec = refSpec.id, commit = commit.id)
+      path(layout).mkdir()
+      layout.shell.git
+        .sparseCheckout(
+            repo.path(layout),
+            path(layout),
+            sources,
+            refSpec = refSpec.id,
+            commit = commit.id)
         .map { _ =>
-          path
+          path(layout)
         }
-    } else Success(path)
+    } else Success(path(layout))
 }
 
 object SourceRepo {
@@ -689,48 +680,40 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) { // TODO: change Option[String] to RefSpec
 
-  def listFiles(implicit layout: Layout, shell: Shell): Outcome[List[Path]] =
+  def listFiles(layout: Layout): Outcome[List[Path]] =
     for {
-      dir <- local.map(Success(_)).getOrElse(repo.fetch)
-      commit <- ~shell.git
+      dir <- local.map(Success(_)).getOrElse(repo.fetch(layout))
+      commit <- ~layout.shell.git
                  .getTag(dir, track.id)
                  .toOption
-                 .orElse(shell.git.getBranchHead(dir, track.id).toOption)
+                 .orElse(layout.shell.git.getBranchHead(dir, track.id).toOption)
                  .getOrElse(track.id)
       files <- local.map { _ =>
                 Success(dir.children.map(Path(_)).to[List])
-              }.getOrElse(shell.git.lsTree(dir, commit))
+              }.getOrElse(layout.shell.git.lsTree(dir, commit))
     } yield files
 
   def fullCheckout: Checkout = Checkout(repo, local.isDefined, commit, track, List())
 
-  def importCandidates(
-      schema: Schema
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[List[String]] =
+  def importCandidates(schema: Schema, layout: Layout): Outcome[List[String]] =
     for {
-      repoDir     <- repo.fetch
-      layerString <- shell.git.showFile(repoDir, "layer.fury")
-      layer       <- Layer.read(layerString)
+      repoDir     <- repo.fetch(layout)
+      layerString <- layout.shell.git.showFile(repoDir, "layer.fury")
+      layer       <- Layer.read(layerString, layout)
       schemas     <- ~layer.schemas.to[List]
     } yield
       schemas.map { schema =>
         str"${id.key}:${schema.id.key}"
       }
 
-  def current(implicit shell: Shell, layout: Layout): Outcome[RefSpec] =
+  def current(layout: Layout): Outcome[RefSpec] =
     for {
-      dir    <- local.map(Success(_)).getOrElse(repo.fetch)
-      commit <- shell.git.getCommit(dir)
+      dir    <- local.map(Success(_)).getOrElse(repo.fetch(layout))
+      commit <- layout.shell.git.getCommit(dir)
     } yield RefSpec(commit)
 
-  def sourceCandidates(
-      pred: String => Boolean
-    )(implicit layout: Layout,
-      shell: Shell
-    ): Outcome[Set[Source]] =
-    listFiles.map { files =>
+  def sourceCandidates(layout: Layout)(pred: String => Boolean): Outcome[Set[Source]] =
+    listFiles(layout).map { files =>
       files.filter { f =>
         pred(f.filename)
       }.map { p =>
@@ -748,36 +731,36 @@ object BinRepoId {
 }
 
 case class Repo(url: String) {
-  def hash: Digest                        = url.digest[Md5]
-  def path(implicit layout: Layout): Path = layout.reposDir / hash.encoded
+  def hash: Digest               = url.digest[Md5]
+  def path(layout: Layout): Path = layout.reposDir / hash.encoded
 
-  def update()(implicit shell: Shell, layout: Layout): Outcome[UserMsg] =
+  def update(layout: Layout): Outcome[UserMsg] =
     for {
-      oldCommit <- shell.git.getCommit(path)
-      _         <- shell.git.fetch(path, None)
-      newCommit <- shell.git.getCommit(path)
+      oldCommit <- layout.shell.git.getCommit(path(layout))
+      _         <- layout.shell.git.fetch(path(layout), None)
+      newCommit <- layout.shell.git.getCommit(path(layout))
       msg <- ~(if (oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
                else msg"Repository ${url} is unchanged")
     } yield msg
 
-  def getCommitFromTag(implicit layout: Layout, shell: Shell, tag: RefSpec): Outcome[String] =
+  def getCommitFromTag(layout: Layout, tag: RefSpec): Outcome[String] =
     for {
-      commit <- shell.git.getCommitFromTag(path, tag.id)
+      commit <- layout.shell.git.getCommitFromTag(path(layout), tag.id)
     } yield commit
 
-  def fetch(implicit layout: Layout, shell: Shell): Outcome[Path] =
-    if (!(path / ".done").exists) {
-      if (path.exists()) {
+  def fetch(layout: Layout): Outcome[Path] =
+    if (!(path(layout) / ".done").exists) {
+      if (path(layout).exists()) {
         println(s"Found incomplete clone of $url.")
-        path.delete()
+        path(layout).delete()
       }
 
       println(s"Cloning Git repository $url.")
-      path.mkdir()
-      shell.git.cloneBare(url, path).map { _ =>
-        path
+      path(layout).mkdir()
+      layout.shell.git.cloneBare(url, path(layout)).map { _ =>
+        path(layout)
       }
-    } else Success(path)
+    } else Success(path(layout))
 
   def simplified: String = url match {
     case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => s"gh:$group/$project"
@@ -813,11 +796,11 @@ object SchemaRef {
 
 case class SchemaRef(repo: RepoId, schema: SchemaId) {
 
-  def resolve(base: Schema)(implicit layout: Layout, shell: Shell): Outcome[Schema] =
+  def resolve(base: Schema, layout: Layout): Outcome[Schema] =
     for {
       repo     <- base.repos.findBy(repo)
-      dir      <- repo.fullCheckout.get
-      layer    <- Layer.read(Layout(layout.home, dir).furyConfig)
+      dir      <- repo.fullCheckout.get(layout)
+      layer    <- Layer.read(Layout(layout.home, dir, layout.env).furyConfig, layout)
       resolved <- layer.schemas.findBy(schema)
     } yield resolved
 }
@@ -849,7 +832,7 @@ case class Artifact(
   def hash: Digest =
     (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
 
-  def writePlugin()(implicit layout: Layout): Unit = if (kind == Plugin) {
+  def writePlugin(layout: Layout): Unit = if (kind == Plugin) {
     val file = layout.classesDir(this) / "scalac-plugin.xml"
 
     main.foreach { main =>
@@ -858,9 +841,9 @@ case class Artifact(
     }
   }
 
-  def sourcePaths(implicit layout: Layout): List[Path] =
+  def sourcePaths(layout: Layout): List[Path] =
     localSources ++ sharedSources ++ checkouts.flatMap { c =>
-      if (c.local) c.sources.map(_ in layout.pwd) else c.sources.map(_ in c.path)
+      if (c.local) c.sources.map(_ in layout.pwd) else c.sources.map(_ in c.path(layout))
     }
 
 }
@@ -1001,7 +984,7 @@ object Source {
 trait Source {
   def description: String
 
-  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest]
+  def hash(schema: Schema, layout: Layout): Outcome[Digest]
   def path: Path
   def repoIdentifier: RepoId
 }
@@ -1009,8 +992,8 @@ trait Source {
 case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def description: String = str"${repoId}:${path.value}"
 
-  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest] =
-    schema.repo(repoId).map((path, _).digest[Md5])
+  def hash(schema: Schema, layout: Layout): Outcome[Digest] =
+    schema.repo(repoId, layout).map((path, _).digest[Md5])
 
   def repoIdentifier: RepoId = repoId
 }
@@ -1018,7 +1001,7 @@ case class ExternalSource(repoId: RepoId, path: Path) extends Source {
 case class SharedSource(path: Path) extends Source {
   def description: String = str"shared:${path.value}"
 
-  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest] =
+  def hash(schema: Schema, layout: Layout): Outcome[Digest] =
     Success((-2, path).digest[Md5])
 
   def repoIdentifier: RepoId = RepoId("-")
@@ -1027,7 +1010,7 @@ case class SharedSource(path: Path) extends Source {
 case class LocalSource(path: Path) extends Source {
   def description: String = str"${path.value}"
 
-  def hash(schema: Schema)(implicit shell: Shell, layout: Layout): Outcome[Digest] =
+  def hash(schema: Schema, layout: Layout): Outcome[Digest] =
     Success((-1, path).digest[Md5])
 
   def repoIdentifier: RepoId = RepoId("-")

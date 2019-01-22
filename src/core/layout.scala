@@ -17,15 +17,15 @@ package fury
 
 import fury.io.Path
 import gastronomy._
+import guillotine._
 
-case class Layout(home: Path, pwd: Path) {
+case class Layout(home: Path, pwd: Path, env: Environment) {
   lazy val furyDir: Path      = pwd / ".fury"
   lazy val bloopDir: Path     = furyDir / "bloop"
   lazy val layersDir: Path    = furyDir / "layers"
   lazy val classesDir: Path   = furyDir / "classes"
   lazy val analysisDir: Path  = furyDir / "analysis"
   lazy val resourcesDir: Path = furyDir / "resources"
-  lazy val runLogDir: Path    = furyDir / "log"
   lazy val reposDir: Path     = furyDir / "repos"
   lazy val srcsDir: Path      = furyDir / "sources"
   lazy val sharedDir: Path    = furyDir / "shared"
@@ -47,11 +47,6 @@ case class Layout(home: Path, pwd: Path) {
     path
   }
 
-  def runLogFile(artifact: Artifact): Path = {
-    runLogDir.mkdir()
-    runLogDir / s"${artifact.hash.encoded[Base64Url]}.log"
-  }
-
   def classesDir(artifact: Artifact): Path = {
     val path = classesDir / artifact.hash.encoded[Base64Url]
     path.mkdir()
@@ -63,4 +58,6 @@ case class Layout(home: Path, pwd: Path) {
     path.mkdir()
     path / s"manifest.mf"
   }
+
+  val shell = Shell(env)
 }
