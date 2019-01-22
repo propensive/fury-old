@@ -313,8 +313,7 @@ case class Universe(
     } yield Compilation(graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
 
   def saveJars(
-      cli: Cli[_]
-    )(io: cli.Io,
+      io: Io,
       ref: ModuleRef,
       dest: Path
     )(implicit shell: Shell,

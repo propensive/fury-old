@@ -84,7 +84,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
             s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            io     <- cli.io()
+            invoc  <- cli.read()
+            io     <- invoc.io()
             _      <- ~layout.errorLogfile.writeSync(errorString)
             _      <- ~io.await()
           } yield

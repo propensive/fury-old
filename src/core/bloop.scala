@@ -32,7 +32,7 @@ object Bloop {
   private[this] def testServer(): Outcome[Unit] =
     Success(new Socket("localhost", 8212).close().unit)
 
-  def server(cli: Cli[_])(io: cli.Io): Outcome[Unit] = synchronized {
+  def server(shell: Shell, io: Io): Outcome[Unit] = synchronized {
     try {
       testServer()
       Success(())
@@ -40,7 +40,7 @@ object Bloop {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
         val io2     = io.print("Starting bloop compile server")
-        val running = cli.shell.bloop.startServer()
+        val running = shell.bloop.startServer()
 
         def checkStarted(): Unit =
           try {

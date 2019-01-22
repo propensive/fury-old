@@ -67,8 +67,9 @@ object SourceCli {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
-      io      <- cli.io()
-      raw     <- ~io(RawArg).isSuccess
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      raw     <- ~invoc(RawArg).isSuccess
       module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
       cols    <- Success(Terminal.columns.getOrElse(100))
@@ -88,13 +89,14 @@ object SourceCli {
     for {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
       cli         <- cli.hint(ForceArg)
-      io          <- cli.io()
-      sourceArg   <- io(SourceArg)
+      invoc       <- cli.read()
+      io          <- invoc.io()
+      sourceArg   <- invoc(SourceArg)
       source      <- ~Source.unapply(sourceArg)
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
       sourceToDel <- ~module.sources.find(Some(_) == source)
-      force       <- ~io(ForceArg).isSuccess
+      force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
       _ <- ~io.save(layer, layout.furyConfig)
@@ -121,10 +123,11 @@ object SourceCli {
                      n.endsWith(".scala") || n.endsWith(".java")
                    }.map(SharedSource(_))
       cli       <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
-      io        <- cli.io()
+      invoc     <- cli.read()
+      io        <- invoc.io()
       module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
-      sourceArg <- io(SourceArg)
+      sourceArg <- invoc(SourceArg)
       source    <- ~Source.unapply(sourceArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)

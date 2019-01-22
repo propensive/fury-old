@@ -42,8 +42,9 @@ object ImportCli {
       cli <- cli.hint(
                 ImportArg,
                 defaultSchema.map(_.importCandidates(layout, cli.shell)).getOrElse(Nil))
-      io        <- cli.io()
-      schemaRef <- io(ImportArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      schemaRef <- invoc(ImportArg)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
                   _.modify(_)(_ :+ schemaRef))
       _ <- ~io.save(layer, layout.furyConfig)
@@ -57,9 +58,10 @@ object ImportCli {
       schemaArg <- ~cli.peek(SchemaArg)
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli       <- cli.hint(ImportArg, dSchema.map(_.imports).getOrElse(Nil))
-      io        <- cli.io()
-      schemaId  <- ~io(SchemaArg).toOption.getOrElse(layer.main)
-      importArg <- io(ImportArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      importArg <- invoc(ImportArg)
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
@@ -75,8 +77,9 @@ object ImportCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
-      io        <- cli.io()
-      raw       <- ~io(RawArg).isSuccess
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      raw       <- ~invoc(RawArg).isSuccess
       rows <- ~schema.imports.map { i =>
                (i, i.resolve(schema)(layout, cli.shell))
              }
