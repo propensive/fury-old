@@ -160,24 +160,20 @@ object RepoCli {
       remote       <- ~invoc(UrlArg).toOption
       dir          <- ~invoc(DirArg).toOption
       version      <- ~invoc(VersionArg).toOption.getOrElse(RefSpec.master)
-      repo         <- ~remote.map(fury.Repo.fromString(_))
-      suggested <- ~(repo.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
+      suggested <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
                     RepoId(d.value.split("/").last)
                   })
+      urlArg <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
+      repo    <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      _       <- repo.fetch(io, layout).toOption.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      commit <- repo
+                 .getCommitFromTag(layout, version)
+                 .toOption
+                 .ascribe(exoskeleton.InvalidArgValue("version", version.id))
       nameArg <- invoc(RepoNameArg).toOption
                   .orElse(suggested)
                   .ascribe(exoskeleton.MissingArg("name"))
-      _ <- repo.map(_.fetch(io, layout)).ascribe(exoskeleton.MissingArg("repo"))
-      tag <- repo
-              .map(_.getCommitFromTag(layout, version))
-              .getOrElse(Failure(exoskeleton.MissingArg("name")))
-      sourceRepo <- repo
-                     .map(SourceRepo(nameArg, _, version, Commit(tag), dir))
-                     .orElse(dir.map { d =>
-                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, Commit(tag), Some(d))
-                     })
-                     .ascribe(exoskeleton.MissingArg("repo"))
-
+      sourceRepo   <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
       lens  <- ~Lenses.layer.repos(schema.id)
       layer <- ~(lens.modify(layer)(_ + sourceRepo))
       _     <- ~io.save(layer, layout.furyConfig)

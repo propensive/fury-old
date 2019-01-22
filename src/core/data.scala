@@ -605,6 +605,22 @@ object Repo {
   implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
   implicit val stringShow: StringShow[Repo] = _.simplified
 
+  def parseAsLocalPath(path: String): Option[String] =
+    for {
+      absPath <- Try(Path(path).javaPath.toAbsolutePath.normalize.toString).toOption
+      repoOpt <- if (new java.io.File(absPath).exists) {
+                  Some(absPath)
+                } else {
+                  None
+                }
+    } yield repoOpt
+
+  case class ExistingLocalFileAsAbspath(absPath: String)
+
+  object ExistingLocalFileAsAbspath {
+    def unapply(path: String): Option[String] = parseAsLocalPath(path)
+  }
+
   def fromString(str: String): Repo = str match {
     case "." => Repo("")
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
@@ -613,8 +629,8 @@ object Repo {
       Repo(str"git@gitlab.com:$group/$project.git")
     case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       Repo(str"git@bitbucket.com:$group/$project.git")
-    case other =>
-      Repo(other)
+    case ExistingLocalFileAsAbspath(abspath) => Repo(abspath)
+    case other                               => Repo(other)
   }
 }
 
