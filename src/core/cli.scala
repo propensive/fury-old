@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -106,6 +106,12 @@ trait Descriptor[T] {
   }
 }
 
+object Io {
+
+  def silent(config: Config): Io = new Io(new java.io.PrintStream(int => ()), config)
+
+}
+
 class Io(private[this] val output: java.io.PrintStream, config: Config) {
 
   def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
@@ -145,20 +151,18 @@ case class Cli[+Hinted <: CliParam[_]](
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Outcome[T] =
       args.get(param.param).toTry
 
-    def io(): Outcome[Io] = ioOutcome
-
-    private[this] lazy val ioOutcome: Outcome[Io] = {
-      val io: Io = new Io(output, config)
-      if (completion) {
-        io.println(optCompletions.flatMap(_.output).mkString("\n"))
-        io.await()
-        Failure(EarlyCompletions())
-      } else Success(io)
-    }
+    def io(): Outcome[Io] = Success(new Io(output, config))
 
   }
 
-  def read(): Outcome[Invocation] = Success(new Invocation())
+  def read(): Outcome[Invocation] = {
+    val io: Io = new Io(output, config)
+    if (completion) {
+      io.println(optCompletions.flatMap(_.output).mkString("\n"))
+      io.await()
+      Failure(EarlyCompletions())
+    } else Success(new Invocation())
+  }
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).opt
 

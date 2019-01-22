@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -93,6 +93,12 @@ case class Shell(environment: Environment) {
         files  <- ~string.split("\n").to[List].map(Path(_))
       } yield files
 
+    def showRefs(dir: Path): Outcome[List[String]] =
+      for {
+        refs  <- sh"git -C ${dir.value} show-ref --heads --tags".exec[Outcome[String]]
+        lines <- ~refs.split("\n").to[List]
+      } yield lines.map(_.split("/").last)
+
     def lsRemote(url: String): Outcome[List[String]] =
       Cached.lsRemote.getOrElseUpdate(
           url,
@@ -179,10 +185,10 @@ case class Shell(environment: Environment) {
 
   object coursier {
 
-    def fetch(artifact: String): Outcome[List[Path]] = {
+    def fetch(io: Io, artifact: String): Outcome[List[Path]] = {
       val items = new ListBuffer[String]()
       val running = sh"coursier fetch --progress --repository central $artifact"
-        .async(items.append(_), println(_))
+        .async(items.append(_), io.println(_))
       val result = running.await()
       if (result == 0) Success(items.to[List].map(Path(_)))
       else Failure(ItemNotFound(msg"$artifact", msg"binary"))

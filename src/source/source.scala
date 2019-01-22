@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -41,7 +41,7 @@ object SourceCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(layout.furyConfig, layout)
+      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -110,7 +110,7 @@ object SourceCli {
       extSrcs <- optProject
                   .to[List]
                   .flatMap { project =>
-                    repos.map(_.sourceCandidates(layout) { n =>
+                    repos.map(_.sourceCandidates(Io.silent(config), layout) { n =>
                       n.endsWith(".scala") || n.endsWith(".java")
                     })
                   }
