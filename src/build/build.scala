@@ -18,6 +18,7 @@ package fury
 import fury.Args._
 import fury.io._
 import fury.error._
+import fury.module.Verifier
 import guillotine._
 
 import scala.concurrent._
@@ -195,6 +196,7 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
       universe    <- hierarchy.universe
+      _           <- Verifier.verifyModule(universe, module)
       artifact    <- universe.artifact(io, module.ref(project), layout)
       artifacts   <- universe.transitiveDependencies(io, module.ref(project), layout)
       _           <- Bloop.server(layout.shell, io)
@@ -390,6 +392,9 @@ object LayerCli {
       cli           <- cli.hint(TagArg, suggestedTags)
       invoc         <- cli.read()
       io            <- invoc.io()
+      hierarchy     <- schema.hierarchy(io, layout.pwd, layout)
+      universe      <- hierarchy.universe
+      _             <- Verifier.verifyUniverse(universe)
       tag           <- invoc(TagArg)
       _             <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
       _             <- layout.shell.git.commit(layout.pwd, s"Tagged version $tag")

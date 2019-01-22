@@ -170,7 +170,7 @@ case class Universe(
   def project(id: ProjectId): Outcome[Project] =
     projects.get(id).ascribe(ItemNotFound(id))
 
-  def contains(project: Project): Boolean = projects.get(project.id) == Some(project)
+  def contains(project: Project): Boolean = projects.get(project.id).contains(project)
 
   def dir(id: ProjectId): Outcome[Path] =
     dirs.get(id).ascribe(ItemNotFound(id))
@@ -551,6 +551,7 @@ object ModuleRef {
 }
 
 case class ModuleRef(projectId: ProjectId, moduleId: ModuleId, intransitive: Boolean = false) {
+
   override def equals(that: Any): Boolean = that match {
     case ModuleRef(p, m, _) => projectId == p && moduleId == m
     case _                  => false
