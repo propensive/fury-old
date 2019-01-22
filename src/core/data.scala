@@ -384,15 +384,15 @@ case class Universe(
 
 }
 
-case class SchemaTree(schema: Schema, dir: Path, inherited: Set[SchemaTree]) {
+case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
 
   lazy val universe: Outcome[Universe] = {
     val localProjectIds          = schema.projects.map(_.id)
     val empty: Outcome[Universe] = Success(Universe())
     inherited
-      .foldLeft(empty) { (projects, schemaTree) =>
+      .foldLeft(empty) { (projects, hierarchy) =>
         projects.flatMap { projects =>
-          schemaTree.universe.flatMap { nextProjects =>
+          hierarchy.universe.flatMap { nextProjects =>
             val potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
             val conflictIds = potentialConflictIds.filter { id =>
               projects.project(id) != nextProjects.project(id)
@@ -448,7 +448,7 @@ case class Schema(
         str"$ref"
       }
 
-  def schemaTree(dir: Path, layout: Layout): Outcome[SchemaTree] =
+  def hierarchy(dir: Path, layout: Layout): Outcome[Hierarchy] =
     for {
       imps <- imports.map { ref =>
                for {
@@ -457,10 +457,10 @@ case class Schema(
                  nestedLayout <- ~Layout(layout.home, repoDir, layout.env)
                  layer        <- Layer.read(nestedLayout.furyConfig, nestedLayout)
                  resolved     <- layer.schemas.findBy(ref.schema)
-                 tree         <- resolved.schemaTree(repoDir, layout)
+                 tree         <- resolved.hierarchy(repoDir, layout)
                } yield tree
              }.sequence
-    } yield SchemaTree(this, dir, imps)
+    } yield Hierarchy(this, dir, imps)
 
   def importedSchemas(layout: Layout): Outcome[List[Schema]] =
     imports.to[List].map(_.resolve(this, layout)).sequence

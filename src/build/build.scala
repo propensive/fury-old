@@ -193,8 +193,8 @@ object BuildCli {
                       .orElse(project.main)
       optModule   <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module      <- optModule.ascribe(UnspecifiedModule())
-      schemaTree  <- schema.schemaTree(layout.pwd, layout)
-      universe    <- schemaTree.universe
+      hierarchy   <- schema.hierarchy(layout.pwd, layout)
+      universe    <- hierarchy.universe
       artifact    <- universe.artifact(module.ref(project), layout)
       artifacts   <- universe.transitiveDependencies(module.ref(project), layout)
       _           <- Bloop.server(layout.shell, io)
@@ -262,8 +262,8 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      schemaTree   <- schema.schemaTree(layout.pwd, layout)
-      universe     <- schemaTree.universe
+      hierarchy    <- schema.hierarchy(layout.pwd, layout)
+      universe     <- hierarchy.universe
       artifact     <- universe.artifact(module.ref(project), layout)
       _            <- universe.saveJars(io, module.ref(project), dir in layout.pwd, layout)
     } yield io.await()
@@ -283,15 +283,15 @@ object BuildCli {
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
-      invoc      <- cli.read()
-      io         <- invoc.io()
-      module     <- optModule.ascribe(UnspecifiedModule())
-      project    <- optProject.ascribe(UnspecifiedProject())
-      schemaTree <- schema.schemaTree(layout.pwd, layout)
-      universe   <- schemaTree.universe
-      artifact   <- universe.artifact(module.ref(project), layout)
-      classpath  <- universe.classpath(module.ref(project), layout)
-      _          <- ~io.println(classpath.map(_.value).join(":"))
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      module    <- optModule.ascribe(UnspecifiedModule())
+      project   <- optProject.ascribe(UnspecifiedProject())
+      hierarchy <- schema.hierarchy(layout.pwd, layout)
+      universe  <- hierarchy.universe
+      artifact  <- universe.artifact(module.ref(project), layout)
+      classpath <- universe.classpath(module.ref(project), layout)
+      _         <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
 
@@ -313,8 +313,8 @@ object BuildCli {
                   }
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      schemaTree  <- schema.schemaTree(layout.pwd, layout)
-      universe    <- schemaTree.universe
+      hierarchy   <- schema.hierarchy(layout.pwd, layout)
+      universe    <- hierarchy.universe
       artifact    <- universe.artifact(module.ref(project), layout)
       compilation <- universe.compilation(module.ref(project), layout)
       _ <- ~Graph
