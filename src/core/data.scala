@@ -289,10 +289,10 @@ case class Universe(
 
   def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Outcome[Unit] =
     for {
-      dest    <- dest.directory
-      current <- artifact(io, ref, layout)
-      deps    <- transitiveDependencies(io, ref, layout)
-      dirs    <- ~deps.map(layout.classesDir(_))
+      dest     <- dest.directory
+      current  <- artifact(io, ref, layout)
+      deps     <- transitiveDependencies(io, ref, layout)
+      dirs     <- ~(deps + current).map(layout.classesDir(_))
       files <- ~dirs.map { dir =>
                 (dir, dir.children)
               }.filter(_._2.nonEmpty)

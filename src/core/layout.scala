@@ -20,6 +20,9 @@ import gastronomy._
 import guillotine._
 
 case class Layout(home: Path, pwd: Path, env: Environment) {
+
+  private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
+
   lazy val furyDir: Path      = pwd / ".fury"
   lazy val bloopDir: Path     = furyDir / "bloop"
   lazy val layersDir: Path    = furyDir / "layers"
@@ -28,10 +31,10 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   lazy val resourcesDir: Path = furyDir / "resources"
   lazy val reposDir: Path     = furyDir / "repos"
   lazy val srcsDir: Path      = furyDir / "sources"
-  lazy val sharedDir: Path    = furyDir / "shared"
-  lazy val errorLogfile: Path = pwd / ".fury.log"
+  lazy val logsDir: Path      = furyDir / "logs"
+  lazy val sharedDir: Path    = furyDir / "build" / uniqueId
+  lazy val errorLogfile: Path = logsDir / s"$uniqueId.log"
   lazy val userConfig: Path   = home / ".fury.conf"
-  lazy val logFile: Path      = furyDir / "fury.log"
 
   def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
 
