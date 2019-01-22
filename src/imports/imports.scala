@@ -77,7 +77,7 @@ object ImportCli {
       cli       <- cli.hint(RawArg)
       io        <- cli.io()
       raw       <- ~io(RawArg).isSuccess
-      rows <- ~schema.imports.toList.map { i =>
+      rows <- ~schema.imports.to[List].map { i =>
                (i, i.resolve(schema)(layout, cli.shell))
              }
       table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
