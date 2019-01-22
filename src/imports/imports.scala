@@ -45,7 +45,7 @@ object ImportCli {
       io        <- cli.io()
       schemaRef <- io(ImportArg)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
-                  _.modify(_)(_ :+ schemaRef))
+                  _.modify(_)(_ + schemaRef))
       _ <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
@@ -77,7 +77,7 @@ object ImportCli {
       cli       <- cli.hint(RawArg)
       io        <- cli.io()
       raw       <- ~io(RawArg).isSuccess
-      rows <- ~schema.imports.map { i =>
+      rows <- ~schema.imports.to[List].map { i =>
                (i, i.resolve(schema)(layout, cli.shell))
              }
       table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
