@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -49,9 +49,9 @@ object ProjectCli {
       schemaId  <- ~optSchemaId.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
       _         <- schema(projectId)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_))(
-                  _(_) = Some(projectId))
-      _ <- ~io.save(layer, layout.furyConfig)
+      focus     <- ~Lenses.focus(optSchemaId, force)
+      layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
