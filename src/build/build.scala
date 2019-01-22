@@ -54,7 +54,7 @@ object AliasCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext) = {
@@ -130,7 +130,7 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = Success(Abort)
@@ -193,18 +193,20 @@ object BuildCli {
                       .orElse(project.main)
       optModule   <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module      <- optModule.ascribe(UnspecifiedModule())
-      hierarchy   <- schema.hierarchy(layout.pwd, layout)
+      hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
       universe    <- hierarchy.universe
-      artifact    <- universe.artifact(module.ref(project), layout)
-      artifacts   <- universe.transitiveDependencies(module.ref(project), layout)
+      artifact    <- universe.artifact(io, module.ref(project), layout)
+      artifacts   <- universe.transitiveDependencies(io, module.ref(project), layout)
       _           <- Bloop.server(layout.shell, io)
-      compilation <- universe.compilation(module.ref(project), layout)
-      _           <- ~compilation.checkoutAll(layout)
-      _           <- compilation.generateFiles(universe, layout)
+      compilation <- universe.compilation(io, module.ref(project), layout)
+      _           <- ~compilation.checkoutAll(io, layout)
+      _           <- compilation.generateFiles(io, universe, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
                         module.ref(project) :: artifacts.map(_.ref).to[List]))
-      future <- ~universe.compile(artifact, multiplexer, Map(), layout).apply(module.ref(project))
+      future <- ~universe
+                 .compile(io, artifact, multiplexer, Map(), layout)
+                 .apply(module.ref(project))
       _ <- ~Graph.live(
               changed = false,
               io,
@@ -235,7 +237,7 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- ~Layer.read(layout.furyConfig, layout).toOption
+      layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
       msg <- layer
               .map(getPrompt(_, config.theme))
               .getOrElse(Success(Prompt.empty(config)(config.theme)))
@@ -262,9 +264,9 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      hierarchy    <- schema.hierarchy(layout.pwd, layout)
+      hierarchy    <- schema.hierarchy(io, layout.pwd, layout)
       universe     <- hierarchy.universe
-      artifact     <- universe.artifact(module.ref(project), layout)
+      artifact     <- universe.artifact(io, module.ref(project), layout)
       _            <- universe.saveJars(io, module.ref(project), dir in layout.pwd, layout)
     } yield io.await()
   }
@@ -287,10 +289,10 @@ object BuildCli {
       io        <- invoc.io()
       module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
-      hierarchy <- schema.hierarchy(layout.pwd, layout)
+      hierarchy <- schema.hierarchy(io, layout.pwd, layout)
       universe  <- hierarchy.universe
-      artifact  <- universe.artifact(module.ref(project), layout)
-      classpath <- universe.classpath(module.ref(project), layout)
+      artifact  <- universe.artifact(io, module.ref(project), layout)
+      classpath <- universe.classpath(io, module.ref(project), layout)
       _         <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
@@ -313,10 +315,10 @@ object BuildCli {
                   }
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      hierarchy   <- schema.hierarchy(layout.pwd, layout)
+      hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
       universe    <- hierarchy.universe
-      artifact    <- universe.artifact(module.ref(project), layout)
-      compilation <- universe.compilation(module.ref(project), layout)
+      artifact    <- universe.artifact(io, module.ref(project), layout)
+      compilation <- universe.compilation(io, module.ref(project), layout)
       _ <- ~Graph
             .draw(compilation.graph.mapValues(_.to[Set]), true, Map())(config.theme)
             .foreach(io.println(_))
@@ -341,7 +343,7 @@ object LayerCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(layout.furyConfig, layout)
+      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
@@ -372,7 +374,7 @@ object LayerCli {
       invoc    <- cli.read()
       io       <- invoc.io()
       raw      <- ~invoc(RawArg).isSuccess
-      projects <- schema.allProjects(layout)
+      projects <- schema.allProjects(io, layout)
       table <- ~Tables(config).show(Tables(config).projects(None), cols, projects.distinct, raw)(
                   _.id)
       _ <- ~(if (!raw)

@@ -53,9 +53,6 @@ object Args {
   val FileArg   = CliParam[Path]('f', 'file, "destination file")
   val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external schema to import")
 
-  val ImportArg2 =
-    CliParam[SchemaId]('i', Symbol("import"), "specify a schema to import from the new repository")
-
   val IntransitiveArg = CliParam[Unit](
       'I',
       Symbol("intransitive"),
@@ -78,14 +75,14 @@ object Args {
   val ProjectArg   = CliParam[ProjectId]('p', 'project, "specify a project")
   val ParamArg     = CliParam[Parameter]('P', 'param, "compiler parameter")
   val QuietArg     = CliParam[Unit]('q', 'quiet, "show less output")
-  val RepoArg      = CliParam[String]('r', 'repo, "specify a repository")
-  val RepoIdArg    = CliParam[RepoId]('r', 'repo, "specify a repository")
+  val RepoArg      = CliParam[RepoId]('r', 'repo, "specify a repository")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
   val RetryArg     = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
   val SchemaArg    = CliParam[SchemaId]('s', 'schema, "specify a schema")
   val TargetArg    = CliParam[String]('T', 'target, "target file/directory")
   val TagArg       = CliParam[String]('t', 'tag, "git tag")
   val ThemeArg     = CliParam[Theme]('T', 'theme, "specify a color theme")
+  val UrlArg       = CliParam[String]('u', 'url, "specify a URL")
   val CompareArg   = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 
   val KindArg =

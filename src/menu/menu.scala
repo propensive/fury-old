@@ -99,9 +99,10 @@ object FuryMenu {
         ),
         Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list)(
             Action('add, msg"add a source repository to the schema", RepoCli.add),
+            Action('update, msg"update a source repository", RepoCli.update),
             Action('remove, msg"remove a source repository from the schema", RepoCli.remove),
             Action('fork, msg"fork a managed repository locally", RepoCli.fork),
-            Action('unfork, msg"restore a source repository to a remote checkout", RepoCli.unfork),
+            Action('unfork, msg"restore a source repository to a managed checkout", RepoCli.unfork),
             Action('list, msg"list source repositories", RepoCli.list),
             Action(
                 'pull,

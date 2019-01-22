@@ -41,6 +41,32 @@ object Lenses {
       yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
   }
 
+  def setSchemas(schemaId: Option[SchemaId], force: Boolean) = new SetSchemas(schemaId, force)
+
+  class SetSchemas(schemaId: Option[SchemaId], force: Boolean) {
+
+    def apply[A](
+        layer: Layer,
+        partialLens: Lens.Partial[Schema] => Lens[Schema, A, A],
+        value: Option[A]
+      ): Outcome[Layer] = value match {
+      case None => Success(layer)
+      case Some(value) =>
+        val lenses = schemaId match {
+          case Some(schemaId) =>
+            List(Optic.identity.compose(Lenses.layer.schema(schemaId), partialLens(Lenses.schema)))
+          case None =>
+            layer.schemas.map(_.id).to[List].map { s =>
+              Optic.identity.compose(Lenses.layer.schema(s), partialLens(Lenses.schema))
+            }
+        }
+
+        for (lenses <- if (force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
+                      else Failure(SchemaDifferences()))
+          yield lenses.foldLeft(layer) { case (layer, lens) => lens(layer) = value }
+    }
+  }
+
   object on {
     type Id[T] = T
 
@@ -130,6 +156,18 @@ object Lenses {
 
     def params(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).params)
+
+    def repoId(schemaId: SchemaId, repoId: RepoId) =
+      lens(_.schemas(on(schemaId)).repos(on(repoId)).id)
+
+    def repoDir(schemaId: SchemaId, repoId: RepoId) =
+      lens(_.schemas(on(schemaId)).repos(on(repoId)).local)
+
+    def repoRepo(schemaId: SchemaId, repoId: RepoId) =
+      lens(_.schemas(on(schemaId)).repos(on(repoId)).repo)
+
+    def repoTrack(schemaId: SchemaId, repoId: RepoId) =
+      lens(_.schemas(on(schemaId)).repos(on(repoId)).track)
 
     val aliases = lens(_.aliases)
 
