@@ -150,7 +150,7 @@ object BuildCli {
                              |Fury depends on Bloop, Coursier, Git and Nailgun.
                              |© Copyright 2018 Jon Pretty, Propensive Ltd.
                              |
-                             |See the Fury website at https://fury.build/, or follow @propensive on Twtter
+                             |See the Fury website at https://fury.build/, or follow @propensive on Twitter
                              |for more information.
                              |
                              |For help on using Fury, run: fury help
