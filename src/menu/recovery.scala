@@ -86,6 +86,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
             layout <- cli.layout
             invoc  <- cli.read()
             io     <- invoc.io()
+            _      <- ~layout.errorLogfile.mkdir()
             _      <- ~layout.errorLogfile.writeSync(errorString)
             _      <- ~io.await()
           } yield
