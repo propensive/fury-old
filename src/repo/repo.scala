@@ -142,7 +142,7 @@ object RepoCli {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli            <- cli.hint(RepoArg)
+      cli            <- cli.hint(UrlArg)
       cli            <- cli.hint(DirArg)
       projectNameOpt <- ~cli.peek(UrlArg).map(fury.Repo.fromString).flatMap(_.projectName.toOption)
       cli            <- cli.hint(RepoNameArg, projectNameOpt)
