@@ -164,8 +164,8 @@ object RepoCli {
                     RepoId(d.value.split("/").last)
                   })
       urlArg <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
-      repo    <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
-      _       <- repo.fetch(io, layout).toOption.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      repo   <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      _      <- repo.fetch(io, layout).toOption.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
       commit <- repo
                  .getCommitFromTag(layout, version)
                  .toOption
@@ -173,10 +173,10 @@ object RepoCli {
       nameArg <- invoc(RepoNameArg).toOption
                   .orElse(suggested)
                   .ascribe(exoskeleton.MissingArg("name"))
-      sourceRepo   <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
-      lens  <- ~Lenses.layer.repos(schema.id)
-      layer <- ~(lens.modify(layer)(_ + sourceRepo))
-      _     <- ~io.save(layer, layout.furyConfig)
+      sourceRepo <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
+      lens       <- ~Lenses.layer.repos(schema.id)
+      layer      <- ~(lens.modify(layer)(_ + sourceRepo))
+      _          <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
