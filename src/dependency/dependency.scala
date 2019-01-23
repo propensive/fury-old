@@ -107,8 +107,12 @@ object DependencyCli {
   def add(ctx: Context) = {
     import ctx._
     for {
-      optSchema     <- ~layer.mainSchema.toOption
-      cli           <- cli.hint(DependencyArg, optSchema.map(_.moduleRefs).getOrElse(List()))
+      optSchema <- ~layer.mainSchema.toOption
+      importedSchemas = optSchema.flatMap(
+          _.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      allSchemas    = optSchema.toList ::: importedSchemas.toList.flatten
+      allModules    = allSchemas.map(_.moduleRefs).flatten
+      cli           <- cli.hint(DependencyArg, allModules)
       cli           <- cli.hint(IntransitiveArg)
       invoc         <- cli.read()
       io            <- invoc.io()
