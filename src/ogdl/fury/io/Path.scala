@@ -77,6 +77,11 @@ case class Path(value: String) {
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
   }
 
+  def extant(): Path = {
+    mkdir()
+    this
+  }
+
   def describe(pred: String => Boolean): String = {
     val size  = fileSize(pred)
     val count = fileCount(pred)
