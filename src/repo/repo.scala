@@ -90,9 +90,20 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       dir       <- invoc(DirArg)
       bareRepo  <- repo.repo.fetch(io, layout)
-      _ <- ~layout.shell.git
-            .sparseCheckout(bareRepo, dir, List(), refSpec = repo.track.id, commit = repo.commit.id)
-      newRepo <- ~repo.copy(local = Some(dir))
+      absPath <- (for {
+                  absPath <- dir.absolutePath()
+                  _       <- Try(absPath.mkdir())
+                  _ <- if (absPath.empty) Success()
+                      else Failure(new Exception("Non-empty dir exists"))
+                } yield absPath).orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+
+      _ <- ~layout.shell.git.sparseCheckout(
+              bareRepo,
+              absPath,
+              List(),
+              refSpec = repo.track.id,
+              commit = repo.commit.id)
+      newRepo <- ~repo.copy(local = Some(absPath))
       lens    <- ~Lenses.layer.repos(schema.id)
       layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
       _       <- ~io.save(layer, layout.furyConfig)

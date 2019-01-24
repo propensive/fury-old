@@ -604,7 +604,11 @@ object Repo {
   case class ExistingLocalFileAsAbspath(absPath: String)
 
   object ExistingLocalFileAsAbspath {
-    def unapply(path: String): Option[String] = Path(path).absolutePath
+
+    def unapply(path: String): Option[String] = Path(path).absolutePath().toOption match {
+      case Some(absPath) => absPath.ifExists().map(_.value)
+      case None          => None
+    }
   }
 
   def fromString(str: String): Repo = str match {

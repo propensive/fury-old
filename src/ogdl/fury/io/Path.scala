@@ -72,6 +72,8 @@ case class Path(value: String) {
         .sum
     }.getOrElse(0)
 
+  def empty: Boolean = 0 == fileCount(_ => true)
+
   def touch(): Outcome[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
     if (!exists()) new java.io.FileOutputStream(javaPath.toFile).close()
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
@@ -186,17 +188,17 @@ case class Path(value: String) {
       path
     }
 
-  def absolutePath(): Option[String] =
-    for {
-      absPath <- Try(this.javaPath.toAbsolutePath.normalize.toString).toOption
-      repoOpt <- if (new java.io.File(absPath).exists) {
-                  Some(absPath)
-                } else {
-                  None
-                }
-    } yield repoOpt
+  def ifExists(): Option[Path] =
+    if (exists) {
+      Some(this)
+    } else {
+      None
+    }
 
-  def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath).unit
+  def absolutePath(): Outcome[Path] =
+    Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
+
+  def mkdir() = java.nio.file.Files.createDirectories(javaPath).unit
 
   def parent = Path(javaPath.getParent.toString)
 
