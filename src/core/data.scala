@@ -212,7 +212,7 @@ case class Universe(
       module  <- project(ref.moduleId)
       repos <- module.externalSources
                 .groupBy(_.repoId)
-                .map { case (k, v) => schema.repo(k, layout).map(_ -> v) }
+                .map { case (k, v) => schema.repo(k, layout).filter(_.local.isEmpty).map(_ -> v) }
                 .sequence
     } yield
       repos.map {
