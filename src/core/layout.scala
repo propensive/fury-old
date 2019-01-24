@@ -23,7 +23,7 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
 
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
 
-  lazy val furyDir: Path      = pwd / ".fury"
+  lazy val furyDir: Path      = (pwd / ".furyrc").extant()
   lazy val bloopDir: Path     = (furyDir / "bloop").extant()
   lazy val classesDir: Path   = (furyDir / "classes").extant()
   lazy val analysisDir: Path  = (furyDir / "analysis").extant()
@@ -31,10 +31,10 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   lazy val reposDir: Path     = (furyDir / "repos").extant()
   lazy val srcsDir: Path      = (furyDir / "sources").extant()
   lazy val logsDir: Path      = (furyDir / "logs").extant()
-  lazy val sharedDir: Path    = furyDir / "build" / uniqueId
-  lazy val errorLogfile: Path = logsDir / s"$uniqueId.log"
-  lazy val userConfig: Path   = (home / ".fury").extant() / "config.fury"
-  lazy val aliasesPath: Path  = (home / ".fury").extant() / "aliases"
+  lazy val sharedDir: Path    = (furyDir / "build" / uniqueId).extant()
+  lazy val errorLogfile: Path = logsDir.extant() / s"$uniqueId.log"
+  lazy val userConfig: Path   = furyDir / "config.fury"
+  lazy val aliasesPath: Path  = furyDir / "aliases"
 
   def bloopConfig(artifact: Artifact): Path =
     bloopDir.extant() / s"${artifact.hash.encoded[Base64Url]}.json"
