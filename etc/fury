@@ -7,6 +7,10 @@ CLASSPATH="$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 
+coursier(){
+  "${FURYHOME}/bin/coursier" "$@"
+}
+
 nailgun(){
   "${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$@"
 }
@@ -27,7 +31,7 @@ startFury() {
   isRunning && printf "Fury daemon is running\n" && exit 0
 
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  nohup java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
+  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
 
   printf 'Fury daemon is starting...'
   for I in $(seq 1 25); do
@@ -42,7 +46,7 @@ startFury() {
 
 startFuryStandalone() {
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  java -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT"
+  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT"
 }
 
 case "$1" in
