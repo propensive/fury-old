@@ -23,7 +23,7 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
 
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
 
-  lazy val furyDir: Path      = (pwd / ".furyrc").extant()
+  lazy val furyDir: Path      = (pwd / ".fury").extant()
   lazy val bloopDir: Path     = (furyDir / "bloop").extant()
   lazy val classesDir: Path   = (furyDir / "classes").extant()
   lazy val analysisDir: Path  = (furyDir / "analysis").extant()
