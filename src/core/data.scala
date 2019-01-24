@@ -605,20 +605,10 @@ object Repo {
   implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
   implicit val stringShow: StringShow[Repo] = _.simplified
 
-  def parseAsLocalPath(path: String): Option[String] =
-    for {
-      absPath <- Try(Path(path).javaPath.toAbsolutePath.normalize.toString).toOption
-      repoOpt <- if (new java.io.File(absPath).exists) {
-                  Some(absPath)
-                } else {
-                  None
-                }
-    } yield repoOpt
-
   case class ExistingLocalFileAsAbspath(absPath: String)
 
   object ExistingLocalFileAsAbspath {
-    def unapply(path: String): Option[String] = parseAsLocalPath(path)
+    def unapply(path: String): Option[String] = Path(path).absolutePath
   }
 
   def fromString(str: String): Repo = str match {

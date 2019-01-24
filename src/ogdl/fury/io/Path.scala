@@ -181,6 +181,16 @@ case class Path(value: String) {
       path
     }
 
+  def absolutePath(): Option[String] =
+    for {
+      absPath <- Try(this.javaPath.toAbsolutePath.normalize.toString).toOption
+      repoOpt <- if (new java.io.File(absPath).exists) {
+                  Some(absPath)
+                } else {
+                  None
+                }
+    } yield repoOpt
+
   def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath).unit
 
   def parent = Path(javaPath.getParent.toString)
