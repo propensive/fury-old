@@ -116,6 +116,7 @@ case class Module(
     binaries: SortedSet[Binary] = TreeSet(),
     resources: SortedSet[Path] = TreeSet(),
     bloopSpec: Option[BloopSpec] = None) {
+
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
 
   def externalSources: SortedSet[ExternalSource] = sources.collect {
@@ -217,12 +218,7 @@ case class Universe(
     } yield
       repos.map {
         case (repo, paths) =>
-          Checkout(
-              repo.repo,
-              repo.local.isDefined,
-              repo.commit,
-              repo.track,
-              paths.map(_.path).to[List])
+          Checkout(repo.repo, repo.local, repo.commit, repo.track, paths.map(_.path).to[List])
       }.to[Set]
 
   def ++(that: Universe): Universe =
@@ -620,7 +616,7 @@ object Repo {
 
 case class Checkout(
     repo: Repo,
-    local: Boolean,
+    local: Option[Path],
     commit: Commit,
     refSpec: RefSpec,
     sources: List[Path]) {
@@ -635,28 +631,30 @@ case class Checkout(
     } yield workingDir
 
   private def checkout(io: Io, layout: Layout): Outcome[Path] =
-    if (!(path(layout) / ".done").exists) {
+    local.map(Success(_)).getOrElse {
+      if (!(path(layout) / ".done").exists) {
 
-      if (path(layout).exists()) {
-        io.println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources"
-        else sources.map(_.value).mkString("[", ", ", "]")}.")
-        path(layout).delete()
-      }
-
-      io.println(s"Checking out ${if (sources.isEmpty) "all sources"
-      else sources.map(_.value).mkString("[", ", ", "]")}.")
-      path(layout).mkdir()
-      layout.shell.git
-        .sparseCheckout(
-            repo.path(layout),
-            path(layout),
-            sources,
-            refSpec = refSpec.id,
-            commit = commit.id)
-        .map { _ =>
-          path(layout)
+        if (path(layout).exists()) {
+          io.println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources"
+          else sources.map(_.value).mkString("[", ", ", "]")}.")
+          path(layout).delete()
         }
-    } else Success(path(layout))
+
+        io.println(s"Checking out ${if (sources.isEmpty) "all sources"
+        else sources.map(_.value).mkString("[", ", ", "]")}.")
+        path(layout).mkdir()
+        layout.shell.git
+          .sparseCheckout(
+              repo.path(layout),
+              path(layout),
+              sources,
+              refSpec = refSpec.id,
+              commit = commit.id)
+          .map { _ =>
+            path(layout)
+          }
+      } else Success(path(layout))
+    }
 }
 
 object SourceRepo {
@@ -680,7 +678,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
               }.getOrElse(layout.shell.git.lsTree(dir, commit))
     } yield files
 
-  def fullCheckout: Checkout = Checkout(repo, local.isDefined, commit, track, List())
+  def fullCheckout: Checkout = Checkout(repo, local, commit, track, List())
 
   def importCandidates(io: Io, schema: Schema, layout: Layout): Outcome[List[String]] =
     for {
@@ -830,7 +828,10 @@ case class Artifact(
 
   def sourcePaths(layout: Layout): List[Path] =
     localSources ++ sharedSources ++ checkouts.flatMap { c =>
-      if (c.local) c.sources.map(_ in layout.pwd) else c.sources.map(_ in c.path(layout))
+      c.local match {
+        case Some(p) => c.sources.map(_ in p)
+        case None    => c.sources.map(_ in c.path(layout))
+      }
     }
 
 }
