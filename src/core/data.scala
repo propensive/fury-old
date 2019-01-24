@@ -253,7 +253,7 @@ case class Universe(
     for {
       after  <- dependencies(io, ref, layout)
       tDeps  <- after.map(_.ref).map(transitiveDependencies(io, _, layout)).sequence
-      itDeps = tDeps.flatten.filterNot(_.intransitive).to[Set]
+      itDeps = tDeps.flatten
     } yield after ++ itDeps
 
   def clean(ref: ModuleRef, layout: Layout): Unit =
