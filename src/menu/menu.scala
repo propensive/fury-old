@@ -88,7 +88,8 @@ object FuryMenu {
             Action('remove, msg"remove a source directory from the module", SourceCli.remove),
             Action('list, msg"list sources for the module", SourceCli.list)
         ),
-        Action('stop, msg"stop the Fury server", BuildCli.about),
+        Action('stop, msg"gracefully shut down the Fury server", Main.shutdown()),
+        Action('kill, msg"kill the Fury server", BuildCli.about),
         Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
             Action('add, msg"add a schema to the layer", SchemaCli.add),
             Action('remove, msg"remove a schema from the layer", SchemaCli.remove),
