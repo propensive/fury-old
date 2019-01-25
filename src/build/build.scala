@@ -394,7 +394,7 @@ object LayerCli {
       io            <- invoc.io()
       hierarchy     <- schema.hierarchy(io, layout.pwd, layout)
       universe      <- hierarchy.universe
-      _             <- Verifier.verifyUniverse(universe)
+      _             <- Verifier.verifyLayer(universe, layer)
       tag           <- invoc(TagArg)
       _             <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
       _             <- layout.shell.git.commit(layout.pwd, s"Tagged version $tag")
