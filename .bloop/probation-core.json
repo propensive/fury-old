@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "probation/core",
+    "directory": "bootstrap/git/probation/src",
+    "sources": [
+      "bootstrap/git/probation/src/core"
+    ],
+    "dependencies": [
+      "probation/macros"
+    ],
+    "classpath": [
+      "bootstrap/scala/lib/scala-library.jar",
+      "bootstrap/scala/lib/scala-compiler.jar",
+      "bootstrap/scala/lib/scala-reflect.jar"
+    ],
+    "out": "bootstrap/bloop/out",
+    "classesDir": "bootstrap/bin",
+    "scala": {
+      "organization": "scala-lang.org",
+      "name": "scala-compiler",
+      "jars": [
+        "bootstrap/scala/lib/scala-library.jar",
+        "bootstrap/scala/lib/scala-compiler.jar",
+        "bootstrap/scala/lib/scala-reflect.jar"
+      ],
+      "options": [],
+      "version": "2.12.8"
+    }
+  }
+}
