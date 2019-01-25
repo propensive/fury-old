@@ -7,9 +7,9 @@ import scala.util.{Failure, Success}
 
 object Verifier {
 
-  def verifyUniverse(universe: Universe): Outcome[Set[ModuleId]] = {
+  def verifyLayer(universe: Universe, layer: Layer): Outcome[Set[ModuleId]] = {
     val definedModules = for {
-      schema  <- universe.schemas.values
+      schema  <- layer.schemas
       project <- schema.projects
       module  <- project.modules
     } yield module
