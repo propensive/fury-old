@@ -24,6 +24,8 @@ import Args._
 import scala.collection.immutable.SortedSet
 import scala.util._
 
+import Lenses.on
+
 object ModuleCli {
 
   case class Context(
@@ -59,6 +61,7 @@ object ModuleCli {
     import ctx._
     for {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
       io       <- invoc.io()
       schema   <- defaultSchema
@@ -66,8 +69,9 @@ object ModuleCli {
       moduleId <- ~invoc(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
       _        <- project(moduleId)
-      lens     <- ~Lenses.layer.mainModule(schema.id, project.id)
-      layer    <- ~(lens(layer) = Some(moduleId))
+      force    <- ~invoc(ForceArg).isSuccess
+      focus    <- ~Lenses.focus(optSchemaId, force)
+      layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
       _        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
@@ -222,31 +226,31 @@ object ModuleCli {
                       .map(ModuleRef.parse(project, _, true))
                       .to[List]
                       .sequence
-                      .map(_.headOption.getOrElse(module.compiler))
+                      .map(_.headOption)
       kind       <- ~optKind.getOrElse(module.kind)
       mainClass  <- ~invoc(MainArg).toOption
       pluginName <- ~invoc(PluginArg).toOption
       nameArg    <- ~invoc(ModuleNameArg).toOption
-      newId      <- ~nameArg.flatMap(project.unused(_).toOption).getOrElse(module.id)
+      newId      <- ~nameArg.flatMap(project.unused(_).toOption)
       bloopSpec <- invoc(BloopSpecArg).toOption
                     .to[List]
                     .map(BloopSpec.parse(_))
                     .sequence
                     .map(_.headOption)
       force <- ~invoc(ForceArg).isSuccess
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.moduleKind(_, project.id, module.id))(_(_) = kind)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.moduleCompiler(_, project.id, module.id))(_(_) = compilerRef)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.moduleBloopSpec(_, project.id, module.id))(_(_) = bloopSpec)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.moduleMainClass(_, project.id, module.id))(_(_) = mainClass)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.modulePluginName(_, project.id, module.id))(_(_) = pluginName)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.moduleId(_, project.id, module.id))(_(_) = newId)
-      _ <- ~io.save(layer, layout.furyConfig)
+      focus <- ~Lenses.focus(optSchemaId, force)
+      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).kind)) =
+                optKind
+      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).compiler)) =
+                compilerRef
+      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).bloopSpec)) =
+                bloopSpec.map(Some(_))
+      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).main)) =
+                mainClass.map(Some(_))
+      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).plugin)) =
+                pluginName.map(Some(_))
+      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = newId
+      _     <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }
