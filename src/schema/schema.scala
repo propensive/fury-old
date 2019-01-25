@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -30,15 +30,17 @@ object SchemaCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield SchemaCtx(cli, layout, config, layer)
 
   def select(ctx: SchemaCtx) = {
     import ctx._
     for {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
-      io       <- cli.io()
-      schemaId <- io(SchemaArg)
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      schemaId <- invoc(SchemaArg)
+      _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
       layer    <- ~(lens(layer) = schemaId)
       _        <- ~io.save(layer, layout.furyConfig)
@@ -53,8 +55,9 @@ object SchemaCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
-      io        <- cli.io()
-      raw       <- ~io(RawArg).isSuccess
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      raw       <- ~invoc(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
       table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
@@ -71,11 +74,12 @@ object SchemaCli {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       cli       <- ctx.cli.hint(CompareArg, ctx.layer.schemas.map(_.id))
       cli       <- cli.hint(RawArg)
-      io        <- cli.io()
-      raw       <- ~io(RawArg).isSuccess
-      schemaArg <- ~io(SchemaArg).toOption.getOrElse(layer.main)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      raw       <- ~invoc(RawArg).isSuccess
+      schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      otherArg  <- io(CompareArg)
+      otherArg  <- invoc(CompareArg)
       other     <- layer.schemas.findBy(otherArg)
       cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       rows      <- ~Diff.gen[Schema].diff(schema, other)
@@ -97,9 +101,10 @@ object SchemaCli {
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(SchemaNameArg)
-      io        <- cli.io()
-      name      <- io(SchemaNameArg)
-      schemaId  <- ~io(SchemaArg).toOption.getOrElse(layer.main)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      name      <- invoc(SchemaNameArg)
+      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
       newSchema <- ~schema.copy(id = name)
       lens      <- ~Lenses.layer.schemas
@@ -114,9 +119,10 @@ object SchemaCli {
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(SchemaNameArg)
-      io        <- cli.io()
-      name      <- io(SchemaNameArg)
-      schemaId  <- ~io(SchemaArg).toOption.getOrElse(layer.main)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      name      <- invoc(SchemaNameArg)
+      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
       newSchema <- ~schema.copy(id = name)
       lens      <- ~Lenses.layer.schemas
@@ -130,8 +136,9 @@ object SchemaCli {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      io       <- cli.io()
-      schemaId <- ~io(SchemaArg).toOption.getOrElse(layer.main)
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
       lens     <- ~Lenses.layer.schemas
       layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))

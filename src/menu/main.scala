@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -28,7 +28,7 @@ object Main {
     val layer = for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield layer
 
     val actions = layer.toOption

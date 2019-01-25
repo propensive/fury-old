@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -24,6 +24,6 @@ class MenuContext(
     val layer: Layer,
     val optSchemaId: Option[SchemaId] = None) {
   implicit def implicitLayout: Layout   = layout
-  implicit def implicitShell: Shell     = cli.shell
+  implicit def implicitShell: Shell     = layout.shell
   implicit def implicitEnv: Environment = cli.env
 }

@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -99,8 +99,10 @@ object FuryMenu {
         ),
         Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list)(
             Action('add, msg"add a source repository to the schema", RepoCli.add),
+            Action('update, msg"update a source repository", RepoCli.update),
             Action('remove, msg"remove a source repository from the schema", RepoCli.remove),
             Action('fork, msg"fork a managed repository locally", RepoCli.fork),
+            Action('unfork, msg"restore a source repository to a managed checkout", RepoCli.unfork),
             Action('list, msg"list source repositories", RepoCli.list),
             Action(
                 'pull,
@@ -117,8 +119,9 @@ object FuryMenu {
 
   def help(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
     for {
-      io <- cli.io()
-      _  <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
+      invoc <- cli.read()
+      io    <- invoc.io()
+      _     <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
                            |${menu(Nil).reference(Theme.NoColor).join("\n")}

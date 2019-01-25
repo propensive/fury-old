@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -20,8 +20,11 @@ import fury.error._
 import Args._
 
 import guillotine._
+import optometry._
 import mercator._
 import scala.util._
+
+import Lenses._
 
 object RepoCli {
 
@@ -29,7 +32,7 @@ object RepoCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
@@ -40,18 +43,36 @@ object RepoCli {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
-      io        <- cli.io()
-      raw       <- ~io(RawArg).isSuccess
-      schemaArg <- ~io(SchemaArg).toOption.getOrElse(ctx.layer.main)
+      invoc     <- cli.read()
+      raw       <- ~invoc(RawArg).isSuccess
+      schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(ctx.layer.main)
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
-      table <- ~Tables(config)
-                .show(Tables(config).repositories(ctx.layout, cli.shell), cols, rows, raw)(_.id)
+      io        <- invoc.io()
+      table     <- ~Tables(config).show(Tables(config).repositories(layout), cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
           })
+    } yield io.await()
+  }
+
+  def unfork(ctx: Context) = {
+    import ctx._
+    for {
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
+      cli       <- cli.hint(RepoArg, schema.repos)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      repoId    <- invoc(RepoArg)
+      repo      <- schema.repos.findBy(repoId)
+      newRepo   <- ~repo.copy(local = None)
+      lens      <- ~Lenses.layer.repos(schema.id)
+      layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -62,18 +83,27 @@ object RepoCli {
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(DirArg)
-      cli       <- cli.hint(RetryArg)
-      cli       <- cli.hint(RepoIdArg, schema.repos)
-      io        <- cli.io()
-      repoId    <- io(RepoIdArg)
+      cli       <- cli.hint(RepoArg, schema.repos)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
-      dir       <- io(DirArg).map(_.relativizeTo(layout.pwd))
-      retry     <- ~io(RetryArg).isSuccess
-      _         <- ~dir.mkdir()
-      bareRepo  <- repo.repo.fetch(layout, cli.shell)
-      _ <- ~cli.shell.git
-            .sparseCheckout(bareRepo, dir, List(), refSpec = repo.track.id, commit = repo.commit.id)
-      newRepo <- ~repo.copy(local = Some(dir))
+      dir       <- invoc(DirArg)
+      bareRepo  <- repo.repo.fetch(io, layout)
+      absPath <- (for {
+                  absPath <- dir.absolutePath()
+                  _       <- Try(absPath.mkdir())
+                  _ <- if (absPath.empty) Success()
+                      else Failure(new Exception("Non-empty dir exists"))
+                } yield absPath).orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+
+      _ <- ~layout.shell.git.sparseCheckout(
+              bareRepo,
+              absPath,
+              List(),
+              refSpec = repo.track.id,
+              commit = repo.commit.id)
+      newRepo <- ~repo.copy(local = Some(absPath))
       lens    <- ~Lenses.layer.repos(schema.id)
       layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
       _       <- ~io.save(layer, layout.furyConfig)
@@ -86,24 +116,24 @@ object RepoCli {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(RepoIdArg, schema.repos)
+      cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(AllArg, Nil)
-      io        <- cli.io()
-      all       <- ~io(AllArg).toOption
-      optRepos <- io(RepoIdArg).toOption
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      all       <- ~invoc(AllArg).toOption
+      optRepos <- invoc(RepoArg).toOption
                    .map(scala.collection.immutable.SortedSet(_))
                    .orElse(all.map(_ => schema.repos.map(_.id)))
                    .ascribe(exoskeleton.MissingArg("repo"))
-      repos <- optRepos.map(schema.repo(_)(layout, cli.shell)).sequence
-      msgs  <- repos.map(_.repo.update()(cli.shell, layout).map(io.println(_))).sequence
+      repos <- optRepos.map(schema.repo(_, layout)).sequence
+      io    <- invoc.io()
+      msgs  <- repos.map(_.repo.update(layout).map(io.println(_))).sequence
       lens  <- ~Lenses.layer.repos(schema.id)
       newRepos <- repos
                    .map(
                        repo =>
                          for {
-                           commit <- repo.repo
-                                      .getCommitFromTag(layout, cli.shell, repo.track)
-                                      .map(Commit(_))
+                           commit  <- repo.repo.getCommitFromTag(layout, repo.track).map(Commit(_))
                            newRepo = repo.copy(commit = commit)
                          } yield (newRepo, repo)
                    )
@@ -123,65 +153,80 @@ object RepoCli {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli            <- cli.hint(RepoArg)
+      cli            <- cli.hint(UrlArg)
       cli            <- cli.hint(DirArg)
-      cli            <- cli.hint(RetryArg)
-      cli            <- cli.hint(ImportArg2)
-      projectNameOpt <- ~cli.peek(RepoArg).map(fury.Repo.fromString).flatMap(_.projectName.toOption)
+      projectNameOpt <- ~cli.peek(UrlArg).map(fury.Repo.fromString).flatMap(_.projectName.toOption)
       cli            <- cli.hint(RepoNameArg, projectNameOpt)
-      remoteOpt      <- ~cli.peek(RepoArg)
+      remoteOpt      <- ~cli.peek(UrlArg)
       repoOpt        <- ~remoteOpt.map(fury.Repo.fromString(_))
       versions <- repoOpt.map { repo =>
-                   cli.shell.git.lsRemote(repo.url)
+                   layout.shell.git.lsRemote(repo.url)
                  }.to[List].sequence.map(_.flatten).recover { case e => Nil }
       cli          <- cli.hint(VersionArg, versions)
-      io           <- cli.io()
-      optImport    <- ~io(ImportArg2).toOption
-      optSchemaArg <- ~io(SchemaArg).toOption
+      invoc        <- cli.read()
+      io           <- invoc.io()
+      optSchemaArg <- ~invoc(SchemaArg).toOption
       schemaArg    <- ~optSchemaArg.getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
-      remote       <- ~io(RepoArg).toOption
-      retry        <- ~io(RetryArg).isSuccess
-      dir          <- ~io(DirArg).toOption
-      version      <- ~io(VersionArg).toOption.getOrElse(RefSpec.master)
-      repo         <- ~remote.map(fury.Repo.fromString(_))
-      suggested <- ~(repo.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
+      remote       <- ~invoc(UrlArg).toOption
+      dir          <- ~invoc(DirArg).toOption
+      version      <- ~invoc(VersionArg).toOption.getOrElse(RefSpec.master)
+      suggested <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
                     RepoId(d.value.split("/").last)
                   })
-      nameArg <- io(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
-      _       <- repo.map(_.fetch(layout, cli.shell)).ascribe(exoskeleton.MissingArg("repo"))
-      tag <- repo
-              .map(_.getCommitFromTag(layout, cli.shell, version))
-              .getOrElse(Failure(exoskeleton.MissingArg("name")))
-      sourceRepo <- repo
-                     .map(SourceRepo(nameArg, _, version, Commit(tag), dir))
-                     .orElse(dir.map { d =>
-                       SourceRepo(nameArg, fury.Repo(""), RefSpec.master, Commit(tag), Some(d))
-                     })
-                     .ascribe(exoskeleton.MissingArg("repo"))
-
-      lens         <- ~Lenses.layer.repos(schema.id)
-      optImportRef <- ~optImport.map(SchemaRef(sourceRepo.id, _))
-      layer <- optImportRef.map { importRef =>
-                Lenses.updateSchemas(optSchemaArg, layer, true)(Lenses.layer.imports(_))(
-                    _.modify(_)(_ :+ importRef))
-              }.getOrElse(~layer)
-      layer <- ~(lens.modify(layer)(_ + sourceRepo))
-      _     <- ~io.save(layer, layout.furyConfig)
+      urlArg <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
+      repo   <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      _      <- repo.fetch(io, layout).toOption.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      commit <- repo
+                 .getCommitFromTag(layout, version)
+                 .toOption
+                 .ascribe(exoskeleton.InvalidArgValue("version", version.id))
+      nameArg <- invoc(RepoNameArg).toOption
+                  .orElse(suggested)
+                  .ascribe(exoskeleton.MissingArg("name"))
+      sourceRepo <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
+      lens       <- ~Lenses.layer.repos(schema.id)
+      layer      <- ~(lens.modify(layer)(_ + sourceRepo))
+      _          <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
   def update(ctx: Context) = {
     import ctx._
     for {
-      cli       <- cli.hint(AllArg)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(DirArg)
+      cli       <- cli.hint(UrlArg)
+      cli       <- cli.hint(ForceArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(RepoIdArg, schema.repos)
-      io        <- cli.io()
-      repoId    <- io(RepoIdArg).toOption.ascribe(UnspecifiedRepo())
-      all       <- ~io(AllArg).isSuccess
-      repos     <- if (all) ~schema.repos else schema.repos.findBy(repoId)
+      cli       <- cli.hint(RepoArg, schema.repos)
+      optRepo   <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
+      versions <- optRepo
+                   .to[List]
+                   .map(_.repo.path(layout))
+                   .map(layout.shell.git.showRefs(_))
+                   .sequence
+      cli         <- cli.hint(VersionArg, versions.flatten)
+      invoc       <- cli.read()
+      io          <- invoc.io()
+      optSchemaId <- ~invoc(SchemaArg).toOption
+      schemaArg   <- ~optSchemaId.getOrElse(layer.main)
+      schema      <- layer.schemas.findBy(schemaArg)
+      repoArg     <- invoc(RepoArg)
+      repo        <- schema.repos.findBy(repoArg)
+      dir         <- ~invoc(DirArg).toOption
+      version     <- ~invoc(VersionArg).toOption
+      remoteArg   <- ~invoc(UrlArg).toOption
+      remote      <- ~remoteArg.map(fury.Repo.fromString(_))
+      nameArg     <- ~invoc(RepoNameArg).toOption
+      force       <- ~invoc(ForceArg).toOption.isDefined
+      focus       <- ~Lenses.focus(optSchemaId, force)
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
+      _           <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -191,9 +236,10 @@ object RepoCli {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(RepoIdArg, schema.repos)
-      io        <- cli.io()
-      repoId    <- io(RepoIdArg)
+      cli       <- cli.hint(RepoArg, schema.repos)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)

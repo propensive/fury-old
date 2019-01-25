@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -16,8 +16,10 @@
 package fury
 
 import guillotine._
+import optometry._
 import scala.util._
 import fury.error._
+import Lenses.on
 
 import scala.collection.immutable.SortedSet
 
@@ -28,7 +30,7 @@ object ProjectCli {
     for {
       layout       <- cli.layout
       config       <- fury.Config.read()(cli.env, layout)
-      layer        <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       optSchemaArg <- ~cli.peek(SchemaArg)
     } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
@@ -39,13 +41,17 @@ object ProjectCli {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
-      io        <- cli.io()
+      invoc     <- cli.read()
+      io        <- invoc.io()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
-      force     <- ~io(ForceArg).toOption.isDefined
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_))(
-                  _(_) = Some(projectId))
-      _ <- ~io.save(layer, layout.furyConfig)
+      force     <- ~invoc(ForceArg).toOption.isDefined
+      schemaId  <- ~optSchemaId.getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaId)
+      _         <- schema(projectId)
+      focus     <- ~Lenses.focus(optSchemaId, force)
+      layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
+      _         <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
@@ -54,8 +60,9 @@ object ProjectCli {
     for {
       cols   <- Success(Terminal.columns.getOrElse(100))
       cli    <- cli.hint(RawArg)
-      io     <- cli.io()
-      raw    <- ~io(RawArg).isSuccess
+      invoc  <- cli.read()
+      io     <- invoc.io()
+      raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
@@ -70,9 +77,10 @@ object ProjectCli {
     for {
       cli       <- cli.hint(ProjectNameArg)
       cli       <- cli.hint(LicenseArg, License.standardLicenses)
-      io        <- cli.io()
-      projectId <- io(ProjectNameArg)
-      license   <- Success(io(LicenseArg).toOption.getOrElse(License.unknown))
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      projectId <- invoc(ProjectNameArg)
+      license   <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
       project   <- ~fury.Project(projectId, license = license)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
@@ -89,10 +97,11 @@ object ProjectCli {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
-      io        <- cli.io()
-      projectId <- io(ProjectArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
-      force     <- ~io(ForceArg).toOption.isDefined
+      force     <- ~invoc(ForceArg).toOption.isDefined
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) {
@@ -106,28 +115,28 @@ object ProjectCli {
   def update(ctx: MenuContext) = {
     import ctx._
     for {
-      dSchema    <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
-      cli        <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
-      cli        <- cli.hint(DescriptionArg)
-      cli        <- cli.hint(ForceArg)
-      projectId  <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
-      cli        <- cli.hint(LicenseArg, License.standardLicenses)
-      cli        <- cli.hint(ProjectNameArg, projectId)
-      io         <- cli.io()
-      projectId  <- projectId.ascribe(UnspecifiedProject())
-      schema     <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-      oldProject <- schema.projects.findBy(projectId)
-      nameArg    <- ~io(ProjectNameArg).toOption
-      newId <- ~nameArg.flatMap(schema.unused(_).toOption).getOrElse {
-                oldProject.id
-              }
-      licenseArg     <- ~(io(LicenseArg).toOption.getOrElse(oldProject.license))
-      descriptionArg <- ~io(DescriptionArg).toOption.getOrElse(oldProject.description)
-      project        <- ~oldProject.copy(id = newId, license = licenseArg, description = descriptionArg)
-      force          <- ~io(ForceArg).toOption.isDefined
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.project(_, oldProject.id))(_(_) = project)
-      _ <- ~io.save(layer, layout.furyConfig)
+      dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
+      cli            <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
+      cli            <- cli.hint(DescriptionArg)
+      cli            <- cli.hint(ForceArg)
+      projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
+      cli            <- cli.hint(LicenseArg, License.standardLicenses)
+      cli            <- cli.hint(ProjectNameArg, projectId)
+      invoc          <- cli.read()
+      io             <- invoc.io()
+      projectId      <- projectId.ascribe(UnspecifiedProject())
+      schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      project        <- schema.projects.findBy(projectId)
+      force          <- ~invoc(ForceArg).toOption.isDefined
+      focus          <- ~Lenses.focus(optSchemaId, force)
+      licenseArg     <- ~invoc(LicenseArg).toOption
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
+      descriptionArg <- ~invoc(DescriptionArg).toOption
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
+      nameArg        <- ~invoc(ProjectNameArg).toOption
+      newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
+      _              <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 }

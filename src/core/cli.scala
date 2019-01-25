@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -106,6 +106,39 @@ trait Descriptor[T] {
   }
 }
 
+object Io {
+
+  def silent(config: Config): Io = new Io(new java.io.PrintStream(int => ()), config)
+
+}
+
+class Io(private[this] val output: java.io.PrintStream, config: Config) {
+
+  def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
+
+  def println(msg: UserMsg): Unit = output.println(msg.string(config.theme))
+
+  def save[T: OgdlWriter](value: T, path: Path): Unit = {
+    val stringBuilder: StringBuilder = new StringBuilder()
+    Ogdl.serialize(stringBuilder, implicitly[OgdlWriter[T]].write(value))
+    val content: String = stringBuilder.toString
+    Outcome
+      .rescue[java.io.IOException](FileWriteError(path)) {
+        val writer = new java.io.BufferedWriter(new java.io.FileWriter(path.javaPath.toFile))
+        writer.write(content).unit
+        writer.write('\n').unit
+        writer.close()
+      }
+      .unit // FIXME: Don't discard the result
+  }
+
+  def await(success: Boolean = true): ExitStatus = {
+    output.flush()
+    if (success) Done else Abort
+  }
+
+}
+
 case class Cli[+Hinted <: CliParam[_]](
     output: java.io.PrintStream,
     args: ParamMap,
@@ -113,40 +146,29 @@ case class Cli[+Hinted <: CliParam[_]](
     optCompletions: List[Cli.OptCompletion[_]],
     env: Environment) {
 
-  class Io private[Cli] () {
+  class Invocation private[Cli] () {
 
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Outcome[T] =
       args.get(param.param).toTry
 
-    def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
+    def io(): Outcome[Io] = Success(new Io(output, config))
 
-    def println(msg: UserMsg): Unit = output.println(msg.string(config.theme))
+  }
 
-    def save[T: OgdlWriter](value: T, path: Path): Unit = {
-      val stringBuilder: StringBuilder = new StringBuilder()
-      Ogdl.serialize(stringBuilder, implicitly[OgdlWriter[T]].write(value))
-      val content: String = stringBuilder.toString
-      Outcome
-        .rescue[java.io.IOException](FileWriteError(path)) {
-          val writer = new java.io.BufferedWriter(new java.io.FileWriter(path.javaPath.toFile))
-          writer.write(content).unit
-          writer.write('\n').unit
-          writer.close()
-        }
-        .unit // FIXME: Don't discard the result
-    }
-
-    def await(success: Boolean = true): ExitStatus = {
-      output.flush()
-      if (success) Done else Abort
-    }
+  def read(): Outcome[Invocation] = {
+    val io: Io = new Io(output, config)
+    if (completion) {
+      io.println(optCompletions.flatMap(_.output).mkString("\n"))
+      io.await()
+      Failure(EarlyCompletions())
+    } else Success(new Invocation())
   }
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).opt
 
   lazy val layout: Outcome[Layout] =
     env.workDir.ascribe(FileNotFound(Path("/"))).map { pwd =>
-      Layout(Path(env.variables("HOME")), Path(pwd))
+      Layout(Path(env.variables("HOME")), Path(pwd), env)
     }
 
   lazy val config: Config = layout.flatMap(Config.read()(env, _)).toOption.getOrElse(Config())
@@ -159,14 +181,10 @@ case class Cli[+Hinted <: CliParam[_]](
 
   def tail: Cli[Hinted] = copy(args = args.tail)
 
-  def defaultTo(defaultCmd: Cmd) = copy(args = args + defaultCmd.cmd)
-
   def abort(msg: UserMsg): ExitStatus = {
     if (!completion) write(msg)
     Abort
   }
-
-  lazy val shell: Shell = Shell()(env)
 
   def opt[T: Default](param: CliParam[T]): Outcome[Option[T]] = Success(args(param.param).opt)
 
@@ -188,15 +206,6 @@ case class Cli[+Hinted <: CliParam[_]](
     output.flush()
   }
 
-  def io(): Outcome[Io] = {
-    val io = new Io()
-    if (completion) {
-      io.println(optCompletions.flatMap(_.output).mkString("\n"))
-      io.await()
-      Failure(EarlyCompletions())
-    } else Success(io)
-  }
-
   def completeCommand(cmd: MenuStructure[_]): Outcome[Nothing] =
     command.map { no =>
       val name = if (no == 1) "Command" else "Subcommand"
@@ -204,7 +213,7 @@ case class Cli[+Hinted <: CliParam[_]](
         case act: Action[_]   => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val io = new Io()
+      val io = new Io(output, config)
       io.println(optCompletions.flatMap(_.output).mkString("\n"))
       io.await()
       Failure(EarlyCompletions())

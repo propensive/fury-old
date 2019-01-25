@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -24,18 +24,20 @@ import kaleidoscope._
 import scala.util._
 import scala.collection.mutable.{HashMap, ListBuffer}
 
-case class Shell()(implicit env: Environment) {
+case class Shell(environment: Environment) {
+  private val furyHome = System.getProperty("fury.home")
 
-  val environment: Environment = env
+  implicit private[this] val defaultEnvironment: Environment = environment
 
   def runJava(
       classpath: List[String],
-      main: String
+      main: String,
+      layout: Layout
     )(output: String => Unit
-    )(implicit layout: Layout
     ): Running = {
     layout.sharedDir.mkdir()
-    implicit val env = environment.append("SHARED", layout.sharedDir.value)
+    implicit val defaultEnvironment: Environment =
+      environment.append("SHARED", layout.sharedDir.value)
     sh"java -cp ${classpath.mkString(":")} $main".async(output(_), output(_))
   }
 
@@ -45,7 +47,8 @@ case class Shell()(implicit env: Environment) {
       sh"git remote add origin ${repo.url}".exec[Outcome[String]]
 
     def clone(repo: Repo, dir: Path): Outcome[String] = {
-      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+      implicit val defaultEnvironment: Environment =
+        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
       sh"git clone ${repo.url} ${dir.value}".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
@@ -54,7 +57,8 @@ case class Shell()(implicit env: Environment) {
     }
 
     def cloneBare(url: String, dir: Path): Outcome[String] = {
-      implicit val env = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+      implicit val defaultEnvironment: Environment =
+        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
       sh"git clone --mirror $url ${dir.value}".exec[Outcome[String]].map { out =>
         (dir / ".done").touch()
@@ -89,6 +93,12 @@ case class Shell()(implicit env: Environment) {
         string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Outcome[String]]
         files  <- ~string.split("\n").to[List].map(Path(_))
       } yield files
+
+    def showRefs(dir: Path): Outcome[List[String]] =
+      for {
+        refs  <- sh"git -C ${dir.value} show-ref --heads --tags".exec[Outcome[String]]
+        lines <- ~refs.split("\n").to[List]
+      } yield lines.map(_.split("/").last)
 
     def lsRemote(url: String): Outcome[List[String]] =
       Cached.lsRemote.getOrElseUpdate(
@@ -159,7 +169,7 @@ case class Shell()(implicit env: Environment) {
   object bloop {
 
     def start(): Running =
-      sh"sh -c 'launcher 1.2.1 > /dev/null'".async(_ => (), _ => ())
+      sh"sh -c 'launcher 1.2.5 > /dev/null'".async(_ => (), _ => ())
 
     def running(): Boolean =
       sh"bloop help".exec[Exit[String]].status == 0
@@ -175,11 +185,12 @@ case class Shell()(implicit env: Environment) {
   }
 
   object coursier {
+    private val coursier = s"$furyHome/bin/coursier"
 
-    def fetch(artifact: String): Outcome[List[Path]] = {
+    def fetch(io: Io, artifact: String): Outcome[List[Path]] = {
       val items = new ListBuffer[String]()
-      val running = sh"coursier fetch --progress --repository central $artifact"
-        .async(items.append(_), println(_))
+      val running = sh"$coursier fetch --progress --repository central $artifact"
+        .async(items.append(_), io.println(_))
       val result = running.await()
       if (result == 0) Success(items.to[List].map(Path(_)))
       else Failure(ItemNotFound(msg"$artifact", msg"binary"))

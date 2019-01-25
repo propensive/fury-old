@@ -1,21 +1,18 @@
 /*
- *
- *   Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
- *
- *   The primary distribution site is: https://propensive.com/
- *
- *   Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *   in compliance with the License. You may obtain a copy of the License at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *   Unless required  by applicable  law or  agreed to  in writing,  software  distributed  under the
- *   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- *   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
- *   limitations under the License.
- *
- */
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
+  The primary distribution site is: https://propensive.com/
+
+  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+  in compliance with the License. You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required  by applicable  law or  agreed to  in writing,  software  distributed  under the
+  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+  express  or  implied.  See  the  License for  the specific  language  governing  permissions and
+  limitations under the License.
+ */
 package fury.io
 
 import fury._, error._
@@ -35,7 +32,7 @@ import scala.util._
 object Path {
 
   def unapply(str: String): Option[Path] = str match {
-    case r"""$dir@([^*?:;,&|"\%<>]*)/?""" =>
+    case r"""$dir@([^*?:;,&|"\%<>]*)""" =>
       Some(Path(if (dir.endsWith("/")) dir.dropRight(1) else dir))
     case _ => None
   }
@@ -75,9 +72,16 @@ case class Path(value: String) {
         .sum
     }.getOrElse(0)
 
+  def empty: Boolean = 0 == fileCount(_ => true)
+
   def touch(): Outcome[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
     if (!exists()) new java.io.FileOutputStream(javaPath.toFile).close()
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
+  }
+
+  def extant(): Path = {
+    mkdir()
+    this
   }
 
   def describe(pred: String => Boolean): String = {
@@ -184,7 +188,17 @@ case class Path(value: String) {
       path
     }
 
-  def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath).unit
+  def ifExists(): Option[Path] =
+    if (exists) {
+      Some(this)
+    } else {
+      None
+    }
+
+  def absolutePath(): Outcome[Path] =
+    Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
+
+  def mkdir() = java.nio.file.Files.createDirectories(javaPath).unit
 
   def relativizeTo(dir: Path) =
     if (value.startsWith("/")) this else Path(s"${dir.value}/$value")

@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -84,7 +84,9 @@ want to make this change to all schemas, please add the --force/-F argument.""")
             s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            io     <- cli.io()
+            invoc  <- cli.read()
+            io     <- invoc.io()
+            _      <- ~layout.errorLogfile.mkParents
             _      <- ~layout.errorLogfile.writeSync(errorString)
             _      <- ~io.await()
           } yield

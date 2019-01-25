@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -17,50 +17,38 @@ package fury
 
 import fury.io.Path
 import gastronomy._
+import guillotine._
 
-case class Layout(home: Path, pwd: Path) {
-  lazy val furyDir: Path      = pwd / ".fury"
-  lazy val bloopDir: Path     = furyDir / "bloop"
-  lazy val layersDir: Path    = furyDir / "layers"
-  lazy val classesDir: Path   = furyDir / "classes"
-  lazy val analysisDir: Path  = furyDir / "analysis"
-  lazy val resourcesDir: Path = furyDir / "resources"
-  lazy val runLogDir: Path    = furyDir / "log"
-  lazy val reposDir: Path     = furyDir / "repos"
-  lazy val srcsDir: Path      = furyDir / "sources"
-  lazy val sharedDir: Path    = furyDir / "shared"
-  lazy val errorLogfile: Path = pwd / ".fury.log"
-  lazy val userConfig: Path   = home / ".fury.conf"
-  lazy val logFile: Path      = furyDir / "fury.log"
+case class Layout(home: Path, pwd: Path, env: Environment) {
 
-  def bloopConfig(artifact: Artifact): Path = bloopDir / s"${artifact.hash.encoded[Base64Url]}.json"
+  private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
+
+  lazy val furyDir: Path      = (pwd / ".fury").extant()
+  lazy val bloopDir: Path     = (furyDir / "bloop").extant()
+  lazy val classesDir: Path   = (furyDir / "classes").extant()
+  lazy val analysisDir: Path  = (furyDir / "analysis").extant()
+  lazy val resourcesDir: Path = (furyDir / "resources").extant()
+  lazy val reposDir: Path     = (furyDir / "repos").extant()
+  lazy val srcsDir: Path      = (furyDir / "sources").extant()
+  lazy val logsDir: Path      = (furyDir / "logs").extant()
+  lazy val sharedDir: Path    = (furyDir / "build" / uniqueId).extant()
+  lazy val errorLogfile: Path = logsDir.extant() / s"$uniqueId.log"
+  lazy val userConfig: Path   = furyDir / "config.fury"
+  lazy val aliasesPath: Path  = furyDir / "aliases"
+
+  def bloopConfig(artifact: Artifact): Path =
+    bloopDir.extant() / s"${artifact.hash.encoded[Base64Url]}.json"
 
   lazy val furyConfig: Path = pwd / "layer.fury"
 
-  def layerDir(layerId: String): Path = layersDir / layerId
+  def outputDir(artifact: Artifact): Path =
+    (analysisDir / artifact.hash.encoded[Base64Url]).extant()
 
-  def layerFile(layerId: String): Path = layerDir(layerId) / "layer.fury"
+  def classesDir(artifact: Artifact): Path =
+    (classesDir / artifact.hash.encoded[Base64Url]).extant()
 
-  def outputDir(artifact: Artifact): Path = {
-    val path = analysisDir / artifact.hash.encoded[Base64Url]
-    path.mkdir()
-    path
-  }
+  def manifestFile(artifact: Artifact): Path =
+    (resourcesDir / artifact.hash.encoded[Base64Url]).extant() / "manifest.mf"
 
-  def runLogFile(artifact: Artifact): Path = {
-    runLogDir.mkdir()
-    runLogDir / s"${artifact.hash.encoded[Base64Url]}.log"
-  }
-
-  def classesDir(artifact: Artifact): Path = {
-    val path = classesDir / artifact.hash.encoded[Base64Url]
-    path.mkdir()
-    path
-  }
-
-  def manifestFile(artifact: Artifact): Path = {
-    val path = resourcesDir / artifact.hash.encoded[Base64Url]
-    path.mkdir()
-    path / s"manifest.mf"
-  }
+  val shell = Shell(env)
 }

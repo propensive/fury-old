@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -42,7 +42,7 @@ object DependencyCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -68,8 +68,9 @@ object DependencyCli {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
-      io      <- cli.io()
-      raw     <- ~io(RawArg).isSuccess
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       cols    <- Success(Terminal.columns.getOrElse(100))
@@ -90,12 +91,13 @@ object DependencyCli {
       cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli           <- cli.hint(DependencyArg, optModule.to[List].flatMap(_.after.to[List]))
       cli           <- cli.hint(ForceArg)
-      io            <- cli.io()
-      dependencyArg <- io(DependencyArg)
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      dependencyArg <- invoc(DependencyArg)
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
       moduleRef     <- ModuleRef.parse(project, dependencyArg, false)
-      force         <- ~io(ForceArg).isSuccess
+      force         <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
       _ <- ~io.save(layer, layout.furyConfig)
@@ -105,14 +107,19 @@ object DependencyCli {
   def add(ctx: Context) = {
     import ctx._
     for {
-      optSchema     <- ~layer.mainSchema.toOption
-      cli           <- cli.hint(DependencyArg, optSchema.map(_.moduleRefs).getOrElse(List()))
+      optSchema <- ~layer.mainSchema.toOption
+      importedSchemas = optSchema.flatMap(
+          _.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      allSchemas    = optSchema.toList ::: importedSchemas.toList.flatten
+      allModules    = allSchemas.map(_.moduleRefs).flatten
+      cli           <- cli.hint(DependencyArg, allModules)
       cli           <- cli.hint(IntransitiveArg)
-      io            <- cli.io()
+      invoc         <- cli.read()
+      io            <- invoc.io()
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
-      intransitive  <- ~io(IntransitiveArg).isSuccess
-      dependencyArg <- io(DependencyArg)
+      intransitive  <- ~invoc(IntransitiveArg).isSuccess
+      dependencyArg <- invoc(DependencyArg)
       moduleRef     <- ModuleRef.parse(project, dependencyArg, intransitive)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)

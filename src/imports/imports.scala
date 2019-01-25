@@ -1,5 +1,5 @@
 /*
-  Fury, version 0.2.2. Copyright 2019 Jon Pretty, Propensive Ltd.
+  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
 
   The primary distribution site is: https://propensive.com/
 
@@ -30,7 +30,7 @@ object ImportCli {
     for {
       layout <- cli.layout
       config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(layout.furyConfig)(layout, cli.shell)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
   def add(ctx: Context) = {
@@ -41,11 +41,12 @@ object ImportCli {
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli <- cli.hint(
                 ImportArg,
-                defaultSchema.map(_.importCandidates(layout, cli.shell)).getOrElse(Nil))
-      io        <- cli.io()
-      schemaRef <- io(ImportArg)
+                defaultSchema.map(_.importCandidates(Io.silent(config), layout)).getOrElse(Nil))
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      schemaRef <- invoc(ImportArg)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
-                  _.modify(_)(_ :+ schemaRef))
+                  _.modify(_)(_ + schemaRef))
       _ <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
@@ -57,9 +58,10 @@ object ImportCli {
       schemaArg <- ~cli.peek(SchemaArg)
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli       <- cli.hint(ImportArg, dSchema.map(_.imports).getOrElse(Nil))
-      io        <- cli.io()
-      schemaId  <- ~io(SchemaArg).toOption.getOrElse(layer.main)
-      importArg <- io(ImportArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      importArg <- invoc(ImportArg)
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
@@ -75,10 +77,11 @@ object ImportCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
-      io        <- cli.io()
-      raw       <- ~io(RawArg).isSuccess
-      rows <- ~schema.imports.map { i =>
-               (i, i.resolve(schema)(layout, cli.shell))
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      raw       <- ~invoc(RawArg).isSuccess
+      rows <- ~schema.imports.to[List].map { i =>
+               (i, i.resolve(io, schema, layout))
              }
       table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
                   _._1.schema.key)
