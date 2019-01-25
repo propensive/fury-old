@@ -1,64 +1,43 @@
 package fury.module
 
-import fury.error._
 import fury._
+import fury.error._
 
-import scala.util.{Failure, Success}
+import scala.util.Success
 
 object Verifier {
 
   def verifyLayer(universe: Universe, layer: Layer): Outcome[Set[ModuleId]] = {
-    val definedModules = for {
-      schema  <- layer.schemas
-      project <- schema.projects
-      module  <- project.modules
-    } yield module
+    val dependencies = for {
+      schema     <- layer.schemas
+      project    <- schema.projects
+      module     <- project.modules
+      dependency <- module.after + module.compiler
+    } yield dependency
 
-    definedModules.foldLeft(~Set[ModuleId]()) {
-      case (Success(verifiedModules), module) =>
-        verifyModule(universe, module, verifiedModules)
-      case (f, _) => f
-    }
+    verify(universe, dependencies.toList, Set())
   }
 
-  def verifyModule(universe: Universe, module: Module): Outcome[Set[ModuleId]] =
-    verifyModule(universe, module, Set())
+  def verifyModule(universe: Universe, module: Module): Outcome[Set[ModuleId]] = {
+    val dependencies = module.after + module.compiler
+    verify(universe, dependencies.toList, Set())
+  }
 
-  private def verifyModule(
+  private def verify(
       universe: Universe,
-      module: Module,
-      acc: Set[ModuleId]
+      dependencies: List[ModuleRef],
+      verified: Set[ModuleId]
     ): Outcome[Set[ModuleId]] =
-    if (acc.contains(module.id)) Success(acc + module.id)
-    else
-      verifyDependencies(
-          universe,
-          (module.after + module.compiler).toList,
-          acc + module.id
-      )
+    dependencies match {
+      case Nil                       => Success(verified)
+      case ModuleRef.JavaRef :: tail => verify(universe, tail, verified)
 
-  private def verifyDependencies(
-      universe: Universe,
-      modules: Seq[ModuleRef],
-      acc: Set[ModuleId]
-    ): Outcome[Set[ModuleId]] =
-    if (modules.isEmpty) Success(acc)
-    else
-      modules.foldLeft(~acc) {
-        case (Success(verified), ref) => verifyRef(universe, ref, verified)
-        case (f, _)                   => f
-      }
-
-  private def verifyRef(
-      universe: Universe,
-      moduleRef: ModuleRef,
-      acc: Set[ModuleId]
-    ): Outcome[Set[ModuleId]] =
-    if (moduleRef == ModuleRef.JavaRef) Success(acc)
-    else
-      for {
-        project  <- universe.project(moduleRef.projectId)
-        module   <- project.apply(moduleRef.moduleId)
-        verified <- verifyModule(universe, module, acc)
-      } yield verified
+      case ref :: tail if verified.contains(ref.moduleId) => verify(universe, tail, verified)
+      case ref :: tail =>
+        for {
+          project <- universe.project(ref.projectId)
+          module  <- project.apply(ref.moduleId)
+          result  <- verify(universe, tail, verified + module.id)
+        } yield result
+    }
 }
