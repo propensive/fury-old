@@ -52,12 +52,13 @@ object Lenses {
       ): Outcome[Layer] = value match {
       case None => Success(layer)
       case Some(value) =>
+        val schemaLens = new Lens.Partial[Schema]()
         val lenses = schemaId match {
           case Some(schemaId) =>
-            List(Optic.identity.compose(Lenses.layer.schema(schemaId), partialLens(Lenses.schema)))
+            List(Optic.identity.compose(Lenses.layer.schema(schemaId), partialLens(schemaLens)))
           case None =>
             layer.schemas.map(_.id).to[List].map { s =>
-              Optic.identity.compose(Lenses.layer.schema(s), partialLens(Lenses.schema))
+              Optic.identity.compose(Lenses.layer.schema(s), partialLens(schemaLens))
             }
         }
 
@@ -77,99 +78,8 @@ object Lenses {
       }
   }
 
-  object module extends Lens.Partial[Module]() {
-    val dependencies = lens(_.after)
-  }
-
-  object project extends Lens.Partial[Project]() {
-    def module(moduleId: ModuleId) = lens(_.modules(on(moduleId)))
-
-    val modules    = lens(_.modules)
-    val mainModule = lens(_.main)
-  }
-
-  object schema extends Lens.Partial[Schema]() {
-    val mainProject = lens(_.main)
-    val projects    = lens(_.projects)
-  }
-
-  object config extends Lens.Partial[Config]() {
-    val theme = lens(_.theme)
-  }
-
   object layer extends Lens.Partial[Layer]() {
-    val schemas    = lens(_.schemas)
-    val mainSchema = lens(_.main)
-
     def schema(schemaId: SchemaId) = lens(_.schemas(on(schemaId)))
-
-    def imports(schemaId: SchemaId) =
-      lens(_.schemas(on(schemaId)).imports)
-
-    def projects(schemaId: SchemaId) =
-      Optic.identity.compose(schema(schemaId), Lenses.schema.projects)
-
-    def project(schemaId: SchemaId, projectId: ProjectId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)))
-
-    def mainProject(schemaId: SchemaId) =
-      lens(_.schemas(on(schemaId)).main)
-
-    def repos(schemaId: SchemaId) =
-      lens(_.schemas(on(schemaId)).repos)
-
-    def modules(schemaId: SchemaId, projectId: ProjectId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules)
-
-    def mainModule(schemaId: SchemaId, projectId: ProjectId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).main)
-
-    def module(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)))
-
-    def moduleKind(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).kind)
-
-    def moduleBloopSpec(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).bloopSpec)
-
-    def moduleMainClass(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).main)
-
-    def modulePluginName(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).plugin)
-
-    def moduleCompiler(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).compiler)
-
-    def moduleId(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).id)
-
-    def after(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).after)
-
-    def sources(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).sources)
-
-    def binaries(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).binaries)
-
-    def params(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).params)
-
-    def repoId(schemaId: SchemaId, repoId: RepoId) =
-      lens(_.schemas(on(schemaId)).repos(on(repoId)).id)
-
-    def repoDir(schemaId: SchemaId, repoId: RepoId) =
-      lens(_.schemas(on(schemaId)).repos(on(repoId)).local)
-
-    def repoRepo(schemaId: SchemaId, repoId: RepoId) =
-      lens(_.schemas(on(schemaId)).repos(on(repoId)).repo)
-
-    def repoTrack(schemaId: SchemaId, repoId: RepoId) =
-      lens(_.schemas(on(schemaId)).repos(on(repoId)).track)
-
-    val aliases = lens(_.aliases)
 
   }
 }

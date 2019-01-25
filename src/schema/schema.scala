@@ -99,18 +99,18 @@ object SchemaCli {
   def update(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli       <- cli.hint(SchemaNameArg)
-      invoc     <- cli.read()
-      io        <- invoc.io()
-      name      <- invoc(SchemaNameArg)
-      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
-      schema    <- layer.schemas.findBy(schemaId)
-      newSchema <- ~schema.copy(id = name)
-      lens      <- ~Lenses.layer.schemas
-      layer     <- ~lens.modify(layer)(_ - schema + newSchema)
-      layer     <- ~(if (layer.main == schema.id) layer.copy(main = newSchema.id) else layer)
-      _         <- ~io.save(layer, layout.furyConfig)
+      cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli      <- cli.hint(SchemaNameArg)
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      newName  <- invoc(SchemaNameArg)
+      schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      schema   <- layer.schemas.findBy(schemaId)
+      force    <- ~invoc(ForceArg).toOption.isDefined
+      focus    <- ~Lenses.focus(Some(schemaId), force)
+      layer    <- focus(layer, _.lens(_.id)) = Some(newName)
+      layer    <- ~(if (layer.main == Some(schema.id)) layer.copy(main = newName) else layer)
+      _        <- ~io.save(layer, layout.furyConfig)
     } yield io.await()
   }
 
