@@ -73,6 +73,11 @@ case class Tables(config: Config) {
 
   def bar(n: Int) = msg"${theme.gray("■" * n)}"
 
+  def commitPath(r: SourceRepo) = r.local match {
+    case Some(dir) => msg"${theme.path(dir.value)}"
+    case None      => msg"${theme.version(r.commit.id.take(7))}"
+  }
+
   def differences(left: String, right: String): Tabulation[Difference] =
     Tabulation[Difference](
         Heading("TYPE", _.entity),
@@ -165,8 +170,7 @@ case class Tables(config: Config) {
       Heading("REPO", _.id),
       Heading("REMOTE", _.repo),
       Heading("TRACK", _.track),
-      Heading("COMMIT", _.commit),
-      Heading("LOCAL", _.local)
+      Heading("COMMIT/PATH", commitPath(_))
   )
 
 }

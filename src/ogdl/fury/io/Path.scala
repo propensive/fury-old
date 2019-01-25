@@ -200,6 +200,9 @@ case class Path(value: String) {
 
   def mkdir() = java.nio.file.Files.createDirectories(javaPath).unit
 
+  def relativizeTo(dir: Path) =
+    if (value.startsWith("/")) this else Path(s"${dir.value}/$value")
+
   def parent = Path(javaPath.getParent.toString)
 
   def rename(fn: String => String): Path = parent / fn(name)
