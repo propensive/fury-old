@@ -37,7 +37,8 @@ object Verifier {
         for {
           project <- universe.project(ref.projectId)
           module  <- project.apply(ref.moduleId)
-          result  <- verify(universe, tail, verified + module.id)
+          deps    = module.after + module.compiler
+          result  <- verify(universe, tail ++ deps, verified + module.id)
         } yield result
     }
 }
