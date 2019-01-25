@@ -15,13 +15,35 @@
  */
 package fury
 
+import fury.error._
+
 import com.facebook.nailgun.NGContext
 import exoskeleton._
 import guillotine._
-
 import scala.collection.JavaConverters._
+import scala.collection.mutable.HashSet
+
+import annotation.tailrec
+import java.util.concurrent.atomic.AtomicBoolean
 
 object Main {
+
+  private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
+  private[this] val running: HashSet[Thread]   = new HashSet()
+  private[this] def busy(): Option[Int] =
+    running.synchronized(if (running.size > 1) Some(running.size - 1) else None)
+
+  private[this] def trackThread(action: => Int): Int =
+    if (!terminating.get) {
+      running.synchronized(running += Thread.currentThread)
+      try action
+      finally {
+        running.synchronized(running -= Thread.currentThread)
+      }
+    } else {
+      println("New tasks cannot be started while Fury is shutting down.")
+      1
+    }
 
   def invoke(cli: Cli[CliParam[_]]): ExitStatus = {
 
@@ -77,10 +99,27 @@ object Main {
       env: Environment
     ) =
     exit {
-      val cli = Cli(out, ParamMap(args: _*), None, Nil, env)
-      val end = invoke(cli).code
-      out.flush()
-      err.flush()
-      end
+      trackThread {
+        val cli = Cli(out, ParamMap(args: _*), None, Nil, env)
+        val end = invoke(cli).code
+        out.flush()
+        err.flush()
+        end
+      }
     }
+
+  @tailrec
+  def shutdown(previous: Int = -1)(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = {
+    terminating.set(true)
+    busy() match {
+      case None => util.Success(Done)
+      case Some(count) =>
+        if (previous != count) {
+          val plural = if (count > 1) "s" else ""
+          println(s"Waiting for $count active task$plural to complete...")
+        }
+        Thread.sleep(10)
+        shutdown(count)(cli)
+    }
+  }
 }
