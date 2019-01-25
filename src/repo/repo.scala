@@ -176,7 +176,7 @@ object RepoCli {
                   })
       urlArg <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
       repo   <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
-      _      <- repo.fetch(io, layout).toOption.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      _      <- repo.fetch(io, layout)
       commit <- repo
                  .getCommitFromTag(layout, version)
                  .toOption

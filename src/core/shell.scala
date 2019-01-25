@@ -100,17 +100,23 @@ case class Shell(environment: Environment) {
         lines <- ~refs.split("\n").to[List]
       } yield lines.map(_.split("/").last)
 
-    def lsRemote(url: String): Outcome[List[String]] =
+    def lsRemote(url: String): Outcome[List[String]] = {
+      implicit val defaultEnvironment: Environment =
+        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       Cached.lsRemote.getOrElseUpdate(
           url,
           sh"git ls-remote --tags --heads $url"
             .exec[Outcome[String]]
             .map(_.split("\n").to[List].map(_.split("/").last)))
+    }
 
-    def lsRemoteRefSpec(url: String, refSpec: String): Outcome[String] =
+    def lsRemoteRefSpec(url: String, refSpec: String): Outcome[String] = {
+      implicit val defaultEnvironment: Environment =
+        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       Cached.lsRemoteRefSpec.getOrElseUpdate(
           (url, refSpec),
           sh"git ls-remote $url $refSpec".exec[Outcome[String]].map(_.take(40)))
+    }
 
     def checkout(dir: Path, commit: String): Outcome[String] =
       sh"git -C ${dir.value} checkout $commit".exec[Outcome[String]].map { out =>
