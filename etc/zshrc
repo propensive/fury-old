@@ -1,1 +1,4 @@
+export PATH=$FURYHOME/bin:$PATH
+export fpath=($FURYHOME/etc/completion/zsh $fpath)
 autoload -U +X compinit && compinit
+source $HOME/.furyrc/aliases
