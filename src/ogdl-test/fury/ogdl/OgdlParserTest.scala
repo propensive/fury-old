@@ -18,7 +18,7 @@ package fury.ogdl
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
 
-import probation._
+import probably._
 
 import scala.language.implicitConversions
 
