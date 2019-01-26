@@ -1,0 +1,13 @@
+{
+    "version" : "1.0.0",
+    "project" : {
+        "name" : "fury/ogdl-test",
+        "directory" : "git/fury/src",
+        "sources" : ["git/fury/src/ogdl-test"],
+        "dependencies" : ["fury", "probably/cli"],
+        "classpath" : ["scala-2.12.8/lib/scala-library.jar", "scala-2.12.8/lib/scala-compiler.jar", "scala-2.12.8/lib/scala-reflect.jar", "bin/mercator/core", "bin/magnolia/core", "bin/gastronomy/core", "bin/totalitarian/core", "bin/mitigation/core", "bin/contextual/core", "bin/kaleidoscope/core", "bin/fury/strings", "bin/fury/ogdl", "bin/probation/macros", "bin/probation/core", "bin/probation/cli"],
+        "out" : "out",
+        "classesDir" : "bin/fury/ogdl-test",
+        "scala": { "organization": "scala-lang.org", "name": "scala-compiler", "jars": ["scala-2.12.8/lib/scala-library.jar", "scala-2.12.8/lib/scala-compiler.jar", "scala-2.12.8/lib/scala-reflect.jar"], "options": [], "version": "2.12.8" }
+    }
+}
