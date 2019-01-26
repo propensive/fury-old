@@ -1,13 +1,39 @@
 {
-    "version" : "1.0.0",
-    "project" : {
-        "name" : "fury/ogdl-test",
-        "directory" : "git/fury/src",
-        "sources" : ["git/fury/src/ogdl-test"],
-        "dependencies" : ["fury", "probably/cli"],
-        "classpath" : ["scala-2.12.8/lib/scala-library.jar", "scala-2.12.8/lib/scala-compiler.jar", "scala-2.12.8/lib/scala-reflect.jar", "bin/mercator/core", "bin/magnolia/core", "bin/gastronomy/core", "bin/totalitarian/core", "bin/mitigation/core", "bin/contextual/core", "bin/kaleidoscope/core", "bin/fury/strings", "bin/fury/ogdl", "bin/probation/macros", "bin/probation/core", "bin/probation/cli"],
-        "out" : "out",
-        "classesDir" : "bin/fury/ogdl-test",
-        "scala": { "organization": "scala-lang.org", "name": "scala-compiler", "jars": ["scala-2.12.8/lib/scala-library.jar", "scala-2.12.8/lib/scala-compiler.jar", "scala-2.12.8/lib/scala-reflect.jar"], "options": [], "version": "2.12.8" }
+  "version": "1.0.0",
+  "project": {
+    "name": "fury/ogdl-test",
+    "directory": ".",
+    "sources": [
+      "src/ogdl-test"
+    ],
+    "dependencies": [
+      "escritoire/core",
+      "eucalyptus/core",
+      "exoskeleton/core",
+      "gastronomy/core",
+      "guillotine/core",
+      "guillotine/macros",
+      "kaleidoscope/core",
+      "optometry/core"
+    ],
+    "classpath": [
+      "bootstrap/scala/lib/scala-library.jar",
+      "bootstrap/scala/lib/scala-compiler.jar",
+      "bootstrap/scala/lib/scala-reflect.jar",
+      "dist/bundle/lib/nailgun-server-1.0.0.jar"
+    ],
+    "out": "bootstrap/bloop/out",
+    "classesDir": "bootstrap/bin",
+    "scala": {
+      "organization": "scala-lang.org",
+      "name": "scala-compiler",
+      "jars": [
+        "bootstrap/scala/lib/scala-library.jar",
+        "bootstrap/scala/lib/scala-compiler.jar",
+        "bootstrap/scala/lib/scala-reflect.jar"
+      ],
+      "options": [],
+      "version": "2.12.8"
     }
+  }
 }
