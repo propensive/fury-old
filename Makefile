@@ -105,17 +105,18 @@ dist/bundle/bin/ng: dist/bundle/bin
 ######################## 
 ###   verification   ###
 ########################
-test-cases=ogdl
 DOCKER_TAG=fury-ci
 
-bootstrap/bin/probably: bootstrap/git/probably
-	$< --skip-bsp-connection $(BLOOP_VERSION)
-	bloop compile $@/cli
+test-cases=ogdl
+test-targets=$(foreach dep, $(test-cases), $(dep)-test)
+.PHONY: $(test-targets)
 
-test: dist/bundle/bin/launcher bootstrap/bin/fury/.version # bootstrap/bin/probably
+$(test-targets): %-test:
 	$< --skip-bsp-connection $(BLOOP_VERSION)
-	$(foreach dep, $(test-cases), bloop compile fury/$(dep)-test)
-	$(foreach dep, $(test-cases), bloop run fury/$(dep)-test)
+	bloop compile fury/$*-test
+	bloop run fury/$*-test
+
+test: dist/bundle/bin/launcher bootstrap/bin/fury/.version $(test-targets)
 
 integration:
 	@echo "Not yet implemented"
