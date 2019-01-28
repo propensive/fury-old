@@ -22,6 +22,7 @@ import guillotine._
 case class Layout(home: Path, pwd: Path, env: Environment) {
 
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
+  private[this] val userDir          = (home / ".furyrc").extant()
 
   lazy val furyDir: Path      = (pwd / ".fury").extant()
   lazy val bloopDir: Path     = (furyDir / "bloop").extant()
@@ -33,8 +34,8 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   lazy val logsDir: Path      = (furyDir / "logs").extant()
   lazy val sharedDir: Path    = (furyDir / "build" / uniqueId).extant()
   lazy val errorLogfile: Path = logsDir.extant() / s"$uniqueId.log"
-  lazy val userConfig: Path   = furyDir / "config.fury"
-  lazy val aliasesPath: Path  = furyDir / "aliases"
+  lazy val userConfig: Path   = userDir / "config.fury"
+  lazy val aliasesPath: Path  = userDir / "aliases"
 
   def bloopConfig(artifact: Artifact): Path =
     bloopDir.extant() / s"${artifact.hash.encoded[Base64Url]}.json"
