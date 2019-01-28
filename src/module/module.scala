@@ -120,16 +120,14 @@ object ModuleCli {
       io         <- invoc.io()
       project    <- optProject.ascribe(UnspecifiedProject())
       moduleArg  <- invoc(ModuleNameArg)
-      moduleId   <- fury.Module.available(moduleArg, project)
+      moduleId   <- project.unused(moduleArg)
       compilerId <- ~invoc(CompilerArg).toOption
       optCompilerRef <- compilerId
                          .map(ModuleRef.parse(project, _, true))
                          .to[List]
                          .sequence
                          .map(_.headOption)
-      module <- ~fury.Module(
-                   moduleId,
-                   compiler = optCompilerRef.orElse(project.compiler).getOrElse(ModuleRef.JavaRef))
+      module <- ~Module(moduleId, compiler = optCompilerRef.orElse(project.compiler).getOrElse(ModuleRef.JavaRef))
       module <- ~invoc(KindArg).toOption.map { k =>
                  module.copy(kind = k)
                }.getOrElse(module)
@@ -240,7 +238,7 @@ object ModuleCli {
       mainClass  <- ~invoc(MainArg).toOption
       pluginName <- ~invoc(PluginArg).toOption
       nameArg    <- ~invoc(ModuleNameArg).toOption
-      newId      <- ~nameArg.flatMap(project.unused(_).toOption)
+      name       <- nameArg.to[List].map(project.unused(_)).sequence.map(_.headOption)
       bloopSpec <- invoc(BloopSpecArg).toOption
                     .to[List]
                     .map(BloopSpec.parse(_))
