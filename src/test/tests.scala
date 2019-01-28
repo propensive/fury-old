@@ -15,7 +15,7 @@
  */
 package fury.tests
 
-import probation._
+import probably._
 import guillotine._, environments.enclosing
 import impromptu._, scala.concurrent.ExecutionContext.Implicits.global
 
