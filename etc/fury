@@ -75,6 +75,9 @@ case "$1" in
   "completion")
     fury "$@" 2> /dev/null || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
+  "--help")
+    fury "help"
+    ;;
   *)
     fury "$@"
     ;;

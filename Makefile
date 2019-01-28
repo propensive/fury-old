@@ -7,9 +7,8 @@ BLOOP_VERSION=1.2.5
 deps=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 
 NAILGUNJAR=nailgun-server-1.0.0.jar
-BUNDLE=fury-$(VERSION)
 
-all: compile
+all: clean-dist dist/bundle/bin/fury
 
 publish: dist/install.sh
 	gsutil -h "Cache-Control:public,max-age=60" cp $< gs://revivalist/downloads/fury.build/fury-$(VERSION).sh
@@ -128,7 +127,10 @@ ci:
 clean-ci:
 	docker build --no-cache -t fury-ci .
 
-clean: bloop-clean
-	rm -rf bootstrap/bin/fury dist
+clean-dist:
+	rm -rf dist
 
-.PHONY: all publish compile watch bloop-clean clean-compile clean test ci clean-ci test-isolated integration-isolated integration
+clean: clean-dist
+	rm -rf bootstrap/bin/fury
+
+.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration
