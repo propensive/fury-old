@@ -110,6 +110,7 @@ DOCKER_TAG=fury-ci
 
 test: dist/bundle/bin/launcher
 	$< --skip-bsp-connection $(BLOOP_VERSION)
+	bloop compile fury/ogdl-test
 	bloop run fury/ogdl-test
 
 integration:
