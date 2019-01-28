@@ -14,7 +14,8 @@
       "guillotine/core",
       "guillotine/macros",
       "kaleidoscope/core",
-      "optometry/core"
+      "optometry/core",
+      "probably/cli"
     ],
     "classpath": [
       "bootstrap/scala/lib/scala-library.jar",
