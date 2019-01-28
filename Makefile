@@ -62,7 +62,6 @@ bootstrap/bin/fury/.version: dist/bundle/bin/launcher bootstrap/scala dist/bundl
 	bloop compile fury
 	echo "$(VERSION)" > $@
 
-
 ######################## 
 ###     libraries    ###
 ########################
@@ -108,9 +107,16 @@ dist/bundle/bin/ng: dist/bundle/bin
 ########################
 DOCKER_TAG=fury-ci
 
-test: dist/bundle/bin/launcher
+test-cases=ogdl
+test-targets=$(foreach dep, $(test-cases), $(dep)-test)
+.PHONY: $(test-targets)
+
+$(test-targets): %-test:
 	$< --skip-bsp-connection $(BLOOP_VERSION)
-	bloop run fury/ogdl-test
+	bloop compile fury/$*-test
+	bloop run fury/$*-test
+
+test: dist/bundle/bin/launcher bootstrap/bin/fury/.version $(test-targets)
 
 integration:
 	@echo "Not yet implemented"
