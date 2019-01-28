@@ -204,8 +204,8 @@ object BuildCli {
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
                         module.ref(project) :: artifacts.map(_.ref).to[List]))
-      future <- ~universe
-                 .compile(io, artifact, multiplexer, Map(), layout)
+      future <- ~compilation
+                 .compile(io, module.ref(project), multiplexer, Map(), layout)
                  .apply(module.ref(project))
       _ <- ~Graph.live(
               changed = false,
@@ -266,8 +266,8 @@ object BuildCli {
       module       <- optModule.ascribe(UnspecifiedModule())
       hierarchy    <- schema.hierarchy(io, layout.pwd, layout)
       universe     <- hierarchy.universe
-      artifact     <- universe.artifact(io, module.ref(project), layout)
-      _            <- universe.saveJars(io, module.ref(project), dir in layout.pwd, layout)
+      compilation  <- universe.compilation(io, module.ref(project), layout)
+      _            <- compilation.saveJars(io, module.ref(project), dir in layout.pwd, layout)
     } yield io.await()
   }
 
@@ -285,15 +285,15 @@ object BuildCli {
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
-      invoc     <- cli.read()
-      io        <- invoc.io()
-      module    <- optModule.ascribe(UnspecifiedModule())
-      project   <- optProject.ascribe(UnspecifiedProject())
-      hierarchy <- schema.hierarchy(io, layout.pwd, layout)
-      universe  <- hierarchy.universe
-      artifact  <- universe.artifact(io, module.ref(project), layout)
-      classpath <- universe.classpath(io, module.ref(project), layout)
-      _         <- ~io.println(classpath.map(_.value).join(":"))
+      invoc       <- cli.read()
+      io          <- invoc.io()
+      module      <- optModule.ascribe(UnspecifiedModule())
+      project     <- optProject.ascribe(UnspecifiedProject())
+      hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
+      universe    <- hierarchy.universe
+      compilation <- universe.compilation(io, module.ref(project), layout)
+      classpath   <- ~compilation.classpath(module.ref(project), layout)
+      _           <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
   }
 

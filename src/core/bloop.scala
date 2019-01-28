@@ -70,14 +70,14 @@ object Bloop {
 
   def generateFiles(
       io: Io,
-      artifacts: Iterable[Artifact],
+      compilation: Compilation,
       universe: Universe,
       layout: Layout
     ): Outcome[Iterable[Path]] =
-    new CollOps(artifacts.map { artifact =>
+    new CollOps(compilation.artifacts.values.map { artifact =>
       for {
-        path       <- layout.bloopConfig(artifact).mkParents()
-        jsonString <- makeConfig(io, artifact, universe, layout)
+        path       <- layout.bloopConfig(compilation.hash(artifact.ref)).mkParents()
+        jsonString <- makeConfig(io, artifact, compilation, universe, layout)
         _          <- ~(if (!path.exists) path.writeSync(jsonString))
       } yield List(path)
     }).sequence.map(_.flatten)
@@ -85,30 +85,33 @@ object Bloop {
   private def makeConfig(
       io: Io,
       artifact: Artifact,
+      compilation: Compilation,
       universe: Universe,
       layout: Layout
     ): Outcome[String] =
     for {
       deps      <- universe.dependencies(io, artifact.ref, layout)
-      _         = artifact.writePlugin(layout)
+      _         = compilation.writePlugin(artifact.ref, layout)
       compiler  = artifact.compiler
-      classpath <- universe.classpath(io, artifact.ref, layout)
-      compilerClasspath <- compiler.map { c =>
-                            universe.classpath(io, c.ref, layout)
-                          }.getOrElse(Success(Set()))
-      params <- universe.allParams(io, artifact.ref, layout)
+      classpath <- ~compilation.classpath(artifact.ref, layout)
+      compilerClasspath <- ~(compiler.map { c =>
+                            compilation.classpath(c.ref, layout)
+                          }.getOrElse(Set()))
+      params <- ~compilation.allParams(io, artifact.ref, layout)
     } yield
       json(
-          name = artifact.hash.encoded[Base64Url],
+          name = compilation.hash(artifact.ref).encoded[Base64Url],
           scalacOptions = params,
           // FIXME: Don't hardcode this value
           bloopSpec = compiler
             .flatMap(_.bloopSpec)
             .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
-          dependencies = deps.map(_.hash.encoded[Base64Url]).to[List],
+          dependencies = deps.map { a =>
+            compilation.hash(a.ref).encoded[Base64Url]
+          }.to[List],
           fork = false,
-          classesDir = str"${layout.classesDir(artifact).value}",
-          outDir = str"${layout.outputDir(artifact).value}",
+          classesDir = str"${layout.classesDir(compilation.hash(artifact.ref)).value}",
+          outDir = str"${layout.outputDir(compilation.hash(artifact.ref)).value}",
           classpath = classpath.map(_.value).to[List].distinct,
           baseDirectory = layout.pwd.value,
           javaOptions = Nil,

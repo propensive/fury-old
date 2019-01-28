@@ -148,7 +148,10 @@ case class BloopSpec(org: String, name: String, version: String)
 case class Compilation(
     graph: Map[ModuleRef, List[ModuleRef]],
     checkouts: Set[Checkout],
-    artifacts: Map[ModuleRef, Artifact]) {
+    artifacts: Map[ModuleRef, Artifact],
+    universe: Universe) {
+
+  lazy val allDependencies: Set[Artifact] = artifacts.values.to[Set]
 
   def apply(ref: ModuleRef): Outcome[Artifact] =
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
@@ -157,7 +160,131 @@ case class Compilation(
     checkouts.foreach(_.get(io, layout).unit)
 
   def generateFiles(io: Io, universe: Universe, layout: Layout): Outcome[Iterable[Path]] =
-    Bloop.generateFiles(io, artifacts.values, universe, layout)
+    Bloop.generateFiles(io, this, universe, layout)
+
+  def hash(ref: ModuleRef): Digest = {
+    val artifact = artifacts(ref)
+    (
+        artifact.kind,
+        artifact.main,
+        artifact.plugin,
+        artifact.checkouts,
+        artifact.binaries,
+        artifact.dependencies,
+        artifact.compiler,
+        artifact.params,
+        artifact.localSources,
+        artifact.sharedSources,
+        artifact.intransitive,
+        artifact.dependencies.map(hash(_))).digest[Md5]
+  }
+
+  def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
+    allDependencies.map { a =>
+      layout.classesDir(hash(a.ref))
+    } ++ allDependencies.flatMap(_.binaries) ++ artifacts(ref).binaries
+
+  def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
+    val artifact = artifacts(ref)
+    if (artifact.kind == Plugin) {
+      val file = layout.classesDir(hash(ref)) / "scalac-plugin.xml"
+
+      artifact.main.foreach { main =>
+        file.writeSync(
+            str"<plugin><name>${artifact.plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
+      }
+    }
+  }
+
+  def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Outcome[Unit] =
+    for {
+      dest <- dest.directory
+      dirs <- ~(allDependencies + artifacts(ref)).map { a =>
+               layout.classesDir(hash(a.ref))
+             }
+      files <- ~dirs.map { dir =>
+                (dir, dir.children)
+              }.filter(_._2.nonEmpty)
+      bins         <- ~allDependencies.flatMap(_.binaries)
+      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(hash(ref))}")
+      manifestFile <- Manifest.file(layout.manifestFile(hash(ref)), bins.map(_.name), None)
+      path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
+      _            <- ~io.println(msg"Saving JAR file $path")
+      _            <- layout.shell.aggregatedJar(path, files, manifestFile)
+      _ <- ~bins.foreach { b =>
+            b.copyTo(dest / b.name)
+          }
+    } yield ()
+
+  def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
+    (artifacts(ref).params ++ allDependencies.filter(_.kind == Plugin).map { plugin =>
+      Parameter(str"Xplugin:${layout.classesDir(hash(plugin.ref))}")
+    }).map(_.parameter)
+
+  def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
+    artifacts(ref).compiler.map { c =>
+      classpath(c.ref, layout)
+    }.getOrElse(Set()) ++ classpath(ref, layout) + layout.classesDir(hash(ref))
+
+  def compile(
+      io: Io,
+      moduleRef: ModuleRef,
+      multiplexer: Multiplexer[ModuleRef, CompileEvent],
+      futures: Map[ModuleRef, Future[CompileResult]] = Map(),
+      layout: Layout
+    ): Map[ModuleRef, Future[CompileResult]] = {
+
+    val artifact = artifacts(moduleRef)
+
+    val newFutures = graph(moduleRef).foldLeft(futures) { (futures, dep) =>
+      if (futures.contains(dep)) futures
+      else compile(io, dep, multiplexer, futures, layout)
+    }
+
+    val dependencyFutures = Future.sequence(graph(moduleRef).map(newFutures))
+
+    val future = dependencyFutures.flatMap { inputs =>
+      if (inputs.exists(!_.success)) {
+        multiplexer(artifact.ref) = SkipCompile(artifact.ref)
+        multiplexer.close(artifact.ref)
+        Future.successful(CompileResult(false, ""))
+      } else
+        Future {
+          val out = new StringBuilder()
+          multiplexer(artifact.ref) = StartCompile(artifact.ref)
+
+          val compileResult: Boolean = blocking {
+            layout.shell.bloop
+              .compile(hash(moduleRef).encoded) { ln =>
+                out.append(ln)
+                out.append("\n")
+              }
+              .await() == 0
+          }
+
+          val finalResult = if (compileResult && artifact.kind == Application) {
+            layout.shell
+              .runJava(
+                  runtimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
+                  artifact.main.getOrElse(""),
+                  layout) { ln =>
+                out.append(ln)
+                out.append("\n")
+              }
+              .await() == 0
+          } else compileResult
+
+          multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
+
+          multiplexer.close(artifact.ref)
+
+          CompileResult(finalResult, out.toString)
+        }
+    }
+
+    newFutures.updated(artifact.ref, future)
+  }
+
 }
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
@@ -224,24 +351,6 @@ case class Universe(
   def ++(that: Universe): Universe =
     Universe(projects ++ that.projects, schemas ++ that.schemas, dirs ++ that.dirs)
 
-  def classpath(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Path]] =
-    for {
-      art  <- artifact(io, ref, layout)
-      deps <- transitiveDependencies(io, ref, layout)
-      dirs <- ~deps.map(layout.classesDir(_))
-      bins <- ~deps.flatMap(_.binaries)
-    } yield (dirs ++ bins ++ art.binaries)
-
-  def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Path]] =
-    for {
-      cp       <- classpath(io, ref, layout)
-      art      <- artifact(io, ref, layout)
-      compiler <- ~art.compiler
-      compilerCp <- compiler.map { c =>
-                     classpath(io, c.ref, layout)
-                   }.getOrElse(Success(Set()))
-    } yield compilerCp ++ cp + layout.classesDir(art)
-
   def dependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
     for {
       project <- project(ref.projectId)
@@ -259,16 +368,6 @@ case class Universe(
   def clean(ref: ModuleRef, layout: Layout): Unit =
     layout.classesDir.delete().unit
 
-  def allParams(io: Io, ref: ModuleRef, layout: Layout): Outcome[List[String]] =
-    for {
-      tDeps    <- transitiveDependencies(io, ref, layout)
-      plugins  <- ~tDeps.filter(_.kind == Plugin)
-      artifact <- artifact(io, ref, layout)
-    } yield
-      (artifact.params ++ plugins.map { plugin =>
-        Parameter(str"Xplugin:${layout.classesDir(plugin)}")
-      }).map(_.parameter)
-
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Outcome[Compilation] =
     for {
       art <- artifact(io, ref, layout)
@@ -281,87 +380,14 @@ case class Universe(
       checkouts <- graph.keys.map { key =>
                     checkout(key, layout)
                   }.sequence
-    } yield Compilation(graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
-
-  def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Outcome[Unit] =
-    for {
-      dest    <- dest.directory
-      current <- artifact(io, ref, layout)
-      deps    <- transitiveDependencies(io, ref, layout)
-      dirs    <- ~(deps + current).map(layout.classesDir(_))
-      files <- ~dirs.map { dir =>
-                (dir, dir.children)
-              }.filter(_._2.nonEmpty)
-      bins         <- ~deps.flatMap(_.binaries)
-      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(current)}")
-      manifestFile <- Manifest.file(layout.manifestFile(current), bins.map(_.name), None)
-      path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _            <- ~io.println(msg"Saving JAR file $path")
-      _            <- layout.shell.aggregatedJar(path, files, manifestFile)
-      _ <- ~bins.foreach { b =>
-            b.copyTo(dest / b.name)
-          }
-    } yield ()
-
-  def compile(
-      io: Io,
-      artifact: Artifact,
-      multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      futures: Map[ModuleRef, Future[CompileResult]] = Map(),
-      layout: Layout
-    ): Map[ModuleRef, Future[CompileResult]] = {
-
-    // FIXME: don't .get
-    val deps = dependencies(io, artifact.ref, layout).toOption.get
-
-    val newFutures = deps.foldLeft(futures) { (futures, dep) =>
-      if (futures.contains(dep.ref)) futures
-      else compile(io, dep, multiplexer, futures, layout)
-    }
-
-    val dependencyFutures = Future.sequence(deps.map(_.ref).map(newFutures))
-
-    val future = dependencyFutures.flatMap { inputs =>
-      if (inputs.exists(!_.success)) {
-        multiplexer(artifact.ref) = SkipCompile(artifact.ref)
-        multiplexer.close(artifact.ref)
-        Future.successful(CompileResult(false, ""))
-      } else
-        Future {
-          val out = new StringBuilder()
-          multiplexer(artifact.ref) = StartCompile(artifact.ref)
-
-          val compileResult: Boolean = blocking {
-            layout.shell.bloop
-              .compile(artifact.hash.encoded) { ln =>
-                out.append(ln)
-                out.append("\n")
-              }
-              .await() == 0
-          }
-
-          val finalResult = if (compileResult && artifact.kind == Application) {
-            layout.shell
-              .runJava(
-                  runtimeClasspath(io, artifact.ref, layout).toOption.get.to[List].map(_.value),
-                  artifact.main.getOrElse(""),
-                  layout) { ln =>
-                out.append(ln)
-                out.append("\n")
-              }
-              .await() == 0
-          } else compileResult
-
-          multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
-
-          multiplexer.close(artifact.ref)
-
-          CompileResult(finalResult, out.toString)
-        }
-    }
-
-    newFutures.updated(artifact.ref, future)
-  }
+    } yield
+      Compilation(
+          graph,
+          checkouts.foldLeft(Set[Checkout]())(_ ++ _),
+          artifacts ++ (art.compiler.map { c =>
+            c.ref -> c
+          }),
+          this)
 
 }
 
@@ -823,18 +849,6 @@ case class Artifact(
     intransitive: Boolean,
     localSources: List[Path],
     sharedSources: List[Path]) {
-
-  def hash: Digest =
-    (kind, main, checkouts, binaries, dependencies, compiler, params).digest[Md5]
-
-  def writePlugin(layout: Layout): Unit = if (kind == Plugin) {
-    val file = layout.classesDir(this) / "scalac-plugin.xml"
-
-    main.foreach { main =>
-      file.writeSync(
-          str"<plugin><name>${plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
-    }
-  }
 
   def sourcePaths(layout: Layout): List[Path] =
     localSources ++ sharedSources ++ checkouts.flatMap { c =>

@@ -37,19 +37,19 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   lazy val userConfig: Path   = userDir / "config.fury"
   lazy val aliasesPath: Path  = userDir / "aliases"
 
-  def bloopConfig(artifact: Artifact): Path =
-    bloopDir.extant() / s"${artifact.hash.encoded[Base64Url]}.json"
+  def bloopConfig(digest: Digest): Path =
+    bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
 
   lazy val furyConfig: Path = pwd / "layer.fury"
 
-  def outputDir(artifact: Artifact): Path =
-    (analysisDir / artifact.hash.encoded[Base64Url]).extant()
+  def outputDir(digest: Digest): Path =
+    (analysisDir / digest.encoded[Base64Url]).extant()
 
-  def classesDir(artifact: Artifact): Path =
-    (classesDir / artifact.hash.encoded[Base64Url]).extant()
+  def classesDir(digest: Digest): Path =
+    (classesDir / digest.encoded[Base64Url]).extant()
 
-  def manifestFile(artifact: Artifact): Path =
-    (resourcesDir / artifact.hash.encoded[Base64Url]).extant() / "manifest.mf"
+  def manifestFile(digest: Digest): Path =
+    (resourcesDir / digest.encoded[Base64Url]).extant() / "manifest.mf"
 
   val shell = Shell(env)
 }
