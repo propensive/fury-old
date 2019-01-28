@@ -15,23 +15,24 @@
  */
 package fury
 
-case class NotInitialized(dir: Path)                extends FuryException
-case class ModuleAlreadyExists(module: ModuleId)    extends FuryException
-case class ProjectAlreadyExists(project: ProjectId) extends FuryException
-case class MissingCommand()                         extends FuryException
-case class UnknownCommand(command: String)          extends FuryException
-case class AlreadyInitialized()                     extends FuryException
-case class UnknownCompiler()                        extends FuryException
-case class InvalidValue(value: String)              extends FuryException
-case class InitFailure()                            extends FuryException
-case class UnspecifiedProject()                     extends FuryException
-case class UnspecifiedModule()                      extends FuryException
-case class UnspecifiedMain(module: ModuleId)        extends FuryException
-case class GraalVMError(message: String)            extends FuryException
-case class InvalidKind(expected: Kind)              extends FuryException
-case class UnspecifiedRepo()                        extends FuryException
-case class ProjectConflict(ids: Set[ProjectId])     extends FuryException
-case class SchemaDifferences()                      extends FuryException
+case class NotInitialized(dir: Path)                    extends FuryException
+case class ModuleAlreadyExists(module: ModuleId)        extends FuryException
+case class ProjectAlreadyExists(project: ProjectId)     extends FuryException
+case class MissingCommand()                             extends FuryException
+case class UnknownCommand(command: String)              extends FuryException
+case class AlreadyInitialized()                         extends FuryException
+case class UnknownCompiler()                            extends FuryException
+case class InvalidValue(value: String)                  extends FuryException
+case class InitFailure()                                extends FuryException
+case class UnspecifiedProject()                         extends FuryException
+case class UnspecifiedModule()                          extends FuryException
+case class UnspecifiedMain(module: ModuleId)            extends FuryException
+case class GraalVMError(message: String)                extends FuryException
+case class InvalidKind(expected: Kind)                  extends FuryException
+case class UnspecifiedRepo()                            extends FuryException
+case class ProjectConflict(ids: Set[ProjectId])         extends FuryException
+case class SchemaDifferences()                          extends FuryException
+case class CyclesInDependencies(cycle: List[ModuleRef]) extends FuryException
 
 object ItemNotFound {
 

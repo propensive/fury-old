@@ -30,6 +30,7 @@ import org.eclipse.lsp4j.jsonrpc.Launcher
 import com.google.gson.{Gson, JsonElement}
 import fury.Graph.{Compiling, DiagnosticError, DiagnosticMessage}
 
+import scala.annotation.tailrec
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -574,14 +575,42 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ++(that: Universe): Universe =
     Universe(entities ++ that.entities)
 
+  @tailrec
+  final def addToMap[A, B](l: Map[A, Set[B]], r: Traversable[(A, B)]): Map[A, Set[B]] =
+    r match {
+      case List()               => l
+      case (key, value) :: tail => addToMap(l.updated(key, l.getOrElse(key, Set()) + value), tail)
+    }
+
+  def getDependencyGraph(ref: ModuleRef): Try[DirectedGraph[ModuleRef]] = {
+    def getGraphHelper(
+        graph: DirectedGraph[ModuleRef],
+        queue: List[ModuleRef]
+      ): Try[DirectedGraph[ModuleRef]] =
+      queue match {
+        case List() => ~graph
+        case ref :: tail =>
+          for {
+            entity             <- entity(ref.projectId)
+            module             <- entity.project(ref.moduleId)
+            deps               = module.after ++ module.compilerDependencies
+            newConnections     = addToMap(graph.connections, deps.toList.map(x => (ref, x)))
+            vertices           = graph.connections.keys.toList
+            newGraph           = DirectedGraph(newConnections)
+            notVisitedVertices = deps.diff(vertices.toSet)
+            ans                <- getGraphHelper(newGraph, tail ++ notVisitedVertices)
+          } yield ans
+      }
+    getGraphHelper(DirectedGraph(Map()), List(ref))
+  }
+
   private[this] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
     for {
-      entity <- entity(ref.projectId)
-      module <- entity.project(ref.moduleId)
-      deps   = module.after ++ module.compilerDependencies
-      art    <- artifact(io, ref, layout)
-      tDeps  <- deps.map(dependencies(io, _, layout)).sequence
-    } yield deps ++ tDeps.flatten
+      graph <- getDependencyGraph(ref)
+      descendants <- graph
+                      .allDescendants(ref)
+                      .fold(cycle => Failure(CyclesInDependencies(cycle)), Success(_))
+    } yield descendants
 
   def clean(ref: ModuleRef, layout: Layout): Unit =
     layout.classesDir.delete().unit

@@ -23,7 +23,6 @@ import probably._
 import scala.language.implicitConversions
 
 object DirectedGraphTest extends TestApp {
-
   override def tests(): Unit = {
     test("Graph with no edges has no cycles") {
       DirectedGraph[Int](Map(1 -> Set()))
@@ -78,6 +77,5 @@ object DirectedGraphTest extends TestApp {
         DirectedGraph(Map(1 -> Set(2, 4), 2 -> Set(3, 4), 3 -> Set(4), 4 -> Set.empty[Int]))
       input.subgraph(Set(1, 2))
     }.assert { _ == DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
-
   }
 }

@@ -85,6 +85,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"The project '${e.project}' already exists.")
         case e: AlreadyInitialized =>
           cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
+        case CyclesInDependencies(cycle) =>
+          cli.abort(msg"Cycle in dependencies : [${cycle.mkString(" -> ")}]")
         case e =>
           val errorString =
             s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"

@@ -12,8 +12,8 @@ RUN mkdir /opt/scala-2.12.8 && \
 ENV PATH="/opt/scala-2.12.8/bin:${PATH}"
 
 # Install GraalVM
-ENV GRAAL_VERSION "1.0.0-rc11"
-RUN sh -c "cd /opt &&  curl -L https://github.com/oracle/graal/releases/download/vm-1.0.0-rc11/graalvm-ce-${GRAAL_VERSION}-linux-amd64.tar.gz | tar zxf -"
+ENV GRAAL_VERSION "1.0.0-rc12"
+RUN sh -c "cd /opt &&  curl -L https://github.com/oracle/graal/releases/download/vm-${GRAAL_VERSION}/graalvm-ce-${GRAAL_VERSION}-linux-amd64.tar.gz | tar zxf -"
 ENV GRAAL_HOME "/opt/graalvm-ce-${GRAAL_VERSION}"
 RUN apt-get -y install gcc libz-dev
 
