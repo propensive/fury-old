@@ -1,13 +1,13 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "probation/cli",
-    "directory": "bootstrap/git/probation/src",
+    "name": "probably/cli",
+    "directory": "bootstrap/git/probably/src",
     "sources": [
-      "bootstrap/git/probation/src/cli"
+      "bootstrap/git/probably/src/cli"
     ],
     "dependencies": [
-      "probation/core"
+      "probably/core"
     ],
     "classpath": [
       "bootstrap/scala/lib/scala-library.jar",

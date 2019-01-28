@@ -1,0 +1,20 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'fury/ci', '.']
+  timeout: 600s
+  id: 'build'
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['run', '-u', 'bash_user', '-w', '/home/bash_user', '-t', 'fury/ci', '/test/run_all']
+  timeout: 120s
+  id: 'integration'
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['run', '-w', '/build', '-t', 'fury/ci', 'make', 'test']
+  timeout: 120s
+  id: 'unittests'
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+
+timeout: 840s

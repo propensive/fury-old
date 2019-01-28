@@ -1,16 +1,26 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "probation/macros",
-    "directory": "bootstrap/git/probation/src",
+    "name": "fury/ogdl-test",
+    "directory": ".",
     "sources": [
-      "bootstrap/git/probation/src/macros"
+      "src/ogdl-test"
     ],
-    "dependencies": [],
+    "dependencies": [
+      "escritoire/core",
+      "eucalyptus/core",
+      "exoskeleton/core",
+      "gastronomy/core",
+      "guillotine/core",
+      "guillotine/macros",
+      "kaleidoscope/core",
+      "optometry/core"
+    ],
     "classpath": [
       "bootstrap/scala/lib/scala-library.jar",
       "bootstrap/scala/lib/scala-compiler.jar",
-      "bootstrap/scala/lib/scala-reflect.jar"
+      "bootstrap/scala/lib/scala-reflect.jar",
+      "dist/bundle/lib/nailgun-server-1.0.0.jar"
     ],
     "out": "bootstrap/bloop/out",
     "classesDir": "bootstrap/bin",

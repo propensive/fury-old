@@ -1,14 +1,12 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "probation/core",
-    "directory": "bootstrap/git/probation/src",
+    "name": "probably/macros",
+    "directory": "bootstrap/git/probably/src",
     "sources": [
-      "bootstrap/git/probation/src/core"
+      "bootstrap/git/probably/src/macros"
     ],
-    "dependencies": [
-      "probation/macros"
-    ],
+    "dependencies": [],
     "classpath": [
       "bootstrap/scala/lib/scala-library.jar",
       "bootstrap/scala/lib/scala-compiler.jar",
