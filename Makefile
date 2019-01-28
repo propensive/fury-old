@@ -111,12 +111,12 @@ test-cases=ogdl
 test-targets=$(foreach dep, $(test-cases), $(dep)-test)
 .PHONY: $(test-targets)
 
-$(test-targets): %-test:
+$(test-targets): %-test: dist/bundle/bin/launcher bootstrap/git/probably
 	$< --skip-bsp-connection $(BLOOP_VERSION)
 	bloop compile fury/$*-test
 	bloop run fury/$*-test
 
-test: dist/bundle/bin/launcher bootstrap/bin/fury/.version $(test-targets)
+test:  bootstrap/bin/fury/.version $(test-targets)
 
 integration:
 	@echo "Not yet implemented"
