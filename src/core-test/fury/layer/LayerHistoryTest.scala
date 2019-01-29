@@ -3,8 +3,6 @@ import fury._
 import probably._
 
 object LayerHistoryTest extends TestApp {
-  private val initialLayer = Layer(version = 0)
-
   private var currentLayer: LayerRepository = _
   private var history: LayerHistory         = _
 
@@ -12,33 +10,49 @@ object LayerHistoryTest extends TestApp {
     test("modifies current layer on update") {
       init()
 
-      history.update(Layer(version = 1))
+      history.update(Layer())
 
-      currentLayer.fetch()
-    }.assert(_.get == Layer(version = 1))
+      revisionOf(currentLayer)
+    }.assert(revision => revision == 1)
 
     test("does not change current layer if history is empty") {
       init()
+      currentLayer.store(Layer(revision = 10))
 
       history.undo()
 
-      currentLayer.fetch()
-    }.assert(_.get == initialLayer)
+      revisionOf(currentLayer)
+    }.assert(revision => revision == 10)
 
     test("restores previous layer on undo") {
       init()
 
-      history.update(Layer(version = 1))
-      history.update(Layer(version = 2))
+      history.update(Layer())
+      history.update(Layer())
       history.undo()
 
-      currentLayer.fetch()
-    }.assert(_.get == Layer(version = 1))
+      revisionOf(currentLayer)
+    }.assert(revision => revision == 1)
+
+    test("allows undoing more than one revision") {
+      init()
+
+      history.update(Layer())
+      history.update(Layer())
+      history.update(Layer())
+      history.undo()
+      history.undo()
+      history.undo()
+
+      revisionOf(currentLayer)
+    }.assert(revision => revision == 0)
   }
 
-  private def init(): Unit = {
+  private def revisionOf(currentLayer: LayerRepository) = currentLayer.fetch().map(_.revision).get
+
+  private def init() = {
     currentLayer = LayerRepository.inMemory()
-    currentLayer.store(initialLayer)
-    history = new LayerHistory(LayerRepository.inMemory(), currentLayer)
+    currentLayer.store(Layer())
+    history = new LayerHistory(new LayerRevisions(), currentLayer)
   }
 }

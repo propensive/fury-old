@@ -480,6 +480,7 @@ object Alias {
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
 case class Layer(
+    revision: Long = 0L,
     version: Int = Layer.CurrentVersion,
     schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
     main: SchemaId = SchemaId.default,
@@ -504,7 +505,7 @@ object Layer {
   def read(io: Io, file: Path, layout: Layout): Outcome[Layer] =
     Success(Ogdl.read[Layer](file, upgrade(io, _, layout)).toOption.getOrElse(Layer()))
 
-  def save(layer: Layer, layout: Layout): Outcome[Layer] = LayerHistory(layout).update(layer)
+  def save(layer: Layer, layout: Layout): Outcome[Unit] = LayerHistory(layout).update(layer)
 
   private def upgrade(io: Io, ogdl: Ogdl, layout: Layout): Ogdl =
     (try ogdl.version().toInt

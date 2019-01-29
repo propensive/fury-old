@@ -3,20 +3,29 @@ package fury.layer
 import fury._
 import fury.error.`package`.Outcome
 
-final class LayerHistory(previousVersion: LayerRepository, currentVersion: LayerRepository) {
-  def undo(): Outcome[Unit] = previousVersion.fetch().flatMap(currentVersion.store)
+final class LayerHistory(previousRevisions: LayerRevisions, currentVersion: LayerRepository) {
 
-  def update(layer: Layer): Outcome[Layer] =
+  def undo(): Outcome[Unit] =
     for {
-      _ <- storeCurrentLayer()
-    _ <- currentVersion.store(layer)
-    } yield layer
+      currentLayer    <- currentVersion.fetch()
+      currentRevision = currentLayer.revision
+      previousLayer   <- previousRevisions.fetchPrevious(currentRevision)
+      _               <- currentVersion.store(previousLayer)
+    } yield Unit
 
-  private def storeCurrentLayer() = currentVersion.fetch().flatMap(previousVersion.store)
+  def update(layer: Layer): Outcome[Unit] =
+    for {
+      currentLayer    <- currentVersion.fetch()
+      _               <- previousRevisions.store(currentLayer)
+      currentRevision = currentLayer.revision
+      updatedLayer    = layer.copy(revision = currentRevision + 1)
+      _               <- currentVersion.store(updatedLayer)
+    } yield Unit
+
 }
 
 object LayerHistory {
-  def apply(layout: Layout): LayerHistory = {
-    new LayerHistory(LayerRepository.inMemory(), LayerRepository.inMemory())
-  }
+
+  def apply(layout: Layout): LayerHistory =
+    new LayerHistory(new LayerRevisions(), LayerRepository.inMemory())
 }
