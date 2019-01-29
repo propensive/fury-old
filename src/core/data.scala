@@ -15,14 +15,15 @@
  */
 package fury
 
-import exoskeleton.{InvalidArgValue, MissingArg}
+import java.nio.file.Files
+
+import exoskeleton._
+import fury.error._
 import fury.io._
 import fury.ogdl._
-import fury.error._
 import gastronomy._
-import guillotine._
-import mercator._
 import kaleidoscope._
+import mercator._
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
@@ -501,6 +502,14 @@ object Layer {
 
   def read(io: Io, file: Path, layout: Layout): Outcome[Layer] =
     Success(Ogdl.read[Layer](file, upgrade(io, _, layout)).toOption.getOrElse(Layer()))
+
+  def save[T: OgdlWriter](value: T, path: Path): Unit =
+    Outcome
+      .rescue[java.io.IOException](FileWriteError(path)) {
+        val content: String = Ogdl.serialize(implicitly[OgdlWriter[T]].write(value))
+        Files.write(path.javaPath, content.getBytes())
+      }
+      .unit
 
   private def upgrade(io: Io, ogdl: Ogdl, layout: Layout): Ogdl =
     (try ogdl.version().toInt
