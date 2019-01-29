@@ -47,7 +47,7 @@ object ImportCli {
       schemaRef <- invoc(ImportArg)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
                   _.modify(_)(_ + schemaRef))
-      _ <- ~Layer.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -65,7 +65,7 @@ object ImportCli {
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
-      _         <- ~Layer.save(layer, layout.furyConfig)
+      _         <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 

@@ -72,7 +72,7 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(layer, layout.furyConfig)
+      _         <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -106,7 +106,7 @@ object RepoCli {
       newRepo <- ~repo.copy(local = Some(absPath))
       lens    <- ~Lenses.layer.repos(schema.id)
       layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _       <- ~Layer.save(layer, layout.furyConfig)
+      _       <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -141,7 +141,7 @@ object RepoCli {
       newLayer = newRepos.foldLeft(layer) { (layer, repoDiff) =>
         repoDiff match { case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
       }
-      _ <- ~Layer.save(newLayer, layout.furyConfig)
+      _ <- ~Layer.save(newLayer, layout)
       _ <- ~newRepos.foreach {
             case (newRepo, _) =>
               io.println(s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.commit.id}]")
@@ -187,7 +187,7 @@ object RepoCli {
       sourceRepo <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
       lens       <- ~Lenses.layer.repos(schema.id)
       layer      <- ~(lens.modify(layer)(_ + sourceRepo))
-      _          <- ~Layer.save(layer, layout.furyConfig)
+      _          <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -226,7 +226,7 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      _           <- ~Layer.save(layer, layout.furyConfig)
+      _           <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -243,7 +243,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(layer, layout.furyConfig)
+      _         <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 }

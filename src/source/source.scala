@@ -99,7 +99,7 @@ object SourceCli {
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
-      _ <- ~Layer.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -131,7 +131,7 @@ object SourceCli {
       source    <- ~Source.unapply(sourceArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)
-      _ <- ~Layer.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 }

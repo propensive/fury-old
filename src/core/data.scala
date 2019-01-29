@@ -20,6 +20,7 @@ import java.nio.file.Files
 import exoskeleton._
 import fury.error._
 import fury.io._
+import fury.layer._
 import fury.ogdl._
 import gastronomy._
 import kaleidoscope._
@@ -503,13 +504,7 @@ object Layer {
   def read(io: Io, file: Path, layout: Layout): Outcome[Layer] =
     Success(Ogdl.read[Layer](file, upgrade(io, _, layout)).toOption.getOrElse(Layer()))
 
-  def save[T: OgdlWriter](value: T, path: Path): Unit =
-    Outcome
-      .rescue[java.io.IOException](FileWriteError(path)) {
-        val content: String = Ogdl.serialize(implicitly[OgdlWriter[T]].write(value))
-        Files.write(path.javaPath, content.getBytes())
-      }
-      .unit
+  def save(layer: Layer, layout: Layout): Outcome[Layer] = LayerHistory(layout).update(layer)
 
   private def upgrade(io: Io, ogdl: Ogdl, layout: Layout): Ogdl =
     (try ogdl.version().toInt

@@ -43,7 +43,7 @@ object ConfigCli {
       config <- ~newTheme.map { th =>
                  config.copy(theme = th)
                }.getOrElse(config)
-      _ <- ~Layer.save(config, layout.userConfig)
+      _ <- ~layout.userConfig.write(config)
     } yield io.await()
   }
 }
@@ -85,7 +85,7 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) --= aliasToDel)
-      _ <- ~Layer.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -119,7 +119,7 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) += alias)
-      _ <- ~Layer.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 }
@@ -358,7 +358,7 @@ object LayerCli {
       force <- ~invoc(ForceArg).toOption.isDefined
       layer <- ~Layer()
       _     <- layout.furyConfig.mkParents()
-      _     <- ~Layer.save(layer, layout.furyConfig)
+      _     <- ~Layer.save(layer, layout)
       _     <- layout.shell.git.init(layout.pwd)
       _     <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
       _     <- layout.shell.git.commit(layout.pwd, "Initial commit")
