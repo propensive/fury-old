@@ -146,10 +146,45 @@ object BloopSpec {
 case class BloopSpec(org: String, name: String, version: String)
 
 case class Compilation(
+    goal: ModuleRef,
     graph: Map[ModuleRef, List[ModuleRef]],
     checkouts: Set[Checkout],
     artifacts: Map[ModuleRef, Artifact],
     universe: Universe) {
+
+  lazy val hashes: Map[ModuleRef, Digest] =
+    artifacts.keys.foldLeft(Map[ModuleRef, Digest]()) {
+      case (acc, next) =>
+        calculateHashes(next, acc)
+    }
+
+  private[this] def calculateHashes(
+      ref: ModuleRef,
+      hashes: Map[ModuleRef, Digest]
+    ): Map[ModuleRef, Digest] =
+    if (hashes.contains(ref)) hashes
+    else {
+      val artifact = artifacts(ref)
+      val newHashes = graph(ref).foldLeft(hashes) {
+        case (acc, nextRef) => calculateHashes(nextRef, acc)
+      }
+      newHashes.updated(
+          ref,
+          (
+              artifact.kind,
+              artifact.main,
+              artifact.plugin,
+              artifact.checkouts,
+              artifact.binaries,
+              artifact.dependencies,
+              artifact.compiler,
+              artifact.params,
+              artifact.localSources,
+              artifact.sharedSources,
+              artifact.intransitive,
+              graph(ref).map(newHashes(_))).digest[Md5]
+      )
+    }
 
   lazy val allDependencies: Set[Artifact] = artifacts.values.to[Set]
 
@@ -159,25 +194,10 @@ case class Compilation(
   def checkoutAll(io: Io, layout: Layout): Unit =
     checkouts.foreach(_.get(io, layout).unit)
 
-  def generateFiles(io: Io, universe: Universe, layout: Layout): Outcome[Iterable[Path]] =
+  def generateFiles(io: Io, layout: Layout): Outcome[Iterable[Path]] =
     Bloop.generateFiles(io, this, universe, layout)
 
-  def hash(ref: ModuleRef): Digest = {
-    val artifact = artifacts(ref)
-    (
-        artifact.kind,
-        artifact.main,
-        artifact.plugin,
-        artifact.checkouts,
-        artifact.binaries,
-        artifact.dependencies,
-        artifact.compiler,
-        artifact.params,
-        artifact.localSources,
-        artifact.sharedSources,
-        artifact.intransitive,
-        artifact.dependencies.map(hash(_))).digest[Md5]
-  }
+  def hash(ref: ModuleRef): Digest = hashes(ref)
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
     allDependencies.map { a =>
@@ -382,6 +402,7 @@ case class Universe(
                   }.sequence
     } yield
       Compilation(
+          ref,
           graph,
           checkouts.foldLeft(Set[Checkout]())(_ ++ _),
           artifacts ++ (art.compiler.map { c =>

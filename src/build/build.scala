@@ -200,7 +200,7 @@ object BuildCli {
       _           <- Bloop.server(layout.shell, io)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
-      _           <- compilation.generateFiles(io, universe, layout)
+      _           <- compilation.generateFiles(io, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
                         module.ref(project) :: artifacts.map(_.ref).to[List]))
