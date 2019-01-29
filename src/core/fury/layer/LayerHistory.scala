@@ -3,16 +3,20 @@ package fury.layer
 import fury._
 import fury.error.`package`.Outcome
 
-class LayerHistory(updateCurrentConfig: Layer => Outcome[Layer]) {
+final class LayerHistory(previousVersion: LayerRepository, currentVersion: LayerRepository) {
+  def undo(): Outcome[Unit] = previousVersion.fetch().flatMap(currentVersion.store)
+
   def update(layer: Layer): Outcome[Layer] =
     for {
-      _ <- updateCurrentConfig(layer)
+      _ <- storeCurrentLayer()
+    _ <- currentVersion.store(layer)
     } yield layer
+
+  private def storeCurrentLayer() = currentVersion.fetch().flatMap(previousVersion.store)
 }
 
 object LayerHistory {
   def apply(layout: Layout): LayerHistory = {
-    val furyConfig = layout.furyConfig
-    new LayerHistory(furyConfig.write[Layer](_))
+    new LayerHistory(LayerRepository.inMemory(), LayerRepository.inMemory())
   }
 }
