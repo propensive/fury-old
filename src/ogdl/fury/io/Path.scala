@@ -84,7 +84,7 @@ case class Path(value: String) {
   def write[T: OgdlWriter](value: T): Outcome[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this)) {
       val content: String = Ogdl.serialize(implicitly[OgdlWriter[T]].write(value))
-      Files.write(javaPath, content.getBytes(), StandardOpenOption.CREATE)
+      Files.write(javaPath, content.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
     }
 
   def extant(): Path = {
