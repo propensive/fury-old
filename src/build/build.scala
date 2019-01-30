@@ -162,8 +162,8 @@ object BuildCli {
     import cli._
     for {
       layout  <- layout
-      history = LayerHistory(layout)
-      _       <- history.restorePrevious()
+      layerRepository = LayerRepository(layout)
+      _       <- layerRepository.restorePrevious()
     } yield Done
   }
 

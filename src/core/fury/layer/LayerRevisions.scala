@@ -25,7 +25,7 @@ final class LayerRevisions(directory: Path) {
       } Files.delete(path)
   )
 
-  def lastRevision: Outcome[Layer] = {
+  def previous: Outcome[Layer] = {
     val sortedRevisions = revisions.sortWith(_.revision > _.revision)
     sortedRevisions match {
       case Nil     => Failure(NoPreviousRevision)

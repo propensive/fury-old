@@ -6,14 +6,14 @@ import fury.io.Path
 import probably._
 
 object LayerHistoryTest extends TestApp {
-  private var currentLayer: Path    = _
-  private var history: LayerHistory = _
+  private var currentLayer: Path               = _
+  private var layerRepository: LayerRepository = _
 
   override def tests(): Unit = {
     test("modifies current layer on update") {
       init()
 
-      history.update(Layer())
+      layerRepository.update(Layer())
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 1)
@@ -22,7 +22,7 @@ object LayerHistoryTest extends TestApp {
       init()
       currentLayer.write(Layer(revision = 10))
 
-      history.restorePrevious()
+      layerRepository.restorePrevious()
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 10)
@@ -30,9 +30,9 @@ object LayerHistoryTest extends TestApp {
     test("restores previous layer on undo") {
       init()
 
-      history.update(Layer())
-      history.update(Layer())
-      history.restorePrevious()
+      layerRepository.update(Layer())
+      layerRepository.update(Layer())
+      layerRepository.restorePrevious()
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 1)
@@ -40,12 +40,12 @@ object LayerHistoryTest extends TestApp {
     test("allows undoing more than one revision") {
       init()
 
-      history.update(Layer())
-      history.update(Layer())
-      history.update(Layer())
-      history.restorePrevious()
-      history.restorePrevious()
-      history.restorePrevious()
+      layerRepository.update(Layer())
+      layerRepository.update(Layer())
+      layerRepository.update(Layer())
+      layerRepository.restorePrevious()
+      layerRepository.restorePrevious()
+      layerRepository.restorePrevious()
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 0)
@@ -53,11 +53,11 @@ object LayerHistoryTest extends TestApp {
     test("discard newer revisions when restoring") {
       init()
 
-      history.update(Layer(revision = 1))
-      history.update(Layer(revision = 2))
-      history.restorePrevious()
-      history.update(Layer(revision = 3))
-      history.restorePrevious()
+      layerRepository.update(Layer(revision = 1))
+      layerRepository.update(Layer(revision = 2))
+      layerRepository.restorePrevious()
+      layerRepository.update(Layer(revision = 3))
+      layerRepository.restorePrevious()
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 1)
@@ -65,9 +65,9 @@ object LayerHistoryTest extends TestApp {
     test("revisions are monotonically increasing") {
       init()
 
-      history.update(Layer())
-      history.restorePrevious()
-      history.update(Layer())
+      layerRepository.update(Layer())
+      layerRepository.restorePrevious()
+      layerRepository.update(Layer())
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 1)
@@ -78,6 +78,6 @@ object LayerHistoryTest extends TestApp {
   private def init() = {
     val revisions = new LayerRevisions(Files.createTempDirectory("layer-repo"))
     currentLayer = Path(Files.createTempFile("layer", "fury").toString)
-    history = new LayerHistory(revisions, currentLayer)
+    layerRepository = new LayerRepository(revisions, currentLayer)
   }
 }

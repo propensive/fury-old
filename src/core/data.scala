@@ -505,7 +505,7 @@ object Layer {
   def read(io: Io, file: Path, layout: Layout): Outcome[Layer] =
     Success(Ogdl.read[Layer](file, upgrade(io, _, layout)).toOption.getOrElse(Layer()))
 
-  def save(layer: Layer, layout: Layout): Outcome[Unit] = LayerHistory(layout).update(layer)
+  def save(layer: Layer, layout: Layout): Outcome[Unit] = LayerRepository(layout).update(layer)
 
   private def upgrade(io: Io, ogdl: Ogdl, layout: Layout): Ogdl =
     (try ogdl.version().toInt
