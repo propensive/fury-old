@@ -1,33 +1,16 @@
 package fury.layer
 
 import java.nio.file.{Files, Path}
-import java.util.Objects
 
 import fury._
 import fury.error._
 
-import scala.util.{Failure, Success}
+import scala.util.Failure
+import kaleidoscope._
 
-trait LayerRepository {
-  def store(layer: Layer): Outcome[Unit]
-  def fetch(): Outcome[Layer]
-}
+import collection.JavaConverters._
 
-object LayerRepository {
-  def inMemory() = new InMemoryLayerRepository
-}
-
-final class InMemoryLayerRepository extends LayerRepository {
-  private var layer: Layer = _
-
-  override def store(layer: Layer): Outcome[Unit] = Success(this.layer = layer)
-  override def fetch(): Outcome[Layer]            = Success(layer).filter(Objects.nonNull)
-}
-
-final class LayerRevisions(directory: Path = Files.createTempDirectory("layer-repo")) {
-  import kaleidoscope._
-
-  import collection.JavaConverters._
+final class LayerRevisions(directory: Path) {
 
   def store(layer: Layer): Outcome[Unit] = {
     val revision = layer.revision
@@ -44,7 +27,7 @@ final class LayerRevisions(directory: Path = Files.createTempDirectory("layer-re
       .getOrElse(Failure(new NoSuchElementException("Repository is empty")))
 
   def lastRevision: Option[Long] = revisions match {
-    case Nil  => None
+    case Nil => None
     case revs =>
       Debug.debug(s"last revision: ${revs.map(_.revision).max}")
       Some(revs.map(_.revision).max)
@@ -65,5 +48,4 @@ final class LayerRevisions(directory: Path = Files.createTempDirectory("layer-re
   private class LayerRevision(val revision: Long, path: Path) {
     def layer: Outcome[Layer] = fury.io.Path(path.toString).read[Layer]
   }
-
 }
