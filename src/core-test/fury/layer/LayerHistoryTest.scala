@@ -64,7 +64,8 @@ object LayerHistoryTest extends TestApp {
   private def revisionOf(currentLayer: Path) = currentLayer.read[Layer].map(_.revision).get
 
   private def init() = {
+    val revisions = new LayerRevisions(Files.createTempDirectory("layer-repo"))
     currentLayer = Path(Files.createTempFile("layer", "fury").toString)
-    history = new LayerHistory(new LayerRevisions(), currentLayer)
+    history = new LayerHistory(revisions, currentLayer)
   }
 }

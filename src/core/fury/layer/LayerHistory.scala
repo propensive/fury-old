@@ -37,5 +37,5 @@ final class LayerHistory(revisions: LayerRevisions, currentVersion: Path) {
 object LayerHistory {
 
   def apply(layout: Layout): LayerHistory =
-    new LayerHistory(new LayerRevisions(), layout.furyConfig)
+    new LayerHistory(new LayerRevisions(layout.historyDir.javaPath), layout.furyConfig)
 }
