@@ -5,7 +5,7 @@ import java.nio.file.{Files, Path}
 import fury._
 import fury.error._
 
-import scala.util.Failure
+import scala.util.{Failure, Success, Try}
 import kaleidoscope._
 
 import collection.JavaConverters._
@@ -26,6 +26,13 @@ final class LayerRevisions(directory: Path) {
       .map(_.layer)
       .getOrElse(Failure(NoPreviousRevision))
 
+  def discardNewerThan(revision: Long): Outcome[Unit] = Try(
+      for {
+        rev  <- revisions.filter(_.revision > revision)
+        path = rev.path
+      } Files.delete(path)
+  )
+
   def lastRevision: Option[Long] = revisions match {
     case Nil => None
     case revs =>
@@ -45,7 +52,7 @@ final class LayerRevisions(directory: Path) {
     } yield new LayerRevision(rev, file)
   }
 
-  private class LayerRevision(val revision: Long, path: Path) {
+  private case class LayerRevision(revision: Long, path: Path) {
     def layer: Outcome[Layer] = fury.io.Path(path.toString).read[Layer]
   }
 }

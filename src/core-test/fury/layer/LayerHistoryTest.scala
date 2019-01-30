@@ -50,6 +50,18 @@ object LayerHistoryTest extends TestApp {
       revisionOf(currentLayer)
     }.assert(revision => revision == 0)
 
+    test("discard newer revisions when restoring") {
+      init()
+
+      history.update(Layer(revision = 0))
+      history.update(Layer(revision = 1))
+      history.restorePrevious()
+      history.update(Layer(revision = 2))
+      history.restorePrevious()
+
+      revisionOf(currentLayer)
+    }.assert(revision => revision == 0)
+
     test("revisions are monotonically increasing") {
       init()
 

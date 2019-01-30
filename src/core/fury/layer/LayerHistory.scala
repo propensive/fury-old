@@ -12,6 +12,7 @@ final class LayerHistory(revisions: LayerRevisions, currentVersion: Path) {
     for {
       previousLayer <- revisions.fetchPrevious(currentRevision)
       _             <- currentVersion.write(previousLayer)
+      _             <- revisions.discardNewerThan(previousLayer.revision)
     } yield Unit
   }
 
