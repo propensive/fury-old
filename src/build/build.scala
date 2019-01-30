@@ -16,8 +16,9 @@
 package fury
 
 import fury.Args._
-import fury.io._
+
 import fury.error._
+import fury.layer._
 import guillotine._
 
 import scala.concurrent._
@@ -160,15 +161,10 @@ object BuildCli {
   def undo(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = {
     import cli._
     for {
-      layout <- layout
-      path   <- ~layout.furyConfig
-      invoc  <- cli.read()
-      io     <- invoc.io()
-      bak <- ~path.rename { f =>
-              s".$f.bak"
-            }
-      _ <- if (bak.exists) Success(bak.copyTo(path)) else Failure(FileNotFound(bak))
-    } yield io.await()
+      layout  <- layout
+      history = LayerHistory(layout)
+      _       <- history.restorePrevious()
+    } yield Done
   }
 
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])(ctx: MenuContext) = {

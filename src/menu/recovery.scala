@@ -17,6 +17,7 @@ package fury
 
 import exoskeleton._
 import fury.io._
+import fury.layer._
 import fury.error._
 import guillotine._
 
@@ -50,6 +51,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
               msg"""Could not find the file $path. Run `fury layer init` to create a new layer.""")
         case MissingArg(param) =>
           cli.abort(msg"The parameter $param was not provided.")
+        case NoPreviousRevision =>
+          cli.abort(msg"No earlier revision than can be found")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>

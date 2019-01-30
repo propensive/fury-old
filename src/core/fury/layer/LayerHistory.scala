@@ -4,17 +4,15 @@ import fury._
 import fury.error.`package`.Outcome
 import fury.io.Path
 
-import scala.util.Success
-
 final class LayerHistory(revisions: LayerRevisions, currentVersion: Path) {
 
-  def undo(): Outcome[Unit] = currentLayer match {
-    case None => Success(Unit)
-    case Some(layer) =>
-      for {
-        previousLayer <- revisions.fetchPrevious(layer.revision)
-        _             <- currentVersion.write(previousLayer)
-      } yield Unit
+  def restorePrevious(): Outcome[Unit] = {
+    val currentRevision: Long = currentLayer.map(_.revision).getOrElse(0)
+
+    for {
+      previousLayer <- revisions.fetchPrevious(currentRevision)
+      _             <- currentVersion.write(previousLayer)
+    } yield Unit
   }
 
   def update(layer: Layer): Outcome[Unit] = {

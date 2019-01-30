@@ -24,7 +24,7 @@ final class LayerRevisions(directory: Path) {
       .sortWith(_.revision < _.revision)
       .lastOption
       .map(_.layer)
-      .getOrElse(Failure(new NoSuchElementException("Repository is empty")))
+      .getOrElse(Failure(NoPreviousRevision))
 
   def lastRevision: Option[Long] = revisions match {
     case Nil => None
@@ -49,3 +49,5 @@ final class LayerRevisions(directory: Path) {
     def layer: Outcome[Layer] = fury.io.Path(path.toString).read[Layer]
   }
 }
+
+case object NoPreviousRevision extends FuryException

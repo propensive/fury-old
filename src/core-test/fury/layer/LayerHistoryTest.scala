@@ -22,7 +22,7 @@ object LayerHistoryTest extends TestApp {
       init()
       currentLayer.write(Layer(revision = 10))
 
-      history.undo()
+      history.restorePrevious()
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 10)
@@ -32,7 +32,7 @@ object LayerHistoryTest extends TestApp {
 
       history.update(Layer())
       history.update(Layer())
-      history.undo()
+      history.restorePrevious()
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 0)
@@ -43,9 +43,9 @@ object LayerHistoryTest extends TestApp {
       history.update(Layer())
       history.update(Layer())
       history.update(Layer())
-      history.undo()
-      history.undo()
-      history.undo()
+      history.restorePrevious()
+      history.restorePrevious()
+      history.restorePrevious()
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 0)
@@ -54,7 +54,7 @@ object LayerHistoryTest extends TestApp {
       init()
 
       history.update(Layer())
-      history.undo()
+      history.restorePrevious()
       history.update(Layer())
 
       revisionOf(currentLayer)
