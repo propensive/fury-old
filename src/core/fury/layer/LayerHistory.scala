@@ -2,30 +2,40 @@ package fury.layer
 
 import fury._
 import fury.error.`package`.Outcome
+import fury.io.Path
 
-final class LayerHistory(previousRevisions: LayerRevisions, currentVersion: LayerRepository) {
+import scala.util.Success
 
-  def undo(): Outcome[Unit] =
+final class LayerHistory(revisions: LayerRevisions, currentVersion: Path) {
+
+  def undo(): Outcome[Unit] = currentLayer match {
+    case None => Success(Unit)
+    case Some(layer) =>
+      for {
+        previousLayer <- revisions.fetchPrevious(layer.revision)
+        _             <- currentVersion.write(previousLayer)
+      } yield Unit
+  }
+
+  def update(layer: Layer): Outcome[Unit] = {
+    val updatedLayer = revisions.lastRevision match {
+      case None               => layer
+      case Some(lastRevision) => layer.copy(revision = lastRevision + 1)
+    }
+
     for {
-      currentLayer    <- currentVersion.fetch()
-      currentRevision = currentLayer.revision
-      previousLayer   <- previousRevisions.fetchPrevious(currentRevision)
-      _               <- currentVersion.store(previousLayer)
+      _ <- revisions.store(updatedLayer)
+      _ <- currentVersion.write(updatedLayer)
     } yield Unit
+  }
 
-  def update(layer: Layer): Outcome[Unit] =
-    for {
-      currentLayer    <- currentVersion.fetch()
-      _               <- previousRevisions.store(currentLayer)
-      currentRevision = currentLayer.revision
-      updatedLayer    = layer.copy(revision = currentRevision + 1)
-      _               <- currentVersion.store(updatedLayer)
-    } yield Unit
-
+  private def currentLayer: Option[Layer] =
+    if (currentVersion.exists()) currentVersion.read[Layer].toOption
+    else None
 }
 
 object LayerHistory {
 
   def apply(layout: Layout): LayerHistory =
-    new LayerHistory(new LayerRevisions(), LayerRepository.inMemory())
+    new LayerHistory(new LayerRevisions(), layout.furyConfig)
 }

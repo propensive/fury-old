@@ -43,6 +43,13 @@ final class LayerRevisions(directory: Path = Files.createTempDirectory("layer-re
       .map(_.layer)
       .getOrElse(Failure(new NoSuchElementException("Repository is empty")))
 
+  def lastRevision: Option[Long] = revisions match {
+    case Nil  => None
+    case revs =>
+      Debug.debug(s"last revision: ${revs.map(_.revision).max}")
+      Some(revs.map(_.revision).max)
+  }
+
   private def revisions: Seq[LayerRevision] = {
     def parseRevision(path: Path): Option[Long] = path.getFileName.toString match {
       case r"""${rev: String}@(\d+).bak""" => Some(rev.toLong)
