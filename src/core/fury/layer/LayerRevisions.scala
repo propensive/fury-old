@@ -18,26 +18,19 @@ final class LayerRevisions(directory: Path) {
     path.write(layer)
   }
 
-  def fetchPrevious(revision: Long): Outcome[Layer] =
-    revisions
-      .filter(_.revision < revision)
-      .sortWith(_.revision < _.revision)
-      .lastOption
-      .map(_.layer)
-      .getOrElse(Failure(NoPreviousRevision))
-
   def discardNewerThan(revision: Long): Outcome[Unit] = Try(
       for {
-        rev  <- revisions.filter(_.revision > revision)
+        rev  <- revisions.filter(_.revision >= revision)
         path = rev.path
       } Files.delete(path)
   )
 
-  def lastRevision: Option[Long] = revisions match {
-    case Nil => None
-    case revs =>
-      Debug.debug(s"last revision: ${revs.map(_.revision).max}")
-      Some(revs.map(_.revision).max)
+  def lastRevision: Outcome[Layer] = {
+    val sortedRevisions = revisions.sortWith(_.revision > _.revision)
+    sortedRevisions match {
+      case Nil     => Failure(NoPreviousRevision)
+      case hd :: _ => hd.layer
+    }
   }
 
   private def revisions: Seq[LayerRevision] = {
@@ -49,7 +42,7 @@ final class LayerRevisions(directory: Path) {
     for {
       file <- Files.list(directory).iterator().asScala.toList
       rev  <- parseRevision(file)
-    } yield new LayerRevision(rev, file)
+    } yield LayerRevision(rev, file)
   }
 
   private case class LayerRevision(revision: Long, path: Path) {

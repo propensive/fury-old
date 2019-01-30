@@ -16,7 +16,7 @@ object LayerHistoryTest extends TestApp {
       history.update(Layer())
 
       revisionOf(currentLayer)
-    }.assert(revision => revision == 0)
+    }.assert(revision => revision == 1)
 
     test("does not change current layer if history is empty") {
       init()
@@ -35,7 +35,7 @@ object LayerHistoryTest extends TestApp {
       history.restorePrevious()
 
       revisionOf(currentLayer)
-    }.assert(revision => revision == 0)
+    }.assert(revision => revision == 1)
 
     test("allows undoing more than one revision") {
       init()
@@ -53,14 +53,14 @@ object LayerHistoryTest extends TestApp {
     test("discard newer revisions when restoring") {
       init()
 
-      history.update(Layer(revision = 0))
       history.update(Layer(revision = 1))
-      history.restorePrevious()
       history.update(Layer(revision = 2))
+      history.restorePrevious()
+      history.update(Layer(revision = 3))
       history.restorePrevious()
 
       revisionOf(currentLayer)
-    }.assert(revision => revision == 0)
+    }.assert(revision => revision == 1)
 
     test("revisions are monotonically increasing") {
       init()

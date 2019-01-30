@@ -6,26 +6,21 @@ import fury.io.Path
 
 final class LayerHistory(revisions: LayerRevisions, currentVersion: Path) {
 
-  def restorePrevious(): Outcome[Unit] = {
-    val currentRevision: Long = currentLayer.map(_.revision).getOrElse(0)
-
+  def restorePrevious(): Outcome[Unit] =
     for {
-      previousLayer <- revisions.fetchPrevious(currentRevision)
-      _             <- currentVersion.write(previousLayer)
-      _             <- revisions.discardNewerThan(previousLayer.revision)
+      previous <- revisions.lastRevision
+      _        <- currentVersion.write(previous)
+      _        <- revisions.discardNewerThan(previous.revision)
     } yield Unit
-  }
 
-  def update(layer: Layer): Outcome[Unit] = {
-    val updatedLayer = revisions.lastRevision match {
-      case None               => layer
-      case Some(lastRevision) => layer.copy(revision = lastRevision + 1)
-    }
-
-    for {
-      _ <- revisions.store(updatedLayer)
-      _ <- currentVersion.write(updatedLayer)
-    } yield Unit
+  def update(layer: Layer): Outcome[Unit] = currentLayer match {
+    case None => currentVersion.write(layer)
+    case Some(currentLayer) =>
+      val updatedLayer = layer.copy(revision = currentLayer.revision + 1)
+      for {
+        _ <- revisions.store(currentLayer)
+        _ <- currentVersion.write(updatedLayer)
+      } yield Unit
   }
 
   private def currentLayer: Option[Layer] =
