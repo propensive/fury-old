@@ -1,10 +1,10 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "fury/ogdl-test",
+    "name": "fury/core-test",
     "directory": ".",
     "sources": [
-      "src/ogdl-test"
+      "src/core-test"
     ],
     "dependencies": [
       "escritoire/core",
@@ -39,3 +39,4 @@
     }
   }
 }
+
