@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+
+SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
 bloop_pid_file="$HOME/bloop_pid"
 
 bloop_is_running(){
@@ -13,7 +15,7 @@ wait_for_bloop(){
         sleep 0.1
     done
     echo "Bloop server not running" > /dev/stdout
-    exit -1
+    exit 1
 }
 
 
@@ -32,4 +34,14 @@ start_bloop(){
     wait_for_bloop
 }
 
-SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
+function assert_equal {
+    ACTUAL=$2
+    EXPECTED=$1
+
+    if [ "$ACTUAL" !=  "$EXPECTED" ]; then
+	file=${BASH_SOURCE[1]##*/} line=${BASH_LINENO[0]}
+	echo "$file:$line: assertion failed"
+	echo "'$OUTPUT' != '$EXPECTED'"
+	exit 1
+    fi
+}

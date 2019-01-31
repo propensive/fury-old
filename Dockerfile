@@ -11,6 +11,12 @@ RUN mkdir /opt/scala-2.12.8 && \
 	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C /opt/scala-2.12.8 --strip 1
 ENV PATH="/opt/scala-2.12.8/bin:${PATH}"
 
+# Install GraalVM
+ENV GRAAL_VERSION "1.0.0-rc11"
+RUN sh -c "cd /opt &&  curl -L https://github.com/oracle/graal/releases/download/vm-1.0.0-rc11/graalvm-ce-${GRAAL_VERSION}-linux-amd64.tar.gz | tar zxf -"
+ENV GRAAL_HOME "/opt/graalvm-ce-${GRAAL_VERSION}"
+RUN apt-get -y install gcc libz-dev
+
 # Set up build directory
 RUN mkdir -p /build /build/bootstrap
 RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala

@@ -71,6 +71,12 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"The repository has not been specified.")
         case e: UnspecifiedModule =>
           cli.abort(msg"The module has not been specified.")
+        case UnspecifiedMain(moduleId: ModuleId) =>
+          cli.abort(msg"Main class not defined for module '${moduleId}'.")
+        case GraalVMError(message: String) =>
+          cli.abort(msg"Problem with GrallVM:'${message}'. Please double-check the PATH")
+        case InvalidKind(expected: Kind) =>
+          cli.abort(msg"The module must be of type '${expected}'.")
         case e: UnknownCompiler =>
           cli.abort(msg"This compiler is not known.")
         case e: ShellFailure =>

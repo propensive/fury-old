@@ -395,14 +395,94 @@ case class Universe(
       checkouts <- graph.keys.map { key =>
                     checkout(key, layout)
                   }.sequence
-    } yield
-      Compilation(
-          graph,
-          checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-          artifacts ++ (art.compiler.map { c =>
-            c.ref -> c
-          }),
-          this)
+    } yield Compilation(graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts ++ (art.compiler.map { c => c.ref -> c }), this)
+
+  def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Outcome[Unit] =
+    for {
+      dest    <- dest.directory
+      current <- artifact(io, ref, layout)
+      deps    <- transitiveDependencies(io, ref, layout)
+      dirs    <- ~(deps + current).map(layout.classesDir(_))
+      files <- ~dirs.map { dir =>
+                (dir, dir.children)
+              }.filter(_._2.nonEmpty)
+      bins         <- ~deps.flatMap(_.binaries)
+      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(current)}")
+      manifestFile <- Manifest.file(layout.manifestFile(current), bins.map(_.name), None)
+      path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
+      _            <- ~io.println(msg"Saving JAR file $path")
+      _            <- layout.shell.aggregatedJar(path, files, manifestFile)
+      _ <- ~bins.foreach { b =>
+            b.copyTo(dest / b.name)
+          }
+    } yield ()
+
+  def saveNative(io: Io, ref: ModuleRef, dest: Path, layout: Layout, main: String): Outcome[Unit] =
+    for {
+      dest <- dest.directory
+      cp   = runtimeClasspath(io, ref, layout).toOption.get.to[List].map(_.value)
+      _    <- layout.shell.native(dest, cp, main)
+    } yield ()
+
+  def compile(
+      io: Io,
+      artifact: Artifact,
+      multiplexer: Multiplexer[ModuleRef, CompileEvent],
+      futures: Map[ModuleRef, Future[CompileResult]] = Map(),
+      layout: Layout
+    ): Map[ModuleRef, Future[CompileResult]] = {
+
+    // FIXME: don't .get
+    val deps = dependencies(io, artifact.ref, layout).toOption.get
+
+    val newFutures = deps.foldLeft(futures) { (futures, dep) =>
+      if (futures.contains(dep.ref)) futures
+      else compile(io, dep, multiplexer, futures, layout)
+    }
+
+    val dependencyFutures = Future.sequence(deps.map(_.ref).map(newFutures))
+
+    val future = dependencyFutures.flatMap { inputs =>
+      if (inputs.exists(!_.success)) {
+        multiplexer(artifact.ref) = SkipCompile(artifact.ref)
+        multiplexer.close(artifact.ref)
+        Future.successful(CompileResult(false, ""))
+      } else
+        Future {
+          val out = new StringBuilder()
+          multiplexer(artifact.ref) = StartCompile(artifact.ref)
+
+          val compileResult: Boolean = blocking {
+            layout.shell.bloop
+              .compile(artifact.hash.encoded) { ln =>
+                out.append(ln)
+                out.append("\n")
+              }
+              .await() == 0
+          }
+
+          val finalResult = if (compileResult && artifact.kind == Application) {
+            layout.shell
+              .runJava(
+                  runtimeClasspath(io, artifact.ref, layout).toOption.get.to[List].map(_.value),
+                  artifact.main.getOrElse(""),
+                  layout) { ln =>
+                out.append(ln)
+                out.append("\n")
+              }
+              .await() == 0
+          } else compileResult
+
+          multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
+
+          multiplexer.close(artifact.ref)
+
+          CompileResult(finalResult, out.toString)
+        }
+    }
+
+    newFutures.updated(artifact.ref, future)
+  }
 
 }
 

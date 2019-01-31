@@ -192,6 +192,23 @@ case class Shell(environment: Environment) {
       sh"bloop server".async(_ => (), _ => ())
   }
 
+  object java {
+
+    def ensureIsGraalVM(): Outcome[Unit] =
+      sh"sh -c 'java -version 2>&1'"
+        .exec[Outcome[String]]
+        .map(_.contains("GraalVM"))
+        .fold(
+            _ => Failure(GraalVMError("Could not check Java version")),
+            isGraal => if (isGraal) Success() else Failure(GraalVMError("non-GraalVM java")))
+
+    def ensureNativeImageInPath(): Outcome[Unit] =
+      Try(sh"native-image --help".exec[Outcome[String]]).fold(
+          _ => Failure(GraalVMError("native-image could not be executed")),
+          _.map(_ => ())
+      )
+  }
+
   object coursier {
     private val coursier = furyHome / "bin" / "coursier"
 
@@ -217,6 +234,18 @@ case class Shell(environment: Environment) {
       sh"jar uf ${dest.value} $params".exec[Outcome[String]]
       ()
     }
+
+  def native(dest: Path, classpath: List[String], main: String): Outcome[Unit] = {
+    implicit val defaultEnvironment: Environment =
+      environment.copy(workDir = Some(dest.value))
+    for {
+      _ <- java.ensureNativeImageInPath
+      _ <- java.ensureIsGraalVM()
+      _ <- sh"native-image -cp ${classpath.mkString(":")} ${main}".exec[Outcome[String]].map { _ =>
+            main.toLowerCase()
+          }
+    } yield ()
+  }
 
   def copyTo(src: Path, dest: Path): Outcome[Path] =
     sh"cp -r ${src.value} ${dest.parent.value}/".exec[Outcome[String]].map { _ =>

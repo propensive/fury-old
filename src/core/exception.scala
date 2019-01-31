@@ -29,6 +29,9 @@ case class InvalidValue(value: String)              extends FuryException
 case class InitFailure()                            extends FuryException
 case class UnspecifiedProject()                     extends FuryException
 case class UnspecifiedModule()                      extends FuryException
+case class UnspecifiedMain(module: ModuleId)        extends FuryException
+case class GraalVMError(message: String)            extends FuryException
+case class InvalidKind(expected: Kind)              extends FuryException
 case class UnspecifiedRepo()                        extends FuryException
 case class ProjectConflict(ids: Set[ProjectId])     extends FuryException
 case class SchemaDifferences()                      extends FuryException
