@@ -33,8 +33,7 @@ object LayerRepository {
   private val retainedRevisions = 16
 
   def apply(layout: Layout): LayerRepository = {
-    val revisionsDirectory = layout.historyDir.javaPath
-    val revisions          = new LayerRevisions(revisionsDirectory, retainedRevisions)
+    val revisions = new LayerRevisions(layout.historyDir, retainedRevisions)
     new LayerRepository(revisions, layout.furyConfig)
   }
 }

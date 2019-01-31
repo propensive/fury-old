@@ -1,19 +1,17 @@
 package fury.layer
 
-import java.nio.file.{Files, Path}
-
 import fury._
 import fury.error._
+import fury.io._
 import kaleidoscope._
 
-import scala.collection.JavaConverters._
 import scala.util.{Failure, Try}
 
 final class LayerRevisions(directory: Path, retained: Int) {
 
   def store(layer: Layer): Outcome[Unit] = {
     val revision = layer.revision
-    val path     = fury.io.Path(directory.resolve(revision + ".bak").toString)
+    val path     = directory / s"$revision.bak"
 
     for {
       _ <- path.write(layer)
@@ -39,28 +37,25 @@ final class LayerRevisions(directory: Path, retained: Int) {
   private def newerThan(revision: Long) = (rev: LayerRevision) => rev.revision >= revision
 
   private def discardRevisions(revisions: Seq[LayerRevision]) = Try(
-      for {
-        rev  <- revisions
-        path = rev.path
-      } Files.delete(path)
+      revisions.foreach(_.path.delete())
   )
 
   private def revisions: Seq[LayerRevision] = {
-    def parseRevision(path: Path) = path.getFileName.toString match {
+    def parseRevision(path: String) = path match {
       case r"""${rev: String}@(\d+).bak""" => Some(rev.toLong)
       case _                               => None
     }
 
     val revisions = for {
-      file <- Files.list(directory).iterator().asScala.toList
+      file <- directory.children
       rev  <- parseRevision(file)
-    } yield LayerRevision(rev, file)
+    } yield LayerRevision(rev, directory / file)
 
     revisions.sortWith(_.revision > _.revision)
   }
 
   private case class LayerRevision(revision: Long, path: Path) {
-    def layer: Outcome[Layer] = fury.io.Path(path.toString).read[Layer]
+    def layer: Outcome[Layer] = path.read[Layer]
   }
 }
 
