@@ -103,40 +103,16 @@ object Graph {
     nodes.foreach {
       case (node, i) =>
         array(i)(2 * i + 1) = '»'
-        graph(node).foreach { dep =>
+        graph(node).filter(!_.hidden).foreach { dep =>
           overwrite(2 * indexes(dep) + 1, i, East | North)
           for (j <- (2 * indexes(dep) + 1) to (2 * i - 1)) overwrite(j + 1, i, East | West)
           for (j <- (indexes(dep) + 1) to (i - 1)) overwrite(2 * indexes(dep) + 1, j, North | South)
         }
     }
 
-    // compact the tree
-    // FIXME: This is not tail-recursive, and doesn't seem to do compaction in some cases
-    def compact(): Unit = array.zipWithIndex.foreach {
-      case (line, idx) =>
-        val max = line
-          .dropRight(1)
-          .tails
-          .find { t =>
-            t.forall { ch =>
-              (chars.indexOf(ch) & North) == 0
-            }
-          }
-          .get
-          .length
-
-        if (max > 1) {
-          val i = line.length - max - 1
-          for (ln <- idx until array.length) array(ln)(i) = '.'
-          compact()
-        }
-    }
-
-    //compact()
-
     val namedLines = array.zip(nodes).map {
       case (chs, (moduleRef, _)) =>
-        val ModuleRef(ProjectId(p), ModuleId(m), _) = moduleRef
+        val ModuleRef(ProjectId(p), ModuleId(m), _, hidden) = moduleRef
         val text =
           if (describe || state.get(moduleRef) == Some(Compiling))
             theme.project(p) + theme.gray("/") + theme.module(m)

@@ -117,6 +117,9 @@ case class Module(
     resources: SortedSet[Path] = TreeSet(),
     bloopSpec: Option[BloopSpec] = None) {
 
+  def compilerDependencies: Set[ModuleRef] =
+    Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
+
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
 
   def externalSources: SortedSet[ExternalSource] = sources.collect {
@@ -146,30 +149,17 @@ object BloopSpec {
 case class BloopSpec(org: String, name: String, version: String)
 
 case class Compilation(
-    goal: ModuleRef,
     graph: Map[ModuleRef, List[ModuleRef]],
     checkouts: Set[Checkout],
     artifacts: Map[ModuleRef, Artifact],
     universe: Universe) {
 
-  lazy val hashes: Map[ModuleRef, Digest] =
-    artifacts.keys.foldLeft(Map[ModuleRef, Digest]()) {
-      case (acc, next) =>
-        calculateHashes(next, acc)
-    }
+  private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
 
-  private[this] def calculateHashes(
-      ref: ModuleRef,
-      hashes: Map[ModuleRef, Digest]
-    ): Map[ModuleRef, Digest] =
-    if (hashes.contains(ref)) hashes
-    else {
-      val artifact = artifacts(ref)
-      val newHashes = graph(ref).foldLeft(hashes) {
-        case (acc, nextRef) => calculateHashes(nextRef, acc)
-      }
-      newHashes.updated(
-          ref,
+  def hash(ref: ModuleRef): Digest = {
+    val artifact = artifacts(ref)
+    hashes.getOrElseUpdate(
+        ref, {
           (
               artifact.kind,
               artifact.main,
@@ -177,14 +167,17 @@ case class Compilation(
               artifact.checkouts,
               artifact.binaries,
               artifact.dependencies,
-              artifact.compiler,
+              artifact.compiler.map { c =>
+                hash(c.ref)
+              },
               artifact.params,
               artifact.localSources,
               artifact.sharedSources,
               artifact.intransitive,
-              graph(ref).map(newHashes(_))).digest[Md5]
-      )
-    }
+              graph(ref).map(hash(_))).digest[Md5]
+        }
+    )
+  }
 
   lazy val allDependencies: Set[Artifact] = artifacts.values.to[Set]
 
@@ -196,8 +189,6 @@ case class Compilation(
 
   def generateFiles(io: Io, layout: Layout): Outcome[Iterable[Path]] =
     Bloop.generateFiles(io, this, universe, layout)
-
-  def hash(ref: ModuleRef): Digest = hashes(ref)
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
     allDependencies.map { a =>
@@ -375,15 +366,17 @@ case class Universe(
     for {
       project <- project(ref.projectId)
       module  <- project(ref.moduleId)
-      deps    <- module.after.map(artifact(io, _, layout)).sequence
+      deps    <- (module.after ++ module.compilerDependencies).map(artifact(io, _, layout)).sequence
     } yield deps
 
   def transitiveDependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
     for {
-      after  <- dependencies(io, ref, layout)
-      tDeps  <- after.map(_.ref).map(transitiveDependencies(io, _, layout)).sequence
-      itDeps = tDeps.flatten
-    } yield after ++ itDeps
+      deps <- dependencies(io, ref, layout)
+      art  <- artifact(io, ref, layout)
+      tDeps <- deps.map { a =>
+                transitiveDependencies(io, a.ref, layout)
+              }.sequence
+    } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit =
     layout.classesDir.delete().unit
@@ -392,8 +385,8 @@ case class Universe(
     for {
       art <- artifact(io, ref, layout)
       graph <- transitiveDependencies(io, ref, layout).map(_.map { a =>
-                (a.ref, a.dependencies)
-              }.toMap.updated(art.ref, art.dependencies))
+                (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
+              }.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide)))
       artifacts <- graph.keys.map { key =>
                     artifact(io, key, layout).map(key -> _)
                   }.sequence.map(_.toMap)
@@ -402,7 +395,6 @@ case class Universe(
                   }.sequence
     } yield
       Compilation(
-          ref,
           graph,
           checkouts.foldLeft(Set[Checkout]())(_ ++ _),
           artifacts ++ (art.compiler.map { c =>
@@ -597,11 +589,17 @@ object ModuleRef {
     }
 }
 
-case class ModuleRef(projectId: ProjectId, moduleId: ModuleId, intransitive: Boolean = false) {
+case class ModuleRef(
+    projectId: ProjectId,
+    moduleId: ModuleId,
+    intransitive: Boolean = false,
+    hidden: Boolean = false) {
   override def equals(that: Any): Boolean = that match {
-    case ModuleRef(p, m, _) => projectId == p && moduleId == m
-    case _                  => false
+    case ModuleRef(p, m, _, _) => projectId == p && moduleId == m
+    case _                     => false
   }
+
+  def hide = copy(hidden = true)
 
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode
 

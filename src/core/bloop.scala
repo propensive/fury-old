@@ -39,7 +39,7 @@ object Bloop {
     } catch {
       case e: ConnectException =>
         bloopServer.foreach(_.destroy())
-        val io2     = io.print("Starting bloop compile server")
+        val io2     = io.print("Starting bloop compile server...")
         val running = shell.bloop.startServer()
 
         def checkStarted(): Unit =

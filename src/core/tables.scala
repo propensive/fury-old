@@ -58,7 +58,7 @@ case class Tables(config: Config) {
 
   private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] =
     _.map {
-      case ref @ ModuleRef(p, m, intransitive) =>
+      case ref @ ModuleRef(p, m, intransitive, _) =>
         val extra = (if (intransitive) msg"*" else msg"")
         if (p == projectId) msg"${theme.module(m.key)}$extra"
         else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"
