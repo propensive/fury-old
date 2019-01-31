@@ -118,20 +118,6 @@ class Io(private[this] val output: java.io.PrintStream, config: Config) {
 
   def println(msg: UserMsg): Unit = output.println(msg.string(config.theme))
 
-  def save[T: OgdlWriter](value: T, path: Path): Unit = {
-    val stringBuilder: StringBuilder = new StringBuilder()
-    Ogdl.serialize(stringBuilder, implicitly[OgdlWriter[T]].write(value))
-    val content: String = stringBuilder.toString
-    Outcome
-      .rescue[java.io.IOException](FileWriteError(path)) {
-        val writer = new java.io.BufferedWriter(new java.io.FileWriter(path.javaPath.toFile))
-        writer.write(content).unit
-        writer.write('\n').unit
-        writer.close()
-      }
-      .unit // FIXME: Don't discard the result
-  }
-
   def await(success: Boolean = true): ExitStatus = {
     output.flush()
     if (success) Done else Abort

@@ -16,8 +16,9 @@
 package fury
 
 import fury.Args._
-import fury.io._
+
 import fury.error._
+import fury.layer._
 import guillotine._
 
 import scala.concurrent._
@@ -43,7 +44,7 @@ object ConfigCli {
       config <- ~newTheme.map { th =>
                  config.copy(theme = th)
                }.getOrElse(config)
-      _ <- ~io.save(config, layout.userConfig)
+      _ <- ~layout.userConfig.write(config)
     } yield io.await()
   }
 }
@@ -85,7 +86,7 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) --= aliasToDel)
-      _ <- ~io.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -119,7 +120,7 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) += alias)
-      _ <- ~io.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 }
@@ -160,15 +161,10 @@ object BuildCli {
   def undo(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = {
     import cli._
     for {
-      layout <- layout
-      path   <- ~layout.furyConfig
-      invoc  <- cli.read()
-      io     <- invoc.io()
-      bak <- ~path.rename { f =>
-              s".$f.bak"
-            }
-      _ <- if (bak.exists) Success(bak.copyTo(path)) else Failure(FileNotFound(bak))
-    } yield io.await()
+      layout  <- layout
+      layerRepository = LayerRepository(layout)
+      _       <- layerRepository.restorePrevious()
+    } yield Done
   }
 
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])(ctx: MenuContext) = {
@@ -358,7 +354,7 @@ object LayerCli {
       force <- ~invoc(ForceArg).toOption.isDefined
       layer <- ~Layer()
       _     <- layout.furyConfig.mkParents()
-      _     <- ~io.save(layer, layout.furyConfig)
+      _     <- ~Layer.save(layer, layout)
       _     <- layout.shell.git.init(layout.pwd)
       _     <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
       _     <- layout.shell.git.commit(layout.pwd, "Initial commit")
