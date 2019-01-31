@@ -39,10 +39,12 @@ fail() {
   exit 1
 }
 
-stopFury() {
+restartFury() {
   message "Checking for currently-active Fury daemon..."
   type -p fury > /dev/null && \
-  fury stop
+  fury stop && \
+  message "Starting new version of Fury..." && \
+  ${DESTINATION}/bin/fury start
 }
 
 # Remove an existing installation, if there is one.
@@ -146,7 +148,7 @@ completion() {
   echo ""
 }
 
-prepare && checkJava && untarPayload && launchBloop && updateShells && stopFury && completion
+prepare && checkJava && untarPayload && launchBloop && updateShells && restartFury && completion
 
 exit 0
 
