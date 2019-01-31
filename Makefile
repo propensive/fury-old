@@ -116,14 +116,14 @@ dist/bundle/bin/ng: dist/bundle/bin
 ########################
 DOCKER_TAG=fury-ci
 
-test-cases=ogdl
+test-cases=ogdl core
 test-targets=$(foreach dep, $(test-cases), $(dep)-test)
 .PHONY: $(test-targets)
 
 $(test-targets): %-test: dist/bundle/bin/launcher bootstrap/git/probably
 	$< --skip-bsp-connection $(BLOOP_VERSION)
 	bloop compile fury/$*-test
-	bloop run fury/$*-test
+	bloop run fury/$*-test --main fury.Tests
 
 test:  bootstrap/bin/fury/.version $(test-targets)
 
