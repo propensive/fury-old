@@ -5,13 +5,18 @@ import fury.error._
 import fury.io._
 import kaleidoscope._
 
-import scala.util.{Failure, Try}
+import scala.annotation.tailrec
+import scala.util._
 
 final class LayerRevisions(directory: Path, retained: Int) {
 
   def store(layer: Layer): Outcome[Unit] = {
-    val revision = layer.revision
-    val path     = directory / s"$revision.bak"
+    val revision = previousRevision match {
+      case None           => 0
+      case Some(previous) => previous.revision + 1
+    }
+
+    val path = directory / s"$revision.bak"
 
     for {
       _ <- path.write(layer)
@@ -19,26 +24,30 @@ final class LayerRevisions(directory: Path, retained: Int) {
     } yield Unit
   }
 
-  def discardNewerThan(revision: Long): Outcome[Unit] = {
-    val invalidRevisions = revisions.filter(newerThan(revision))
-    discardRevisions(invalidRevisions)
-  }
-
-  def previous: Outcome[Layer] = revisions match {
-    case Nil     => Failure(NoPreviousRevision)
-    case hd :: _ => hd.layer
-  }
-
   private def discardStaleRevisions(): Outcome[Unit] = {
+    @tailrec
+    def discard(revisions: Seq[LayerRevision]): Outcome[Unit] = revisions match {
+      case Nil => Success(Unit)
+      case revision :: remaining =>
+        revision.discard match {
+          case Success(_) => discard(remaining)
+          case failure    => failure
+        }
+    }
+
     val staleRevisions = revisions.drop(retained)
-    discardRevisions(staleRevisions)
+    discard(staleRevisions)
   }
 
-  private def newerThan(revision: Long) = (rev: LayerRevision) => rev.revision >= revision
+  def discardPrevious(): Outcome[Unit] = previousRevision match {
+    case None           => Success(Unit)
+    case Some(previous) => previous.discard
+  }
 
-  private def discardRevisions(revisions: Seq[LayerRevision]) = Try(
-      revisions.foreach(_.path.delete())
-  )
+  def previous: Outcome[Layer] = previousRevision match {
+    case None           => Failure(NoPreviousRevision)
+    case Some(previous) => previous.layer
+  }
 
   private def revisions: Seq[LayerRevision] = {
     def parseRevision(path: String) = path match {
@@ -49,13 +58,16 @@ final class LayerRevisions(directory: Path, retained: Int) {
     val revisions = for {
       file <- directory.children
       rev  <- parseRevision(file)
-    } yield LayerRevision(rev, directory / file)
+    } yield new LayerRevision(rev, directory / file)
 
     revisions.sortWith(_.revision > _.revision)
   }
 
-  private case class LayerRevision(revision: Long, path: Path) {
-    def layer: Outcome[Layer] = path.read[Layer]
+  private def previousRevision = revisions.headOption
+
+  private class LayerRevision(val revision: Long, path: Path) {
+    def layer: Outcome[Layer]  = path.read[Layer]
+    def discard: Outcome[Unit] = path.delete()
   }
 }
 

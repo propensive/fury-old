@@ -13,80 +13,69 @@ object LayerHistoryTest extends TestApp {
     test("modifies current layer on update") {
       init()
 
-      layerRepository.update(Layer())
+      layerRepository.update(Layer(version = 1))
 
-      revisionOf(currentLayer)
-    }.assert(revision => revision == 1)
+      versionOf(currentLayer)
+    }.assert(version => version == 1)
 
     test("does not change current layer if history is empty") {
       init()
-      currentLayer.write(Layer(revision = 10))
 
+      currentLayer.write(Layer(version = 1))
       layerRepository.restorePrevious()
 
-      revisionOf(currentLayer)
-    }.assert(revision => revision == 10)
+      versionOf(currentLayer)
+    }.assert(version => version == 1)
 
     test("restores previous layer on undo") {
       init()
 
-      layerRepository.update(Layer())
-      layerRepository.update(Layer())
+      layerRepository.update(Layer(version = 1))
+      layerRepository.update(Layer(version = 2))
       layerRepository.restorePrevious()
 
-      revisionOf(currentLayer)
-    }.assert(revision => revision == 1)
+      versionOf(currentLayer)
+    }.assert(version => version == 1)
 
     test("allows undoing more than one revision") {
       init()
 
-      layerRepository.update(Layer())
-      layerRepository.update(Layer())
-      layerRepository.update(Layer())
-      layerRepository.restorePrevious()
+      layerRepository.update(Layer(version = 1))
+      layerRepository.update(Layer(version = 2))
+      layerRepository.update(Layer(version = 3))
       layerRepository.restorePrevious()
       layerRepository.restorePrevious()
 
-      revisionOf(currentLayer)
-    }.assert(revision => revision == 0)
+      versionOf(currentLayer)
+    }.assert(version => version == 1)
 
     test("discard newer revisions when restoring") {
       init()
 
-      layerRepository.update(Layer(revision = 1))
-      layerRepository.update(Layer(revision = 2))
+      layerRepository.update(Layer(version = 1))
+      layerRepository.update(Layer(version = 2))
       layerRepository.restorePrevious()
-      layerRepository.update(Layer(revision = 3))
+      layerRepository.update(Layer(version = 3))
       layerRepository.restorePrevious()
 
-      revisionOf(currentLayer)
-    }.assert(revision => revision == 1)
-
-    test("revisions are monotonically increasing") {
-      init()
-
-      layerRepository.update(Layer())
-      layerRepository.restorePrevious()
-      layerRepository.update(Layer())
-
-      revisionOf(currentLayer)
-    }.assert(revision => revision == 1)
+      versionOf(currentLayer)
+    }.assert(version => version == 1)
 
     test("cannot restore more revisions than are retained") {
       init(retainedRevisions = 1)
 
-      layerRepository.update(Layer(revision = 1))
-      layerRepository.update(Layer(revision = 2))
-      layerRepository.update(Layer(revision = 3))
+      layerRepository.update(Layer(version = 1))
+      layerRepository.update(Layer(version = 2))
+      layerRepository.update(Layer(version = 3))
       layerRepository.restorePrevious()
       layerRepository.restorePrevious()
       layerRepository.restorePrevious()
 
-      revisionOf(currentLayer)
-    }.assert(revision => revision == 2)
+      versionOf(currentLayer)
+    }.assert(version => version == 2)
   }
 
-  private def revisionOf(currentLayer: Path) = currentLayer.read[Layer].map(_.revision).get
+  private def versionOf(currentLayer: Path) = currentLayer.read[Layer].map(_.version).get
 
   private def init(retainedRevisions: Int = Int.MaxValue) = {
     val revisionsDir = Path(Files.createTempDirectory("layer-repo").toString)

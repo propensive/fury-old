@@ -146,7 +146,7 @@ case class Path(value: String) {
       subdirs.flatMap(_.findSubdirsContaining(predicate)) ++ found
     }.getOrElse(Set())
 
-  def delete(): Outcome[Boolean] = {
+  def delete(): Outcome[Unit] = {
     def delete(file: java.io.File): Boolean =
       if (file.isDirectory) file.listFiles.forall(delete) && file.delete()
       else file.delete()

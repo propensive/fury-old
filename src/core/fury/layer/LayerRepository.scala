@@ -10,16 +10,15 @@ final class LayerRepository(revisions: LayerRevisions, current: Path) {
     for {
       previous <- revisions.previous
       _        <- current.write(previous)
-      _        <- revisions.discardNewerThan(previous.revision)
+      _        <- revisions.discardPrevious()
     } yield Unit
 
   def update(layer: Layer): Outcome[Unit] = currentLayer match {
     case None => current.write(layer)
     case Some(currentLayer) =>
-      val updatedLayer = layer.copy(revision = currentLayer.revision + 1)
       for {
         _ <- revisions.store(currentLayer)
-        _ <- current.write(updatedLayer)
+        _ <- current.write(layer)
       } yield Unit
   }
 

@@ -480,7 +480,6 @@ object Alias {
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
 case class Layer(
-    revision: Long = 0L,
     version: Int = Layer.CurrentVersion,
     schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
     main: SchemaId = SchemaId.default,
