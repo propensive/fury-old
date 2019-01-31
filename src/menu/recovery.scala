@@ -52,7 +52,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
         case MissingArg(param) =>
           cli.abort(msg"The parameter $param was not provided.")
         case NoPreviousRevision =>
-          cli.abort(msg"No earlier revision than can be found")
+          cli.abort(msg"No earlier revision can be found")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
