@@ -5,7 +5,7 @@ import fury._
 import fury.io.Path
 import probably._
 
-object LayerHistoryTest extends TestApp {
+object LayerRepositoryTest extends TestApp {
   private var currentLayer: Path               = _
   private var layerRepository: LayerRepository = _
 
