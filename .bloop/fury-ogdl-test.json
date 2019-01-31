@@ -15,7 +15,8 @@
       "guillotine/macros",
       "kaleidoscope/core",
       "optometry/core",
-      "probably/cli"
+      "probably/cli",
+      "fury"
     ],
     "classpath": [
       "bootstrap/scala/lib/scala-library.jar",
