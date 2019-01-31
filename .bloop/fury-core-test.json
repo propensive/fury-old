@@ -1,0 +1,42 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "fury/core-test",
+    "directory": ".",
+    "sources": [
+      "src/core-test"
+    ],
+    "dependencies": [
+      "escritoire/core",
+      "eucalyptus/core",
+      "exoskeleton/core",
+      "gastronomy/core",
+      "guillotine/core",
+      "guillotine/macros",
+      "kaleidoscope/core",
+      "optometry/core",
+      "probably/cli",
+      "fury"
+    ],
+    "classpath": [
+      "bootstrap/scala/lib/scala-library.jar",
+      "bootstrap/scala/lib/scala-compiler.jar",
+      "bootstrap/scala/lib/scala-reflect.jar",
+      "dist/bundle/lib/nailgun-server-1.0.0.jar"
+    ],
+    "out": "bootstrap/bloop/out",
+    "classesDir": "bootstrap/bin",
+    "scala": {
+      "organization": "scala-lang.org",
+      "name": "scala-compiler",
+      "jars": [
+        "bootstrap/scala/lib/scala-library.jar",
+        "bootstrap/scala/lib/scala-compiler.jar",
+        "bootstrap/scala/lib/scala-reflect.jar"
+      ],
+      "options": [],
+      "version": "2.12.8"
+    }
+  }
+}
+
