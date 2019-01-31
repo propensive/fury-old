@@ -195,8 +195,9 @@ case class Shell(environment: Environment) {
 
     def fetch(io: Io, artifact: String): Outcome[List[Path]] = {
       val items = new ListBuffer[String]()
-      val running = sh"$coursier fetch --progress --repository central $artifact"
-        .async(items.append(_), io.println(_))
+      val running = sh"$coursier fetch --progress --repository central $artifact".async(
+          items.append(_),
+          line => if (!escritoire.Ansi.strip(line).trim.isEmpty) io.println(line))
       val result = running.await()
       if (result == 0) Success(items.to[List].map(Path(_)))
       else Failure(ItemNotFound(msg"$artifact", msg"binary"))
