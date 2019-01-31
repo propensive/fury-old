@@ -29,7 +29,12 @@ final class LayerRepository(revisions: LayerRevisions, current: Path) {
 }
 
 object LayerRepository {
+  // TODO make configurable
+  private val retainedRevisions = 16
 
-  def apply(layout: Layout): LayerRepository =
-    new LayerRepository(new LayerRevisions(layout.historyDir.javaPath), layout.furyConfig)
+  def apply(layout: Layout): LayerRepository = {
+    val revisionsDirectory = layout.historyDir.javaPath
+    val revisions          = new LayerRevisions(revisionsDirectory, retainedRevisions)
+    new LayerRepository(revisions, layout.furyConfig)
+  }
 }

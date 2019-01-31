@@ -71,12 +71,25 @@ object LayerHistoryTest extends TestApp {
 
       revisionOf(currentLayer)
     }.assert(revision => revision == 1)
+
+    test("cannot restore more revisions than are retained") {
+      init(retainedRevisions = 1)
+
+      layerRepository.update(Layer(revision = 1))
+      layerRepository.update(Layer(revision = 2))
+      layerRepository.update(Layer(revision = 3))
+      layerRepository.restorePrevious()
+      layerRepository.restorePrevious()
+      layerRepository.restorePrevious()
+
+      revisionOf(currentLayer)
+    }.assert(revision => revision == 2)
   }
 
   private def revisionOf(currentLayer: Path) = currentLayer.read[Layer].map(_.revision).get
 
-  private def init() = {
-    val revisions = new LayerRevisions(Files.createTempDirectory("layer-repo"))
+  private def init(retainedRevisions: Int = Int.MaxValue) = {
+    val revisions = new LayerRevisions(Files.createTempDirectory("layer-repo"), retainedRevisions)
     currentLayer = Path(Files.createTempFile("layer", "fury").toString)
     layerRepository = new LayerRepository(revisions, currentLayer)
   }

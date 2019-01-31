@@ -4,45 +4,59 @@ import java.nio.file.{Files, Path}
 
 import fury._
 import fury.error._
-
-import scala.util.{Failure, Success, Try}
 import kaleidoscope._
 
-import collection.JavaConverters._
+import scala.collection.JavaConverters._
+import scala.util.{Failure, Try}
 
-final class LayerRevisions(directory: Path) {
+final class LayerRevisions(directory: Path, retained: Int) {
 
   def store(layer: Layer): Outcome[Unit] = {
     val revision = layer.revision
     val path     = fury.io.Path(directory.resolve(revision + ".bak").toString)
-    path.write(layer)
+
+    for {
+      _ <- path.write(layer)
+      _ <- discardStaleRevisions()
+    } yield Unit
   }
 
-  def discardNewerThan(revision: Long): Outcome[Unit] = Try(
+  def discardNewerThan(revision: Long): Outcome[Unit] = {
+    val invalidRevisions = revisions.filter(newerThan(revision))
+    discardRevisions(invalidRevisions)
+  }
+
+  def previous: Outcome[Layer] = revisions match {
+    case Nil     => Failure(NoPreviousRevision)
+    case hd :: _ => hd.layer
+  }
+
+  private def discardStaleRevisions(): Outcome[Unit] = {
+    val staleRevisions = revisions.drop(retained)
+    discardRevisions(staleRevisions)
+  }
+
+  private def newerThan(revision: Long) = (rev: LayerRevision) => rev.revision >= revision
+
+  private def discardRevisions(revisions: Seq[LayerRevision]) = Try(
       for {
-        rev  <- revisions.filter(_.revision >= revision)
+        rev  <- revisions
         path = rev.path
       } Files.delete(path)
   )
 
-  def previous: Outcome[Layer] = {
-    val sortedRevisions = revisions.sortWith(_.revision > _.revision)
-    sortedRevisions match {
-      case Nil     => Failure(NoPreviousRevision)
-      case hd :: _ => hd.layer
-    }
-  }
-
   private def revisions: Seq[LayerRevision] = {
-    def parseRevision(path: Path): Option[Long] = path.getFileName.toString match {
+    def parseRevision(path: Path) = path.getFileName.toString match {
       case r"""${rev: String}@(\d+).bak""" => Some(rev.toLong)
       case _                               => None
     }
 
-    for {
+    val revisions = for {
       file <- Files.list(directory).iterator().asScala.toList
       rev  <- parseRevision(file)
     } yield LayerRevision(rev, file)
+
+    revisions.sortWith(_.revision > _.revision)
   }
 
   private case class LayerRevision(revision: Long, path: Path) {
