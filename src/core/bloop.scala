@@ -68,16 +68,11 @@ object Bloop {
     }
   }
 
-  def generateFiles(
-      io: Io,
-      compilation: Compilation,
-      universe: Universe,
-      layout: Layout
-    ): Outcome[Iterable[Path]] =
+  def generateFiles(io: Io, compilation: Compilation, layout: Layout): Outcome[Iterable[Path]] =
     new CollOps(compilation.artifacts.values.map { artifact =>
       for {
         path       <- layout.bloopConfig(compilation.hash(artifact.ref)).mkParents()
-        jsonString <- makeConfig(io, artifact, compilation, universe, layout)
+        jsonString <- makeConfig(io, artifact, compilation, layout)
         _          <- ~(if (!path.exists) path.writeSync(jsonString))
       } yield List(path)
     }).sequence.map(_.flatten)
@@ -86,7 +81,6 @@ object Bloop {
       io: Io,
       artifact: Artifact,
       compilation: Compilation,
-      universe: Universe,
       layout: Layout
     ): Outcome[String] =
     for {

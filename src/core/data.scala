@@ -190,7 +190,7 @@ case class Compilation(
     checkouts.foreach(_.get(io, layout).unit)
 
   def generateFiles(io: Io, layout: Layout): Outcome[Iterable[Path]] =
-    Bloop.generateFiles(io, this, universe, layout)
+    Bloop.generateFiles(io, this, layout)
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
     allDependencies.map { a =>
