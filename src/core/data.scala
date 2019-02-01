@@ -298,34 +298,22 @@ case class Compilation(
 
 }
 
+case class Entity(project: Project, schema: Schema, path: Path)
+
 /** A Universe represents a the fully-resolved set of projects available in the layer */
-case class Universe(
-    projects: Map[ProjectId, Project] = Map(),
-    schemas: Map[ProjectId, Schema] = Map(),
-    dirs: Map[ProjectId, Path] = Map()) {
-  def ids: Set[ProjectId] = projects.keySet
+case class Universe(entities: Map[ProjectId, Entity] = Map()) {
+  //projects: Map[ProjectId, Project] = Map(),
+  //schemas: Map[ProjectId, Schema] = Map(),
+  //dirs: Map[ProjectId, Path] = Map()) {
+  def ids: Set[ProjectId] = entities.keySet
 
-  def project(id: ProjectId): Outcome[Project] =
-    projects.get(id).ascribe(ItemNotFound(id))
-
-  def module(ref: ModuleRef): Outcome[Module] =
-    for {
-      project <- project(ref.projectId)
-      module  <- project(ref.moduleId)
-    } yield module
-
-  def dir(id: ProjectId): Outcome[Path] =
-    dirs.get(id).ascribe(ItemNotFound(id))
-
-  def schema(id: ProjectId): Outcome[Schema] =
-    schemas.get(id).ascribe(ItemNotFound(id))
+  def entity(id: ProjectId): Outcome[Entity] =
+    entities.get(id).ascribe(ItemNotFound(id))
 
   def artifact(io: Io, ref: ModuleRef, layout: Layout): Outcome[Artifact] =
     for {
-      project <- project(ref.projectId)
-      schema  <- schema(ref.projectId)
-      module  <- project(ref.moduleId)
-      dir     <- dir(ref.projectId)
+      entity <- entity(ref.projectId)
+      module <- entity.project(ref.moduleId)
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
                  else artifact(io, module.compiler, layout).map(Some(_))
       binaries  <- module.binaries.map(_.paths(io, layout.shell)).sequence.map(_.flatten)
@@ -336,7 +324,7 @@ case class Universe(
           module.kind,
           module.main,
           module.plugin,
-          schema.repos.map(_.repo).to[List],
+          entity.schema.repos.map(_.repo).to[List],
           checkouts.to[List],
           binaries.to[List],
           module.after.to[List],
@@ -344,7 +332,7 @@ case class Universe(
           module.bloopSpec,
           module.params.to[List],
           ref.intransitive,
-          module.localSources.map(_ in dir).to[List] ++ module.sharedSources
+          module.localSources.map(_ in entity.path).to[List] ++ module.sharedSources
             .map(_.path in layout.sharedDir)
             .to[List] ++ checkouts.flatMap { c =>
             c.local match {
@@ -356,12 +344,11 @@ case class Universe(
 
   def checkout(ref: ModuleRef, layout: Layout): Outcome[Set[Checkout]] =
     for {
-      project <- project(ref.projectId)
-      schema  <- schema(ref.projectId)
-      module  <- project(ref.moduleId)
+      entity <- entity(ref.projectId)
+      module <- entity.project(ref.moduleId)
       repos <- module.externalSources
                 .groupBy(_.repoId)
-                .map { case (k, v) => schema.repo(k, layout).map(_ -> v) }
+                .map { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }
                 .sequence
     } yield
       repos.map {
@@ -370,15 +357,15 @@ case class Universe(
       }.to[Set]
 
   def ++(that: Universe): Universe =
-    Universe(projects ++ that.projects, schemas ++ that.schemas, dirs ++ that.dirs)
+    Universe(entities ++ that.entities)
 
   private[this] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[ModuleRef]] =
     for {
-      project <- project(ref.projectId)
-      module  <- project(ref.moduleId)
-      deps    = module.after ++ module.compilerDependencies
-      art     <- artifact(io, ref, layout)
-      tDeps   <- deps.map(dependencies(io, _, layout)).sequence
+      entity <- entity(ref.projectId)
+      module <- entity.project(ref.moduleId)
+      deps   = module.after ++ module.compilerDependencies
+      art    <- artifact(io, ref, layout)
+      tDeps  <- deps.map(dependencies(io, _, layout)).sequence
     } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit =
@@ -421,21 +408,16 @@ case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
           hierarchy.universe.flatMap { nextProjects =>
             val potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
             val conflictIds = potentialConflictIds.filter { id =>
-              projects.project(id) != nextProjects.project(id)
+              projects.entity(id).map(_.project) != nextProjects.entity(id).map(_.project)
             }
             if (conflictIds.isEmpty) Success(projects ++ nextProjects)
             else Failure(ProjectConflict(conflictIds))
           }
         }
       }
-      .map { old =>
-        val newProjects = schema.projects.map { p =>
-          p.id -> p
-        }.toMap
-        val newSchemas = schema.projects.map(_.id -> schema).toMap
-        val newDirs    = schema.projects.map(_.id -> dir).toMap
-        old ++ Universe(newProjects, newSchemas, newDirs)
-      }
+      .map(_ ++ Universe(schema.projects.map { project =>
+        project.id -> Entity(project, schema, dir)
+      }.toMap))
   }
 }
 
