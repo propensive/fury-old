@@ -138,6 +138,8 @@ case class Cli[+Hinted <: CliParam[_]](
 
   }
 
+  def cols: Int = Terminal.columns(env).getOrElse(100)
+
   def read(): Try[Invocation] = {
     val io: Io = new Io(output, config)
     if (completion) {

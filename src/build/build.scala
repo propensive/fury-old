@@ -64,9 +64,8 @@ object AliasCli {
       invoc <- cli.read()
       io    <- invoc.io()
       raw   <- ~invoc(RawArg).isSuccess
-      cols  <- Success(Terminal.columns.getOrElse(100))
       rows  <- ~layer.aliases.to[List]
-      table <- ~Tables(config).show(Tables(config).aliases, cols, rows, raw)(identity(_))
+      table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
       _     <- ~(if (!raw) io.println(Tables(config).contextString(layout.pwd, true)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
@@ -363,14 +362,13 @@ object LayerCli {
   def projects(ctx: LayerCtx) = {
     import ctx._
     for {
-      cols     <- Success(Terminal.columns.getOrElse(100))
       cli      <- cli.hint(RawArg)
       invoc    <- cli.read()
       io       <- invoc.io()
       raw      <- ~invoc(RawArg).isSuccess
       projects <- schema.allProjects(io, layout)
-      table <- ~Tables(config).show(Tables(config).projects(None), cols, projects.distinct, raw)(
-                  _.id)
+      table <- ~Tables(config)
+                .show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))

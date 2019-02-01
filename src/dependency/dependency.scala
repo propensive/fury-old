@@ -71,9 +71,8 @@ object DependencyCli {
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.after.to[List].sorted
-      table   <- ~Tables(config).show(Tables(config).dependencies, cols, rows, raw)(identity)
+      table   <- ~Tables(config).show(Tables(config).dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
       _ <- ~(if (!raw)
                io.println(

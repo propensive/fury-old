@@ -70,9 +70,8 @@ object SourceCli {
       raw     <- ~invoc(RawArg).isSuccess
       module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.sources.to[List]
-      table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoIdentifier)
+      table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       _ <- ~(if (!raw)
                io.println(

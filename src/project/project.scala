@@ -57,14 +57,13 @@ object ProjectCli {
   def list(ctx: MenuContext) = {
     import ctx._
     for {
-      cols   <- Success(Terminal.columns.getOrElse(100))
       cli    <- cli.hint(RawArg)
       invoc  <- cli.read()
       io     <- invoc.io()
       raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
-      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
+      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))

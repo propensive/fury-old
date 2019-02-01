@@ -73,7 +73,6 @@ object ImportCli {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
       io        <- invoc.io()
@@ -81,7 +80,7 @@ object ImportCli {
       rows <- ~schema.imports.to[List].map { i =>
                (i, i.resolve(io, schema, layout))
              }
-      table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
+      table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows, raw)(
                   _._1.schema.key)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema))

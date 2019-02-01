@@ -77,7 +77,6 @@ object ModuleCli {
   def list(ctx: Context) = {
     import ctx._
     for {
-      cols    <- Success(Terminal.columns.getOrElse(100))
       project <- optProject.ascribe(UnspecifiedProject())
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
@@ -85,7 +84,7 @@ object ModuleCli {
       raw     <- ~invoc(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
       table <- ~Tables(config)
-                .show(Tables(config).modules(project.id, project.main), cols, rows, raw)(_.id)
+                .show(Tables(config).modules(project.id, project.main), cli.cols, rows, raw)(_.id)
       schema <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
@@ -280,10 +279,9 @@ object BinaryCli {
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.binaries.to[List]
       schema  <- defaultSchema
-      table   <- ~Tables(config).show(Tables(config).binaries, cols, rows, raw)(identity)
+      table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
       _ <- ~(if (!raw)
                io.println(
                    Tables(config)
@@ -356,9 +354,8 @@ object ParamCli {
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.params.to[List]
-      table   <- ~Tables(config).show(Tables(config).params, cols, rows, raw)(_.name)
+      table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
