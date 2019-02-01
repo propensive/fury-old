@@ -89,82 +89,37 @@ object Bloop {
       compilerClasspath <- ~(artifact.compiler.map { c =>
                             compilation.classpath(c.ref, layout)
                           }.getOrElse(Set()))
+      bloopSpec = artifact.compiler
+        .flatMap(_.bloopSpec)
+        .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7"))
       params <- ~compilation.allParams(io, artifact.ref, layout)
     } yield
-      json(
-          name = compilation.hash(artifact.ref).encoded[Base64Url],
-          scalacOptions = params,
-          // FIXME: Don't hardcode this value
-          bloopSpec = artifact.compiler
-            .flatMap(_.bloopSpec)
-            .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
-          dependencies = artifact.dependencies.map(compilation.hash(_).encoded[Base64Url]),
-          fork = false,
-          classesDir = str"${layout.classesDir(compilation.hash(artifact.ref)).value}",
-          outDir = str"${layout.outputDir(compilation.hash(artifact.ref)).value}",
-          classpath = classpath.map(_.value).to[List].distinct,
-          baseDirectory = layout.pwd.value,
-          javaOptions = Nil,
-          allScalaJars = compilerClasspath.map(_.value).to[List],
-          sourceDirectories = artifact.sourcePaths(layout).map(_.value),
-          javacOptions = Nil,
-          main = artifact.main
-      )
+      Json(
+          version = "1.0.0",
+          project = Json(
+              name = compilation.hash(artifact.ref).encoded[Base64Url],
+              directory = layout.pwd.value,
+              sources = artifact.sourcePaths(layout).map(_.value),
+              dependencies = Nil,
+              classpath = (classpath ++ compilerClasspath).map(_.value),
+              out = str"${layout.outputDir(compilation.hash(artifact.ref)).value}",
+              classesDir = str"${layout.classesDir(compilation.hash(artifact.ref)).value}",
+              scala = Json(
+                  organization = bloopSpec.org,
+                  name = bloopSpec.name,
+                  version = bloopSpec.version,
+                  options = params,
+                  jars = compilerClasspath.map(_.value)
+              ),
+              java = Json(options = Nil),
+              test = Json(frameworks = Nil, options = Json(excludes = Nil, arguments = Nil)),
+              platform = Json(
+                  name = "jvm",
+                  config = Json(home = "", options = Nil),
+                  mainClass = artifact.main.to[List]
+              ),
+              resolution = Json(modules = Nil)
+          )
+      ).serialize
 
-  private def json(
-      name: String,
-      scalacOptions: List[String],
-      bloopSpec: BloopSpec,
-      dependencies: List[String],
-      fork: Boolean,
-      classesDir: String,
-      outDir: String,
-      classpath: List[String],
-      baseDirectory: String,
-      javaOptions: List[String],
-      allScalaJars: List[String],
-      sourceDirectories: List[String],
-      javacOptions: List[String],
-      main: Option[String]
-    ): String =
-    JsonObject(
-        "version" -> JsonString("1.0.0"),
-        "project" -> JsonObject(
-            "name"         -> JsonString(name),
-            "directory"    -> JsonString(baseDirectory),
-            "sources"      -> JsonArray(sourceDirectories.map(JsonString(_)): _*),
-            "dependencies" -> JsonArray(),
-            "classpath"    -> JsonArray(((classpath ++ allScalaJars).map(JsonString(_))): _*),
-            "out"          -> JsonString(outDir),
-            "classesDir"   -> JsonString(classesDir),
-            "scala" -> JsonObject(
-                "organization" -> JsonString(bloopSpec.org),
-                "name"         -> JsonString(bloopSpec.name),
-                "version"      -> JsonString(bloopSpec.version),
-                "options"      -> JsonArray(scalacOptions.map(JsonString(_)): _*),
-                "jars"         -> JsonArray(allScalaJars.map(JsonString(_)): _*)
-            ),
-            "java" -> JsonObject(
-                "options" -> JsonArray(javaOptions.map(JsonString(_)): _*)
-            ),
-            "test" -> JsonObject(
-                "frameworks" -> JsonArray(),
-                "options" -> JsonObject(
-                    "excludes"  -> JsonArray(),
-                    "arguments" -> JsonArray()
-                )
-            ),
-            "platform" -> JsonObject(
-                "name" -> JsonString("jvm"),
-                "config" -> JsonObject(
-                    "home"    -> JsonString(""),
-                    "options" -> JsonArray()
-                ),
-                "mainClass" -> JsonArray(main.to[List].map(JsonString(_)): _*)
-            ),
-            "resolution" -> JsonObject(
-                "modules" -> JsonArray()
-            )
-        )
-    ).serialize
 }

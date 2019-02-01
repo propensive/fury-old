@@ -15,9 +15,32 @@
  */
 package fury
 
+import language.dynamics
+
 sealed trait Json { def serialize: String }
 
-case class JsonObject(elements: (String, Json)*) extends Json {
+object JsonEncoder {
+  implicit val int: JsonEncoder[Int]               = JsonDecimal(_)
+  implicit val long: JsonEncoder[Long]             = JsonDecimal(_)
+  implicit val double: JsonEncoder[Double]         = JsonDecimal(_)
+  implicit val boolean: JsonEncoder[Boolean]       = JsonBoolean(_)
+  implicit val string: JsonEncoder[String]         = JsonString(_)
+  implicit val nil: JsonEncoder[Iterable[Nothing]] = xs => JsonArray(Nil)
+
+  implicit def iterable[T: JsonEncoder]: JsonEncoder[Iterable[T]] =
+    xs => JsonArray(xs.map(implicitly[JsonEncoder[T]].encode))
+}
+trait JsonEncoder[-T] { def encode(value: T): Json }
+
+object Json extends Dynamic {
+
+  def applyDynamicNamed(methodName: String)(elements: (String, Json)*): JsonObject =
+    JsonObject(elements)
+
+  implicit def encode[T: JsonEncoder](value: T): Json = implicitly[JsonEncoder[T]].encode(value)
+}
+
+case class JsonObject(elements: Iterable[(String, Json)]) extends Json {
 
   def serialize: String =
     elements.map {
@@ -26,7 +49,7 @@ case class JsonObject(elements: (String, Json)*) extends Json {
     }.join("{ ", ", ", " }")
 }
 
-case class JsonArray(elements: Json*) extends Json {
+case class JsonArray(elements: Iterable[Json]) extends Json {
   def serialize: String = elements.map(_.serialize).join("[", ", ", "]")
 }
 
