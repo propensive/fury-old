@@ -192,14 +192,13 @@ object BuildCli {
       hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
       universe    <- hierarchy.universe
       artifact    <- universe.artifact(io, module.ref(project), layout)
-      artifacts   <- universe.transitiveDependencies(io, module.ref(project), layout)
       _           <- Bloop.server(layout.shell, io)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
-                        module.ref(project) :: artifacts.map(_.ref).to[List]))
+                        module.ref(project) :: compilation.artifacts.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
                  .apply(module.ref(project))

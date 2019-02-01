@@ -364,19 +364,14 @@ case class Universe(
   def ++(that: Universe): Universe =
     Universe(projects ++ that.projects, schemas ++ that.schemas, dirs ++ that.dirs)
 
-  def dependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
+  private[this] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
     for {
       project <- project(ref.projectId)
       module  <- project(ref.moduleId)
       deps    <- (module.after ++ module.compilerDependencies).map(artifact(io, _, layout)).sequence
-    } yield deps
-
-  def transitiveDependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
-    for {
-      deps <- dependencies(io, ref, layout)
-      art  <- artifact(io, ref, layout)
+      art     <- artifact(io, ref, layout)
       tDeps <- deps.map { a =>
-                transitiveDependencies(io, a.ref, layout)
+                dependencies(io, a.ref, layout)
               }.sequence
     } yield deps ++ tDeps.flatten
 
@@ -386,7 +381,7 @@ case class Universe(
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Outcome[Compilation] =
     for {
       art <- artifact(io, ref, layout)
-      graph <- transitiveDependencies(io, ref, layout).map(_.map { a =>
+      graph <- dependencies(io, ref, layout).map(_.map { a =>
                 (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
               }.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide)))
       artifacts <- graph.keys.map { key =>

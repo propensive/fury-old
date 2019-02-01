@@ -90,11 +90,9 @@ object Bloop {
       layout: Layout
     ): Outcome[String] =
     for {
-      deps      <- universe.dependencies(io, artifact.ref, layout)
-      _         = compilation.writePlugin(artifact.ref, layout)
-      compiler  = artifact.compiler
+      _         <- ~compilation.writePlugin(artifact.ref, layout)
       classpath <- ~compilation.classpath(artifact.ref, layout)
-      compilerClasspath <- ~(compiler.map { c =>
+      compilerClasspath <- ~(artifact.compiler.map { c =>
                             compilation.classpath(c.ref, layout)
                           }.getOrElse(Set()))
       params <- ~compilation.allParams(io, artifact.ref, layout)
@@ -103,12 +101,10 @@ object Bloop {
           name = compilation.hash(artifact.ref).encoded[Base64Url],
           scalacOptions = params,
           // FIXME: Don't hardcode this value
-          bloopSpec = compiler
+          bloopSpec = artifact.compiler
             .flatMap(_.bloopSpec)
             .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")),
-          dependencies = deps.map { a =>
-            compilation.hash(a.ref).encoded[Base64Url]
-          }.to[List],
+          dependencies = artifact.dependencies.map(compilation.hash(_).encoded[Base64Url]),
           fork = false,
           classesDir = str"${layout.classesDir(compilation.hash(artifact.ref)).value}",
           outDir = str"${layout.outputDir(compilation.hash(artifact.ref)).value}",
