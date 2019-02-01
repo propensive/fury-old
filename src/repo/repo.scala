@@ -35,7 +35,7 @@ object RepoCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -55,7 +55,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def unfork(ctx: Context) = {
+  def unfork(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -73,7 +73,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def fork(ctx: Context) = {
+  def fork(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -107,7 +107,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def pull(ctx: Context) = {
+  def pull(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -146,7 +146,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -188,7 +188,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def update(ctx: Context) = {
+  def update(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -227,7 +227,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))

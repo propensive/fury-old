@@ -34,7 +34,7 @@ object ProjectCli {
       optSchemaArg <- ~cli.peek(SchemaArg)
     } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
 
-  def select(ctx: MenuContext) = {
+  def select(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
@@ -54,7 +54,7 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def list(ctx: MenuContext) = {
+  def list(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli    <- cli.hint(RawArg)
@@ -70,7 +70,7 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def add(ctx: MenuContext) = {
+  def add(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(ProjectNameArg)
@@ -89,7 +89,7 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def remove(ctx: MenuContext) = {
+  def remove(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
@@ -110,7 +110,7 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def update(ctx: MenuContext) = {
+  def update(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption

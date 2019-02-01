@@ -55,7 +55,7 @@ object ModuleCli {
                    }
     } yield new Context(cli, layout, config, layer, schema, optProject)
 
-  def select(ctx: Context) = {
+  def select(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -74,7 +74,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       project <- optProject.ascribe(UnspecifiedProject())
@@ -93,7 +93,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli <- cli.hint(ModuleNameArg)
@@ -150,7 +150,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli    <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -178,7 +178,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def update(ctx: Context) = {
+  def update(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -270,7 +270,7 @@ object BinaryCli {
                   }
     } yield BinariesCtx(ctx, optModule)
 
-  def list(ctx: BinariesCtx) = {
+  def list(ctx: BinariesCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(RawArg)
@@ -290,7 +290,7 @@ object BinaryCli {
     } yield io.await()
   }
 
-  def remove(ctx: BinariesCtx) = {
+  def remove(ctx: BinariesCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
@@ -308,7 +308,7 @@ object BinaryCli {
     } yield io.await()
   }
 
-  def add(ctx: BinariesCtx) = {
+  def add(ctx: BinariesCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli       <- cli.hint(BinaryArg)
@@ -345,7 +345,7 @@ object ParamCli {
                   }
     } yield ParamCtx(ctx, optModule)
 
-  def list(ctx: ParamCtx) = {
+  def list(ctx: ParamCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(RawArg)
@@ -365,7 +365,7 @@ object ParamCli {
     } yield io.await()
   }
 
-  def remove(ctx: ParamCtx) = {
+  def remove(ctx: ParamCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli      <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
@@ -382,7 +382,7 @@ object ParamCli {
     } yield io.await()
   }
 
-  def add(ctx: ParamCtx) = {
+  def add(ctx: ParamCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(ParamArg)

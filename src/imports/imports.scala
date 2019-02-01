@@ -31,7 +31,7 @@ object ImportCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -49,7 +49,7 @@ object ImportCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -67,7 +67,7 @@ object ImportCli {
     } yield io.await()
   }
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))

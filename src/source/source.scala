@@ -61,7 +61,7 @@ object SourceCli {
                   }
     } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
@@ -81,7 +81,7 @@ object SourceCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
@@ -100,7 +100,7 @@ object SourceCli {
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       repos <- defaultSchema.map(_.repos)

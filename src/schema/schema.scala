@@ -31,7 +31,7 @@ object SchemaCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield SchemaCtx(cli, layout, config, layer)
 
-  def select(ctx: SchemaCtx) = {
+  def select(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -45,7 +45,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def list(ctx: SchemaCtx) = {
+  def list(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -77,7 +77,7 @@ object SchemaCli {
     Tables(config).show(Tables(config).differences(left.id.key, right.id.key), cols, rows, raw)(
         _.label)
 
-  def diff(ctx: SchemaCtx) = {
+  def diff(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -100,7 +100,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def update(ctx: SchemaCtx) = {
+  def update(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -118,7 +118,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def add(ctx: SchemaCtx) = {
+  def add(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -136,7 +136,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def remove(ctx: SchemaCtx) = {
+  def remove(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))

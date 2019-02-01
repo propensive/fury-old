@@ -62,7 +62,7 @@ object DependencyCli {
                   }
     } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
@@ -82,7 +82,7 @@ object DependencyCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -101,7 +101,7 @@ object DependencyCli {
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       optSchema <- ~layer.mainSchema.toOption

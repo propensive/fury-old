@@ -33,7 +33,7 @@ object ConfigCli {
       config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
     } yield new Context(cli, layout, config)
 
-  def set(ctx: Context) = {
+  def set(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(ThemeArg, Theme.all)
@@ -57,7 +57,7 @@ object AliasCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
-  def list(ctx: MenuContext) = {
+  def list(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli   <- cli.hint(RawArg)
@@ -73,7 +73,7 @@ object AliasCli {
     } yield io.await()
   }
 
-  def remove(ctx: MenuContext) = {
+  def remove(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
@@ -88,7 +88,7 @@ object AliasCli {
     } yield io.await()
   }
 
-  def add(ctx: MenuContext) = {
+  def add(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -165,7 +165,11 @@ object BuildCli {
     } yield Done
   }
 
-  def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])(ctx: MenuContext) = {
+  def compile(
+      optSchema: Option[SchemaId],
+      moduleRef: Option[ModuleRef]
+    )(ctx: MenuContext
+    ): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -226,7 +230,7 @@ object BuildCli {
       modulePart <- ~optModuleId.map(_.key).getOrElse("-")
     } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
-  def prompt(cli: Cli[CliParam[_]]) =
+  def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
@@ -239,7 +243,7 @@ object BuildCli {
       _     <- ~io.println(msg)
     } yield io.await()
 
-  def save(ctx: MenuContext) = {
+  def save(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -264,7 +268,7 @@ object BuildCli {
     } yield io.await()
   }
 
-  def classpath(ctx: MenuContext) = {
+  def classpath(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -290,7 +294,7 @@ object BuildCli {
     } yield io.await()
   }
 
-  def describe(ctx: MenuContext) = {
+  def describe(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -342,7 +346,7 @@ object LayerCli {
       schema    <- layer.schemas.findBy(schemaArg)
     } yield LayerCtx(cli, layout, config, layer, schema)
 
-  def init(ctx: LayerCtx) = {
+  def init(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli   <- cli.hint(ForceArg)
@@ -359,7 +363,7 @@ object LayerCli {
     } yield io.await()
   }
 
-  def projects(ctx: LayerCtx) = {
+  def projects(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(RawArg)
@@ -375,7 +379,7 @@ object LayerCli {
     } yield io.await()
   }
 
-  def publish(ctx: LayerCtx) = {
+  def publish(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
       suggestedTags <- layout.shell.git.tags(layout.pwd)
