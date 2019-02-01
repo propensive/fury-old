@@ -24,6 +24,7 @@
       "gastronomy/core",
       "guillotine/core",
       "guillotine/macros",
+      "impromptu/core",
       "kaleidoscope/core",
       "optometry/core"
     ],
