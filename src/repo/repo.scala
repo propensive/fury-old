@@ -91,7 +91,7 @@ object RepoCli {
       absPath <- (for {
                   absPath <- dir.absolutePath()
                   _       <- Try(absPath.mkdir())
-                  _ <- if (absPath.empty) Success()
+                  _ <- if (absPath.empty) Success(())
                       else Failure(new Exception("Non-empty dir exists"))
                 } yield absPath).orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 

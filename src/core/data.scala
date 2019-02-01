@@ -55,11 +55,11 @@ object Kind {
   def unapply(str: String): Option[Kind] = all.find(_.name == str)
 }
 
-case class Kind(val name: String)
-object Library     extends Kind("library")
-object Compiler    extends Kind("compiler")
-object Plugin      extends Kind("plugin")
-object Application extends Kind("application")
+sealed abstract class Kind(val name: String)
+case object Library     extends Kind("library")
+case object Compiler    extends Kind("compiler")
+case object Plugin      extends Kind("plugin")
+case object Application extends Kind("application")
 
 object Module {
   implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
