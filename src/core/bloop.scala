@@ -99,7 +99,7 @@ object Bloop {
           project = Json(
               name = compilation.hash(artifact.ref).encoded[Base64Url],
               directory = layout.pwd.value,
-              sources = artifact.sourcePaths(layout).map(_.value),
+              sources = artifact.sourcePaths.map(_.value),
               dependencies = Nil,
               classpath = (classpath ++ compilerClasspath).map(_.value),
               out = str"${layout.outputDir(compilation.hash(artifact.ref)).value}",

@@ -173,8 +173,6 @@ case class Compilation(
                 hash(c.ref)
               },
               artifact.params,
-              artifact.localSources,
-              artifact.sharedSources,
               artifact.intransitive,
               graph(ref).map(hash(_))).digest[Md5]
         }
@@ -310,7 +308,11 @@ case class Universe(
   def project(id: ProjectId): Outcome[Project] =
     projects.get(id).ascribe(ItemNotFound(id))
 
-  def contains(project: Project): Boolean = projects.get(project.id) == Some(project)
+  def module(ref: ModuleRef): Outcome[Module] =
+    for {
+      project <- project(ref.projectId)
+      module  <- project(ref.moduleId)
+    } yield module
 
   def dir(id: ProjectId): Outcome[Path] =
     dirs.get(id).ascribe(ItemNotFound(id))
@@ -342,8 +344,14 @@ case class Universe(
           module.bloopSpec,
           module.params.to[List],
           ref.intransitive,
-          module.localSources.map(_ in dir).to[List],
-          module.sharedSources.map(_.path in layout.sharedDir).to[List]
+          module.localSources.map(_ in dir).to[List] ++ module.sharedSources
+            .map(_.path in layout.sharedDir)
+            .to[List] ++ checkouts.flatMap { c =>
+            c.local match {
+              case Some(p) => c.sources.map(_ in p)
+              case None    => c.sources.map(_ in c.path(layout))
+            }
+          }
       )
 
   def checkout(ref: ModuleRef, layout: Layout): Outcome[Set[Checkout]] =
@@ -364,15 +372,13 @@ case class Universe(
   def ++(that: Universe): Universe =
     Universe(projects ++ that.projects, schemas ++ that.schemas, dirs ++ that.dirs)
 
-  private[this] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[Artifact]] =
+  private[this] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Outcome[Set[ModuleRef]] =
     for {
       project <- project(ref.projectId)
       module  <- project(ref.moduleId)
-      deps    <- (module.after ++ module.compilerDependencies).map(artifact(io, _, layout)).sequence
+      deps    = module.after ++ module.compilerDependencies
       art     <- artifact(io, ref, layout)
-      tDeps <- deps.map { a =>
-                dependencies(io, a.ref, layout)
-              }.sequence
+      tDeps   <- deps.map(dependencies(io, _, layout)).sequence
     } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit =
@@ -381,15 +387,18 @@ case class Universe(
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Outcome[Compilation] =
     for {
       art <- artifact(io, ref, layout)
-      graph <- dependencies(io, ref, layout).map(_.map { a =>
-                (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
-              }.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide)))
+      graph <- dependencies(io, ref, layout)
+                .map(_.map(artifact(io, _, layout)).map { a =>
+                  a.map { a =>
+                    (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
+                  }
+                }.sequence
+                  .map(_.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide))))
+                .flatten
       artifacts <- graph.keys.map { key =>
                     artifact(io, key, layout).map(key -> _)
                   }.sequence.map(_.toMap)
-      checkouts <- graph.keys.map { key =>
-                    checkout(key, layout)
-                  }.sequence
+      checkouts <- graph.keys.map(checkout(_, layout)).sequence
     } yield
       Compilation(
           graph,
@@ -865,18 +874,7 @@ case class Artifact(
     bloopSpec: Option[BloopSpec],
     params: List[Parameter],
     intransitive: Boolean,
-    localSources: List[Path],
-    sharedSources: List[Path]) {
-
-  def sourcePaths(layout: Layout): List[Path] =
-    localSources ++ sharedSources ++ checkouts.flatMap { c =>
-      c.local match {
-        case Some(p) => c.sources.map(_ in p)
-        case None    => c.sources.map(_ in c.path(layout))
-      }
-    }
-
-}
+    sourcePaths: List[Path]) {}
 
 object Project {
   implicit val msgShow: MsgShow[Project]       = v => UserMsg(_.project(v.id.key))
