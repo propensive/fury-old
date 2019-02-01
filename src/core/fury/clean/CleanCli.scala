@@ -13,9 +13,7 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury.clean
-
-import fury._
+package fury
 
 object CleanCli {
   case class Context(cli: Cli[CliParam[_]], layout: Layout)

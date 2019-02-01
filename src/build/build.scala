@@ -16,13 +16,12 @@
 package fury
 
 import fury.Args._
-
-import fury.error._
-import fury.layer._
 import guillotine._
 
 import scala.concurrent._
 import scala.util._
+
+import Args._
 
 object ConfigCli {
 
@@ -134,9 +133,9 @@ object BuildCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
-  def notImplemented(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = Success(Abort)
+  def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
-  def about(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
+  def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
       io    <- invoc.io()
@@ -158,7 +157,7 @@ object BuildCli {
                              |""".stripMargin)
     } yield io.await()
 
-  def undo(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = {
+  def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     import cli._
     for {
       layout          <- layout
@@ -213,7 +212,7 @@ object BuildCli {
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
 
-  def getPrompt(layer: Layer, theme: Theme): Outcome[String] =
+  def getPrompt(layer: Layer, theme: Theme): Try[String] =
     for {
       schemaId     <- ~layer.main
       schema       <- layer.schemas.findBy(schemaId)

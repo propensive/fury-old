@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import Args._
 
 import guillotine._

@@ -18,7 +18,6 @@ package fury
 import guillotine._
 import optometry._
 import scala.util._
-import fury.error._
 import Lenses.on
 
 import scala.collection.immutable.SortedSet

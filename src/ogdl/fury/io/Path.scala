@@ -13,10 +13,8 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury.io
+package fury
 
-import fury._
-import error._
 import java.io.FileNotFoundException
 import java.nio.file.{Files, Paths, StandardOpenOption, Path => JPath}
 import java.util.zip.ZipFile
@@ -45,7 +43,7 @@ case class Path(value: String) {
 
   def name: String = javaPath.getFileName.toString
 
-  def zipfileEntries: Outcome[List[ZipfileEntry]] =
+  def zipfileEntries: Try[List[ZipfileEntry]] =
     for {
       zipFile     <- Outcome.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
       entries     <- ~zipFile.entries
@@ -74,7 +72,7 @@ case class Path(value: String) {
 
   def empty: Boolean = 0 == fileCount(_ => true)
 
-  def touch(): Outcome[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
+  def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
     if (!exists()) new java.io.FileOutputStream(javaPath.toFile).close()
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
   }
@@ -120,7 +118,7 @@ case class Path(value: String) {
         .sum
     }.getOrElse(0)
 
-  def moveTo(path: Path): Outcome[Unit] =
+  def moveTo(path: Path): Try[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this)) {
       java.nio.file.Files.move(javaPath, path.javaPath).unit
     }
@@ -150,7 +148,7 @@ case class Path(value: String) {
       subdirs.flatMap(_.findSubdirsContaining(predicate)) ++ found
     }.getOrElse(Set())
 
-  def delete(): Outcome[Unit] = {
+  def delete(): Try[Boolean] = {
     def delete(file: java.io.File): Boolean =
       if (file.isDirectory) file.listFiles.forall(delete) && file.delete()
       else file.delete()
@@ -165,7 +163,7 @@ case class Path(value: String) {
     if (f.exists) f.listFiles.to[List].map(_.getName) else Nil
   }
 
-  def writeSync(content: String): Outcome[Unit] =
+  def writeSync(content: String): Try[Unit] =
     try {
       val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
       writer.write(content)
@@ -174,7 +172,7 @@ case class Path(value: String) {
       case e: java.io.IOException => Failure(FileWriteError(this))
     }
 
-  def appendSync(content: String): Outcome[Unit] =
+  def appendSync(content: String): Try[Unit] =
     try {
       val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
       writer.append(content)
@@ -185,7 +183,7 @@ case class Path(value: String) {
 
   def exists(): Boolean = Files.exists(javaPath)
 
-  def directory: Outcome[Path] = {
+  def directory: Try[Path] = {
     val file = javaPath.toFile
     if (!file.exists()) {
       mkdir()
@@ -194,7 +192,7 @@ case class Path(value: String) {
     else Failure(FileWriteError(this))
   }
 
-  def copyTo(path: Path): Outcome[Path] =
+  def copyTo(path: Path): Try[Path] =
     Outcome.rescue[java.io.IOException](FileWriteError(path)) {
       Files.copy(javaPath, path.javaPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
       path
@@ -207,7 +205,7 @@ case class Path(value: String) {
       None
     }
 
-  def absolutePath(): Outcome[Path] =
+  def absolutePath(): Try[Path] =
     Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
 
   def mkdir() = java.nio.file.Files.createDirectories(javaPath).unit
@@ -219,7 +217,7 @@ case class Path(value: String) {
 
   def rename(fn: String => String): Path = parent / fn(name)
 
-  def mkParents(): Outcome[Path] =
+  def mkParents(): Try[Path] =
     Outcome.rescue[java.io.IOException](FileWriteError(parent)) {
       java.nio.file.Files.createDirectories(parent.javaPath)
       this

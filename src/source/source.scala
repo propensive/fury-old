@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import guillotine._
 import mercator._
 import Args._
@@ -33,8 +31,8 @@ object SourceCli {
       optProject: Option[Project],
       optModule: Option[Module])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId      = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =

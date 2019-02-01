@@ -15,9 +15,6 @@
  */
 package fury
 
-import fury.io.Path
-import fury.error._
-
 case class NotInitialized(dir: Path)                extends FuryException
 case class ModuleAlreadyExists(module: ModuleId)    extends FuryException
 case class ProjectAlreadyExists(project: ProjectId) extends FuryException

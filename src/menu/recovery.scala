@@ -16,16 +16,13 @@
 package fury
 
 import exoskeleton._
-import fury.io._
-import fury.layer._
-import fury.error._
 import guillotine._
 
 import scala.util._
 
 object Recovery {
 
-  def recover(cli: Cli[CliParam[_]])(result: Outcome[ExitStatus]): ExitStatus = result match {
+  def recover(cli: Cli[CliParam[_]])(result: Try[ExitStatus]): ExitStatus = result match {
     case Success(exitStatus) =>
       exitStatus
     case Failure(err) =>

@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import Args._
 
 import guillotine._
@@ -109,7 +107,7 @@ object SchemaCli {
       force    <- ~invoc(ForceArg).toOption.isDefined
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
-      layer    <- ~(if (layer.main == Some(schema.id)) layer.copy(main = newName) else layer)
+      layer    <- ~(if (layer.main == schema.id) layer.copy(main = newName) else layer)
       _        <- ~Layer.save(layer, layout)
     } yield io.await()
   }

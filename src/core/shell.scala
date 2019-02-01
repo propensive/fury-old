@@ -15,9 +15,6 @@
  */
 package fury
 
-import fury.io._
-import fury.error._
-
 import guillotine._
 import kaleidoscope._
 
@@ -45,24 +42,24 @@ case class Shell(environment: Environment) {
 
   object git {
 
-    def setRemote(repo: Repo): Outcome[String] =
-      sh"git remote add origin ${repo.url}".exec[Outcome[String]]
+    def setRemote(repo: Repo): Try[String] =
+      sh"git remote add origin ${repo.url}".exec[Try[String]]
 
-    def clone(repo: Repo, dir: Path): Outcome[String] = {
+    def clone(repo: Repo, dir: Path): Try[String] = {
       implicit val defaultEnvironment: Environment =
         environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
-      sh"git clone ${repo.url} ${dir.value}".exec[Outcome[String]].map { out =>
+      sh"git clone ${repo.url} ${dir.value}".exec[Try[String]].map { out =>
         (dir / ".done").touch()
         out
       }
     }
 
-    def cloneBare(url: String, dir: Path): Outcome[String] = {
+    def cloneBare(url: String, dir: Path): Try[String] = {
       implicit val defaultEnvironment: Environment =
         environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
-      sh"git clone --mirror $url ${dir.value}".exec[Outcome[String]].map { out =>
+      sh"git clone --mirror $url ${dir.value}".exec[Try[String]].map { out =>
         (dir / ".done").touch()
         out
       }
@@ -74,103 +71,103 @@ case class Shell(environment: Environment) {
         sources: List[Path],
         refSpec: String,
         commit: String
-      ): Outcome[String] =
+      ): Try[String] =
       for {
-        _ <- sh"git -C ${dir.value} init".exec[Outcome[String]]
+        _ <- sh"git -C ${dir.value} init".exec[Try[String]]
         _ <- if (!sources.isEmpty)
-              sh"git -C ${dir.value} config core.sparseCheckout true".exec[Outcome[String]]
+              sh"git -C ${dir.value} config core.sparseCheckout true".exec[Try[String]]
             else Success(())
         _ <- Success {
               (dir / ".git" / "info" / "sparse-checkout")
                 .writeSync(sources.map(_.value + "/*\n").mkString)
             }
-        _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Outcome[String]]
-        str <- sh"git -C ${dir.value} fetch origin $refSpec".exec[Outcome[String]]
-        _   <- sh"git -C ${dir.value} checkout $commit".exec[Outcome[String]]
+        _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Try[String]]
+        str <- sh"git -C ${dir.value} fetch origin $refSpec".exec[Try[String]]
+        _   <- sh"git -C ${dir.value} checkout $commit".exec[Try[String]]
         _   <- ~(dir / ".done").touch()
       } yield str
 
-    def lsTree(dir: Path, commit: String): Outcome[List[Path]] =
+    def lsTree(dir: Path, commit: String): Try[List[Path]] =
       for {
-        string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Outcome[String]]
+        string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Try[String]]
         files  <- ~string.split("\n").to[List].map(Path(_))
       } yield files
 
-    def showRefs(dir: Path): Outcome[List[String]] =
+    def showRefs(dir: Path): Try[List[String]] =
       for {
-        refs  <- sh"git -C ${dir.value} show-ref --heads --tags".exec[Outcome[String]]
+        refs  <- sh"git -C ${dir.value} show-ref --heads --tags".exec[Try[String]]
         lines <- ~refs.split("\n").to[List]
       } yield lines.map(_.split("/").last)
 
-    def lsRemote(url: String): Outcome[List[String]] = {
+    def lsRemote(url: String): Try[List[String]] = {
       implicit val defaultEnvironment: Environment =
         environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       Cached.lsRemote.getOrElseUpdate(
           url,
           sh"git ls-remote --tags --heads $url"
-            .exec[Outcome[String]]
+            .exec[Try[String]]
             .map(_.split("\n").to[List].map(_.split("/").last)))
     }
 
-    def lsRemoteRefSpec(url: String, refSpec: String): Outcome[String] = {
+    def lsRemoteRefSpec(url: String, refSpec: String): Try[String] = {
       implicit val defaultEnvironment: Environment =
         environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
       Cached.lsRemoteRefSpec.getOrElseUpdate(
           (url, refSpec),
-          sh"git ls-remote $url $refSpec".exec[Outcome[String]].map(_.take(40)))
+          sh"git ls-remote $url $refSpec".exec[Try[String]].map(_.take(40)))
     }
 
-    def checkout(dir: Path, commit: String): Outcome[String] =
-      sh"git -C ${dir.value} checkout $commit".exec[Outcome[String]].map { out =>
+    def checkout(dir: Path, commit: String): Try[String] =
+      sh"git -C ${dir.value} checkout $commit".exec[Try[String]].map { out =>
         (dir / ".done").touch()
         out
       }
 
-    def init(dir: Path): Outcome[String] =
-      sh"git -C ${dir.value} init".exec[Outcome[String]]
+    def init(dir: Path): Try[String] =
+      sh"git -C ${dir.value} init".exec[Try[String]]
 
-    def commit(dir: Path, message: String): Outcome[String] =
-      sh"git -C ${dir.value} commit -m $message".exec[Outcome[String]]
+    def commit(dir: Path, message: String): Try[String] =
+      sh"git -C ${dir.value} commit -m $message".exec[Try[String]]
 
-    def add(dir: Path, paths: List[Path]): Outcome[String] =
-      sh"git -C ${dir.value} add ${paths.map(_.value)}".exec[Outcome[String]]
+    def add(dir: Path, paths: List[Path]): Try[String] =
+      sh"git -C ${dir.value} add ${paths.map(_.value)}".exec[Try[String]]
 
-    def status(dir: Path): Outcome[String] =
-      sh"git -C ${dir.value} status --porcelain".exec[Outcome[String]]
+    def status(dir: Path): Try[String] =
+      sh"git -C ${dir.value} status --porcelain".exec[Try[String]]
 
-    def pull(dir: Path, refspec: Option[RefSpec]): Outcome[String] =
-      sh"git -C ${dir.value} pull origin ${refspec.to[List].map(_.id)}".exec[Outcome[String]]
+    def pull(dir: Path, refspec: Option[RefSpec]): Try[String] =
+      sh"git -C ${dir.value} pull origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
 
-    def fetch(dir: Path, refspec: Option[RefSpec]): Outcome[String] =
-      sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Outcome[String]]
+    def fetch(dir: Path, refspec: Option[RefSpec]): Try[String] =
+      sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
 
-    def push(dir: Path, all: Boolean): Outcome[String] =
-      (if (all) sh"git -C ${dir.value} push --all" else sh"git push").exec[Outcome[String]]
+    def push(dir: Path, all: Boolean): Try[String] =
+      (if (all) sh"git -C ${dir.value} push --all" else sh"git push").exec[Try[String]]
 
-    def showFile(dir: Path, file: String): Outcome[String] =
-      sh"git -C ${dir.value} show HEAD:$file".exec[Outcome[String]]
+    def showFile(dir: Path, file: String): Try[String] =
+      sh"git -C ${dir.value} show HEAD:$file".exec[Try[String]]
 
-    def tag(dir: Path, tag: String): Outcome[String] =
-      sh"git -C ${dir.value} tag $tag".exec[Outcome[String]]
+    def tag(dir: Path, tag: String): Try[String] =
+      sh"git -C ${dir.value} tag $tag".exec[Try[String]]
 
-    def getCommitFromTag(dir: Path, tag: String): Outcome[String] =
-      sh"git -C ${dir.value} rev-parse $tag".exec[Outcome[String]]
+    def getCommitFromTag(dir: Path, tag: String): Try[String] =
+      sh"git -C ${dir.value} rev-parse $tag".exec[Try[String]]
 
-    def getCommit(dir: Path): Outcome[String] =
-      sh"git -C ${dir.value} rev-parse --short HEAD".exec[Outcome[String]]
+    def getCommit(dir: Path): Try[String] =
+      sh"git -C ${dir.value} rev-parse --short HEAD".exec[Try[String]]
 
-    def getBranchHead(dir: Path, branch: String): Outcome[String] =
-      sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Outcome[String]]
+    def getBranchHead(dir: Path, branch: String): Try[String] =
+      sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]]
 
-    def getTag(dir: Path, tag: String): Outcome[String] =
-      sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Outcome[String]]
+    def getTag(dir: Path, tag: String): Try[String] =
+      sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]]
 
-    def getRemote(dir: Path): Outcome[String] =
-      sh"git -C ${dir.value} remote get-url origin".exec[Outcome[String]]
+    def getRemote(dir: Path): Try[String] =
+      sh"git -C ${dir.value} remote get-url origin".exec[Try[String]]
 
-    def tags(dir: Path): Outcome[List[String]] =
+    def tags(dir: Path): Try[List[String]] =
       for {
-        output <- sh"git -C ${dir.value} tag -l".exec[Outcome[String]]
+        output <- sh"git -C ${dir.value} tag -l".exec[Try[String]]
       } yield output.split("\n").to[List]
   }
 
@@ -195,7 +192,7 @@ case class Shell(environment: Environment) {
   object coursier {
     private val coursier = furyHome / "bin" / "coursier"
 
-    def fetch(io: Io, artifact: String): Outcome[List[Path]] = {
+    def fetch(io: Io, artifact: String): Try[List[Path]] = {
       val items = new ListBuffer[String]()
       val running = sh"${coursier.value} fetch --progress --repository central $artifact".async(
           items.append(_),
@@ -206,28 +203,24 @@ case class Shell(environment: Environment) {
     }
   }
 
-  private def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Outcome[Unit] =
-    sh"jar cmf ${manifestFile.value} ${dest.value}".exec[Outcome[String]].map { str =>
+  private def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] =
+    sh"jar cmf ${manifestFile.value} ${dest.value}".exec[Try[String]].map { str =>
       val params = files.to[List].flatMap {
         case (path, files) =>
           files.flatMap { file =>
             List("-C", path.value, file)
           }
       }
-      sh"jar uf ${dest.value} $params".exec[Outcome[String]]
+      sh"jar uf ${dest.value} $params".exec[Try[String]]
       ()
     }
 
-  def copyTo(src: Path, dest: Path): Outcome[Path] =
-    sh"cp -r ${src.value} ${dest.parent.value}/".exec[Outcome[String]].map { _ =>
+  def copyTo(src: Path, dest: Path): Try[Path] =
+    sh"cp -r ${src.value} ${dest.parent.value}/".exec[Try[String]].map { _ =>
       dest
     }
 
-  def aggregatedJar(
-      dest: Path,
-      files: Set[(Path, List[String])],
-      manifestFile: Path
-    ): Outcome[Unit] =
+  def aggregatedJar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] =
     for {
       dir <- ~(dest.parent / "staging")
       _   <- ~dir.mkdir()
@@ -238,6 +231,6 @@ case class Shell(environment: Environment) {
 }
 
 object Cached {
-  val lsRemote: HashMap[String, Outcome[List[String]]]            = new HashMap()
-  val lsRemoteRefSpec: HashMap[(String, String), Outcome[String]] = new HashMap()
+  val lsRemote: HashMap[String, Try[List[String]]]            = new HashMap()
+  val lsRemoteRefSpec: HashMap[(String, String), Try[String]] = new HashMap()
 }

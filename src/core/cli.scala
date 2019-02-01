@@ -16,9 +16,6 @@
 package fury
 
 import exoskeleton._
-import fury.io._
-import fury.error._
-import fury.ogdl._
 import guillotine._
 
 import scala.util._
@@ -134,14 +131,14 @@ case class Cli[+Hinted <: CliParam[_]](
 
   class Invocation private[Cli] () {
 
-    def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Outcome[T] =
+    def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] =
       args.get(param.param).toTry
 
-    def io(): Outcome[Io] = Success(new Io(output, config))
+    def io(): Try[Io] = Success(new Io(output, config))
 
   }
 
-  def read(): Outcome[Invocation] = {
+  def read(): Try[Invocation] = {
     val io: Io = new Io(output, config)
     if (completion) {
       io.println(optCompletions.flatMap(_.output).mkString("\n"))
@@ -152,7 +149,7 @@ case class Cli[+Hinted <: CliParam[_]](
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).opt
 
-  lazy val layout: Outcome[Layout] =
+  lazy val layout: Try[Layout] =
     env.workDir.ascribe(FileNotFound(Path("/"))).map { pwd =>
       Layout(Path(env.variables("HOME")), Path(pwd), env)
     }
@@ -172,12 +169,12 @@ case class Cli[+Hinted <: CliParam[_]](
     Abort
   }
 
-  def opt[T: Default](param: CliParam[T]): Outcome[Option[T]] = Success(args(param.param).opt)
+  def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).opt)
 
   def hint[T: StringShow: Descriptor](
       arg: CliParam[_],
       hints: Traversable[T]
-    ): Outcome[Cli[Hinted with arg.type]] = {
+    ): Try[Cli[Hinted with arg.type]] = {
     val newHints =
       Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
@@ -192,7 +189,7 @@ case class Cli[+Hinted <: CliParam[_]](
     output.flush()
   }
 
-  def completeCommand(cmd: MenuStructure[_]): Outcome[Nothing] =
+  def completeCommand(cmd: MenuStructure[_]): Try[Nothing] =
     command.map { no =>
       val name = if (no == 1) "Command" else "Subcommand"
       val optCompletions = List(Cli.CmdCompletion(no - 1, name, cmd match {

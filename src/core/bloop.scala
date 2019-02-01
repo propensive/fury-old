@@ -17,8 +17,6 @@ package fury
 
 import java.net._
 
-import fury.io._
-import fury.error._
 import gastronomy._
 import guillotine._
 import mercator._
@@ -29,10 +27,10 @@ object Bloop {
 
   private[this] var bloopServer: Option[Running] = None
 
-  private[this] def testServer(): Outcome[Unit] =
+  private[this] def testServer(): Try[Unit] =
     Success(new Socket("localhost", 8212).close().unit)
 
-  def server(shell: Shell, io: Io): Outcome[Unit] = synchronized {
+  def server(shell: Shell, io: Io): Try[Unit] = synchronized {
     try {
       testServer()
       Success(())
@@ -68,7 +66,7 @@ object Bloop {
     }
   }
 
-  def generateFiles(io: Io, compilation: Compilation, layout: Layout): Outcome[Iterable[Path]] =
+  def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
     new CollOps(compilation.artifacts.values.map { artifact =>
       for {
         path       <- layout.bloopConfig(compilation.hash(artifact.ref)).mkParents()
@@ -82,7 +80,7 @@ object Bloop {
       artifact: Artifact,
       compilation: Compilation,
       layout: Layout
-    ): Outcome[String] =
+    ): Try[String] =
     for {
       _         <- ~compilation.writePlugin(artifact.ref, layout)
       classpath <- ~compilation.classpath(artifact.ref, layout)
