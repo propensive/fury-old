@@ -65,6 +65,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"'${e.value}' is not a valid value.")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
+        case e: ItemAlreadyDefined =>
+          cli.abort(msg"The ${e.kind} ${e.item} already exists.")
         case e: UnspecifiedProject =>
           cli.abort(msg"The project has not been specified.")
         case e: UnspecifiedRepo =>

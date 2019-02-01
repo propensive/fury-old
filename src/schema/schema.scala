@@ -16,10 +16,10 @@
 package fury
 
 import fury.error._
-
 import Args._
-
+import fury.layer.schema._
 import guillotine._
+
 import scala.util._
 
 case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
@@ -40,10 +40,10 @@ object SchemaCli {
       invoc    <- cli.read()
       io       <- invoc.io()
       schemaId <- invoc(SchemaArg)
-      _        <- layer(schemaId)
-      lens     <- ~Lenses.layer.mainSchema
-      layer    <- ~(lens(layer) = schemaId)
-      _        <- ~Layer.save(layer, layout)
+      _ <- FurySchema.updateMainSchema(layer, schemaId) match {
+            case Some(updatedLayer) => Layer.save(updatedLayer, layout)
+            case _                  => Success(Unit)
+          }
     } yield io.await()
   }
 
@@ -103,13 +103,10 @@ object SchemaCli {
       cli      <- cli.hint(SchemaNameArg)
       invoc    <- cli.read()
       io       <- invoc.io()
-      newName  <- invoc(SchemaNameArg)
+      newId    <- invoc(SchemaNameArg)
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
-      schema   <- layer.schemas.findBy(schemaId)
       force    <- ~invoc(ForceArg).toOption.isDefined
-      focus    <- ~Lenses.focus(Some(schemaId), force)
-      layer    <- focus(layer, _.lens(_.id)) = Some(newName)
-      layer    <- ~(if (layer.main == Some(schema.id)) layer.copy(main = newName) else layer)
+      layer    <- FurySchema.rename(layer, schemaId, newId, force)
       _        <- ~Layer.save(layer, layout)
     } yield io.await()
   }
@@ -117,18 +114,16 @@ object SchemaCli {
   def add(ctx: SchemaCtx) = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli       <- cli.hint(SchemaNameArg)
-      invoc     <- cli.read()
-      io        <- invoc.io()
-      name      <- invoc(SchemaNameArg)
-      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
-      schema    <- layer.schemas.findBy(schemaId)
-      newSchema <- ~schema.copy(id = name)
-      lens      <- ~Lenses.layer.schemas
-      layer     <- ~lens.modify(layer)(_ + newSchema)
-      layer     <- ~layer.copy(main = newSchema.id)
-      _         <- ~Layer.save(layer, layout)
+      cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli      <- cli.hint(SchemaNameArg)
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      schemaId <- invoc(SchemaNameArg)
+      layer <- invoc(SchemaArg) match {
+                case Success(from) => FurySchema.clone(layer, from, schemaId)
+                case _             => FurySchema.add(layer, schemaId)
+              }
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -139,9 +134,7 @@ object SchemaCli {
       invoc    <- cli.read()
       io       <- invoc.io()
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
-      schema   <- layer.schemas.findBy(schemaId)
-      lens     <- ~Lenses.layer.schemas
-      layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
+      layer    <- FurySchema.remove(layer, schemaId)
       _        <- ~Layer.save(layer, layout)
     } yield io.await()
   }

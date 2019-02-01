@@ -34,9 +34,13 @@ case class ProjectConflict(ids: Set[ProjectId])     extends FuryException
 case class SchemaDifferences()                      extends FuryException
 
 object ItemNotFound {
-
+  def apply[K <: Key: MsgShow](key: K): ItemNotFound =
+    ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
+}
+object ItemAlreadyDefined {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound =
     ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
 
-case class ItemNotFound(item: UserMsg, kind: UserMsg) extends FuryException
+case class ItemNotFound(item: UserMsg, kind: UserMsg)       extends FuryException
+case class ItemAlreadyDefined(item: UserMsg, kind: UserMsg) extends FuryException
