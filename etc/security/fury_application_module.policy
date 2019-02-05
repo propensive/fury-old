@@ -1,0 +1,5 @@
+grant {
+      permission java.io.FilePermission "${fury.sharedDir}${/}-", "read,write";
+      permission java.lang.RuntimePermission "getenv.SHARED", "read";
+      permission java.util.PropertyPermission "fury.sharedDir", "read";
+};
