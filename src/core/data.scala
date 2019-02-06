@@ -260,13 +260,20 @@ case class Compilation(
           val out = new StringBuilder()
           multiplexer(artifact.ref) = StartCompile(artifact.ref)
 
-          val compileResult: Boolean = artifact.sourcePaths.isEmpty || blocking {
-            layout.shell.bloop
-              .compile(hash(moduleRef).encoded) { ln =>
-                out.append(ln)
-                out.append("\n")
-              }
-              .await() == 0
+          val compileResult: Boolean = Try {
+            artifact.sourcePaths.isEmpty || blocking {
+              layout.shell.bloop
+                .compile(artifact.hash.encoded) { ln =>
+                  out.append(ln)
+                  out.append("\n")
+                }
+                .await() == 0
+            }
+          }.recover {
+            case e =>
+              io.println(e.getClass.toString ++ ": " ++ e.getMessage)
+              io.println(e.getStackTrace.mkString("\n"))
+              false
           }
 
           val finalResult = if (compileResult && artifact.kind == Application) {
