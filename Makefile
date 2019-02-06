@@ -1,14 +1,13 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
-MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))/
-ROOTDIR := $(dirname $MKFILE)
-
+MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
+ROOTDIR := $(dir $(MKFILE))/
 BLOOP_VERSION=1.2.5
 
 deps=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 
 NAILGUNJAR=nailgun-server-1.0.0.jar
 
-all: clean-dist dist/bundle/bin/fury
+all: all-jars
 
 publish: dist/install.sh
 	gsutil -h "Cache-Control:public,max-age=60" cp $< gs://revivalist/downloads/fury.build/fury-$(VERSION).sh
@@ -26,17 +25,17 @@ dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	cat etc/install.sh $< >> dist/install.sh
 	chmod +x dist/install.sh
 
-dist/fury-$(VERSION).tar.gz: dist/bundle/bin/fury dist/bundle/etc
+dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
 	tar czvf $@ -C dist/bundle .
 
 dist/bundle/etc:	#TODO refactor etc structure (separate bundled scripts from development ones)
 	mkdir -p $@
-	cp -r etc/aliases etc/bashrc etc/fishrc etc/zshrc etc/completion $@
+	cp -r etc/aliases etc/bashrc etc/fishrc etc/zshrc etc/completion etc/security $@
 
 ######################## 
 ###    compilation   ###
 ########################
-compile: bootstrap/bin/fury/.version
+
 
 clean-compile: bloop-clean compile
 
@@ -57,11 +56,16 @@ bootstrap/git/%:
 bootstrap/bin:
 	mkdir -p $@
 
-bootstrap/bin/fury/.version: dist/bundle/bin/launcher bootstrap/scala dist/bundle/lib/$(NAILGUNJAR) $(foreach dep, $(deps), bootstrap/git/$(dep))
+SCALA_SOURCES:=$(filter %.scala,$(shell find $(ROOTDIR)src -type f))
+BLOOP_SOURCES:=$(filter %.json,$(shell find $(ROOTDIR).bloop -type f))
+
+compile : dist/bundle/bin/launcher bootstrap/scala dist/bundle/lib/$(NAILGUNJAR) $(foreach dep, $(deps), bootstrap/git/$(dep))  $(SCALA_SOURCES) $(BLOOP_SOURCES)
 	$< --skip-bsp-connection $(BLOOP_VERSION)
 	bloop compile fury
-	echo "$(VERSION)" > $@
 
+
+bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
+	echo "$(VERSION)" > $@
 
 ######################## 
 ###     libraries    ###
@@ -69,13 +73,16 @@ bootstrap/bin/fury/.version: dist/bundle/bin/launcher bootstrap/scala dist/bundl
 dist/bundle/lib:
 	mkdir -p $@
 
-dist/bundle/lib/fury.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib $(foreach dep, $(deps), dist/bundle/lib/$(dep).jar)
-	jar -cf $@ -C $< fury
-
 dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
-dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib
+.PHONY: all-jars
+all-jars: $(foreach dep, $(deps), dist/bundle/lib/$(dep).jar) dist/bundle/lib/fury.jar
+
+dist/bundle/lib/fury.jar: bootstrap/bin compile
+	jar -cf $@ -C $< fury
+
+dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib bootstrap/git/% compile
 	jar -cf $@ -C $< $*
 
 
@@ -84,14 +91,15 @@ dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib
 ########################
 binary-deps=coursier launcher ng
 
-dist/bundle/bin:
-	mkdir -p $@
+%/.dir:
+	mkdir -p ${@D}
+	touch $@
 
-dist/bundle/bin/fury: dist/bundle/lib/fury.jar $(foreach dep, $(binary-deps), dist/bundle/bin/$(dep))
+dist/bundle/bin/fury: $(foreach dep, $(binary-deps), dist/bundle/bin/$(dep))
 	cp etc/fury $@
 	chmod +x $@
 
-dist/bundle/bin/coursier: dist/bundle/bin
+dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
 
@@ -108,9 +116,16 @@ dist/bundle/bin/ng: dist/bundle/bin
 ########################
 DOCKER_TAG=fury-ci
 
-test: dist/bundle/bin/launcher
+test-cases=ogdl core
+test-targets=$(foreach dep, $(test-cases), $(dep)-test)
+.PHONY: $(test-targets)
+
+$(test-targets): %-test: dist/bundle/bin/launcher bootstrap/git/probably
 	$< --skip-bsp-connection $(BLOOP_VERSION)
-	bloop run fury/ogdl-test
+	bloop compile fury/$*-test
+	bloop run fury/$*-test --main fury.Tests
+
+test:  bootstrap/bin/fury/.version $(test-targets)
 
 integration:
 	@echo "Not yet implemented"
@@ -132,5 +147,6 @@ clean-dist:
 
 clean: clean-dist
 	rm -rf bootstrap/bin/fury
+	rm -rf bootstrap
 
 .PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration

@@ -25,7 +25,8 @@ import scala.util._
 import scala.collection.mutable.{HashMap, ListBuffer}
 
 case class Shell(environment: Environment) {
-  private val furyHome = System.getProperty("fury.home")
+  private val furyHome   = Path(System.getProperty("fury.home"))
+  private val policyFile = furyHome / "etc" / "security" / "fury_application_module.policy"
 
   implicit private[this] val defaultEnvironment: Environment = environment
 
@@ -38,7 +39,8 @@ case class Shell(environment: Environment) {
     layout.sharedDir.mkdir()
     implicit val defaultEnvironment: Environment =
       environment.append("SHARED", layout.sharedDir.value)
-    sh"java -cp ${classpath.mkString(":")} $main".async(output(_), output(_))
+    sh"java -Djava.security.manager -Djava.security.policy=${policyFile.value} -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath
+      .mkString(":")} $main".async(output(_), output(_))
   }
 
   object git {
@@ -191,11 +193,11 @@ case class Shell(environment: Environment) {
   }
 
   object coursier {
-    private val coursier = s"$furyHome/bin/coursier"
+    private val coursier = furyHome / "bin" / "coursier"
 
     def fetch(io: Io, artifact: String): Outcome[List[Path]] = {
       val items = new ListBuffer[String]()
-      val running = sh"$coursier fetch --progress --repository central $artifact".async(
+      val running = sh"${coursier.value} fetch --progress --repository central $artifact".async(
           items.append(_),
           line => if (!escritoire.Ansi.strip(line).trim.isEmpty) io.println(line))
       val result = running.await()

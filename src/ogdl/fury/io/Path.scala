@@ -15,13 +15,13 @@
  */
 package fury.io
 
-import fury._, error._
-
+import fury._
+import error._
 import java.io.FileNotFoundException
-import java.io.FileOutputStream
-import java.nio.file.{Files, Paths, Path => JPath}
+import java.nio.file.{Files, Paths, StandardOpenOption, Path => JPath}
 import java.util.zip.ZipFile
 
+import fury.ogdl._
 import kaleidoscope._
 
 import scala.collection.JavaConverters._
@@ -78,6 +78,18 @@ case class Path(value: String) {
     if (!exists()) new java.io.FileOutputStream(javaPath.toFile).close()
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
   }
+
+  def read[T: OgdlReader]: Outcome[T] = Ogdl.read[T](this, x => x)
+
+  def write[T: OgdlWriter](value: T): Outcome[Unit] =
+    Outcome.rescue[java.io.IOException](FileWriteError(this)) {
+      val content: String = Ogdl.serialize(implicitly[OgdlWriter[T]].write(value))
+      Files.write(
+          javaPath,
+          content.getBytes(),
+          StandardOpenOption.CREATE,
+          StandardOpenOption.TRUNCATE_EXISTING)
+    }
 
   def extant(): Path = {
     mkdir()
@@ -138,7 +150,7 @@ case class Path(value: String) {
       subdirs.flatMap(_.findSubdirsContaining(predicate)) ++ found
     }.getOrElse(Set())
 
-  def delete(): Outcome[Boolean] = {
+  def delete(): Outcome[Unit] = {
     def delete(file: java.io.File): Boolean =
       if (file.isDirectory) file.listFiles.forall(delete) && file.delete()
       else file.delete()

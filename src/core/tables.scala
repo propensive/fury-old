@@ -96,6 +96,7 @@ case class Tables(config: Config) {
         Heading("SRCS", _.sources),
         Heading("BINS", m => bar(m.binaries.size)),
         Heading("COMPILER", _.compiler),
+        Heading("TYPE", _.kind),
         Heading("PARAMS", m => bar(m.params.size))
     )
 

@@ -55,6 +55,7 @@ object OgdlReader {
 
   implicit val string: OgdlReader[String]   = _()
   implicit val int: OgdlReader[Int]         = _().toInt
+  implicit val long: OgdlReader[Long]       = _().toLong
   implicit val boolean: OgdlReader[Boolean] = _().toBoolean
 
   implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader](

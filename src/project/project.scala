@@ -51,7 +51,7 @@ object ProjectCli {
       _         <- schema(projectId)
       focus     <- ~Lenses.focus(optSchemaId, force)
       layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
-      _         <- ~io.save(layer, layout.furyConfig)
+      _         <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -86,7 +86,7 @@ object ProjectCli {
                   _.modify(_)((_: SortedSet[Project]) + project))
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
                   _(_) = Some(project.id))
-      _ <- ~io.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
       _ <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
   }
@@ -108,7 +108,7 @@ object ProjectCli {
                 (lens, ws) =>
                   if (lens(ws) == Some(projectId))(lens(ws) = None) else ws
               }
-      _ <- ~io.save(layer, layout.furyConfig)
+      _ <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
@@ -136,7 +136,7 @@ object ProjectCli {
       nameArg        <- ~invoc(ProjectNameArg).toOption
       newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      _              <- ~io.save(layer, layout.furyConfig)
+      _              <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 }
