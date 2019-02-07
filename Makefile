@@ -6,6 +6,7 @@ BLOOP_VERSION=1.2.5
 deps=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 
 NAILGUNJAR=nailgun-server-1.0.0.jar
+NAILGUNJAR_PATH=dist/bundle/lib/$(NAILGUNJAR)
 
 all: all-jars
 
@@ -45,6 +46,7 @@ watch: compile
 bloop-clean:
 	bloop clean fury
 
+scala_libs=bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
 bootstrap/scala:
 	mkdir -p $@
 	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C $@ --strip 1
@@ -59,7 +61,7 @@ bootstrap/bin:
 SCALA_SOURCES:=$(filter %.scala,$(shell find $(ROOTDIR)src -type f))
 BLOOP_SOURCES:=$(filter %.json,$(shell find $(ROOTDIR).bloop -type f))
 
-compile : dist/bundle/bin/launcher bootstrap/scala dist/bundle/lib/$(NAILGUNJAR) $(foreach dep, $(deps), bootstrap/git/$(dep))  $(SCALA_SOURCES) $(BLOOP_SOURCES)
+compile : dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJAR_PATH) $(foreach dep, $(deps), bootstrap/git/$(dep))  $(SCALA_SOURCES) $(BLOOP_SOURCES)
 	$< --skip-bsp-connection $(BLOOP_VERSION)
 	bloop compile fury
 
@@ -77,7 +79,8 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 .PHONY: all-jars
-all-jars: $(foreach dep, $(deps), dist/bundle/lib/$(dep).jar) dist/bundle/lib/fury.jar
+jar_files:=$(foreach dep, $(deps), dist/bundle/lib/$(dep).jar) dist/bundle/lib/fury.jar
+all-jars: $(jar_files)
 
 dist/bundle/lib/fury.jar: bootstrap/bin compile
 	jar -cf $@ -C $< fury
@@ -110,6 +113,10 @@ dist/bundle/bin/ng: dist/bundle/bin
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py
 	sed -i '1 s/$$/2/' $@
 	chmod +x $@
+
+native_image_jar_files=$(jar_files) $(NAILGUNJAR_PATH) $(scala_libs)
+fury-native: all-jars
+	native-image -cp $(shell bash -c "ls $(native_image_jar_files) | paste -s -d: -") fury.Main
 
 ######################## 
 ###   verification   ###
