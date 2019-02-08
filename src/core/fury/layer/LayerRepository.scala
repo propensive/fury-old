@@ -1,7 +1,5 @@
 package fury
 
-import fury.io.Path
-
 final class LayerRepository(revisions: LayerRevisions, current: Path) {
 
   def restorePrevious(): Outcome[Unit] =
