@@ -520,45 +520,53 @@ object Layer {
   val CurrentVersion = 3
 
   def read(io: Io, string: String, layout: Layout): Try[Layer] =
-    Success(Ogdl.read[Layer](string, upgrade(io, _, layout)))
+    Success(Ogdl.read[Layer](string, upgrade(io, layout, _)))
 
   def read(io: Io, file: Path, layout: Layout): Try[Layer] =
-    Success(Ogdl.read[Layer](file, upgrade(io, _, layout)).toOption.getOrElse(Layer()))
+    Success(Ogdl.read[Layer](file, upgrade(io, layout, _)).toOption.getOrElse(Layer()))
 
   def save(layer: Layer, layout: Layout): Try[Unit] = LayerRepository(layout).update(layer)
 
-  private def upgrade(io: Io, ogdl: Ogdl, layout: Layout): Ogdl =
+  private def upgrade(io: Io, layout: Layout, ogdl: Ogdl): Ogdl =
     Try(ogdl.version().toInt).getOrElse(1) match {
       case 1 =>
         io.println("Migrating layer.fury from file format v1")
-        ogdl.set(
-            schemas = ogdl.schemas.map { schema =>
-              schema.set(
-                  repos = schema.repos.map { repo =>
-                    io.println(s"Checking commit hash for ${repo.repo()}")
-                    val commit =
-                      layout.shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
-                    repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
-                  }
-              )
-            },
-            version = Ogdl(2)
+        upgrade(
+            io,
+            layout,
+            ogdl.set(
+                schemas = ogdl.schemas.map { schema =>
+                  schema.set(
+                      repos = schema.repos.map { repo =>
+                        io.println(s"Checking commit hash for ${repo.repo()}")
+                        val commit =
+                          layout.shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
+                        repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
+                      }
+                  )
+                },
+                version = Ogdl(2)
+            )
         )
       case 2 =>
         io.println("Migrating layer.fury from file format v2")
-        ogdl.set(
-            schemas = ogdl.schemas.map { schema =>
-              schema.set(
-                  projects = schema.projects.map { project =>
-                    project.set(
-                        modules = project.modules.map { module =>
-                          module.set(kind = Ogdl(module.kind().capitalize))
-                        }
-                    )
-                  }
-              )
-            },
-            version = Ogdl(3)
+        upgrade(
+            io,
+            layout,
+            ogdl.set(
+                schemas = ogdl.schemas.map { schema =>
+                  schema.set(
+                      projects = schema.projects.map { project =>
+                        project.set(
+                            modules = project.modules.map { module =>
+                              module.set(kind = Ogdl(module.kind().capitalize))
+                            }
+                        )
+                      }
+                  )
+                },
+                version = Ogdl(3)
+            )
         )
       case CurrentVersion => ogdl
     }
