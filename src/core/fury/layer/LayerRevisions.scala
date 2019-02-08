@@ -1,8 +1,5 @@
-package fury.layer
+package fury
 
-import fury._
-import fury.error._
-import fury.io._
 import kaleidoscope._
 
 import scala.annotation.tailrec

@@ -1,8 +1,6 @@
-package fury.layer
+package fury
 import java.nio.file.Files
 
-import fury._
-import fury.io.Path
 import probably._
 
 object LayerRepositoryTest extends TestApp {

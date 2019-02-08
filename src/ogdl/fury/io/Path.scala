@@ -19,7 +19,6 @@ import java.io.FileNotFoundException
 import java.nio.file.{Files, Paths, StandardOpenOption, Path => JPath}
 import java.util.zip.ZipFile
 
-import fury.ogdl._
 import kaleidoscope._
 
 import scala.collection.JavaConverters._
@@ -77,9 +76,9 @@ case class Path(value: String) {
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
   }
 
-  def read[T: OgdlReader]: Outcome[T] = Ogdl.read[T](this, x => x)
+  def read[T: OgdlReader]: Try[T] = Ogdl.read[T](this, x => x)
 
-  def write[T: OgdlWriter](value: T): Outcome[Unit] =
+  def write[T: OgdlWriter](value: T): Try[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this)) {
       val content: String = Ogdl.serialize(implicitly[OgdlWriter[T]].write(value))
       Files.write(

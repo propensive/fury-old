@@ -1,7 +1,5 @@
-package fury.layer
+package fury
 
-import fury._
-import fury.error.`package`.Outcome
 import fury.io.Path
 
 final class LayerRepository(revisions: LayerRevisions, current: Path) {
