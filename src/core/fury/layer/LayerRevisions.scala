@@ -10,7 +10,7 @@ import scala.util._
 
 final class LayerRevisions(directory: Path, retained: Int) {
 
-  def store(layer: Layer): Outcome[Unit] = {
+  def store(layer: Layer): Try[Unit] = {
     val revision = previousRevision match {
       case None           => 0
       case Some(previous) => previous.revision + 1
@@ -24,9 +24,9 @@ final class LayerRevisions(directory: Path, retained: Int) {
     } yield Unit
   }
 
-  private def discardStaleRevisions(): Outcome[Unit] = {
+  private def discardStaleRevisions(): Try[Unit] = {
     @tailrec
-    def discard(revisions: Seq[LayerRevision]): Outcome[Unit] = revisions match {
+    def discard(revisions: Seq[LayerRevision]): Try[Unit] = revisions match {
       case Nil => Success(Unit)
       case revision :: remaining =>
         revision.discard match {
@@ -39,12 +39,12 @@ final class LayerRevisions(directory: Path, retained: Int) {
     discard(staleRevisions)
   }
 
-  def discardPrevious(): Outcome[Unit] = previousRevision match {
+  def discardPrevious(): Try[Unit] = previousRevision match {
     case None           => Success(Unit)
     case Some(previous) => previous.discard
   }
 
-  def previous: Outcome[Layer] = previousRevision match {
+  def previous: Try[Layer] = previousRevision match {
     case None           => Failure(NoPreviousRevision)
     case Some(previous) => previous.layer
   }
@@ -66,8 +66,8 @@ final class LayerRevisions(directory: Path, retained: Int) {
   private def previousRevision = revisions.headOption
 
   private class LayerRevision(val revision: Long, path: Path) {
-    def layer: Outcome[Layer]  = path.read[Layer]
-    def discard: Outcome[Unit] = path.delete()
+    def layer: Try[Layer]  = path.read[Layer]
+    def discard: Try[Unit] = path.delete()
   }
 }
 
