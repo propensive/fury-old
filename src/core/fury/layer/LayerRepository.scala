@@ -1,15 +1,17 @@
 package fury
 
+import scala.util._
+
 final class LayerRepository(revisions: LayerRevisions, current: Path) {
 
-  def restorePrevious(): Outcome[Unit] =
+  def restorePrevious(): Try[Unit] =
     for {
       previous <- revisions.previous
       _        <- current.write(previous)
       _        <- revisions.discardPrevious()
     } yield Unit
 
-  def update(layer: Layer): Outcome[Unit] = currentLayer match {
+  def update(layer: Layer): Try[Unit] = currentLayer match {
     case None => current.write(layer)
     case Some(currentLayer) =>
       for {

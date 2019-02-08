@@ -18,13 +18,13 @@ final class LayerRevisions(directory: Path, retained: Int) {
     for {
       _ <- path.write(layer)
       _ <- discardStaleRevisions()
-    } yield Unit
+    } yield ()
   }
 
   private def discardStaleRevisions(): Try[Unit] = {
     @tailrec
     def discard(revisions: Seq[LayerRevision]): Try[Unit] = revisions match {
-      case Nil => Success(Unit)
+      case Nil => Success(())
       case revision :: remaining =>
         revision.discard match {
           case Success(_) => discard(remaining)
@@ -37,7 +37,7 @@ final class LayerRevisions(directory: Path, retained: Int) {
   }
 
   def discardPrevious(): Try[Unit] = previousRevision match {
-    case None           => Success(Unit)
+    case None           => Success(())
     case Some(previous) => previous.discard
   }
 
@@ -64,7 +64,7 @@ final class LayerRevisions(directory: Path, retained: Int) {
 
   private class LayerRevision(val revision: Long, path: Path) {
     def layer: Try[Layer]  = path.read[Layer]
-    def discard: Try[Unit] = path.delete()
+    def discard: Try[Unit] = path.delete().map(_ => ())
   }
 }
 
