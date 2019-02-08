@@ -24,6 +24,7 @@ import guillotine._
 import mercator._
 
 import scala.util._
+import scala.concurrent.duration._
 
 object Bloop {
 
@@ -42,28 +43,39 @@ object Bloop {
         val io2     = io.print("Starting bloop compile server...")
         val running = shell.bloop.startServer()
 
-        def checkStarted(): Unit =
-          try {
-            Thread.sleep(150)
-            if (!testServer().isSuccess) {
-              io.print(".")
-              checkStarted()
+        def checkStarted(n: Duration): Boolean = {
+          val interval = 150.millis
+          if (n < interval) {
+            false
+          } else {
+            try {
+              if (!testServer().isSuccess) {
+                io.print(".")
+                Thread.sleep((interval / 1.millisecond).toInt)
+                checkStarted(n - interval)
+              } else {
+                true
+              }
+            } catch {
+              case e: Exception =>
+                io.print(".")
+                Thread.sleep((interval / 1.millisecond).toInt)
+                checkStarted(n - interval)
             }
-          } catch {
-            case e: Exception =>
-              io.print(".")
-              checkStarted()
           }
-
-        io.println("done")
-
-        try {
-          bloopServer = Some(running)
-          Success(())
-        } catch {
-          case e: ConnectException =>
-            bloopServer = None
-            Failure(InitFailure())
+        }
+        if (checkStarted(5 seconds)) {
+          io.println("done")
+          try {
+            bloopServer = Some(running)
+            Success(())
+          } catch {
+            case e: ConnectException =>
+              bloopServer = None
+              Failure(InitFailure())
+          }
+        } else {
+          Failure(InitFailure())
         }
     }
   }

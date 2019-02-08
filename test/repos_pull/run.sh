@@ -4,8 +4,6 @@ set -x
 
 source $TESTROOTDIR/tests_lib
 
-start_bloop
-
 mkdir -p repo1
 (
     cd repo1
@@ -44,8 +42,6 @@ mkdir -p fury_project
     cd repo1
     touch src/version3 && git add -A && git commit -m"."
 )
-
-start_bloop
 
 git clone fury_project fury_project_clone 2> /dev/null
 

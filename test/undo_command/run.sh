@@ -4,8 +4,6 @@ set -x
 
 source $TESTROOTDIR/tests_lib
 
-start_bloop
-fury start
 fury layer init
 fury project add -n webpage
 fury module add -n hello_world
