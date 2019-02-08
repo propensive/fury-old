@@ -517,7 +517,7 @@ case class Layer(
 }
 
 object Layer {
-  val CurrentVersion = 2
+  val CurrentVersion = 3
 
   def read(io: Io, string: String, layout: Layout): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(io, _, layout)))
@@ -528,8 +528,7 @@ object Layer {
   def save(layer: Layer, layout: Layout): Try[Unit] = LayerRepository(layout).update(layer)
 
   private def upgrade(io: Io, ogdl: Ogdl, layout: Layout): Ogdl =
-    (try ogdl.version().toInt
-    catch { case e: Exception => 1 }) match {
+    Try(ogdl.version().toInt).getOrElse(1) match {
       case 1 =>
         io.println("Migrating layer.fury from file format v1")
         ogdl.set(
@@ -544,6 +543,22 @@ object Layer {
               )
             },
             version = Ogdl(2)
+        )
+      case 2 =>
+        io.println("Migrating layer.fury from file format v2")
+        ogdl.set(
+            schemas = ogdl.schemas.map { schema =>
+              schema.set(
+                  projects = schema.projects.map { project =>
+                    project.set(
+                        modules = project.modules.map { module =>
+                          module.set(kind = Ogdl(module.kind().capitalize))
+                        }
+                    )
+                  }
+              )
+            },
+            version = Ogdl(3)
         )
       case CurrentVersion => ogdl
     }
