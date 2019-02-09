@@ -260,7 +260,7 @@ case class Compilation(
           val out = new StringBuilder()
           multiplexer(artifact.ref) = StartCompile(artifact.ref)
 
-          val compileResult: Boolean = blocking {
+          val compileResult: Boolean = artifact.sourcePaths.isEmpty || blocking {
             layout.shell.bloop
               .compile(hash(moduleRef).encoded) { ln =>
                 out.append(ln)
