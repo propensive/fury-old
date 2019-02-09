@@ -89,7 +89,7 @@ object Ogdl {
       val sb = new StringBuilder()
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
       sb.append('\n')
-      path.writeSync(sb.toString).unit
+      path.writeSync(sb.toString)
     }
 
   def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {

@@ -200,7 +200,7 @@ object BuildCli {
       _           <- compilation.generateFiles(io, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
-                        module.ref(project) :: compilation.artifacts.map(_._1).to[List]))
+                        compilation.artifacts.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
                  .apply(module.ref(project))

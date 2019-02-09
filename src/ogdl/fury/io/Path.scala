@@ -45,7 +45,7 @@ case class Path(value: String) {
   def zipfileEntries: Try[List[ZipfileEntry]] =
     for {
       zipFile     <- Outcome.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
-      entries     <- ~zipFile.entries
+      entries     <- Try(zipFile.entries)
       entriesList = entries.asScala.to[List]
     } yield
       entriesList.map { entry =>
@@ -119,7 +119,7 @@ case class Path(value: String) {
 
   def moveTo(path: Path): Try[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this)) {
-      java.nio.file.Files.move(javaPath, path.javaPath).unit
+      java.nio.file.Files.move(javaPath, path.javaPath)
     }
 
   def relativeSubdirsContaining(predicate: String => Boolean): Set[Path] = {
@@ -207,7 +207,7 @@ case class Path(value: String) {
   def absolutePath(): Try[Path] =
     Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
 
-  def mkdir() = java.nio.file.Files.createDirectories(javaPath).unit
+  def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath)
 
   def relativizeTo(dir: Path) =
     if (value.startsWith("/")) this else Path(s"${dir.value}/$value")
