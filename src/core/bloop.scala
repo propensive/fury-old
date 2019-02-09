@@ -83,7 +83,7 @@ object Bloop {
       for {
         path       <- layout.bloopConfig(compilation.hash(artifact.ref)).mkParents()
         jsonString <- makeConfig(io, artifact, compilation, layout)
-        _          <- ~(if (!path.exists) path.writeSync(jsonString))
+        _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
