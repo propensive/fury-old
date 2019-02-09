@@ -111,7 +111,7 @@ dist/bundle/bin/launcher: dist/bundle/bin/coursier
 
 dist/bundle/bin/ng: dist/bundle/bin
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py
-	sed -i.bak '1 s/$$/2/' $@ && rm $@.bak
+	sed -i.bak '1 s/$$/2.7/' $@ && rm $@.bak
 	chmod +x $@
 
 native_image_jar_files=$(jar_files) $(NAILGUNJAR_PATH) $(scala_libs)
