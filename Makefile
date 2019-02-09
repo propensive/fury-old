@@ -3,7 +3,7 @@ MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))/
 BLOOP_VERSION=1.2.5
 
-deps=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
+deps=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine impromptu
 
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJAR_PATH=dist/bundle/lib/$(NAILGUNJAR)

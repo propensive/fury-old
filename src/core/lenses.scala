@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import optometry._
 import scala.collection.immutable.SortedSet
 
@@ -30,7 +28,7 @@ object Lenses {
       force: Boolean
     )(lens: SchemaId => Lens[Layer, A, A]
     )(modify: (Lens[Layer, A, A], Layer) => Layer
-    ): Outcome[Layer] = {
+    ): Try[Layer] = {
     val lenses = schemaId match {
       case Some(schemaId) => List(lens(schemaId))
       case None           => layer.schemas.map(_.id).to[List].map(lens(_))
@@ -49,7 +47,7 @@ object Lenses {
         layer: Layer,
         partialLens: Lens.Partial[Schema] => Lens[Schema, A, A],
         value: Option[A]
-      ): Outcome[Layer] = value match {
+      ): Try[Layer] = value match {
       case None => Success(layer)
       case Some(value) =>
         val lenses = schemaId match {

@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.io._
-import fury.error._
 import guillotine._
 import exoskeleton._
 
@@ -31,20 +29,20 @@ sealed trait MenuStructure[T] {
 case class Action[T](
     command: Symbol,
     description: UserMsg,
-    action: T => Outcome[ExitStatus],
+    action: T => Try[ExitStatus],
     show: Boolean = true)
     extends MenuStructure[T]
 
 case class Menu[T, S](
     command: Symbol,
     description: UserMsg,
-    action: T => Outcome[S],
+    action: T => Try[S],
     default: Symbol,
     show: Boolean = true
   )(val items: MenuStructure[S]*)
     extends MenuStructure[T] {
 
-  def apply(cli: Cli[CliParam[_]], ctx: T): Outcome[ExitStatus] =
+  def apply(cli: Cli[CliParam[_]], ctx: T): Try[ExitStatus] =
     cli.args.prefix.headOption match {
       case None =>
         if (cli.completion) cli.completeCommand(this)

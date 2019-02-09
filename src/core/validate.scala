@@ -15,13 +15,11 @@
  */
 package fury
 
-import fury.error._
-
 import scala.util._
 
 object Validate {
 
-  def apply(layer: Layer): Outcome[Layer] = {
+  def apply(layer: Layer): Try[Layer] = {
     for {
       schema  <- layer.schemas
       project <- schema.projects

@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import guillotine._
 import mercator._
 import Args._
@@ -36,8 +34,8 @@ object ModuleCli {
       optSchema: Option[Schema],
       optProject: Option[Project])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId      = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =
@@ -57,7 +55,7 @@ object ModuleCli {
                    }
     } yield new Context(cli, layout, config, layer, schema, optProject)
 
-  def select(ctx: Context) = {
+  def select(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -76,10 +74,9 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      cols    <- Success(Terminal.columns.getOrElse(100))
       project <- optProject.ascribe(UnspecifiedProject())
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
@@ -87,7 +84,7 @@ object ModuleCli {
       raw     <- ~invoc(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
       table <- ~Tables(config)
-                .show(Tables(config).modules(project.id, project.main), cols, rows, raw)(_.id)
+                .show(Tables(config).modules(project.id, project.main), cli.cols, rows, raw)(_.id)
       schema <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
@@ -96,7 +93,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli <- cli.hint(ModuleNameArg)
@@ -153,7 +150,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli    <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -181,7 +178,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  def update(ctx: Context) = {
+  def update(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -273,7 +270,7 @@ object BinaryCli {
                   }
     } yield BinariesCtx(ctx, optModule)
 
-  def list(ctx: BinariesCtx) = {
+  def list(ctx: BinariesCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(RawArg)
@@ -282,10 +279,9 @@ object BinaryCli {
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.binaries.to[List]
       schema  <- defaultSchema
-      table   <- ~Tables(config).show(Tables(config).binaries, cols, rows, raw)(identity)
+      table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
       _ <- ~(if (!raw)
                io.println(
                    Tables(config)
@@ -294,7 +290,7 @@ object BinaryCli {
     } yield io.await()
   }
 
-  def remove(ctx: BinariesCtx) = {
+  def remove(ctx: BinariesCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
@@ -312,7 +308,7 @@ object BinaryCli {
     } yield io.await()
   }
 
-  def add(ctx: BinariesCtx) = {
+  def add(ctx: BinariesCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli       <- cli.hint(BinaryArg)
@@ -349,7 +345,7 @@ object ParamCli {
                   }
     } yield ParamCtx(ctx, optModule)
 
-  def list(ctx: ParamCtx) = {
+  def list(ctx: ParamCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(RawArg)
@@ -358,9 +354,8 @@ object ParamCli {
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.params.to[List]
-      table   <- ~Tables(config).show(Tables(config).params, cols, rows, raw)(_.name)
+      table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
@@ -370,7 +365,7 @@ object ParamCli {
     } yield io.await()
   }
 
-  def remove(ctx: ParamCtx) = {
+  def remove(ctx: ParamCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli      <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
@@ -387,7 +382,7 @@ object ParamCli {
     } yield io.await()
   }
 
-  def add(ctx: ParamCtx) = {
+  def add(ctx: ParamCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(ParamArg)

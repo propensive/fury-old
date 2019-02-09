@@ -18,7 +18,6 @@ package fury
 import guillotine._
 import optometry._
 import scala.util._
-import fury.error._
 import Lenses.on
 
 import scala.collection.immutable.SortedSet
@@ -35,7 +34,7 @@ object ProjectCli {
       optSchemaArg <- ~cli.peek(SchemaArg)
     } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
 
-  def select(ctx: MenuContext) = {
+  def select(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
@@ -55,24 +54,23 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def list(ctx: MenuContext) = {
+  def list(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
-      cols   <- Success(Terminal.columns.getOrElse(100))
       cli    <- cli.hint(RawArg)
       invoc  <- cli.read()
       io     <- invoc.io()
       raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
-      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
+      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
-  def add(ctx: MenuContext) = {
+  def add(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(ProjectNameArg)
@@ -91,7 +89,7 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def remove(ctx: MenuContext) = {
+  def remove(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
@@ -112,7 +110,7 @@ object ProjectCli {
     } yield io.await()
   }
 
-  def update(ctx: MenuContext) = {
+  def update(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption

@@ -13,9 +13,9 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury.clean
+package fury
 
-import fury._
+import scala.util._
 
 object CleanCli {
   case class Context(cli: Cli[CliParam[_]], layout: Layout)
@@ -25,7 +25,7 @@ object CleanCli {
       layout <- cli.layout
     } yield Context(cli, layout)
 
-  def cleanAll(ctx: Context) =
+  def cleanAll(ctx: Context): Try[ExitStatus] =
     for {
       _ <- cleanBloop(ctx)
       _ <- cleanClasses(ctx)
@@ -33,23 +33,23 @@ object CleanCli {
       _ <- cleanSources(ctx)
     } yield Done
 
-  def cleanBloop(ctx: Context) =
+  def cleanBloop(ctx: Context): Try[ExitStatus] =
     for {
       _ <- ctx.layout.bloopDir.delete()
       _ <- ctx.layout.analysisDir.delete()
     } yield Done
 
-  def cleanClasses(ctx: Context) =
+  def cleanClasses(ctx: Context): Try[ExitStatus] =
     for {
       _ <- ctx.layout.classesDir.delete()
     } yield Done
 
-  def cleanRepos(ctx: Context) =
+  def cleanRepos(ctx: Context): Try[ExitStatus] =
     for {
       _ <- ctx.layout.reposDir.delete()
     } yield Done
 
-  def cleanSources(ctx: Context) =
+  def cleanSources(ctx: Context): Try[ExitStatus] =
     for {
       _ <- ctx.layout.srcsDir.delete()
     } yield Done

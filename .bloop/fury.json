@@ -24,6 +24,7 @@
       "gastronomy/core",
       "guillotine/core",
       "guillotine/macros",
+      "impromptu/core",
       "kaleidoscope/core",
       "optometry/core"
     ],
@@ -43,7 +44,7 @@
         "bootstrap/scala/lib/scala-compiler.jar",
         "bootstrap/scala/lib/scala-reflect.jar"
       ],
-      "options": [],
+      "options": ["-deprecation"],
       "version": "2.12.8"
     }
   }

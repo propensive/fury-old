@@ -16,13 +16,12 @@
 package fury
 
 import fury.Args._
-
-import fury.error._
-import fury.layer._
 import guillotine._
 
 import scala.concurrent._
 import scala.util._
+
+import Args._
 
 object ConfigCli {
 
@@ -34,7 +33,7 @@ object ConfigCli {
       config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
     } yield new Context(cli, layout, config)
 
-  def set(ctx: Context) = {
+  def set(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(ThemeArg, Theme.all)
@@ -58,16 +57,15 @@ object AliasCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
-  def list(ctx: MenuContext) = {
+  def list(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli   <- cli.hint(RawArg)
       invoc <- cli.read()
       io    <- invoc.io()
       raw   <- ~invoc(RawArg).isSuccess
-      cols  <- Success(Terminal.columns.getOrElse(100))
       rows  <- ~layer.aliases.to[List]
-      table <- ~Tables(config).show(Tables(config).aliases, cols, rows, raw)(identity(_))
+      table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
       _     <- ~(if (!raw) io.println(Tables(config).contextString(layout.pwd, true)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
@@ -75,7 +73,7 @@ object AliasCli {
     } yield io.await()
   }
 
-  def remove(ctx: MenuContext) = {
+  def remove(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
@@ -90,7 +88,7 @@ object AliasCli {
     } yield io.await()
   }
 
-  def add(ctx: MenuContext) = {
+  def add(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -134,9 +132,9 @@ object BuildCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
-  def notImplemented(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = Success(Abort)
+  def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
-  def about(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
+  def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
       io    <- invoc.io()
@@ -158,7 +156,7 @@ object BuildCli {
                              |""".stripMargin)
     } yield io.await()
 
-  def undo(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = {
+  def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     import cli._
     for {
       layout          <- layout
@@ -167,7 +165,11 @@ object BuildCli {
     } yield Done
   }
 
-  def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])(ctx: MenuContext) = {
+  def compile(
+      optSchema: Option[SchemaId],
+      moduleRef: Option[ModuleRef]
+    )(ctx: MenuContext
+    ): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -192,14 +194,13 @@ object BuildCli {
       hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
       universe    <- hierarchy.universe
       artifact    <- universe.artifact(io, module.ref(project), layout)
-      artifacts   <- universe.transitiveDependencies(io, module.ref(project), layout)
       _           <- Bloop.server(layout.shell, io)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
-                        module.ref(project) :: artifacts.map(_.ref).to[List]))
+                        compilation.artifacts.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
                  .apply(module.ref(project))
@@ -214,7 +215,7 @@ object BuildCli {
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
 
-  def getPrompt(layer: Layer, theme: Theme): Outcome[String] =
+  def getPrompt(layer: Layer, theme: Theme): Try[String] =
     for {
       schemaId     <- ~layer.main
       schema       <- layer.schemas.findBy(schemaId)
@@ -229,7 +230,7 @@ object BuildCli {
       modulePart <- ~optModuleId.map(_.key).getOrElse("-")
     } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
-  def prompt(cli: Cli[CliParam[_]]) =
+  def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
@@ -242,7 +243,7 @@ object BuildCli {
       _     <- ~io.println(msg)
     } yield io.await()
 
-  def save(ctx: MenuContext) = {
+  def save(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -267,7 +268,7 @@ object BuildCli {
     } yield io.await()
   }
 
-  def classpath(ctx: MenuContext) = {
+  def classpath(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -293,7 +294,7 @@ object BuildCli {
     } yield io.await()
   }
 
-  def describe(ctx: MenuContext) = {
+  def describe(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -345,7 +346,7 @@ object LayerCli {
       schema    <- layer.schemas.findBy(schemaArg)
     } yield LayerCtx(cli, layout, config, layer, schema)
 
-  def init(ctx: LayerCtx) = {
+  def init(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli   <- cli.hint(ForceArg)
@@ -362,24 +363,23 @@ object LayerCli {
     } yield io.await()
   }
 
-  def projects(ctx: LayerCtx) = {
+  def projects(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
-      cols     <- Success(Terminal.columns.getOrElse(100))
       cli      <- cli.hint(RawArg)
       invoc    <- cli.read()
       io       <- invoc.io()
       raw      <- ~invoc(RawArg).isSuccess
       projects <- schema.allProjects(io, layout)
-      table <- ~Tables(config).show(Tables(config).projects(None), cols, projects.distinct, raw)(
-                  _.id)
+      table <- ~Tables(config)
+                .show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
-  def publish(ctx: LayerCtx) = {
+  def publish(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
       suggestedTags <- layout.shell.git.tags(layout.pwd)

@@ -1,6 +1,5 @@
 package fury
 
-import fury.layer.LayerRepositoryTest
 import probably.TestApp
 
 object Tests {

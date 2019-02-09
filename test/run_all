@@ -48,7 +48,8 @@ run_test_case(){
     fury restart
     (cp -r "${test_case}/." "${test_dir}" && \
         cd ${test_dir} && \
-        bash -c "${test_case}/run.sh"
+        bash -c "${test_case}/run.sh" || \
+	(cat ./.fury/logs/* && exit 1)
     )
 }
 

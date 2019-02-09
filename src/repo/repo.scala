@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import Args._
 
 import guillotine._
@@ -37,11 +35,10 @@ object RepoCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
-      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
       raw       <- ~invoc(RawArg).isSuccess
@@ -49,7 +46,7 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       io        <- invoc.io()
-      table     <- ~Tables(config).show(Tables(config).repositories(layout), cols, rows, raw)(_.id)
+      table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
@@ -58,7 +55,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def unfork(ctx: Context) = {
+  def unfork(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -76,7 +73,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def fork(ctx: Context) = {
+  def fork(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -93,7 +90,7 @@ object RepoCli {
       absPath <- (for {
                   absPath <- dir.absolutePath()
                   _       <- Try(absPath.mkdir())
-                  _ <- if (absPath.empty) Success()
+                  _ <- if (absPath.empty) Success(())
                       else Failure(new Exception("Non-empty dir exists"))
                 } yield absPath).orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
@@ -110,7 +107,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def pull(ctx: Context) = {
+  def pull(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -149,7 +146,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -191,7 +188,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def update(ctx: Context) = {
+  def update(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -230,7 +227,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))

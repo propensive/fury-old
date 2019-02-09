@@ -15,12 +15,11 @@
  */
 package fury
 
-import fury.io._
-import fury.error._
+import scala.util._
 
 object Manifest {
 
-  def file(file: Path, classpath: Set[String], mainClass: Option[String]): Outcome[Path] = {
+  def file(file: Path, classpath: Set[String], mainClass: Option[String]): Try[Path] = {
     val classpathString = classpath.join(" ")
 
     val content: String = List(

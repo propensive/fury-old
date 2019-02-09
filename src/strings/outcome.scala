@@ -13,7 +13,7 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury.error
+package fury
 
 import scala.reflect._
 import scala.util._
@@ -35,13 +35,4 @@ object Outcome {
     new Rescue[E]({ e: Exception =>
       error
     })
-}
-
-object `package` {
-  type Outcome[+T] = Try[T]
-  implicit class Unitize[T](t: T)   { def unit: Unit       = ()         }
-  implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
-  implicit class Ascribe[T](value: Option[T]) {
-    def ascribe(e: Exception): Outcome[T] = value.map(Success(_)).getOrElse(Failure(e))
-  }
 }

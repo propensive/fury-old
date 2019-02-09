@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import Args._
 
 import guillotine._
@@ -33,7 +31,7 @@ object SchemaCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield SchemaCtx(cli, layout, config, layer)
 
-  def select(ctx: SchemaCtx) = {
+  def select(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -47,19 +45,19 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def list(ctx: SchemaCtx) = {
+  def list(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
-      table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cols, rows, raw)(_.id)
+      table <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(
+                  _.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
@@ -68,7 +66,18 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def diff(ctx: SchemaCtx) = {
+  private[this] def diffTable(
+      config: Config,
+      left: Schema,
+      right: Schema,
+      rows: Seq[Difference],
+      cols: Int,
+      raw: Boolean
+    ) =
+    Tables(config).show(Tables(config).differences(left.id.key, right.id.key), cols, rows, raw)(
+        _.label)
+
+  def diff(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -81,13 +90,8 @@ object SchemaCli {
       schema    <- layer.schemas.findBy(schemaArg)
       otherArg  <- invoc(CompareArg)
       other     <- layer.schemas.findBy(otherArg)
-      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       rows      <- ~Diff.gen[Schema].diff(schema, other)
-      table <- ~Tables(config).show(
-                  Tables(config).differences(schema.id.key, other.id.key),
-                  cols,
-                  rows,
-                  raw)(_.label)
+      table     <- ~diffTable(config, schema, other, rows, cli.cols, raw)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
@@ -96,7 +100,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def update(ctx: SchemaCtx) = {
+  def update(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -109,12 +113,12 @@ object SchemaCli {
       force    <- ~invoc(ForceArg).toOption.isDefined
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
-      layer    <- ~(if (layer.main == Some(schema.id)) layer.copy(main = newName) else layer)
+      layer    <- ~(if (layer.main == schema.id) layer.copy(main = newName) else layer)
       _        <- ~Layer.save(layer, layout)
     } yield io.await()
   }
 
-  def add(ctx: SchemaCtx) = {
+  def add(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -132,7 +136,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def remove(ctx: SchemaCtx) = {
+  def remove(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
