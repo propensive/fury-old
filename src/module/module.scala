@@ -70,7 +70,7 @@ object ModuleCli {
       force    <- ~invoc(ForceArg).isSuccess
       focus    <- ~Lenses.focus(optSchemaId, force)
       layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
-      _        <- ~Layer.save(layer, layout)
+      _        <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -145,7 +145,7 @@ object ModuleCli {
                   Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                 lens(ws) = Some(module.id)
               }
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
       _ <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
@@ -174,7 +174,7 @@ object ModuleCli {
                   Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                 if (lens(ws) == Some(moduleId)) lens(ws) = None else ws
               }
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -247,7 +247,7 @@ object ModuleCli {
       layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).plugin)) =
                 pluginName.map(Some(_))
       layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = newId
-      _     <- ~Layer.save(layer, layout)
+      _     <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }
@@ -304,7 +304,7 @@ object BinaryCli {
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -322,7 +322,7 @@ object BinaryCli {
       binary    <- Binary.unapply(repoId, binaryArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }
@@ -378,7 +378,7 @@ object ParamCli {
       force    <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -393,7 +393,7 @@ object ParamCli {
       param   <- invoc(ParamArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) += param)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }

@@ -84,7 +84,7 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) --= aliasToDel)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -118,7 +118,7 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) += alias)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }
@@ -161,7 +161,9 @@ object BuildCli {
     for {
       layout          <- layout
       layerRepository = LayerRepository(layout)
-      _               <- layerRepository.restorePrevious()
+      invoc           <- cli.read()
+      io              <- invoc.io()
+      _               <- layerRepository.restorePrevious(io, layout)
     } yield Done
   }
 
@@ -355,7 +357,7 @@ object LayerCli {
       force <- ~invoc(ForceArg).toOption.isDefined
       layer <- ~Layer()
       _     <- layout.furyConfig.mkParents()
-      _     <- ~Layer.save(layer, layout)
+      _     <- ~Layer.save(io, layer, layout)
       _     <- layout.shell.git.init(layout.pwd)
       _     <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
       _     <- layout.shell.git.commit(layout.pwd, "Initial commit")

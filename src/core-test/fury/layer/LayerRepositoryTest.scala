@@ -73,7 +73,7 @@ object LayerRepositoryTest extends TestApp {
     }.assert(version => version == 2)
   }
 
-  private def versionOf(currentLayer: Path) = currentLayer.read[Layer].map(_.version).get
+  private def versionOf(currentLayer: Path) = Layer.read(currentLayer).map(_.version).get
 
   private def init(retainedRevisions: Int = Int.MaxValue) = {
     val revisionsDir = Path(Files.createTempDirectory("layer-repo").toString)
