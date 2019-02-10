@@ -41,9 +41,9 @@ final class LayerRevisions(directory: Path, retained: Int) {
     case Some(previous) => previous.discard
   }
 
-  def previous: Try[Layer] = previousRevision match {
+  def previous(io: Io, layout: Layout): Try[Layer] = previousRevision match {
     case None           => Failure(NoPreviousRevision)
-    case Some(previous) => previous.layer
+    case Some(previous) => previous.layer(io, layout)
   }
 
   private def revisions: Seq[LayerRevision] = {
@@ -63,8 +63,8 @@ final class LayerRevisions(directory: Path, retained: Int) {
   private def previousRevision = revisions.headOption
 
   private class LayerRevision(val revision: Long, path: Path) {
-    def layer: Try[Layer]  = path.read[Layer]
-    def discard: Try[Unit] = path.delete().map(_ => ())
+    def layer(io: Io, layout: Layout): Try[Layer] = Layer.read(io, path, layout)
+    def discard: Try[Unit]                        = path.delete().map(_ => ())
   }
 }
 

@@ -525,7 +525,8 @@ object Layer {
   def read(io: Io, file: Path, layout: Layout): Try[Layer] =
     Success(Ogdl.read[Layer](file, upgrade(io, layout, _)).toOption.getOrElse(Layer()))
 
-  def save(layer: Layer, layout: Layout): Try[Unit] = LayerRepository(layout).update(layer)
+  def save(io: Io, layer: Layer, layout: Layout): Try[Unit] =
+    LayerRepository(layout).update(io, layer, layout)
 
   private def upgrade(io: Io, layout: Layout, ogdl: Ogdl): Ogdl =
     Try(ogdl.version().toInt).getOrElse(1) match {
