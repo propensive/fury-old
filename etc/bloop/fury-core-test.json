@@ -1,10 +1,10 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "fury/ogdl-test",
+    "name": "fury/core-test",
     "directory": ".",
     "sources": [
-      "src/ogdl-test"
+      "src/core-test"
     ],
     "dependencies": [
       "escritoire/core",
@@ -19,20 +19,20 @@
       "fury"
     ],
     "classpath": [
-      "bootstrap/scala/lib/scala-library.jar",
-      "bootstrap/scala/lib/scala-compiler.jar",
-      "bootstrap/scala/lib/scala-reflect.jar",
-      "dist/bundle/lib/nailgun-server-1.0.0.jar"
+      "$ROOT/bootstrap/scala/lib/scala-library.jar",
+      "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
+      "$ROOT/bootstrap/scala/lib/scala-reflect.jar",
+      "$ROOT/dist/bundle/lib/nailgun-server-1.0.0.jar"
     ],
-    "out": "bootstrap/bloop/out",
-    "classesDir": "bootstrap/bin",
+    "out": "$ROOT/bootstrap/bloop/out",
+    "classesDir": "$ROOT/bootstrap/bin",
     "scala": {
       "organization": "scala-lang.org",
       "name": "scala-compiler",
       "jars": [
-        "bootstrap/scala/lib/scala-library.jar",
-        "bootstrap/scala/lib/scala-compiler.jar",
-        "bootstrap/scala/lib/scala-reflect.jar"
+        "$ROOT/bootstrap/scala/lib/scala-library.jar",
+        "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
+        "$ROOT/bootstrap/scala/lib/scala-reflect.jar"
       ],
       "options": [],
       "version": "2.12.8"
