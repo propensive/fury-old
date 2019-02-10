@@ -263,7 +263,7 @@ case class Compilation(
           val compileResult: Boolean = Try {
             artifact.sourcePaths.isEmpty || blocking {
               layout.shell.bloop
-                .compile(artifact.hash.encoded) { ln =>
+                .compile(hash(artifact).encoded) { ln =>
                   out.append(ln)
                   out.append("\n")
                 }
