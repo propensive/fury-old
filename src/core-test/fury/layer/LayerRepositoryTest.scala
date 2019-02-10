@@ -14,11 +14,12 @@ using arbitrary version numbers in the Layer is likely to cause problems.
 
   */
 
-/*object LayerRepositoryTest extends TestApp {
+object LayerRepositoryTest extends TestApp {
   private var currentLayer: Path               = _
   private var layerRepository: LayerRepository = _
 
   override def tests(): Unit = {
+    /*
     test("modifies current layer on update") {
       init()
 
@@ -82,8 +83,9 @@ using arbitrary version numbers in the Layer is likely to cause problems.
 
       versionOf(currentLayer)
     }.assert(version => version == 2)
+   */
   }
-
+  /*
   private def versionOf(currentLayer: Path) = currentLayer.read[Layer].map(_.version).get
 
   private def init(retainedRevisions: Int = Int.MaxValue) = {
@@ -93,4 +95,6 @@ using arbitrary version numbers in the Layer is likely to cause problems.
     currentLayer = Path(Files.createTempFile("layer", "fury").toString)
     layerRepository = new LayerRepository(revisions, currentLayer)
   }
-}*/
+
+ */
+}
