@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "mitigation/core",
+    "directory": "$ROOT/bootstrap/git/mitigation/src",
+    "sources": [
+      "$ROOT/bootstrap/git/mitigation/src/core"
+    ],
+    "dependencies": [
+      "totalitarian/core"
+    ],
+    "classpath": [
+      "$ROOT/bootstrap/scala/lib/scala-library.jar",
+      "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
+      "$ROOT/bootstrap/scala/lib/scala-reflect.jar"
+    ],
+    "out": "$ROOT/bootstrap/bloop/out",
+    "classesDir": "$ROOT/bootstrap/bin",
+    "scala": {
+      "organization": "scala-lang.org",
+      "name": "scala-compiler",
+      "jars": [
+        "$ROOT/bootstrap/scala/lib/scala-library.jar",
+        "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
+        "$ROOT/bootstrap/scala/lib/scala-reflect.jar"
+      ],
+      "options": [],
+      "version": "2.12.8"
+    }
+  }
+}
