@@ -4,3 +4,5 @@
 *.swo
 dist/
 git/
+bootstrap/
+.bloop/
