@@ -2,9 +2,9 @@
   "version": "1.0.0",
   "project": {
     "name": "fury/ogdl-test",
-    "directory": ".",
+    "directory": "$ROOT",
     "sources": [
-      "src/ogdl-test"
+      "$ROOT/src/ogdl-test"
     ],
     "dependencies": [
       "escritoire/core",
