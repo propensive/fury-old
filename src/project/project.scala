@@ -18,7 +18,6 @@ package fury
 import guillotine._
 import optometry._
 import scala.util._
-import fury.error._
 import Lenses.on
 
 import scala.collection.immutable.SortedSet
@@ -35,7 +34,7 @@ object ProjectCli {
       optSchemaArg <- ~cli.peek(SchemaArg)
     } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
 
-  def select(ctx: MenuContext) = {
+  def select(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
@@ -51,28 +50,27 @@ object ProjectCli {
       _         <- schema(projectId)
       focus     <- ~Lenses.focus(optSchemaId, force)
       layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
-      _         <- ~Layer.save(layer, layout)
+      _         <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def list(ctx: MenuContext) = {
+  def list(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
-      cols   <- Success(Terminal.columns.getOrElse(100))
       cli    <- cli.hint(RawArg)
       invoc  <- cli.read()
       io     <- invoc.io()
       raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
-      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cols, rows, raw)(_.id)
+      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
-  def add(ctx: MenuContext) = {
+  def add(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(ProjectNameArg)
@@ -86,12 +84,12 @@ object ProjectCli {
                   _.modify(_)((_: SortedSet[Project]) + project))
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
                   _(_) = Some(project.id))
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
       _ <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
   }
 
-  def remove(ctx: MenuContext) = {
+  def remove(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
@@ -108,11 +106,11 @@ object ProjectCli {
                 (lens, ws) =>
                   if (lens(ws) == Some(projectId))(lens(ws) = None) else ws
               }
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def update(ctx: MenuContext) = {
+  def update(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
@@ -136,7 +134,7 @@ object ProjectCli {
       nameArg        <- ~invoc(ProjectNameArg).toOption
       newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      _              <- ~Layer.save(layer, layout)
+      _              <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }

@@ -17,11 +17,13 @@ package fury
 
 import escritoire._
 import eucalyptus._
-import fury.io.Path
 import gastronomy._
 
 import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions
+
+import scala.util._
+import java.io._
 
 object `package` {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
@@ -57,4 +59,10 @@ object `package` {
 
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
+
+  implicit class Unitize[T](t: T)   { def unit: Unit       = ()         }
+  implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
+  implicit class Ascribe[T](value: Option[T]) {
+    def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
+  }
 }

@@ -21,7 +21,6 @@ RUN apt-get -y install gcc libz-dev
 RUN mkdir -p /build /build/bootstrap
 RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
 ADD Makefile /build/Makefile
-ADD .bloop /build/.bloop
 ADD etc /build/etc
 ADD src /build/src
 RUN sh -c "echo test > /build/.version"

@@ -4,8 +4,6 @@ set -x
 
 source $TESTROOTDIR/tests_lib
 
-start_bloop
-fury start
 fury layer init
 fury project add -n policy_file_test
 fury repo add -u https://github.com/propensive/base.git -n base

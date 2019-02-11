@@ -1,8 +1,5 @@
-package fury.layer
+package fury
 
-import fury._
-import fury.error._
-import fury.io._
 import kaleidoscope._
 
 import scala.annotation.tailrec
@@ -10,7 +7,7 @@ import scala.util._
 
 final class LayerRevisions(directory: Path, retained: Int) {
 
-  def store(layer: Layer): Outcome[Unit] = {
+  def store(layer: Layer): Try[Unit] = {
     val revision = previousRevision match {
       case None           => 0
       case Some(previous) => previous.revision + 1
@@ -21,13 +18,13 @@ final class LayerRevisions(directory: Path, retained: Int) {
     for {
       _ <- path.write(layer)
       _ <- discardStaleRevisions()
-    } yield Unit
+    } yield ()
   }
 
-  private def discardStaleRevisions(): Outcome[Unit] = {
+  private def discardStaleRevisions(): Try[Unit] = {
     @tailrec
-    def discard(revisions: Seq[LayerRevision]): Outcome[Unit] = revisions match {
-      case Nil => Success(Unit)
+    def discard(revisions: Seq[LayerRevision]): Try[Unit] = revisions match {
+      case Nil => Success(())
       case revision :: remaining =>
         revision.discard match {
           case Success(_) => discard(remaining)
@@ -39,14 +36,14 @@ final class LayerRevisions(directory: Path, retained: Int) {
     discard(staleRevisions)
   }
 
-  def discardPrevious(): Outcome[Unit] = previousRevision match {
-    case None           => Success(Unit)
+  def discardPrevious(): Try[Unit] = previousRevision match {
+    case None           => Success(())
     case Some(previous) => previous.discard
   }
 
-  def previous: Outcome[Layer] = previousRevision match {
+  def previous(io: Io, layout: Layout): Try[Layer] = previousRevision match {
     case None           => Failure(NoPreviousRevision)
-    case Some(previous) => previous.layer
+    case Some(previous) => previous.layer(io, layout)
   }
 
   private def revisions: Seq[LayerRevision] = {
@@ -66,8 +63,8 @@ final class LayerRevisions(directory: Path, retained: Int) {
   private def previousRevision = revisions.headOption
 
   private class LayerRevision(val revision: Long, path: Path) {
-    def layer: Outcome[Layer]  = path.read[Layer]
-    def discard: Outcome[Unit] = path.delete()
+    def layer(io: Io, layout: Layout): Try[Layer] = Layer.read(io, path, layout)
+    def discard: Try[Unit]                        = path.delete().map(_ => ())
   }
 }
 

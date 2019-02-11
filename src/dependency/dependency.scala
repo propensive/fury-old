@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import guillotine._
 import Args._
 
@@ -34,8 +32,8 @@ object DependencyCli {
       optProject: Option[Project],
       optModule: Option[Module])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId      = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =
@@ -64,7 +62,7 @@ object DependencyCli {
                   }
     } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
@@ -73,9 +71,8 @@ object DependencyCli {
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.after.to[List].sorted
-      table   <- ~Tables(config).show(Tables(config).dependencies, cols, rows, raw)(identity)
+      table   <- ~Tables(config).show(Tables(config).dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
@@ -85,7 +82,7 @@ object DependencyCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -100,11 +97,11 @@ object DependencyCli {
       force         <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       optSchema <- ~layer.mainSchema.toOption
@@ -123,7 +120,7 @@ object DependencyCli {
       moduleRef     <- ModuleRef.parse(project, dependencyArg, intransitive)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }

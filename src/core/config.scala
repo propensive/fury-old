@@ -16,16 +16,13 @@
 package fury
 
 import exoskeleton._
-import fury.io._
-import fury.ogdl._
-import fury.error._
 import guillotine._
 
 import scala.util._
 
 object Config {
 
-  def read()(implicit env: Environment, layout: Layout): Outcome[Config] =
+  def read()(implicit env: Environment, layout: Layout): Try[Config] =
     Success(Ogdl.read[Config](layout.userConfig, identity(_)).toOption.getOrElse(Config()))
 }
 

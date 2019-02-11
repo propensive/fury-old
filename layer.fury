@@ -1,195 +1,108 @@
-schemas	scala-2.12	id	scala-2.12
-		projects	adversaria	id	adversaria
+version	2
+schemas	default	id	default
+		projects	contextual	id	contextual
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	
 						params	
-						sources	adversaria:src/core	repoId	adversaria
-								path	src/core
+						sources	contextual:src/core	contextual:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	Provides access to annotations by means of typeclasses
-			annexation	id	annexation
-				modules	core	id	core
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	
-						params	
-						sources	
-						binaries	
-						resources	
-						bloopSpec	None
-				main	Some	core
-				license	apache-2
-				description	Provides heterogenous typeclass resolution for varargs
-			caesura	id	caesura
-				modules	core	id	core
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	magnolia/core	projectId	magnolia
-								moduleId	core
-								intransitive	false
-						params	
-						sources	caesura:src/core	repoId	caesura
-								path	src/core
-						binaries	
-						resources	
-						bloopSpec	None
-					test	id	test
-						kind	application
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	caesura/core	projectId	caesura
-								moduleId	core
-								intransitive	false
-							probably/cli	projectId	probably
-								moduleId	cli
-								intransitive	false
-						params	
-						sources	caesura:src/test	repoId	caesura
-								path	src/test
-						binaries	
-						resources	
-						bloopSpec	None
-				main	Some	core
-				license	apache-2
-				description	Read and write CSV files
-			contextual	id	contextual
-				modules	core	id	core
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	
-						params	
-						sources	contextual:src/core	repoId	contextual
-								path	src/core
-						binaries	
-						resources	
-						bloopSpec	None
-					data	id	data
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	contextual/core	projectId	contextual
-								moduleId	core
-								intransitive	false
-						params	
-						sources	contextual:src/data	repoId	contextual
-								path	src/data
-						binaries	
-						resources	
-						bloopSpec	None
-				main	None
-				license	apache-2
-				description	Compile-time checking of interpolated strings
+				license	apache-2.0
+				description	
 			escritoire	id	escritoire
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
-						after	annexation/core	projectId	annexation
-								moduleId	core
-								intransitive	false
+							intransitive	true
+						after	
 						params	
-						sources	escritoire:src/core	repoId	escritoire
-								path	src/core
+						sources	escritoire:src/core	escritoire:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	For writing tables
+				license	apache-2.0
+				description	
 			eucalyptus	id	eucalyptus
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	
 						params	
-						sources	eucalyptus:src/core	repoId	eucalyptus
-								path	src/core
+						sources	eucalyptus:src/core	eucalyptus:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	Simple, statically-typed logging
+				license	apache-2.0
+				description	
 			exoskeleton	id	exoskeleton
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	mitigation/core	projectId	mitigation
 								moduleId	core
 								intransitive	false
 						params	
-						sources	exoskeleton:src/core	repoId	exoskeleton
-								path	src/core
+						sources	exoskeleton:src/core	exoskeleton:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	Command-line argument parsing
+				license	apache-2.0
+				description	
 			fury	id	fury
 				modules	build	id	build
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/build	repoId	fury
-								path	src/build
+						sources	fury:src/build	fury:src/build
 						binaries	
 						resources	
 						bloopSpec	None
 					core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	escritoire/core	projectId	escritoire
+								moduleId	core
+								intransitive	false
+							eucalyptus/core	projectId	eucalyptus
 								moduleId	core
 								intransitive	false
 							exoskeleton/core	projectId	exoskeleton
@@ -204,31 +117,18 @@ schemas	scala-2.12	id	scala-2.12
 							guillotine/core	projectId	guillotine
 								moduleId	core
 								intransitive	false
-							impromptu/core	projectId	impromptu
-								moduleId	core
-								intransitive	false
-							lanifice/core	projectId	lanifice
-								moduleId	core
-								intransitive	false
 							optometry/core	projectId	optometry
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/core	repoId	fury
-								path	src/core
-						binaries	com.martiansoftware:nailgun-server:0.9.1	binRepo	central
-								group	com.martiansoftware
-								artifact	nailgun-server
-								version	0.9.1
-							io.methvin:directory-watcher:0.8.0	binRepo	central
-								group	io.methvin
-								artifact	directory-watcher
-								version	0.8.0
+						sources	fury:src/core	fury:src/core
+						binaries	
 						resources	
 						bloopSpec	None
 					dependency	id	dependency
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
@@ -237,14 +137,14 @@ schemas	scala-2.12	id	scala-2.12
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/dependency	repoId	fury
-								path	src/dependency
+						sources	fury:src/dependency	fury:src/dependency
 						binaries	
 						resources	
 						bloopSpec	None
 					imports	id	imports
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
@@ -253,18 +153,18 @@ schemas	scala-2.12	id	scala-2.12
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/imports	repoId	fury
-								path	src/imports
+						sources	fury:src/imports	fury:src/imports
 						binaries	
 						resources	
 						bloopSpec	None
 					menu	id	menu
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	fury/build	projectId	fury
 								moduleId	build
 								intransitive	false
@@ -289,16 +189,18 @@ schemas	scala-2.12	id	scala-2.12
 							fury/source	projectId	fury
 								moduleId	source
 								intransitive	false
-						params	Xfatal-warnings	Xfatal-warnings
-							Xfuture	Xfuture
-						sources	fury:src/menu	repoId	fury
-								path	src/menu
-						binaries	
+						params	
+						sources	fury:src/menu	fury:src/menu
+						binaries	com.facebook:nailgun-server:1.0.0	binRepo	central
+								group	com.facebook
+								artifact	nailgun-server
+								version	1.0.0
 						resources	
 						bloopSpec	None
 					module	id	module
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
@@ -307,20 +209,23 @@ schemas	scala-2.12	id	scala-2.12
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/module	repoId	fury
-								path	src/module
+						sources	fury:src/module	fury:src/module
 						binaries	
 						resources	
 						bloopSpec	None
 					ogdl	id	ogdl
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	fury/strings	projectId	fury
 								moduleId	strings
+								intransitive	false
+							kaleidoscope/core	projectId	kaleidoscope
+								moduleId	core
 								intransitive	false
 							magnolia/core	projectId	magnolia
 								moduleId	core
@@ -329,52 +234,30 @@ schemas	scala-2.12	id	scala-2.12
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/ogdl	repoId	fury
-								path	src/ogdl
-						binaries	
-						resources	
-						bloopSpec	None
-					ogdl-tests	id	ogdl-tests
-						kind	application
-						main	Some	fury.Tests
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	fury/ogdl	projectId	fury
-								moduleId	ogdl
-								intransitive	false
-							optometry/core	projectId	optometry
-								moduleId	core
-								intransitive	false
-							probably/cli	projectId	probably
-								moduleId	cli
-								intransitive	false
-						params	
-						sources	fury:src/ogdl-test	repoId	fury
-								path	src/ogdl-test
+						sources	fury:src/ogdl	fury:src/ogdl
 						binaries	
 						resources	
 						bloopSpec	None
 					project	id	project
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/project	repoId	fury
-								path	src/project
+						sources	fury:src/project	fury:src/project
 						binaries	
 						resources	
 						bloopSpec	None
 					repo	id	repo
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
@@ -383,30 +266,14 @@ schemas	scala-2.12	id	scala-2.12
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/repo	repoId	fury
-								path	src/repo
+						sources	fury:src/repo	fury:src/repo
 						binaries	
 						resources	
 						bloopSpec	None
 					schema	id	schema
 						kind	library
 						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	fury/core	projectId	fury
-								moduleId	core
-								intransitive	false
-						params	
-						sources	fury:src/schema	repoId	fury
-								path	src/schema
-						binaries	
-						resources	
-						bloopSpec	None
-					source	id	source
-						kind	library
-						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
@@ -415,80 +282,88 @@ schemas	scala-2.12	id	scala-2.12
 								moduleId	core
 								intransitive	false
 						params	
-						sources	fury:src/source	repoId	fury
-								path	src/source
+						sources	fury:src/schema	fury:src/schema
+						binaries	
+						resources	
+						bloopSpec	None
+					source	id	source
+						kind	library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+						after	fury/core	projectId	fury
+								moduleId	core
+								intransitive	false
+						params	
+						sources	fury:src/source	fury:src/source
 						binaries	
 						resources	
 						bloopSpec	None
 					strings	id	strings
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
-						after	escritoire/core	projectId	escritoire
-								moduleId	core
-								intransitive	false
-							eucalyptus/core	projectId	eucalyptus
-								moduleId	core
-								intransitive	false
-							kaleidoscope/core	projectId	kaleidoscope
-								moduleId	core
-								intransitive	false
+							intransitive	true
+						after	
 						params	
-						sources	fury:src/strings	repoId	fury
-								path	src/strings
+						sources	fury:src/strings	fury:src/strings
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	menu
-				license	apache-2
-				description	A build tool and dependency manager for Scala
+				license	apache-2.0
+				description	
 			gastronomy	id	gastronomy
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	magnolia/core	projectId	magnolia
 								moduleId	core
 								intransitive	false
 						params	
-						sources	gastronomy:src/core	repoId	gastronomy
-								path	src/core
+						sources	gastronomy:src/core	gastronomy:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	unknown
+				license	apache-2.0
 				description	
 			guillotine	id	guillotine
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	guillotine/macros	projectId	guillotine
 								moduleId	macros
 								intransitive	false
 						params	
-						sources	guillotine:src/core	repoId	guillotine
-								path	src/core
+						sources	guillotine:src/core	guillotine:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 					macros	id	macros
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	contextual/core	projectId	contextual
 								moduleId	core
 								intransitive	false
@@ -496,365 +371,259 @@ schemas	scala-2.12	id	scala-2.12
 								moduleId	core
 								intransitive	false
 						params	
-						sources	guillotine:src/macros	repoId	guillotine
-								path	src/macros
+						sources	guillotine:src/macros	guillotine:src/macros
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	macros
-				license	apache-2
-				description	For executing things, viz shell processes
-			impromptu	id	impromptu
-				modules	core	id	core
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	
-						params	
-						sources	impromptu:src/core	repoId	impromptu
-								path	src/core
-						binaries	
-						resources	
-						bloopSpec	None
-				main	Some	core
-				license	apache-2
-				description	Dependently-typed asynchronous graphs
+				license	apache-2.0
+				description	
 			kaleidoscope	id	kaleidoscope
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	contextual/core	projectId	contextual
 								moduleId	core
 								intransitive	false
 						params	
-						sources	kaleidoscope:src/core	repoId	kaleidoscope
-								path	src/core
+						sources	kaleidoscope:src/core	kaleidoscope:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	Support for pattern matching on different datatypes
-			lanifice	id	lanifice
-				modules	core	id	core
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	contextual/core	projectId	contextual
-								moduleId	core
-								intransitive	false
-							magnolia/core	projectId	magnolia
-								moduleId	core
-								intransitive	false
-						params	
-						sources	lanifice:src/core	repoId	lanifice
-								path	src/core
-						binaries	
-						resources	
-						bloopSpec	None
-				main	Some	core
-				license	apache-2
-				description	Minimal operations for generating JSON
+				license	apache-2.0
+				description	
 			magnolia	id	magnolia
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	mercator/core	projectId	mercator
 								moduleId	core
 								intransitive	false
 						params	
-						sources	magnolia:src/core	repoId	magnolia
-								path	src/core
+						sources	magnolia:src/core	magnolia:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	Generic derivation for typeclasses on product and coproduct types
+				license	apache-2.0
+				description	
 			mercator	id	mercator
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	
 						params	
-						sources	mercator:src/core	repoId	mercator
-								path	src/core
+						sources	mercator:src/core	mercator:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	A simple abstraction over flatmappable types
+				license	apache-2.0
+				description	
 			mitigation	id	mitigation
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	totalitarian/core	projectId	totalitarian
 								moduleId	core
 								intransitive	false
 						params	
-						sources	mitigation:src/core	repoId	mitigation
-								path	src/core
+						sources	mitigation:src/core	mitigation:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	Monadic types for handling a variety of exceptions
+				license	apache-2.0
+				description	
 			optometry	id	optometry
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	
 						params	
-						sources	optometry:src/core	repoId	optometry
-								path	src/core
+						sources	optometry:src/core	optometry:src/core
 						binaries	
 						resources	
 						bloopSpec	None
-				main	Some	core
-				license	apache-2
-				description	Lenses for Scala
-			probably	id	probably
+				main	None
+				license	apache-2.0
+				description	
+			probation	id	probation
 				modules	cli	id	cli
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
-						after	probably/core	projectId	probably
+							intransitive	true
+						after	escritoire/core	projectId	escritoire
+								moduleId	core
+								intransitive	false
+							probation/core	projectId	probation
 								moduleId	core
 								intransitive	false
 						params	
-						sources	probably:src/cli	repoId	probably
-								path	src/cli
+						sources	probation:src/cli	probation:src/cli
 						binaries	
 						resources	
 						bloopSpec	None
 					core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
-						after	escritoire/core	projectId	escritoire
-								moduleId	core
-								intransitive	false
-							probably/macros	projectId	probably
+							intransitive	true
+						after	probation/macros	projectId	probation
 								moduleId	macros
 								intransitive	false
 						params	
-						sources	probably:src/core	repoId	probably
-								path	src/core
+						sources	probation:src/core	probation:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 					macros	id	macros
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	magnolia/core	projectId	magnolia
 								moduleId	core
 								intransitive	false
 						params	
-						sources	probably:src/macros	repoId	probably
-								path	src/macros
+						sources	probation:src/macros	probation:src/macros
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	cli
-				license	apache-2
-				description	A lightweight test library
+				license	apache-2.0
+				description	
 			totalitarian	id	totalitarian
 				modules	core	id	core
 						kind	library
 						main	None
+						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
-							intransitive	false
+							intransitive	true
 						after	
 						params	
-						sources	totalitarian:src/core	repoId	totalitarian
-								path	src/core
+						sources	totalitarian:src/core	totalitarian:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	core
-				license	apache-2
-				description	Datatypes for encoding total functions
-			vespiary	id	vespiary
-				modules	core	id	core
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	vespiary/macros	projectId	vespiary
-								moduleId	macros
-								intransitive	false
-						params	
-						sources	vespiary:src/core	repoId	vespiary
-								path	src/core
-						binaries	
-						resources	
-						bloopSpec	None
-					macros	id	macros
-						kind	library
-						main	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	false
-						after	
-						params	
-						sources	vespiary:src/macros	repoId	vespiary
-								path	src/macros
-						binaries	
-						resources	
-						bloopSpec	None
-				main	Some	core
-				license	apache-2
-				description	A lightweight typesafe ADT for representing HTML5
-		repos	adversaria	id	adversaria
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/adversaria
-			annexation	id	annexation
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/annexation
-			base	id	base
-				repo	git@github.com:propensive/scala.fury.git
-				refSpec	master
+				license	apache-2.0
+				description	
+		repos	contextual	id	contextual
+				repo	git@github.com:propensive/contextual.git
+				track	fury
+				commit	6e082fb93fd599375f442aa9d1b2bd35747f2dca
 				local	None
-			caesura	id	caesura
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/caesura
-			contextual	id	contextual
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/contextual
-			detente	id	detente
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/detente
 			escritoire	id	escritoire
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/escritoire
+				repo	git@github.com:propensive/escritoire.git
+				track	fury
+				commit	44eeba3bb718418b67fb0875aaa684ea5a395ebe
+				local	None
 			eucalyptus	id	eucalyptus
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/eucalyptus
+				repo	git@github.com:propensive/eucalyptus.git
+				track	fury
+				commit	99c500355e570e35e0e1229aa607a9bdea4ae073
+				local	None
 			exoskeleton	id	exoskeleton
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/exoskeleton
+				repo	git@github.com:propensive/exoskeleton.git
+				track	fury
+				commit	73f61a385ba969d5ce9217d8dfba61f101f9f900
+				local	None
 			fury	id	fury
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/fury
+				repo	git@github.com:propensive/fury.git
+				track	master
+				commit	bd2495ba835321077c539921b7efe4bb3b64aef7
+				local	Some	../fury
 			gastronomy	id	gastronomy
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/gastronomy
+				repo	git@github.com:propensive/gastronomy.git
+				track	fury
+				commit	e4ffb9ad10258bef3993efd90bac69d6a563aed3
+				local	None
 			guillotine	id	guillotine
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/guillotine
-			impromptu	id	impromptu
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/impromptu
+				repo	git@github.com:propensive/guillotine.git
+				track	fury
+				commit	3c4922d2b66522a347de91b01754d5bce84f111f
+				local	None
 			kaleidoscope	id	kaleidoscope
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/kaleidoscope
-			lanifice	id	lanifice
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/lanifice
+				repo	git@github.com:propensive/kaleidoscope.git
+				track	fury
+				commit	9a1b935da76e0a2b6945dd00a3627525af9ac31b
+				local	None
 			magnolia	id	magnolia
 				repo	git@github.com:propensive/magnolia.git
-				refSpec	fury
+				track	fury
+				commit	7d40249f44ed09a92d01f065a924da684efc7560
 				local	None
 			mercator	id	mercator
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/mercator
+				repo	git@github.com:propensive/mercator.git
+				track	fury
+				commit	97601f41c2bdf4faf285c3d2beb4be9631dc4d03
+				local	None
 			mitigation	id	mitigation
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/mitigation
+				repo	git@github.com:propensive/mitigation.git
+				track	fury
+				commit	60cc495e216c76d70b68b9a63b4e18ce0e249ad5
+				local	None
 			optometry	id	optometry
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/optometry
-			probably	id	probably
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/probably
+				repo	git@github.com:propensive/optometry.git
+				track	master
+				commit	d0afa0b3e95636beb43f7703a932bbb8aa60e533
+				local	None
+			probation	id	probation
+				repo	git@github.com:propensive/probation.git
+				track	fury
+				commit	458f949e4a79f7ca735449c9d0094b2a846af10d
+				local	None
+			scala	id	scala
+				repo	git@github.com:propensive/.scala.git
+				track	master
+				commit	f0f96b58b78bad6fec5000a9fab3610de7ec7a9f
+				local	None
 			totalitarian	id	totalitarian
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/totalitarian
-			vespiary	id	vespiary
-				repo	
-				refSpec	master
-				local	Some	/home/jpretty/dev/propensive/vespiary
-		imports	base/2.12.6	repo	base
-				schema	2.12.6
+				repo	git@github.com:propensive/totalitarian.git
+				track	fury
+				commit	69bb818130a61fc46c77db8446d5a1ef51e8996c
+				local	None
+		imports	scala:scala-2.12.8	repo	scala
+				schema	scala-2.12.8
 		main	Some	fury
-main	scala-2.12
-aliases	experiment	cmd	experiment
-		description	Do something experimental
-		schema	None
-		module	projectId	magnolia
-			moduleId	core
-			intransitive	false
-	format	cmd	format
-		description	format the code
-		schema	None
-		module	projectId	fury
-			moduleId	ogdl-tests
-			intransitive	false
-	test	cmd	test
-		description	test Fury
-		schema	None
-		module	projectId	fury
-			moduleId	ogdl-tests
-			intransitive	false
+main	default
+aliases	

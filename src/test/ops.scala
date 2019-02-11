@@ -16,7 +16,6 @@
 package fury.tests
 
 import guillotine._, environments.enclosing
-import fury.error._
 
 sealed trait Op[-E <: Exception]
 
@@ -26,7 +25,7 @@ case class Container(id: String) {
     def run(cmd: Command): String = {
       val shellCmd = sh"docker exec --workdir $dir $id sh -c ${cmd}"
       shellCmd
-        .exec[Outcome[String]]
+        .exec[Try[String]]
         .recover(
             on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
         )
@@ -44,19 +43,19 @@ case class Container(id: String) {
   lazy val iota    = Dir("/work/iota")
   lazy val kappa   = Dir("/work/kappa")
 
-  def stop(): Outcome[Unit] =
+  def stop(): Try[Unit] =
     for {
-      killed  <- sh"docker kill $id".exec[Outcome[String]]
-      removed <- sh"docker rm $id".exec[Outcome[String]]
+      killed  <- sh"docker kill $id".exec[Try[String]]
+      removed <- sh"docker rm $id".exec[Try[String]]
     } yield ()
 }
 
 object Docker {
 
-  def start(): Outcome[Container] =
-    sh"docker run --detach fury:latest".exec[Outcome[String]].map(Container(_))
+  def start(): Try[Container] =
+    sh"docker run --detach fury:latest".exec[Try[String]].map(Container(_))
 
-  def prune(): Outcome[String] =
-    sh"docker system prune --force".exec[Outcome[String]]
+  def prune(): Try[String] =
+    sh"docker system prune --force".exec[Try[String]]
 
 }

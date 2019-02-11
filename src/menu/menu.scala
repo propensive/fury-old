@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.clean._
-import fury.error._
 import scala.util._
 
 object FuryMenu {
@@ -122,7 +120,7 @@ object FuryMenu {
         )
     ) ::: aliases): _*)
 
-  def help(cli: Cli[CliParam[_]]): Outcome[ExitStatus] =
+  def help(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
       io    <- invoc.io()

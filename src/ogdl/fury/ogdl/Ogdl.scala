@@ -13,19 +13,20 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury.ogdl
+package fury
 
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
-import fury._, error._, io._
-import fury.ogdl.OgdlParser.parse
+import fury._
 
 import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.language.dynamics
+
+import scala.util.Try
 
 final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
   def apply(): String                     = values.head._1
@@ -79,7 +80,7 @@ object Ogdl {
       serialize(sb, Ogdl(t), i, c)
   }
 
-  def write[T: OgdlWriter](value: T, path: Path): Outcome[Unit] =
+  def write[T: OgdlWriter](value: T, path: Path): Try[Unit] =
     Outcome.rescue[IOException](FileWriteError(path)) {
       val bak = path.rename { f =>
         s".$f.bak"
@@ -88,22 +89,22 @@ object Ogdl {
       val sb = new StringBuilder()
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
       sb.append('\n')
-      path.writeSync(sb.toString).unit
+      path.writeSync(sb.toString)
     }
 
   def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
     val buffer = ByteBuffer.wrap(string.getBytes("UTF-8"))
-    val ogdl   = parse(buffer)
+    val ogdl   = OgdlParser.parse(buffer)
 
     implicitly[OgdlReader[T]].read(ogdl)
   }
 
-  def read[T: OgdlReader](path: Path, preprocessor: Ogdl => Ogdl): Outcome[T] =
+  def read[T: OgdlReader](path: Path, preprocessor: Ogdl => Ogdl): Try[T] =
     Outcome.rescue[IOException] { _: IOException =>
       FileNotFound(path)
     } {
       val buffer = readToBuffer(path)
-      val ogdl   = parse(buffer)
+      val ogdl   = OgdlParser.parse(buffer)
 
       implicitly[OgdlReader[T]].read(preprocessor(ogdl))
     }

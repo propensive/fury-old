@@ -15,7 +15,7 @@
  */
 package fury
 
-import fury.error._
+import scala.util.Try
 
 object Resolver {
   implicit val moduleResolver: Resolver[Module, ModuleId]       = _ == _.id
@@ -28,6 +28,6 @@ trait Resolver[-T, I] { def matchOn(id: I, value: T): Boolean }
 
 class ResolverExt[T](items: Traversable[T]) {
 
-  def findBy[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Outcome[T] =
+  def findBy[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Try[T] =
     items.find(resolver.matchOn(id, _)).ascribe(ItemNotFound(id))
 }

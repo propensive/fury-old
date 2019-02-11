@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import com.facebook.nailgun.NGContext
 import exoskeleton._
 import guillotine._
@@ -25,6 +23,8 @@ import scala.collection.mutable.HashSet
 
 import annotation.tailrec
 import java.util.concurrent.atomic.AtomicBoolean
+
+import scala.util.Try
 
 object Main {
 
@@ -109,7 +109,7 @@ object Main {
     }
 
   @tailrec
-  def shutdown(previous: Int = -1)(cli: Cli[CliParam[_]]): Outcome[ExitStatus] = {
+  def shutdown(previous: Int = -1)(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     terminating.set(true)
     busy() match {
       case None => util.Success(Done)

@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import Args._
 
 import guillotine._
@@ -33,7 +31,7 @@ object ImportCli {
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -47,11 +45,11 @@ object ImportCli {
       schemaRef <- invoc(ImportArg)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
                   _.modify(_)(_ + schemaRef))
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -65,17 +63,16 @@ object ImportCli {
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
-      _         <- ~Layer.save(layer, layout)
+      _         <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
       io        <- invoc.io()
@@ -83,7 +80,7 @@ object ImportCli {
       rows <- ~schema.imports.to[List].map { i =>
                (i, i.resolve(io, schema, layout))
              }
-      table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cols, rows, raw)(
+      table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows, raw)(
                   _._1.schema.key)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema))

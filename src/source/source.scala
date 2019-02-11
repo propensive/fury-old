@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import guillotine._
 import mercator._
 import Args._
@@ -33,8 +31,8 @@ object SourceCli {
       optProject: Option[Project],
       optModule: Option[Module])
       extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId      = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Outcome[Schema] = layer.schemas.findBy(defaultSchemaId)
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
   def context(cli: Cli[CliParam[_]]) =
@@ -63,7 +61,7 @@ object SourceCli {
                   }
     } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
@@ -72,9 +70,8 @@ object SourceCli {
       raw     <- ~invoc(RawArg).isSuccess
       module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
-      cols    <- Success(Terminal.columns.getOrElse(100))
       rows    <- ~module.sources.to[List]
-      table   <- ~Tables(config).show(Tables(config).sources, cols, rows, raw)(_.repoIdentifier)
+      table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
@@ -84,7 +81,7 @@ object SourceCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
@@ -99,11 +96,11 @@ object SourceCli {
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       repos <- defaultSchema.map(_.repos)
@@ -131,7 +128,7 @@ object SourceCli {
       source    <- ~Source.unapply(sourceArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)
-      _ <- ~Layer.save(layer, layout)
+      _ <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }

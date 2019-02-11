@@ -1,19 +1,17 @@
-package fury.layer
+package fury
 
-import fury._
-import fury.error.`package`.Outcome
-import fury.io.Path
+import scala.util._
 
 final class LayerRepository(revisions: LayerRevisions, current: Path) {
 
-  def restorePrevious(): Outcome[Unit] =
+  def restorePrevious(io: Io, layout: Layout): Try[Unit] =
     for {
-      previous <- revisions.previous
+      previous <- revisions.previous(io, layout)
       _        <- current.write(previous)
       _        <- revisions.discardPrevious()
     } yield Unit
 
-  def update(layer: Layer): Outcome[Unit] = currentLayer match {
+  def update(io: Io, layer: Layer, layout: Layout): Try[Unit] = currentLayer(io, layout) match {
     case None => current.write(layer)
     case Some(currentLayer) =>
       for {
@@ -22,8 +20,8 @@ final class LayerRepository(revisions: LayerRevisions, current: Path) {
       } yield Unit
   }
 
-  private def currentLayer: Option[Layer] =
-    if (current.exists()) current.read[Layer].toOption
+  private def currentLayer(io: Io, layout: Layout): Option[Layer] =
+    if (current.exists) Layer.read(io, current, layout).toOption
     else None
 }
 

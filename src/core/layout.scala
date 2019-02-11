@@ -15,7 +15,6 @@
  */
 package fury
 
-import fury.io.Path
 import gastronomy._
 import guillotine._
 

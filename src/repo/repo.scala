@@ -15,8 +15,6 @@
  */
 package fury
 
-import fury.error._
-
 import Args._
 
 import guillotine._
@@ -37,11 +35,10 @@ object RepoCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
 
-  def list(ctx: Context) = {
+  def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
-      cols      <- Success(Terminal.columns(cli.env).getOrElse(100))
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
       raw       <- ~invoc(RawArg).isSuccess
@@ -49,7 +46,7 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       io        <- invoc.io()
-      table     <- ~Tables(config).show(Tables(config).repositories(layout), cols, rows, raw)(_.id)
+      table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
       _ <- ~(if (!raw)
                io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
@@ -58,7 +55,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def unfork(ctx: Context) = {
+  def unfork(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -72,11 +69,11 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(layer, layout)
+      _         <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def fork(ctx: Context) = {
+  def fork(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -93,7 +90,7 @@ object RepoCli {
       absPath <- (for {
                   absPath <- dir.absolutePath()
                   _       <- Try(absPath.mkdir())
-                  _ <- if (absPath.empty) Success()
+                  _ <- if (absPath.empty) Success(())
                       else Failure(new Exception("Non-empty dir exists"))
                 } yield absPath).orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
@@ -106,11 +103,11 @@ object RepoCli {
       newRepo <- ~repo.copy(local = Some(absPath))
       lens    <- ~Lenses.layer.repos(schema.id)
       layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _       <- ~Layer.save(layer, layout)
+      _       <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def pull(ctx: Context) = {
+  def pull(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -141,7 +138,7 @@ object RepoCli {
       newLayer = newRepos.foldLeft(layer) { (layer, repoDiff) =>
         repoDiff match { case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
       }
-      _ <- ~Layer.save(newLayer, layout)
+      _ <- ~Layer.save(io, newLayer, layout)
       _ <- ~newRepos.foreach {
             case (newRepo, _) =>
               io.println(s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.commit.id}]")
@@ -149,7 +146,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def add(ctx: Context) = {
+  def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -187,11 +184,11 @@ object RepoCli {
       sourceRepo <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
       lens       <- ~Lenses.layer.repos(schema.id)
       layer      <- ~(lens.modify(layer)(_ + sourceRepo))
-      _          <- ~Layer.save(layer, layout)
+      _          <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def update(ctx: Context) = {
+  def update(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -226,11 +223,11 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      _           <- ~Layer.save(layer, layout)
+      _           <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
-  def remove(ctx: Context) = {
+  def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -243,7 +240,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(layer, layout)
+      _         <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }
