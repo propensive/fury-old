@@ -2,20 +2,20 @@
   "version": "1.0.0",
   "project": {
     "name": "fury",
-    "directory": ".",
+    "directory": "$ROOT",
     "sources": [
-      "src/build",
-      "src/core",
-      "src/dependency",
-      "src/imports",
-      "src/menu",
-      "src/module",
-      "src/ogdl",
-      "src/project",
-      "src/repo",
-      "src/schema",
-      "src/source",
-      "src/strings"
+      "$ROOT/src/build",
+      "$ROOT/src/core",
+      "$ROOT/src/dependency",
+      "$ROOT/src/imports",
+      "$ROOT/src/menu",
+      "$ROOT/src/module",
+      "$ROOT/src/ogdl",
+      "$ROOT/src/project",
+      "$ROOT/src/repo",
+      "$ROOT/src/schema",
+      "$ROOT/src/source",
+      "$ROOT/src/strings"
     ],
     "dependencies": [
       "escritoire/core",

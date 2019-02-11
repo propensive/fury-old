@@ -2,9 +2,9 @@
   "version": "1.0.0",
   "project": {
     "name": "fury/core-test",
-    "directory": ".",
+    "directory": "$ROOT",
     "sources": [
-      "src/core-test"
+      "$ROOT/src/core-test"
     ],
     "dependencies": [
       "escritoire/core",
