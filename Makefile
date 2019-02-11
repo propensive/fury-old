@@ -3,11 +3,13 @@ MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
 DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine impromptu
+REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=coursier launcher ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 LIBS=bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
-JARS:=$(foreach dep, $(DEPS), dist/bundle/lib/$(dep).jar) dist/bundle/lib/fury.jar
+DEPENDENCY_JARS=$(foreach dep, $(DEPS), dist/bundle/lib/$(dep).jar)
+JARS:= $(DEPENDENCY_JARS) dist/bundle/lib/fury.jar
 NATIVEJARS=$(JARS) $(NAILGUNJARPATH) $(LIBS)
 SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
 CFGS:=$(shell ls etc/bloop)
@@ -55,14 +57,14 @@ bootstrap/scala:
 	mkdir -p $@
 	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C $@ --strip 1
 
-bootstrap/git/%:
+bootstrap/git/%: bootstrap/git/.dir
 	mkdir -p $@
 	git clone https://github.com/propensive/$*.git $@ --branch=fury
 
 bootstrap/bin:
 	mkdir -p $@
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) $(foreach DEP, $(DEPS), bootstrap/git/$(DEP)) $(foreach CFG, $(CFGS), .bloop/$(CFG)) $(SRCS)
+compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
 	$< --skip-bsp-connection $(BLOOPVERSION)
 	bloop compile fury
 
@@ -105,10 +107,10 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
 
-dist/bundle/bin/launcher: dist/bundle/bin/coursier
+dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
 	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
-dist/bundle/bin/ng: dist/bundle/bin
+dist/bundle/bin/ng: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py
 	sed -i.bak '1 s/$$/2.7/' $@ && rm $@.bak
 	chmod +x $@
@@ -148,3 +150,7 @@ clean: clean-dist
 	rm -rf bootstrap
 
 .PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars
+
+.PHONY: download
+download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
+	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
