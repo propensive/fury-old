@@ -270,11 +270,11 @@ case class Compilation(
                 .await() == 0
             }
           }.recover {
-            case e =>
+            case e: Exception =>
               io.println(e.getClass.toString ++ ": " ++ e.getMessage)
               io.println(e.getStackTrace.mkString("\n"))
               false
-          }
+          }.getOrElse(false)
 
           val finalResult = if (compileResult && artifact.kind == Application) {
             layout.shell
