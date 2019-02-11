@@ -270,6 +270,33 @@ object BuildCli {
     } yield io.await()
   }
 
+  def native(ctx: MenuContext) = {
+    import ctx._
+    for {
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
+      cli          <- cli.hint(ProjectArg, schema.projects)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+      cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli          <- cli.hint(DirArg)
+      invoc        <- cli.read()
+      io           <- invoc.io()
+      dir          <- invoc(DirArg)
+      project      <- optProject.ascribe(UnspecifiedProject())
+      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
+      optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
+      module       <- optModule.ascribe(UnspecifiedModule())
+      hierarchy    <- schema.hierarchy(io, layout.pwd, layout)
+      universe     <- hierarchy.universe
+      compilation  <- universe.compilation(io, module.ref(project), layout)
+      _            <- if (module.kind == Application) Success(()) else Failure(InvalidKind(Application))
+      main         <- module.main.ascribe(UnspecifiedMain(module.id))
+      _            <- compilation.saveNative(io, module.ref(project), dir in layout.pwd, layout, main)
+    } yield io.await()
+  }
+
   def classpath(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {

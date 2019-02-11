@@ -203,6 +203,13 @@ case class Compilation(
     }
   }
 
+  def saveNative(io: Io, ref: ModuleRef, dest: Path, layout: Layout, main: String): Try[Unit] =
+    for {
+      dest <- dest.directory
+      cp   = runtimeClasspath(io, ref, layout).to[List].map(_.value)
+      _    <- layout.shell.native(dest, cp, main)
+    } yield ()
+
   def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Try[Unit] =
     for {
       dest <- dest.directory
@@ -397,7 +404,6 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
             c.ref -> c
           }),
           this)
-
 }
 
 case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {

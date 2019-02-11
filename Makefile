@@ -80,7 +80,7 @@ bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 dist/bundle/lib:
 	mkdir -p $@
 
-dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
+dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
 	curl -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 all-jars: $(JARS)
