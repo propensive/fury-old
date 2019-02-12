@@ -149,8 +149,10 @@ clean: clean-dist
 	rm -rf bootstrap/bin/fury
 	rm -rf bootstrap
 
-.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars
-
-.PHONY: download
 download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
+
+install: dist/install.sh
+	yes | dist/install.sh
+
+.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install
