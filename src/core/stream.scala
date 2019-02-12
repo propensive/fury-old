@@ -56,4 +56,8 @@ final class Multiplexer[K, V](keys: List[K]) {
   /** This method should only ever be called from one thread for any given reference, to
     *  guarantee safe concurrent access. */
   def close(key: K): Unit = closed(refs(key)) = true
+
+  def closeAll(): Unit = keys.foreach { k =>
+    closed(refs(k)) = true
+  }
 }

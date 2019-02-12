@@ -147,7 +147,8 @@ object BloopSpec {
 case class BloopSpec(org: String, name: String, version: String)
 
 case class Compilation(
-    graph: Map[ModuleRef, List[ModuleRef]],
+    allDependenciesGraph: Map[ModuleRef, List[ModuleRef]],
+    modulesToExecuteBloopGraph: Map[ModuleRef, List[ModuleRef]],
     checkouts: Set[Checkout],
     artifacts: Map[ModuleRef, Artifact],
     universe: Universe) {
@@ -170,7 +171,7 @@ case class Compilation(
               },
               artifact.params,
               artifact.intransitive,
-              graph(ref).map(hash(_))).digest[Md5]
+              allDependenciesGraph(ref).map(hash(_))).digest[Md5]
         }
     )
   }
@@ -249,59 +250,74 @@ case class Compilation(
     ): Map[ModuleRef, Future[CompileResult]] = {
 
     val artifact = artifacts(moduleRef)
-
-    val newFutures = graph(moduleRef).foldLeft(futures) { (futures, dep) =>
+    val hashes = artifacts.keys.map { moduleRef =>
+      hash(moduleRef).encoded[Base64Url] -> moduleRef
+    }.toMap
+    val newFutures = modulesToExecuteBloopGraph(moduleRef).foldLeft(futures) { (futures, dep) =>
       if (futures.contains(dep)) futures
       else compile(io, dep, multiplexer, futures, layout)
     }
 
-    val dependencyFutures = Future.sequence(graph(moduleRef).map(newFutures))
+    val dependencyFutures = Future.sequence(modulesToExecuteBloopGraph(moduleRef).map(newFutures))
 
-    val future = dependencyFutures.flatMap { inputs =>
-      if (inputs.exists(!_.success)) {
-        multiplexer(artifact.ref) = SkipCompile(artifact.ref)
-        multiplexer.close(artifact.ref)
-        Future.successful(CompileResult(false, ""))
-      } else
-        Future {
-          val out = new StringBuilder()
-          multiplexer(artifact.ref) = StartCompile(artifact.ref)
+    val future =
+      dependencyFutures.flatMap { inputs =>
+        if (inputs.exists(!_.success)) {
+          multiplexer(artifact.ref) = SkipCompile(artifact.ref)
+          multiplexer.close(artifact.ref)
+          Future.successful(CompileResult(false, ""))
+        } else
+          Future {
+            val out = new StringBuilder()
+            val compileResult: Boolean =
+              artifact.sourcePaths.isEmpty || blocking {
+                layout.shell.bloop
+                  .compile(hash(artifact.ref).encoded) { (ln: String) =>
+                    {
+                      out.append(ln)
+                      out.append("\n")
+                      val x = ln match {
+                        case r"Compiling $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
+                          multiplexer(hashes(moduleHash)) = StartCompile(hashes(moduleHash))
+                        }
+                        case r"Compiled $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
+                          multiplexer(hashes(moduleHash)) =
+                            StopCompile(hashes(moduleHash), "", true)
+                          multiplexer.close(hashes(moduleHash))
+                        }
+                        case r".*'$moduleHash@([a-zA-Z0-9\+\_\=\/]+)' failed to compile.*" => {
+                          out.append(s"Failed to compile '${hashes(moduleHash)}'\n")
+                          multiplexer(hashes(moduleHash)) =
+                            StopCompile(hashes(moduleHash), out.toString(), false)
+                          out.clear()
+                          multiplexer.closeAll()
+                        }
+                        case _ => ()
+                      }
+                    }
+                  }
+                  .await() == 0
+              }
 
-          val compileResult: Boolean = Try {
-            artifact.sourcePaths.isEmpty || blocking {
-              layout.shell.bloop
-                .compile(hash(artifact.ref).encoded) { ln =>
+            val finalResult = if (compileResult && artifact.kind == Application) {
+              layout.shell
+                .runJava(
+                    runtimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
+                    artifact.main.getOrElse(""),
+                    layout) { ln =>
                   out.append(ln)
                   out.append("\n")
                 }
                 .await() == 0
-            }
-          }.recover {
-            case e: Exception =>
-              io.println(e.getClass.toString ++ ": " ++ e.getMessage)
-              io.println(e.getStackTrace.mkString("\n"))
-              false
-          }.getOrElse(false)
+            } else compileResult
 
-          val finalResult = if (compileResult && artifact.kind == Application) {
-            layout.shell
-              .runJava(
-                  runtimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
-                  artifact.main.getOrElse(""),
-                  layout) { ln =>
-                out.append(ln)
-                out.append("\n")
-              }
-              .await() == 0
-          } else compileResult
+            multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
 
-          multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
+            multiplexer.close(artifact.ref)
 
-          multiplexer.close(artifact.ref)
-
-          CompileResult(finalResult, out.toString)
-        }
-    }
+            CompileResult(finalResult, out.toString)
+          }
+      }
 
     newFutures.updated(artifact.ref, future)
   }
@@ -381,6 +397,12 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def clean(ref: ModuleRef, layout: Layout): Unit =
     layout.classesDir.delete().unit
 
+  def getMod(ref: ModuleRef): Try[Module] =
+    for {
+      entity <- entity(ref.projectId)
+      module <- entity.project(ref.moduleId)
+    } yield module
+
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] =
     for {
       art <- artifact(io, ref, layout)
@@ -392,6 +414,15 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
                 }.sequence
                   .map(_.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide))))
                 .flatten
+      allModuleRefs = graph.keys
+      allModules    <- allModuleRefs.traverse(ref => getMod(ref).map((ref, _)))
+      applicationModulesRefs = allModules.filter { case (_, mod) => mod.kind == Application }.map {
+        case (ref, _) => ref
+      }
+      reducedGraph = DirectedGraph(graph.mapValues(_.toSet))
+        .subgraph(applicationModulesRefs.toSet + ref)
+        .connections
+        .mapValues(_.toList)
       artifacts <- graph.keys.map { key =>
                     artifact(io, key, layout).map(key -> _)
                   }.sequence.map(_.toMap)
@@ -399,6 +430,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     } yield
       Compilation(
           graph,
+          reducedGraph,
           checkouts.foldLeft(Set[Checkout]())(_ ++ _),
           artifacts ++ (art.compiler.map { c =>
             c.ref -> c

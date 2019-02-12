@@ -4,6 +4,7 @@ import probably.TestApp
 
 object Tests {
   private val testSuites = List[TestApp](
+      DirectedGraphTest,
       LayerRepositoryTest
   )
 

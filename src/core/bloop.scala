@@ -96,9 +96,9 @@ object Bloop {
     for {
       _         <- ~compilation.writePlugin(artifact.ref, layout)
       classpath <- ~compilation.classpath(artifact.ref, layout)
-      compilerClasspath <- ~(artifact.compiler.map { c =>
+      compilerClasspath <- ~artifact.compiler.map { c =>
                             compilation.classpath(c.ref, layout)
-                          }.getOrElse(Set()))
+                          }.getOrElse(Set())
       bloopSpec = artifact.compiler
         .flatMap(_.bloopSpec)
         .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7"))
@@ -110,7 +110,9 @@ object Bloop {
               name = compilation.hash(artifact.ref).encoded[Base64Url],
               directory = layout.pwd.value,
               sources = artifact.sourcePaths.map(_.value),
-              dependencies = Nil,
+              dependencies = compilation
+                .allDependenciesGraph(artifact.ref)
+                .map(compilation.hash(_).encoded[Base64Url]),
               classpath = (classpath ++ compilerClasspath).map(_.value),
               out = str"${layout.outputDir(compilation.hash(artifact.ref)).value}",
               classesDir = str"${layout.classesDir(compilation.hash(artifact.ref)).value}",
