@@ -153,6 +153,6 @@ download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng dist/bundle/bin/l
 	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
 
 install: dist/install.sh
-	yes | dist/install.sh
+	dist/install.sh
 
 .PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install
