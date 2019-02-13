@@ -85,16 +85,16 @@ object DependencyCli {
   def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli           <- cli.hint(DependencyArg, optModule.to[List].flatMap(_.after.to[List]))
-      cli           <- cli.hint(ForceArg)
-      invoc         <- cli.read()
-      io            <- invoc.io()
-      dependencyArg <- invoc(DependencyArg)
-      project       <- optProject.ascribe(UnspecifiedProject())
-      module        <- optModule.ascribe(UnspecifiedModule())
-      moduleRef     <- ModuleRef.parse(project, dependencyArg, false)
-      force         <- ~invoc(ForceArg).isSuccess
+      cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.after.to[List]))
+      cli       <- cli.hint(ForceArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      linkArg   <- invoc(LinkArg)
+      project   <- optProject.ascribe(UnspecifiedProject())
+      module    <- optModule.ascribe(UnspecifiedModule())
+      moduleRef <- ModuleRef.parse(project, linkArg, false)
+      force     <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
       _ <- ~Layer.save(io, layer, layout)
@@ -107,17 +107,17 @@ object DependencyCli {
       optSchema <- ~layer.mainSchema.toOption
       importedSchemas = optSchema.flatMap(
           _.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
-      allSchemas    = optSchema.toList ::: importedSchemas.toList.flatten
-      allModules    = allSchemas.map(_.moduleRefs).flatten
-      cli           <- cli.hint(DependencyArg, allModules)
-      cli           <- cli.hint(IntransitiveArg)
-      invoc         <- cli.read()
-      io            <- invoc.io()
-      project       <- optProject.ascribe(UnspecifiedProject())
-      module        <- optModule.ascribe(UnspecifiedModule())
-      intransitive  <- ~invoc(IntransitiveArg).isSuccess
-      dependencyArg <- invoc(DependencyArg)
-      moduleRef     <- ModuleRef.parse(project, dependencyArg, intransitive)
+      allSchemas   = optSchema.toList ::: importedSchemas.toList.flatten
+      allModules   = allSchemas.map(_.moduleRefs).flatten
+      cli          <- cli.hint(LinkArg, allModules)
+      cli          <- cli.hint(IntransitiveArg)
+      invoc        <- cli.read()
+      io           <- invoc.io()
+      project      <- optProject.ascribe(UnspecifiedProject())
+      module       <- optModule.ascribe(UnspecifiedModule())
+      intransitive <- ~invoc(IntransitiveArg).isSuccess
+      linkArg      <- invoc(LinkArg)
+      moduleRef    <- ModuleRef.parse(project, linkArg, intransitive)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)
       _ <- ~Layer.save(io, layer, layout)

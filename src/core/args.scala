@@ -38,13 +38,13 @@ object Args {
   val BinaryRepoArg =
     CliParam[BinRepoId]('r', 'repo, "Specify the repository from which to fetch binaries")
 
-  val AliasArg      = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
-  val BinaryArg     = CliParam[String]('b', 'binary, "specify a binary dependency")
-  val CompilerArg   = CliParam[String]('c', 'compiler, "specify a compiler")
-  val DependencyArg = CliParam[String]('M', 'dependency, "specify a dependency module")
-  val SourceArg     = CliParam[String]('d', 'source, "specify a source directory")
-  val DirArg        = CliParam[Path]('d', 'dir, "specify the new repository destination directory")
-  val DebugArg      = CliParam[String]('D', 'debug, "specify a module to debug")
+  val AliasArg    = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
+  val BinaryArg   = CliParam[String]('b', 'binary, "specify a binary dependency")
+  val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
+  val LinkArg     = CliParam[String]('l', 'link, "specify a dependency link to another module")
+  val SourceArg   = CliParam[String]('d', 'source, "specify a source directory")
+  val DirArg      = CliParam[Path]('d', 'dir, "specify the new repository destination directory")
+  val DebugArg    = CliParam[String]('D', 'debug, "specify a module to debug")
 
   val DescriptionArg =
     CliParam[String]('D', 'description, "specify a brief description of the project")
