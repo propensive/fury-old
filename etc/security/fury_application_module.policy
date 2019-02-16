@@ -2,4 +2,7 @@ grant {
       permission java.io.FilePermission "${fury.sharedDir}${/}-", "read,write";
       permission java.lang.RuntimePermission "getenv.SHARED", "read";
       permission java.util.PropertyPermission "fury.sharedDir", "read";
+      permission java.util.PropertyPermission "scala.maven.version.number", "read";
+      permission java.util.PropertyPermission "scala.version.number", "read";
+      permission java.util.PropertyPermission "scala.copyright.string", "read";
 };
