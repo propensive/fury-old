@@ -98,7 +98,7 @@ object Bloop {
       classpath <- ~compilation.classpath(artifact.ref, layout)
       compilerClasspath <- ~artifact.compiler.map { c =>
                             compilation.classpath(c.ref, layout)
-                          }.getOrElse(Set())
+                          }.getOrElse(classpath)
       bloopSpec = artifact.compiler
         .flatMap(_.bloopSpec)
         .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7"))
