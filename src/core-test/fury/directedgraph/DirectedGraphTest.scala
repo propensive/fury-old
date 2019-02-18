@@ -54,9 +54,9 @@ object DirectedGraphTest extends TestApp {
     }.assert(_ == DirectedGraph(Map(1 -> Set.empty[Int])))
 
     test("two separate elements") {
-      val input = DirGraph(Map(1 -> Set(2), 2 -> Set.empty[Int]))
+      val input = DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int]))
       input.subgraph(Set(1, 2))
-    }.assert { _ == DirGraph(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
+    }.assert { _ == DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
 
     test("two related elements") {
       val input = DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int]))
