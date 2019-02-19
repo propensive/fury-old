@@ -312,7 +312,6 @@ case class Compilation(
                           multiplexer(hashes(moduleHash)) =
                             StopCompile(hashes(moduleHash), out.toString(), false)
                           out.clear()
-                          multiplexer.closeAll()
                         }
                         case _ => ()
                       }
@@ -322,7 +321,7 @@ case class Compilation(
               }
 
             val finalResult = if (compileResult && artifact.kind == Application) {
-              layout.shell
+              val res = layout.shell
                 .runJava(
                     runtimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
                     artifact.main.getOrElse(""),
@@ -331,14 +330,15 @@ case class Compilation(
                   out.append("\n")
                 }
                 .await() == 0
+              if (!res) {
+                deepDependencies(artifact.ref).foreach { ref =>
+                  multiplexer(ref) = NoCompile(ref)
+                }
+                multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, false)
+                multiplexer.close(artifact.ref)
+              }
+              res
             } else compileResult
-
-            deepDependencies(artifact.ref).foreach { ref =>
-              multiplexer(ref) = NoCompile(ref)
-            }
-            multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
-
-            multiplexer.close(artifact.ref)
 
             CompileResult(finalResult, out.toString)
           }
