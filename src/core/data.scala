@@ -170,6 +170,7 @@ case class Compilation(
               },
               artifact.params,
               artifact.intransitive,
+              artifact.sourcePaths,
               graph(ref).map(hash(_))).digest[Md5]
         }
     )
