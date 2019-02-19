@@ -1,14 +1,15 @@
-version	2
+version	3
 schemas	default	id	default
 		projects	contextual	id	contextual
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	
 						params	
 						sources	contextual:src/core	contextual:src/core
@@ -18,15 +19,17 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			escritoire	id	escritoire
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	
 						params	
 						sources	escritoire:src/core	escritoire:src/core
@@ -36,15 +39,17 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			eucalyptus	id	eucalyptus
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	
 						params	
 						sources	eucalyptus:src/core	eucalyptus:src/core
@@ -54,18 +59,21 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			exoskeleton	id	exoskeleton
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	mitigation/core	projectId	mitigation
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	exoskeleton:src/core	exoskeleton:src/core
 						binaries	
@@ -74,123 +82,147 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			fury	id	fury
 				modules	build	id	build
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/build	fury:src/build
+						sources	src/build	src/build
 						binaries	
 						resources	
 						bloopSpec	None
 					core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	escritoire/core	projectId	escritoire
 								moduleId	core
 								intransitive	false
+								hidden	false
 							eucalyptus/core	projectId	eucalyptus
 								moduleId	core
 								intransitive	false
+								hidden	false
 							exoskeleton/core	projectId	exoskeleton
 								moduleId	core
 								intransitive	false
+								hidden	false
 							fury/ogdl	projectId	fury
 								moduleId	ogdl
 								intransitive	false
+								hidden	false
 							gastronomy/core	projectId	gastronomy
 								moduleId	core
 								intransitive	false
+								hidden	false
 							guillotine/core	projectId	guillotine
 								moduleId	core
 								intransitive	false
+								hidden	false
 							optometry/core	projectId	optometry
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/core	fury:src/core
+						sources	src/core	src/core
 						binaries	
 						resources	
 						bloopSpec	None
 					dependency	id	dependency
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/dependency	fury:src/dependency
+						sources	src/dependency	src/dependency
 						binaries	
 						resources	
 						bloopSpec	None
 					imports	id	imports
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/imports	fury:src/imports
+						sources	src/imports	src/imports
 						binaries	
 						resources	
 						bloopSpec	None
 					menu	id	menu
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/build	projectId	fury
 								moduleId	build
 								intransitive	false
+								hidden	false
 							fury/dependency	projectId	fury
 								moduleId	dependency
 								intransitive	false
+								hidden	false
 							fury/imports	projectId	fury
 								moduleId	imports
 								intransitive	false
+								hidden	false
 							fury/module	projectId	fury
 								moduleId	module
 								intransitive	false
+								hidden	false
 							fury/project	projectId	fury
 								moduleId	project
 								intransitive	false
+								hidden	false
 							fury/repo	projectId	fury
 								moduleId	repo
 								intransitive	false
+								hidden	false
 							fury/schema	projectId	fury
 								moduleId	schema
 								intransitive	false
+								hidden	false
 							fury/source	projectId	fury
 								moduleId	source
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/menu	fury:src/menu
+						sources	src/menu	src/menu
 						binaries	com.facebook:nailgun-server:1.0.0	binRepo	central
 								group	com.facebook
 								artifact	nailgun-server
@@ -198,139 +230,161 @@ schemas	default	id	default
 						resources	
 						bloopSpec	None
 					module	id	module
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/module	fury:src/module
+						sources	src/module	src/module
 						binaries	
 						resources	
 						bloopSpec	None
 					ogdl	id	ogdl
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/strings	projectId	fury
 								moduleId	strings
 								intransitive	false
+								hidden	false
 							kaleidoscope/core	projectId	kaleidoscope
 								moduleId	core
 								intransitive	false
+								hidden	false
 							magnolia/core	projectId	magnolia
 								moduleId	core
 								intransitive	false
+								hidden	false
 							mitigation/core	projectId	mitigation
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/ogdl	fury:src/ogdl
+						sources	src/ogdl	src/ogdl
 						binaries	
 						resources	
 						bloopSpec	None
 					project	id	project
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/project	fury:src/project
+						sources	src/project	src/project
 						binaries	
 						resources	
 						bloopSpec	None
 					repo	id	repo
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/repo	fury:src/repo
+						sources	src/repo	src/repo
 						binaries	
 						resources	
 						bloopSpec	None
 					schema	id	schema
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/schema	fury:src/schema
+						sources	src/schema	src/schema
 						binaries	
 						resources	
 						bloopSpec	None
 					source	id	source
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	fury/core	projectId	fury
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
-						sources	fury:src/source	fury:src/source
+						sources	src/source	src/source
 						binaries	
 						resources	
 						bloopSpec	None
 					strings	id	strings
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	
 						params	
-						sources	fury:src/strings	fury:src/strings
+						sources	src/strings	src/strings
 						binaries	
 						resources	
 						bloopSpec	None
 				main	Some	menu
 				license	apache-2.0
 				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
 			gastronomy	id	gastronomy
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	magnolia/core	projectId	magnolia
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	gastronomy:src/core	gastronomy:src/core
 						binaries	
@@ -339,37 +393,43 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			guillotine	id	guillotine
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	guillotine/macros	projectId	guillotine
 								moduleId	macros
 								intransitive	false
+								hidden	false
 						params	
 						sources	guillotine:src/core	guillotine:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 					macros	id	macros
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	contextual/core	projectId	contextual
 								moduleId	core
 								intransitive	false
+								hidden	false
 							mitigation/core	projectId	mitigation
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	guillotine:src/macros	guillotine:src/macros
 						binaries	
@@ -378,18 +438,21 @@ schemas	default	id	default
 				main	Some	macros
 				license	apache-2.0
 				description	
+				compiler	None
 			kaleidoscope	id	kaleidoscope
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	contextual/core	projectId	contextual
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	kaleidoscope:src/core	kaleidoscope:src/core
 						binaries	
@@ -398,18 +461,21 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			magnolia	id	magnolia
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	mercator/core	projectId	mercator
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	magnolia:src/core	magnolia:src/core
 						binaries	
@@ -418,15 +484,17 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			mercator	id	mercator
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	
 						params	
 						sources	mercator:src/core	mercator:src/core
@@ -436,18 +504,21 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			mitigation	id	mitigation
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	totalitarian/core	projectId	totalitarian
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	mitigation:src/core	mitigation:src/core
 						binaries	
@@ -456,15 +527,17 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			optometry	id	optometry
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	
 						params	
 						sources	optometry:src/core	optometry:src/core
@@ -474,70 +547,83 @@ schemas	default	id	default
 				main	None
 				license	apache-2.0
 				description	
+				compiler	None
 			probation	id	probation
 				modules	cli	id	cli
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	escritoire/core	projectId	escritoire
 								moduleId	core
 								intransitive	false
+								hidden	false
 							probation/core	projectId	probation
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	probation:src/cli	probation:src/cli
 						binaries	
 						resources	
 						bloopSpec	None
 					core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	probation/macros	projectId	probation
 								moduleId	macros
 								intransitive	false
+								hidden	false
 						params	
 						sources	probation:src/core	probation:src/core
 						binaries	
 						resources	
 						bloopSpec	None
 					macros	id	macros
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	magnolia/core	projectId	magnolia
 								moduleId	core
 								intransitive	false
+								hidden	false
 						params	
 						sources	probation:src/macros	probation:src/macros
 						binaries	
 						resources	
 						bloopSpec	None
-				main	Some	cli
+				main	None
 				license	apache-2.0
 				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
 			totalitarian	id	totalitarian
 				modules	core	id	core
-						kind	library
+						kind	Library
 						main	None
 						plugin	None
 						manifest	
 						compiler	projectId	scala
 							moduleId	compiler
 							intransitive	true
+							hidden	false
 						after	
 						params	
 						sources	totalitarian:src/core	totalitarian:src/core
@@ -547,6 +633,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 		repos	contextual	id	contextual
 				repo	git@github.com:propensive/contextual.git
 				track	fury
@@ -615,7 +702,7 @@ schemas	default	id	default
 			scala	id	scala
 				repo	git@github.com:propensive/.scala.git
 				track	master
-				commit	f0f96b58b78bad6fec5000a9fab3610de7ec7a9f
+				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
 				local	None
 			totalitarian	id	totalitarian
 				repo	git@github.com:propensive/totalitarian.git

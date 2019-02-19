@@ -17,6 +17,7 @@ package fury
 
 import guillotine._
 import optometry._
+import mercator._
 import scala.util._
 import Lenses.on
 
@@ -73,13 +74,23 @@ object ProjectCli {
   def add(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
-      cli       <- cli.hint(ProjectNameArg)
-      cli       <- cli.hint(LicenseArg, License.standardLicenses)
-      invoc     <- cli.read()
-      io        <- invoc.io()
+      cli     <- cli.hint(ProjectNameArg)
+      cli     <- cli.hint(LicenseArg, License.standardLicenses)
+      dSchema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      cli <- cli.hint(
+                DefaultCompilerArg,
+                ModuleRef.JavaRef :: dSchema.compilerRefs(Io.silent(config), layout))
+      invoc      <- cli.read()
+      io         <- invoc.io()
+      compilerId <- ~invoc(DefaultCompilerArg).toOption
+      optCompilerRef <- compilerId
+                         .map(ModuleRef.parseFull(_, true))
+                         .to[List]
+                         .sequence
+                         .map(_.headOption)
       projectId <- invoc(ProjectNameArg)
       license   <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
-      project   <- ~fury.Project(projectId, license = license)
+      project   <- ~fury.Project(projectId, license = license, compiler = optCompilerRef)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
@@ -113,9 +124,14 @@ object ProjectCli {
   def update(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
-      dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
-      cli            <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
-      cli            <- cli.hint(DescriptionArg)
+      dSchema <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
+      cli     <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
+      cli     <- cli.hint(DescriptionArg)
+      cli <- cli.hint(
+                DefaultCompilerArg,
+                ModuleRef.JavaRef :: dSchema
+                  .to[List]
+                  .flatMap(_.compilerRefs(Io.silent(config), layout)))
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
@@ -131,10 +147,13 @@ object ProjectCli {
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
       descriptionArg <- ~invoc(DescriptionArg).toOption
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
-      nameArg        <- ~invoc(ProjectNameArg).toOption
-      newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
-      layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      _              <- ~Layer.save(io, layer, layout)
+      compilerArg <- ~invoc(DefaultCompilerArg).toOption
+                      .flatMap(ModuleRef.parseFull(_, true).toOption)
+      layer   <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
+      nameArg <- ~invoc(ProjectNameArg).toOption
+      newId   <- ~nameArg.flatMap(schema.unused(_).toOption)
+      layer   <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
+      _       <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }

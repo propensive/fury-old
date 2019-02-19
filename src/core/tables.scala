@@ -164,7 +164,8 @@ case class Tables(config: Config) {
       Heading("PROJECT", _.id),
       Heading("MODULES", p => bar(p.modules.size)),
       Heading("DESC", _.description),
-      Heading("LICENSE", _.license)
+      Heading("LICENSE", _.license),
+      Heading("COMPILER", _.compiler)
   )
 
   def repositories(layout: Layout): Tabulation[SourceRepo] = Tabulation(

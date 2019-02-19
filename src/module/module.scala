@@ -127,7 +127,9 @@ object ModuleCli {
                          .to[List]
                          .sequence
                          .map(_.headOption)
-      module <- ~fury.Module(moduleId, compiler = optCompilerRef.getOrElse(ModuleRef.JavaRef))
+      module <- ~fury.Module(
+                   moduleId,
+                   compiler = optCompilerRef.orElse(project.compiler).getOrElse(ModuleRef.JavaRef))
       module <- ~invoc(KindArg).toOption.map { k =>
                  module.copy(kind = k)
                }.getOrElse(module)
@@ -145,6 +147,16 @@ object ModuleCli {
                   Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                 lens(ws) = Some(module.id)
               }
+      layer <- if (project.compiler.isEmpty)
+                Lenses
+                  .updateSchemas(optSchemaId, layer, true)(Lenses.layer.compiler(_, project.id)) {
+                    (lens, ws) =>
+                      optCompilerRef.foreach { compiler =>
+                        io.println(
+                            msg"Setting default compiler for project ${project.id} to ${compiler}")
+                      }
+                      lens(ws) = optCompilerRef
+                  } else Try(layer)
       _ <- ~Layer.save(io, layer, layout)
       _ <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
