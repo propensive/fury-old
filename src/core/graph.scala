@@ -26,6 +26,7 @@ object Graph {
 
   sealed trait CompileState
   case object Compiling                          extends CompileState
+  case object AlreadyCompiled                    extends CompileState
   case class Successful(content: Option[String]) extends CompileState
   case class Failed(output: String)              extends CompileState
   case object Skipped                            extends CompileState
@@ -49,6 +50,13 @@ object Graph {
         live(false, io, graph, tail, state)
       case StartCompile(ref) #:: tail =>
         live(true, io, graph, tail, state.updated(ref, Compiling))
+      case NoCompile(ref) #:: tail =>
+        live(
+            true,
+            io,
+            graph,
+            tail,
+            if (state.contains(ref)) state else state.updated(ref, AlreadyCompiled))
       case StopCompile(ref, out, success) #:: tail =>
         live(
             true,
@@ -119,9 +127,10 @@ object Graph {
           else theme.projectDark(p) + theme.gray("/") + theme.moduleDark(m)
 
         val errors = state.get(moduleRef) match {
-          case Some(Failed(_))     => theme.failure("!")
-          case Some(Successful(_)) => theme.success("*")
-          case _                   => theme.bold(theme.failure(" "))
+          case Some(Failed(_))       => theme.failure("!")
+          case Some(Successful(_))   => theme.success("*")
+          case Some(AlreadyCompiled) => theme.success("·")
+          case _                     => theme.bold(theme.failure(" "))
         }
 
         (msg"${chs.filter(_ != '.').mkString} ${if (state.get(moduleRef) == Some(Skipped)) theme.strike(text)

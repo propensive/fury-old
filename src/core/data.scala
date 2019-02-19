@@ -181,6 +181,9 @@ case class Compilation(
   def apply(ref: ModuleRef): Try[Artifact] =
     artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
+  def deepDependencies(ref: ModuleRef): Set[ModuleRef] =
+    Set(ref) ++ allDependenciesGraph(ref).to[Set].flatMap(deepDependencies(_))
+
   def checkoutAll(io: Io, layout: Layout): Unit =
     checkouts.foreach(_.get(io, layout).unit)
 
@@ -268,9 +271,15 @@ case class Compilation(
           Future.successful(CompileResult(false, ""))
         } else
           Future {
-            val out = new StringBuilder()
+            val out           = new StringBuilder()
+            val noCompilation = artifact.sourcePaths.isEmpty
+
+            if (noCompilation) deepDependencies(artifact.ref).foreach { ref =>
+              multiplexer(ref) = NoCompile(ref)
+            }
+
             val compileResult: Boolean =
-              artifact.sourcePaths.isEmpty || blocking {
+              noCompilation || blocking {
                 layout.shell.bloop
                   .compile(hash(artifact.ref).encoded) { (ln: String) =>
                     {
@@ -278,15 +287,27 @@ case class Compilation(
                       out.append("\n")
                       val x = ln match {
                         case r"Compiling $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
-                          multiplexer(hashes(moduleHash)) = StartCompile(hashes(moduleHash))
+                          val ref = hashes(moduleHash)
+                          deepDependencies(ref).foreach { ref =>
+                            multiplexer(ref) = NoCompile(ref)
+                          }
+                          multiplexer(ref) = StartCompile(ref)
                         }
                         case r"Compiled $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
+                          val ref = hashes(moduleHash)
+                          deepDependencies(ref).foreach { ref =>
+                            multiplexer(ref) = NoCompile(ref)
+                          }
                           multiplexer(hashes(moduleHash)) =
                             StopCompile(hashes(moduleHash), "", true)
                           multiplexer.close(hashes(moduleHash))
                         }
                         case r".*'$moduleHash@([a-zA-Z0-9\+\_\=\/]+)' failed to compile.*" => {
                           out.append(s"Failed to compile '${hashes(moduleHash)}'\n")
+                          val ref = hashes(moduleHash)
+                          deepDependencies(ref).foreach { ref =>
+                            multiplexer(ref) = NoCompile(ref)
+                          }
                           multiplexer(hashes(moduleHash)) =
                             StopCompile(hashes(moduleHash), out.toString(), false)
                           out.clear()
@@ -311,6 +332,9 @@ case class Compilation(
                 .await() == 0
             } else compileResult
 
+            deepDependencies(artifact.ref).foreach { ref =>
+              multiplexer(ref) = NoCompile(ref)
+            }
             multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, finalResult)
 
             multiplexer.close(artifact.ref)
@@ -904,6 +928,7 @@ sealed trait CompileEvent
 case object Tick                                                         extends CompileEvent
 case class StartCompile(ref: ModuleRef)                                  extends CompileEvent
 case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
+case class NoCompile(ref: ModuleRef)                                     extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                                   extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
