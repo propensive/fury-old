@@ -19,6 +19,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			escritoire	id	escritoire
 				modules	core	id	core
 						kind	Library
@@ -38,6 +39,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			eucalyptus	id	eucalyptus
 				modules	core	id	core
 						kind	Library
@@ -57,6 +59,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			exoskeleton	id	exoskeleton
 				modules	core	id	core
 						kind	Library
@@ -79,6 +82,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			fury	id	fury
 				modules	build	id	build
 						kind	Library
@@ -363,6 +367,10 @@ schemas	default	id	default
 				main	Some	menu
 				license	apache-2.0
 				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
 			gastronomy	id	gastronomy
 				modules	core	id	core
 						kind	Library
@@ -385,6 +393,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			guillotine	id	guillotine
 				modules	core	id	core
 						kind	Library
@@ -429,6 +438,7 @@ schemas	default	id	default
 				main	Some	macros
 				license	apache-2.0
 				description	
+				compiler	None
 			kaleidoscope	id	kaleidoscope
 				modules	core	id	core
 						kind	Library
@@ -451,6 +461,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			magnolia	id	magnolia
 				modules	core	id	core
 						kind	Library
@@ -473,6 +484,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			mercator	id	mercator
 				modules	core	id	core
 						kind	Library
@@ -492,6 +504,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			mitigation	id	mitigation
 				modules	core	id	core
 						kind	Library
@@ -514,6 +527,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 			optometry	id	optometry
 				modules	core	id	core
 						kind	Library
@@ -533,6 +547,7 @@ schemas	default	id	default
 				main	None
 				license	apache-2.0
 				description	
+				compiler	None
 			probation	id	probation
 				modules	cli	id	cli
 						kind	Library
@@ -592,9 +607,13 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
-				main	Some	cli
+				main	None
 				license	apache-2.0
 				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
 			totalitarian	id	totalitarian
 				modules	core	id	core
 						kind	Library
@@ -614,6 +633,7 @@ schemas	default	id	default
 				main	Some	core
 				license	apache-2.0
 				description	
+				compiler	None
 		repos	contextual	id	contextual
 				repo	git@github.com:propensive/contextual.git
 				track	fury
@@ -682,7 +702,7 @@ schemas	default	id	default
 			scala	id	scala
 				repo	git@github.com:propensive/.scala.git
 				track	master
-				commit	f0f96b58b78bad6fec5000a9fab3610de7ec7a9f
+				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
 				local	None
 			totalitarian	id	totalitarian
 				repo	git@github.com:propensive/totalitarian.git
