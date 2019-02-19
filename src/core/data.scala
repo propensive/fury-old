@@ -171,6 +171,7 @@ case class Compilation(
               },
               artifact.params,
               artifact.intransitive,
+              artifact.sourcePaths,
               allDependenciesGraph(ref).map(hash(_))).digest[Md5]
         }
     )
@@ -657,6 +658,13 @@ object ModuleRef {
 
   val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
 
+  def parseFull(string: String, intransitive: Boolean): Try[ModuleRef] = string match {
+    case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
+      Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
+    case _ =>
+      Failure(ItemNotFound(ModuleId(string)))
+  }
+
   def parse(project: Project, string: String, intransitive: Boolean): Try[ModuleRef] =
     string match {
       case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
@@ -962,7 +970,8 @@ case class Project(
     modules: SortedSet[Module] = TreeSet(),
     main: Option[ModuleId] = None,
     license: LicenseId = License.unknown,
-    description: String = "") {
+    description: String = "",
+    compiler: Option[ModuleRef] = None) {
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
 
   def mainModule: Try[Option[Module]] =
