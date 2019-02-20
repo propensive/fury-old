@@ -1,9 +1,3 @@
-#!/bin/bash
-set -e
-set -x
-
-source $TESTROOTDIR/tests_lib
-
 mkdir -p repo1
 (
     cd repo1
@@ -37,7 +31,7 @@ mkdir -p fury_project
 (
     cd fury_project
     fury repo pull --all
-    fury
+    fury build compile --output linear
     git commit -am"."
 )
 
@@ -50,7 +44,7 @@ git clone fury_project fury_project_clone 2> /dev/null
 
 (
     cd fury_project_clone
-    fury
+    fury build compile --output linear
     ! find ~/.furyrc/sources -name version1 -exec false \;
     ! find ~/.furyrc/sources -name version2 -exec false \;
     find ~/.furyrc/sources -name version2 -exec false \;

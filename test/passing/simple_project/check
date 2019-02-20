@@ -1,0 +1,41 @@
+fury layer init
+Initialized new git repo and committed layer.fury.
+fury project add -n webpage
+Set current project to webpage
+fury module add -n hello_world
+Set current module to hello_world
+fury source add -d src
+fury source list
+/home/jpretty/dev/propensive/fury/test/.simple_project.tmp/webpage/hello_world
+[4mREPO[24m  [4mPATH[24m
+[38;2;225;80;0m-[0m     [38;2;200;150;100msrc[0m 
+fury repo add -u https://github.com/propensive/base.git -n base
+Cloning Git repository https://github.com/propensive/base.git.
+fury import add -i base:2.12.6
+fury module update --compiler scala/compiler
+fury module update --type application
+fury module update --main HelloWorld
+fury build compile --output linear
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+Starting compilation of module webpage/hello_world
+Successfully compiled module webpage/hello_world
+fury build save --dir ./
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+Writing manifest file /home/jpretty/dev/propensive/fury/test/.simple_project.tmp/.fury/resources/2AOCaWAfWk6689KKuXBc0A/manifest.mf
+Saving JAR file /home/jpretty/dev/propensive/fury/test/.simple_project.tmp/./webpage-hello_world.jar
+java -cp "$SCALA:webpage-hello_world.jar" "HelloWorld"
+Hello, world!
+export PATH="${GRAAL_HOME}/bin:${PATH}"
+fury restart
+Fury daemon has shut down
+Fury daemon is starting....
+Fury daemon is running
+mkdir -p native
+fury build native --dir native
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+Problem with GrallVM:'non-GraalVM java'. Please double-check the PATH
+./native/helloworld
+./script: line 18: ./native/helloworld: No such file or directory

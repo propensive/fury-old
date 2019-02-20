@@ -29,14 +29,13 @@ object Args {
   implicit private val licenseId: TExtractor[LicenseId] = _.headOption.map(LicenseId(_))
   implicit private val repoId: TExtractor[RepoId]       = _.headOption.map(RepoId(_))
   implicit private val binRepoId: TExtractor[BinRepoId] = _.headOption.map(BinRepoId(_))
-  implicit private val moduleId: TExtractor[ModuleId] =
-    _.headOption.flatMap(ModuleId.parse(_).toOption)
-  implicit private val projectId: TExtractor[ProjectId] =
-    _.headOption.flatMap(ProjectId.parse(_).toOption)
-  implicit private val path: TExtractor[Path]       = _.headOption.flatMap(Path.unapply(_))
-  implicit private val kindKey: TExtractor[Kind]    = _.headOption.flatMap(Kind.unapply(_))
-  implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
-  implicit private val theme: TExtractor[Theme]     = _.headOption.flatMap(Theme.unapply(_))
+  implicit private val theme: TExtractor[Theme]         = _.headOption.flatMap(Theme.unapply(_))
+  implicit private val version: TExtractor[RefSpec]     = _.headOption.map(RefSpec(_))
+  implicit private val path: TExtractor[Path]           = _.headOption.flatMap(Path.unapply(_))
+  implicit private val kindKey: TExtractor[Kind]        = _.headOption.flatMap(Kind.unapply(_))
+  implicit private val reporter: TExtractor[Reporter]   = _.headOption.flatMap(Reporter.unapply(_))
+  implicit private val moduleId: TExtractor[ModuleId]   = _.headOption.flatMap(ModuleId.parse(_).toOption)
+  implicit private val projectId: TExtractor[ProjectId] = _.headOption.flatMap(ProjectId.parse(_).toOption)
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
@@ -83,12 +82,17 @@ object Args {
   val RepoArg      = CliParam[RepoId]('r', 'repo, "specify a repository")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
   val RetryArg     = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
-  val SchemaArg    = CliParam[SchemaId]('s', 'schema, "specify a schema")
-  val TargetArg    = CliParam[String]('T', 'target, "target file/directory")
-  val TagArg       = CliParam[String]('t', 'tag, "git tag")
-  val ThemeArg     = CliParam[Theme]('T', 'theme, "specify a color theme")
-  val UrlArg       = CliParam[String]('u', 'url, "specify a URL")
-  val CompareArg   = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
+
+  val ReporterArg = CliParam[Reporter](
+      'o',
+      'output,
+      s"format for build output (${Reporter.all.map(_.name).mkString(", ")})")
+  val SchemaArg  = CliParam[SchemaId]('s', 'schema, "specify a schema")
+  val TargetArg  = CliParam[String]('T', 'target, "target file/directory")
+  val TagArg     = CliParam[String]('t', 'tag, "git tag")
+  val ThemeArg   = CliParam[Theme]('T', 'theme, "specify a color theme")
+  val UrlArg     = CliParam[String]('u', 'url, "specify a URL")
+  val CompareArg = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 
   val KindArg =
     CliParam[Kind](

@@ -1,0 +1,29 @@
+fury layer init
+Initialized new git repo and committed layer.fury.
+fury project add -n policy_file_test
+Set current project to policy_file_test
+fury repo add -u https://github.com/propensive/base.git -n base
+Cloning Git repository https://github.com/propensive/base.git.
+fury import add -i base:2.12.6
+fury module add -n write_inside_shared
+Set current module to write_inside_shared
+fury source add -d src
+fury module update -c scala/compiler
+fury module update --type application
+fury module update --main test.WriteInsideSharedDir
+fury build compile --output linear
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+Starting compilation of module policy_file_test/write_inside_shared
+Successfully compiled module policy_file_test/write_inside_shared
+fury module add -n write_outside_shared
+Set current module to write_outside_shared
+fury source add -d src
+fury module update -c scala/compiler
+fury module update --type application
+fury module update --main test.WriteOutsideSharedDir
+fury build compile --output quiet | sed 's/java.io.FilePermission.*//'
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+echo $?
+0
