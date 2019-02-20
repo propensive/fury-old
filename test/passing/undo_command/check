@@ -8,7 +8,7 @@ fury source add -d wrong_src
 fury undo
 fury source add -d src
 fury source list
-/home/jpretty/dev/propensive/fury/test/.undo_command.tmp/webpage/hello_world
+/home/jpretty/dev/propensive/fury/.undo_command.tmp/webpage/hello_world
 [4mREPO[24m  [4mPATH[24m
 [38;2;225;80;0m-[0m     [38;2;200;150;100msrc[0m 
 fury repo add -u https://github.com/propensive/base.git -n base
@@ -23,7 +23,7 @@ Successfully compiled module webpage/hello_world
 fury build save --dir ./
 Migrating layer.fury from file format v1
 Migrating layer.fury from file format v2
-Writing manifest file /home/jpretty/dev/propensive/fury/test/.undo_command.tmp/.fury/resources/EV2BuDgBUd9shy8duCF+6A/manifest.mf
-Saving JAR file /home/jpretty/dev/propensive/fury/test/.undo_command.tmp/./webpage-hello_world.jar
+Writing JAR manifest for module webpage/hello_world
+Saving JAR file ../..
 java -cp "$SCALA:webpage-hello_world.jar" "HelloWorld"
 Hello, world!

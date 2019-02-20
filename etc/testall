@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ROOT="$1"
+ROOT="$PWD"
 ACOUNT=0
 APASSED=0
 AFAILED=0
@@ -8,14 +8,48 @@ BCOUNT=0
 BPASSED=0
 BFAILED=0
 
+runtest() {
+  DIR="$1"
+  TEST="$2"
+  TMPDIR=".${TEST}.tmp"
+  BASE="$PWD"
+  RED=$(printf '\e[31m')
+  GREEN=$(printf '\e[32m')
+  RESET=$(printf '\e[0m')
+
+  echo ""
+  echo "----------------------------------------------------------------------------------------------------"
+  echo " Running test ${TEST}"
+  echo "----------------------------------------------------------------------------------------------------"
+
+  rm -fr "$TMPDIR"
+  cp -r "$DIR/$TEST" "$TMPDIR"
+  cd "$TMPDIR"
+  set -v
+  source ./script 2>&1 | tee output
+  set +v
+
+  echo "----------------------------------------------------------------------------------------------------"
+  diff --color output check
+  SUCCESS=$?
+  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
+      echo "----------------------------------------------------------------------------------------------------"
+      echo " [${RED}FAIL${RESET}] ${TEST}" && mv output "../$TEST.log"
+    )
+  echo "----------------------------------------------------------------------------------------------------"
+  cd "$BASE"
+  rm -fr "$TMPDIR"
+  return $SUCCESS
+}
+
 for ATEST in $(ls $ROOT/test/passing); do
   let ACOUNT="$ACOUNT+1"
-  etc/runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
+  runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
 done
 
 for BTEST in $(ls $ROOT/test/pending); do
   let BCOUNT="$BCOUNT+1"
-  etc/runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
+  runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
 done
 
 echo ""
