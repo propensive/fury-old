@@ -465,10 +465,10 @@ case class Compilation(
                 (dir, dir.children)
               }.filter(_._2.nonEmpty)
       bins         <- ~allDependencies.flatMap(_.binaries)
-      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(hash(ref))}")
+      _            <- ~io.println(msg"Writing JAR manifest for module $ref")
       manifestFile <- Manifest.file(layout.manifestFile(hash(ref)), bins.map(_.name), None)
       path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _            <- ~io.println(msg"Saving JAR file $path")
+      _            <- ~io.println(msg"Saving JAR file ${path.relativizeTo(layout.pwd)}")
       _            <- layout.shell.aggregatedJar(path, files, manifestFile)
       _ <- ~bins.foreach { b =>
             b.copyTo(dest / b.name)
@@ -1120,6 +1120,12 @@ object BinRepoId {
 }
 
 case class Repo(url: String) {
+
+  def isLocal = url.startsWith("/")
+
+  def localizedUrl(layout: Layout): String =
+    if (isLocal) Path(url).relativizeTo(layout.pwd).value else url
+
   def hash: Digest               = url.digest[Md5]
   def path(layout: Layout): Path = layout.reposDir / hash.encoded
 
@@ -1128,8 +1134,9 @@ case class Repo(url: String) {
       oldCommit <- layout.shell.git.getCommit(path(layout))
       _         <- layout.shell.git.fetch(path(layout), None)
       newCommit <- layout.shell.git.getCommit(path(layout))
-      msg <- ~(if (oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
-               else msg"Repository ${url} is unchanged")
+      msg <- ~(if (oldCommit != newCommit)
+                 msg"Repository ${localizedUrl(layout)} updated to new commit $newCommit"
+               else msg"Repository ${localizedUrl(layout)} is unchanged")
     } yield msg
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[String] =

@@ -6,8 +6,8 @@ mkdir -p repo1
     touch src/version1 && git add -A && git commit -m"."
     
 )
-Initialized empty Git repository in /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1/.git/
-[master (root-commit) b0d6d40] .
+Initialized empty Git repository in /home/jpretty/dev/propensive/fury/.repos_pull.tmp/repo1/.git/
+[master (root-commit) 0bc946e] .
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 src/version1
 
@@ -27,13 +27,13 @@ Initialized new git repo and committed layer.fury.
 Set current project to webpage
 Set current module to hello_world
 Cloning Git repository https://github.com/propensive/base.git.
-Cloning Git repository /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1.
+Cloning Git repository /home/jpretty/dev/propensive/fury/.repos_pull.tmp/repo1.
 
 (
     cd repo1
     touch src/version2 && git add -A && git commit -m"."
 )
-[master cfc89ea] .
+[master bd3a935] .
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 src/version2
 
@@ -44,20 +44,20 @@ Cloning Git repository /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/re
     git commit -am"."
 )
 Repository https://github.com/propensive/base.git is unchanged
-Repository /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1 updated to new commit cfc89ea
+Repository /home/jpretty/dev/propensive/fury/.repos_pull.tmp/repo1 updated to new commit bd3a935
 Repo [base] checked out to commit [b7021d258bd9411bd7662025072d6a8e8c64fa0e]
-Repo [repo1] checked out to commit [cfc89eaa468652c49356ecf0fe18ea0f0e556cd0]
+Repo [repo1] checked out to commit [bd3a93597c073192f49b146d5371d8e7057ebd03]
 Migrating layer.fury from file format v1
 Migrating layer.fury from file format v2
 Checking out [src].
-[master 4fc6f5a] .
+[master 5754af6] .
  1 file changed, 33 insertions(+), 4 deletions(-)
 
 (
     cd repo1
     touch src/version3 && git add -A && git commit -m"."
 )
-[master 57c1a1f] .
+[master afae4cb] .
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 src/version3
 
@@ -74,5 +74,5 @@ Cloning Git repository https://github.com/propensive/base.git.
 Checking out all sources.
 Migrating layer.fury from file format v1
 Migrating layer.fury from file format v2
-Cloning Git repository /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1.
+Cloning Git repository /home/jpretty/dev/propensive/fury/.repos_pull.tmp/repo1.
 Checking out [src].

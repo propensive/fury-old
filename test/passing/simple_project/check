@@ -6,7 +6,7 @@ fury module add -n hello_world
 Set current module to hello_world
 fury source add -d src
 fury source list
-/home/jpretty/dev/propensive/fury/test/.simple_project.tmp/webpage/hello_world
+/home/jpretty/dev/propensive/fury/.simple_project.tmp/webpage/hello_world
 [4mREPO[24m  [4mPATH[24m
 [38;2;225;80;0m-[0m     [38;2;200;150;100msrc[0m 
 fury repo add -u https://github.com/propensive/base.git -n base
@@ -23,8 +23,8 @@ Successfully compiled module webpage/hello_world
 fury build save --dir ./
 Migrating layer.fury from file format v1
 Migrating layer.fury from file format v2
-Writing manifest file /home/jpretty/dev/propensive/fury/test/.simple_project.tmp/.fury/resources/2AOCaWAfWk6689KKuXBc0A/manifest.mf
-Saving JAR file /home/jpretty/dev/propensive/fury/test/.simple_project.tmp/./webpage-hello_world.jar
+Writing JAR manifest for module webpage/hello_world
+Saving JAR file ../..
 java -cp "$SCALA:webpage-hello_world.jar" "HelloWorld"
 Hello, world!
 export PATH="${GRAAL_HOME}/bin:${PATH}"
