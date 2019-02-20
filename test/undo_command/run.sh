@@ -17,7 +17,7 @@ fury module update -c scala/compiler
 fury
 fury build save --dir ./
 
-OUTPUT=$(java -cp "$SCALA:webpage-hello_world.jar" "HelloWorld")
+OUTPUT=$(java -cp "$SCALA:webpage-hello-world.jar" "HelloWorld")
 EXPECTED="Hello, world!"
 
 if [ "$OUTPUT" !=  "$EXPECTED" ]; then
