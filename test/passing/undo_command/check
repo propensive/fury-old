@@ -26,4 +26,4 @@ Migrating layer.fury from file format v2
 Writing manifest file /home/jpretty/dev/propensive/fury/test/.undo_command.tmp/.fury/resources/EV2BuDgBUd9shy8duCF+6A/manifest.mf
 Saving JAR file /home/jpretty/dev/propensive/fury/test/.undo_command.tmp/./webpage-hello_world.jar
 java -cp "$SCALA:webpage-hello_world.jar" "HelloWorld"
-XHello, world!
+Hello, world!
