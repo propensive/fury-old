@@ -6,7 +6,7 @@ source $TESTROOTDIR/tests_lib
 
 fury layer init
 fury project add -n webpage
-fury module add -n hello_world
+fury module add -n hello-world
 fury source add -d wrong_src
 fury undo
 fury source add -d src
