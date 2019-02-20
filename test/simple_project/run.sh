@@ -19,7 +19,7 @@ fury
 # Test JAR file validity
 fury build save --dir ./
 
-OUTPUT=$(java -cp "$SCALA:webpage-hello_world.jar" "HelloWorld")
+OUTPUT=$(java -cp "$SCALA:webpage-hello-world.jar" "HelloWorld")
 EXPECTED="Hello, world!"
 assert_equal "$EXPECTED" "$OUTPUT"
 
