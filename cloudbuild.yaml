@@ -5,7 +5,7 @@ steps:
   id: 'build'
 
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['run', '-u', 'bash_user', '-w', '/build', '-t', 'fury/ci', '/build/etc/testall']
+  args: ['run', '-w', '/home/bash_user', '-t', 'fury/ci', '/build/etc/testall', '/build']
   timeout: 240s
   id: 'integration'
 

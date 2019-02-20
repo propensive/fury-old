@@ -1,5 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
+ROOT="$1"
 ACOUNT=0
 APASSED=0
 AFAILED=0
@@ -7,14 +8,14 @@ BCOUNT=0
 BPASSED=0
 BFAILED=0
 
-for ATEST in $(ls test/passing); do
+for ATEST in $(ls $ROOT/test/passing); do
   let ACOUNT="$ACOUNT+1"
-  etc/runtest test/passing $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
+  etc/runtest $ROOT/test/passing $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
 done
 
-for BTEST in $(ls test/pending); do
+for BTEST in $(ls $ROOT/test/pending); do
   let BCOUNT="$BCOUNT+1"
-  etc/runtest test/pending $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
+  etc/runtest $ROOT/test/pending $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
 done
 
 echo ""

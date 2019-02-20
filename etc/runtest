@@ -1,8 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 
 DIR="$1"
 TEST="$2"
-TMPDIR="test/.${TEST}.tmp"
+TMPDIR=".${TEST}.tmp"
+BASE="$PWD"
+RED=$(printf '\e[31m')
+GREEN=$(printf '\e[32m')
+RESET=$(printf '\e[0m')
 
 echo ""
 echo "----------------------------------------------------------------------------------------------------"
@@ -19,11 +23,11 @@ set +v
 echo "----------------------------------------------------------------------------------------------------"
 diff output check
 SUCCESS=$?
-[ $SUCCESS = 0 ] && echo " [PASS] ${TEST}" && rm -f "../$TEST.log" || (
+[ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
     echo "----------------------------------------------------------------------------------------------------"
-    echo " [FAIL] ${TEST}" && mv output "../$TEST.log"
+    echo " [${RED}FAIL${RESET}] ${TEST}" && mv output "../$TEST.log"
   )
 echo "----------------------------------------------------------------------------------------------------"
-cd ..
+cd "$BASE"
 rm -fr "$TMPDIR"
 exit $SUCCESS
