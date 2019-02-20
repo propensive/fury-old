@@ -256,7 +256,7 @@ object ModuleCli {
                 mainClass.map(Some(_))
       layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).plugin)) =
                 pluginName.map(Some(_))
-      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = newId
+      layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
       _     <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
