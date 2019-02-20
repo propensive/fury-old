@@ -548,7 +548,7 @@ case class Schema(
       .flatMap(_.map(_.allProjects(io, layout)).sequence.map(_.flatten))
       .map(_ ++ projects.to[List])
 
-  def unused(projectId: ProjectId) = projects.find(_.id == projectId) match {
+  def unused(projectId: ProjectId): Try[ProjectId] = projects.find(_.id == projectId) match {
     case None    => Success(projectId)
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
@@ -667,9 +667,11 @@ object ModuleRef {
 
   def parse(project: Project, string: String, intransitive: Boolean): Try[ModuleRef] =
     string match {
-      case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
+      // `dummy1` and `dummy2` are not used, but binding them to the inner capturing groups
+      // works around a bug in Kaleidoscope
+      case r"$projectId@([a-z]$dummy1@(-?[a-z0-9]+)*)\/$moduleId@([a-z]$dummy2@(-?[a-z0-9]+)*)" =>
         Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
-      case r"[a-z][a-z0-9\-]*[a-z0-9]" =>
+      case r"[a-z](-?[a-z0-9]+)*" =>
         Success(ModuleRef(project.id, ModuleId(string), intransitive))
       case _ =>
         Failure(ItemNotFound(ModuleId(string)))
@@ -702,11 +704,9 @@ object SchemaId {
 
   final val default = SchemaId("default")
 
-  def unapply(value: String): Option[SchemaId] = value match {
-    case r"[a-z0-9\-\.]*[a-z0-9]$$" =>
-      Some(SchemaId(value))
-    case _ =>
-      None
+  def parse(name: String): Try[SchemaId] = name match {
+    case r"[a-z]([-._]?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
+    case _                             => Failure(InvalidValue(name))
   }
 }
 
@@ -716,6 +716,11 @@ object ProjectId {
   implicit val msgShow: MsgShow[ProjectId]       = p => UserMsg(_.project(p.key))
   implicit val stringShow: StringShow[ProjectId] = _.key
   implicit def diff: Diff[ProjectId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+
+  def parse(name: String): Try[ProjectId] = name match {
+    case r"[a-z](-?[a-z0-9]+)*" => Success(ProjectId(name))
+    case _                      => Failure(InvalidValue(name))
+  }
 }
 
 case class ProjectId(key: String) extends Key(msg"project")
@@ -725,6 +730,11 @@ object ModuleId {
   implicit val stringShow: StringShow[ModuleId] = _.key
   implicit def diff: Diff[ModuleId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   final val Core: ModuleId                      = ModuleId("core")
+
+  def parse(name: String): Try[ModuleId] = name match {
+    case r"[a-z](-?[a-z0-9]+)*" => Success(ModuleId(name))
+    case _                      => Failure(InvalidValue(name))
+  }
 }
 
 case class ModuleId(key: String) extends Key(msg"module")

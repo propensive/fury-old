@@ -19,19 +19,22 @@ import exoskeleton.Param.{Extractor => TExtractor}
 import exoskeleton._
 
 object Args {
-  implicit private val schemaId: TExtractor[SchemaId]   = _.headOption.map(SchemaId(_))
+  implicit private val schemaId: TExtractor[SchemaId] =
+    _.headOption.flatMap(SchemaId.parse(_).toOption)
   implicit private val schemaRef: TExtractor[SchemaRef] = _.headOption.flatMap(SchemaRef.unapply(_))
   implicit private val aliasCmd: TExtractor[AliasCmd]   = _.headOption.map(AliasCmd(_))
   implicit private val parameter: TExtractor[Parameter] = _.headOption.map(Parameter(_))
   implicit private val licenseId: TExtractor[LicenseId] = _.headOption.map(LicenseId(_))
   implicit private val repoId: TExtractor[RepoId]       = _.headOption.map(RepoId(_))
   implicit private val binRepoId: TExtractor[BinRepoId] = _.headOption.map(BinRepoId(_))
-  implicit private val moduleId: TExtractor[ModuleId]   = _.headOption.map(ModuleId(_))
-  implicit private val projectId: TExtractor[ProjectId] = _.headOption.map(ProjectId(_))
-  implicit private val path: TExtractor[Path]           = _.headOption.flatMap(Path.unapply(_))
-  implicit private val kindKey: TExtractor[Kind]        = _.headOption.flatMap(Kind.unapply(_))
-  implicit private val version: TExtractor[RefSpec]     = _.headOption.map(RefSpec(_))
-  implicit private val theme: TExtractor[Theme]         = _.headOption.flatMap(Theme.unapply(_))
+  implicit private val moduleId: TExtractor[ModuleId] =
+    _.headOption.flatMap(ModuleId.parse(_).toOption)
+  implicit private val projectId: TExtractor[ProjectId] =
+    _.headOption.flatMap(ProjectId.parse(_).toOption)
+  implicit private val path: TExtractor[Path]       = _.headOption.flatMap(Path.unapply(_))
+  implicit private val kindKey: TExtractor[Kind]    = _.headOption.flatMap(Kind.unapply(_))
+  implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
+  implicit private val theme: TExtractor[Theme]     = _.headOption.flatMap(Theme.unapply(_))
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 

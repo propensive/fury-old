@@ -18,7 +18,7 @@ mkdir -p fury_project
     cd fury_project
     fury layer init
     fury project add -n webpage
-    fury module add -n hello_world
+    fury module add -n hello-world
     fury repo add -u https://github.com/propensive/base.git -n base
     fury import add -i base:2.12.6
     fury module update -c scala/compiler
