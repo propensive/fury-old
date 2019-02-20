@@ -1,0 +1,78 @@
+mkdir -p repo1
+(
+    cd repo1
+    mkdir src
+    git init
+    touch src/version1 && git add -A && git commit -m"."
+    
+)
+Initialized empty Git repository in /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1/.git/
+[master (root-commit) b0d6d40] .
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 src/version1
+
+mkdir -p fury_project
+(
+    cd fury_project
+    fury layer init
+    fury project add -n webpage
+    fury module add -n hello_world
+    fury repo add -u https://github.com/propensive/base.git -n base
+    fury import add -i base:2.12.6
+    fury module update -c scala/compiler
+    fury repo add -u $(realpath ../repo1) -n repo1 --version master
+    fury source add -d repo1:src
+)
+Initialized new git repo and committed layer.fury.
+Set current project to webpage
+Set current module to hello_world
+Cloning Git repository https://github.com/propensive/base.git.
+Cloning Git repository /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1.
+
+(
+    cd repo1
+    touch src/version2 && git add -A && git commit -m"."
+)
+[master cfc89ea] .
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 src/version2
+
+(
+    cd fury_project
+    fury repo pull --all
+    fury build compile --output linear
+    git commit -am"."
+)
+Repository https://github.com/propensive/base.git is unchanged
+Repository /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1 updated to new commit cfc89ea
+Repo [base] checked out to commit [b7021d258bd9411bd7662025072d6a8e8c64fa0e]
+Repo [repo1] checked out to commit [cfc89eaa468652c49356ecf0fe18ea0f0e556cd0]
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+Checking out [src].
+[master 4fc6f5a] .
+ 1 file changed, 33 insertions(+), 4 deletions(-)
+
+(
+    cd repo1
+    touch src/version3 && git add -A && git commit -m"."
+)
+[master 57c1a1f] .
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 src/version3
+
+git clone fury_project fury_project_clone 2> /dev/null
+
+(
+    cd fury_project_clone
+    fury build compile --output linear
+    ! find .fury/sources -name version1 -exec false \;
+    ! find .fury/sources -name version2 -exec false \;
+    find .fury/sources -name version2 -exec false \;
+)
+Cloning Git repository https://github.com/propensive/base.git.
+Checking out all sources.
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+Cloning Git repository /home/jpretty/dev/propensive/fury/test/.repos_pull.tmp/repo1.
+Checking out [src].
