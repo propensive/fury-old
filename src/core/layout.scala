@@ -17,8 +17,16 @@ package fury
 
 import gastronomy._
 import guillotine._
+import java.util._
+import java.text._
+
+object Layout {
+  final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
+}
 
 case class Layout(home: Path, pwd: Path, env: Environment) {
+
+  private val nowString: String = Layout.dateFormat.format(new Date())
 
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   private[this] val userDir          = (home / ".furyrc").extant()
@@ -33,7 +41,7 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   lazy val srcsDir: Path      = (furyDir / "sources").extant()
   lazy val logsDir: Path      = (furyDir / "logs").extant()
   lazy val sharedDir: Path    = (furyDir / "build" / uniqueId).extant()
-  lazy val errorLogfile: Path = logsDir.extant() / s"$uniqueId.log"
+  lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val userConfig: Path   = userDir / "config.fury"
   lazy val aliasesPath: Path  = userDir / "aliases"
 
