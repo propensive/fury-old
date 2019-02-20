@@ -10,12 +10,12 @@ BFAILED=0
 
 for ATEST in $(ls $ROOT/test/passing); do
   let ACOUNT="$ACOUNT+1"
-  etc/runtest $ROOT/test/passing $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
+  etc/runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
 done
 
 for BTEST in $(ls $ROOT/test/pending); do
   let BCOUNT="$BCOUNT+1"
-  etc/runtest $ROOT/test/pending $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
+  etc/runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
 done
 
 echo ""
@@ -28,5 +28,5 @@ echo " Pending tests     PASSED: $BPASSED"
 echo "                   FAILED: $BFAILED"
 echo "                    TOTAL: $BCOUNT"
 echo "===================================================================================================="
-
+[ $ACOUNT = 0 ] && echo "No tests were run." && exit 1
 [ $ACOUNT = $APASSED ]
