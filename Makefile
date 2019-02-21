@@ -148,10 +148,10 @@ test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
 
 integration-isolated: ci
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/testall /build
+	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/testall
 
 integration-isolated-no-rebuild:
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/testall /build
+	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/testall
 
 ci:
 	docker build -t $(DOCKER_TAG) .
