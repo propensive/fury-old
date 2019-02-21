@@ -39,7 +39,8 @@ object Graph {
       stream: Stream[CompileEvent],
       state: Map[ModuleRef, CompileState]
     )(implicit theme: Theme
-    ): Unit =
+    ): Unit = {
+    io.print(Ansi.hideCursor())
     stream match {
       case Tick #:: tail =>
         val next: String = draw(graph, false, state).mkString("\n")
@@ -67,6 +68,7 @@ object Graph {
       case SkipCompile(ref) #:: tail =>
         live(true, io, graph, tail, state.updated(ref, Skipped))
       case Stream.Empty =>
+        io.print(Ansi.showCursor())
         val output = state.collect {
           case (ref, Failed(out)) =>
             UserMsg { theme =>
@@ -80,6 +82,7 @@ object Graph {
         io.println(Ansi.down(graph.size + 1)())
         io.println(output)
     }
+  }
 
   def draw(
       graph: Map[ModuleRef, Set[ModuleRef]],
