@@ -48,7 +48,7 @@ git clone fury_project fury_project_clone 2> /dev/null
 (
     cd fury_project_clone
     fury
-    ! find .fury/sources -name version1 -exec false \;
-    ! find .fury/sources -name version2 -exec false \;
-    find .fury/sources -name version2 -exec false \;
+    ! find ~/.furyrc/sources -name version1 -exec false \;
+    ! find ~/.furyrc/sources -name version2 -exec false \;
+    find ~/.furyrc/sources -name version2 -exec false \;
 )
