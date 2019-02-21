@@ -7,6 +7,13 @@ CLASSPATH="$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 
+trap cleanup INT
+
+cleanup() {
+  printf "\e[0m"
+  printf "\e[?25h"
+}
+
 nailgun() {
   "${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$@"
 }

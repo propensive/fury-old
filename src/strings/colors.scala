@@ -36,6 +36,9 @@ object Ansi {
   val italic: AnsiCode    = AnsiCode("3m")
   val reverse: AnsiCode   = AnsiCode("7m")
 
+  val hideCursor = AnsiCode("?25l")
+  val showCursor = AnsiCode("?25h")
+
   def up(n: Int): AnsiCode    = AnsiCode(s"${n}A")
   def down(n: Int): AnsiCode  = AnsiCode(s"${n}B")
   def right(n: Int): AnsiCode = AnsiCode(s"${n}C")
