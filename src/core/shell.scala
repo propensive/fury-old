@@ -174,7 +174,7 @@ case class Shell(environment: Environment) {
   object bloop {
 
     def start(): Running =
-      sh"sh -c 'launcher 1.2.5 > /dev/null'".async(_ => (), _ => ())
+      sh"sh -c 'launcher 1.2.5+4-72cbbfd7 > /dev/null'".async(_ => (), _ => ())
 
     def running(): Boolean =
       sh"bloop help".exec[Exit[String]].status == 0

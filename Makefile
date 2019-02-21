@@ -108,7 +108,7 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	chmod +x $@
 
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
-	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
+	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:1.2.5
 
 dist/bundle/bin/ng: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py
