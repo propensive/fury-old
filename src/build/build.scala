@@ -207,9 +207,10 @@ object BuildCli {
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
                  .apply(module.ref(project))
-                 .map { compRes =>
-                   multiplexer.closeAll()
-                   compRes
+                 .andThen {
+                   case compRes =>
+                     multiplexer.closeAll()
+                     compRes
                  }
       _ <- ~Graph.live(
               changed = false,
@@ -218,9 +219,10 @@ object BuildCli {
               multiplexer.stream(50, Some(Tick)),
               Map(),
               false)(config.theme)
-      t1 <- Success(System.currentTimeMillis - t0)
-      _  <- ~io.println(s"Total time: ${if (t1 >= 10000) s"${t1 / 1000}s" else s"${t1}ms"}\n")
-    } yield io.await(Await.result(future, duration.Duration.Inf).success)
+      res = Await.result(future, duration.Duration.Inf)
+      t1  <- Success(System.currentTimeMillis - t0)
+      _   <- ~io.println(s"Total time: ${if (t1 >= 10000) s"${t1 / 1000}s" else s"${t1}ms"}\n")
+    } yield io.await(res.success)
   }
 
   def getPrompt(layer: Layer, theme: Theme): Try[String] =

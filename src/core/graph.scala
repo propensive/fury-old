@@ -16,6 +16,7 @@
 package fury
 
 import annotation.tailrec
+import optometry.Lens
 
 object Graph {
   final private val North = 8
@@ -24,12 +25,25 @@ object Graph {
   final private val West  = 1
   final private val chars = "   ┐ ─┌┬ ┘│┤└┴├┼".toCharArray
 
-  sealed trait CompileState
-  case object Compiling                          extends CompileState
-  case object AlreadyCompiled                    extends CompileState
-  case class Successful(content: Option[String]) extends CompileState
-  case class Failed(output: String)              extends CompileState
-  case object Skipped                            extends CompileState
+  sealed trait DiagnosticMessage {
+    def msg: String
+  }
+  case class DiagnosticError(msg: String)   extends DiagnosticMessage
+  case class DiagnosticWarning(msg: String) extends DiagnosticMessage
+
+  case class CompileState(state: CompileStateWithoutDiag, messages: List[DiagnosticMessage])
+
+  sealed trait CompileStateWithoutDiag
+  case object Compiling                          extends CompileStateWithoutDiag
+  case object AlreadyCompiled                    extends CompileStateWithoutDiag
+  case class Successful(content: Option[String]) extends CompileStateWithoutDiag
+  case class Failed(output: String)              extends CompileStateWithoutDiag
+  case object Skipped                            extends CompileStateWithoutDiag
+
+  def updateValue[A, B](map: Map[A, B], ref: A, f: B => B): Map[A, B] = {
+    val st = map(ref)
+    map.updated(ref, f(st))
+  }
 
   @tailrec
   def live(
@@ -40,8 +54,7 @@ object Graph {
       state: Map[ModuleRef, CompileState],
       streaming: Boolean
     )(implicit theme: Theme
-    ): Unit = {
-    io.print(Ansi.hideCursor())
+    ): Unit =
     stream match {
       case Tick #:: tail =>
         val next: String = draw(graph, false, state).mkString("\n")
@@ -50,18 +63,33 @@ object Graph {
           io.println(Ansi.up(graph.size + 1)())
         }
         live(false, io, graph, tail, state, streaming)
+
       case StartCompile(ref) #:: tail =>
-        live(true, io, graph, tail, state.updated(ref, Compiling), streaming)
+        live(true, io, graph, tail, state.updated(ref, CompileState(Compiling, List())), streaming)
+      case DiagnosticMsg(ref, msg) #:: tail => {
+        live(
+            false,
+            io,
+            graph,
+            tail,
+            updateValue(
+                state,
+                ref,
+                (x: CompileState) => Lens[CompileState](_.messages).modify(x)(_ :+ msg)),
+            streaming)
+      }
       case NoCompile(ref) #:: tail =>
         live(
             true,
             io,
             graph,
             tail,
-            if (state.contains(ref)) state else state.updated(ref, AlreadyCompiled),
+            if (state.contains(ref)) state
+            else state.updated(ref, CompileState(AlreadyCompiled, List())),
             streaming)
-      case StopCompile(ref, out, success) #:: tail =>
+      case StopCompile(ref, out, success) #:: tail => {
         val trimmedOutput = out.trim
+        val msgs          = state(ref).messages
         live(
             true,
             io,
@@ -69,9 +97,16 @@ object Graph {
             tail,
             state.updated(
                 ref,
-                if (success) Successful(if (trimmedOutput.isEmpty) None else Some(trimmedOutput))
-                else Failed(trimmedOutput)),
-            streaming)
+                CompileState(
+                    (if (success)
+                       Successful(if (trimmedOutput.isEmpty) None else Some(trimmedOutput))
+                     else Failed(trimmedOutput)),
+                    msgs)
+            ),
+            streaming
+        )
+      }
+
       case StartStreaming #:: tail =>
         io.println(Ansi.down(graph.size + 1)())
         live(true, io, graph, tail, state, true)
@@ -81,23 +116,26 @@ object Graph {
       case StopStreaming #:: tail =>
         live(true, io, graph, tail, state, false)
       case SkipCompile(ref) #:: tail =>
-        live(true, io, graph, tail, state.updated(ref, Skipped), streaming)
+        live(true, io, graph, tail, state.updated(ref, CompileState(Skipped, List())), streaming)
       case Stream.Empty =>
         io.print(Ansi.showCursor())
         val output = state.collect {
-          case (ref, Failed(out)) =>
+          case (ref, CompileState(Failed(_), out)) =>
             UserMsg { theme =>
-              (msg"Output from $ref:".string(theme).trim + "\n" + out.trim)
+              (msg"Output from $ref:"
+                .string(theme)
+                .trim + "\n" + out.map(_.msg).mkString("\n\n").trim)
             }
-          case (ref, Successful(Some(out))) =>
+          case (ref, CompileState(Successful(Some(_)), out)) =>
             UserMsg { theme =>
-              (msg"Output from $ref:".string(theme).trim + "\n" + out.trim)
+              (msg"Output from $ref:"
+                .string(theme)
+                .trim + "\n" + out.map(_.msg).mkString("\n\n").trim)
             }
         }.foldLeft(msg"")(_ + _)
         io.println(Ansi.down(graph.size + 1)())
         io.println(output)
     }
-  }
 
   def draw(
       graph: Map[ModuleRef, Set[ModuleRef]],
@@ -140,11 +178,11 @@ object Graph {
       case (chs, (moduleRef, _)) =>
         val ModuleRef(ProjectId(p), ModuleId(m), _, hidden) = moduleRef
         val text =
-          if (describe || state.get(moduleRef) == Some(Compiling))
+          if (describe || state.get(moduleRef).map(_.state) == Some(Compiling))
             theme.project(p) + theme.gray("/") + theme.module(m)
           else theme.projectDark(p) + theme.gray("/") + theme.moduleDark(m)
 
-        val errors = state.get(moduleRef) match {
+        val errors = state.get(moduleRef).map(_.state) match {
           case Some(Failed(_))       => theme.failure("!")
           case Some(Successful(_))   => theme.success("*")
           case Some(AlreadyCompiled) => theme.success("·")
