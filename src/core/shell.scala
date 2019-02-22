@@ -144,9 +144,6 @@ case class Shell(environment: Environment) {
     def showFile(dir: Path, file: String): Try[String] =
       sh"git -C ${dir.value} show HEAD:$file".exec[Try[String]]
 
-    def tag(dir: Path, tag: String): Try[String] =
-      sh"git -C ${dir.value} tag $tag".exec[Try[String]]
-
     def getCommitFromTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} rev-parse $tag".exec[Try[String]]
 

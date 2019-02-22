@@ -409,22 +409,4 @@ object LayerCli {
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
-
-  def publish(ctx: LayerCtx): Try[ExitStatus] = {
-    import ctx._
-    for {
-      suggestedTags <- layout.shell.git.tags(layout.pwd)
-      cli           <- cli.hint(TagArg, suggestedTags)
-      invoc         <- cli.read()
-      io            <- invoc.io()
-      tag           <- invoc(TagArg)
-      _             <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
-      _             <- layout.shell.git.commit(layout.pwd, s"Tagged version $tag")
-      _             <- layout.shell.git.tag(layout.pwd, tag)
-      _             <- ~io.println(msg"Committed tag $tag.")
-      _             <- layout.shell.git.push(layout.pwd, all = true)
-      _             <- ~io.println(msg"Pushed git repository.")
-    } yield io.await()
-  }
-
 }
