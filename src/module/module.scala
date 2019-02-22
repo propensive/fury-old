@@ -127,7 +127,9 @@ object ModuleCli {
                          .to[List]
                          .sequence
                          .map(_.headOption)
-      module <- ~Module(moduleId, compiler = optCompilerRef.orElse(project.compiler).getOrElse(ModuleRef.JavaRef))
+      module <- ~Module(
+                   moduleId,
+                   compiler = optCompilerRef.orElse(project.compiler).getOrElse(ModuleRef.JavaRef))
       module <- ~invoc(KindArg).toOption.map { k =>
                  module.copy(kind = k)
                }.getOrElse(module)

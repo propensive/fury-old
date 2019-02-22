@@ -123,9 +123,6 @@ case class Shell(environment: Environment) {
         out
       }
 
-    def init(dir: Path): Try[String] =
-      sh"git -C ${dir.value} init".exec[Try[String]]
-
     def commit(dir: Path, message: String): Try[String] =
       sh"git -C ${dir.value} commit -m $message".exec[Try[String]]
 

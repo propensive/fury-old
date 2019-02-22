@@ -390,10 +390,7 @@ object LayerCli {
       layer <- ~Layer()
       _     <- layout.furyConfig.mkParents()
       _     <- ~Layer.save(io, layer, layout)
-      _     <- layout.shell.git.init(layout.pwd)
-      _     <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
-      _     <- layout.shell.git.commit(layout.pwd, "Initial commit")
-      _     <- ~io.println("Initialized new git repo and committed layer.fury.")
+      _     <- ~io.println("Created empty layer.fury")
     } yield io.await()
   }
 
