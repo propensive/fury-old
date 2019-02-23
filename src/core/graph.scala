@@ -37,27 +37,29 @@ object Graph {
       io: Io,
       graph: Map[ModuleRef, Set[ModuleRef]],
       stream: Stream[CompileEvent],
-      state: Map[ModuleRef, CompileState]
+      state: Map[ModuleRef, CompileState],
+      streaming: Boolean
     )(implicit theme: Theme
     ): Unit = {
     io.print(Ansi.hideCursor())
     stream match {
       case Tick #:: tail =>
         val next: String = draw(graph, false, state).mkString("\n")
-        if (changed) {
+        if (changed && !streaming) {
           io.println(next)
           io.println(Ansi.up(graph.size + 1)())
         }
-        live(false, io, graph, tail, state)
+        live(false, io, graph, tail, state, streaming)
       case StartCompile(ref) #:: tail =>
-        live(true, io, graph, tail, state.updated(ref, Compiling))
+        live(true, io, graph, tail, state.updated(ref, Compiling), streaming)
       case NoCompile(ref) #:: tail =>
         live(
             true,
             io,
             graph,
             tail,
-            if (state.contains(ref)) state else state.updated(ref, AlreadyCompiled))
+            if (state.contains(ref)) state else state.updated(ref, AlreadyCompiled),
+            streaming)
       case StopCompile(ref, out, success) #:: tail =>
         val trimmedOutput = out.trim
         live(
@@ -68,9 +70,18 @@ object Graph {
             state.updated(
                 ref,
                 if (success) Successful(if (trimmedOutput.isEmpty) None else Some(trimmedOutput))
-                else Failed(trimmedOutput)))
+                else Failed(trimmedOutput)),
+            streaming)
+      case StartStreaming #:: tail =>
+        io.println(Ansi.down(graph.size + 1)())
+        live(true, io, graph, tail, state, true)
+      case Print(line) #:: tail =>
+        if (streaming) io.println(line)
+        live(true, io, graph, tail, state, streaming)
+      case StopStreaming #:: tail =>
+        live(true, io, graph, tail, state, false)
       case SkipCompile(ref) #:: tail =>
-        live(true, io, graph, tail, state.updated(ref, Skipped))
+        live(true, io, graph, tail, state.updated(ref, Skipped), streaming)
       case Stream.Empty =>
         io.print(Ansi.showCursor())
         val output = state.collect {

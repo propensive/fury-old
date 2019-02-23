@@ -89,7 +89,10 @@ object Args {
   val CompareArg   = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 
   val KindArg =
-    CliParam[Kind]('t', 'type, "Type of module (library, application, plugin, compiler)")
+    CliParam[Kind](
+        't',
+        'type,
+        "Type of module (library, application, plugin, compiler, benchmarks)")
 
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
   val VersionArg = CliParam[RefSpec]('V', 'version, "Git branch, tag or commit")

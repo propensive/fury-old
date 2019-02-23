@@ -333,6 +333,7 @@ case class Compilation(
 
             val finalResult =
               if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {
+                multiplexer(artifact.ref) = StartStreaming
                 if (artifact.kind == Benchmarks) {
                   Jmh.instrument(
                       layout.classesDir(hash(artifact.ref)),
@@ -345,7 +346,6 @@ case class Compilation(
                       layout.classesDir(hash(artifact.ref)).value,
                       javaSources.map(_.value).to[List])
                 }
-
                 val res = layout.shell
                   .runJava(
                       jmhRuntimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
@@ -354,13 +354,16 @@ case class Compilation(
                       securePolicy = artifact.kind == Application,
                       layout
                   ) { ln =>
-                    if (artifact.kind == Benchmarks) io.println(ln)
+                    if (artifact.kind == Benchmarks) multiplexer(artifact.ref) = Print(ln)
                     else {
                       out.append(ln)
                       out.append("\n")
                     }
                   }
                   .await() == 0
+
+                multiplexer(artifact.ref) = StopStreaming
+
                 if (!res) {
                   deepDependencies(artifact.ref).foreach { ref =>
                     multiplexer(ref) = NoCompile(ref)
@@ -981,6 +984,9 @@ case class StartCompile(ref: ModuleRef)                                  extends
 case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
 case class NoCompile(ref: ModuleRef)                                     extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                                   extends CompileEvent
+case class Print(line: String)                                           extends CompileEvent
+object StartStreaming                                                    extends CompileEvent
+object StopStreaming                                                     extends CompileEvent
 
 case class CompileResult(success: Boolean, output: String)
 
