@@ -114,7 +114,7 @@ object ModuleCli {
                   cli <- cli.hint(MainArg)
                   cli <- cli.hint(PluginArg)
                 } yield cli
-              case None | Some(Library | Compiler) => ~cli
+              case None | Some(Benchmarks | Library | Compiler) => ~cli
             }
       invoc      <- cli.read()
       io         <- invoc.io()
@@ -127,7 +127,9 @@ object ModuleCli {
                          .to[List]
                          .sequence
                          .map(_.headOption)
-      module <- ~Module(moduleId, compiler = optCompilerRef.orElse(project.compiler).getOrElse(ModuleRef.JavaRef))
+      module <- ~Module(
+                   moduleId,
+                   compiler = optCompilerRef.orElse(project.compiler).getOrElse(ModuleRef.JavaRef))
       module <- ~invoc(KindArg).toOption.map { k =>
                  module.copy(kind = k)
                }.getOrElse(module)
@@ -220,7 +222,7 @@ object ModuleCli {
                 } yield cli
               case Some(Compiler) =>
                 for (cli <- cli.hint(BloopSpecArg)) yield cli
-              case None | Some(Library) =>
+              case None | Some(Library | Benchmarks) =>
                 ~cli
             }
       cli        <- cli.hint(ForceArg)

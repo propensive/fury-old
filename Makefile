@@ -2,7 +2,7 @@ VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git 
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
-DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine impromptu
+DEPS=
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=coursier launcher ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -66,7 +66,12 @@ bootstrap/bin:
 
 compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
 	$< --skip-bsp-connection $(BLOOPVERSION)
-	bloop compile fury
+	fury build compile -p fury -m menu
+
+jmh-jars:
+	for JAR in $(shell coursier fetch org.openjdk.jmh:jmh-generator-asm:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh); do \
+		cp $$JAR dist/bundle/lib/ ; \
+	done
 
 .bloop:
 	mkdir -p .bloop
@@ -88,7 +93,8 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
 all-jars: $(JARS)
 
 dist/bundle/lib/fury.jar: bootstrap/bin compile
-	jar -cf $@ -C $< fury
+	fury build save -p fury -m menu -d dist/bundle/lib
+	mv dist/bundle/lib/fury-menu.jar dist/bundle/lib/fury.jar
 
 dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib bootstrap/git/% compile
 	jar -cf $@ -C $< $*
@@ -155,4 +161,4 @@ download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng dist/bundle/bin/l
 install: dist/install.sh
 	dist/install.sh
 
-.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install
+.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install jmh-jars

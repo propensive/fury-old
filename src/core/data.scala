@@ -50,7 +50,7 @@ object Kind {
     }
   implicit val stringShow: StringShow[Kind] = _.name
 
-  val all: List[Kind] = List(Library, Compiler, Plugin, Application)
+  val all: List[Kind] = List(Library, Compiler, Plugin, Application, Benchmarks)
 
   def unapply(str: String): Option[Kind] = all.find(_.name == str)
 }
@@ -60,6 +60,7 @@ case object Library     extends Kind("library")
 case object Compiler    extends Kind("compiler")
 case object Plugin      extends Kind("plugin")
 case object Application extends Kind("application")
+case object Benchmarks  extends Kind("benchmarks")
 
 object Module {
   implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
@@ -192,8 +193,8 @@ case class Compilation(
     Bloop.generateFiles(io, this, layout)
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
-    allDependencies.map { a =>
-      layout.classesDir(hash(a.ref))
+    allDependencies.flatMap { a =>
+      Set(layout.classesDir(hash(a.ref)), layout.resourcesDir(hash(a.ref)))
     } ++ allDependencies.flatMap(_.binaries) ++ artifacts(ref).binaries
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
@@ -240,10 +241,15 @@ case class Compilation(
       Parameter(str"Xplugin:${layout.classesDir(hash(plugin.ref))}")
     }).map(_.parameter)
 
+  def jmhRuntimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
+    artifacts(ref).compiler.to[Set].flatMap { c =>
+      Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
+    } ++ classpath(ref, layout)
+
   def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
-    artifacts(ref).compiler.map { c =>
-      classpath(c.ref, layout)
-    }.getOrElse(Set()) ++ classpath(ref, layout) + layout.classesDir(hash(ref))
+    artifacts(ref).compiler.to[Set].flatMap { c =>
+      Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
+    } ++ classpath(ref, layout) + layout.classesDir(hash(ref)) + layout.resourcesDir(hash(ref))
 
   def compile(
       io: Io,
@@ -320,25 +326,45 @@ case class Compilation(
                   .await() == 0
               }
 
-            val finalResult = if (compileResult && artifact.kind == Application) {
-              val res = layout.shell
-                .runJava(
-                    runtimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
-                    artifact.main.getOrElse(""),
-                    layout) { ln =>
-                  out.append(ln)
-                  out.append("\n")
+            val finalResult =
+              if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {
+                if (artifact.kind == Benchmarks) {
+                  Jmh.instrument(
+                      layout.classesDir(hash(artifact.ref)),
+                      layout.benchmarksDir(hash(artifact.ref)),
+                      layout.resourcesDir(hash(artifact.ref)))
+                  val javaSources =
+                    layout.benchmarksDir(hash(artifact.ref)).findChildren(_.endsWith(".java"))
+                  layout.shell.javac(
+                      classpath(artifact.ref, layout).to[List].map(_.value),
+                      layout.classesDir(hash(artifact.ref)).value,
+                      javaSources.map(_.value).to[List])
                 }
-                .await() == 0
-              if (!res) {
-                deepDependencies(artifact.ref).foreach { ref =>
-                  multiplexer(ref) = NoCompile(ref)
+
+                val res = layout.shell
+                  .runJava(
+                      jmhRuntimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
+                      if (artifact.kind == Benchmarks) "org.openjdk.jmh.Main"
+                      else artifact.main.getOrElse(""),
+                      securePolicy = artifact.kind == Application,
+                      layout
+                  ) { ln =>
+                    if (artifact.kind == Benchmarks) io.println(ln)
+                    else {
+                      out.append(ln)
+                      out.append("\n")
+                    }
+                  }
+                  .await() == 0
+                if (!res) {
+                  deepDependencies(artifact.ref).foreach { ref =>
+                    multiplexer(ref) = NoCompile(ref)
+                  }
+                  multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, false)
+                  multiplexer.close(artifact.ref)
                 }
-                multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, false)
-                multiplexer.close(artifact.ref)
-              }
-              res
-            } else compileResult
+                res
+              } else compileResult
 
             CompileResult(finalResult, out.toString)
           }
@@ -441,7 +467,9 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
                 .flatten
       allModuleRefs = graph.keys
       allModules    <- allModuleRefs.traverse(ref => getMod(ref).map((ref, _)))
-      applicationModulesRefs = allModules.filter { case (_, mod) => mod.kind == Application }.map {
+      applicationModulesRefs = allModules.filter {
+        case (_, mod) => mod.kind == Application || mod.kind == Benchmarks
+      }.map {
         case (ref, _) => ref
       }
       reducedGraph = DirectedGraph(graph.mapValues(_.toSet))

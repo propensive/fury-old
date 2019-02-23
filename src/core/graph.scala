@@ -59,12 +59,16 @@ object Graph {
             tail,
             if (state.contains(ref)) state else state.updated(ref, AlreadyCompiled))
       case StopCompile(ref, out, success) #:: tail =>
+        val trimmedOutput = out.trim
         live(
             true,
             io,
             graph,
             tail,
-            state.updated(ref, if (success) Successful(None) else Failed(out)))
+            state.updated(
+                ref,
+                if (success) Successful(if (trimmedOutput.isEmpty) None else Some(trimmedOutput))
+                else Failed(trimmedOutput)))
       case SkipCompile(ref) #:: tail =>
         live(true, io, graph, tail, state.updated(ref, Skipped))
       case Stream.Empty =>
@@ -76,7 +80,7 @@ object Graph {
             }
           case (ref, Successful(Some(out))) =>
             UserMsg { theme =>
-              (msg"Output from $ref:".string(theme) + "\n" + out.trim)
+              (msg"Output from $ref:".string(theme).trim + "\n" + out.trim)
             }
         }.foldLeft(msg"")(_ + _)
         io.println(Ansi.down(graph.size + 1)())

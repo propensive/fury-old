@@ -129,6 +129,20 @@ case class Path(value: String) {
     }
   }
 
+  def findChildren(predicate: String => Boolean): Set[Path] = {
+    def search(dir: java.io.File): Set[java.io.File] = {
+      val fileSet = dir.listFiles.to[Set]
+      fileSet.filter(_.isDirectory).flatMap(search(_)) ++
+        fileSet.filter { f =>
+          !f.isDirectory && predicate(f.getName)
+        }
+    }
+
+    search(javaPath.toFile).map { f =>
+      Path(f.getAbsolutePath)
+    }
+  }
+
   def findSubdirsContaining(predicate: String => Boolean): Set[Path] =
     Option(javaPath.toFile.listFiles).map { files =>
       val found = if (files.exists { f =>

@@ -31,19 +31,20 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   private[this] val userDir          = (home / ".furyrc").extant()
 
-  lazy val furyDir: Path      = (pwd / ".fury").extant()
-  lazy val historyDir: Path   = (furyDir / "history").extant()
-  lazy val bloopDir: Path     = (furyDir / "bloop").extant()
-  lazy val classesDir: Path   = (furyDir / "classes").extant()
-  lazy val analysisDir: Path  = (furyDir / "analysis").extant()
-  lazy val resourcesDir: Path = (furyDir / "resources").extant()
-  lazy val reposDir: Path     = (userDir / "repos").extant()
-  lazy val srcsDir: Path      = (userDir / "sources").extant()
-  lazy val logsDir: Path      = (furyDir / "logs").extant()
-  lazy val sharedDir: Path    = (furyDir / "build" / uniqueId).extant()
-  lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
-  lazy val userConfig: Path   = userDir / "config.fury"
-  lazy val aliasesPath: Path  = userDir / "aliases"
+  lazy val furyDir: Path       = (pwd / ".fury").extant()
+  lazy val historyDir: Path    = (furyDir / "history").extant()
+  lazy val bloopDir: Path      = (furyDir / "bloop").extant()
+  lazy val classesDir: Path    = (furyDir / "classes").extant()
+  lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
+  lazy val analysisDir: Path   = (furyDir / "analysis").extant()
+  lazy val resourcesDir: Path  = (furyDir / "resources").extant()
+  lazy val reposDir: Path      = (userDir / "repos").extant()
+  lazy val srcsDir: Path       = (userDir / "sources").extant()
+  lazy val logsDir: Path       = (furyDir / "logs").extant()
+  lazy val sharedDir: Path     = (furyDir / "build" / uniqueId).extant()
+  lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
+  lazy val userConfig: Path    = userDir / "config.fury"
+  lazy val aliasesPath: Path   = userDir / "aliases"
 
   def bloopConfig(digest: Digest): Path =
     bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
@@ -53,11 +54,17 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   def outputDir(digest: Digest): Path =
     (analysisDir / digest.encoded[Base64Url]).extant()
 
+  def benchmarksDir(digest: Digest): Path =
+    (benchmarksDir / digest.encoded[Base64Url]).extant()
+
   def classesDir(digest: Digest): Path =
     (classesDir / digest.encoded[Base64Url]).extant()
 
+  def resourcesDir(digest: Digest): Path =
+    (resourcesDir / digest.encoded[Base64Url]).extant()
+
   def manifestFile(digest: Digest): Path =
-    (resourcesDir / digest.encoded[Base64Url]).extant() / "manifest.mf"
+    resourcesDir(digest) / "manifest.mf"
 
   val shell = Shell(env)
 }
