@@ -108,7 +108,7 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	chmod +x $@
 
 jmh-jars: dist/bundle/bin/coursier
-	for JAR in $(shell dist/bundle/bin/coursier fetch dist/bundle/lib org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21); do \
+	for JAR in $(shell dist/bundle/bin/coursier fetch org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21); do \
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
@@ -153,6 +153,7 @@ clean-dist:
 clean: clean-dist
 	rm -rf bootstrap/bin/fury
 	rm -rf bootstrap
+	rm -rf .bloop
 
 download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
