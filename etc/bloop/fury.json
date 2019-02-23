@@ -32,7 +32,14 @@
       "$ROOT/bootstrap/scala/lib/scala-library.jar",
       "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
       "$ROOT/bootstrap/scala/lib/scala-reflect.jar",
-      "$ROOT/dist/bundle/lib/nailgun-server-1.0.0.jar"
+      "$ROOT/dist/bundle/lib/nailgun-server-1.0.0.jar",
+      "$ROOT/dist/bundle/lib/jmh-core-1.21.jar",
+      "$ROOT/dist/bundle/lib/asm-5.0.3.jar",
+      "$ROOT/dist/bundle/lib/commons-math3-3.2.jar",
+      "$ROOT/dist/bundle/lib/jmh-generator-reflection.jar",
+      "$ROOT/dist/bundle/lib/jmh-generator-asm.jar",
+      "$ROOT/dist/bundle/lib/jmh-generator-bytecode.jar",
+      "$ROOT/dist/bundle/lib/jopt-simple-4.6.jar"
     ],
     "out": "$ROOT/bootstrap/bloop/out",
     "classesDir": "$ROOT/bootstrap/bin",

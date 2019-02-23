@@ -2,7 +2,7 @@ VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git 
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
-DEPS=
+DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine impromptu
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=coursier launcher ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -64,14 +64,9 @@ bootstrap/git/%: bootstrap/git/.dir
 bootstrap/bin:
 	mkdir -p $@
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
+compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) jmh-jars $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
 	$< --skip-bsp-connection $(BLOOPVERSION)
-	fury build compile -p fury -m menu
-
-jmh-jars:
-	for JAR in $(shell coursier fetch org.openjdk.jmh:jmh-generator-asm:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh); do \
-		cp $$JAR dist/bundle/lib/ ; \
-	done
+	bloop compile fury
 
 .bloop:
 	mkdir -p .bloop
@@ -93,8 +88,7 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
 all-jars: $(JARS)
 
 dist/bundle/lib/fury.jar: bootstrap/bin compile
-	fury build save -p fury -m menu -d dist/bundle/lib
-	mv dist/bundle/lib/fury-menu.jar dist/bundle/lib/fury.jar
+	jar -cf $@ -C $< fury
 
 dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib bootstrap/git/% compile
 	jar -cf $@ -C $< $*
@@ -112,6 +106,11 @@ dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
 dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
+
+jmh-jars: dist/bundle/bin/coursier
+	for JAR in $(shell dist/bundle/bin/coursier fetch dist/bundle/lib org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21); do \
+		cp $$JAR dist/bundle/lib/ ; \
+	done
 
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
 	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
