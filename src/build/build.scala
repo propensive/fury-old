@@ -391,10 +391,7 @@ object LayerCli {
       layer <- ~Layer()
       _     <- layout.furyConfig.mkParents()
       _     <- ~Layer.save(io, layer, layout)
-      _     <- layout.shell.git.init(layout.pwd)
-      _     <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
-      _     <- layout.shell.git.commit(layout.pwd, "Initial commit")
-      _     <- ~io.println("Initialized new git repo and committed layer.fury.")
+      _     <- ~io.println("Created empty layer.fury")
     } yield io.await()
   }
 
@@ -413,22 +410,4 @@ object LayerCli {
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
-
-  def publish(ctx: LayerCtx): Try[ExitStatus] = {
-    import ctx._
-    for {
-      suggestedTags <- layout.shell.git.tags(layout.pwd)
-      cli           <- cli.hint(TagArg, suggestedTags)
-      invoc         <- cli.read()
-      io            <- invoc.io()
-      tag           <- invoc(TagArg)
-      _             <- layout.shell.git.add(layout.pwd, List(layout.furyConfig))
-      _             <- layout.shell.git.commit(layout.pwd, s"Tagged version $tag")
-      _             <- layout.shell.git.tag(layout.pwd, tag)
-      _             <- ~io.println(msg"Committed tag $tag.")
-      _             <- layout.shell.git.push(layout.pwd, all = true)
-      _             <- ~io.println(msg"Pushed git repository.")
-    } yield io.await()
-  }
-
 }

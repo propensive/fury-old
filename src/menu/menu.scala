@@ -112,8 +112,7 @@ object FuryMenu {
         Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", LayerCli.context, 'projects)(
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
-            Action('projects, msg"show all available projects", LayerCli.projects),
-            Action('publish, msg"publish the layer to git", LayerCli.publish)
+            Action('projects, msg"show all available projects", LayerCli.projects)
         )
     ) ::: aliases): _*)
 

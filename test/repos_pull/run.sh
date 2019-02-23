@@ -17,6 +17,9 @@ mkdir -p fury_project
 (
     cd fury_project
     fury layer init
+    git init
+    git add layer.fury
+    git commit -m "Initial commit"
     fury project add -n webpage
     fury module add -n hello-world
     fury repo add -u https://github.com/propensive/base.git -n base
