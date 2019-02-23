@@ -94,7 +94,7 @@ case class Tables(config: Config) {
         Heading("DEPENDENCIES", (m: Module) => m.after, width = FlexibleWidth)(
             refinedModuleDep(projectId)),
         Heading("SRCS", _.sources),
-        Heading("BINS", m => bar(m.binaries.size)),
+        Heading("BINS", m => bar(m.allBinaries.size)),
         Heading("COMPILER", _.compiler),
         Heading("TYPE", _.kind),
         Heading("PARAMS", m => bar(m.params.size))
