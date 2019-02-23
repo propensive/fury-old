@@ -37,13 +37,13 @@ case class Shell(environment: Environment) {
     layout.sharedDir.mkdir()
     implicit val defaultEnvironment: Environment =
       environment.append("SHARED", layout.sharedDir.value)
-    val policy =
+    val cmd =
       if (securePolicy)
-        List("-Djava.security.manager", "-Djava.security.policy=${policyFile.value}")
-      else Nil
+        sh"java -Djava.security.manager -Djava.security.policy=${policyFile.value} -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath
+          .mkString(":")} $main"
+      else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main"
 
-    sh"java $policy -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main"
-      .async(output(_), output(_))
+    cmd.async(output(_), output(_))
   }
 
   def javac(classpath: List[String], dest: String, sources: List[String]) =
