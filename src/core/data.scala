@@ -116,6 +116,11 @@ case class Module(
     resources: SortedSet[Path] = TreeSet(),
     bloopSpec: Option[BloopSpec] = None) {
 
+  def allBinaries: SortedSet[Binary] =
+    if (kind == Benchmarks)
+      binaries + Binary(BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
+    else binaries
+
   def compilerDependencies: Set[ModuleRef] =
     Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
 
@@ -393,7 +398,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module <- entity.project(ref.moduleId)
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
                  else artifact(io, module.compiler, layout).map(Some(_))
-      binaries  <- module.binaries.map(_.paths(io, layout.shell)).sequence.map(_.flatten)
+      binaries  <- module.allBinaries.map(_.paths(io, layout.shell)).sequence.map(_.flatten)
       checkouts <- checkout(ref, layout)
     } yield
       Artifact(

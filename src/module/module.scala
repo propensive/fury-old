@@ -291,7 +291,7 @@ object BinaryCli {
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      rows    <- ~module.binaries.to[List]
+      rows    <- ~module.allBinaries.to[List]
       schema  <- defaultSchema
       table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
       _ <- ~(if (!raw)
