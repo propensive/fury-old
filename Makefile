@@ -14,7 +14,7 @@ NATIVEJARS=$(JARS) $(NAILGUNJARPATH) $(LIBS)
 SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
 CFGS:=$(shell ls etc/bloop)
 DOCKER_TAG=fury-ci
-TESTDEPS=ogdl core
+TESTDEPS=ogdl core cli
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
 
 all: all-jars
