@@ -6,39 +6,31 @@ sealed trait CLI[A] {
   def name: String
   def description: String
 
-  private[cli] def traverse[B](args: Seq[String], v: Visitor[A, B]): B
-
   final def execute(args: Seq[String]): CLI.Result[A] = {
     val executor = new Executor[A]
     executor.visit(this, args)
   }
+
+  private[cli] def traverse[B](args: Seq[String], v: Visitor[A, B]): B
 }
 
-final class Command[A](val name: String,
-                       val description: String,
-                       val action: Action[_, A])
+final class Command[A](val name: String, val description: String, val action: Action[_, A])
     extends CLI[A] {
   private[cli] def traverse[B](arguments: Seq[String], v: Visitor[A, B]): B =
     v.visit(this, arguments)
 }
 
-case class Menu[A](name: String,
-                   description: String,
-                   commands: SubCommands[A],
-                   default: String)
+case class Menu[A](name: String, description: String, commands: SubCommands[A], default: String)
     extends CLI[A] {
 
-  override private[cli] def traverse[B](args: Seq[String],
-                                        v: Visitor[A, B]): B =
+  override private[cli] def traverse[B](args: Seq[String], v: Visitor[A, B]): B =
     args match {
       case Seq()       => visitSubCommand(default, args, v)
       case "--" +: _   => visitSubCommand(default, args, v)
       case cmd +: tail => visitSubCommand(cmd, tail, v)
     }
 
-  private def visitSubCommand[B](commandName: String,
-                                 args: Seq[String],
-                                 v: Visitor[A, B]): B =
+  private def visitSubCommand[B](commandName: String, args: Seq[String], v: Visitor[A, B]): B =
     commands.get(commandName) match {
       case Some(subCommand)                   => v.visit(subCommand, args)
       case None if isHelpCommand(commandName) => v.onUnclearCommand(this)
@@ -50,31 +42,30 @@ case class Menu[A](name: String,
 }
 
 object CLI {
-  private[cli] type SubCommand[T] = (String, CLI[T])
+  private[cli] type SubCommand[T]  = (String, CLI[T])
   private[cli] type SubCommands[T] = Map[String, CLI[T]]
   private[cli] val helpCommands: Set[String] = Set("help", "-h", "--help")
 
   trait Result[A]
-  case class Success[A](value: A) extends Result[A]
-  case class Failure[A](cause: Throwable) extends Result[A]
-  case class CommandUnclear[A](dispatcher: CLI[_])
-      extends RuntimeException
-      with Result[A]
+  case class Success[A](value: A)                  extends Result[A]
+  case class Failure[A](cause: Throwable)          extends Result[A]
+  case class CommandUnclear[A](dispatcher: CLI[_]) extends RuntimeException with Result[A]
 
   def menu[T](name: String, default: String)(items: SubCommand[T]*): Menu[T] =
     Menu(name, name, Map(items: _*), default)
 
-  def menu[T](name: String, description: String, default: String)(
-    items: SubCommand[T]*
-  ): SubCommand[T] =
+  def menu[T](
+      name: String,
+      description: String,
+      default: String
+    )(items: SubCommand[T]*
+    ): SubCommand[T] =
     name -> Menu(name, description, Map(items: _*), default)
 
   def command[T](name: String, description: String, result: T): SubCommand[T] =
     command(name, description, Action(result))
 
-  def command[T](name: String,
-                 description: String,
-                 action: Action[_, T]): SubCommand[T] =
+  def command[T](name: String, description: String, action: Action[_, T]): SubCommand[T] =
     name -> new Command[T](name, description, action)
 
   private[cli] trait Visitor[A, B] {
@@ -91,8 +82,7 @@ object CLI {
   }
 
   final class Executor[A] extends Visitor[A, Result[A]] {
-    override def onCommand(command: Command[A],
-                           arguments: Seq[String]): Result[A] =
+    override def onCommand(command: Command[A], arguments: Seq[String]): Result[A] =
       command.action.execute(arguments) match {
         case scala.util.Success(value) => Success(value)
         case scala.util.Failure(cause) => Failure(cause)
