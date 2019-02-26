@@ -5,6 +5,7 @@
     "directory": "$ROOT",
     "sources": [
       "$ROOT/src/build",
+      "$ROOT/src/cli",
       "$ROOT/src/core",
       "$ROOT/src/dependency",
       "$ROOT/src/imports",
@@ -51,7 +52,9 @@
         "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
         "$ROOT/bootstrap/scala/lib/scala-reflect.jar"
       ],
-      "options": ["-deprecation"],
+      "options": [
+        "-deprecation"
+      ],
       "version": "2.12.8"
     }
   }
