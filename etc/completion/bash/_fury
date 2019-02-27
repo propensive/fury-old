@@ -1,0 +1,7 @@
+__complete_fury(){
+    oldIFS=$IFS
+    IFS=$'\n'
+
+    COMPREPLY=( $(fxury complete --shell bash --offset $COMP_CWORD -- "${COMP_WORDS[@]}") || "start")
+    IFS=${oldIFS}
+}

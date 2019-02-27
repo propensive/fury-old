@@ -1,14 +1,16 @@
 #compdef fury
 
+__fury_completions(){
+    offset=$1
+    words=$2
+    fury complete --shell zsh --offset $offset -- $words 2> /dev/null ||
+        echo "1:Command:((start:'start the Fury daemon'))"
+}
+
 _fury() {
   oldIfs=$IFS
   IFS=$'\n'
-  words2=($(
-    for w in $words; do
-      echo $w | sed 's/^-$/\\-/'
-    done
-  ))
-  results=($(fury completion --shell zsh --paramNo $CURRENT -- $words2))
+  results=($(__fury_completions $CURRENT $words))
   results=($results '*:dummy:')
   IFS=$oldIfs
   _arguments -C $results

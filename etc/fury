@@ -6,6 +6,7 @@ PORT="8462"
 CLASSPATH="$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
+FURY_COMPLETION_MAIN="fury.FuryCompletionApp"
 
 trap cleanup INT
 
@@ -35,7 +36,7 @@ isRunning() {
 }
 
 fury() {
-  (isRunning || (startFury > /dev/null 2> /dev/null)) && nailgun "${FURY_MAIN}" -- "$@"
+  (startFury > /dev/null 2> /dev/null) && nailgun "${FURY_MAIN}" -- "$@"
 }
 
 startFury() {
@@ -79,8 +80,8 @@ case "$1" in
   "prompt")
     fury "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
     ;;
-  "completion")
-    fury "$@" 2> /dev/null || printf "1:Command:((start:'start the Fury daemon'))\n"
+  "complete")
+    ((startFury > /dev/null) && nailgun "${FURY_COMPLETION_MAIN}" -- "$@") 2> /dev/null
     ;;
   "--help")
     fury "help"
