@@ -625,6 +625,8 @@ case class Layer(
 object Layer {
   val CurrentVersion = 3
 
+  def read(layout: Layout)(io: Io): Try[Layer] = read(io, layout.furyConfig, layout)
+
   def read(io: Io, string: String, layout: Layout): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(io, layout, _)))
 
