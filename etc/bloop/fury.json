@@ -6,6 +6,7 @@
     "sources": [
       "$ROOT/src/build",
       "$ROOT/src/cli",
+      "$ROOT/src/cli-completions",
       "$ROOT/src/core",
       "$ROOT/src/dependency",
       "$ROOT/src/imports",

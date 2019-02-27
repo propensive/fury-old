@@ -1,3 +1,4 @@
 export PATH=$FURYHOME/bin:$PATH
-# FIXME: Need to include bash completions
+source "${FURYHOME}"/etc/completion/bash/_fury &&
+    complete -F _fury -o nospace -o default -o bashdefault fury
 source $HOME/.furyrc/aliases
