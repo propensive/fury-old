@@ -5,8 +5,10 @@ import fury._
 final class HelpPrinter(padded: String => String) {
 
   def print(c: CLI[_]): Seq[String] = c match {
-    case cli.Menu(name, description, items, _) =>
-      "" +: printKey(name, description) +: items.values.toSeq.sortBy(ordering).flatMap(print)
+    case menu: Menu[_] =>
+      "" +: printKey(menu.name, menu.description) +: menu.commands.values.toSeq
+        .sortBy(ordering)
+        .flatMap(print)
     case command => printKey(command.name, command.description) :: Nil
   }
 

@@ -20,39 +20,43 @@ final class Command[A](val name: String, val description: String, val action: Ac
     v.visit(this, arguments)
 }
 
-case class Menu[A](name: String, description: String, commands: SubCommands[A], default: String)
-    extends CLI[A] {
+final class Menu[A](
+      val name: String,
+      val description: String,
+      val commands: SubCommands[A],
+      val default: String)
+      extends CLI[A] {
 
-  override private[cli] def traverse[B](args: Seq[String], v: Visitor[A, B]): B =
-    args match {
-      case Seq()       => visitSubCommand(default, args, v)
-      case "--" +: _   => visitSubCommand(default, args, v)
-      case cmd +: tail => visitSubCommand(cmd, tail, v)
-    }
+    override private[cli] def traverse[B](args: Seq[String], v: Visitor[A, B]): B =
+      args match {
+        case Seq()       => visitSubCommand(default, args, v)
+        case "--" +: _   => visitSubCommand(default, args, v)
+        case cmd +: tail => visitSubCommand(cmd, tail, v)
+      }
 
-  private def visitSubCommand[B](commandName: String, args: Seq[String], v: Visitor[A, B]): B =
-    commands.get(commandName) match {
-      case Some(subCommand)                   => v.visit(subCommand, args)
-      case None if isHelpCommand(commandName) => v.onUnclearCommand(this)
-      case None                               => v.onUnknownArgument(this, commandName)
-    }
+    private def visitSubCommand[B](commandName: String, args: Seq[String], v: Visitor[A, B]): B =
+      commands.get(commandName) match {
+        case Some(subCommand)                   => v.visit(subCommand, args)
+        case None if isHelpCommand(commandName) => v.onUnclearCommand(this)
+        case None                               => v.onUnknownArgument(this, commandName)
+      }
 
-  private def isHelpCommand(cmd: String): Boolean =
-    CLI.helpCommands.contains(cmd)
-}
+    private def isHelpCommand(cmd: String): Boolean =
+      CLI.helpCommands.contains(cmd)
+  }
 
 object CLI {
-  private[cli] type SubCommand[T]  = (String, CLI[T])
+  private[cli] type SubCommand[T] = (String, CLI[T])
   private[cli] type SubCommands[T] = Map[String, CLI[T]]
   private[cli] val helpCommands: Set[String] = Set("help", "-h", "--help")
 
   trait Result[A]
-  case class Success[A](value: A)                  extends Result[A]
+  case class Success[A](value: A) extends Result[A]
   case class Failure[A](cause: Throwable)          extends Result[A]
   case class CommandUnclear[A](dispatcher: CLI[_]) extends RuntimeException with Result[A]
 
   def menu[T](name: String, default: String)(items: SubCommand[T]*): Menu[T] =
-    Menu(name, name, Map(items: _*), default)
+    new Menu(name, name, Map(items: _*), default)
 
   def menu[T](
       name: String,
@@ -60,7 +64,7 @@ object CLI {
       default: String
     )(items: SubCommand[T]*
     ): SubCommand[T] =
-    name -> Menu(name, description, Map(items: _*), default)
+    name -> new Menu(name, description, Map(items: _*), default)
 
   def command[T](name: String, description: String, result: T): SubCommand[T] =
     command(name, description, Action(result))
