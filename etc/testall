@@ -13,8 +13,10 @@ runtest() {
   TEST="$2"
   TMPDIR=".${TEST}.tmp"
   BASE="$PWD"
+  ESC=$(printf '\e')
   RED=$(printf '\e[31m')
   GREEN=$(printf '\e[32m')
+  GRAY=$(printf '\e[37m')
   RESET=$(printf '\e[0m')
 
   echo ""
@@ -25,12 +27,10 @@ runtest() {
   rm -fr "$TMPDIR"
   cp -r "$DIR/$TEST" "$TMPDIR"
   cd "$TMPDIR"
-  set -v
-  source ./script 2>&1 | tee output
-  set +v
+  source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m,"
 
   echo "----------------------------------------------------------------------------------------------------"
-  diff --color output check
+  diff --color check output
   SUCCESS=$?
   [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
       echo "----------------------------------------------------------------------------------------------------"
