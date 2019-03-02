@@ -209,20 +209,6 @@ case class Shell(environment: Environment) {
       )
   }
 
-  object coursier {
-    private val coursier = furyHome / "bin" / "coursier"
-
-    def fetch(io: Io, artifact: String): Try[List[Path]] = {
-      val items = new ListBuffer[String]()
-      val running = sh"${coursier.value} fetch --progress --repository central $artifact".async(
-          items.append(_),
-          line => if (!escritoire.Ansi.strip(line).trim.isEmpty) io.println(line))
-      val result = running.await()
-      if (result == 0) Success(items.to[List].map(Path(_)))
-      else Failure(ItemNotFound(msg"$artifact", msg"binary"))
-    }
-  }
-
   private def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] =
     sh"jar cmf ${manifestFile.value} ${dest.value}".exec[Try[String]].map { str =>
       val params = files.to[List].flatMap {
