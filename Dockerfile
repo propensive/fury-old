@@ -44,4 +44,5 @@ RUN apt-get -y install gcc
 RUN su bash_user -c "/install.sh"
 RUN su bash_user -c "source ~/.bashrc && fury start && fury about"
 
+ENV PATH="/home/bash_user/fury-test/bin:${PATH}"
 ADD test /home/bash_user/test
