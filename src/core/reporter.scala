@@ -36,7 +36,8 @@ object GraphReporter extends Reporter("graph") {
         io,
         compilation.allDependenciesGraph.mapValues(_.to[Set]),
         multiplexer.stream(50, Some(Tick)),
-        Map())(theme)
+        Map(),
+        false)(theme)
     val duration = System.currentTimeMillis - startTime
     io.println(msg"Total time: ${timeString(duration)}")
   }
