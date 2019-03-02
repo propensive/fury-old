@@ -14,25 +14,22 @@ runtest() {
   TMPDIR=".${TEST}.tmp"
   BASE="$PWD"
   ESC=$(printf '\e')
+  UP=$(printf '\e[1A')
   RED=$(printf '\e[31m')
   GREEN=$(printf '\e[32m')
   GRAY=$(printf '\e[37m')
   RESET=$(printf '\e[0m')
 
-  echo ""
-  echo "----------------------------------------------------------------------------------------------------"
-  echo " Running test ${TEST}"
-  echo "----------------------------------------------------------------------------------------------------"
+  echo " [    ] ${TEST}"
 
   rm -fr "$TMPDIR"
   cp -r "$DIR/$TEST" "$TMPDIR"
   cd "$TMPDIR"
   source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m,"
-
   echo "----------------------------------------------------------------------------------------------------"
   diff --color check output
   SUCCESS=$?
-  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
+  [ $SUCCESS = 0 ] && echo "${UP}${UP} [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
       echo "----------------------------------------------------------------------------------------------------"
       echo " [${RED}FAIL${RESET}] ${TEST}" && mv output "../$TEST.log"
     )
@@ -41,6 +38,8 @@ runtest() {
   rm -fr "$TMPDIR"
   return $SUCCESS
 }
+
+launcher --skip-bsp-connection
 
 for ATEST in $(ls $ROOT/test/passing); do
   let ACOUNT="$ACOUNT+1"
