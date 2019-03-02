@@ -96,7 +96,7 @@ object Binary {
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
 
-  def paths(io: Io, shell: Shell): Try[List[Path]] = shell.coursier.fetch(io, spec)
+  def paths(io: Io, shell: Shell): Try[List[Path]] = Coursier.fetch(io, group, artifact, version)
 }
 
 case class Module(
