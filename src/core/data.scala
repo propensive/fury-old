@@ -91,15 +91,12 @@ object Binary {
 
   private val compilerVersionCache: HashMap[Binary, Try[String]] =
     HashMap()
-
-  private val coursierCache: HashMap[Binary, Try[List[Path]]] = HashMap()
 }
 
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
 
-  def paths(io: Io, shell: Shell): Try[List[Path]] =
-    Binary.coursierCache.getOrElseUpdate(this, shell.coursier.fetch(io, spec))
+  def paths(io: Io, shell: Shell): Try[List[Path]] = shell.coursier.fetch(io, spec)
 }
 
 case class Module(

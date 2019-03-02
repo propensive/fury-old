@@ -58,7 +58,11 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	org.openjdk.jmh:jmh-core:1.21	binRepo	central
+						binaries	io.get-coursier:coursier_2.12:1.1.0-M12	binRepo	central
+								group	io.get-coursier
+								artifact	coursier_2.12
+								version	1.1.0-M12
+							org.openjdk.jmh:jmh-core:1.21	binRepo	central
 								group	org.openjdk.jmh
 								artifact	jmh-core
 								version	1.21
@@ -296,7 +300,7 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
-				main	Some	menu
+				main	Some	core
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala

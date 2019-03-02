@@ -4,7 +4,7 @@ ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
 DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine impromptu
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
-BINDEPS=coursier launcher ng
+BINDEPS=launcher ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 LIBS=bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
@@ -64,7 +64,7 @@ bootstrap/git/%: bootstrap/git/.dir
 bootstrap/bin:
 	mkdir -p $@
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) jmh-jars $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
+compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
 	$< --skip-bsp-connection $(BLOOPVERSION)
 	bloop compile fury
 
@@ -107,8 +107,8 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
 
-jmh-jars: dist/bundle/bin/coursier
-	for JAR in $(shell dist/bundle/bin/coursier fetch org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21); do \
+dependency-jars: dist/bundle/bin/coursier
+	for JAR in $(shell dist/bundle/bin/coursier fetch org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21 io.get-coursier:coursier_2.12:1.1.0-M12); do \
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
@@ -161,4 +161,4 @@ download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng dist/bundle/bin/l
 install: dist/install.sh
 	dist/install.sh
 
-.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install jmh-jars
+.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars
