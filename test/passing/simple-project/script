@@ -1,3 +1,4 @@
+fury config set -T nocolor
 fury layer init
 fury project add -n webpage
 fury module add -n hello-world

@@ -2,8 +2,8 @@ mkdir -p repo1
 (
     cd repo1
     mkdir src
-    git init
-    touch src/version1 && git add -A && git commit -m"."
+    git init -q
+    touch src/version1 && git add -A && git commit -q -m"."
     
 )
 
@@ -11,9 +11,9 @@ mkdir -p fury_project
 (
     cd fury_project
     fury layer init
-    git init
+    git init -q
     git add layer.fury
-    git commit -m "Initial commit"
+    git commit -q -m "Initial commit"
     fury project add -n webpage
     fury module add -n hello-world
     fury repo add -u https://github.com/propensive/base.git -n base
@@ -25,19 +25,19 @@ mkdir -p fury_project
 
 (
     cd repo1
-    touch src/version2 && git add -A && git commit -m"."
+    touch src/version2 && git add -A && git commit -q -m"."
 )
 
 (
     cd fury_project
-    fury repo pull --all
+    fury repo pull --all > /dev/null
     fury build compile --output linear
-    git commit -am"."
+    git commit -q -am"."
 )
 
 (
     cd repo1
-    touch src/version3 && git add -A && git commit -m"."
+    touch src/version3 && git add -A && git commit -q -m"."
 )
 
 git clone fury_project fury_project_clone 2> /dev/null

@@ -1,0 +1,12 @@
+Initialized new git repo and committed layer.fury.
+Set current project to policy-file-test
+Cloning Git repository https://github.com/propensive/base.git.
+Set current module to write-inside-shared
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+Starting compilation of module policy-file-test/write-inside-shared
+Successfully compiled module policy-file-test/write-inside-shared
+Set current module to write-outside-shared
+Migrating layer.fury from file format v1
+Migrating layer.fury from file format v2
+0

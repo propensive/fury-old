@@ -142,7 +142,7 @@ $(TESTS): %-test: dist/bundle/bin/launcher bootstrap/git/probably
 test: bootstrap/bin/fury/.version $(TESTS)
 
 integration:
-	@echo "Not yet implemented"
+	etc/testall
 
 test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
