@@ -15,6 +15,8 @@
  */
 package fury
 
+import java.nio.file.{Files, Path => JPath}
+
 import gastronomy._
 import guillotine._
 import java.util._
@@ -27,6 +29,8 @@ object Layout {
 case class Layout(home: Path, pwd: Path, env: Environment) {
 
   private val nowString: String = Layout.dateFormat.format(new Date())
+
+  private lazy val projectBaseDir = Path(findProjectBaseDir(pwd.javaPath).toString)
 
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   private[this] val userDir          = (home / ".furyrc").extant()
@@ -49,7 +53,7 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   def bloopConfig(digest: Digest): Path =
     bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
 
-  lazy val furyConfig: Path = pwd / "layer.fury"
+  lazy val furyConfig: Path = projectBaseDir / "layer.fury"
 
   def outputDir(digest: Digest): Path =
     (analysisDir / digest.encoded[Base64Url]).extant()
@@ -67,4 +71,20 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
     resourcesDir(digest) / "manifest.mf"
 
   val shell = Shell(env)
+
+  private def findProjectBaseDir(here: JPath): JPath = {
+    import Files.{getFileStore, isRegularFile}
+    val fileSystem = getFileStore(here)
+    Stream
+      .iterate(here.toAbsolutePath)(_.getParent)
+      .takeWhile { path =>
+        Option(path).exists(getFileStore(_) == fileSystem)
+      }
+      .find { path =>
+        isRegularFile(path.resolve("layer.fury"))
+      }
+      .ascribe(UnspecifiedProject())
+      .get
+  }
+
 }
