@@ -26,9 +26,10 @@ object ImportCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- fury.Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      insideLayout <- cli.layout
+      layout       <- insideLayout.findEnclosingLayout
+      config       <- fury.Config.read()(cli.env, layout)
+      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
   def add(ctx: Context): Try[ExitStatus] = {

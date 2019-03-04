@@ -5,6 +5,8 @@ set -x
 source $TESTROOTDIR/tests_lib
 
 fury layer init
+mkdir -p foo/bar/baz
+cd foo/bar/baz
 fury project add -n webpage
 fury module add -n hello-world
 fury source add -d src
@@ -15,6 +17,7 @@ fury module update --compiler scala/compiler
 fury module update --type application
 fury module update --main HelloWorld
 fury
+cd ../../..
 
 # Test JAR file validity
 fury build save --dir ./

@@ -290,11 +290,11 @@ case class Compilation(
             val compileResult: Boolean =
               noCompilation || blocking {
                 layout.shell.bloop
-                  .compile(hash(artifact.ref).encoded) { (ln: String) =>
+                  .compile(hash(artifact.ref).encoded, configDir = layout.pwd / ".fury" / "bloop") { (ln: String) =>
                     {
                       out.append(ln)
                       out.append("\n")
-                      val x = ln match {
+                      ln match {
                         case r"Compiling $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
                           val ref = hashes(moduleHash)
                           deepDependencies(ref).foreach { ref =>
@@ -550,14 +550,6 @@ case class Schema(
 
   def importCandidates(io: Io, layout: Layout): List[String] =
     repos.to[List].flatMap(_.importCandidates(io, this, layout).toOption.to[List].flatten)
-
-  def moduleRefStrings(io: Io, layout: Layout): List[String] =
-    importedSchemas(io, layout).toOption
-      .to[List]
-      .flatMap(_.flatMap(_.moduleRefStrings(io, layout))) ++
-      moduleRefs.to[List].map { ref =>
-        str"$ref"
-      }
 
   def hierarchy(io: Io, dir: Path, layout: Layout): Try[Hierarchy] =
     for {

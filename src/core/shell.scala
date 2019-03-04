@@ -175,6 +175,7 @@ case class Shell(environment: Environment) {
   }
 
   object bloop {
+    private val defaultConfigDir = Path(".fury") / "bloop"
 
     def start(): Running =
       sh"sh -c 'launcher 1.2.5 > /dev/null'".async(_ => (), _ => ())
@@ -182,11 +183,11 @@ case class Shell(environment: Environment) {
     def running(): Boolean =
       sh"bloop help".exec[Exit[String]].status == 0
 
-    def clean(name: String)(output: String => Unit): Running =
-      sh"bloop clean --config-dir .fury/bloop $name".async(output(_), output(_))
+    def clean(name: String, configDir: Path = defaultConfigDir)(output: String => Unit): Running =
+      sh"bloop clean --config-dir ${configDir.value} $name".async(output(_), output(_))
 
-    def compile(name: String)(output: String => Unit): Running =
-      sh"bloop compile $name --config-dir .fury/bloop".async(output(_), output(_))
+    def compile(name: String, configDir: Path = defaultConfigDir)(output: String => Unit): Running =
+      sh"bloop compile $name --config-dir ${configDir.value}".async(output(_), output(_))
 
     def startServer(): Running =
       sh"bloop server".async(_ => (), _ => ())

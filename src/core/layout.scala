@@ -20,6 +20,8 @@ import guillotine._
 import java.util._
 import java.text._
 
+import scala.util.Try
+
 object Layout {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
 }
@@ -67,4 +69,23 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
     resourcesDir(digest) / "manifest.mf"
 
   val shell = Shell(env)
+
+  def findEnclosingLayout: Try[Layout] = {
+    import java.nio.file.Files.{getFileStore, isRegularFile}
+    val here = pwd.javaPath
+    val fileSystem = getFileStore(here)
+    Stream
+      .iterate(here.toAbsolutePath)(_.getParent)
+      .takeWhile { path =>
+        Option(path).exists(getFileStore(_) == fileSystem)
+      }
+      .find { path =>
+        isRegularFile(path.resolve("layer.fury"))
+      }
+      .map { jpath =>
+        Layout(home, Path(jpath), env)
+      }
+      .ascribe(UnspecifiedProject())
+  }
+
 }

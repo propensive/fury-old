@@ -37,13 +37,14 @@ object SourceCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout    <- cli.layout
-      config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-      cli       <- cli.hint(SchemaArg, layer.schemas)
-      schemaArg <- ~cli.peek(SchemaArg)
-      schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-      cli       <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
+      insideLayout <- cli.layout
+      layout       <- insideLayout.findEnclosingLayout
+      config       <- Config.read()(cli.env, layout)
+      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg)
+      schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+      cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
                        cli.peek(ProjectArg).orElse(s.main)
                      }

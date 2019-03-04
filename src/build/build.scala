@@ -30,8 +30,9 @@ object ConfigCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
+      insideLayout <- cli.layout
+      layout       <- insideLayout.findEnclosingLayout
+      config       <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
     } yield new Context(cli, layout, config)
 
   def set(ctx: Context): Try[ExitStatus] = {
@@ -53,9 +54,10 @@ object AliasCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      insideLayout <- cli.layout
+      layout       <- insideLayout.findEnclosingLayout
+      config       <- Config.read()(cli.env, layout)
+      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
@@ -128,9 +130,10 @@ object BuildCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      insideLayout <- cli.layout
+      layout       <- insideLayout.findEnclosingLayout
+      config       <- Config.read()(cli.env, layout)
+      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
@@ -398,15 +401,16 @@ object LayerCli {
   def projects(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
-      cli      <- cli.hint(RawArg)
-      invoc    <- cli.read()
-      io       <- invoc.io()
-      raw      <- ~invoc(RawArg).isSuccess
-      projects <- schema.allProjects(io, layout)
+      cli          <- cli.hint(RawArg)
+      invoc        <- cli.read()
+      io           <- invoc.io()
+      raw          <- ~invoc(RawArg).isSuccess
+      actualLayout <- layout.findEnclosingLayout
+      projects     <- schema.allProjects(io, actualLayout)
       table <- ~Tables(config)
                 .show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
       _ <- ~(if (!raw)
-               io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+               io.println(Tables(config).contextString(actualLayout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
