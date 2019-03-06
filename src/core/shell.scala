@@ -189,8 +189,6 @@ case class Shell(environment: Environment) {
     def compile(name: String, configDir: Path = defaultConfigDir)(output: String => Unit): Running =
       sh"bloop compile $name --config-dir ${configDir.value}".async(output(_), output(_))
 
-    def startServer(): Running =
-      sh"bloop server".async(_ => (), _ => ())
   }
 
   object java {

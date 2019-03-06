@@ -22,61 +22,35 @@ import guillotine._
 import mercator._
 
 import scala.util._
+import scala.util.control.NonFatal
 import scala.concurrent.duration._
 
 object Bloop {
 
-  private[this] var bloopServer: Option[Running] = None
-
   private[this] def testServer(): Try[Unit] =
-    Success(new Socket("localhost", 8212).close().unit)
+    Try(new Socket("localhost", 8212).close().unit)
 
-  def server(shell: Shell, io: Io): Try[Unit] = synchronized {
-    try {
-      testServer()
-      Success(())
-    } catch {
-      case e: ConnectException =>
-        bloopServer.foreach(_.destroy())
-        val io2     = io.print("Starting bloop compile server...")
-        val running = shell.bloop.startServer()
-
-        def checkStarted(n: Duration): Boolean = {
-          val interval = 150.millis
-          if (n < interval) {
-            false
-          } else {
-            try {
-              if (!testServer().isSuccess) {
-                io.print(".")
-                Thread.sleep((interval / 1.millisecond).toInt)
-                checkStarted(n - interval)
-              } else {
-                true
-              }
-            } catch {
-              case e: Exception =>
-                io.print(".")
-                Thread.sleep((interval / 1.millisecond).toInt)
-                checkStarted(n - interval)
-            }
-          }
-        }
-        if (checkStarted(5 seconds)) {
-          io.println("done")
-          try {
-            bloopServer = Some(running)
-            Success(())
-          } catch {
-            case e: ConnectException =>
-              bloopServer = None
-              Failure(InitFailure())
-          }
-        } else {
-          Failure(InitFailure())
-        }
+  def server(shell: Shell, io: Io): Try[Running] =
+    synchronized {
+      val interval = 150.millis
+      io.print("Launching bloop compile server...")
+      val running = shell.bloop.start()
+      Stream.iterate[(Try[Unit], Duration)]((testServer, 5 seconds)) {
+        case (Success(()), _) => Success(()) -> (0 seconds)
+        case (Failure(_: ConnectException), timeLeft) =>
+          io.print(".")
+          Thread.sleep((interval / 1.millisecond).toInt)
+          (testServer, timeLeft - interval)
+      }.dropWhile {
+        case (connected, timeLeft) => connected.isFailure && timeLeft > (0 seconds)
+      }.head._1.map{ _ =>
+        io.println("done")
+        running
+      }.recoverWith{ case NonFatal(_) =>
+        running.destroy()
+        Failure(InitFailure())
+      }
     }
-  }
 
   def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
     new CollOps(compilation.artifacts.values.map { artifact =>
