@@ -65,12 +65,20 @@ startFuryStandalone() {
   java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT"
 }
 
+startFuryDirect() {
+  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
+  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$FURY_MAIN" "$@"
+}
+
 case "$1" in
   "start")
     startFury
     ;;
   "standalone")
     startFuryStandalone
+    ;;
+  "direct")
+    startFuryDirect "${@:2}"
     ;;
   "kill")
     killFury
