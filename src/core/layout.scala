@@ -24,16 +24,35 @@ import scala.util.Try
 
 object Layout {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
+
+  private def findBase(dir: Path): Try[Path] = {
+    import java.nio.file.Files.{getFileStore, isRegularFile}
+    val here       = dir.javaPath
+    val fileSystem = getFileStore(here)
+    Stream
+      .iterate(here.toAbsolutePath)(_.getParent)
+      .takeWhile {
+        Option(_).exists(getFileStore(_) == fileSystem)
+      }
+      .find { path =>
+        isRegularFile(path.resolve("layer.fury"))
+      }
+      .map(Path(_))
+      .ascribe(UnspecifiedProject())
+  }
+
+  def find(home: Path, pwd: Path, env: Environment): Try[Layout] =
+    findBase(pwd).map { Layout(home, pwd, env, _) }
 }
 
-case class Layout(home: Path, pwd: Path, env: Environment) {
+case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
 
   private val nowString: String = Layout.dateFormat.format(new Date())
 
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   private[this] val userDir          = (home / ".furyrc").extant()
 
-  lazy val furyDir: Path       = (pwd / ".fury").extant()
+  lazy val furyDir: Path       = (base / ".fury").extant()
   lazy val historyDir: Path    = (furyDir / "history").extant()
   lazy val bloopDir: Path      = (furyDir / "bloop").extant()
   lazy val classesDir: Path    = (furyDir / "classes").extant()
@@ -51,7 +70,7 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
   def bloopConfig(digest: Digest): Path =
     bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
 
-  lazy val furyConfig: Path = pwd / "layer.fury"
+  lazy val furyConfig: Path = base / "layer.fury"
 
   def outputDir(digest: Digest): Path =
     (analysisDir / digest.encoded[Base64Url]).extant()
@@ -69,23 +88,5 @@ case class Layout(home: Path, pwd: Path, env: Environment) {
     resourcesDir(digest) / "manifest.mf"
 
   val shell = Shell(env)
-
-  def findEnclosingLayout: Try[Layout] = {
-    import java.nio.file.Files.{getFileStore, isRegularFile}
-    val here = pwd.javaPath
-    val fileSystem = getFileStore(here)
-    Stream
-      .iterate(here.toAbsolutePath)(_.getParent)
-      .takeWhile { path =>
-        Option(path).exists(getFileStore(_) == fileSystem)
-      }
-      .find { path =>
-        isRegularFile(path.resolve("layer.fury"))
-      }
-      .map { jpath =>
-        Layout(home, Path(jpath), env)
-      }
-      .ascribe(UnspecifiedProject())
-  }
 
 }

@@ -28,10 +28,9 @@ object RepoCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      insideLayout <- cli.layout
-      layout       <- insideLayout.findEnclosingLayout
-      config       <- fury.Config.read()(cli.env, layout)
-      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layout <- cli.layout
+      config <- fury.Config.read()(cli.env, layout)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)

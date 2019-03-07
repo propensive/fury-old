@@ -22,8 +22,7 @@ object CleanCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      insideLayout <- cli.layout
-      layout       <- insideLayout.findEnclosingLayout
+      layout <- cli.layout
     } yield Context(cli, layout)
 
   def cleanAll(ctx: Context): Try[ExitStatus] =

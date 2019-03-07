@@ -30,9 +30,8 @@ object ConfigCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      insideLayout <- cli.layout
-      layout       <- insideLayout.findEnclosingLayout
-      config       <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
+      layout <- cli.layout
+      config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
     } yield new Context(cli, layout, config)
 
   def set(ctx: Context): Try[ExitStatus] = {
@@ -54,10 +53,9 @@ object AliasCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      insideLayout <- cli.layout
-      layout       <- insideLayout.findEnclosingLayout
-      config       <- Config.read()(cli.env, layout)
-      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
@@ -130,10 +128,9 @@ object BuildCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      insideLayout <- cli.layout
-      layout       <- insideLayout.findEnclosingLayout
-      config       <- Config.read()(cli.env, layout)
-      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
@@ -363,44 +360,30 @@ object BuildCli {
 
 object LayerCli {
 
-  case class LayerCtx(
-      cli: Cli[CliParam[_]],
-      layout: Layout,
-      config: Config,
-      layer: Layer,
-      schema: Schema) {
-    implicit def implicitLayout: Layout   = layout
-    implicit def implicitEnv: Environment = cli.env
-    implicit def implicitShell: Shell     = layout.shell
-  }
-
-  def context(cli: Cli[CliParam[_]]) =
-    for {
-      layout    <- cli.layout
-      config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-      cli       <- cli.hint(SchemaArg, layer.schemas)
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
-      schema    <- layer.schemas.findBy(schemaArg)
-    } yield LayerCtx(cli, layout, config, layer, schema)
-
   def init(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
-      cli   <- cli.hint(ForceArg)
-      invoc <- cli.read()
-      io    <- invoc.io()
-      force <- ~invoc(ForceArg).toOption.isDefined
-      layer <- ~Layer()
-      _     <- layout.furyConfig.mkParents()
-      _     <- ~Layer.save(io, layer, layout)
-      _     <- ~io.println("Created empty layer.fury")
+      layout <- cli.newLayout
+      cli    <- cli.hint(ForceArg)
+      invoc  <- cli.read()
+      io     <- invoc.io()
+      force  <- ~invoc(ForceArg).toOption.isDefined
+      layer  <- ~Layer()
+      _      <- layout.furyConfig.mkParents()
+      _      <- ~Layer.save(io, layer, layout)
+      _      <- ~io.println("Created empty layer.fury")
     } yield io.await()
   }
 
   def projects(ctx: LayerCtx): Try[ExitStatus] = {
     import ctx._
     for {
+      layout       <- cli.layout
+      config       <- Config.read()(cli.env, layout)
+      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(RawArg)
       invoc        <- cli.read()
       io           <- invoc.io()

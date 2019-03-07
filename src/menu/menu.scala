@@ -110,7 +110,7 @@ object FuryMenu {
                 RepoCli.pull)
         ),
         Action('undo, msg"undo the previous modification", BuildCli.undo),
-        Menu('layer, msg"view and edit the layer", LayerCli.context, 'projects)(
+        Menu('layer, msg"view and edit the layer", identity, 'projects)(
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('projects, msg"show all available projects", LayerCli.projects)
         )

@@ -28,8 +28,7 @@ object ProjectCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      insideLayout <- cli.layout
-      layout       <- insideLayout.findEnclosingLayout
+      layout       <- cli.layout
       config       <- fury.Config.read()(cli.env, layout)
       layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
