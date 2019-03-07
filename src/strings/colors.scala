@@ -87,6 +87,7 @@ object Theme {
           binary = Rgb(100, 200, 200),
           gray = Rgb(80, 80, 80),
           success = Rgb(0, 200, 0),
+          ongoing = Rgb(0, 0, 200),
           failure = Rgb(200, 0, 0))
 
   object Basic
@@ -106,6 +107,7 @@ object Theme {
           binary = Ansi.brightCyan,
           gray = Ansi.brightBlack,
           success = Ansi.green,
+          ongoing = Ansi.blue,
           failure = Ansi.red)
 
   object NoColor extends Theme("nocolor") {
@@ -136,6 +138,7 @@ case class Theme(
     binary: AnsiCode = AnsiCode(""),
     gray: AnsiCode = AnsiCode(""),
     success: AnsiCode = AnsiCode(""),
+    ongoing: AnsiCode = AnsiCode(""),
     failure: AnsiCode = AnsiCode("")) {
   val reset: AnsiCode     = AnsiCode("0m")
   val bold: AnsiCode      = AnsiCode("1m")

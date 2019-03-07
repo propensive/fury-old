@@ -34,7 +34,7 @@ import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import org.scalasbt.ipcsocket.UnixDomainSocket
 import com.google.gson.{Gson, JsonElement}
-import fury.Graph.{DiagnosticError, DiagnosticMessage}
+import fury.Graph.{Compiling, DiagnosticError, DiagnosticMessage}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
@@ -43,6 +43,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent._
 import scala.util._
 import scala.concurrent.duration._
+import scala.reflect.{ClassTag, classTag}
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
@@ -273,14 +274,13 @@ case class Compilation(
       multiplexer: Multiplexer[ModuleRef, CompileEvent],
       hashes: Map[String, ModuleRef])
       extends BuildClient {
+
     override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
 
     override def onBuildLogMessage(params: LogMessageParams): Unit = {}
 
     override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-      val uri = new java.net.URI(params.getBuildTarget.getUri)
-      val hash =
-        uri.getRawQuery.split("=")(1)
+      val hash     = getModuleHash(params.getBuildTarget.getUri)
       val modref   = hashes(hash)
       val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
       val diag     = params.getDiagnostics.asScala.head
@@ -296,42 +296,59 @@ case class Compilation(
     }
     override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {}
 
-    override def onBuildTaskStart(params: TaskStartParams): Unit = {
+    def convertDataTo[A: ClassTag](data: Object): A = {
       val gson = new Gson()
-      val json = params.getData.asInstanceOf[JsonElement]
+      val json = data.asInstanceOf[JsonElement]
       val report =
-        gson.fromJson[CompileTask](json, classOf[CompileTask])
-      val hash =
-        new java.net.URI(report.getTarget.getUri).getRawQuery.split("=")(1)
-      val modref = hashes(hash)
-      multiplexer(modref) = StartCompile(modref)
+        gson.fromJson[A](json, classTag[A].runtimeClass)
+      report
     }
 
-    override def onBuildTaskProgress(params: TaskProgressParams): Unit = {}
+    def getModuleHash(bspUri: String) = {
 
-    override def onBuildTaskFinish(params: TaskFinishParams): Unit = {
-      val gson = new Gson()
+      val uriQuery = new java.net.URI(bspUri).getRawQuery
+        .split("&")
+        .toList
+        .map(_.split("="))
+        .map(x => x(0) -> x(1))
+        .toMap
+      uriQuery("id")
+    }
+
+    override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
+      val report = convertDataTo[CompileTask](params.getData)
+      val hash   = getModuleHash(report.getTarget.getUri)
+      val modref = hashes(hash)
+      multiplexer(modref) =
+        CompilationProgress(modref, params.getProgress.toDouble / params.getTotal)
+    }
+
+    override def onBuildTaskStart(params: TaskStartParams): Unit = {
+      val report = convertDataTo[CompileTask](params.getData)
+      val hash   = getModuleHash(report.getTarget.getUri)
+      val modref = hashes(hash)
+      multiplexer(modref) = StartCompile(modref)
+      deepDependencies(modref).foreach { ref =>
+        multiplexer(ref) = NoCompile(ref)
+      }
+    }
+    override def onBuildTaskFinish(params: TaskFinishParams): Unit =
       params.getDataKind match {
         case TaskDataKind.COMPILE_REPORT =>
-          val json = params.getData.asInstanceOf[JsonElement]
-          val report =
-            gson.fromJson[CompileReport](json, classOf[CompileReport])
-          val hash =
-            new java.net.URI(report.getTarget.getUri).getRawQuery.split("=")(1)
-          val modref = hashes(hash)
+          val report = convertDataTo[CompileReport](params.getData)
+          val modref = hashes.compose(getModuleHash)(report.getTarget.getUri)
           params.getStatus match {
             case StatusCode.OK => {
               multiplexer(modref) = StopCompile(modref, "", true)
             }
             case StatusCode.ERROR => {
-              multiplexer(modref) = StopCompile(modref, params.toString, false)
+              multiplexer(modref) = StopCompile(modref, "", false)
             }
             case StatusCode.CANCELLED => {
-              multiplexer(modref) = StopCompile(modref, params.toString, false)
+              multiplexer(modref) = StopCompile(modref, "", false)
             }
           }
       }
-    }
   }
 
   def retry[T](duration: FiniteDuration)(f: => T): Try[T] =
@@ -1122,6 +1139,7 @@ case class SchemaRef(repo: RepoId, schema: SchemaId) {
 sealed trait CompileEvent
 case object Tick                                                         extends CompileEvent
 case class StartCompile(ref: ModuleRef)                                  extends CompileEvent
+case class CompilationProgress(ref: ModuleRef, progress: Double)         extends CompileEvent
 case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
 case class NoCompile(ref: ModuleRef)                                     extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                                   extends CompileEvent
