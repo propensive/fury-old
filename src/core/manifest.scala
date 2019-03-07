@@ -27,7 +27,11 @@ object Manifest {
         mainClass.to[List].map("Main-Class" -> _),
         List("Class-Path"                   -> classpathString),
         List("Created-By"                   -> str"Fury ${Version.current}")
-    ).flatten.map { case (k, v) => s"$k: $v" }.join("", "\n", "\n")
+    ).flatten.map {
+      case (k, v) =>
+        val line = s"$k: $v"
+        line.tail.grouped(71).mkString(line.head.toString, "\n ", "")
+    }.mkString
 
     file.writeSync(content).map { _ =>
       file

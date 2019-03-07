@@ -35,21 +35,28 @@ object Bloop {
       val interval = 150.millis
       io.print("Launching bloop compile server...")
       val running = shell.bloop.start()
-      Stream.iterate[(Try[Unit], Duration)]((testServer, 5 seconds)) {
-        case (Success(()), _) => Success(()) -> (0 seconds)
-        case (Failure(_: ConnectException), timeLeft) =>
-          io.print(".")
-          Thread.sleep((interval / 1.millisecond).toInt)
-          (testServer, timeLeft - interval)
-      }.dropWhile {
-        case (connected, timeLeft) => connected.isFailure && timeLeft > (0 seconds)
-      }.head._1.map{ _ =>
-        io.println("done")
-        running
-      }.recoverWith{ case NonFatal(_) =>
-        running.destroy()
-        Failure(InitFailure())
-      }
+      Stream
+        .iterate[(Try[Unit], Duration)]((testServer, 5 seconds)) {
+          case (Success(()), _) => Success(()) -> (0 seconds)
+          case (Failure(_: ConnectException), timeLeft) =>
+            io.print(".")
+            Thread.sleep((interval / 1.millisecond).toInt)
+            (testServer, timeLeft - interval)
+        }
+        .dropWhile {
+          case (connected, timeLeft) => connected.isFailure && timeLeft > (0 seconds)
+        }
+        .head
+        ._1
+        .map { _ =>
+          io.println("done")
+          running
+        }
+        .recoverWith {
+          case NonFatal(_) =>
+            running.destroy()
+            Failure(InitFailure())
+        }
     }
 
   def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
