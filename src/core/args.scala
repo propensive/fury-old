@@ -23,6 +23,7 @@ import exoskeleton._
 object Args {
   implicit private val schemaId: TExtractor[SchemaId] =
     _.headOption.flatMap(SchemaId.parse(_).toOption)
+  
   implicit private val schemaRef: TExtractor[SchemaRef] = _.headOption.flatMap(SchemaRef.unapply(_))
   implicit private val aliasCmd: TExtractor[AliasCmd]   = _.headOption.map(AliasCmd(_))
   implicit private val parameter: TExtractor[Parameter] = _.headOption.map(Parameter(_))
@@ -37,6 +38,11 @@ object Args {
   implicit private val theme: TExtractor[Theme]         = _.headOption.flatMap(Theme.unapply(_))
   implicit private val ipfsRef: TExtractor[IpfsRef]     = _.headOption.flatMap(IpfsRef.parse(_))
   implicit private val reporter: TExtractor[Reporter]   = _.headOption.flatMap(Reporter.unapply(_))
+  
+  implicit private val moduleId: TExtractor[ModuleId] =
+    _.headOption.flatMap(ModuleId.parse(_).toOption)
+  implicit private val projectId: TExtractor[ProjectId] =
+    _.headOption.flatMap(ProjectId.parse(_).toOption)
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 

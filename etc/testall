@@ -14,13 +14,15 @@ runtest() {
   TMPDIR=".${TEST}.tmp"
   BASE="$PWD"
   ESC=$(printf '\e')
-  UP=$(printf '\e[1A')
   RED=$(printf '\e[31m')
   GREEN=$(printf '\e[32m')
   GRAY=$(printf '\e[37m')
   RESET=$(printf '\e[0m')
 
-  echo " [    ] ${TEST}"
+  echo
+  echo "----------------------------------------------------------------------------------------------------"
+  echo "        ${TEST}"
+  echo "----------------------------------------------------------------------------------------------------"
 
   rm -fr "$TMPDIR"
   cp -r "$DIR/$TEST" "$TMPDIR"
@@ -29,7 +31,7 @@ runtest() {
   echo "----------------------------------------------------------------------------------------------------"
   diff --color check output
   SUCCESS=$?
-  [ $SUCCESS = 0 ] && echo "${UP}${UP} [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
+  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
       echo "----------------------------------------------------------------------------------------------------"
       echo " [${RED}FAIL${RESET}] ${TEST}" && mv output "../$TEST.log"
     )
@@ -39,7 +41,7 @@ runtest() {
   return $SUCCESS
 }
 
-launcher --skip-bsp-connection
+launcher --skip-bsp-connection 1.2.5
 
 for ATEST in $(ls $ROOT/test/passing); do
   let ACOUNT="$ACOUNT+1"
