@@ -59,7 +59,7 @@ object SchemaCli {
       table <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(
                   _.id)
       _ <- ~(if (!raw)
-               io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
           })
@@ -93,7 +93,7 @@ object SchemaCli {
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~diffTable(config, schema, other, rows, cli.cols, raw)
       _ <- ~(if (!raw)
-               io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
           })

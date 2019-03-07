@@ -290,40 +290,41 @@ case class Compilation(
             val compileResult: Boolean =
               noCompilation || blocking {
                 layout.shell.bloop
-                  .compile(hash(artifact.ref).encoded) { (ln: String) =>
-                    {
-                      out.append(ln)
-                      out.append("\n")
-                      val x = ln match {
-                        case r"Compiling $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
-                          val ref = hashes(moduleHash)
-                          deepDependencies(ref).foreach { ref =>
-                            multiplexer(ref) = NoCompile(ref)
+                  .compile(hash(artifact.ref).encoded, configDir = layout.bloopDir) {
+                    (ln: String) =>
+                      {
+                        out.append(ln)
+                        out.append("\n")
+                        ln match {
+                          case r"Compiling $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
+                            val ref = hashes(moduleHash)
+                            deepDependencies(ref).foreach { ref =>
+                              multiplexer(ref) = NoCompile(ref)
+                            }
+                            multiplexer(ref) = StartCompile(ref)
                           }
-                          multiplexer(ref) = StartCompile(ref)
-                        }
-                        case r"Compiled $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
-                          val ref = hashes(moduleHash)
-                          deepDependencies(ref).foreach { ref =>
-                            multiplexer(ref) = NoCompile(ref)
+                          case r"Compiled $moduleHash@([a-zA-Z0-9\+\_\=\/]+).*" => {
+                            val ref = hashes(moduleHash)
+                            deepDependencies(ref).foreach { ref =>
+                              multiplexer(ref) = NoCompile(ref)
+                            }
+                            multiplexer(hashes(moduleHash)) =
+                              StopCompile(hashes(moduleHash), "", true)
+                            multiplexer.close(hashes(moduleHash))
                           }
-                          multiplexer(hashes(moduleHash)) =
-                            StopCompile(hashes(moduleHash), "", true)
-                          multiplexer.close(hashes(moduleHash))
-                        }
-                        case r".*'$moduleHash@([a-zA-Z0-9\+\_\=\/]+)' failed to compile.*" => {
-                          out.append(s"Failed to compile '${hashes(moduleHash)}'\n")
-                          val ref = hashes(moduleHash)
-                          deepDependencies(ref).foreach { ref =>
-                            multiplexer(ref) = NoCompile(ref)
+                          case r".*'$moduleHash@([a-zA-Z0-9\+\_\=\/]+)' failed to compile.*" => {
+                            out.append(s"Failed to compile '${hashes(moduleHash)}'\n")
+                            val ref = hashes(moduleHash)
+                            deepDependencies(ref).foreach { ref =>
+                              multiplexer(ref) = NoCompile(ref)
+                            }
+                            multiplexer(hashes(moduleHash)) =
+                              StopCompile(hashes(moduleHash), out.toString(), false)
+                            out.clear()
                           }
-                          multiplexer(hashes(moduleHash)) =
-                            StopCompile(hashes(moduleHash), out.toString(), false)
-                          out.clear()
+                          case _ => ()
                         }
-                        case _ => ()
                       }
-                    }
                   }
                   .await() == 0
               }
@@ -551,21 +552,13 @@ case class Schema(
   def importCandidates(io: Io, layout: Layout): List[String] =
     repos.to[List].flatMap(_.importCandidates(io, this, layout).toOption.to[List].flatten)
 
-  def moduleRefStrings(io: Io, layout: Layout): List[String] =
-    importedSchemas(io, layout).toOption
-      .to[List]
-      .flatMap(_.flatMap(_.moduleRefStrings(io, layout))) ++
-      moduleRefs.to[List].map { ref =>
-        str"$ref"
-      }
-
   def hierarchy(io: Io, dir: Path, layout: Layout): Try[Hierarchy] =
     for {
       imps <- imports.map { ref =>
                for {
                  repo         <- repos.findBy(ref.repo)
                  repoDir      <- repo.fullCheckout.get(io, layout)
-                 nestedLayout <- ~Layout(layout.home, repoDir, layout.env)
+                 nestedLayout <- ~Layout(layout.home, repoDir, layout.env, repoDir)
                  layer        <- Layer.read(io, nestedLayout.furyConfig, nestedLayout)
                  resolved     <- layer.schemas.findBy(ref.schema)
                  tree         <- resolved.hierarchy(io, repoDir, layout)
@@ -972,7 +965,7 @@ case class SchemaRef(repo: RepoId, schema: SchemaId) {
     for {
       repo     <- base.repos.findBy(repo)
       dir      <- repo.fullCheckout.get(io, layout)
-      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env).furyConfig, layout)
+      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
       resolved <- layer.schemas.findBy(schema)
     } yield resolved
 }

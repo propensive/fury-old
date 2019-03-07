@@ -151,10 +151,15 @@ case class Cli[+Hinted <: CliParam[_]](
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).opt
 
-  lazy val layout: Try[Layout] =
-    env.workDir.ascribe(FileNotFound(Path("/"))).map { pwd =>
-      Layout(Path(env.variables("HOME")), Path(pwd), env)
-    }
+  private def pwd = env.workDir.ascribe(FileNotFound(Path("/")))
+
+  lazy val newLayout: Try[Layout] = pwd.map { pwd =>
+    Layout(Path(env.variables("HOME")), Path(pwd), env, Path(pwd))
+  }
+
+  lazy val layout: Try[Layout] = pwd.flatMap { pwd =>
+    Layout.find(Path(env.variables("HOME")), Path(pwd), env)
+  }
 
   lazy val config: Config = layout.flatMap(Config.read()(env, _)).toOption.getOrElse(Config())
 
