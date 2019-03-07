@@ -290,7 +290,7 @@ case class Compilation(
             val compileResult: Boolean =
               noCompilation || blocking {
                 layout.shell.bloop
-                  .compile(hash(artifact.ref).encoded, configDir = layout.pwd / ".fury" / "bloop") {
+                  .compile(hash(artifact.ref).encoded, configDir = layout.bloopDir) {
                     (ln: String) =>
                       {
                         out.append(ln)

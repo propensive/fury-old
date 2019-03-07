@@ -76,7 +76,7 @@ object SourceCli {
       _ <- ~(if (!raw)
                io.println(
                    Tables(config)
-                     .contextString(layout.pwd, layer.showSchema, schema, project, module)))
+                     .contextString(layout.base, layer.showSchema, schema, project, module)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }

@@ -88,7 +88,7 @@ object ModuleCli {
       schema <- defaultSchema
       _ <- ~(if (!raw)
                io.println(
-                   Tables(config).contextString(layout.pwd, layer.showSchema, schema, project)))
+                   Tables(config).contextString(layout.base, layer.showSchema, schema, project)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
@@ -297,7 +297,7 @@ object BinaryCli {
       _ <- ~(if (!raw)
                io.println(
                    Tables(config)
-                     .contextString(layout.pwd, layer.showSchema, schema, project, module)))
+                     .contextString(layout.base, layer.showSchema, schema, project, module)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
@@ -372,7 +372,7 @@ object ParamCli {
       _ <- ~(if (!raw)
                io.println(
                    Tables(config)
-                     .contextString(layout.pwd, layer.showSchema, schema, project, module)))
+                     .contextString(layout.base, layer.showSchema, schema, project, module)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }

@@ -67,7 +67,7 @@ object AliasCli {
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if (!raw) io.println(Tables(config).contextString(layout.pwd, true)))
+      _     <- ~(if (!raw) io.println(Tables(config).contextString(layout.base, true)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
           })
@@ -194,7 +194,7 @@ object BuildCli {
                       .orElse(project.main)
       optModule   <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module      <- optModule.ascribe(UnspecifiedModule())
-      hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
+      hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
       artifact    <- universe.artifact(io, module.ref(project), layout)
       _           <- Bloop.server(layout.shell, io)
@@ -269,7 +269,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      hierarchy    <- schema.hierarchy(io, layout.pwd, layout)
+      hierarchy    <- schema.hierarchy(io, layout.base, layout)
       universe     <- hierarchy.universe
       compilation  <- universe.compilation(io, module.ref(project), layout)
       _            <- compilation.saveJars(io, module.ref(project), dir in layout.pwd, layout)
@@ -294,7 +294,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      hierarchy    <- schema.hierarchy(io, layout.pwd, layout)
+      hierarchy    <- schema.hierarchy(io, layout.base, layout)
       universe     <- hierarchy.universe
       compilation  <- universe.compilation(io, module.ref(project), layout)
       _            <- if (module.kind == Application) Success(()) else Failure(InvalidKind(Application))
@@ -321,7 +321,7 @@ object BuildCli {
       io          <- invoc.io()
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
+      hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
       compilation <- universe.compilation(io, module.ref(project), layout)
       classpath   <- ~compilation.classpath(module.ref(project), layout)
@@ -347,7 +347,7 @@ object BuildCli {
                   }
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      hierarchy   <- schema.hierarchy(io, layout.pwd, layout)
+      hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
       artifact    <- universe.artifact(io, module.ref(project), layout)
       compilation <- universe.compilation(io, module.ref(project), layout)
@@ -389,7 +389,7 @@ object LayerCli {
       table <- ~Tables(config)
                 .show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
       _ <- ~(if (!raw)
-               io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
+               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
 }
