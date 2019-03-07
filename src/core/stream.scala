@@ -27,7 +27,7 @@ final class Multiplexer[K, V](keys: List[K]) {
   private[this] def finished: Boolean = closed.forall(identity)
 
   def stream(interval: Int, tick: Option[V] = None): Stream[V] = {
-    @tailrec def stream(alreadyProcessed: Stream[V],lastSnapshot: List[List[V]]): Stream[V] = {
+    def stream(alreadyProcessed: Stream[V],lastSnapshot: List[List[V]]): Stream[V] = {
       val t0       = System.currentTimeMillis
       val snapshot = state.clone().to[List]
       // FIXME: This could be written more efficiently with a builder
@@ -40,7 +40,7 @@ final class Multiplexer[K, V](keys: List[K]) {
       } else {
         val time = System.currentTimeMillis - t0
         if (time < interval) Thread.sleep(interval - time)
-        stream(alreadyProcessed #::: changes.to[Stream] #::: tick.to[Stream], snapshot)
+        alreadyProcessed #::: stream(changes.to[Stream] #::: tick.to[Stream], snapshot)
       }
     }
     stream(Stream.empty, state.clone().to[List])
