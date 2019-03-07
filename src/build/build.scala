@@ -360,8 +360,7 @@ object BuildCli {
 
 object LayerCli {
 
-  def init(ctx: LayerCtx): Try[ExitStatus] = {
-    import ctx._
+  def init(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.newLayout
       cli    <- cli.hint(ForceArg)
@@ -373,28 +372,24 @@ object LayerCli {
       _      <- ~Layer.save(io, layer, layout)
       _      <- ~io.println("Created empty layer.fury")
     } yield io.await()
-  }
 
-  def projects(ctx: LayerCtx): Try[ExitStatus] = {
-    import ctx._
+  def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout       <- cli.layout
-      config       <- Config.read()(cli.env, layout)
-      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-      cli          <- cli.hint(SchemaArg, layer.schemas)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
-      schema       <- layer.schemas.findBy(schemaArg)
-      cli          <- cli.hint(RawArg)
-      invoc        <- cli.read()
-      io           <- invoc.io()
-      raw          <- ~invoc(RawArg).isSuccess
-      actualLayout <- layout.findEnclosingLayout
-      projects     <- schema.allProjects(io, actualLayout)
+      layout    <- cli.layout
+      config    <- Config.read()(cli.env, layout)
+      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      cli       <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
+      cli       <- cli.hint(RawArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      raw       <- ~invoc(RawArg).isSuccess
+      projects  <- schema.allProjects(io, layout)
       table <- ~Tables(config)
                 .show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
       _ <- ~(if (!raw)
-               io.println(Tables(config).contextString(actualLayout.pwd, layer.showSchema, schema)))
+               io.println(Tables(config).contextString(layout.pwd, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
-  }
 }
