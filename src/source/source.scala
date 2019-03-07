@@ -75,11 +75,7 @@ object SourceCli {
       rows    <- ~module.sources.to[List]
       table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
-      _ <- ~(if (!raw)
-               io.println(
-                   Tables(config)
-                     .contextString(layout.base, layer.showSchema, schema, project, module)))
-      _ <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 

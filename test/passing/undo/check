@@ -1,10 +1,8 @@
-Initialized new git repo and committed layer.fury.
+Created empty layer.fury
 Set current project to webpage
 Set current module to hello-world
-/home/jpretty/dev/propensive/fury/.undo.tmp/webpage/hello-world
 [4mREPO[24m  [4mPATH[24m
 -     src 
-Cloning Git repository https://github.com/propensive/base.git.
 Migrating layer.fury from file format v1
 Migrating layer.fury from file format v2
 Starting compilation of module webpage/hello-world

@@ -10,4 +10,4 @@ fury import add -i base:2.12.6
 fury module update -c scala/compiler
 fury build compile --output linear
 fury build save --dir ./
-java -cp "$SCALA:webpage-hello_world.jar" "HelloWorld"
+java "HelloWorld"

@@ -87,10 +87,7 @@ object ModuleCli {
       table <- ~Tables(config)
                 .show(Tables(config).modules(project.id, project.main), cli.cols, rows, raw)(_.id)
       schema <- defaultSchema
-      _ <- ~(if (!raw)
-               io.println(
-                   Tables(config).contextString(layout.base, layer.showSchema, schema, project)))
-      _ <- ~io.println(table.mkString("\n"))
+      _      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -293,11 +290,7 @@ object BinaryCli {
       rows    <- ~module.allBinaries.to[List]
       schema  <- defaultSchema
       table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
-      _ <- ~(if (!raw)
-               io.println(
-                   Tables(config)
-                     .contextString(layout.base, layer.showSchema, schema, project, module)))
-      _ <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
@@ -368,11 +361,7 @@ object ParamCli {
       rows    <- ~module.params.to[List]
       table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
-      _ <- ~(if (!raw)
-               io.println(
-                   Tables(config)
-                     .contextString(layout.base, layer.showSchema, schema, project, module)))
-      _ <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 

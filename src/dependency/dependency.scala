@@ -76,11 +76,7 @@ object DependencyCli {
       rows    <- ~module.after.to[List].sorted
       table   <- ~Tables(config).show(Tables(config).dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
-      _ <- ~(if (!raw)
-               io.println(
-                   Tables(config)
-                     .contextString(layout.base, layer.showSchema, schema, project, module)))
-      _ <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 

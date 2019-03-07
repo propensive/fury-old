@@ -1147,11 +1147,11 @@ case class Repo(url: String) {
   def fetch(io: Io, layout: Layout): Try[Path] =
     if (!(path(layout) / ".done").exists) {
       if (path(layout).exists()) {
-        io.println(s"Found incomplete clone of $url.")
+        io.println(s"Found incomplete clone of ${localizedUrl(layout)}.")
         path(layout).delete()
       }
 
-      io.println(s"Cloning Git repository $url.")
+      io.println(s"Cloning Git repository ${localizedUrl(layout)}.")
       path(layout).mkdir()
       layout.shell.git.cloneBare(url, path(layout)).map { _ =>
         path(layout)

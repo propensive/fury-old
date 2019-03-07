@@ -34,8 +34,10 @@ object Args {
   implicit private val path: TExtractor[Path]           = _.headOption.flatMap(Path.unapply(_))
   implicit private val kindKey: TExtractor[Kind]        = _.headOption.flatMap(Kind.unapply(_))
   implicit private val reporter: TExtractor[Reporter]   = _.headOption.flatMap(Reporter.unapply(_))
-  implicit private val moduleId: TExtractor[ModuleId]   = _.headOption.flatMap(ModuleId.parse(_).toOption)
-  implicit private val projectId: TExtractor[ProjectId] = _.headOption.flatMap(ProjectId.parse(_).toOption)
+  implicit private val moduleId: TExtractor[ModuleId] =
+    _.headOption.flatMap(ModuleId.parse(_).toOption)
+  implicit private val projectId: TExtractor[ProjectId] =
+    _.headOption.flatMap(ProjectId.parse(_).toOption)
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 

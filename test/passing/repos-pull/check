@@ -1,16 +1,9 @@
-Initialized new git repo and committed layer.fury.
-On branch master
-nothing to commit, working tree clean
+Created empty layer.fury
 Set current project to webpage
 Set current module to hello-world
-Cloning Git repository https://github.com/propensive/base.git.
-Cloning Git repository /home/jpretty/dev/propensive/fury/.repos-pull.tmp/repo1.
+Cloning Git repository ../repo1.
 Migrating layer.fury from file format v1
 Migrating layer.fury from file format v2
 Checking out [src].
-Cloning Git repository https://github.com/propensive/base.git.
-Checking out all sources.
 Migrating layer.fury from file format v1
 Migrating layer.fury from file format v2
-Cloning Git repository /home/jpretty/dev/propensive/fury/.repos-pull.tmp/repo1.
-Checking out [src].
