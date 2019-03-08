@@ -80,6 +80,16 @@ checkJava() {
   fi
 }
 
+tryCompilingNailgun() {
+    if [ gcc ${DESTINATION}/bin/ng.c -O0 ${DESTINATION}/bin/ng ]; then
+	echo "Nailgun native client compilation: SUCCESS"
+    else
+	echo "Nailgun native client compilation: FAILURE"
+	echo "Nailgun python client will be used"
+    fi
+    exit 0
+}
+
 launchBloop() {
   message "Launching Bloop version $BLOOP_VERSION..."
     $DESTINATION/bin/launcher --skip-bsp-connection $BLOOP_VERSION && \

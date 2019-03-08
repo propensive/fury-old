@@ -39,4 +39,9 @@ RUN /testshell.sh bash " && "
 RUN /testshell.sh zsh  " && "
 RUN /testshell.sh fish  " ; and "
 
+# Quick tests of native nailgun clietn (enabled when GCC is available)
+RUN apt-get -y install gcc
+RUN su bash_user -c "/install.sh"
+RUN su bash_user -c "source ~/.bashrc && fury start && fury about"
+
 ADD test /test

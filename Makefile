@@ -4,7 +4,7 @@ ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
 DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine impromptu
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
-BINDEPS=launcher ng
+BINDEPS=launcher ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 LIBS=bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
@@ -115,7 +115,10 @@ dependency-jars: dist/bundle/bin/coursier
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
 	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
-dist/bundle/bin/ng: dist/bundle/bin/.dir
+dist/bundle/bin/ng.c: bootstrap/ng/.dir
+	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
+
+dist/bundle/bin/ng.py: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py
 	sed -i.bak '1 s/$$/2.7/' $@ && rm $@.bak
 	chmod +x $@
@@ -155,7 +158,7 @@ clean: clean-dist
 	rm -rf bootstrap
 	rm -rf .bloop
 
-download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
+download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
 
 install: dist/install.sh
