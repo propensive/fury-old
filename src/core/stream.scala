@@ -15,7 +15,6 @@
  */
 package fury
 
-import scala.annotation.tailrec
 import scala.collection.immutable.Stream
 
 /** a streaming multiplexer optimized for concurrent writes */
@@ -27,23 +26,23 @@ final class Multiplexer[K, V](keys: List[K]) {
   private[this] def finished: Boolean = closed.forall(identity)
 
   def stream(interval: Int, tick: Option[V] = None): Stream[V] = {
-    def stream(alreadyProcessed: Stream[V], lastSnapshot: List[List[V]]): Stream[V] = {
+    def stream(lastSnapshot: List[List[V]]): Stream[V] = {
       val t0       = System.currentTimeMillis
-      val snapshot = state.clone().to[List]
+      val snapshot = state.to[List]
       // FIXME: This could be written more efficiently with a builder
       val changes = snapshot.zip(lastSnapshot).flatMap {
         case (current, last) =>
           current.take(current.length - last.length).reverse
       }
       if (finished && changes.isEmpty) {
-        alreadyProcessed ++ tick.to[Stream]
+        tick.to[Stream]
       } else {
         val time = System.currentTimeMillis - t0
         if (time < interval) Thread.sleep(interval - time)
-        alreadyProcessed #::: stream(changes.to[Stream] #::: tick.to[Stream], snapshot)
+        changes.to[Stream] #::: tick.to[Stream] #::: stream(snapshot)
       }
     }
-    stream(Stream.empty, state.clone().to[List])
+    stream(state.to[List])
   }
 
   /** This method should only ever be called from one thread for any given reference, to
