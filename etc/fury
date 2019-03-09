@@ -16,6 +16,7 @@ cleanup() {
 
 nailgun() {
   "${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$@"
+  cleanup
 }
 
 coursier(){

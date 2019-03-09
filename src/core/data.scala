@@ -366,11 +366,8 @@ case class Compilation(
     }
 
   def using[A, B](resource: A)(cleanup: A => Unit)(f: A => B): B =
-    try {
-      f(resource)
-    } finally {
-      cleanup(resource)
-    }
+    try f(resource)
+    finally cleanup(resource)
 
   def compileModule(
       target: String,
@@ -383,12 +380,17 @@ case class Compilation(
     val socketPath   = furyTempPath / "socket"
     val process      = layout.shell.bloop.startBsp(socketPath.value)
     using(retry(5 seconds) {
+      println("retrying socketPath.value")
       new UnixDomainSocket(socketPath.value)
     }.get) { s =>
+      println("Shutting down socket")
       s.shutdownInput()
       s.shutdownOutput()
     } { bloopSocket =>
-      using(Executors.newCachedThreadPool())(_.shutdown()) { ex =>
+      using(Executors.newCachedThreadPool()) { x =>
+        println("shutting down executor"); x.shutdown()
+      } { ex =>
+        println("Starting new executor")
         val launcher = new Launcher.Builder[BuildServer]()
           .setRemoteInterface(classOf[BuildServer])
           .setExecutorService(ex)
@@ -397,11 +399,15 @@ case class Compilation(
           .setLocalService(client)
           .create()
         val listening = launcher.startListening()
-        val server    = launcher.getRemoteProxy
+        println("Listening")
+        val server = launcher.getRemoteProxy
+        println("Got server")
         val capabilities = new BuildClientCapabilities(
             Collections.singletonList("scala")
         )
+        println("created capabilities")
         (layout.furyDir / ".bloop").linksTo(Path("bloop"))
+        println("made symlink")
         val initializeParams = new InitializeBuildParams(
             "fury",
             "1.0.0",
@@ -409,8 +415,14 @@ case class Compilation(
             new java.io.File(layout.furyDir.value).toURI.toString,
             capabilities
         )
-        server.buildInitialize(initializeParams).get
+        println("doBuildInit")
+        try server.buildInitialize(initializeParams).get
+        catch {
+          case e: Throwable => println("failed with " + e)
+        }
+        println("builtInitialized")
         server.onBuildInitialized()
+        println("done")
         val targets = server.workspaceBuildTargets.get
         targets.getTargets.asScala.find(_.getDisplayName == target) match {
           case Some(target) =>
@@ -469,47 +481,47 @@ case class Compilation(
                 BuildingClient(multiplexer, hashes)).map(_.getStatusCode == StatusCode.OK)
           }.map { compileResult =>
 // inserted
-                          if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {
-                multiplexer(artifact.ref) = StartStreaming
-                if (artifact.kind == Benchmarks) {
-                  Jmh.instrument(
-                      layout.classesDir(hash(artifact.ref)),
-                      layout.benchmarksDir(hash(artifact.ref)),
-                      layout.resourcesDir(hash(artifact.ref)))
-                  val javaSources =
-                    layout.benchmarksDir(hash(artifact.ref)).findChildren(_.endsWith(".java"))
-                  layout.shell.javac(
-                      classpath(artifact.ref, layout).to[List].map(_.value),
-                      layout.classesDir(hash(artifact.ref)).value,
-                      javaSources.map(_.value).to[List])
-                }
-                val res = layout.shell
-                  .runJava(
-                      jmhRuntimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
-                      if (artifact.kind == Benchmarks) "org.openjdk.jmh.Main"
-                      else artifact.main.getOrElse(""),
-                      securePolicy = artifact.kind == Application,
-                      layout
-                  ) { ln =>
-                    if (artifact.kind == Benchmarks) multiplexer(artifact.ref) = Print(ln)
-                    else {
-                      out.append(ln)
-                      out.append("\n")
-                    }
+            if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {
+              multiplexer(artifact.ref) = StartStreaming
+              if (artifact.kind == Benchmarks) {
+                Jmh.instrument(
+                    layout.classesDir(hash(artifact.ref)),
+                    layout.benchmarksDir(hash(artifact.ref)),
+                    layout.resourcesDir(hash(artifact.ref)))
+                val javaSources =
+                  layout.benchmarksDir(hash(artifact.ref)).findChildren(_.endsWith(".java"))
+                layout.shell.javac(
+                    classpath(artifact.ref, layout).to[List].map(_.value),
+                    layout.classesDir(hash(artifact.ref)).value,
+                    javaSources.map(_.value).to[List])
+              }
+              val res = layout.shell
+                .runJava(
+                    jmhRuntimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
+                    if (artifact.kind == Benchmarks) "org.openjdk.jmh.Main"
+                    else artifact.main.getOrElse(""),
+                    securePolicy = artifact.kind == Application,
+                    layout
+                ) { ln =>
+                  if (artifact.kind == Benchmarks) multiplexer(artifact.ref) = Print(ln)
+                  else {
+                    out.append(ln)
+                    out.append("\n")
                   }
-                  .await() == 0
-
-                multiplexer(artifact.ref) = StopStreaming
-
-                if (!res) {
-                  deepDependencies(artifact.ref).foreach { ref =>
-                    multiplexer(ref) = NoCompile(ref)
-                  }
-                  multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, false)
-                  multiplexer.close(artifact.ref)
                 }
-                res
-              } else compileResult
+                .await() == 0
+
+              multiplexer(artifact.ref) = StopStreaming
+
+              if (!res) {
+                deepDependencies(artifact.ref).foreach { ref =>
+                  multiplexer(ref) = NoCompile(ref)
+                }
+                multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, false)
+                multiplexer.close(artifact.ref)
+              }
+              res
+            } else compileResult
 
 // end inserted
 

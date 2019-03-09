@@ -86,8 +86,8 @@ object Theme {
           license = Rgb(160, 160, 170),
           binary = Rgb(100, 200, 200),
           gray = Rgb(80, 80, 80),
-          success = Rgb(0, 200, 0),
-          ongoing = Rgb(0, 0, 200),
+          success = Rgb(40, 150, 40),
+          ongoing = Rgb(150, 120, 0),
           failure = Rgb(200, 0, 0))
 
   object Basic
@@ -107,7 +107,7 @@ object Theme {
           binary = Ansi.brightCyan,
           gray = Ansi.brightBlack,
           success = Ansi.green,
-          ongoing = Ansi.blue,
+          ongoing = Ansi.yellow,
           failure = Ansi.red)
 
   object NoColor extends Theme("nocolor") {

@@ -56,11 +56,14 @@ object Graph {
       streaming: Boolean
     )(implicit theme: Theme
     ): Unit = {
+
     def updateState(
         ref: ModuleRef,
         f: CompilationInfo => CompilationInfo
       ): Map[ModuleRef, CompilationInfo] =
       updateValue(state, ref, f, CompilationInfo(Compiling(0), List()))
+
+    io.print(Ansi.hideCursor())
 
     stream match {
       case Tick #:: tail =>
@@ -212,10 +215,6 @@ object Graph {
         }
     }
 
-    val progressBarHorizontal = " ▏▎▍▌▋▊▉█"
-    val progressBarVertical   = " ▁▂▃▄▅▆▇█"
-    val progressBar           = progressBarHorizontal
-
     val namedLines = array.zip(nodes).map {
       case (chs, (moduleRef, _)) =>
         val ModuleRef(ProjectId(p), ModuleId(m), _, hidden) = moduleRef
@@ -225,12 +224,16 @@ object Graph {
           else theme.projectDark(p) + theme.gray("/") + theme.moduleDark(m)
 
         val errors = state.get(moduleRef).map(_.state) match {
-          case Some(Failed(_))     => theme.failure("!")
-          case Some(Successful(_)) => theme.success("*")
+          case Some(Failed(_)) =>
+            theme.failure("    !!    ")
+          case Some(Successful(_)) =>
+            theme.success("■" * 10)
           case Some(Compiling(progress)) =>
-            theme.ongoing(progressBar((progress * (progressBar.length - 1)).toInt).toString)
-          case Some(AlreadyCompiled) => theme.success("·")
-          case _                     => theme.bold(theme.failure(" "))
+            val p = (progress * 10).toInt
+            theme.ongoing("■" * p + " " * (10 - p))
+          case Some(AlreadyCompiled) =>
+            theme.gray("■" * 10)
+          case _ => theme.bold(theme.failure("          "))
         }
 
         (msg"${chs.filter(_ != '.').mkString} ${if (state.get(moduleRef) == Some(Skipped)) theme.strike(text)
