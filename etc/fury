@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 FURYHOME=$(dirname "$0")/..
 
@@ -15,9 +15,14 @@ cleanup() {
 }
 
 nailgun() {
-  "${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$@"
+  if ! sh -c "${FURYHOME}/bin/ng --nailgun-version > /dev/null 2>&1" || [[ "1" -eq "$USE_NG_PY" ]] ; then 
+	"${FURYHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
+  else
+	"${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+  fi
   cleanup
 }
+
 
 coursier(){
   "${FURYHOME}/bin/coursier" "$@"
@@ -28,15 +33,15 @@ killFury() {
 }
 
 stopFury() {
-  nailgun "${FURY_MAIN}" -- "stop" 2> /dev/null && killFury
+  nailgun "${FURY_MAIN}" "stop" 2> /dev/null && killFury
 }
 
 isRunning() {
-  nc -z 127.0.0.1 "${PORT}" > /dev/null 2> /dev/null || nailgun "${FURY_MAIN}" -- about > /dev/null 2> /dev/null
+  nc -z 127.0.0.1 "${PORT}" > /dev/null 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null 2> /dev/null
 }
 
 fury() {
-  (isRunning || (startFury > /dev/null 2> /dev/null)) && nailgun "${FURY_MAIN}" -- "$@"
+	(isRunning || (startFury > /dev/null 2> /dev/null)) && nailgun "${FURY_MAIN}" "$@"
 }
 
 startFury() {

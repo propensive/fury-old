@@ -62,6 +62,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val reposDir: Path      = (userDir / "repos").extant()
   lazy val srcsDir: Path       = (userDir / "sources").extant()
   lazy val logsDir: Path       = (furyDir / "logs").extant()
+  lazy val workDir: Path       = (furyDir / "work").extant()
   lazy val sharedDir: Path     = (furyDir / "build" / uniqueId).extant()
   lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val userConfig: Path    = userDir / "config.fury"
@@ -74,6 +75,9 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
 
   def outputDir(digest: Digest): Path =
     (analysisDir / digest.encoded[Base64Url]).extant()
+
+  def workDir(digest: Digest): Path =
+    (workDir / digest.encoded[Base64Url]).extant()
 
   def benchmarksDir(digest: Digest): Path =
     (benchmarksDir / digest.encoded[Base64Url]).extant()
