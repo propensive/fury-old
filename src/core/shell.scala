@@ -178,7 +178,7 @@ case class Shell(environment: Environment) {
     private val defaultConfigDir = Path(".fury") / "bloop"
 
     def start(): Running =
-      sh"sh -c 'launcher 1.2.5 > /dev/null'".async(_ => (), _ => ())
+      sh"sh -c 'launcher --skip-bsp-connection 1.2.5 > /dev/null'".async(_ => (), _ => ())
 
     def running(): Boolean =
       sh"bloop help".exec[Exit[String]].status == 0

@@ -375,22 +375,18 @@ case class Compilation(
       multiplexer: Multiplexer[ModuleRef, CompileEvent],
       hashes: Map[String, ModuleRef],
       client: BuildingClient
-    ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future {
+    ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future { blocking {
     val furyTempPath = Path.getTempDir("fury-socket-").get
     val socketPath   = furyTempPath / "socket"
     val process      = layout.shell.bloop.startBsp(socketPath.value)
     using(retry(5 seconds) {
-      println("retrying socketPath.value")
       new UnixDomainSocket(socketPath.value)
     }.get) { s =>
-      println("Shutting down socket")
       s.shutdownInput()
       s.shutdownOutput()
     } { bloopSocket =>
       using(Executors.newCachedThreadPool()) { x =>
-        println("shutting down executor"); x.shutdown()
       } { ex =>
-        println("Starting new executor")
         val launcher = new Launcher.Builder[BuildServer]()
           .setRemoteInterface(classOf[BuildServer])
           .setExecutorService(ex)
@@ -399,15 +395,9 @@ case class Compilation(
           .setLocalService(client)
           .create()
         val listening = launcher.startListening()
-        println("Listening")
         val server = launcher.getRemoteProxy
-        println("Got server")
-        val capabilities = new BuildClientCapabilities(
-            Collections.singletonList("scala")
-        )
-        println("created capabilities")
+        val capabilities = new BuildClientCapabilities(List("scala").asJava)
         (layout.furyDir / ".bloop").linksTo(Path("bloop"))
-        println("made symlink")
         val initializeParams = new InitializeBuildParams(
             "fury",
             "1.0.0",
@@ -415,22 +405,17 @@ case class Compilation(
             new java.io.File(layout.furyDir.value).toURI.toString,
             capabilities
         )
-        println("doBuildInit")
-        try server.buildInitialize(initializeParams).get
-        catch {
-          case e: Throwable => println("failed with " + e)
-        }
-        println("builtInitialized")
+        server.buildInitialize(initializeParams).get
         server.onBuildInitialized()
-        println("done")
         val targets = server.workspaceBuildTargets.get
         targets.getTargets.asScala.find(_.getDisplayName == target) match {
           case Some(target) =>
-            val cp                = new CompileParams(Collections.singletonList(target.getId))
+            val cp                = new CompileParams(List(target.getId).asJava)
             val compilationResult = server.buildTargetCompile(cp).get
             server
               .workspaceBuildTargets()
               .get() // TODO: some action must be done after build, otherwise bloop sometimes hang
+            server.buildShutdown().get
             compilationResult
           case None =>
             throw new RuntimeException(
@@ -440,7 +425,7 @@ case class Compilation(
         }
       }
     }
-  }
+  } }
 
   def compile(
       io: Io,

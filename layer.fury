@@ -56,6 +56,10 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
+							pyroclastic/core	projectId	pyroclastic
+								moduleId	core
+								intransitive	false
+								hidden	false
 						params	
 						sources	src/core	src/core
 						binaries	ch.epfl.scala:bsp4j:2.0.0-M3	binRepo	central
@@ -378,7 +382,7 @@ schemas	default	id	default
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	9d22a69871581081e6148af08f1a88ab8854cb58
+				commit	a1f0cc3ff90cb669132db599c8f9eec3362550cf
 				local	None
 			probation	id	probation
 				repo	git@github.com:propensive/probation.git
