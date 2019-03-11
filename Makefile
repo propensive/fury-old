@@ -107,8 +107,13 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
 
+jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
+bsp_jars=org.scala-sbt.ipcsocket:ipcsocket:1.0.0 org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M3
+coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M12
+external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
+
 dependency-jars: dist/bundle/bin/coursier
-	for JAR in $(shell dist/bundle/bin/coursier fetch org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21 io.get-coursier:coursier_2.12:1.1.0-M12); do \
+	for JAR in $(shell dist/bundle/bin/coursier fetch $(external_jars)); do \
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 

@@ -42,7 +42,11 @@
       "$ROOT/dist/bundle/lib/jopt-simple-4.6.jar",
       "$ROOT/dist/bundle/lib/coursier-cache_2.12-1.1.0-M12.jar",
       "$ROOT/dist/bundle/lib/coursier-core_2.12-1.1.0-M12.jar",
-      "$ROOT/dist/bundle/lib/coursier_2.12-1.1.0-M12.jar"
+      "$ROOT/dist/bundle/lib/coursier_2.12-1.1.0-M12.jar",
+      "$ROOT/dist/bundle/lib/bsp4j-2.0.0-M3.jar",
+      "$ROOT/dist/bundle/lib/ipcsocket-1.0.0.jar",
+      "$ROOT/dist/bundle/lib/org.eclipse.lsp4j.jsonrpc-0.6.0.jar",
+      "$ROOT/dist/bundle/lib/gson-2.7.jar"
     ],
     "out": "$ROOT/bootstrap/bloop/out",
     "classesDir": "$ROOT/bootstrap/bin",

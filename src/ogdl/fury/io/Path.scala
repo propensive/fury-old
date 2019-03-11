@@ -35,6 +35,10 @@ object Path {
       Some(Path(if (dir.endsWith("/")) dir.dropRight(1) else dir))
     case _ => None
   }
+
+  def getTempDir(prefix: String): Try[Path] =
+    Try { Path(Files.createTempDirectory(prefix).toString) }
+
 }
 
 case class Path(value: String) {
@@ -237,6 +241,15 @@ case class Path(value: String) {
       java.nio.file.Files.createDirectories(parent.javaPath)
       this
     }
+
+  def linksTo(target: Path): Try[Path] =
+    Try {
+      Files.createSymbolicLink(javaPath, target.javaPath)
+      this
+    }.recover {
+      case e: java.io.IOException => this
+    }
+
 }
 
 case class FileNotFound(path: Path)      extends FuryException

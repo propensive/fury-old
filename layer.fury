@@ -56,9 +56,17 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
+							pyroclastic/core	projectId	pyroclastic
+								moduleId	core
+								intransitive	false
+								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	io.get-coursier:coursier_2.12:1.1.0-M12	binRepo	central
+						binaries	ch.epfl.scala:bsp4j:2.0.0-M3	binRepo	central
+								group	ch.epfl.scala
+								artifact	bsp4j
+								version	2.0.0-M3
+							io.get-coursier:coursier_2.12:1.1.0-M12	binRepo	central
 								group	io.get-coursier
 								artifact	coursier_2.12
 								version	1.1.0-M12
@@ -78,6 +86,10 @@ schemas	default	id	default
 								group	org.openjdk.jmh
 								artifact	jmh-generator-reflection
 								version	1.21
+							org.scala-sbt.ipcsocket:ipcsocket:1.0.0	binRepo	central
+								group	org.scala-sbt.ipcsocket
+								artifact	ipcsocket
+								version	1.0.0
 						resources	
 						bloopSpec	None
 					dependency	id	dependency
@@ -370,7 +382,7 @@ schemas	default	id	default
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	9d22a69871581081e6148af08f1a88ab8854cb58
+				commit	a1f0cc3ff90cb669132db599c8f9eec3362550cf
 				local	None
 			probation	id	probation
 				repo	git@github.com:propensive/probation.git

@@ -15,11 +15,14 @@ cleanup() {
 }
 
 nailgun() {
-    if ! sh -c "${FURYHOME}/bin/ng --nailgun-version > /dev/null 2>&1" || [[ "1" -eq "$USE_NG_PY" ]] ; then 
-	"${FURYHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
-    else
-	"${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
-    fi
+  if ! sh -c "${FURYHOME}/bin/ng --nailgun-version > /dev/null 2>&1" || [[ "1" -eq "$USE_NG_PY" ]] ; then 
+      "${FURYHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
+  else
+      "${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+  fi
+  res=$?
+  cleanup
+  return $res
 }
 
 
