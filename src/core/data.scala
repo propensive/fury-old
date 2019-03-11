@@ -684,11 +684,11 @@ object ModuleRef {
           .string(theme)
       }
 
-  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
+  val JavaRef = ModuleRef(ProjectId("java", "java"), ModuleId("compiler"), false)
 
   def parseFull(string: String, intransitive: Boolean): Try[ModuleRef] = string match {
-    case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
-      Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
+    case r"$groupId@([\w-]+)$projectName@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
+      Success(ModuleRef(ProjectId(groupId, projectName), ModuleId(moduleId), intransitive))
     case _ =>
       Failure(ItemNotFound(ModuleId(string)))
   }
@@ -697,8 +697,8 @@ object ModuleRef {
     string match {
       // `dummy1` and `dummy2` are not used, but binding them to the inner capturing groups
       // works around a bug in Kaleidoscope
-      case r"$projectId@([a-z]$dummy1@(-?[a-z0-9]+)*)\/$moduleId@([a-z]$dummy2@(-?[a-z0-9]+)*)" =>
-        Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
+      case r"$groupId@([\w-]+)$projectName@([a-z]$dummy1@(-?[a-z0-9]+)*)\/$moduleId@([a-z]$dummy2@(-?[a-z0-9]+)*)" =>
+        Success(ModuleRef(ProjectId(groupId, projectName), ModuleId(moduleId), intransitive))
       case r"[a-z](-?[a-z0-9]+)*" =>
         Success(ModuleRef(project.id, ModuleId(string), intransitive))
       case _ =>
@@ -746,12 +746,15 @@ object ProjectId {
   implicit def diff: Diff[ProjectId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 
   def parse(name: String): Try[ProjectId] = name match {
-    case r"[a-z](-?[a-z0-9]+)*" => Success(ProjectId(name))
+    case r"${groupId}@([\w-]+):${nm}@([\w-]+)" => Success(ProjectId(groupId, nm))
+    case r"[a-z](-?[a-z0-9]+)*" => Success(ProjectId(name, name))
     case _                      => Failure(InvalidValue(name))
   }
 }
 
-case class ProjectId(key: String) extends Key(msg"project")
+case class ProjectId(groupId: String, name: String) extends Key(msg"project"){
+  override def key: String = groupId + ":" + "nameId"
+}
 
 object ModuleId {
   implicit val msgShow: MsgShow[ModuleId]       = m => UserMsg(_.module(m.key))
@@ -1008,6 +1011,7 @@ object Project {
 
 case class Project(
     id: ProjectId,
+    version: String,
     modules: SortedSet[Module] = TreeSet(),
     main: Option[ModuleId] = None,
     license: LicenseId = License.unknown,

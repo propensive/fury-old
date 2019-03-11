@@ -138,7 +138,7 @@ object Graph {
 
     val namedLines = array.zip(nodes).map {
       case (chs, (moduleRef, _)) =>
-        val ModuleRef(ProjectId(p), ModuleId(m), _, hidden) = moduleRef
+        val ModuleRef(ProjectId(_, p), ModuleId(m), _, hidden) = moduleRef
         val text =
           if (describe || state.get(moduleRef) == Some(Compiling))
             theme.project(p) + theme.gray("/") + theme.module(m)

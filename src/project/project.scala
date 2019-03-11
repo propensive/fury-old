@@ -90,7 +90,7 @@ object ProjectCli {
                          .map(_.headOption)
       projectId <- invoc(ProjectNameArg)
       license   <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
-      project   <- ~fury.Project(projectId, license = license, compiler = optCompilerRef)
+      project   <- ~fury.Project(projectId, version = ???, license = license, compiler = optCompilerRef)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
