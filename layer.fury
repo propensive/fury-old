@@ -62,10 +62,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	ch.epfl.scala:bsp4j:2.0.0-M3	binRepo	central
+						binaries	ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
 								group	ch.epfl.scala
 								artifact	bsp4j
-								version	2.0.0-M3
+								version	2.0.0-M4
 							io.get-coursier:coursier_2.12:1.1.0-M12	binRepo	central
 								group	io.get-coursier
 								artifact	coursier_2.12

@@ -67,7 +67,7 @@ startFuryStandalone() {
 
 startFuryDirect() {
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:25005 "$FURY_MAIN" "$@"
+  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:25005 "$FURY_MAIN" "$@"
 }
 
 case "$1" in
