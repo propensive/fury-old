@@ -30,11 +30,13 @@ object Bloop {
   private[this] def testServer(): Try[Unit] =
     Try(new Socket("localhost", 8212).close().unit)
 
+  def version: String = "1.2.5"
+
   def server(shell: Shell, io: Io): Try[Running] =
     synchronized {
       val interval = 150.millis
       io.print("Launching bloop compile server...")
-      val running = shell.bloop.start()
+      val running = shell.bloop.start(version)
       Stream
         .iterate[(Try[Unit], Duration)]((testServer, 5 seconds)) {
           case (Success(()), _) => Success(()) -> (0 seconds)

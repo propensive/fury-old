@@ -15,11 +15,6 @@
  */
 package fury
 
-import java.io.File
-import java.nio.file.Files
-import java.util.Collections
-import java.util.concurrent.{ExecutorService, Executors}
-
 import ch.epfl.scala.bsp4j.{
   BuildClientCapabilities,
   BuildServer,
@@ -32,7 +27,6 @@ import gastronomy._
 import kaleidoscope._
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
-import org.scalasbt.ipcsocket.UnixDomainSocket
 import com.google.gson.{Gson, JsonElement}
 import fury.Graph.{Compiling, DiagnosticError, DiagnosticMessage}
 
@@ -351,20 +345,6 @@ case class Compilation(
       }
   }
 
-  def retry[T](duration: FiniteDuration)(f: => T): Try[T] =
-    try {
-      Success(f)
-    } catch {
-      case e: Exception =>
-        if (duration <= 0.milliseconds)
-          Failure(e)
-        else {
-          val period = 50.milliseconds
-          Thread.sleep(period.toMillis)
-          retry(duration - period)(f)
-        }
-    }
-
   def using[A, B](resource: A)(cleanup: A => Unit)(f: A => B): B =
     try f(resource)
     finally cleanup(resource)
@@ -375,27 +355,18 @@ case class Compilation(
       multiplexer: Multiplexer[ModuleRef, CompileEvent],
       hashes: Map[String, ModuleRef],
       client: BuildingClient
-    ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future { blocking {
-    val furyTempPath = Path.getTempDir("fury-socket-").get
-    val socketPath   = furyTempPath / "socket"
-    val process      = layout.shell.bloop.startBsp(socketPath.value)
-    using(retry(5 seconds) {
-      new UnixDomainSocket(socketPath.value)
-    }.get) { s =>
-      s.shutdownInput()
-      s.shutdownOutput()
-    } { bloopSocket =>
-      using(Executors.newCachedThreadPool()) { x =>
-      } { ex =>
+    ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future {
+    blocking {
+      using(Runtime.getRuntime.exec(s"launcher ${Bloop.version}"))(_.destroy()) { handle =>
         val launcher = new Launcher.Builder[BuildServer]()
           .setRemoteInterface(classOf[BuildServer])
-          .setExecutorService(ex)
-          .setInput(bloopSocket.getInputStream)
-          .setOutput(bloopSocket.getOutputStream)
+          .setExecutorService(null)
+          .setInput(handle.getInputStream)
+          .setOutput(handle.getOutputStream)
           .setLocalService(client)
           .create()
-        val listening = launcher.startListening()
-        val server = launcher.getRemoteProxy
+        val listening    = launcher.startListening()
+        val server       = launcher.getRemoteProxy
         val capabilities = new BuildClientCapabilities(List("scala").asJava)
         (layout.furyDir / ".bloop").linksTo(Path("bloop"))
         val initializeParams = new InitializeBuildParams(
@@ -410,13 +381,8 @@ case class Compilation(
         val targets = server.workspaceBuildTargets.get
         targets.getTargets.asScala.find(_.getDisplayName == target) match {
           case Some(target) =>
-            val cp                = new CompileParams(List(target.getId).asJava)
-            val compilationResult = server.buildTargetCompile(cp).get
-            server
-              .workspaceBuildTargets()
-              .get() // TODO: some action must be done after build, otherwise bloop sometimes hang
-            server.buildShutdown().get
-            compilationResult
+            val cp = new CompileParams(List(target.getId).asJava)
+            server.buildTargetCompile(cp).get
           case None =>
             throw new RuntimeException(
                 s"Fatal error: target '${target}' not found in build targets ${targets.getTargets.asScala
@@ -425,7 +391,8 @@ case class Compilation(
         }
       }
     }
-  } }
+
+  }
 
   def compile(
       io: Io,
