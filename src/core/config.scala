@@ -15,7 +15,6 @@
  */
 package fury
 
-import exoskeleton._
 import guillotine._
 
 import scala.util._

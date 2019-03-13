@@ -21,15 +21,9 @@ import gastronomy._
 import guillotine._
 import mercator._
 
+import scala.concurrent.duration._
 import scala.util._
 import scala.util.control.NonFatal
-import scala.concurrent.duration._
-
-import ch.epfl.scala.bsp4j._
-import org.eclipse.lsp4j.jsonrpc.Launcher
-import java.util.concurrent.Executors
-import org.scalasbt.ipcsocket.UnixDomainSocket
-import scala.collection.JavaConverters._
 
 object Bloop {
 
