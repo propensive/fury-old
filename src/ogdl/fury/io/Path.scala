@@ -38,7 +38,8 @@ object Path {
 case class Path(value: String) {
   def filename: String = value.replaceAll("/$", "")
 
-  def javaPath: JPath = Paths.get(value)
+  def javaPath: JPath             = Paths.get(value)
+  lazy val javaFile: java.io.File = javaPath.toFile
 
   def name: String = javaPath.getFileName.toString
 
