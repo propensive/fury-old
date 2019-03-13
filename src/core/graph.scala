@@ -30,9 +30,8 @@ object Graph {
   sealed trait DiagnosticMessage {
     def msg: String
   }
-  case class DiagnosticError(msg: String)   extends DiagnosticMessage
-  case class DiagnosticWarning(msg: String) extends DiagnosticMessage
-  case class OtherMessage(msg: String)      extends DiagnosticMessage
+  case class CompilerDiagnostic(msg: String) extends DiagnosticMessage
+  case class OtherMessage(msg: String)       extends DiagnosticMessage
 
   case class CompilationInfo(state: CompileState, messages: List[DiagnosticMessage])
 
