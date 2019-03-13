@@ -223,15 +223,16 @@ object Graph {
             theme.project(p) + theme.gray("/") + theme.module(m)
           else theme.projectDark(p) + theme.gray("/") + theme.moduleDark(m)
 
-        val errors = state.get(moduleRef).map(_.state) match {
-          case Some(Failed(_)) =>
-            theme.failure("    !!    ")
-          case Some(Successful(_)) =>
+        val errors = state.get(moduleRef) match {
+          case Some(CompilationInfo(Failed(_), msgs)) =>
+            val plural = if (msgs.length == 1) "" else "s"
+            theme.failure(s"${msgs.size} error${plural}".padTo(10, ' '))
+          case Some(CompilationInfo(Successful(_), msgs)) =>
             theme.success("■" * 10)
-          case Some(Compiling(progress)) =>
+          case Some(CompilationInfo(Compiling(progress), msgs)) =>
             val p = (progress * 10).toInt
             theme.ongoing("■" * p + " " * (10 - p))
-          case Some(AlreadyCompiled) =>
+          case Some(CompilationInfo(AlreadyCompiled, msgs)) =>
             theme.gray("■" * 10)
           case _ => theme.bold(theme.failure("          "))
         }

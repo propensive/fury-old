@@ -160,6 +160,137 @@ object BloopSpec {
 
 case class BloopSpec(org: String, name: String, version: String)
 
+case class BspConnection(client: BuildingClient, server: BuildServer) {
+
+  def provision[T](
+      currentCompilation: Compilation,
+      currentMultiplexer: Multiplexer[ModuleRef, CompileEvent]
+    )(action: BuildServer => T
+    ): T = {
+    client.compilation = currentCompilation
+    client.multiplexer = currentMultiplexer
+    action(server)
+  }
+}
+
+object Compilation {
+
+  val bspPool: Pool[Path, BspConnection] = dir => {
+    println("Constructing new BuildingClient")
+    val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
+    val client = new BuildingClient()
+    println("Constructed BuildingClient")
+    val launcher = new Launcher.Builder[BuildServer]()
+      .setRemoteInterface(classOf[BuildServer])
+      .setExecutorService(null)
+      .setInput(handle.getInputStream)
+      .setOutput(handle.getOutputStream)
+      .setLocalService(client)
+      .create()
+    println("Created launcher")
+    launcher.startListening()
+    println("Started listening")
+    val server = launcher.getRemoteProxy
+    println("Got remote proxy")
+    val initializeParams = new InitializeBuildParams(
+        "fury",
+        Version.current,
+        "2.0.0-M3",
+        dir.uriString,
+        new BuildClientCapabilities(List("scala").asJava)
+    )
+    println("buildInitialize")
+    server.buildInitialize(initializeParams).get
+    println("Finished buildInitialize")
+    server.onBuildInitialized()
+    println("Run onBuildInitialized")
+    BspConnection(client, server)
+  }
+
+}
+
+class BuildingClient() extends BuildClient {
+  var compilation: Compilation                          = _
+  var multiplexer: Multiplexer[ModuleRef, CompileEvent] = _
+
+  override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
+
+  override def onBuildLogMessage(params: LogMessageParams): Unit = {}
+
+  override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
+    val hash     = getModuleHash(params.getBuildTarget.getUri)
+    val modref   = compilation.reverseHashes(hash)
+    val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
+    val diag     = params.getDiagnostics.asScala.head
+    val lineNum  = diag.getRange.getStart.getLine
+    val charNum  = diag.getRange.getStart.getCharacter
+    val codeLine = scala.io.Source.fromFile(fileName).getLines.toList(lineNum)
+    multiplexer(modref) = DiagnosticMsg(
+        modref,
+        DiagnosticError(
+            s"\n${fileName}:${lineNum + 1}:${charNum + 1}:error:${diag.getMessage}\n${codeLine}\n${" " * charNum}^\n "
+        ) // TODO: print it prettier
+    )
+  }
+
+  override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {}
+
+  def convertDataTo[A: ClassTag](data: Object): A = {
+    val gson = new Gson()
+    val json = data.asInstanceOf[JsonElement]
+    val report =
+      gson.fromJson[A](json, classTag[A].runtimeClass)
+    report
+  }
+
+  def getModuleHash(bspUri: String) = {
+    val uriQuery = new java.net.URI(bspUri).getRawQuery
+      .split("&")
+      .to[List]
+      .map(_.split("=", 2))
+      .map { x =>
+        x(0) -> x(1)
+      }
+      .toMap
+
+    uriQuery("id")
+  }
+
+  override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
+    val report = convertDataTo[CompileTask](params.getData)
+    val hash   = getModuleHash(report.getTarget.getUri)
+    val modref = compilation.reverseHashes(hash)
+    multiplexer(modref) = CompilationProgress(modref, params.getProgress.toDouble / params.getTotal)
+  }
+
+  override def onBuildTaskStart(params: TaskStartParams): Unit = {
+    val report = convertDataTo[CompileTask](params.getData)
+    val hash   = getModuleHash(report.getTarget.getUri)
+    val modref = compilation.reverseHashes(hash)
+    multiplexer(modref) = StartCompile(modref)
+    compilation.deepDependencies(modref).foreach { ref =>
+      multiplexer(ref) = NoCompile(ref)
+    }
+  }
+  override def onBuildTaskFinish(params: TaskFinishParams): Unit =
+    params.getDataKind match {
+      case TaskDataKind.COMPILE_REPORT =>
+        val report = convertDataTo[CompileReport](params.getData)
+        val modref = compilation.reverseHashes.compose(getModuleHash)(report.getTarget.getUri)
+        params.getStatus match {
+          case StatusCode.OK => {
+            multiplexer(modref) = StopCompile(modref, "", true)
+          }
+          case StatusCode.ERROR => {
+            multiplexer(modref) = StopCompile(modref, "", false)
+          }
+          case StatusCode.CANCELLED => {
+            multiplexer(modref) = StopCompile(modref, "", false)
+          }
+        }
+    }
+}
+
 case class Compilation(
     allDependenciesGraph: Map[ModuleRef, List[ModuleRef]],
     modulesToExecuteBloopGraph: Map[ModuleRef, List[ModuleRef]],
@@ -168,6 +299,10 @@ case class Compilation(
     universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
+
+  val reverseHashes = artifacts.keys.map { moduleRef =>
+    hash(moduleRef).encoded[Base64Url] -> moduleRef
+  }.toMap
 
   def hash(ref: ModuleRef): Digest = {
     val artifact = artifacts(ref)
@@ -264,134 +399,32 @@ case class Compilation(
       Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
     } ++ classpath(ref, layout) + layout.classesDir(hash(ref)) + layout.resourcesDir(hash(ref))
 
-  case class BuildingClient(
-      multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      hashes: Map[String, ModuleRef])
-      extends BuildClient {
-
-    override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
-
-    override def onBuildLogMessage(params: LogMessageParams): Unit = {}
-
-    override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-      val hash     = getModuleHash(params.getBuildTarget.getUri)
-      val modref   = hashes(hash)
-      val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-      val diag     = params.getDiagnostics.asScala.head
-      val lineNum  = diag.getRange.getStart.getLine
-      val charNum  = diag.getRange.getStart.getCharacter
-      val codeLine = scala.io.Source.fromFile(fileName).getLines.toList(lineNum)
-      multiplexer(modref) = DiagnosticMsg(
-          modref,
-          DiagnosticError(
-              s"\n${fileName}:${lineNum + 1}:${charNum + 1}:error:${diag.getMessage}\n${codeLine}\n${" " * charNum}^\n "
-          ) // TODO: print it prettier
-      )
-    }
-    override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {}
-
-    def convertDataTo[A: ClassTag](data: Object): A = {
-      val gson = new Gson()
-      val json = data.asInstanceOf[JsonElement]
-      val report =
-        gson.fromJson[A](json, classTag[A].runtimeClass)
-      report
-    }
-
-    def getModuleHash(bspUri: String) = {
-
-      val uriQuery = new java.net.URI(bspUri).getRawQuery
-        .split("&")
-        .toList
-        .map(_.split("="))
-        .map(x => x(0) -> x(1))
-        .toMap
-      uriQuery("id")
-    }
-
-    override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
-      val report = convertDataTo[CompileTask](params.getData)
-      val hash   = getModuleHash(report.getTarget.getUri)
-      val modref = hashes(hash)
-      multiplexer(modref) =
-        CompilationProgress(modref, params.getProgress.toDouble / params.getTotal)
-    }
-
-    override def onBuildTaskStart(params: TaskStartParams): Unit = {
-      val report = convertDataTo[CompileTask](params.getData)
-      val hash   = getModuleHash(report.getTarget.getUri)
-      val modref = hashes(hash)
-      multiplexer(modref) = StartCompile(modref)
-      deepDependencies(modref).foreach { ref =>
-        multiplexer(ref) = NoCompile(ref)
-      }
-    }
-    override def onBuildTaskFinish(params: TaskFinishParams): Unit =
-      params.getDataKind match {
-        case TaskDataKind.COMPILE_REPORT =>
-          val report = convertDataTo[CompileReport](params.getData)
-          val modref = hashes.compose(getModuleHash)(report.getTarget.getUri)
-          params.getStatus match {
-            case StatusCode.OK => {
-              multiplexer(modref) = StopCompile(modref, "", true)
-            }
-            case StatusCode.ERROR => {
-              multiplexer(modref) = StopCompile(modref, "", false)
-            }
-            case StatusCode.CANCELLED => {
-              multiplexer(modref) = StopCompile(modref, "", false)
-            }
-          }
-      }
-  }
-
   def using[A, B](resource: A)(cleanup: A => Unit)(f: A => B): B =
     try f(resource)
     finally cleanup(resource)
 
   def compileModule(
+      io: Io,
       target: String,
       layout: Layout,
-      multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      hashes: Map[String, ModuleRef],
-      client: BuildingClient
+      multiplexer: Multiplexer[ModuleRef, CompileEvent]
     ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future {
     blocking {
-      using(Runtime.getRuntime.exec(s"launcher ${Bloop.version}"))(_.destroy()) { handle =>
-        val launcher = new Launcher.Builder[BuildServer]()
-          .setRemoteInterface(classOf[BuildServer])
-          .setExecutorService(null)
-          .setInput(handle.getInputStream)
-          .setOutput(handle.getOutputStream)
-          .setLocalService(client)
-          .create()
-        val listening    = launcher.startListening()
-        val server       = launcher.getRemoteProxy
-        val capabilities = new BuildClientCapabilities(List("scala").asJava)
-        (layout.furyDir / ".bloop").linksTo(Path("bloop"))
-        val initializeParams = new InitializeBuildParams(
-            "fury",
-            "1.0.0",
-            "2.0.0-M3",
-            new java.io.File(layout.furyDir.value).toURI.toString,
-            capabilities
-        )
-        server.buildInitialize(initializeParams).get
-        server.onBuildInitialized()
-        val targets = server.workspaceBuildTargets.get
-        targets.getTargets.asScala.find(_.getDisplayName == target) match {
-          case Some(target) =>
-            val cp = new CompileParams(List(target.getId).asJava)
-            server.buildTargetCompile(cp).get
-          case None =>
-            throw new RuntimeException(
-                s"Fatal error: target '${target}' not found in build targets ${targets.getTargets.asScala
-                  .map(_.getDisplayName)} of '${layout.furyDir}'")
+      Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+        conn.provision(this, multiplexer) { server =>
+          val targets = server.workspaceBuildTargets.get
+          targets.getTargets.asScala.find(_.getDisplayName == target) match {
+            case Some(target) =>
+              server.buildTargetCompile(new CompileParams(List(target.getId).asJava)).get
+            case None =>
+              throw new RuntimeException(
+                  s"Fatal error: target '${target}' not found in build targets ${targets.getTargets.asScala
+                    .map(_.getDisplayName)} of '${layout.furyDir}'")
 
+          }
         }
       }
     }
-
   }
 
   def compile(
@@ -403,13 +436,11 @@ case class Compilation(
     ): Map[ModuleRef, Future[CompileResult]] = {
 
     val artifact = artifacts(moduleRef)
-    val hashes = artifacts.keys.map { moduleRef =>
-      hash(moduleRef).encoded[Base64Url] -> moduleRef
-    }.toMap
     val newFutures = modulesToExecuteBloopGraph(moduleRef).foldLeft(futures) { (futures, dep) =>
       if (futures.contains(dep)) futures
       else compile(io, dep, multiplexer, futures, layout)
     }
+
     val dependencyFutures = Future.sequence(modulesToExecuteBloopGraph(moduleRef).map(newFutures))
     val future =
       dependencyFutures.flatMap { inputs =>
@@ -425,12 +456,7 @@ case class Compilation(
           }
           val targetHash = hash(artifact.ref).encoded
           blocking {
-            compileModule(
-                targetHash,
-                layout,
-                multiplexer,
-                hashes,
-                BuildingClient(multiplexer, hashes)).map(_.getStatusCode == StatusCode.OK)
+            compileModule(io, targetHash, layout, multiplexer).map(_.getStatusCode == StatusCode.OK)
           }.map { compileResult =>
 // inserted
             if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {

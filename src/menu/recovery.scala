@@ -97,7 +97,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
             _      <- ~io.await()
           } yield
             cli.abort {
-              msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}."
+              msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}"
             }
 
           def unloggable =

@@ -54,7 +54,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
 
   lazy val furyDir: Path       = (base / ".fury").extant()
   lazy val historyDir: Path    = (furyDir / "history").extant()
-  lazy val bloopDir: Path      = (furyDir / "bloop").extant()
+  lazy val bloopDir: Path      = (furyDir / ".bloop").extant()
   lazy val classesDir: Path    = (furyDir / "classes").extant()
   lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
   lazy val analysisDir: Path   = (furyDir / "analysis").extant()
