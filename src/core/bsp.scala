@@ -13,7 +13,9 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.core
+
+import fury.strings._, fury.jsongen._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
@@ -23,7 +25,7 @@ import java.util.concurrent.{CompletableFuture, Future}
 
 import ch.epfl.scala.bsp4j
 import ch.epfl.scala.bsp4j._
-import fury.FuryBuildServer._
+import FuryBuildServer._
 import gastronomy.{Bytes, Digest, Md5}
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
@@ -37,15 +39,15 @@ object Bsp {
   val bspVersion = "2.0.0"
 
   def createConfig(ctx: BspCli.Context): Try[ExitStatus] = {
-    val bspDir = ctx.layout.bspDir.extant()
+    val bspDir    = ctx.layout.bspDir.extant()
     val bspConfig = bspDir / "fury.json"
 
     for {
       configFile <- ~Files.write(
-        bspConfig.javaPath,
-        bspConfigJson(ctx).serialize.getBytes(StandardCharsets.UTF_8),
-        StandardOpenOption.CREATE,
-        StandardOpenOption.TRUNCATE_EXISTING)
+                       bspConfig.javaPath,
+                       bspConfigJson(ctx).serialize.getBytes(StandardCharsets.UTF_8),
+                       StandardOpenOption.CREATE,
+                       StandardOpenOption.TRUNCATE_EXISTING)
     } yield {
       println(s"BSP config written to $configFile")
       Done
@@ -57,18 +59,20 @@ object Bsp {
     val furyExecutable = ctx.layout.home / "fury-0.4.0" / "bin" / "fury"
 
     Json(
-      name = "Fury",
-      argv = List(
-        furyExecutable.javaPath.toAbsolutePath.toString,
-        "direct", "bsp", "run"
-      ),
-      version = Version.current,
-      bspVersion = bspVersion,
-      languages = List("java","scala")
+        name = "Fury",
+        argv = List(
+            furyExecutable.javaPath.toAbsolutePath.toString,
+            "direct",
+            "bsp",
+            "run"
+        ),
+        version = Version.current,
+        bspVersion = bspVersion,
+        languages = List("java", "scala")
     )
   }
 
-  def startServer(ctx: BspCli.Context): Try[ExitStatus] = {
+  def startServer(ctx: BspCli.Context): Try[ExitStatus] =
     for {
       running <- ~run(System.in, System.out, ctx.layout)
     } yield {
@@ -76,8 +80,6 @@ object Bsp {
       running.get()
       Done
     }
-  }
-
 
   def run(in: InputStream, out: OutputStream, layout: Layout): Future[Void] = {
 
@@ -107,46 +109,54 @@ object BspCli {
     cli.layout.map(Context(cli, _))
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator)
+    extends BuildServer
+    with ScalaBuildServer {
   import FuryBuildServer._
 
   private val config = Config()
-  private val io = new Io(System.err, config)
+  private val io     = new Io(System.err, config)
 
   private def structure: Try[Structure] =
     for {
-      layer <- Layer.read(io, layout.furyConfig, layout)
-      schema <- layer.mainSchema
+      layer     <- Layer.read(io, layout.furyConfig, layout)
+      schema    <- layer.mainSchema
       hierarchy <- schema.hierarchy(io, layout.pwd, layout)
-      universe <- hierarchy.universe
-      projects <- layer.projects
-      graph <- projects.flatMap(_.moduleRefs).map { ref =>
-        for {
-          ds <- universe.dependencies(io, ref, layout)
-          arts <- (ds + ref).map { d => universe.artifact(io, d, layout) }.sequence
-        } yield {
-          arts.map { a => (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide)) }
-        }
-      }.sequence.map(_.flatten.toMap)
+      universe  <- hierarchy.universe
+      projects  <- layer.projects
+      graph <- projects
+                .flatMap(_.moduleRefs)
+                .map { ref =>
+                  for {
+                    ds <- universe.dependencies(io, ref, layout)
+                    arts <- (ds + ref).map { d =>
+                             universe.artifact(io, d, layout)
+                           }.sequence
+                  } yield {
+                    arts.map { a =>
+                      (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
+                    }
+                  }
+                }
+                .sequence
+                .map(_.flatten.toMap)
       allModuleRefs = graph.keys
-      modules <- allModuleRefs.traverse(ref => universe.getMod(ref).map((ref, _)))
+      modules       <- allModuleRefs.traverse(ref => universe.getMod(ref).map((ref, _)))
       artifacts <- graph.keys.map { key =>
-        universe.artifact(io, key, layout).map(key -> _)
-      }.sequence.map(_.toMap)
+                    universe.artifact(io, key, layout).map(key -> _)
+                  }.sequence.map(_.toMap)
       checkouts <- graph.keys.map(universe.checkout(_, layout)).sequence
-    } yield Structure(
-      modules.toMap,
-      graph,
-      checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-      artifacts)
+    } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
 
-  override def buildInitialize(initializeBuildParams: InitializeBuildParams): CompletableFuture[InitializeBuildResult] = {
+  override def buildInitialize(
+      initializeBuildParams: InitializeBuildParams
+    ): CompletableFuture[InitializeBuildResult] = {
 
     io.println("**> buildInitialize")
 
     val capabilities = new BuildServerCapabilities()
     capabilities.setBuildTargetChangedProvider(false)
-    val compileProvider = new CompileProvider(List("java","scala").asJava)
+    val compileProvider = new CompileProvider(List("java", "scala").asJava)
     capabilities.setCompileProvider(compileProvider)
     capabilities.setDependencySourcesProvider(false)
     capabilities.setInverseSourcesProvider(false)
@@ -192,30 +202,32 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer wi
     val future = new CompletableFuture[WorkspaceBuildTargetsResult]()
 
     result match {
-      case Success(value) => future.complete(value)
+      case Success(value)     => future.complete(value)
       case Failure(exception) => future.completeExceptionally(exception)
     }
 
     future
   }
 
-  override def buildTargetSources(sourcesParams: SourcesParams): CompletableFuture[SourcesResult] = {
+  override def buildTargetSources(
+      sourcesParams: SourcesParams
+    ): CompletableFuture[SourcesResult] = {
 
     io.println("**> buildTargetSources")
 
     val sourceItems = for {
-      struct <- structure
+      struct  <- structure
       targets = sourcesParams.getTargets.asScala
       items <- targets.traverse { t =>
-        struct.moduleRef(t).map { ref =>
-          artifactSourcesItem(t, struct.artifacts(ref))
-        }
-      }
+                struct.moduleRef(t).map { ref =>
+                  artifactSourcesItem(t, struct.artifacts(ref))
+                }
+              }
     } yield new SourcesResult(items.asJava)
 
     val future = new CompletableFuture[SourcesResult]()
     sourceItems match {
-      case Success(value) => future.complete(value)
+      case Success(value)     => future.complete(value)
       case Failure(exception) => future.completeExceptionally(exception)
     }
 
@@ -229,14 +241,17 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer wi
     new SourcesItem(target, items.asJava)
   }
 
-
-  override def buildTargetInverseSources(inverseSourcesParams: InverseSourcesParams): CompletableFuture[InverseSourcesResult] = {
+  override def buildTargetInverseSources(
+      inverseSourcesParams: InverseSourcesParams
+    ): CompletableFuture[InverseSourcesResult] = {
     val future = new CompletableFuture[InverseSourcesResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
     future
   }
 
-  override def buildTargetDependencySources(dependencySourcesParams: DependencySourcesParams): CompletableFuture[DependencySourcesResult] = {
+  override def buildTargetDependencySources(
+      dependencySourcesParams: DependencySourcesParams
+    ): CompletableFuture[DependencySourcesResult] = {
 
     io.println("**> buildTargetDependencySources")
 
@@ -244,19 +259,23 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer wi
 
     val future = new CompletableFuture[DependencySourcesResult]()
     result match {
-      case Success(value) => future.complete(value)
+      case Success(value)     => future.complete(value)
       case Failure(exception) => future.completeExceptionally(exception)
     }
     future
   }
 
-  override def buildTargetResources(resourcesParams: ResourcesParams): CompletableFuture[ResourcesResult] = {
+  override def buildTargetResources(
+      resourcesParams: ResourcesParams
+    ): CompletableFuture[ResourcesResult] = {
     val future = new CompletableFuture[ResourcesResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
     future
   }
 
-  override def buildTargetCompile(compileParams: CompileParams): CompletableFuture[bsp4j.CompileResult] = {
+  override def buildTargetCompile(
+      compileParams: CompileParams
+    ): CompletableFuture[bsp4j.CompileResult] = {
     // TODO MVP
     val future = new CompletableFuture[bsp4j.CompileResult]()
     val result = new bsp4j.CompileResult(StatusCode.CANCELLED)
@@ -276,55 +295,65 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer wi
     future
   }
 
-  override def buildTargetCleanCache(cleanCacheParams: CleanCacheParams): CompletableFuture[CleanCacheResult] = {
+  override def buildTargetCleanCache(
+      cleanCacheParams: CleanCacheParams
+    ): CompletableFuture[CleanCacheResult] = {
     // TODO fury supports cleaning
     val future = new CompletableFuture[CleanCacheResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
     future
   }
 
-
-  private def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure): Try[ScalacOptionsItem] = {
+  private def scalacOptionsItem(
+      target: BuildTargetIdentifier,
+      struct: Structure
+    ): Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
-      val art = struct.artifacts(ref)
+      val art    = struct.artifacts(ref)
       val params = art.params.map(_.parameter)
-      val paths = art.binaries.map { p => p.javaPath.toUri.toString }
+      val paths = art.binaries.map { p =>
+        p.javaPath.toUri.toString
+      }
       val classesDir = layout.classesDir.javaPath.toAbsolutePath.toUri.toString
       new ScalacOptionsItem(target, params.asJava, paths.asJava, classesDir)
     }
-  }
 
-
-  override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams): CompletableFuture[ScalacOptionsResult] = {
+  override def buildTargetScalacOptions(
+      scalacOptionsParams: ScalacOptionsParams
+    ): CompletableFuture[ScalacOptionsResult] = {
 
     io.println("**> buildTargetScalacOptions")
 
     val result = for {
-      struct <- structure
+      struct  <- structure
       targets = scalacOptionsParams.getTargets.asScala
       items <- targets.traverse { target =>
-        struct.moduleRef(target).flatMap { ref =>
-          scalacOptionsItem(target, struct)
-        }
-      }
+                struct.moduleRef(target).flatMap { ref =>
+                  scalacOptionsItem(target, struct)
+                }
+              }
     } yield new ScalacOptionsResult(items.asJava)
 
     val future = new CompletableFuture[ScalacOptionsResult]()
     result match {
-      case Success(value) => future.complete(value)
+      case Success(value)     => future.complete(value)
       case Failure(exception) => future.completeExceptionally(exception)
     }
     future
   }
 
-  override def buildTargetScalaTestClasses(scalaTestClassesParams: ScalaTestClassesParams): CompletableFuture[ScalaTestClassesResult] = {
+  override def buildTargetScalaTestClasses(
+      scalaTestClassesParams: ScalaTestClassesParams
+    ): CompletableFuture[ScalaTestClassesResult] = {
     val future = new CompletableFuture[ScalaTestClassesResult]()
     val result = new ScalaTestClassesResult(List.empty.asJava)
     future.complete(result)
     future
   }
 
-  override def buildTargetScalaMainClasses(scalaMainClassesParams: ScalaMainClassesParams): CompletableFuture[ScalaMainClassesResult] = {
+  override def buildTargetScalaMainClasses(
+      scalaMainClassesParams: ScalaMainClassesParams
+    ): CompletableFuture[ScalaMainClassesResult] = {
     val future = new CompletableFuture[ScalaMainClassesResult]()
     val result = new ScalaMainClassesResult(List.empty.asJava)
     future.complete(result)
@@ -339,34 +368,36 @@ object FuryBuildServer {
     var cancel: () => Unit = () => ()
   }
 
-  case class Structure(modules: Map[ModuleRef, Module],
-                       graph: Map[ModuleRef, List[ModuleRef]],
-                       checkouts: Set[Checkout],
-                       artifacts: Map[ModuleRef, Artifact]) {
+  case class Structure(
+      modules: Map[ModuleRef, Module],
+      graph: Map[ModuleRef, List[ModuleRef]],
+      checkouts: Set[Checkout],
+      artifacts: Map[ModuleRef, Artifact]) {
 
-    private[this] val
-    hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
+    private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
 
     // TODO unify this with Compilation.hash
     def hash(ref: ModuleRef): Digest = {
       val artifact = artifacts(ref)
       hashes.getOrElseUpdate(
-        ref, {
-          val food = (
-            artifact.kind,
-            artifact.main,
-            artifact.plugin,
-            artifact.checkouts,
-            artifact.binaries,
-            artifact.dependencies,
-            artifact.compiler.map { c => hash(c.ref) },
-            artifact.params,
-            artifact.intransitive,
-            artifact.sourcePaths,
-            graph(ref).map(hash)
-          )
-          food.digest[Md5]
-        }
+          ref, {
+            val food = (
+                artifact.kind,
+                artifact.main,
+                artifact.plugin,
+                artifact.checkouts,
+                artifact.binaries,
+                artifact.dependencies,
+                artifact.compiler.map { c =>
+                  hash(c.ref)
+                },
+                artifact.params,
+                artifact.intransitive,
+                artifact.sourcePaths,
+                graph(ref).map(hash)
+            )
+            food.digest[Md5]
+          }
       )
     }
 
@@ -376,34 +407,35 @@ object FuryBuildServer {
     }
 
     def moduleRef(bti: BuildTargetIdentifier): Try[ModuleRef] = {
-      val id = new URI(bti.getUri).getSchemeSpecificPart
-      val bytes = java.util.Base64.getDecoder.decode(id) // TODO depends on assumption about how digest is encoded
+      val id     = new URI(bti.getUri).getSchemeSpecificPart
+      val bytes  = java.util.Base64.getDecoder.decode(id) // TODO depends on assumption about how digest is encoded
       val digest = Digest(Bytes(bytes))
-      modules
-        .find { case (ref, _) => hash(ref) == digest}
+      modules.find { case (ref, _) => hash(ref) == digest }
         .map(_._1)
         .ascribe(ItemNotFound(ModuleId(id)))
     }
   }
 
   private def artifactToTarget(artifact: Artifact, struct: Structure) = {
-    val ref = artifact.ref
-    val id = struct.buildTarget(artifact.ref)
-    val tags = List(moduleKindToBuildTargetTag(artifact.kind))
-    val languageIds = List("java", "scala") // TODO get these from somewhere?
+    val ref          = artifact.ref
+    val id           = struct.buildTarget(artifact.ref)
+    val tags         = List(moduleKindToBuildTargetTag(artifact.kind))
+    val languageIds  = List("java", "scala") // TODO get these from somewhere?
     val dependencies = artifact.dependencies.map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
-    val target = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
+    val target =
+      new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
     target.setDisplayName(moduleRefDisplayName(ref))
 
     for {
       compiler <- artifact.compiler
-      bs <- compiler.bloopSpec
+      bs       <- compiler.bloopSpec
       if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
-      val scalaBuildTarget = new ScalaBuildTarget(bs.org, bs.version, bs.version, ScalaPlatform.JVM, libs)
+      val scalaBuildTarget =
+        new ScalaBuildTarget(bs.org, bs.version, bs.version, ScalaPlatform.JVM, libs)
       target.setDataKind(BuildTargetDataKind.SCALA)
       target.setData(scalaBuildTarget)
     }
@@ -416,9 +448,9 @@ object FuryBuildServer {
 
   private def moduleKindToBuildTargetTag(kind: Kind): String =
     kind match {
-      case Library => BuildTargetTag.LIBRARY
-      case Application => BuildTargetTag.APPLICATION
-      case Benchmarks => BuildTargetTag.BENCHMARK
+      case Library           => BuildTargetTag.LIBRARY
+      case Application       => BuildTargetTag.APPLICATION
+      case Benchmarks        => BuildTargetTag.BENCHMARK
       case Compiler | Plugin => BuildTargetTag.LIBRARY // mark these NO_IDE?
     }
 }

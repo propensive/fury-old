@@ -40,6 +40,10 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
+							fury/jsongen	projectId	fury
+								moduleId	jsongen
+								intransitive	false
+								hidden	false
 							fury/ogdl	projectId	fury
 								moduleId	ogdl
 								intransitive	false
@@ -128,6 +132,46 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+					io	id	io
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/strings	projectId	fury
+								moduleId	strings
+								intransitive	false
+								hidden	false
+							kaleidoscope/core	projectId	kaleidoscope
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/io	src/io
+						binaries	
+						resources	
+						bloopSpec	None
+					jsongen	id	jsongen
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/strings	projectId	fury
+								moduleId	strings
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/jsongen	src/jsongen
+						binaries	
+						resources	
+						bloopSpec	None
 					menu	id	menu
 						kind	Library
 						main	None
@@ -204,8 +248,8 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	fury/strings	projectId	fury
-								moduleId	strings
+						after	fury/io	projectId	fury
+								moduleId	io
 								intransitive	false
 								hidden	false
 							kaleidoscope/core	projectId	kaleidoscope
@@ -312,7 +356,7 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
-				main	Some	core
+				main	Some	menu
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala

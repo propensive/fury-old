@@ -15,6 +15,8 @@
  */
 package fury
 
+import fury.strings._, fury.io._, fury.core._
+
 import guillotine._
 import mercator._
 import Args._

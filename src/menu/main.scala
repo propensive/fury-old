@@ -15,6 +15,8 @@
  */
 package fury
 
+import fury.core._, fury.strings._
+
 import com.facebook.nailgun.NGContext
 import exoskeleton._
 import guillotine._
@@ -49,7 +51,7 @@ object Main {
 
     val layer = for {
       layout <- cli.layout
-      config <- fury.Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, layout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield layer
 

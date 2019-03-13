@@ -13,9 +13,11 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.core
 
-import escritoire._
+import fury.strings._
+
+import escritoire.{Ansi => _, _}
 import kaleidoscope._
 
 import scala.collection.immutable.SortedSet

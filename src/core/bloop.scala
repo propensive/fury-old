@@ -13,7 +13,9 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.core
+
+import fury.jsongen._, fury.io._, fury.strings._
 
 import java.net._
 

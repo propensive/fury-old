@@ -13,7 +13,9 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.core
+
+import fury.io._, fury.strings._, fury.ogdl._
 
 import ch.epfl.scala.bsp4j.{
   BuildClientCapabilities,
@@ -28,7 +30,7 @@ import kaleidoscope._
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import com.google.gson.{Gson, JsonElement}
-import fury.Graph.{Compiling, DiagnosticError, DiagnosticMessage}
+import Graph.{Compiling, DiagnosticError, DiagnosticMessage}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
@@ -76,7 +78,15 @@ case object Benchmarks  extends Kind("benchmarks")
 object Module {
   implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
   implicit val stringShow: StringShow[Module] = _.id.key
-  implicit val diff: Diff[Module]             = Diff.gen[Module]
+
+  implicitly[StringShow[Path]]
+  implicitly[MsgShow[Path]]
+  implicitly[EntityName[Path]]
+  implicitly[Diff[Path]]
+
+  Diff.traversableDiff[Path]
+
+  implicit val diff: Diff[Module] = Diff.gen[Module]
 
   def available(id: ModuleId, project: Project): Try[ModuleId] =
     project.modules

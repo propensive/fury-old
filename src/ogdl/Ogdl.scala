@@ -13,13 +13,14 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.ogdl
 
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
-import fury._
+import fury.io._
+import fury.strings._
 
 import scala.collection.JavaConverters._
 import scala.language.experimental.macros

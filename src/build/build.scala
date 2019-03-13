@@ -15,7 +15,8 @@
  */
 package fury
 
-import fury.Args._
+import fury.strings._, fury.io._, fury.core._, fury.ogdl._
+
 import guillotine._
 
 import scala.concurrent._
@@ -44,7 +45,7 @@ object ConfigCli {
       config <- ~newTheme.map { th =>
                  config.copy(theme = th)
                }.getOrElse(config)
-      _ <- ~layout.userConfig.write(config)
+      _ <- ~Ogdl.write(config, layout.userConfig)
     } yield io.await()
   }
 }

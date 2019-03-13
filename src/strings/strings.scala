@@ -13,16 +13,27 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.strings
+
+object `package` {
+  implicit def joinable(values: Traversable[String]): Joinable   = Joinable(values)
+  implicit def stringContexts(sc: StringContext): StringContexts = StringContexts(sc)
+
+  implicit def stringPart[T: StringShow](value: T): StringPart =
+    StringPart(implicitly[StringShow[T]].show(value))
+
+  implicit def userMsg[T: StringShow](value: T): UserMsg =
+    UserMsg { _ =>
+      implicitly[StringShow[T]].show(value)
+    }
+}
 
 object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
 
 object Version {
   final val current: String =
     try scala.io.Source.fromResource(".version", getClass.getClassLoader).getLines.next
-    catch {
-      case e: NullPointerException => "unknown"
-    }
+    catch { case e: NullPointerException => "unknown" }
 }
 
 case class UserMsg(string: Theme => String) {

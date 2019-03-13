@@ -1,4 +1,6 @@
-package fury
+package fury.core
+
+import fury.io._, fury.strings._, fury.ogdl._
 
 import kaleidoscope._
 
@@ -16,7 +18,7 @@ final class LayerRevisions(directory: Path, retained: Int) {
     val path = directory / s"$revision.bak"
 
     for {
-      _ <- path.write(layer)
+      _ <- Ogdl.write(layer, path)
       _ <- discardStaleRevisions()
     } yield ()
   }
