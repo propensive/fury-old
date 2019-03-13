@@ -37,7 +37,8 @@
       "$ROOT/dist/bundle/lib/gson-2.7.jar",
       "$ROOT/dist/bundle/lib/coursier-cache_2.12-1.1.0-M12.jar",
       "$ROOT/dist/bundle/lib/coursier-core_2.12-1.1.0-M12.jar",
-      "$ROOT/dist/bundle/lib/coursier_2.12-1.1.0-M12.jar"
+      "$ROOT/dist/bundle/lib/coursier_2.12-1.1.0-M12.jar",
+      "$ROOT/dist/bundle/lib/jtar-2.3.jar"
     ],
     "out": "$ROOT/bootstrap/bloop/out",
     "classesDir": "$ROOT/bootstrap/bin",
