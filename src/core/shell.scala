@@ -174,11 +174,11 @@ case class Shell(environment: Environment) {
       } yield output.split("\n").to[List]
   }
 
-  object bloop {
+  /*object bloop {
     private val defaultConfigDir = Path(".fury") / "bloop"
 
-    def start(version: String): Running =
-      sh"sh -c 'launcher --skip-bsp-connection ${version} > /dev/null'".async(_ => (), _ => ())
+    //def start(version: String): Running =
+      //sh"sh -c 'launcher --skip-bsp-connection ${version} > /dev/null'".async(_ => (), _ => ())
 
     def running(): Boolean =
       sh"bloop help".exec[Exit[String]].status == 0
@@ -191,7 +191,7 @@ case class Shell(environment: Environment) {
 
     def startBsp(socket: String): Running =
       sh"bloop bsp --socket $socket".async(println(_), _ => ())
-  }
+  }*/
 
   object java {
 

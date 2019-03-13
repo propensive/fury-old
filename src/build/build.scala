@@ -197,7 +197,6 @@ object BuildCli {
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
       artifact    <- universe.artifact(io, module.ref(project), layout)
-      _           <- Bloop.server(layout.shell, io)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)

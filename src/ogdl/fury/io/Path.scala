@@ -46,6 +46,8 @@ case class Path(value: String) {
 
   def javaPath: JPath = Paths.get(value)
 
+  def uriString: String = javaPath.toFile.toURI.toString
+
   def name: String = javaPath.getFileName.toString
 
   def zipfileEntries: Try[List[ZipfileEntry]] =

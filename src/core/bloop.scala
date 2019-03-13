@@ -32,7 +32,7 @@ object Bloop {
 
   def version: String = "1.2.5"
 
-  def server(shell: Shell, io: Io): Try[Running] =
+  /*def server(shell: Shell, io: Io): Try[Running] =
     synchronized {
       val interval = 150.millis
       io.print("Launching bloop compile server...")
@@ -59,7 +59,7 @@ object Bloop {
             running.destroy()
             Failure(InitFailure())
         }
-    }
+    }*/
 
   def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
     new CollOps(compilation.artifacts.values.map { artifact =>
