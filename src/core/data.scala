@@ -176,10 +176,8 @@ case class BspConnection(client: BuildingClient, server: BuildServer) {
 object Compilation {
 
   val bspPool: Pool[Path, BspConnection] = dir => {
-    println("Constructing new BuildingClient")
     val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
     val client = new BuildingClient()
-    println("Constructed BuildingClient")
     val launcher = new Launcher.Builder[BuildServer]()
       .setRemoteInterface(classOf[BuildServer])
       .setExecutorService(null)
@@ -187,11 +185,8 @@ object Compilation {
       .setOutput(handle.getOutputStream)
       .setLocalService(client)
       .create()
-    println("Created launcher")
     launcher.startListening()
-    println("Started listening")
     val server = launcher.getRemoteProxy
-    println("Got remote proxy")
     val initializeParams = new InitializeBuildParams(
         "fury",
         Version.current,
@@ -199,11 +194,8 @@ object Compilation {
         dir.uriString,
         new BuildClientCapabilities(List("scala").asJava)
     )
-    println("buildInitialize")
     server.buildInitialize(initializeParams).get
-    println("Finished buildInitialize")
     server.onBuildInitialized()
-    println("Run onBuildInitialized")
     BspConnection(client, server)
   }
 
