@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "fury-dependency",
+    "name": "fury/dependency",
     "directory": "$ROOT/src/dependency",
     "sources": [
       "$ROOT/src/dependency"
