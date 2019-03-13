@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "project": {
     "name": "guillotine/macros",
-    "directory": "$ROOT/bootstrap/git/guillotine/src",
+    "directory": "$ROOT/bootstrap/git/guillotine/src/macros",
     "sources": [
       "$ROOT/bootstrap/git/guillotine/src/macros"
     ],

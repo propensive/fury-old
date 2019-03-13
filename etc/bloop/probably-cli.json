@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "project": {
     "name": "probably/cli",
-    "directory": "$ROOT/bootstrap/git/probably/src",
+    "directory": "$ROOT/bootstrap/git/probably/src/cli",
     "sources": [
       "$ROOT/bootstrap/git/probably/src/cli"
     ],
