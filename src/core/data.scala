@@ -107,7 +107,7 @@ object Binary {
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
 
-  def paths(io: Io, shell: Shell): Future[List[Path]] = Coursier.fetch(io, this)
+  def paths(io: Io): Future[List[Path]] = Coursier.fetch(io, this)
 }
 
 case class Module(
@@ -556,7 +556,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
                  else artifact(io, module.compiler, layout).map(Some(_))
       binaries <- ~Await.result(
-                     module.allBinaries.map(_.paths(io, layout.shell)).sequence.map(_.flatten),
+                     module.allBinaries.map(_.paths(io)).sequence.map(_.flatten),
                      duration.Duration.Inf)
       checkouts <- checkout(ref, layout)
     } yield
@@ -600,7 +600,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ++(that: Universe): Universe =
     Universe(entities ++ that.entities)
 
-  private[this] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
+  private[fury] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
     for {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)

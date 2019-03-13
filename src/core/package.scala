@@ -21,9 +21,7 @@ import gastronomy._
 
 import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions
-
 import scala.util._
-import java.io._
 
 object `package` {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)

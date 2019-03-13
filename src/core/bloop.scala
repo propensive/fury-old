@@ -21,9 +21,9 @@ import gastronomy._
 import guillotine._
 import mercator._
 
+import scala.concurrent.duration._
 import scala.util._
 import scala.util.control.NonFatal
-import scala.concurrent.duration._
 
 object Bloop {
 

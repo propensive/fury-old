@@ -20,12 +20,16 @@ import scala.util._
 object FuryMenu {
 
   def menu(aliases: List[Action[Cli[CliParam[_]]]]): Menu[Cli[CliParam[_]], _] =
-    Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)((List(
+    Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)(List(
         Action('about, msg"about Fury", BuildCli.about),
         Menu('alias, msg"view and edit command aliases", AliasCli.context, 'list)(
             Action('add, msg"add a command alias to the layer", AliasCli.add),
             Action('remove, msg"remove a command alias from the layer", AliasCli.remove),
             Action('list, msg"list command aliases", AliasCli.list)
+        ),
+        Menu('bsp, msg"Build Server Protocol support", BspCli.context, 'run)(
+            Action('init, msg"create bsp configuration", Bsp.createConfig),
+            Action('run, msg"start bsp server", Bsp.startServer)
         ),
         Menu('binary, msg"manage binary dependencies for the module", BinaryCli.context, 'list)(
             Action('add, msg"add a binary dependency to the module", BinaryCli.add),
@@ -114,7 +118,7 @@ object FuryMenu {
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('projects, msg"show all available projects", LayerCli.projects)
         )
-    ) ::: aliases): _*)
+    ) ::: aliases: _*)
 
   def help(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
