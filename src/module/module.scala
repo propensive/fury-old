@@ -64,7 +64,6 @@ object ModuleCli {
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
       io       <- invoc.io()
-      schema   <- defaultSchema
       project  <- optProject.ascribe(UnspecifiedProject())
       moduleId <- ~invoc(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
@@ -168,7 +167,6 @@ object ModuleCli {
     import ctx._
     for {
       cli    <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      schema <- defaultSchema
       cli <- cli.hint(
                 CompilerArg,
                 defaultSchema.toOption.to[List].flatMap(_.compilerRefs(Io.silent(config), layout)))
@@ -238,7 +236,6 @@ object ModuleCli {
                       .to[List]
                       .sequence
                       .map(_.headOption)
-      kind       <- ~optKind.getOrElse(module.kind)
       mainClass  <- ~invoc(MainArg).toOption
       pluginName <- ~invoc(PluginArg).toOption
       nameArg    <- ~invoc(ModuleNameArg).toOption
