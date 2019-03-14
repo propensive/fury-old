@@ -18,6 +18,7 @@ package fury
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
 
+import fury.core.DirectedGraph
 import probably._
 
 import scala.language.implicitConversions
