@@ -38,33 +38,29 @@ object Bsp {
 
   val bspVersion = "2.0.0"
 
-  def createConfig(ctx: BspCli.Context): Try[ExitStatus] = {
-    val bspDir    = ctx.layout.bspDir.extant()
+  def createConfig(layout: Layout): Try[Unit] = {
+    val bspDir    = layout.bspDir.extant()
     val bspConfig = bspDir / "fury.json"
 
     for {
       configFile <- ~Files.write(
                        bspConfig.javaPath,
-                       bspConfigJson(ctx).serialize.getBytes(StandardCharsets.UTF_8),
+                       bspConfigJson(layout).serialize.getBytes(StandardCharsets.UTF_8),
                        StandardOpenOption.CREATE,
                        StandardOpenOption.TRUNCATE_EXISTING)
-    } yield {
-      println(s"BSP config written to $configFile")
-      Done
-    }
+    } yield Done
   }
 
-  def bspConfigJson(ctx: BspCli.Context): Json = {
+  private def bspConfigJson(layout: Layout): Json = {
     // FIXME we should use fury launch jar directly with java here
-    val furyExecutable = ctx.layout.home / "fury-0.4.0" / "bin" / "fury"
+    val furyExecutable = layout.home / "fury-0.4.0" / "bin" / "fury"
 
     Json(
         name = "Fury",
         argv = List(
             furyExecutable.javaPath.toAbsolutePath.toString,
             "direct",
-            "bsp",
-            "run"
+            "bsp"
         ),
         version = Version.current,
         bspVersion = bspVersion,
@@ -72,11 +68,12 @@ object Bsp {
     )
   }
 
-  def startServer(ctx: BspCli.Context): Try[ExitStatus] =
+  def startServer(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      running <- ~run(System.in, System.out, ctx.layout)
+      layout  <- cli.layout
+      running <- ~run(System.in, System.out, layout)
     } yield {
-      System.err.println("started bsp process ...")
+      System.err.println("Started bsp process ...")
       running.get()
       Done
     }
@@ -100,13 +97,6 @@ object Bsp {
     listening
   }
 
-}
-
-object BspCli {
-  case class Context(cli: Cli[CliParam[_]], layout: Layout)
-
-  def context(cli: Cli[CliParam[_]]): Try[Context] =
-    cli.layout.map(Context(cli, _))
 }
 
 class FuryBuildServer(layout: Layout, cancel: Cancelator)

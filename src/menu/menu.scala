@@ -29,10 +29,7 @@ object FuryMenu {
             Action('remove, msg"remove a command alias from the layer", AliasCli.remove),
             Action('list, msg"list command aliases", AliasCli.list)
         ),
-        Menu('bsp, msg"Build Server Protocol support", BspCli.context, 'run)(
-            Action('init, msg"create bsp configuration", Bsp.createConfig),
-            Action('run, msg"start bsp server", Bsp.startServer)
-        ),
+        Action('bsp, msg"start BSP server", Bsp.startServer, false),
         Menu('binary, msg"manage binary dependencies for the module", BinaryCli.context, 'list)(
             Action('add, msg"add a binary dependency to the module", BinaryCli.add),
             Action('remove, msg"remove a binary dependency from the module", BinaryCli.remove),
