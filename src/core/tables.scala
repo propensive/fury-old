@@ -51,14 +51,14 @@ case class Tables(config: Config) {
     case s          => Ansi.green("-" + s)
   }.join("\n")
 
-  implicit private def option[T: AnsiShow]: AnsiShow[Option[T]] = _ match {
+  implicit private def option[T: AnsiShow]: AnsiShow[Option[T]] = {
     case None    => "-"
     case Some(v) => implicitly[AnsiShow[T]].show(v)
   }
 
   private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] =
     _.map {
-      case ref @ ModuleRef(p, m, intransitive, _) =>
+      case ModuleRef(p, m, intransitive, _) =>
         val extra = (if (intransitive) msg"*" else msg"")
         if (p == projectId) msg"${theme.module(m.key)}$extra"
         else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"

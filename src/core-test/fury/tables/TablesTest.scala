@@ -11,15 +11,19 @@ import probably._
 object TablesTest extends TestApp {
   override def tests(): Unit = {
     test("contextString with showSchema=true") {
-      Tables(Config())
-    }.assert { tables =>
-      tables.contextString(msg"foo", true, msg"bar", msg"baz").string(Theme.NoColor) == "foo/bar/baz"
+      val tables = Tables(Config())
+
+      tables.contextString(msg"foo", true, msg"bar", msg"baz").string(Theme.NoColor)
+    }.assert {
+      _ == "foo/bar/baz"
     }
 
     test("contextString with showSchema=false") {
-      Tables(Config())
-    }.assert { tables =>
-      tables.contextString(msg"foo", false, msg"bar", msg"baz").string(Theme.NoColor) == "foo/baz"
+      val tables = Tables(Config())
+
+      tables.contextString(msg"foo", false, msg"bar", msg"baz").string(Theme.NoColor)
+    }.assert {
+      _ == "foo/baz"
     }
   }
 }
