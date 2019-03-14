@@ -20,6 +20,7 @@ import java.nio.ByteBuffer.wrap
 
 import fury.core.DirectedGraph
 import probably._
+import fury.core._
 
 import scala.language.implicitConversions
 

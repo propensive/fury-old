@@ -40,9 +40,7 @@ case class Tables(config: Config) {
 
   def contextString(layer: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
     (if (showSchema) elements else elements.tail).foldLeft(layer) { (l, r) =>
-      UserMsg { theme =>
-        s"${l.string(theme)}/${r.string(theme)}"
-      }
+      msg"$l/$r"
     }
 
   implicit private val parameter: AnsiShow[SortedSet[Parameter]] = _.map(_.name).map {
@@ -53,14 +51,14 @@ case class Tables(config: Config) {
     case s          => Ansi.green("-" + s)
   }.join("\n")
 
-  implicit private def option[T: AnsiShow]: AnsiShow[Option[T]] = _ match {
+  implicit private def option[T: AnsiShow]: AnsiShow[Option[T]] = {
     case None    => "-"
     case Some(v) => implicitly[AnsiShow[T]].show(v)
   }
 
   private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] =
     _.map {
-      case ref @ ModuleRef(p, m, intransitive, _) =>
+      case ModuleRef(p, m, intransitive, _) =>
         val extra = (if (intransitive) msg"*" else msg"")
         if (p == projectId) msg"${theme.module(m.key)}$extra"
         else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"

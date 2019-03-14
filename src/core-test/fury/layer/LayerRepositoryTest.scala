@@ -1,8 +1,9 @@
 package fury
 
-import java.nio.file.Files
 import fury.io._
-import fury.core.LayerRepository
+import java.nio.file.{Files, Path}
+import fury.core._
+
 import probably._
 
 /**
