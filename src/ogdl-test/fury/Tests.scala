@@ -1,5 +1,6 @@
 package fury
 
+import fury.ogdl.OgdlParserTest
 import probably.TestApp
 
 object Tests {
