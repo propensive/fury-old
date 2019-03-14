@@ -1010,7 +1010,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
                  .orElse(layout.shell.git.getBranchHead(dir, track.id).toOption)
                  .getOrElse(track.id)
       files <- local.map { _ =>
-                Success(dir.children.map(Path(_)).to[List])
+                Success(dir.children.map(Path(_)))
               }.getOrElse(layout.shell.git.lsTree(dir, commit))
     } yield files
 
