@@ -30,7 +30,7 @@ import kaleidoscope._
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import com.google.gson.{Gson, JsonElement}
-import Graph.{Compiling, DiagnosticError, DiagnosticMessage}
+import Graph.{Compiling, CompilerDiagnostic, DiagnosticMessage}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
@@ -223,16 +223,18 @@ class BuildingClient() extends BuildClient {
     val hash     = getModuleHash(params.getBuildTarget.getUri)
     val modref   = compilation.reverseHashes(hash)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val diag     = params.getDiagnostics.asScala.head
-    val lineNum  = diag.getRange.getStart.getLine
-    val charNum  = diag.getRange.getStart.getCharacter
-    val codeLine = scala.io.Source.fromFile(fileName).getLines.toList(lineNum)
-    multiplexer(modref) = DiagnosticMsg(
-        modref,
-        DiagnosticError(
-            s"\n${fileName}:${lineNum + 1}:${charNum + 1}:error:${diag.getMessage}\n${codeLine}\n${" " * charNum}^\n "
-        ) // TODO: print it prettier
-    )
+    params.getDiagnostics.asScala.foreach { diag =>
+      val lineNum  = diag.getRange.getStart.getLine
+      val charNum  = diag.getRange.getStart.getCharacter
+      val codeLine = scala.io.Source.fromFile(fileName).getLines.toList(lineNum)
+
+      multiplexer(modref) = DiagnosticMsg(
+          modref,
+          CompilerDiagnostic(
+              s"\n${fileName}:${lineNum + 1}:${charNum + 1}:${diag.getSeverity.toString.toLowerCase}:${diag.getMessage}\n${codeLine}\n${" " * charNum}^\n"
+          ) // TODO: print it prettier
+      )
+    }
   }
 
   override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {}
@@ -400,10 +402,6 @@ case class Compilation(
     artifacts(ref).compiler.to[Set].flatMap { c =>
       Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
     } ++ classpath(ref, layout) + layout.classesDir(hash(ref)) + layout.resourcesDir(hash(ref))
-
-  def using[A, B](resource: A)(cleanup: A => Unit)(f: A => B): B =
-    try f(resource)
-    finally cleanup(resource)
 
   def compileModule(
       io: Io,
