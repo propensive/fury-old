@@ -1,32 +1,13 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "fury",
-    "directory": "$ROOT",
+    "name": "fury/build",
+    "directory": "$ROOT/src/build",
     "sources": [
-      "$ROOT/src/build",
-      "$ROOT/src/core",
-      "$ROOT/src/dependency",
-      "$ROOT/src/imports",
-      "$ROOT/src/menu",
-      "$ROOT/src/module",
-      "$ROOT/src/ogdl",
-      "$ROOT/src/project",
-      "$ROOT/src/repo",
-      "$ROOT/src/schema",
-      "$ROOT/src/source",
-      "$ROOT/src/strings"
+      "$ROOT/src/build"
     ],
     "dependencies": [
-      "escritoire/core",
-      "eucalyptus/core",
-      "exoskeleton/core",
-      "gastronomy/core",
-      "guillotine/core",
-      "guillotine/macros",
-      "impromptu/core",
-      "kaleidoscope/core",
-      "optometry/core"
+      "fury/core"
     ],
     "classpath": [
       "$ROOT/bootstrap/scala/lib/scala-library.jar",

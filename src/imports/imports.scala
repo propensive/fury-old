@@ -15,6 +15,8 @@
  */
 package fury
 
+import fury.strings._, fury.io._, fury.core._
+
 import Args._
 
 import guillotine._
@@ -27,7 +29,7 @@ object ImportCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- fury.Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, layout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 

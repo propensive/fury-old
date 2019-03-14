@@ -15,6 +15,8 @@
  */
 package fury
 
+import fury.strings._, fury.io._, fury.core._
+
 import Args._
 
 import guillotine._
@@ -29,7 +31,7 @@ object RepoCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- fury.Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, layout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield Context(cli, layout, config, layer)
 
@@ -114,7 +116,7 @@ object RepoCli {
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
-      cli       <- cli.hint(AllArg, Nil)
+      cli       <- cli.hint(AllArg, List[String]())
       invoc     <- cli.read()
       io        <- invoc.io()
       all       <- ~invoc(AllArg).toOption
@@ -152,10 +154,10 @@ object RepoCli {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli            <- cli.hint(UrlArg)
       cli            <- cli.hint(DirArg)
-      projectNameOpt <- ~cli.peek(UrlArg).map(fury.Repo.fromString).flatMap(_.projectName.toOption)
+      projectNameOpt <- ~cli.peek(UrlArg).map(Repo.fromString).flatMap(_.projectName.toOption)
       cli            <- cli.hint(RepoNameArg, projectNameOpt)
       remoteOpt      <- ~cli.peek(UrlArg)
-      repoOpt        <- ~remoteOpt.map(fury.Repo.fromString(_))
+      repoOpt        <- ~remoteOpt.map(Repo.fromString(_))
       versions <- repoOpt.map { repo =>
                    layout.shell.git.lsRemote(repo.url)
                  }.to[List].sequence.map(_.flatten).recover { case e => Nil }
@@ -215,7 +217,7 @@ object RepoCli {
       dir         <- ~invoc(DirArg).toOption
       version     <- ~invoc(VersionArg).toOption
       remoteArg   <- ~invoc(UrlArg).toOption
-      remote      <- ~remoteArg.map(fury.Repo.fromString(_))
+      remote      <- ~remoteArg.map(Repo.fromString(_))
       nameArg     <- ~invoc(RepoNameArg).toOption
       force       <- ~invoc(ForceArg).toOption.isDefined
       focus       <- ~Lenses.focus(optSchemaId, force)

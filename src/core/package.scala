@@ -13,7 +13,9 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.core
+
+import fury.strings._, fury.io._
 
 import escritoire._
 import eucalyptus._
@@ -25,15 +27,6 @@ import scala.util._
 
 object `package` {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
-  implicit def stringContexts(sc: StringContext): StringContexts     = StringContexts(sc)
-
-  implicit def stringPart[T: StringShow](value: T): StringPart =
-    StringPart(implicitly[StringShow[T]].show(value))
-
-  implicit def userMsg[T: StringShow](value: T): UserMsg =
-    UserMsg { theme =>
-      implicitly[StringShow[T]].show(value)
-    }
 
   implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
     value => implicitly[MsgShow[T]].show(value).string(theme)
@@ -47,13 +40,10 @@ object `package` {
   implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
     Ordering.String.on(implicitly[StringShow[T]].show(_))
 
-  implicit def joinable(values: Traversable[String]): Joinable = Joinable(values)
-
+  implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
   implicit val mainTag: Tag                     = Tag("fury")
   implicit val msgShowBoolean: MsgShow[Boolean] = if (_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
-  implicit val stringShow: StringShow[Path]     = _.value
-  implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
 
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')

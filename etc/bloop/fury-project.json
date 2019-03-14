@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "fury/project",
+    "directory": "$ROOT/src/project",
+    "sources": [
+      "$ROOT/src/project"
+    ],
+    "dependencies": [
+      "fury/core"
+    ],
+    "classpath": [
+      "$ROOT/bootstrap/scala/lib/scala-library.jar",
+      "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
+      "$ROOT/bootstrap/scala/lib/scala-reflect.jar",
+      "$ROOT/dist/bundle/lib/nailgun-server-1.0.0.jar",
+      "$ROOT/dist/bundle/lib/jmh-core-1.21.jar",
+      "$ROOT/dist/bundle/lib/asm-5.0.3.jar",
+      "$ROOT/dist/bundle/lib/commons-math3-3.2.jar",
+      "$ROOT/dist/bundle/lib/jmh-generator-reflection-1.21.jar",
+      "$ROOT/dist/bundle/lib/jmh-generator-asm-1.21.jar",
+      "$ROOT/dist/bundle/lib/jmh-generator-bytecode-1.21.jar",
+      "$ROOT/dist/bundle/lib/jopt-simple-4.6.jar",
+      "$ROOT/dist/bundle/lib/coursier-cache_2.12-1.1.0-M12.jar",
+      "$ROOT/dist/bundle/lib/coursier-core_2.12-1.1.0-M12.jar",
+      "$ROOT/dist/bundle/lib/coursier_2.12-1.1.0-M12.jar",
+      "$ROOT/dist/bundle/lib/bsp4j-2.0.0-M4.jar",
+      "$ROOT/dist/bundle/lib/ipcsocket-1.0.0.jar",
+      "$ROOT/dist/bundle/lib/org.eclipse.lsp4j.jsonrpc-0.6.0.jar",
+      "$ROOT/dist/bundle/lib/gson-2.7.jar",
+      "$ROOT/dist/bundle/lib/coursier-cache_2.12-1.1.0-M12.jar",
+      "$ROOT/dist/bundle/lib/coursier-core_2.12-1.1.0-M12.jar",
+      "$ROOT/dist/bundle/lib/coursier_2.12-1.1.0-M12.jar"
+    ],
+    "out": "$ROOT/bootstrap/bloop/out",
+    "classesDir": "$ROOT/bootstrap/bin",
+    "scala": {
+      "organization": "scala-lang.org",
+      "name": "scala-compiler",
+      "jars": [
+        "$ROOT/bootstrap/scala/lib/scala-library.jar",
+        "$ROOT/bootstrap/scala/lib/scala-compiler.jar",
+        "$ROOT/bootstrap/scala/lib/scala-reflect.jar"
+      ],
+      "options": ["-deprecation"],
+      "version": "2.12.8"
+    }
+  }
+}

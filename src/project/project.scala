@@ -15,6 +15,8 @@
  */
 package fury
 
+import fury.strings._, fury.io._, fury.core._
+
 import guillotine._
 import optometry._
 import mercator._
@@ -29,7 +31,7 @@ object ProjectCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout       <- cli.layout
-      config       <- fury.Config.read()(cli.env, layout)
+      config       <- Config.read()(cli.env, layout)
       layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       optSchemaArg <- ~cli.peek(SchemaArg)
@@ -90,7 +92,7 @@ object ProjectCli {
                          .map(_.headOption)
       projectId <- invoc(ProjectNameArg)
       license   <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
-      project   <- ~fury.Project(projectId, license = license, compiler = optCompilerRef)
+      project   <- ~Project(projectId, license = license, compiler = optCompilerRef)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(

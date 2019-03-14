@@ -13,7 +13,7 @@
   express  or  implied.  See  the  License for  the specific  language  governing  permissions and
   limitations under the License.
  */
-package fury
+package fury.io
 
 import java.io.FileNotFoundException
 import java.nio.file.{Files, Paths, StandardOpenOption, Path => JPath}
@@ -26,7 +26,11 @@ import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
 
+import fury.strings._
+
 object Path {
+
+  implicit val stringShow: StringShow[Path] = _.value
 
   def apply(jpath: JPath): Path = Path(jpath.toString)
 
@@ -84,9 +88,9 @@ case class Path(value: String) {
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
   }
 
-  def read[T: OgdlReader]: Try[T] = Ogdl.read[T](this, x => x)
+  //def read[T: OgdlReader]: Try[T] = Ogdl.read[T](this, x => x)
 
-  def write[T: OgdlWriter](value: T): Try[Unit] =
+  /*def write[T: OgdlWriter](value: T): Try[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this)) {
       val content: String = Ogdl.serialize(implicitly[OgdlWriter[T]].write(value))
       Files.write(
@@ -94,7 +98,7 @@ case class Path(value: String) {
           content.getBytes(),
           StandardOpenOption.CREATE,
           StandardOpenOption.TRUNCATE_EXISTING)
-    }
+    }*/
 
   def extant(): Path = {
     mkdir()

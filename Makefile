@@ -2,7 +2,7 @@ VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git 
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
-DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine impromptu
+DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=launcher ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -48,7 +48,7 @@ dist/bundle/etc:
 clean-compile: bloop-clean compile
 
 watch: compile
-	bloop compile fury --watch
+	bloop compile fury/menu --watch
 
 bloop-clean:
 	bloop clean fury
@@ -66,7 +66,7 @@ bootstrap/bin:
 
 compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
 	$< --skip-bsp-connection $(BLOOPVERSION)
-	bloop compile fury
+	bloop compile fury/menu
 
 .bloop:
 	mkdir -p .bloop
@@ -87,8 +87,9 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
 
 all-jars: $(JARS)
 
-dist/bundle/lib/fury.jar: bootstrap/bin compile
+dist/bundle/lib/fury.jar: bootstrap/bin compile bootstrap/bin/fury/.version
 	jar -cf $@ -C $< fury
+	jar -uf $@ -C bootstrap/bin/fury .version
 
 dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib bootstrap/git/% compile
 	jar -cf $@ -C $< $*

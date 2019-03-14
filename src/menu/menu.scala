@@ -15,6 +15,8 @@
  */
 package fury
 
+import fury.core._, fury.strings._
+
 import scala.util._
 
 object FuryMenu {

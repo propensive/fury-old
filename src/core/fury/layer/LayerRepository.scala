@@ -1,4 +1,6 @@
-package fury
+package fury.core
+
+import fury.io._, fury.ogdl._
 
 import scala.util._
 
@@ -7,16 +9,16 @@ final class LayerRepository(revisions: LayerRevisions, current: Path) {
   def restorePrevious(io: Io, layout: Layout): Try[Unit] =
     for {
       previous <- revisions.previous(io, layout)
-      _        <- current.write(previous)
+      _        <- Ogdl.write(previous, current)
       _        <- revisions.discardPrevious()
     } yield Unit
 
   def update(io: Io, layer: Layer, layout: Layout): Try[Unit] = currentLayer(io, layout) match {
-    case None => current.write(layer)
+    case None => Ogdl.write(layer, current)
     case Some(currentLayer) =>
       for {
         _ <- revisions.store(currentLayer)
-        _ <- current.write(layer)
+        _ <- Ogdl.write(layer, current)
       } yield Unit
   }
 
