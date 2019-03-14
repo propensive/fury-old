@@ -372,8 +372,7 @@ object LayerCli {
       layer  <- ~Layer()
       _      <- layout.furyConfig.mkParents()
       _      <- ~Layer.save(io, layer, layout)
-      _      <- Bsp.createConfig(layout)
-      _      <- ~io.println("Created empty layer.fury and BSP configuration")
+      _      <- ~io.println("Created empty layer.fury")
     } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
