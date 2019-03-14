@@ -40,9 +40,7 @@ case class Tables(config: Config) {
 
   def contextString(layer: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
     (if (showSchema) elements else elements.tail).foldLeft(layer) { (l, r) =>
-      UserMsg { theme =>
-        s"${l.string(theme)}/${r.string(theme)}"
-      }
+      msg"$l/$r"
     }
 
   implicit private val parameter: AnsiShow[SortedSet[Parameter]] = _.map(_.name).map {
