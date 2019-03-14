@@ -274,7 +274,7 @@ object BuildCli {
       hierarchy    <- schema.hierarchy(io, layout.base, layout)
       universe     <- hierarchy.universe
       compilation  <- universe.compilation(io, module.ref(project), layout)
-      _            <- compilation.saveJars(io, module.ref(project), dir in layout.pwd, layout)
+      _            <- compilation.saveJars(io, module.ref(project), dir, layout)
     } yield io.await()
   }
 
@@ -301,7 +301,7 @@ object BuildCli {
       compilation  <- universe.compilation(io, module.ref(project), layout)
       _            <- if (module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
-      _            <- compilation.saveNative(io, module.ref(project), dir in layout.pwd, layout, main)
+      _            <- compilation.saveNative(io, module.ref(project), dir, layout, main)
     } yield io.await()
   }
 
