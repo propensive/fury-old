@@ -15,6 +15,8 @@
  */
 package fury.ogdl
 
+import fury.ogdl._
+
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
 
