@@ -23,7 +23,10 @@ case class AnsiCode(private val code: String) {
 
 object Rgb { def apply(r: Int, g: Int, b: Int): AnsiCode = AnsiCode(s"38;2;$r;$g;${b}m") }
 
-object MsgShow { implicit val string: MsgShow[String] = v => UserMsg(_ => v) }
+object MsgShow {
+  implicit val string: MsgShow[String] = v => UserMsg(_ => v)
+  implicit val char: MsgShow[Char]     = ch => UserMsg(_.gray(ch.toString))
+}
 
 trait MsgShow[T] { def show(value: T): UserMsg }
 
@@ -78,7 +81,7 @@ object Theme {
           module = Rgb(40, 200, 255),
           moduleDark = Rgb(20, 100, 127),
           path = Rgb(200, 150, 100),
-          repo = Rgb(225, 80, 0),
+          repo = Rgb(175, 125, 0),
           param = Rgb(200, 0, 150),
           url = Rgb(255, 160, 0),
           version = Rgb(150, 150, 100),
@@ -88,7 +91,8 @@ object Theme {
           gray = Rgb(80, 80, 80),
           success = Rgb(40, 150, 40),
           ongoing = Rgb(150, 120, 0),
-          failure = Rgb(200, 0, 0))
+          failure = Rgb(200, 0, 0),
+          lineNo = Rgb(255, 255, 0))
 
   object Basic
       extends Theme(
@@ -108,7 +112,8 @@ object Theme {
           gray = Ansi.brightBlack,
           success = Ansi.green,
           ongoing = Ansi.yellow,
-          failure = Ansi.red)
+          failure = Ansi.red,
+          lineNo = Ansi.brightYellow)
 
   object NoColor extends Theme("nocolor") {
     override val reset: AnsiCode     = AnsiCode("")
@@ -139,7 +144,8 @@ case class Theme(
     gray: AnsiCode = AnsiCode(""),
     success: AnsiCode = AnsiCode(""),
     ongoing: AnsiCode = AnsiCode(""),
-    failure: AnsiCode = AnsiCode("")) {
+    failure: AnsiCode = AnsiCode(""),
+    lineNo: AnsiCode = AnsiCode("")) {
   val reset: AnsiCode     = AnsiCode("0m")
   val bold: AnsiCode      = AnsiCode("1m")
   val underline: AnsiCode = AnsiCode("4m")
