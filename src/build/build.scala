@@ -127,7 +127,7 @@ object AliasCli {
 
 object BuildCli {
 
-  def context(cli: Cli[CliParam[_]]) =
+  def context(cli: Cli[CliParam[_]]): Try[MenuContext] =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
@@ -229,15 +229,12 @@ object BuildCli {
     for {
       schemaId     <- ~layer.main
       schema       <- layer.schemas.findBy(schemaId)
-      schemaPart   <- ~(if (layer.schemas.size == 1) "*" else schemaId.key)
       optProjectId <- ~schema.main
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
-      projectPart  <- ~optProjectId.map(_.key).getOrElse("-")
       optModuleId  <- ~optProject.flatMap(_.main)
       optModule <- ~optModuleId.flatMap { mId =>
                     optProject.flatMap(_.modules.findBy(mId).toOption)
                   }
-      modulePart <- ~optModuleId.map(_.key).getOrElse("-")
     } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] =
@@ -365,10 +362,8 @@ object LayerCli {
   def init(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.newLayout
-      cli    <- cli.hint(ForceArg)
       invoc  <- cli.read()
       io     <- invoc.io()
-      force  <- ~invoc(ForceArg).toOption.isDefined
       layer  <- ~Layer()
       _      <- layout.furyConfig.mkParents()
       _      <- ~Layer.save(io, layer, layout)
