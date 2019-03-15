@@ -51,7 +51,7 @@ watch: compile
 	bloop compile fury/menu --watch
 
 bloop-clean:
-	bloop clean fury
+	bloop clean fury/menu
 
 bootstrap/scala:
 	mkdir -p $@

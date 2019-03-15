@@ -174,10 +174,12 @@ case class BspConnection(client: BuildingClient, server: BuildServer) {
 
   def provision[T](
       currentCompilation: Compilation,
+      layout: Layout,
       currentMultiplexer: Multiplexer[ModuleRef, CompileEvent]
     )(action: BuildServer => T
     ): T = {
     client.compilation = currentCompilation
+    client.layout = layout
     client.multiplexer = currentMultiplexer
     action(server)
   }
@@ -211,8 +213,14 @@ object Compilation {
 
 }
 
+object LineNo {
+  implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString))
+}
+case class LineNo(line: Int) extends AnyVal
+
 class BuildingClient() extends BuildClient {
   var compilation: Compilation                          = _
+  var layout: Layout                                    = _
   var multiplexer: Multiplexer[ModuleRef, CompileEvent] = _
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
@@ -223,16 +231,71 @@ class BuildingClient() extends BuildClient {
     val hash     = getModuleHash(params.getBuildTarget.getUri)
     val modref   = compilation.reverseHashes(hash)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
+
+    val repos = compilation.checkouts.map { checkout =>
+      (checkout.path(layout).value, checkout.repoId)
+    }.toMap
+
     params.getDiagnostics.asScala.foreach { diag =>
-      val lineNum  = diag.getRange.getStart.getLine
-      val charNum  = diag.getRange.getStart.getCharacter
-      val codeLine = scala.io.Source.fromFile(fileName).getLines.toList(lineNum)
+      val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
+      val charNum = diag.getRange.getStart.getCharacter
+      // FIXME: This reads the same file potentially many times
+      val codeLine = scala.io.Source.fromFile(fileName).getLines.toList(lineNo.line - 1)
+
+      def isSymbolic(ch: Char)     = (ch == '_' || !ch.isLetterOrDigit) && ch != ' '
+      def isAlphanumeric(ch: Char) = ch == '_' || ch.isLetterOrDigit
+
+      def takeSame(str: String): (String, String) = {
+        val ch = str.find(_ != '_').getOrElse('_')
+        val matching =
+          if (isSymbolic(ch)) str.takeWhile(isSymbolic) else str.takeWhile(isAlphanumeric)
+        val remainder = str.drop(matching.length)
+        (matching, remainder)
+      }
+
+      val linePrefix            = codeLine.take(charNum)
+      val (matching, remainder) = takeSame(codeLine.drop(linePrefix.length))
+      val highlightedLine       = linePrefix + Ansi.brightRed(Ansi.underline(matching)) + remainder
+
+      val (repo, filePath) = repos.find { case (k, v) => fileName.startsWith(k) }.map {
+        case (k, v) => (v, Path(fileName.drop(k.length + 1)))
+      }.getOrElse((RepoId("local"), Path(fileName.drop(layout.base.value.length + 1))))
+
+      import escritoire.Ansi
+
+      implicitly[MsgShow[ModuleRef]]
+
+      val severity = diag.getSeverity.toString.toLowerCase match {
+        case "error" =>
+          msg"${Ansi.Color.base01("[")}${Ansi.Color.red("E")}${Ansi.Color.base01("]")}"
+        case "warning" =>
+          msg"${Ansi.Color.base01("[")}${Ansi.Color.yellow("W")}${Ansi.Color.base01("]")}"
+        case "information" =>
+          msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("I")}${Ansi.Color.base01("]")}"
+        case _ => msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("H")}${Ansi.Color.base01("]")}"
+      }
 
       multiplexer(modref) = DiagnosticMsg(
           modref,
           CompilerDiagnostic(
-              s"\n${fileName}:${lineNum + 1}:${charNum + 1}:${diag.getSeverity.toString.toLowerCase}:${diag.getMessage}\n${codeLine}\n${" " * charNum}^\n"
-          ) // TODO: print it prettier
+              msg"""$severity ${modref}${'>'}${repo}${':'}${filePath}${'@'}${lineNo}${':'}
+  ${'|'} ${UserMsg(
+                  theme =>
+                    diag.getMessage
+                      .split("\n")
+                      .to[List]
+                      .map { ln =>
+                        Ansi.Color.base1(ln)
+                      }
+                      .join(msg"""
+  ${'|'} """.string(theme)))}
+  ${'|'} ${highlightedLine.dropWhile(_ == ' ')}
+""",
+              repo,
+              filePath,
+              lineNo,
+              charNum
+          )
       )
     }
   }
@@ -411,7 +474,7 @@ case class Compilation(
     ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future {
     blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
-        conn.provision(this, multiplexer) { server =>
+        conn.provision(this, layout, multiplexer) { server =>
           val targets = server.workspaceBuildTargets.get
           targets.getTargets.asScala.find(_.getDisplayName == target) match {
             case Some(target) =>
@@ -594,7 +657,13 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     } yield
       repos.map {
         case (repo, paths) =>
-          Checkout(repo.repo, repo.local, repo.commit, repo.track, paths.map(_.path).to[List])
+          Checkout(
+              repo.id,
+              repo.repo,
+              repo.local,
+              repo.commit,
+              repo.track,
+              paths.map(_.path).to[List])
       }.to[Set]
 
   def ++(that: Universe): Universe =
@@ -954,6 +1023,7 @@ object Repo {
 }
 
 case class Checkout(
+    repoId: RepoId,
     repo: Repo,
     local: Option[Path],
     commit: Commit,
@@ -979,7 +1049,7 @@ case class Checkout(
           path(layout).delete()
         }
 
-        io.println(s"Checking out ${if (sources.isEmpty) "all sources"
+        io.println(msg"Checking out ${if (sources.isEmpty) "all sources from repository ${repoId}"
         else sources.map(_.value).mkString("[", ", ", "]")}.")
         path(layout).mkdir()
         layout.shell.git
@@ -1017,7 +1087,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
               }.getOrElse(layout.shell.git.lsTree(dir, commit))
     } yield files
 
-  def fullCheckout: Checkout = Checkout(repo, local, commit, track, List())
+  def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
   def importCandidates(io: Io, schema: Schema, layout: Layout): Try[List[String]] =
     for {

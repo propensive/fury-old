@@ -6,6 +6,8 @@ import fury.core._
 
 import probably._
 
+import fury.io._, fury.core._
+
 /**
 
 I have disabled these tests temporarily, because the use of the `version`

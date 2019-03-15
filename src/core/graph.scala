@@ -15,7 +15,7 @@
  */
 package fury.core
 
-import fury.strings._
+import fury.strings._, fury.io._
 
 import annotation.tailrec
 import optometry.Lens
@@ -28,10 +28,11 @@ object Graph {
   final private val chars = "   ┐ ─┌┬ ┘│┤└┴├┼".toCharArray
 
   sealed trait DiagnosticMessage {
-    def msg: String
+    def msg: UserMsg
   }
-  case class CompilerDiagnostic(msg: String) extends DiagnosticMessage
-  case class OtherMessage(msg: String)       extends DiagnosticMessage
+  case class CompilerDiagnostic(msg: UserMsg, repo: RepoId, path: Path, line: LineNo, charNum: Int)
+      extends DiagnosticMessage
+  case class OtherMessage(msg: UserMsg) extends DiagnosticMessage
 
   case class CompilationInfo(state: CompileState, messages: List[DiagnosticMessage])
 
@@ -162,20 +163,14 @@ object Graph {
         io.print(Ansi.showCursor())
         val output = state.collect {
           case (ref, CompilationInfo(Failed(_), out)) =>
-            UserMsg { theme =>
-              (msg"Output from $ref:"
-                .string(theme)
-                .trim + "\n" + out.map(_.msg).mkString("\n\n").trim)
-            }
+            out.map(_.msg)
           case (ref, CompilationInfo(Successful(Some(_)), out)) =>
-            UserMsg { theme =>
-              (msg"Output from $ref:"
-                .string(theme)
-                .trim + "\n" + out.map(_.msg).mkString("\n\n").trim)
-            }
-        }.foldLeft(msg"")(_ + _)
+            out.map(_.msg)
+        }.flatten
         io.println(Ansi.down(graph.size + 1)())
-        io.println(output)
+        output.foreach { diag =>
+          io.println(diag)
+        }
     }
   }
 
