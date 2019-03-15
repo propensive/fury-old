@@ -86,3 +86,26 @@ object StringShow {
 }
 
 trait StringShow[-T] { def show(value: T): String }
+
+object Compare {
+
+  def editDistance(from: String, to: String) = {
+    val m       = from.length
+    val n       = to.length
+    val oldDist = new Array[Int](n + 1)
+    val dist    = new Array[Int](n + 1)
+
+    for (j <- 1 to n) oldDist(j) = oldDist(j - 1) + 1
+    for (i <- 1 to m) {
+      dist(0) = oldDist(0) + 1
+
+      for (j <- 1 to n)
+        dist(j) = (oldDist(j - 1) + (if (from(i - 1) == to(j - 1)) 0 else 1))
+          .min(oldDist(j) + 1)
+          .min(dist(j - 1) + 1)
+
+      for (j <- 0 to n) oldDist(j) = dist(j)
+    }
+    dist(n)
+  }
+}
