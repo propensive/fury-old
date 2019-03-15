@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "project": {
     "name": "fury/core-test",
-    "directory": "$ROOT",
+    "directory": "$ROOT/src/core-test",
     "sources": [
       "$ROOT/src/core-test"
     ],

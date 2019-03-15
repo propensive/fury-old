@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "project": {
     "name": "fury/ogdl-test",
-    "directory": "$ROOT",
+    "directory": "$ROOT/src/ogdl-test",
     "sources": [
       "$ROOT/src/ogdl-test"
     ],
