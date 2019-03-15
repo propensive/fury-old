@@ -278,7 +278,7 @@ class BuildingClient() extends BuildClient {
       multiplexer(modref) = DiagnosticMsg(
           modref,
           CompilerDiagnostic(
-              msg"""$severity ${modref}${'>'}${repo}${':'}${filePath}${'@'}${lineNo}${':'}
+              msg"""$severity ${modref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
   ${'|'} ${UserMsg(
                   theme =>
                     diag.getMessage
