@@ -16,7 +16,7 @@
       "kaleidoscope/core",
       "optometry/core",
       "probably/cli",
-      "fury"
+      "fury/core"
     ],
     "classpath": [
       "$ROOT/bootstrap/scala/lib/scala-library.jar",
