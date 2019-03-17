@@ -1,4 +1,6 @@
-package fury
+package fury.core
+
+import fury.io._
 
 import java.io._
 import annotation._

@@ -216,7 +216,7 @@ object Compilation {
 object LineNo {
   implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString))
 }
-case class LineNo(line: Int) extends AnyVal
+case class LineNo(line: Int)      extends AnyVal
 case class IpfsRef(value: String) extends AnyVal
 
 class BuildingClient() extends BuildClient {
