@@ -209,6 +209,8 @@ case class Path(value: String) {
 
   def exists(): Boolean = Files.exists(javaPath)
 
+  def isFile: Boolean = Files.isRegularFile(javaPath)
+
   def directory: Try[Path] = {
     val file = javaPath.toFile
     if (!file.exists()) {
@@ -236,8 +238,7 @@ case class Path(value: String) {
 
   def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath)
 
-  def relativizeTo(dir: Path) =
-    if (value.startsWith("/")) this else Path(s"${dir.value}/$value")
+  def relativizeTo(dir: Path) = Path(dir.javaPath.relativize(javaPath).toString)
 
   def parent = Path(javaPath.getParent.toString)
 

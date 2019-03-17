@@ -381,7 +381,7 @@ object LayerCli {
       dest   <- ~layout.tmpLayer
       _      <- TarGz.store(files, dest, layout)
       ref    <- layout.shell.ipfs.add(dest)
-      _      <- ~io.println(s"Layer is now available at $ref")
+      _      <- ~io.println(msg"The layer is now available at $ref")
     } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =

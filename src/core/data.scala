@@ -216,7 +216,12 @@ object Compilation {
 object LineNo {
   implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString))
 }
-case class LineNo(line: Int)      extends AnyVal
+case class LineNo(line: Int) extends AnyVal
+
+object IpfsRef {
+  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.value.drop(2)))
+}
+
 case class IpfsRef(value: String) extends AnyVal
 
 class BuildingClient() extends BuildClient {
@@ -812,8 +817,8 @@ case class Layer(
       project <- schema.projects
       module  <- project.modules
       source  <- module.sources.collect { case LocalSource(path) => path }
-      path    <- source.findChildren(_ => true)
-    } yield source).to[List]
+      path    <- source.findChildren(_ => true).filter(_.isFile)
+    } yield path).to[List]
 }
 
 object Layer {
