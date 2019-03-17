@@ -244,7 +244,12 @@ object Compilation {
 object LineNo {
   implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString))
 }
-case class LineNo(line: Int)      extends AnyVal
+case class LineNo(line: Int) extends AnyVal
+
+object IpfsRef {
+  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.value.drop(2)))
+}
+
 case class IpfsRef(value: String) extends AnyVal
 
 object IpfsRef {
