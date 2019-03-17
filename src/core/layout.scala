@@ -67,6 +67,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val logsDir: Path       = (furyDir / "logs").extant()
   lazy val workDir: Path       = (furyDir / "work").extant()
   lazy val sharedDir: Path     = (furyDir / "build" / uniqueId).extant()
+  lazy val tmpLayer: Path      = workDir / s"$uniqueId.tar.gz"
   lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val userConfig: Path    = userDir / "config.fury"
   lazy val aliasesPath: Path   = userDir / "aliases"

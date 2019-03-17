@@ -217,6 +217,7 @@ object LineNo {
   implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString))
 }
 case class LineNo(line: Int) extends AnyVal
+case class IpfsRef(value: String) extends AnyVal
 
 class BuildingClient() extends BuildClient {
   var compilation: Compilation                          = _
@@ -804,6 +805,15 @@ case class Layer(
     schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
 
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
+
+  def bundleFiles(layout: Layout): List[Path] =
+    layout.furyConfig :: (for {
+      schema  <- schemas
+      project <- schema.projects
+      module  <- project.modules
+      source  <- module.sources.collect { case LocalSource(path) => path }
+      path    <- source.findChildren(_ => true)
+    } yield source).to[List]
 }
 
 object Layer {

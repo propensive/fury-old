@@ -51,6 +51,17 @@ case class Shell(environment: Environment) {
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
 
+  object ipfs {
+
+    def add(path: Path): Try[IpfsRef] =
+      sh"ipfs add ${path.value}".exec[Try[String]].flatMap { out =>
+        Try(IpfsRef(out.split(" ")(1)))
+      }
+
+    def get(ref: IpfsRef, path: Path): Try[Path] =
+      sh"ipfs get ${ref.value} -o ${path.value}".exec[Try[String]].map(_ => path)
+  }
+
   object git {
 
     def cloneBare(url: String, dir: Path): Try[String] = {

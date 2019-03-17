@@ -99,6 +99,13 @@ object Bsp {
 
 }
 
+object BspCli {
+  case class Context(cli: Cli[CliParam[_]], layout: Layout)
+
+  def context(cli: Cli[CliParam[_]]): Try[Context] =
+    cli.layout.map(Context(cli, _))
+}
+
 class FuryBuildServer(layout: Layout, cancel: Cancelator)
     extends BuildServer
     with ScalaBuildServer {

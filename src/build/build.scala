@@ -370,6 +370,20 @@ object LayerCli {
       _      <- ~io.println("Created empty layer.fury")
     } yield io.await()
 
+  def share(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+    for {
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      invoc  <- cli.read()
+      io     <- invoc.io()
+      files  <- ~layer.bundleFiles(layout)
+      dest   <- ~layout.tmpLayer
+      _      <- TarGz.store(files, dest, layout)
+      ref    <- layout.shell.ipfs.add(dest)
+      _      <- ~io.println(s"Layer is now available at $ref")
+    } yield io.await()
+
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout    <- cli.layout

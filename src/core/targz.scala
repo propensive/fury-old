@@ -5,6 +5,8 @@ import annotation._
 import scala.util.Try
 import org.kamranzafar.jtar._
 
+import java.util.zip._
+
 object TarGz {
 
   @tailrec
@@ -24,8 +26,9 @@ object TarGz {
   }
 
   def store(files: List[Path], destination: Path, layout: Layout): Try[Unit] = Try {
-    val fos = new FileOutputStream(destination.javaFile)
-    val out = new TarOutputStream(fos)
+    val fos  = new FileOutputStream(destination.javaFile)
+    val gzos = new GZIPOutputStream(fos)
+    val out  = new TarOutputStream(gzos)
     files.foreach { path =>
       out.putNextEntry(new TarEntry(path.javaFile, path.relativizeTo(layout.pwd).value))
       val in = new BufferedInputStream(new FileInputStream(path.javaFile))
