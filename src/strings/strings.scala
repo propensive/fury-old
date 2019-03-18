@@ -36,6 +36,8 @@ case class UserMsg(string: Theme => String) {
   }
 
   def length: Int = string(Theme.NoColor).length
+
+  override def toString: String = string(Theme.NoColor)
 }
 
 case class StringContexts(context: StringContext) extends AnyVal {

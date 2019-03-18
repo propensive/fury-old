@@ -51,7 +51,6 @@ object `package` {
 
   implicit def joinable(values: Traversable[String]): Joinable = Joinable(values)
 
-  implicit val mainTag: Tag                     = Tag("fury")
   implicit val msgShowBoolean: MsgShow[Boolean] = if (_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
   implicit val stringShow: StringShow[Path]     = _.value
