@@ -78,6 +78,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"The module must be of type '${expected}'.")
         case e: UnknownCompiler =>
           cli.abort(msg"This compiler is not known.")
+        case UnknownBinaryRepository(repoId: BinRepoId) =>
+          cli.abort(msg"The binary repository $repoId could not be resolved.")
         case e: ShellFailure =>
           cli.abort(
               msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
