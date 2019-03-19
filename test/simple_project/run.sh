@@ -19,7 +19,13 @@ fury
 # Test JAR file validity
 fury build save --dir ./
 
+# Run java directly
 OUTPUT=$(java -cp "$SCALA:webpage-hello-world.jar" "HelloWorld")
+EXPECTED="Hello, world!"
+assert_equal "$EXPECTED" "$OUTPUT"
+
+# Test running application module via fury
+OUTPUT=$(fury | grep Hello)
 EXPECTED="Hello, world!"
 assert_equal "$EXPECTED" "$OUTPUT"
 
