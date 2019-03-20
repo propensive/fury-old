@@ -118,9 +118,8 @@ object Graph {
             else updateState(ref, _.copy(state = AlreadyCompiled)),
             streaming
         )
-      case StopCompile(ref, out, success) #:: tail => {
-        val trimmedOutput = out.trim
-        val msgs          = state(ref).messages
+      case StopCompile(ref, success) #:: tail => {
+        val msgs = state(ref).messages
         live(
             true,
             io,
@@ -130,12 +129,9 @@ object Graph {
                 ref,
                 CompilationInfo(
                     (if (success)
-                       Successful(
-                           if (trimmedOutput.isEmpty) None
-                           else Some(trimmedOutput)
-                       )
-                     else Failed(trimmedOutput)),
-                    msgs :+ OtherMessage(out)
+                       Successful(None)
+                     else Failed("")),
+                    msgs
                 )
             ),
             streaming
@@ -164,7 +160,7 @@ object Graph {
         val output = state.collect {
           case (ref, CompilationInfo(Failed(_), out)) =>
             out.map(_.msg)
-          case (ref, CompilationInfo(Successful(Some(_)), out)) =>
+          case (ref, CompilationInfo(Successful(_), out)) =>
             out.map(_.msg)
         }.flatten
         io.println(Ansi.down(graph.size + 1)())

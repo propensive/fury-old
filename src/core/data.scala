@@ -30,7 +30,7 @@ import kaleidoscope._
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import com.google.gson.{Gson, JsonElement}
-import Graph.{Compiling, CompilerDiagnostic, DiagnosticMessage}
+import Graph.{Compiling, CompilerDiagnostic, OtherMessage, DiagnosticMessage}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
@@ -346,13 +346,13 @@ class BuildingClient() extends BuildClient {
         val modref = compilation.reverseHashes.compose(getModuleHash)(report.getTarget.getUri)
         params.getStatus match {
           case StatusCode.OK => {
-            multiplexer(modref) = StopCompile(modref, "", true)
+            multiplexer(modref) = StopCompile(modref, true)
           }
           case StatusCode.ERROR => {
-            multiplexer(modref) = StopCompile(modref, "", false)
+            multiplexer(modref) = StopCompile(modref, false)
           }
           case StatusCode.CANCELLED => {
-            multiplexer(modref) = StopCompile(modref, "", false)
+            multiplexer(modref) = StopCompile(modref, false)
           }
         }
     }
@@ -510,9 +510,8 @@ case class Compilation(
         if (inputs.exists(!_.success)) {
           multiplexer(artifact.ref) = SkipCompile(artifact.ref)
           multiplexer.close(artifact.ref)
-          Future.successful(CompileResult(false, ""))
+          Future.successful(CompileResult(false))
         } else {
-          val out           = new StringBuilder()
           val noCompilation = artifact.sourcePaths.isEmpty
           if (noCompilation) deepDependencies(artifact.ref).foreach { ref =>
             multiplexer(ref) = NoCompile(ref)
@@ -521,9 +520,7 @@ case class Compilation(
           blocking {
             compileModule(io, targetHash, layout, multiplexer).map(_.getStatusCode == StatusCode.OK)
           }.map { compileResult =>
-// inserted
             if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {
-              multiplexer(artifact.ref) = StartStreaming
               if (artifact.kind == Benchmarks) {
                 Jmh.instrument(
                     layout.classesDir(hash(artifact.ref)),
@@ -536,6 +533,7 @@ case class Compilation(
                     layout.classesDir(hash(artifact.ref)).value,
                     javaSources.map(_.value).to[List])
               }
+              val out = new StringBuilder()
               val res = layout.shell
                 .runJava(
                     jmhRuntimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
@@ -551,53 +549,22 @@ case class Compilation(
                   }
                 }
                 .await() == 0
-
-              multiplexer(artifact.ref) = StopStreaming
-
-              if (!res) {
-                deepDependencies(artifact.ref).foreach { ref =>
-                  multiplexer(ref) = NoCompile(ref)
-                }
-                multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, false)
-                multiplexer.close(artifact.ref)
+              multiplexer(artifact.ref) = DiagnosticMsg(artifact.ref, OtherMessage(out.mkString))
+              deepDependencies(artifact.ref).foreach { ref =>
+                multiplexer(ref) = NoCompile(ref)
               }
+              multiplexer(artifact.ref) = StopCompile(artifact.ref, res)
+              multiplexer.close(artifact.ref)
+              multiplexer(artifact.ref) = StopStreaming
               res
             } else compileResult
 
 // end inserted
 
-          }.map(CompileResult(_, out.toString))
+          }.map(CompileResult(_))
         }
       }
     newFutures.updated(artifact.ref, future)
-  }
-
-  private def executeApplicationModule(
-      io: Io,
-      multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      layout: Layout,
-      artifact: Artifact,
-      out: StringBuilder
-    ) = {
-    val res = layout.shell
-      .runJava(
-          runtimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
-          artifact.main.getOrElse(""),
-          true,
-          layout
-      ) { ln =>
-        out.append(ln)
-        out.append("\n")
-      }
-      .await() == 0
-    if (!res) {
-      deepDependencies(artifact.ref).foreach { ref =>
-        multiplexer(ref) = NoCompile(ref)
-      }
-      multiplexer(artifact.ref) = StopCompile(artifact.ref, out.toString, false)
-      multiplexer.close(artifact.ref)
-    }
-    res
   }
 }
 case class Entity(project: Project, schema: Schema, path: Path)
@@ -1200,18 +1167,18 @@ case class SchemaRef(repo: RepoId, schema: SchemaId) {
 }
 
 sealed trait CompileEvent
-case object Tick                                                         extends CompileEvent
-case class StartCompile(ref: ModuleRef)                                  extends CompileEvent
-case class CompilationProgress(ref: ModuleRef, progress: Double)         extends CompileEvent
-case class StopCompile(ref: ModuleRef, output: String, success: Boolean) extends CompileEvent
-case class NoCompile(ref: ModuleRef)                                     extends CompileEvent
-case class SkipCompile(ref: ModuleRef)                                   extends CompileEvent
-case class Print(line: String)                                           extends CompileEvent
-object StartStreaming                                                    extends CompileEvent
-object StopStreaming                                                     extends CompileEvent
-case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage)         extends CompileEvent
+case object Tick                                                 extends CompileEvent
+case class StartCompile(ref: ModuleRef)                          extends CompileEvent
+case class CompilationProgress(ref: ModuleRef, progress: Double) extends CompileEvent
+case class StopCompile(ref: ModuleRef, success: Boolean)         extends CompileEvent
+case class NoCompile(ref: ModuleRef)                             extends CompileEvent
+case class SkipCompile(ref: ModuleRef)                           extends CompileEvent
+case class Print(line: String)                                   extends CompileEvent
+object StartStreaming                                            extends CompileEvent
+object StopStreaming                                             extends CompileEvent
+case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent
 
-case class CompileResult(success: Boolean, output: String)
+case class CompileResult(success: Boolean)
 
 case class Artifact(
     ref: ModuleRef,
