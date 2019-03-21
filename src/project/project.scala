@@ -32,7 +32,7 @@ object ProjectCli {
     for {
       layout       <- cli.layout
       config       <- Config.read()(cli.env, layout)
-      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer        <- Layer.read(Io.silent(config), layout.layerFile, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       optSchemaArg <- ~cli.peek(SchemaArg)
     } yield new MenuContext(cli, layout, config, layer, optSchemaArg)

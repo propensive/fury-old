@@ -76,7 +76,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   def bloopConfig(digest: Digest): Path =
     bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
 
-  lazy val furyConfig: Path = base / "layer.fury"
+  lazy val layerFile: Path = base / "layer.fury"
 
   def outputDir(digest: Digest): Path =
     (analysisDir / digest.encoded[Base64Url]).extant()
@@ -92,6 +92,9 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
 
   def resourcesDir(digest: Digest): Path =
     (resourcesDir / digest.encoded[Base64Url]).extant()
+
+  def layersDir(layerRef: IpfsRef): Path =
+    (layersDir / layerRef.value).extant()
 
   def manifestFile(digest: Digest): Path =
     resourcesDir(digest) / "manifest.mf"

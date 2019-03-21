@@ -15,15 +15,16 @@ object TarGz {
   private def transfer(
       in: InputStream,
       out: OutputStream,
-      data: Array[Byte] = new Array(2048)
+      data: Array[Byte] = new Array(65536),
+      keepOpen: Boolean = false
     ): Unit = {
     val count = in.read(data)
     if (count != -1) {
       out.write(data, 0, count)
-      transfer(in, out, data)
+      transfer(in, out, data, keepOpen)
     } else {
       out.flush()
-      in.close()
+      if (!keepOpen) in.close()
     }
   }
 
@@ -37,5 +38,20 @@ object TarGz {
       transfer(in, out)
     }
     out.close()
+  }
+
+  def extract(file: Path, destination: Path, layout: Layout): Try[Unit] = Try {
+    val fis  = new FileInputStream(file.javaFile)
+    val gzis = new GZIPInputStream(fis)
+    val in   = new TarInputStream(gzis)
+    Iterator.continually(in.getNextEntry).takeWhile(_ != null).foreach { entry =>
+      val path = Path(entry.getName) in destination
+      path.mkParents()
+      val fos = new FileOutputStream(path.javaFile)
+      val out = new BufferedOutputStream(fos)
+      transfer(in, out, keepOpen = true)
+      out.close()
+    }
+    in.close()
   }
 }

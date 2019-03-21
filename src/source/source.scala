@@ -41,7 +41,7 @@ object SourceCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption

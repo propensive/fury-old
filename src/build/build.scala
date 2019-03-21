@@ -56,7 +56,7 @@ object AliasCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
@@ -131,7 +131,7 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
@@ -241,7 +241,7 @@ object BuildCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
+      layer  <- ~Layer.read(Io.silent(config), layout.layerFile, layout).toOption
       msg <- layer
               .map(getPrompt(_, config.theme))
               .getOrElse(Success(Prompt.empty(config)(config.theme)))
@@ -365,7 +365,7 @@ object LayerCli {
       invoc  <- cli.read()
       io     <- invoc.io()
       layer  <- ~Layer()
-      _      <- layout.furyConfig.mkParents()
+      _      <- layout.layerFile.mkParents()
       _      <- ~Layer.save(io, layer, layout)
       _      <- ~io.println("Created empty layer.fury")
     } yield io.await()
@@ -374,7 +374,7 @@ object LayerCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
       invoc  <- cli.read()
       io     <- invoc.io()
       files  <- ~layer.bundleFiles(layout)
@@ -384,11 +384,28 @@ object LayerCli {
       _      <- ~io.println(msg"The layer is now available at $ref")
     } yield io.await()
 
+  def doImport(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+    for {
+      layout    <- cli.layout
+      config    <- Config.read()(cli.env, layout)
+      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      cli       <- cli.hint(LayerRefArg)
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
+      invoc     <- cli.read()
+      layerRef  <- invoc(LayerRefArg)
+      io        <- invoc.io()
+      tmpFile   <- ~(layout.layersDir.extant() / str"${layerRef.value}.tmp")
+      _         <- layout.shell.ipfs.get(layerRef, tmpFile)
+      _         <- TarGz.extract(tmpFile, layout.layersDir(layerRef), layout)
+      _         <- ~io.println(msg"Imported layer $layerRef")
+    } yield io.await()
+
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)

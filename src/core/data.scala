@@ -219,10 +219,18 @@ object LineNo {
 case class LineNo(line: Int) extends AnyVal
 
 object IpfsRef {
-  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.value.drop(2)))
+  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.url))
+
+  def parse(str: String): Option[IpfsRef] = str match {
+    case r"fury:\/\/$hash@([A-Za-z0-9]{44})\/?"           => Some(IpfsRef(str"Qm$hash"))
+    case r"fury:\/\/$domain@([a-z0-9]+(\.[a-z0-9]+)+)\/?" => Some(IpfsRef(domain))
+    case _                                                => None
+  }
 }
 
-case class IpfsRef(value: String) extends AnyVal
+case class IpfsRef(value: String) extends AnyVal {
+  def url: String = s"fury://${value.drop(2)}"
+}
 
 class BuildingClient() extends BuildClient {
   var compilation: Compilation                          = _
@@ -757,7 +765,7 @@ case class Schema(
                  repo         <- repos.findBy(ref.repo)
                  repoDir      <- repo.fullCheckout.get(io, layout)
                  nestedLayout <- ~Layout(layout.home, repoDir, layout.env, repoDir)
-                 layer        <- Layer.read(io, nestedLayout.furyConfig, nestedLayout)
+                 layer        <- Layer.read(io, nestedLayout.layerFile, nestedLayout)
                  resolved     <- layer.schemas.findBy(ref.schema)
                  tree         <- resolved.hierarchy(io, repoDir, layout)
                } yield tree
@@ -812,7 +820,7 @@ case class Layer(
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
 
   def bundleFiles(layout: Layout): List[Path] =
-    layout.furyConfig :: (for {
+    layout.layerFile :: (for {
       schema  <- schemas
       project <- schema.projects
       module  <- project.modules
@@ -1170,13 +1178,17 @@ object SchemaRef {
   }
 }
 
+case class Import(ipfsRef: IpfsRef, schema: SchemaId) {
+  def url: String = s"${ipfsRef.url}@${schema.key}"
+}
+
 case class SchemaRef(repo: RepoId, schema: SchemaId) {
 
   def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
     for {
       repo     <- base.repos.findBy(repo)
       dir      <- repo.fullCheckout.get(io, layout)
-      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
+      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).layerFile, layout)
       resolved <- layer.schemas.findBy(schema)
     } yield resolved
 }

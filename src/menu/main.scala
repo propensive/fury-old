@@ -52,7 +52,7 @@ object Main {
     val layer = for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
     } yield layer
 
     val actions = layer.toOption

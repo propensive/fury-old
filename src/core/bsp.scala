@@ -116,7 +116,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
 
   private def structure: Try[Structure] =
     for {
-      layer     <- Layer.read(io, layout.furyConfig, layout)
+      layer     <- Layer.read(io, layout.layerFile, layout)
       schema    <- layer.mainSchema
       hierarchy <- schema.hierarchy(io, layout.pwd, layout)
       universe  <- hierarchy.universe

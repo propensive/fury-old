@@ -30,7 +30,7 @@ object ImportCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
     } yield Context(cli, layout, config, layer)
 
   def add(ctx: Context): Try[ExitStatus] = {

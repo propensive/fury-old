@@ -32,7 +32,7 @@ object RepoCli {
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
     } yield Context(cli, layout, config, layer)
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)

@@ -116,6 +116,7 @@ object FuryMenu {
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('share, msg"share the current layer", LayerCli.share),
+            Action('import, msg"import an external layer", LayerCli.doImport),
             Action('projects, msg"show all available projects", LayerCli.projects)
         )
     ) ::: aliases: _*)
