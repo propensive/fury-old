@@ -202,7 +202,7 @@ object Compilation {
     val initializeParams = new InitializeBuildParams(
         "fury",
         Version.current,
-        "2.0.0-M3",
+        "2.0.0-M4",
         dir.uriString,
         new BuildClientCapabilities(List("scala").asJava)
     )
