@@ -247,10 +247,18 @@ object LineNo {
 case class LineNo(line: Int) extends AnyVal
 
 object IpfsRef {
-  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.value.drop(2)))
+  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.url))
+
+  def parse(str: String): Option[IpfsRef] = str match {
+    case r"fury:\/\/$hash@([A-Za-z0-9]{44})\/?"           => Some(IpfsRef(str"Qm$hash"))
+    case r"fury:\/\/$domain@([a-z0-9]+(\.[a-z0-9]+)+)\/?" => Some(IpfsRef(domain))
+    case _                                                => None
+  }
 }
 
-case class IpfsRef(value: String) extends AnyVal
+case class IpfsRef(value: String) extends AnyVal {
+  def url: String = s"fury://${value.drop(2)}"
+}
 
 object IpfsRef {
   implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.url))
