@@ -3,4 +3,5 @@ grant {
       permission java.lang.RuntimePermission "getenv.SHARED", "read";
       permission java.util.PropertyPermission "fury.sharedDir", "read";
       permission java.util.PropertyPermission "scala.*", "read";
+      permission java.net.SocketPermission "*", "connect,resolve";
 };
