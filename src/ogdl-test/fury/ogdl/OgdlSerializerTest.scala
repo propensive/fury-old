@@ -55,11 +55,12 @@ object OgdlSerializerTest extends TestApp {
     }.assert(_ == "AB\n")
 
     test("Sibling nodes have the same indentation level") {
-      write(graph(
-        "A" ->
-          graph("B" -> graph("C", "D")),
-        "E"
-      ))
+      write(
+          graph(
+              "A" ->
+                graph("B" -> graph("C", "D")),
+              "E"
+          ))
     }.assert(_ == "A\tB\tCD\nE\n")
   }
 

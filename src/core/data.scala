@@ -172,6 +172,8 @@ case class BloopSpec(org: String, name: String, version: String)
 
 case class BspConnection(client: BuildingClient, server: BuildServer) {
 
+  def shutdown(): Unit = server.buildShutdown()
+
   def provision[T](
       currentCompilation: Compilation,
       layout: Layout,
@@ -187,28 +189,33 @@ case class BspConnection(client: BuildingClient, server: BuildServer) {
 
 object Compilation {
 
-  val bspPool: Pool[Path, BspConnection] = dir => {
-    val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
-    val client = new BuildingClient()
-    val launcher = new Launcher.Builder[BuildServer]()
-      .setRemoteInterface(classOf[BuildServer])
-      .setExecutorService(null)
-      .setInput(handle.getInputStream)
-      .setOutput(handle.getOutputStream)
-      .setLocalService(client)
-      .create()
-    launcher.startListening()
-    val server = launcher.getRemoteProxy
-    val initializeParams = new InitializeBuildParams(
-        "fury",
-        Version.current,
-        "2.0.0-M4",
-        dir.uriString,
-        new BuildClientCapabilities(List("scala").asJava)
-    )
-    server.buildInitialize(initializeParams).get
-    server.onBuildInitialized()
-    BspConnection(client, server)
+  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](3, 3000L) {
+
+    def destroy(value: BspConnection): Unit = value.shutdown()
+
+    def create(dir: Path): BspConnection = {
+      val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
+      val client = new BuildingClient()
+      val launcher = new Launcher.Builder[BuildServer]()
+        .setRemoteInterface(classOf[BuildServer])
+        .setExecutorService(null)
+        .setInput(handle.getInputStream)
+        .setOutput(handle.getOutputStream)
+        .setLocalService(client)
+        .create()
+      launcher.startListening()
+      val server = launcher.getRemoteProxy
+      val initializeParams = new InitializeBuildParams(
+          "fury",
+          Version.current,
+          "2.0.0-M4",
+          dir.uriString,
+          new BuildClientCapabilities(List("scala").asJava)
+      )
+      server.buildInitialize(initializeParams).get
+      server.onBuildInitialized()
+      BspConnection(client, server)
+    }
   }
 
 }

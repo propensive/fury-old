@@ -5,8 +5,8 @@ import probably.TestApp
 
 object Tests {
   private val testSuites = List[TestApp](
-    OgdlParserTest,
-    OgdlSerializerTest
+      OgdlParserTest,
+      OgdlSerializerTest
   )
 
   def main(args: Array[String]): Unit = testSuites.foreach(_.execute())

@@ -16,23 +16,57 @@
 package fury.core
 
 import scala.collection.mutable._
+import scala.concurrent._, duration._
+import scala.util._
+import scala.annotation._
 
-abstract class Pool[K, T]() {
+abstract class Pool[K, T](max: Int, timeout: Long)(implicit ec: ExecutionContext) {
 
-  private[this] val pool: Map[K, Set[T]] = new HashMap().withDefaultValue(Set())
+  def create(key: K): T
+  def destroy(value: T): Unit
+
+  object Entry { implicit val ord: Ordering[Entry] = Ordering[Long].on(_.timestamp) }
+  case class Entry(timestamp: Long, key: K, value: T)
+
+  private[this] var count: Int = 0
+  private[this] var pool: SortedSet[Entry] = TreeSet()
+
+  @tailrec
+  private[this] def createOrRecycle(key: K): T = {
+    val result = pool.find(_.key == key) match {
+      case None =>
+        if(count >= max) {
+          pool.headOption match {
+            case None =>
+              Thread.sleep(timeout)
+              None
+            case Some(entry) =>
+              destroy(entry.value)
+              count -= 1
+              None
+          }
+        } else Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+          count += 1
+          pool += Entry(System.currentTimeMillis, key, value)
+          Some(value)
+        }.toOption.getOrElse(None)
+      case Some(entry) =>
+        pool -= entry
+        Some(entry.value)
+    }
+    if(result.isEmpty) createOrRecycle(key) else result.get
+  }
 
   def borrow[S](io: Io, key: K)(action: T => S): S = {
-    val element = synchronized {
-      pool(key).headOption.fold(create(key)) { e =>
-        pool(key) = pool(key) - e
-        e
+    val value: T = synchronized {
+      pool.headOption.fold(createOrRecycle(key)) { e =>
+        pool -= e
+        e.value
       }
     }
 
-    val result: S = action(element)
-    synchronized { pool(key) = pool(key) + element }
+    val result: S = action(value)
+    synchronized { pool += Entry(System.currentTimeMillis, key, value) }
     result
   }
-
-  def create(key: K): T
 }

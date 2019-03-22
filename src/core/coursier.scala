@@ -20,7 +20,7 @@ import fury.io._, fury.strings._
 import scala.util._
 import scala.collection._
 import scala.concurrent._
-import coursier.{Module => CModule,  _}
+import coursier.{Module => CModule, _}
 
 object Coursier {
 
@@ -30,7 +30,7 @@ object Coursier {
     mutable.HashMap()
 
   def fetch(io: Io, binary: Binary): Future[List[Path]] = {
-    def resolveRepository(repoId: String): Future[Repository] = {
+    def resolveRepository(repoId: String): Future[Repository] =
       coursier.cache.CacheParse
         .repositories(Seq(repoId))
         .either
@@ -42,7 +42,6 @@ object Coursier {
           Future.failed[Repository](UnknownBinaryRepository(binary.binRepo))
         }
         .merge
-    }
 
     def resolve(repo: Repository): Future[List[Path]] = {
       io.println(msg"Resolving $binary")
@@ -50,9 +49,9 @@ object Coursier {
         .Fetch()
         .addRepositories(repo)
         .addDependencies(
-          Dependency(
-            CModule(Organization(binary.group), ModuleName(binary.artifact)),
-            binary.version))
+            Dependency(
+                CModule(Organization(binary.group), ModuleName(binary.artifact)),
+                binary.version))
         .future
         .map(_._2.to[List].map { a =>
           Path(a._2.getAbsolutePath)
