@@ -870,8 +870,13 @@ case class Layer(
 
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
 
+  def infoFile(layout: Layout): List[Path] = {
+    val f = layout.base / "layer.md"
+    if(f.exists) List(f) else Nil
+  }
+
   def bundleFiles(layout: Layout): List[Path] =
-    layout.layerFile :: (for {
+    layout.layerFile :: infoFile(layout) ::: (for {
       schema  <- schemas
       project <- schema.projects
       module  <- project.modules

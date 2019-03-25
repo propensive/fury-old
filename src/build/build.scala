@@ -381,7 +381,7 @@ object LayerCli {
 
   def doClone(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout  <- cli.layout
+      layout  <- cli.newLayout
       config  <- Config.read()(cli.env, layout)
       layer   <- Layer.read(Io.silent(config), layout.layerFile, layout)
       cli     <- cli.hint(CloneRefArg)
@@ -393,6 +393,8 @@ object LayerCli {
       tmpFile <- ~(layout.layersDir.extant() / str"${ipfsRef.value}.tmp")
       _       <- layout.shell.ipfs.get(ipfsRef, tmpFile)
       _       <- TarGz.extract(tmpFile, (dir in layout.pwd).extant(), layout)
+      info    <- ~((dir in layout.pwd) / "layer.md")
+      _       <- ~(if(info.exists) scala.io.Source.fromFile(info.javaPath.toFile).foreach(io.println(_)))
     } yield io.await()
 
   def doImport(cli: Cli[CliParam[_]]): Try[ExitStatus] =
