@@ -59,7 +59,7 @@ case class Shell(environment: Environment) {
       }
 
     def get(ref: IpfsRef, path: Path): Try[Path] =
-      sh"ipfs get /ipfs/Qm${ref.value} -o ${path.value}".exec[Try[String]].map(_ => path)
+      sh"ipfs get /ipfs/${ref.value} -o ${path.value}".exec[Try[String]].map(_ => path)
   }
 
   object git {

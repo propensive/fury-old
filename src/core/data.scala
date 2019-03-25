@@ -248,13 +248,14 @@ case class LineNo(line: Int) extends AnyVal
 
 object IpfsRef {
   implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.url))
-  
+
   implicit val diff: Diff[IpfsRef] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
 
   def parse(str: String): Option[IpfsRef] = str match {
-    case r"fury:\/\/$hash@([A-Za-z0-9]{44})\/?"           => Some(IpfsRef(str"Qm$hash"))
-    case r"fury:\/\/$domain@([a-z0-9]+(\.[a-z0-9]+)+)\/?" => Some(IpfsRef(domain))
-    case _                                                => None
+    case r"fury:\/\/$hash@([A-Za-z0-9]{44})" => Some(IpfsRef(str"Qm$hash"))
+    case r"$hash@([A-Za-z0-9]{44})"          => Some(IpfsRef(str"Qm$hash"))
+    //case r"fury:\/\/$domain@([a-z0-9]+(\.[a-z0-9]+)+)\/?" => Some(IpfsRef(domain))
+    case _ => None
   }
 }
 
@@ -810,10 +811,14 @@ case class Schema(
     for {
       imps <- imports.map { importRef =>
                for {
-                 nestedLayout <- ~Layout(layout.home, layout.pwd, layout.env, layout.layersDir(importRef.id))
-                 layer        <- Layer.read(io, nestedLayout.layerFile, nestedLayout)
-                 resolved     <- layer.schemas.findBy(importRef.schema)
-                 tree         <- resolved.hierarchy(io, layout.layersDir(importRef.id), layout)
+                 nestedLayout <- ~Layout(
+                                    layout.home,
+                                    layout.pwd,
+                                    layout.env,
+                                    layout.layersDir(importRef.id))
+                 layer    <- Layer.read(io, nestedLayout.layerFile, nestedLayout)
+                 resolved <- layer.schemas.findBy(importRef.schema)
+                 tree     <- resolved.hierarchy(io, layout.layersDir(importRef.id), layout)
                } yield tree
              }.sequence
     } yield Hierarchy(this, dir, imps)
@@ -1248,7 +1253,7 @@ object Import {
 
   def unapply(value: String): Option[Import] = value match {
     case r"fury:\/\/$ipfsRef@([a-zA-Z0-9]{44})\@$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(Import(LayerId(ipfsRef), IpfsRef(ipfsRef), SchemaId(schema)))
+      Some(Import(LayerId(s"Qm$ipfsRef"), IpfsRef(s"Qm$ipfsRef"), SchemaId(schema)))
     case _ =>
       None
   }
@@ -1256,7 +1261,7 @@ object Import {
 
 case class Import(id: LayerId, ipfsRef: IpfsRef, schema: SchemaId) {
   def url: String = s"${ipfsRef.url}@${schema.key}"
-  
+
   def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
     for {
       dir      <- ~layout.layersDir(id)

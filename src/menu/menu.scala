@@ -117,6 +117,7 @@ object FuryMenu {
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('share, msg"share the current layer", LayerCli.share),
             Action('import, msg"import an external layer", LayerCli.doImport),
+            Action('clone, msg"clone an external layer", LayerCli.doClone),
             Action('projects, msg"show all available projects", LayerCli.projects)
         )
     ) ::: aliases: _*)

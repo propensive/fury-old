@@ -379,6 +379,22 @@ object LayerCli {
       _      <- ~io.println(msg"The layer is now available at $ref")
     } yield io.await()
 
+  def doClone(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+    for {
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
+      layer   <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      cli     <- cli.hint(CloneRefArg)
+      cli     <- cli.hint(DirArg)
+      invoc   <- cli.read()
+      ipfsRef <- invoc(CloneRefArg)
+      io      <- invoc.io()
+      dir     <- invoc(DirArg)
+      tmpFile <- ~(layout.layersDir.extant() / str"${ipfsRef.value}.tmp")
+      _       <- layout.shell.ipfs.get(ipfsRef, tmpFile)
+      _       <- TarGz.extract(tmpFile, (dir in layout.pwd).extant(), layout)
+    } yield io.await()
+
   def doImport(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout    <- cli.layout
@@ -393,11 +409,12 @@ object LayerCli {
       io        <- invoc.io()
       name      <- invoc(LayerNameArg)
       imported  <- ~imported.copy(id = name)
-      layer     <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ + imported))
-      tmpFile   <- ~(layout.layersDir.extant() / str"${imported.ipfsRef.value}.tmp")
-      _         <- layout.shell.ipfs.get(imported.ipfsRef, tmpFile)
-      _         <- TarGz.extract(tmpFile, layout.layersDir(name), layout)
-      _         <- Layer.save(io, layer, layout)
+      layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
+                  _.modify(_)(_ + imported))
+      tmpFile <- ~(layout.layersDir.extant() / str"${imported.ipfsRef.value}.tmp")
+      _       <- layout.shell.ipfs.get(imported.ipfsRef, tmpFile)
+      _       <- TarGz.extract(tmpFile, layout.layersDir(name), layout)
+      _       <- Layer.save(io, layer, layout)
     } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
