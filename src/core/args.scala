@@ -39,6 +39,9 @@ object Args {
   implicit private val ipfsRef: TExtractor[IpfsRef]     = _.headOption.flatMap(IpfsRef.parse(_))
   implicit private val reporter: TExtractor[Reporter]   = _.headOption.flatMap(Reporter.unapply(_))
   
+  implicit private val layerId: TExtractor[LayerId] =
+    _.headOption.flatMap(LayerId.parse(_).toOption)
+  
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
   val BinaryRepoArg =
@@ -70,6 +73,7 @@ object Args {
   val MainArg        = CliParam[String]('M', 'main, "specify a main class")
   val PluginArg      = CliParam[String]('P', 'plugin, "specify the name of the plugin")
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
+  val LayerNameArg   = CliParam[LayerId]('n', 'name, "specify a name for the layer")
   val RepoNameArg    = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val SchemaNameArg  = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
   val RawArg         = CliParam[Unit]('R', 'raw, "display raw output")

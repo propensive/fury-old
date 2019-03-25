@@ -1232,7 +1232,20 @@ object SchemaRef {
   }
 }
 
-case class Import(ipfsRef: IpfsRef, schema: SchemaId) {
+object LayerId {
+  implicit val msgShow: MsgShow[LayerId]       = p => UserMsg(_.layer(p.key))
+  implicit val stringShow: StringShow[LayerId] = _.key
+  implicit def diff: Diff[LayerId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+
+  def parse(name: String): Try[LayerId] = name match {
+    case r"[a-z](-?[a-z0-9]+)*" => Success(LayerId(name))
+    case _                      => Failure(InvalidValue(name))
+  }
+}
+
+case class LayerId(key: String) extends Key(msg"project")
+
+case class Import(id: LayerId, ipfsRef: IpfsRef, schema: SchemaId) {
   def url: String = s"${ipfsRef.url}@${schema.key}"
 }
 
