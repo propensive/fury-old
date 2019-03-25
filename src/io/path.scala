@@ -132,7 +132,7 @@ case class Path(value: String) {
 
   def findChildren(predicate: String => Boolean): Set[Path] = {
     def search(dir: java.io.File): Set[java.io.File] = {
-      val fileSet = dir.listFiles.to[Set]
+      val fileSet = Option(dir.listFiles).to[Set].flatten.to[Set]
       fileSet.filter(_.isDirectory).flatMap(search(_)) ++
         fileSet.filter { f =>
           !f.isDirectory && predicate(f.getName)

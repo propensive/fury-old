@@ -59,11 +59,11 @@ object FuryMenu {
             Action('list, msg"list dependencies for the module", DependencyCli.list)
         ),
         Action('help, msg"help on using Fury", help),
-        Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
+        /*Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
             Action('add, msg"add an imported schema", ImportCli.add),
             Action('remove, msg"remove a previously imported schema", ImportCli.remove),
             Action('list, msg"list imported schemas", ImportCli.list)
-        ),
+        ),*/
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
             Action('remove, msg"remove a module from the project", ModuleCli.remove),

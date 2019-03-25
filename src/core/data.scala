@@ -248,6 +248,8 @@ case class LineNo(line: Int) extends AnyVal
 
 object IpfsRef {
   implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.url))
+  
+  implicit val diff: Diff[IpfsRef] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
 
   def parse(str: String): Option[IpfsRef] = str match {
     case r"fury:\/\/$hash@([A-Za-z0-9]{44})\/?"           => Some(IpfsRef(str"Qm$hash"))
@@ -785,7 +787,7 @@ case class Schema(
     id: SchemaId,
     projects: SortedSet[Project] = TreeSet(),
     repos: SortedSet[SourceRepo] = TreeSet(),
-    imports: SortedSet[SchemaRef] = TreeSet(),
+    imports: SortedSet[Import] = TreeSet(),
     main: Option[ProjectId] = None) {
 
   def apply(id: ProjectId) = projects.findBy(id)
@@ -806,14 +808,12 @@ case class Schema(
 
   def hierarchy(io: Io, dir: Path, layout: Layout): Try[Hierarchy] =
     for {
-      imps <- imports.map { ref =>
+      imps <- imports.map { importRef =>
                for {
-                 repo         <- repos.findBy(ref.repo)
-                 repoDir      <- repo.fullCheckout.get(io, layout)
-                 nestedLayout <- ~Layout(layout.home, repoDir, layout.env, repoDir)
+                 nestedLayout <- ~Layout(layout.home, layout.pwd, layout.env, layout.layersDir(importRef.id))
                  layer        <- Layer.read(io, nestedLayout.layerFile, nestedLayout)
-                 resolved     <- layer.schemas.findBy(ref.schema)
-                 tree         <- resolved.hierarchy(io, repoDir, layout)
+                 resolved     <- layer.schemas.findBy(importRef.schema)
+                 tree         <- resolved.hierarchy(io, layout.layersDir(importRef.id), layout)
                } yield tree
              }.sequence
     } yield Hierarchy(this, dir, imps)
@@ -876,7 +876,7 @@ case class Layer(
 }
 
 object Layer {
-  val CurrentVersion = 3
+  val CurrentVersion = 4
 
   def read(io: Io, string: String, layout: Layout): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(io, layout, _)))
@@ -929,6 +929,18 @@ object Layer {
                   )
                 },
                 version = Ogdl(3)
+            )
+        )
+      case 3 =>
+        io.println("Migrating layer.fury from file format v3: all imports have been removed")
+        upgrade(
+            io,
+            layout,
+            ogdl.set(
+                schemas = ogdl.schemas.map { schema =>
+                  schema.set(imports = Ogdl(List[Import]()))
+                },
+                version = Ogdl(4)
             )
         )
       case CurrentVersion => ogdl
@@ -1213,25 +1225,6 @@ case class Repo(url: String) {
   }
 }
 
-object SchemaRef {
-
-  implicit val msgShow: MsgShow[SchemaRef] =
-    v =>
-      UserMsg { theme =>
-        msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme)
-      }
-
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
-  implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
-
-  def unapply(value: String): Option[SchemaRef] = value match {
-    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(SchemaRef(RepoId(repo), SchemaId(schema)))
-    case _ =>
-      None
-  }
-}
-
 object LayerId {
   implicit val msgShow: MsgShow[LayerId]       = p => UserMsg(_.layer(p.key))
   implicit val stringShow: StringShow[LayerId] = _.key
@@ -1245,11 +1238,34 @@ object LayerId {
 
 case class LayerId(key: String) extends Key(msg"project")
 
-case class Import(id: LayerId, ipfsRef: IpfsRef, schema: SchemaId) {
-  def url: String = s"${ipfsRef.url}@${schema.key}"
+object Import {
+
+  implicit val msgShow: MsgShow[Import] =
+    v => msg"${v.id}${'@'}${v.schema}"
+
+  implicit val stringShow: StringShow[Import] = sr => str"${sr.id}@${sr.schema}"
+  implicit def diff: Diff[Import]             = Diff.gen[Import]
+
+  def unapply(value: String): Option[Import] = value match {
+    case r"fury:\/\/$ipfsRef@([a-zA-Z0-9]{44})\@$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
+      Some(Import(LayerId(ipfsRef), IpfsRef(ipfsRef), SchemaId(schema)))
+    case _ =>
+      None
+  }
 }
 
-case class SchemaRef(repo: RepoId, schema: SchemaId) {
+case class Import(id: LayerId, ipfsRef: IpfsRef, schema: SchemaId) {
+  def url: String = s"${ipfsRef.url}@${schema.key}"
+  
+  def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
+    for {
+      dir      <- ~layout.layersDir(id)
+      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).layerFile, layout)
+      resolved <- layer.schemas.findBy(schema)
+    } yield resolved
+}
+
+/*case class SchemaRef(repo: RepoId, schema: SchemaId) {
 
   def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
     for {
@@ -1258,7 +1274,7 @@ case class SchemaRef(repo: RepoId, schema: SchemaId) {
       layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).layerFile, layout)
       resolved <- layer.schemas.findBy(schema)
     } yield resolved
-}
+}*/
 
 sealed trait CompileEvent
 case object Tick                                                 extends CompileEvent

@@ -42,6 +42,9 @@ object Args {
   implicit private val layerId: TExtractor[LayerId] =
     _.headOption.flatMap(LayerId.parse(_).toOption)
   
+  implicit private val imported: TExtractor[Import] =
+    _.headOption.flatMap(Import.unapply(_))
+
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
   val BinaryRepoArg =
@@ -60,14 +63,14 @@ object Args {
     CliParam[String]('D', 'description, "specify a brief description of the project")
   val ForceArg  = CliParam[Unit]('F', 'force, "force this operation")
   val FileArg   = CliParam[Path]('f', 'file, "destination file")
-  val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external schema to import")
+  val ImportArg = CliParam[SchemaId]('i', Symbol("import"), "specify the schema to import")
 
   val IntransitiveArg = CliParam[Unit](
       'I',
       Symbol("intransitive"),
       "specify if this dependency should not be included transitively")
   val KeyArg         = CliParam[String]('k', 'key, "GPG key")
-  val LayerRefArg    = CliParam[IpfsRef]('l', 'layer, "layer reference")
+  val LayerRefArg    = CliParam[Import]('l', 'layer, "layer reference")
   val LicenseArg     = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg      = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg        = CliParam[String]('M', 'main, "specify a main class")

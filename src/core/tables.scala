@@ -127,9 +127,10 @@ case class Tables(config: Config) {
       Heading("VERSION", _.version)
   )
 
-  def imports(current: Option[SchemaId]): Tabulation[(SchemaRef, Try[Schema])] = Tabulation(
+  def imports(current: Option[SchemaId]): Tabulation[(Import, Try[Schema])] = Tabulation(
       Heading("", s => Some(s._1.schema.key) == current),
-      Heading("REPO", _._1.repo),
+      Heading("LAYER", _._1.id),
+      Heading("REF", _._1.ipfsRef),
       Heading("SCHEMA", _._1.schema),
       Heading(
           "PROJECTS",
