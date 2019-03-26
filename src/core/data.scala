@@ -50,13 +50,8 @@ case class Context(baseLayer: IpfsRef, schema: SchemaId, focus: Focus)
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
-  implicit val msgShow: MsgShow[ManifestEntry] = v =>
-    UserMsg { t =>
-      v.key
-    }
-
-  implicit val diff: Diff[ManifestEntry] =
-    (l, r) => Diff.stringDiff.diff(l.pairString, r.pairString)
+  implicit val msgShow: MsgShow[ManifestEntry] = v => msg"${v.key}"
+  implicit val diff: Diff[ManifestEntry] = Diff.on(_.pairString)
 }
 
 case class ManifestEntry(key: String, value: String) {
@@ -64,10 +59,7 @@ case class ManifestEntry(key: String, value: String) {
 }
 
 object Kind {
-  implicit val msgShow: MsgShow[Kind] = v =>
-    UserMsg { t =>
-      v.name
-    }
+  implicit val msgShow: MsgShow[Kind] = v => msg"${v.name}"
   implicit val stringShow: StringShow[Kind] = _.name
 
   val all: List[Kind] = List(Library, Compiler, Plugin, Application, Benchmarks)
@@ -255,7 +247,7 @@ object IpfsRef {
   implicit val msgShow: MsgShow[IpfsRef]       = v => UserMsg(_.ipfs(v.url))
   implicit val stringShow: StringShow[IpfsRef] = v => str"${v.url}"
 
-  implicit val diff: Diff[IpfsRef] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
+  implicit val diff: Diff[IpfsRef] = Diff.on(_.value)
 
   def parse(str: String): Option[IpfsRef] = str match {
     case r"fury:\/\/$hash@([A-Za-z0-9]{44})" => Some(IpfsRef(str"Qm$hash"))
@@ -1003,8 +995,7 @@ object SchemaId {
   implicit val msgShow: MsgShow[SchemaId]       = v => UserMsg(_.schema(v.key))
   implicit val stringShow: StringShow[SchemaId] = _.key
 
-  implicit val diff: Diff[SchemaId] =
-    (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val diff: Diff[SchemaId] = Diff.on(_.key)
 
   final val default = SchemaId("default")
 
@@ -1019,7 +1010,7 @@ case class SchemaId(key: String) extends Key(msg"schema")
 object ProjectId {
   implicit val msgShow: MsgShow[ProjectId]       = p => UserMsg(_.project(p.key))
   implicit val stringShow: StringShow[ProjectId] = _.key
-  implicit def diff: Diff[ProjectId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit def diff: Diff[ProjectId]             = Diff.on(_.key)
 
   def parse(name: String): Try[ProjectId] = name match {
     case r"[a-z](-?[a-z0-9]+)*" => Success(ProjectId(name))
@@ -1032,7 +1023,7 @@ case class ProjectId(key: String) extends Key(msg"project")
 object ModuleId {
   implicit val msgShow: MsgShow[ModuleId]       = m => UserMsg(_.module(m.key))
   implicit val stringShow: StringShow[ModuleId] = _.key
-  implicit def diff: Diff[ModuleId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit def diff: Diff[ModuleId]             = Diff.on(_.key)
   final val Core: ModuleId                      = ModuleId("core")
 
   def parse(name: String): Try[ModuleId] = name match {
@@ -1228,7 +1219,7 @@ case class Repo(url: String) {
 object LayerId {
   implicit val msgShow: MsgShow[LayerId]       = p => UserMsg(_.layer(p.key))
   implicit val stringShow: StringShow[LayerId] = _.key
-  implicit def diff: Diff[LayerId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit def diff: Diff[LayerId]             = Diff.on(_.key)
 
   def parse(name: String): Try[LayerId] = name match {
     case r"[a-z](-?[a-z0-9]+)*" => Success(LayerId(name))
@@ -1261,7 +1252,7 @@ object SchemaRef {
   implicit val stringShow: StringShow[SchemaRef] =
     v => str"fury://${v.layerRef}${'@'}${v.schemaId}"
 
-  implicit def diff: Diff[SchemaRef] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+  implicit def diff: Diff[SchemaRef] = Diff.on { s => str"$s" }
 }
 
 case class SchemaRef(layerRef: IpfsRef, schemaId: SchemaId)

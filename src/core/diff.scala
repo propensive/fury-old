@@ -105,9 +105,11 @@ object Diff extends Diff_1 {
   implicit val stringDiff: Diff[String] = (l, r) =>
     if (l == r) Nil else List(Difference(msg"value", msg"", msg"$l", msg"$r"))
 
-  implicit val intDiff: Diff[Int]             = (l, r) => stringDiff.diff(l.toString, r.toString)
-  implicit val booleanDiff: Diff[Boolean]     = (l, r) => stringDiff.diff(l.toString, r.toString)
-  implicit val parameterDiff: Diff[Parameter] = (l, r) => stringDiff.diff(l.name, r.name)
+  def on[T](fn: T => String): Diff[T] = (l, r) => stringDiff.diff(fn(l), fn(r))
+
+  implicit val intDiff: Diff[Int]             = on(_.toString)
+  implicit val booleanDiff: Diff[Boolean]     = on(_.toString)
+  implicit val parameterDiff: Diff[Parameter] = on(_.name)
 
   implicit val moduleRefDiff: Diff[ModuleRef] =
     (l, r) => if (l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))

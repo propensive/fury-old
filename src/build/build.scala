@@ -70,9 +70,8 @@ object AliasCli {
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _ <- ~io.println(UserMsg { theme =>
-            table.mkString("\n")
-          })
+      _     <- ~(if (!raw) io.println(Tables(config).contextString(layout.base, true)))
+      _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
