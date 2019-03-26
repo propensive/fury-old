@@ -96,7 +96,6 @@ case class Tables(config: Config) {
         Heading("SRCS", _.sources),
         Heading("BINS", m => bar(m.allBinaries.size)),
         Heading("COMPILER", _.compiler),
-        Heading("TYPE", _.kind),
         Heading("PARAMS", m => bar(m.params.size))
     )
 
@@ -128,10 +127,9 @@ case class Tables(config: Config) {
   )
 
   def imports(current: Option[SchemaId]): Tabulation[(Import, Try[Schema])] = Tabulation(
-      Heading("", s => Some(s._1.schema.key) == current),
+      Heading("", s => Some(s._1.schemaRef.schemaId.key) == current),
       Heading("LAYER", _._1.id),
-      Heading("REF", _._1.ipfsRef),
-      Heading("SCHEMA", _._1.schema),
+      Heading("SCHEMA", _._1.schemaRef),
       Heading(
           "PROJECTS",
           s =>

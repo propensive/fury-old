@@ -43,6 +43,11 @@ import language.higherKinds
 
 import java.util.concurrent.Executors
 
+sealed trait Focus
+case class ModuleFocus(project: Option[Project], module: Option[Module]) extends Focus
+case class LayerFocus(layerId: LayerId, focus: Focus) extends Focus
+case class Context(baseLayer: IpfsRef, schema: SchemaId, focus: Focus)
+
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
   implicit val msgShow: MsgShow[ManifestEntry] = v =>
@@ -247,7 +252,8 @@ object LineNo {
 case class LineNo(line: Int) extends AnyVal
 
 object IpfsRef {
-  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.url))
+  implicit val msgShow: MsgShow[IpfsRef]       = v => UserMsg(_.ipfs(v.url))
+  implicit val stringShow: StringShow[IpfsRef] = v => str"${v.url}"
 
   implicit val diff: Diff[IpfsRef] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
 
@@ -256,20 +262,6 @@ object IpfsRef {
     case r"$hash@([A-Za-z0-9]{44})"          => Some(IpfsRef(str"Qm$hash"))
     //case r"fury:\/\/$domain@([a-z0-9]+(\.[a-z0-9]+)+)\/?" => Some(IpfsRef(domain))
     case _ => None
-  }
-}
-
-case class IpfsRef(value: String) extends AnyVal {
-  def url: String = s"fury://${value.drop(2)}"
-}
-
-object IpfsRef {
-  implicit val msgShow: MsgShow[IpfsRef] = v => UserMsg(_.ipfs(v.url))
-
-  def parse(str: String): Option[IpfsRef] = str match {
-    case r"fury:\/\/$hash@([A-Za-z0-9]{44})\/?"           => Some(IpfsRef(str"Qm$hash"))
-    case r"fury:\/\/$domain@([a-z0-9]+(\.[a-z0-9]+)+)\/?" => Some(IpfsRef(domain))
-    case _                                                => None
   }
 }
 
@@ -811,16 +803,17 @@ case class Schema(
     for {
       imps <- imports.map { importRef =>
                for {
-                 tmpFile  <- ~(layout.layersDir.extant() / str"${importRef.ipfsRef.value}.tmp")
-                 _        <- layout.shell.ipfs.get(importRef.ipfsRef, tmpFile)
-                 _        <- TarGz.extract(tmpFile, layout.layersDir(importRef.id), layout)
+                 tmpFile <- ~(layout.layersDir
+                             .extant() / str"${importRef.schemaRef.layerRef.value}.tmp")
+                 _ <- layout.shell.ipfs.get(importRef.schemaRef.layerRef, tmpFile)
+                 _ <- TarGz.extract(tmpFile, layout.layersDir(importRef.id), layout)
                  nestedLayout <- ~Layout(
                                     layout.home,
                                     layout.pwd,
                                     layout.env,
                                     layout.layersDir(importRef.id))
                  layer    <- Layer.read(io, nestedLayout.layerFile, nestedLayout)
-                 resolved <- layer.schemas.findBy(importRef.schema)
+                 resolved <- layer.schemas.findBy(importRef.schemaRef.schemaId)
                  tree     <- resolved.hierarchy(io, layout.layersDir(importRef.id), layout)
                } yield tree
              }.sequence
@@ -875,7 +868,7 @@ case class Layer(
 
   def infoFile(layout: Layout): List[Path] = {
     val f = layout.base / "layer.md"
-    if(f.exists) List(f) else Nil
+    if (f.exists) List(f) else Nil
   }
 
   def bundleFiles(layout: Layout): List[Path] =
@@ -965,13 +958,7 @@ object ModuleRef {
 
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
-
-  implicit val msgShow: MsgShow[ModuleRef] =
-    ref =>
-      UserMsg { theme =>
-        msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}"
-          .string(theme)
-      }
+  implicit val msgShow: MsgShow[ModuleRef]       = ref => msg"${ref.projectId}${'/'}${ref.moduleId}"
 
   val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
 
@@ -1254,40 +1241,41 @@ case class LayerId(key: String) extends Key(msg"project")
 object Import {
 
   implicit val msgShow: MsgShow[Import] =
-    v => msg"${v.id}${'@'}${v.schema}"
+    v => msg"${v.id}${'@'}${v.schemaRef.schemaId}"
 
-  implicit val stringShow: StringShow[Import] = sr => str"${sr.id}@${sr.schema}"
+  implicit val stringShow: StringShow[Import] = sr => str"${sr.id}@${sr.schemaRef.schemaId}"
   implicit def diff: Diff[Import]             = Diff.gen[Import]
 
   def unapply(value: String): Option[Import] = value match {
-    case r"fury:\/\/$ipfsRef@([a-zA-Z0-9]{44})\@$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(Import(LayerId(s"Qm$ipfsRef"), IpfsRef(s"Qm$ipfsRef"), SchemaId(schema)))
+    case r"fury:\/\/$layerRef@([a-zA-Z0-9]{44})\@$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
+      Some(Import(LayerId(s"Qm$layerRef"), SchemaRef(IpfsRef(s"Qm$layerRef"), SchemaId(schema))))
     case _ =>
       None
   }
 }
 
-case class Import(id: LayerId, ipfsRef: IpfsRef, schema: SchemaId) {
-  def url: String = s"${ipfsRef.url}@${schema.key}"
+object SchemaRef {
+  implicit val msgShow: MsgShow[SchemaRef] =
+    v => msg"fury://${v.layerRef}${'@'}${v.schemaId}"
+
+  implicit val stringShow: StringShow[SchemaRef] =
+    v => str"fury://${v.layerRef}${'@'}${v.schemaId}"
+
+  implicit def diff: Diff[SchemaRef] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+}
+
+case class SchemaRef(layerRef: IpfsRef, schemaId: SchemaId)
+
+case class Import(id: LayerId, schemaRef: SchemaRef) {
+  def url: String = s"${schemaRef.layerRef.url}@${schemaRef.schemaId.key}"
 
   def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
     for {
       dir      <- ~layout.layersDir(id).extant()
       layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).layerFile, layout)
-      resolved <- layer.schemas.findBy(schema)
+      resolved <- layer.schemas.findBy(schemaRef.schemaId)
     } yield resolved
 }
-
-/*case class SchemaRef(repo: RepoId, schema: SchemaId) {
-
-  def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
-    for {
-      repo     <- base.repos.findBy(repo)
-      dir      <- repo.fullCheckout.get(io, layout)
-      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).layerFile, layout)
-      resolved <- layer.schemas.findBy(schema)
-    } yield resolved
-}*/
 
 sealed trait CompileEvent
 case object Tick                                                 extends CompileEvent
@@ -1423,24 +1411,19 @@ case class Commit(id: String)
 object Source {
   implicit val stringShow: StringShow[Source] = _.description
 
-  implicit val msgShow: MsgShow[Source] = v =>
-    UserMsg { theme =>
-      v match {
-        case ExternalSource(repoId, path) =>
-          msg"${theme.repo(repoId.key)}${theme.gray(":")}${theme.path(path.value)}".string(theme)
-        case SharedSource(path) =>
-          msg"${theme.repo("shared")}${theme.gray(":")}${theme.path(path.value)}".string(theme)
-        case LocalSource(path) => msg"${theme.path(path.value)}".string(theme)
-      }
-    }
+  implicit val msgShow: MsgShow[Source] = {
+    case ExternalSource(repoId, path) => msg"$repoId${':'}$path"
+    case SharedSource(path)           => msg"${RepoId("shared")}${':'}$path"
+    case LocalSource(path)            => msg"$path"
+  }
 
   def unapply(string: String): Option[Source] = string match {
     case r"shared:$path@(.*)" =>
       Some(SharedSource(Path(path)))
+    case r"$path@(.*)" => Some(LocalSource(Path(path)))
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$path@(.*)" =>
       Some(ExternalSource(RepoId(repo), Path(path)))
-    case r"$path@(.*)" => Some(LocalSource(Path(path)))
-    case _             => None
+    case _ => None
   }
 
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
