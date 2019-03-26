@@ -22,32 +22,45 @@ nailgun() {
   fi
 }
 
+silently(){
+  #See https://unix.stackexchange.com/a/181938
+  #See https://stackoverflow.com/q/3838322
+  #See https://www.gnu.org/software/bash/manual/html_node/Command-Grouping.html
+  TMPFILE=$(mktemp "/tmp/fury.err.XXXXXX")
+  exec 3>"$TMPFILE"
+  exec 4<"$TMPFILE"
+  rm "$TMPFILE"
+  ( $@; ) 2>&3
+  EXITCODE=$?
+  [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
+  exit $EXITCODE
+}
 
 coursier(){
   "${FURYHOME}/bin/coursier" "$@"
 }
 
 killFury() {
-  nailgun ng-stop > /dev/null 2> /dev/null && printf 'Fury daemon has shut down\n'
+  nailgun ng-stop > /dev/null && printf 'Fury daemon has shut down\n'
 }
 
 stopFury() {
-  nailgun "${FURY_MAIN}" "stop" 2> /dev/null && killFury
+  nailgun "${FURY_MAIN}" "stop" && killFury
 }
 
 isRunning() {
-  nc -z 127.0.0.1 "${PORT}" > /dev/null 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null 2> /dev/null
+  nc -z 127.0.0.1 "${PORT}" > /dev/null || nailgun "${FURY_MAIN}" about > /dev/null
 }
 
 fury() {
-	(isRunning || (startFury > /dev/null 2> /dev/null)) && nailgun "${FURY_MAIN}" "$@"
+	(isRunning || (startFury > /dev/null)) && nailgun "${FURY_MAIN}" "$@"
 }
 
 startFury() {
   isRunning && printf "Fury daemon is running\n" && exit 0
 
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2> /dev/null &
+  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
 
   printf 'Fury daemon is starting...'
   for I in $(seq 1 25); do
@@ -58,6 +71,10 @@ startFury() {
   done
   printf '\n'
   printf 'Starting Fury is taking longer than expected\n'
+}
+
+restartFury() {
+  stopFury && startFury
 }
 
 startFuryStandalone() {
@@ -72,34 +89,34 @@ startFuryDirect() {
 
 case "$1" in
   "start")
-    startFury
+    silently startFury
     ;;
   "standalone")
-    startFuryStandalone
+    silently startFuryStandalone
     ;;
   "direct")
-    startFuryDirect "${@:2}"
+    silently startFuryDirect "${@:2}"
     ;;
   "kill")
-    killFury
+    silently killFury
     ;;
   "stop")
-    stopFury
+    silently stopFury
     ;;
   "restart")
-    stopFury && startFury
+    silently restartFury
     ;;
   "prompt")
-    fury "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
+    silently fury "$@" || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
-    fury "$@" 2> /dev/null || printf "1:Command:((start:'start the Fury daemon'))\n"
+    silently fury "$@" || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   "--help")
-    fury "help"
+    silently fury "help"
     ;;
   *)
-    fury "$@"
+    silently fury "$@"
     res=$?
     cleanup
     exit $res
