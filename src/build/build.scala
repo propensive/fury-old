@@ -394,7 +394,7 @@ object LayerCli {
       _       <- layout.shell.ipfs.get(ipfsRef, tmpFile)
       _       <- TarGz.extract(tmpFile, (dir in layout.pwd).extant(), layout)
       info    <- ~((dir in layout.pwd) / "layer.md")
-      _       <- ~(if(info.exists) scala.io.Source.fromFile(info.javaPath.toFile).foreach(io.println(_)))
+      _       <- ~(if(info.exists) scala.io.Source.fromFile(info.javaPath.toFile).getLines.foreach(io.println(_)))
     } yield io.await()
 
   def doImport(cli: Cli[CliParam[_]]): Try[ExitStatus] =
@@ -415,7 +415,7 @@ object LayerCli {
                   _.modify(_)(_ + imported))
       tmpFile <- ~(layout.layersDir.extant() / str"${imported.ipfsRef.value}.tmp")
       _       <- layout.shell.ipfs.get(imported.ipfsRef, tmpFile)
-      _       <- TarGz.extract(tmpFile, layout.layersDir(name), layout)
+      _       <- TarGz.extract(tmpFile, layout.layersDir(name).extant(), layout)
       _       <- Layer.save(io, layer, layout)
     } yield io.await()
 

@@ -811,6 +811,9 @@ case class Schema(
     for {
       imps <- imports.map { importRef =>
                for {
+                 tmpFile  <- ~(layout.layersDir.extant() / str"${importRef.ipfsRef.value}.tmp")
+                 _        <- layout.shell.ipfs.get(importRef.ipfsRef, tmpFile)
+                 _        <- TarGz.extract(tmpFile, layout.layersDir(importRef.id), layout)
                  nestedLayout <- ~Layout(
                                     layout.home,
                                     layout.pwd,
@@ -1269,7 +1272,7 @@ case class Import(id: LayerId, ipfsRef: IpfsRef, schema: SchemaId) {
 
   def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
     for {
-      dir      <- ~layout.layersDir(id)
+      dir      <- ~layout.layersDir(id).extant()
       layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).layerFile, layout)
       resolved <- layer.schemas.findBy(schema)
     } yield resolved

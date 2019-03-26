@@ -46,6 +46,7 @@ object TarGz {
     val in   = new TarInputStream(gzis)
     Iterator.continually(in.getNextEntry).takeWhile(_ != null).foreach { entry =>
       val path = Path(entry.getName) in destination
+      //println("Extracting to "+path)
       path.mkParents()
       val fos = new FileOutputStream(path.javaFile)
       val out = new BufferedOutputStream(fos)
