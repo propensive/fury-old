@@ -50,8 +50,8 @@ case class Context(baseLayer: IpfsRef, schema: SchemaId, focus: Focus)
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
-  implicit val msgShow: MsgShow[ManifestEntry] = v => msg"${v.key}"
-  implicit val diff: Diff[ManifestEntry] = Diff.on(_.pairString)
+  implicit val msgShow: MsgShow[ManifestEntry]       = v => msg"${v.key}"
+  implicit val diff: Diff[ManifestEntry]             = Diff.on(_.pairString)
 }
 
 case class ManifestEntry(key: String, value: String) {
@@ -59,7 +59,7 @@ case class ManifestEntry(key: String, value: String) {
 }
 
 object Kind {
-  implicit val msgShow: MsgShow[Kind] = v => msg"${v.name}"
+  implicit val msgShow: MsgShow[Kind]       = v => msg"${v.name}"
   implicit val stringShow: StringShow[Kind] = _.name
 
   val all: List[Kind] = List(Library, Compiler, Plugin, Application, Benchmarks)
@@ -1252,7 +1252,9 @@ object SchemaRef {
   implicit val stringShow: StringShow[SchemaRef] =
     v => str"fury://${v.layerRef}${'@'}${v.schemaId}"
 
-  implicit def diff: Diff[SchemaRef] = Diff.on { s => str"$s" }
+  implicit def diff: Diff[SchemaRef] = Diff.on { s =>
+    str"$s"
+  }
 }
 
 case class SchemaRef(layerRef: IpfsRef, schemaId: SchemaId)

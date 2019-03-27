@@ -73,6 +73,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val traceLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
   lazy val userConfig: Path    = userDir / "config.fury"
   lazy val aliasesPath: Path   = userDir / "aliases"
+  lazy val tmpDir: Path        = (furyDir / "tmp").extant()
 
   def bloopConfig(digest: Digest): Path =
     bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"

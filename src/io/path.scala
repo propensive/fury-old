@@ -51,6 +51,8 @@ case class Path(value: String) {
   def javaPath: JPath             = Paths.get(value)
   lazy val javaFile: java.io.File = javaPath.toFile
 
+  def tmpFile: Path = this / java.util.UUID.randomUUID().toString
+
   def uriString: String = javaPath.toFile.toURI.toString
 
   def name: String = javaPath.getFileName.toString

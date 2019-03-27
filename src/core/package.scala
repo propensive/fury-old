@@ -31,11 +31,17 @@ object `package` {
     value => implicitly[MsgShow[T]].show(value).string(theme)
 
   implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] =
-    xs => xs.size match {
-      case 0 => msg"${'{'}${'}'}"
-      case 1 => msg"${xs.head}"
-      case _ => msg"${'{'}${xs.map { x => msg"$x" }.reduce { (l, r) => msg"$l${','} $r" }}${'}'}"
-    }
+    xs =>
+      xs.size match {
+        case 0 => msg"${'{'}${'}'}"
+        case 1 => msg"${xs.head}"
+        case _ =>
+          msg"${'{'}${xs.map { x =>
+            msg"$x"
+          }.reduce { (l, r) =>
+            msg"$l${','} $r"
+          }}${'}'}"
+      }
 
   implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
     Ordering.String.on(implicitly[StringShow[T]].show(_))

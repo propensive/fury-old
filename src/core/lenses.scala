@@ -143,6 +143,9 @@ object Lenses {
     def moduleCompiler(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).compiler)
 
+    def importLayer(schemaId: SchemaId, layerId: LayerId) =
+      lens(_.schemas(on(schemaId)).imports(on(layerId)).schemaRef)
+
     def moduleId(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).id)
 

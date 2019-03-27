@@ -81,7 +81,7 @@ object Ogdl {
       serialize(sb, Ogdl(t), i, c)
   }
 
-  def write[T: OgdlWriter](value: T, path: Path): Try[Unit] =
+  def write[T: OgdlWriter](value: T, path: Path): Try[Path] =
     Outcome.rescue[IOException](FileWriteError(path)) {
       val bak = path.rename { f =>
         s".$f.bak"
@@ -91,6 +91,7 @@ object Ogdl {
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
       sb.append('\n')
       path.writeSync(sb.toString)
+      path
     }
 
   def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
