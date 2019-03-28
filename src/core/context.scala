@@ -22,6 +22,8 @@ class MenuContext(
     val layout: Layout,
     val config: Config,
     val layer: Layer,
+    val context: Context,
+    val focus: Focus,
     val optSchemaId: Option[SchemaId] = None) {
   implicit def implicitLayout: Layout   = layout
   implicit def implicitShell: Shell     = layout.shell

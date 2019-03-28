@@ -795,16 +795,7 @@ case class Schema(
     for {
       imps <- imports.map { importRef =>
                for {
-                 tmpFile <- ~(layout.layersDir
-                             .extant() / str"${importRef.schemaRef.layerRef.value}.tmp")
-                 _ <- layout.shell.ipfs.get(importRef.schemaRef.layerRef, tmpFile)
-                 _ <- TarGz.extract(tmpFile, layout.layersDir(importRef.id), layout)
-                 nestedLayout <- ~Layout(
-                                    layout.home,
-                                    layout.pwd,
-                                    layout.env,
-                                    layout.layersDir(importRef.id))
-                 layer    <- Layer.read(io, nestedLayout.layerFile, nestedLayout)
+                 layer <- Layers.load(importRef.schemaRef.layerRef, io, layout)
                  resolved <- layer.schemas.findBy(importRef.schemaRef.schemaId)
                  tree     <- resolved.hierarchy(io, layout.layersDir(importRef.id), layout)
                } yield tree
@@ -1341,14 +1332,10 @@ object Project {
 case class Project(
     id: ProjectId,
     modules: SortedSet[Module] = TreeSet(),
-    main: Option[ModuleId] = None,
     license: LicenseId = License.unknown,
     description: String = "",
     compiler: Option[ModuleRef] = None) {
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
-
-  def mainModule: Try[Option[Module]] =
-    main.map(modules.findBy(_)).to[List].sequence.map(_.headOption)
 
   def compilerRefs: List[ModuleRef] =
     modules.to[List].collect {

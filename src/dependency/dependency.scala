@@ -25,24 +25,28 @@ import scala.util._
 
 object DependencyCli {
 
-  case class Context(
+  case class DependencyContext(
       override val cli: Cli[CliParam[_]],
       override val layout: Layout,
       override val config: Config,
       override val layer: Layer,
+      override val context: Context,
+      override val focus: Focus,
       optSchema: Option[Schema],
       optProject: Option[Project],
       optModule: Option[Module])
-      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+      extends MenuContext(cli, layout, config, layer, context, focus, optSchema.map(_.id)) {
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      context   <- Context.read(layout)
+      focus     <- Layers(context, Io.silent(config), layout)
+      layer     <- ~focus.layer
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -54,7 +58,7 @@ object DependencyCli {
                      optProjectId.flatMap(s.projects.findBy(_).toOption)
                    }
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+      optModuleId <- ~cli.peek(ModuleArg).orElse(focus.moduleId)
       optModule <- Success {
                     for {
                       project  <- optProject
@@ -62,9 +66,9 @@ object DependencyCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
-    } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+    } yield new DependencyContext(cli, layout, config, layer, context, focus, schema, optProject, optModule)
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: DependencyContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
@@ -80,7 +84,7 @@ object DependencyCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: DependencyContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -95,11 +99,11 @@ object DependencyCli {
       force     <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: DependencyContext): Try[ExitStatus] = {
     import ctx._
     for {
       optSchema <- ~layer.mainSchema.toOption
@@ -118,7 +122,7 @@ object DependencyCli {
       moduleRef    <- ModuleRef.parse(project, linkArg, intransitive)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }

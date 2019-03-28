@@ -33,7 +33,7 @@ object ProjectCli {
       layout       <- cli.layout
       config       <- Config.read()(cli.env, layout)
       context      <- fury.core.Context.read(layout)
-      focus        <- Layers(context, config, layout)
+      focus        <- Layers(context, Io.silent(config), layout)
       cli          <- cli.hint(SchemaArg, focus.layer.schemas)
       optSchemaId <- ~cli.peek(SchemaArg)
       dSchema   <- focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId))
@@ -49,7 +49,7 @@ object ProjectCli {
       _         <- schema(projectId)
       lens     <- ~Lenses.focus(optSchemaId, force)
       layer     <- lens(focus.layer, _.lens(_.main)) = Some(Some(projectId))
-      ctx         <- Layers.update(context, config, layout, layer)
+      ctx         <- Layers.update(context, io, layout, layer)
       _ <- Context.write(context, layout)
     } yield io.await()
   }
@@ -59,7 +59,7 @@ object ProjectCli {
       layout       <- cli.layout
       config       <- Config.read()(cli.env, layout)
       context      <- Context.read(layout)
-      focus        <- Layers(context, config, layout)
+      focus        <- Layers(context, Io.silent(config), layout)
       cli          <- cli.hint(SchemaArg, focus.layer.schemas)
       optSchemaId <- ~cli.peek(SchemaArg)
       cli    <- cli.hint(RawArg)
@@ -80,7 +80,7 @@ object ProjectCli {
       layout       <- cli.layout
       config       <- Config.read()(cli.env, layout)
       context      <- Context.read(layout)
-      focus        <- Layers(context, config, layout)
+      focus        <- Layers(context, Io.silent(config), layout)
       cli          <- cli.hint(SchemaArg, focus.layer.schemas)
       optSchemaId <- ~cli.peek(SchemaArg)
       cli     <- cli.hint(ProjectNameArg)
@@ -104,7 +104,7 @@ object ProjectCli {
                   _.modify(_)((_: SortedSet[Project]) + project))
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
                   _(_) = Some(project.id))
-      context       <- Layers.update(context, config, layout, layer)
+      context       <- Layers.update(context, io, layout, layer)
       _ <- Context.write(context, layout)
       _ <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
@@ -115,7 +115,7 @@ object ProjectCli {
       layout       <- cli.layout
       config       <- Config.read()(cli.env, layout)
       context      <- Context.read(layout)
-      focus        <- Layers(context, config, layout)
+      focus        <- Layers(context, Io.silent(config), layout)
       cli          <- cli.hint(SchemaArg, focus.layer.schemas)
       optSchemaId <- ~cli.peek(SchemaArg)
       dSchema   <- focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId))
@@ -132,7 +132,7 @@ object ProjectCli {
                 (lens, ws) =>
                   if (lens(ws) == Some(projectId))(lens(ws) = None) else ws
               }
-      context         <- Layers.update(context, config, layout, layer)
+      context         <- Layers.update(context, io, layout, layer)
       _ <- Context.write(context, layout)
     } yield io.await()
   }
@@ -142,7 +142,7 @@ object ProjectCli {
       layout       <- cli.layout
       config       <- Config.read()(cli.env, layout)
       context      <- Context.read(layout)
-      focus        <- Layers(context, config, layout)
+      focus        <- Layers(context, Io.silent(config), layout)
       cli          <- cli.hint(SchemaArg, focus.layer.schemas)
       optSchemaId <- ~cli.peek(SchemaArg)
       dSchema <- ~focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId)).toOption
@@ -174,7 +174,7 @@ object ProjectCli {
       nameArg <- ~invoc(ProjectNameArg).toOption
       newId   <- ~nameArg.flatMap(schema.unused(_).toOption)
       layer   <- lens(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      ctx         <- Layers.update(context, config, layout, layer)
+      ctx         <- Layers.update(context, io, layout, layer)
       _ <- Context.write(context, layout)
     } yield io.await()
   }

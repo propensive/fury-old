@@ -24,36 +24,40 @@ import scala.util._
 
 object SourceCli {
 
-  case class Context(
+  case class SourceContext(
       override val cli: Cli[CliParam[_]],
       override val layout: Layout,
       override val config: Config,
       override val layer: Layer,
+      override val context: Context,
+      override val focus: Focus,
       optSchema: Option[Schema],
       optProject: Option[Project],
       optModule: Option[Module])
-      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
-    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+      extends MenuContext(cli, layout, config, layer, context, focus, optSchema.map(_.id)) {
+    def defaultSchemaId: SchemaId  = focus.schemaId
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      context   <- Context.read(layout)
+      focus     <- Layers(context, Io.silent(config), layout)
+      layer     <- ~focus.layer
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
-      schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+      schema    <- ~layer.schemas.findBy(focus.schemaId).toOption
       cli       <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
-                       cli.peek(ProjectArg).orElse(s.main)
+                       cli.peek(ProjectArg).orElse(focus.projectId)
                      }
       optProject <- ~schema.flatMap { s =>
                      optProjectId.flatMap(s.projects.findBy(_).toOption)
                    }
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+      optModuleId <- ~cli.peek(ModuleArg).orElse(focus.moduleId)
       optModule <- Success {
                     for {
                       project  <- optProject
@@ -61,9 +65,9 @@ object SourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
-    } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+    } yield new SourceContext(cli, layout, config, layer, context, focus, schema, optProject, optModule)
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: SourceContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
@@ -79,7 +83,7 @@ object SourceCli {
     } yield io.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: SourceContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
@@ -98,7 +102,7 @@ object SourceCli {
     } yield io.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: SourceContext): Try[ExitStatus] = {
     import ctx._
     for {
       repos <- defaultSchema.map(_.repos)

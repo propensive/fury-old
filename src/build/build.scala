@@ -31,7 +31,7 @@ object ConfigCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config)
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
       config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
@@ -54,16 +54,22 @@ object ConfigCli {
 
 object AliasCli {
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]): Try[MenuContext] =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
-    } yield new MenuContext(cli, layout, config, layer)
+      context <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
+    } yield new MenuContext(cli, layout, config, layer, context, focus)
 
-  def list(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
+  def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      context   <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
       cli   <- cli.hint(RawArg)
       invoc <- cli.read()
       io    <- invoc.io()
@@ -75,9 +81,13 @@ object AliasCli {
     } yield io.await()
   }
 
-  def remove(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
+  def remove(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      context   <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
       cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
       invoc      <- cli.read()
       io         <- invoc.io()
@@ -86,14 +96,19 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) --= aliasToDel)
-      _ <- ~Layer.save(io, layer, layout)
+      _       <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def add(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
+  def add(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      context   <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
       cli          <- cli.hint(SchemaArg, layer.schemas)
+      context   <- Context.read(layout)
       optSchemaArg <- ~cli.peek(SchemaArg)
       cli          <- cli.hint(AliasArg)
       cli          <- cli.hint(DescriptionArg)
@@ -103,7 +118,7 @@ object AliasCli {
       cli          <- cli.hint(ProjectArg, optDefaultSchema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~cli.peek(ProjectArg)
       optProject <- ~optProjectId
-                     .orElse(optDefaultSchema.flatMap(_.main))
+                     .orElse(focus.projectId)
                      .flatMap(id => optDefaultSchema.flatMap(_.projects.findBy(id).toOption))
                      .to[List]
                      .headOption
@@ -120,19 +135,21 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) += alias)
-      _ <- ~Layer.save(io, layer, layout)
+      _       <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }
 
 object BuildCli {
 
-  def context(cli: Cli[CliParam[_]]): Try[MenuContext] =
+  def mkContext(cli: Cli[CliParam[_]]): Try[MenuContext] =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
-    } yield new MenuContext(cli, layout, config, layer)
+      context   <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
+    } yield new MenuContext(cli, layout, config, layer, context, focus)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
@@ -180,7 +197,7 @@ object BuildCli {
       schemaArg    <- ~cli.peek(SchemaArg).orElse(optSchema).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
-      optProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(focus.projectId)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(WatchArg)
@@ -193,7 +210,7 @@ object BuildCli {
       project <- optProject.ascribe(UnspecifiedProject())
       optModuleId <- ~invoc(ModuleArg).toOption
                       .orElse(moduleRef.map(_.moduleId))
-                      .orElse(project.main)
+                      .orElse(focus.moduleId)
       optModule   <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
@@ -219,30 +236,31 @@ object BuildCli {
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
 
-  def getPrompt(layer: Layer, theme: Theme): Try[String] =
+  def getPrompt(context: Context, focus: Focus, layer: Layer, theme: Theme): Try[String] =
     for {
       schemaId     <- ~layer.main
       schema       <- layer.schemas.findBy(schemaId)
-      optProjectId <- ~schema.main
-      optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
-      optModuleId  <- ~optProject.flatMap(_.main)
+      optProject   <- ~focus.projectId.flatMap(schema.projects.findBy(_).toOption)
+      optModuleId  <- ~focus.moduleId
       optModule <- ~optModuleId.flatMap { mId =>
                     optProject.flatMap(_.modules.findBy(mId).toOption)
                   }
     } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
-  def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+  /*def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- ~Layer.read(Io.silent(config), layout.layerFile, layout).toOption
+      context <- ~Context.read(layout).toOption
+      focus <- context.flatMap(Layers(_, Io.silent(config), layout).toOption)
+      layer  <- ~context.flatMap(Layers(_, Io.silent(config), layout).toOption).map(_.layer)
       msg <- layer
-              .map(getPrompt(_, config.theme))
+              .flatMap(getPrompt(context, focus, _, config.theme))
               .getOrElse(Success(Prompt.empty(config)(config.theme)))
       invoc <- cli.read()
       io    <- invoc.io()
       _     <- ~io.println(msg)
-    } yield io.await()
+    } yield io.await()*/
 
   def save(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
@@ -251,7 +269,7 @@ object BuildCli {
       schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
-      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(focus.projectId)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(DirArg)
@@ -259,7 +277,7 @@ object BuildCli {
       io           <- invoc.io()
       dir          <- invoc(DirArg)
       project      <- optProject.ascribe(UnspecifiedProject())
-      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
+      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(focus.moduleId)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
       hierarchy    <- schema.hierarchy(io, layout.base, layout)
@@ -276,7 +294,7 @@ object BuildCli {
       schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
-      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(focus.projectId)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(DirArg)
@@ -284,7 +302,7 @@ object BuildCli {
       io           <- invoc.io()
       dir          <- invoc(DirArg)
       project      <- optProject.ascribe(UnspecifiedProject())
-      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
+      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(focus.moduleId)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
       hierarchy    <- schema.hierarchy(io, layout.base, layout)
@@ -303,10 +321,10 @@ object BuildCli {
       schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
-      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(focus.projectId)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-      optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+      optModuleId  <- ~cli.peek(ModuleArg).orElse(focus.moduleId)
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
@@ -316,7 +334,7 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      compilation <- universe.compilation(Io.silent(config), module.ref(project), layout)
       classpath   <- ~compilation.classpath(module.ref(project), layout)
       _           <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
@@ -329,12 +347,12 @@ object BuildCli {
       schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
-      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(focus.projectId)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       invoc        <- cli.read()
       io           <- invoc.io()
-      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
+      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(focus.moduleId)
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
@@ -360,17 +378,35 @@ object LayerCli {
       invoc  <- cli.read()
       io     <- invoc.io()
       layer  <- ~Layer()
-      layerRef <- Layers.save(layout, config, layer)
-      context <- ~Context(SchemaRef(layerRef, SchemaId.default), ModulePointer(None, None))
+      layerRef <- Layers.save(layout, io, layer)
+      context <- ~Context(SchemaRef(layerRef, SchemaId.default), Target(None, None))
       _ <- Context.write(context, layout)
       _      <- ~io.println("The current context is the empty layer")
+    } yield io.await()
+
+  def select(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+    for {
+      layout <- cli.layout
+      config <- Config.read()(cli.env, layout)
+      context <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
+      layerPaths <- Layers.children(context.schemaRef, Io.silent(config), layout)
+      cli <- cli.hint(LayerPathArg, layerPaths)
+      invoc <- cli.read()
+      io <- invoc.io()
+      layerPath <- invoc(LayerPathArg)
+      context <- ~context.dereference(layerPath)
+      _ <- Context.write(context, layout)
     } yield io.await()
 
   def share(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      context <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
       invoc  <- cli.read()
       io     <- invoc.io()
       files  <- ~layer.bundleFiles(layout)
@@ -384,7 +420,9 @@ object LayerCli {
     for {
       layout  <- cli.newLayout
       config  <- Config.read()(cli.env, layout)
-      layer   <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      context <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
       cli     <- cli.hint(CloneRefArg)
       cli     <- cli.hint(DirArg)
       invoc   <- cli.read()
@@ -403,11 +441,13 @@ object LayerCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      context   <- Context.read(layout)
+      focus  <- Layers(context, Io.silent(config), layout)
+      layer  <- ~focus.layer
       cli       <- cli.hint(LayerRefArg)
       cli       <- cli.hint(LayerNameArg)
       schemaArg <- ~cli.peek(SchemaArg)
-      schema    <- layer.schemas.findBy(schemaArg.getOrElse(layer.main))
+      schema    <- layer.schemas.findBy(focus.schemaId)
       invoc     <- cli.read()
       imported  <- invoc(LayerRefArg)
       io        <- invoc.io()
@@ -415,19 +455,18 @@ object LayerCli {
       imported  <- ~imported.copy(id = name)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
                   _.modify(_)(_ + imported))
-      tmpFile <- ~(layout.layersDir.extant() / str"${imported.schemaRef.layerRef}.tmp")
-      _       <- layout.shell.ipfs.get(imported.schemaRef.layerRef, tmpFile)
-      _       <- TarGz.extract(tmpFile, layout.layersDir(name).extant(), layout)
-      _       <- Layer.save(io, layer, layout)
+      _       <- Layers.update(context, io, layout, layer)
     } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      context   <- Context.read(layout)
+      focus     <- Layers(context, Io.silent(config), layout)
+      layer     <- ~focus.layer
       cli       <- cli.hint(SchemaArg, layer.schemas)
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(focus.schemaId)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()

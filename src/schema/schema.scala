@@ -28,7 +28,7 @@ case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, laye
 
 object SchemaCli {
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)

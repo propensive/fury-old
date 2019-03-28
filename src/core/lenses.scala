@@ -83,7 +83,6 @@ object Lenses {
     def module(moduleId: ModuleId) = lens(_.modules(on(moduleId)))
 
     val modules    = lens(_.modules)
-    val mainModule = lens(_.main)
   }
 
   object schema extends Lens.Partial[Schema]() {
@@ -118,9 +117,6 @@ object Lenses {
 
     def modules(schemaId: SchemaId, projectId: ProjectId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules)
-
-    def mainModule(schemaId: SchemaId, projectId: ProjectId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).main)
 
     def compiler(schemaId: SchemaId, projectId: ProjectId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).compiler)

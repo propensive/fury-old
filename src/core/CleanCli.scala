@@ -20,10 +20,7 @@ import scala.util._
 object CleanCli {
   case class Context(cli: Cli[CliParam[_]], layout: Layout)
 
-  def context(cli: Cli[CliParam[_]]) =
-    for {
-      layout <- cli.layout
-    } yield Context(cli, layout)
+  def mkContext(cli: Cli[CliParam[_]]) = cli.layout.map(Context(cli, _))
 
   def cleanAll(ctx: Context): Try[ExitStatus] =
     for {

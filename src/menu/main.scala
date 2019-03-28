@@ -62,7 +62,7 @@ object Main {
       }
       .map { alias =>
         def action(cli: Cli[CliParam[_]]) =
-          AliasCli.context(cli).flatMap(BuildCli.compile(alias.schema, Some(alias.module)))
+          AliasCli.mkContext(cli).flatMap(BuildCli.compile(alias.schema, Some(alias.module)))
         Action(
             Symbol(alias.cmd.key),
             msg"${alias.description}",

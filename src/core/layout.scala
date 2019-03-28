@@ -37,10 +37,10 @@ object Layout {
         Option(_).exists(getFileStore(_) == fileSystem)
       }
       .find { path =>
-        isRegularFile(path.resolve("layer.fury"))
+        isRegularFile(path.resolve(".context.fury"))
       }
       .map(Path(_))
-      .ascribe(UnspecifiedProject())
+      .ascribe(NotInitialized(dir))
   }
 
   def find(home: Path, pwd: Path, env: Environment): Try[Layout] =

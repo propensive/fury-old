@@ -28,7 +28,7 @@ import Lenses._
 
 object RepoCli {
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
       config <- Config.read()(cli.env, layout)

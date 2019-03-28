@@ -44,6 +44,8 @@ object Args {
   
   implicit private val imported: TExtractor[Import] =
     _.headOption.flatMap(Import.unapply(_))
+  
+  implicit private val layerPath: TExtractor[LayerPath] = _.headOption.flatMap(LayerPath.parse(_))
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
@@ -71,6 +73,7 @@ object Args {
       "specify if this dependency should not be included transitively")
   val KeyArg         = CliParam[String]('k', 'key, "GPG key")
   val LayerRefArg    = CliParam[Import]('l', 'layer, "layer reference")
+  val LayerPathArg   = CliParam[LayerPath]('l', 'layer, "layer path")
   val CloneRefArg    = CliParam[IpfsRef]('l', 'layer, "layer reference")
   val LicenseArg     = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg      = CliParam[ModuleId]('m', 'module, "specify a module")

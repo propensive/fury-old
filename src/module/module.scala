@@ -28,23 +28,27 @@ import Lenses.on
 
 object ModuleCli {
 
-  case class Context(
+  case class ModuleContext(
       override val cli: Cli[CliParam[_]],
       override val layout: Layout,
       override val config: Config,
       override val layer: Layer,
+      override val context: Context,
+      override val focus: Focus,
       optSchema: Option[Schema],
       optProject: Option[Project])
-      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+      extends MenuContext(cli, layout, config, layer, context, focus, optSchema.map(_.id)) {
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      layer     <- Layer.read(Io.silent(config), layout.layerFile, layout)
+      context <- Context.read(layout)
+      focus <- Layers(context, Io.silent(config), layout)
+      layer <- ~focus.layer
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -55,9 +59,9 @@ object ModuleCli {
       optProject <- ~schema.flatMap { s =>
                      optProjectId.flatMap(s.projects.findBy(_).toOption)
                    }
-    } yield new Context(cli, layout, config, layer, schema, optProject)
+    } yield new ModuleContext(cli, layout, config, layer, context, focus, schema, optProject)
 
-  def select(ctx: Context): Try[ExitStatus] = {
+  def select(ctx: ModuleContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -68,14 +72,12 @@ object ModuleCli {
       moduleId <- ~invoc(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
       _        <- project(moduleId)
-      force    <- ~invoc(ForceArg).isSuccess
-      focus    <- ~Lenses.focus(optSchemaId, force)
-      layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
-      _        <- ~Layer.save(io, layer, layout)
+      context  <- ~context.targetModule(Some(moduleId))
+      _        <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: ModuleContext): Try[ExitStatus] = {
     import ctx._
     for {
       project <- optProject.ascribe(UnspecifiedProject())
@@ -85,13 +87,13 @@ object ModuleCli {
       raw     <- ~invoc(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
       table <- ~Tables(config)
-                .show(Tables(config).modules(project.id, project.main), cli.cols, rows, raw)(_.id)
+                .show(Tables(config).modules(project.id, focus.moduleId), cli.cols, rows, raw)(_.id)
       schema <- defaultSchema
       _      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: ModuleContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli <- cli.hint(ModuleNameArg)
@@ -141,10 +143,6 @@ object ModuleCli {
                 (lens, ws) =>
                   lens.modify(layer)((_: SortedSet[Module]) + module)
               }
-      layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
-                  Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
-                lens(ws) = Some(module.id)
-              }
       layer <- if (project.compiler.isEmpty)
                 Lenses
                   .updateSchemas(optSchemaId, layer, true)(Lenses.layer.compiler(_, project.id)) {
@@ -155,12 +153,13 @@ object ModuleCli {
                       }
                       lens(ws) = optCompilerRef
                   } else Try(layer)
-      _ <- ~Layer.save(io, layer, layout)
+      context <- ~context.targetModule(Some(module.id))
+      _ <- Layers.update(context, io, layout, layer)
       _ <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: ModuleContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -179,15 +178,12 @@ object ModuleCli {
                   (lens, ws) =>
                     lens.modify(ws)((_: SortedSet[Module]).filterNot(_.id == module.id))
                 }
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
-                  Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
-                if (lens(ws) == Some(moduleId)) lens(ws) = None else ws
-              }
-      _ <- ~Layer.save(io, layer, layout)
+      context <- ~context.targetModule(Some(moduleId))
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def update(ctx: Context): Try[ExitStatus] = {
+  def update(ctx: ModuleContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -197,7 +193,7 @@ object ModuleCli {
                   .to[List]
                   .flatMap(_.compilerRefs(Io.silent(config), layout)))
       cli         <- cli.hint(KindArg, Kind.all)
-      optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+      optModuleId <- ~cli.peek(ModuleArg).orElse(focus.moduleId)
       optModule <- Success {
                     for {
                       project  <- optProject
@@ -255,20 +251,20 @@ object ModuleCli {
       layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).plugin)) =
                 pluginName.map(Some(_))
       layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
-      _     <- ~Layer.save(io, layer, layout)
+      _     <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }
 
 object BinaryCli {
 
-  case class BinariesCtx(moduleCtx: ModuleCli.Context, optModule: Option[Module])
+  case class BinariesCtx(moduleCtx: ModuleCli.ModuleContext, optModule: Option[Module])
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
-      ctx         <- ModuleCli.context(cli)
+      ctx         <- ModuleCli.mkContext(cli)
       cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
-      optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
+      optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.focus.moduleId)
       optModule <- Success {
                     for {
                       project  <- ctx.optProject
@@ -308,7 +304,7 @@ object BinaryCli {
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
@@ -326,20 +322,20 @@ object BinaryCli {
       binary    <- Binary.unapply(repoId, binaryArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }
 
 object ParamCli {
 
-  case class ParamCtx(moduleCtx: ModuleCli.Context, optModule: Option[Module])
+  case class ParamCtx(moduleCtx: ModuleCli.ModuleContext, optModule: Option[Module])
 
-  def context(cli: Cli[CliParam[_]]) =
+  def mkContext(cli: Cli[CliParam[_]]) =
     for {
-      ctx         <- ModuleCli.context(cli)
+      ctx         <- ModuleCli.mkContext(cli)
       cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
-      optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
+      optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.focus.moduleId)
       optModule <- Success {
                     for {
                       project  <- ctx.optProject
@@ -378,7 +374,7 @@ object ParamCli {
       force    <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
@@ -393,7 +389,7 @@ object ParamCli {
       param   <- invoc(ParamArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) += param)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }
