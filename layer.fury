@@ -376,7 +376,7 @@ schemas	default	id	default
 			eucalyptus	id	eucalyptus
 				repo	git@github.com:propensive/eucalyptus.git
 				track	fury
-				commit	99c500355e570e35e0e1229aa607a9bdea4ae073
+				commit	f8dee747070e1905fe95dd55f981dc497037df9d
 				local	None
 			exoskeleton	id	exoskeleton
 				repo	git@github.com:propensive/exoskeleton.git
@@ -426,12 +426,12 @@ schemas	default	id	default
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	a1f0cc3ff90cb669132db599c8f9eec3362550cf
+				commit	e996234c57544932516f903c4511a35efdeab3a0
 				local	None
-			probation	id	probation
-				repo	git@github.com:propensive/probation.git
+			probably	id	probably
+				repo	git@github.com:propensive/probably.git
 				track	fury
-				commit	458f949e4a79f7ca735449c9d0094b2a846af10d
+				commit	a05a9b5699235a6a2cae0a45cfdde7eb0717f3d3
 				local	None
 			scala	id	scala
 				repo	git@github.com:propensive/.scala.git
