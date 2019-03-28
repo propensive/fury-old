@@ -28,19 +28,15 @@ import scala.collection.immutable.SortedSet
 object ProjectCli {
   import Args._
 
-  def context(cli: Cli[CliParam[_]]) =
+  def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout       <- cli.layout
       config       <- Config.read()(cli.env, layout)
-      layer        <- Layer.read(Io.silent(config), layout.layerFile, layout)
-      cli          <- cli.hint(SchemaArg, layer.schemas)
-      optSchemaArg <- ~cli.peek(SchemaArg)
-    } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
-
-  def select(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
-    for {
-      dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      context      <- fury.core.Context.read(layout)
+      focus        <- Layers(context, config, layout)
+      cli          <- cli.hint(SchemaArg, focus.layer.schemas)
+      optSchemaId <- ~cli.peek(SchemaArg)
+      dSchema   <- focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
@@ -48,35 +44,47 @@ object ProjectCli {
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
       force     <- ~invoc(ForceArg).toOption.isDefined
-      schemaId  <- ~optSchemaId.getOrElse(layer.main)
-      schema    <- layer.schemas.findBy(schemaId)
+      schemaId  <- ~optSchemaId.getOrElse(focus.schemaId)
+      schema    <- focus.layer.schemas.findBy(schemaId)
       _         <- schema(projectId)
-      focus     <- ~Lenses.focus(optSchemaId, force)
-      layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
-      _         <- ~Layer.save(io, layer, layout)
+      lens     <- ~Lenses.focus(optSchemaId, force)
+      layer     <- lens(focus.layer, _.lens(_.main)) = Some(Some(projectId))
+      _         <- Layers.update(context, config, layout, layer)
     } yield io.await()
   }
 
-  def list(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
+  def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
+      layout       <- cli.layout
+      config       <- Config.read()(cli.env, layout)
+      context      <- Context.read(layout)
+      focus        <- Layers(context, config, layout)
+      cli          <- cli.hint(SchemaArg, focus.layer.schemas)
+      optSchemaId <- ~cli.peek(SchemaArg)
       cli    <- cli.hint(RawArg)
       invoc  <- cli.read()
       io     <- invoc.io()
       raw    <- ~invoc(RawArg).isSuccess
-      schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      schema <- focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
-      _      <- ~io.println(table.mkString("\n"))
+      _ <- ~(if (!raw)
+               io.println(Tables(config).contextString(layout.base, focus.layer.showSchema, schema)))
+      _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
-  def add(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
+  def add(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
+      layout       <- cli.layout
+      config       <- Config.read()(cli.env, layout)
+      context      <- Context.read(layout)
+      focus        <- Layers(context, config, layout)
+      cli          <- cli.hint(SchemaArg, focus.layer.schemas)
+      optSchemaId <- ~cli.peek(SchemaArg)
       cli     <- cli.hint(ProjectNameArg)
       cli     <- cli.hint(LicenseArg, License.standardLicenses)
-      dSchema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      dSchema <- focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId))
       cli <- cli.hint(
                 DefaultCompilerArg,
                 ModuleRef.JavaRef :: dSchema.compilerRefs(Io.silent(config), layout))
@@ -91,19 +99,24 @@ object ProjectCli {
       projectId <- invoc(ProjectNameArg)
       license   <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
       project   <- ~Project(projectId, license = license, compiler = optCompilerRef)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
+      layer <- Lenses.updateSchemas(optSchemaId, focus.layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
-      layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
+      layer <- Lenses.updateSchemas(optSchemaId, focus.layer, true)(Lenses.layer.mainProject(_))(
                   _(_) = Some(project.id))
-      _ <- ~Layer.save(io, layer, layout)
+      _         <- Layers.update(context, config, layout, layer)
       _ <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
   }
 
-  def remove(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
+  def remove(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
-      dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      layout       <- cli.layout
+      config       <- Config.read()(cli.env, layout)
+      context      <- Context.read(layout)
+      focus        <- Layers(context, config, layout)
+      cli          <- cli.hint(SchemaArg, focus.layer.schemas)
+      optSchemaId <- ~cli.peek(SchemaArg)
+      dSchema   <- focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
@@ -111,20 +124,25 @@ object ProjectCli {
       projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
       force     <- ~invoc(ForceArg).toOption.isDefined
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(
+      layer <- Lenses.updateSchemas(optSchemaId, focus.layer, force)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) {
                 (lens, ws) =>
                   if (lens(ws) == Some(projectId))(lens(ws) = None) else ws
               }
-      _ <- ~Layer.save(io, layer, layout)
+      _         <- Layers.update(context, config, layout, layer)
     } yield io.await()
   }
 
-  def update(ctx: MenuContext): Try[ExitStatus] = {
-    import ctx._
+  def update(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
-      dSchema <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
+      layout       <- cli.layout
+      config       <- Config.read()(cli.env, layout)
+      context      <- Context.read(layout)
+      focus        <- Layers(context, config, layout)
+      cli          <- cli.hint(SchemaArg, focus.layer.schemas)
+      optSchemaId <- ~cli.peek(SchemaArg)
+      dSchema <- ~focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId)).toOption
       cli     <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
       cli     <- cli.hint(DescriptionArg)
       cli <- cli.hint(
@@ -139,21 +157,21 @@ object ProjectCli {
       invoc          <- cli.read()
       io             <- invoc.io()
       projectId      <- projectId.ascribe(UnspecifiedProject())
-      schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      schema         <- focus.layer.schemas.findBy(optSchemaId.getOrElse(focus.schemaId))
       project        <- schema.projects.findBy(projectId)
       force          <- ~invoc(ForceArg).toOption.isDefined
-      focus          <- ~Lenses.focus(optSchemaId, force)
+      lens          <- ~Lenses.focus(optSchemaId, force)
       licenseArg     <- ~invoc(LicenseArg).toOption
-      layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
+      layer          <- lens(focus.layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
       descriptionArg <- ~invoc(DescriptionArg).toOption
-      layer          <- focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
+      layer          <- lens(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
       compilerArg <- ~invoc(DefaultCompilerArg).toOption
                       .flatMap(ModuleRef.parseFull(_, true).toOption)
-      layer   <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
+      layer   <- lens(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
       nameArg <- ~invoc(ProjectNameArg).toOption
       newId   <- ~nameArg.flatMap(schema.unused(_).toOption)
-      layer   <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      _       <- ~Layer.save(io, layer, layout)
+      layer   <- lens(layer, _.lens(_.projects(on(project.id)).id)) = newId
+      _         <- Layers.update(context, config, layout, layer)
     } yield io.await()
   }
 }

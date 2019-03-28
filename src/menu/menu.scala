@@ -76,7 +76,7 @@ object FuryMenu {
             Action('remove, msg"remove a compiler parameter from the module", ParamCli.remove),
             Action('list, msg"list compiler parameters for the module", ParamCli.list)
         ),
-        Menu('project, msg"manage projects", ProjectCli.context, 'list)(
+        Menu('project, msg"manage projects", (m: Cli[CliParam[_]]) => Try(m), 'list)(
             Action('add, msg"add a new project to the schema", ProjectCli.add),
             Action('remove, msg"remove a project from the schema", ProjectCli.remove),
             Action('list, msg"list projects for the schema", ProjectCli.list),

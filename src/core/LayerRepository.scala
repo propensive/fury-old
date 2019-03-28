@@ -15,13 +15,13 @@ final class LayerRepository(revisions: LayerRevisions, current: Path) {
       _        <- revisions.discardPrevious()
     } yield Unit
 
-  def update(io: Io, layer: Layer, layout: Layout): Try[Unit] = currentLayer(io, layout) match {
+  def update(io: Io, layer: Layer, layout: Layout): Try[Path] = currentLayer(io, layout) match {
     case None => Ogdl.write(layer, current)
     case Some(currentLayer) =>
       for {
         _ <- revisions.store(currentLayer)
-        _ <- Ogdl.write(layer, current)
-      } yield Unit
+        path <- Ogdl.write(layer, current)
+      } yield path
   }
 
   private def currentLayer(io: Io, layout: Layout): Option[Layer] =

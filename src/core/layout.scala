@@ -79,6 +79,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
     bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
 
   lazy val layerFile: Path = base / "layer.fury"
+  lazy val contextFile: Path = base / ".context.fury"
 
   def outputDir(digest: Digest): Path =
     (analysisDir / digest.encoded[Base64Url]).extant()

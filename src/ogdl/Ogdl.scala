@@ -94,7 +94,7 @@ object Ogdl {
       path
     }
 
-  def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
+  def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl = identity): T = {
     val buffer = ByteBuffer.wrap(string.getBytes("UTF-8"))
     val ogdl   = OgdlParser.parse(buffer)
 

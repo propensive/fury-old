@@ -15,18 +15,26 @@
  */
 package fury.core
 
-import fury.ogdl._
+import fury.ogdl._, fury.io._
 
 import scala.collection.mutable._
 import scala.util._
 
-sealed trait Focus
-case class ModuleFocus(project: Option[ProjectId], module: Option[ModuleId]) extends Focus
-case class LayerFocus(layerId: LayerId, focus: Focus)                        extends Focus
+sealed trait Pointer
+case class ModulePointer(project: Option[ProjectId], module: Option[ModuleId]) extends Pointer
+case class LayerPointer(layerId: LayerId, pointer: Pointer)                     extends Pointer
 
-case class Context(schemaRef: SchemaRef, focus: Focus)
+object Context {
+  def read(layout: Layout): Try[Context] =
+    Ogdl.read[Context](layout.contextFile, identity(_))
 
-case class ResolvedFocus(
+  def write(context: Context, layout: Layout): Try[Path] =
+    Ogdl.write[Context](context, layout.contextFile)
+}
+
+case class Context(schemaRef: SchemaRef, pointer: Pointer)
+
+case class Focus(
     layer: Layer,
     schemaId: SchemaId,
     projectId: Option[ProjectId],
@@ -38,57 +46,57 @@ object Layers {
 
   private[this] val cache: HashMap[IpfsRef, Layer] = HashMap()
 
-  private[this] def loadFromIpfs(io: Io, layerRef: IpfsRef, layout: Layout): Try[Layer] =
+  private[this] def loadFromIpfs(config: Config, layerRef: IpfsRef, layout: Layout): Try[Layer] =
     for {
       file  <- layout.shell.ipfs.get(layerRef, layout.tmpDir.tmpFile)
-      layer <- Layer.read(io, file, layout)
+      layer <- Layer.read(Io.silent(config), file, layout)
       _     = cache.synchronized { cache(layerRef) = layer }
     } yield layer
 
-  def load(io: Io, layerRef: IpfsRef, layout: Layout): Try[Layer] =
-    cache.get(layerRef).fold(loadFromIpfs(io, layerRef, layout))(Success(_))
+  def load(layerRef: IpfsRef, config: Config, layout: Layout): Try[Layer] =
+    cache.get(layerRef).fold(loadFromIpfs(config, layerRef, layout))(Success(_))
 
-  def save(io: Io, layout: Layout, layer: Layer): Try[IpfsRef] =
+  def save(layout: Layout, config: Config, layer: Layer): Try[IpfsRef] =
     for {
       tmpFile  <- Ogdl.write(layer, layout.tmpDir.tmpFile)
       layerRef <- layout.shell.ipfs.add(tmpFile)
     } yield layerRef
 
-  def apply(io: Io, ctx: Context, layout: Layout): Try[ResolvedFocus] = {
-    def resolve(currentLayer: Layer, schemaId: SchemaId, focus: Focus): Try[ResolvedFocus] =
-      focus match {
-        case ModuleFocus(projectId, moduleId) =>
-          Success(ResolvedFocus(currentLayer, schemaId, projectId, moduleId))
-        case LayerFocus(layerId, focus) =>
+  def apply(ctx: Context, config: Config, layout: Layout): Try[Focus] = {
+    def resolve(currentLayer: Layer, schemaId: SchemaId, pointer: Pointer): Try[Focus] =
+      pointer match {
+        case ModulePointer(projectId, moduleId) =>
+          Success(Focus(currentLayer, schemaId, projectId, moduleId))
+        case LayerPointer(layerId, pointer) =>
           for {
             schema   <- currentLayer(schemaId)
             imported <- schema.imports.findBy(layerId)
-            layer    <- load(io, imported.schemaRef.layerRef, layout)
-            resolved <- resolve(layer, imported.schemaRef.schemaId, focus)
+            layer    <- load(imported.schemaRef.layerRef, config, layout)
+            resolved <- resolve(layer, imported.schemaRef.schemaId, pointer)
           } yield resolved
       }
 
-    load(io, ctx.schemaRef.layerRef, layout).flatMap(resolve(_, ctx.schemaRef.schemaId, ctx.focus))
+    load(ctx.schemaRef.layerRef, config, layout).flatMap(resolve(_, ctx.schemaRef.schemaId, ctx.pointer))
   }
 
-  def update(io: Io, ctx: Context, layout: Layout, newLayer: Layer): Try[IpfsRef] = {
-    def doUpdate(currentLayer: Layer, schemaId: SchemaId, focus: Focus): Try[IpfsRef] =
-      focus match {
-        case ModuleFocus(projectId, moduleId) =>
-          save(io, layout, newLayer)
-        case LayerFocus(layerId, focus) =>
+  def update(ctx: Context, config: Config, layout: Layout, newLayer: Layer): Try[IpfsRef] = {
+    def doUpdate(currentLayer: Layer, schemaId: SchemaId, pointer: Pointer): Try[IpfsRef] =
+      pointer match {
+        case ModulePointer(projectId, moduleId) =>
+          save(layout, config, newLayer)
+        case LayerPointer(layerId, pointer) =>
           for {
             schema   <- currentLayer(schemaId)
             imported <- schema.imports.findBy(layerId)
-            layer    <- load(io, imported.schemaRef.layerRef, layout)
-            updated  <- doUpdate(layer, schemaId, focus)
+            layer    <- load(imported.schemaRef.layerRef, config, layout)
+            updated  <- doUpdate(layer, schemaId, pointer)
             layer <- Success(Lenses.layer.importLayer(schemaId, layerId).modify(layer) { sr =>
                       sr.copy(layerRef = updated)
                     })
-            layerRef <- save(io, layout, layer)
+            layerRef <- save(layout, config, layer)
           } yield layerRef
       }
 
-    load(io, ctx.schemaRef.layerRef, layout).flatMap(doUpdate(_, ctx.schemaRef.schemaId, ctx.focus))
+    load(ctx.schemaRef.layerRef, config, layout).flatMap(doUpdate(_, ctx.schemaRef.schemaId, ctx.pointer))
   }
 }

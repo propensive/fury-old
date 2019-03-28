@@ -974,6 +974,36 @@ object ModuleRef {
     }
 }
 
+case class EnvVar(key: String, value: String)
+
+object PermissionId {
+  val all: Set[PermissionId] = Set(
+    PermissionId("java.security.AllPermission"),
+    PermissionId("java.security.SecurityPermission"),
+    PermissionId("java.security.UnresolvedPermission"),
+    PermissionId("java.awt.AWTPermission"),
+    PermissionId("java.io.FilePermission"),
+    PermissionId("java.io.SerializablePermission"),
+    PermissionId("java.lang.reflect.ReflectPermission"),
+    PermissionId("java.lang.iRuntimePermission"),
+    PermissionId("java.net.NetPermission"),
+    PermissionId("java.net.SocketPermission"),
+    PermissionId("java.sql.SQLPermission"),
+    PermissionId("java.util.PropertyPermission"),
+    PermissionId("java.util.logging.LoggingPermission"),
+    PermissionId("javax.net.ssl.SSLPermission"),
+    PermissionId("javax.security.auth.AuthPermission"),
+    PermissionId("javax.security.auth.PrivateCredentialPermission"),
+    PermissionId("javax.security.auth.kerberos.DelegationPermission"),
+    PermissionId("javax.security.auth.kerberos.ServicePermission"),
+    PermissionId("javax.sound.sampled.AudioPermission")
+  )
+}
+
+case class PermissionId(key: String) extends AnyVal
+
+case class Permission(permission: PermissionId, value: String)
+
 case class ModuleRef(
     projectId: ProjectId,
     moduleId: ModuleId,
