@@ -46,15 +46,15 @@ object ModuleCli {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
-      context <- Context.read(layout)
-      focus <- Layers(context, Io.silent(config), layout)
-      layer <- ~focus.layer
+      context   <- Context.read(layout)
+      focus     <- Layers(context, Io.silent(config), layout)
+      layer     <- ~focus.layer
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli       <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
-                       cli.peek(ProjectArg).orElse(s.main)
+                       cli.peek(ProjectArg).orElse(focus.projectId)
                      }
       optProject <- ~schema.flatMap { s =>
                      optProjectId.flatMap(s.projects.findBy(_).toOption)
@@ -154,8 +154,8 @@ object ModuleCli {
                       lens(ws) = optCompilerRef
                   } else Try(layer)
       context <- ~context.targetModule(Some(module.id))
-      _ <- Layers.update(context, io, layout, layer)
-      _ <- ~io.println(msg"Set current module to ${module.id}")
+      _       <- Layers.update(context, io, layout, layer)
+      _       <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
 
@@ -179,7 +179,7 @@ object ModuleCli {
                     lens.modify(ws)((_: SortedSet[Module]).filterNot(_.id == module.id))
                 }
       context <- ~context.targetModule(Some(moduleId))
-      _ <- Layers.update(context, io, layout, layer)
+      _       <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 

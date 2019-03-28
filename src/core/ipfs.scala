@@ -25,9 +25,10 @@ import kaleidoscope._
 
 sealed trait Pointer
 case class Target(project: Option[ProjectId], module: Option[ModuleId]) extends Pointer
-case class Deref(layerId: LayerId, pointer: Pointer)                     extends Pointer
+case class Deref(layerId: LayerId, pointer: Pointer)                    extends Pointer
 
 object Context {
+
   def read(layout: Layout): Try[Context] =
     Ogdl.read[Context](layout.contextFile, identity(_))
 
@@ -36,26 +37,30 @@ object Context {
 }
 
 case class Context(schemaRef: SchemaRef, pointer: Pointer) {
-  def dereference(path: LayerPath): Context = path.layerIds match {
-    case Nil => this
-    case h :: t => copy(pointer = Deref(h, pointer)).dereference(LayerPath(t))
+
+  def dereference(path: LayerPath): Context = {
+    def recurse(xs: List[LayerId]): Pointer = xs match {
+      case Nil             => Target(None, None)
+      case layerId :: tail => Deref(layerId, recurse(tail))
+    }
+    Context(schemaRef, recurse(path.layerIds))
   }
 
   def targetModule(newModuleId: Option[ModuleId]) = {
     def updatePointer(pointer: Pointer): Pointer = pointer match {
       case Target(projectId, moduleId) => Target(projectId, newModuleId)
-      case Deref(layerId, pointer) => Deref(layerId, updatePointer(pointer))
+      case Deref(layerId, pointer)     => Deref(layerId, updatePointer(pointer))
     }
-    
+
     Context(schemaRef, updatePointer(pointer))
   }
-  
+
   def targetProject(newProjectId: Option[ProjectId]) = {
     def updatePointer(pointer: Pointer): Pointer = pointer match {
       case Target(projectId, moduleId) => Target(newProjectId, moduleId)
-      case Deref(layerId, pointer) => Deref(layerId, updatePointer(pointer))
+      case Deref(layerId, pointer)     => Deref(layerId, updatePointer(pointer))
     }
-    
+
     Context(schemaRef, updatePointer(pointer))
   }
 }
@@ -70,13 +75,17 @@ case class Focus(
 
 object LayerPath {
   implicit val msgShow: MsgShow[LayerPath] =
-    _.layerIds.map { l => msg"$l" }.foldLeft(msg"${LayerId(".")}") { (l, r) => msg"$l${'/'}$r" }
+    _.layerIds.map { l =>
+      msg"$l"
+    }.foldLeft(msg"${LayerId(".")}") { (l, r) =>
+      msg"$l${'/'}$r"
+    }
 
   implicit val stringShow: StringShow[LayerPath] = msgShow.show(_).string(Theme.NoColor)
 
   def parse(str: String): Option[LayerPath] = str match {
     case r"\.(/[a-z]-?[a-z0-9]+)*" => Some(LayerPath(str.split("/").to[List].tail.map(LayerId(_))))
-    case _ => None
+    case _                         => None
   }
 }
 case class LayerPath(layerIds: List[LayerId]) {
@@ -95,14 +104,15 @@ object Layers {
     } yield layer
 
   def children(schemaRef: SchemaRef, io: Io, layout: Layout) = {
-    def recurse(schemaRef: SchemaRef): Try[List[LayerPath]] = for {
-      layer <- load(schemaRef.layerRef, io, layout)
-      schema <- layer(schemaRef.schemaId)
-      imports = schema.imports.to[List]
-      layerPaths <- imports.map { imp =>
-        recurse(imp.schemaRef).map(_.map(imp.id :: _))
-      }.sequence.map(_.flatten)
-    } yield LayerPath(Nil) :: layerPaths
+    def recurse(schemaRef: SchemaRef): Try[List[LayerPath]] =
+      for {
+        layer   <- load(schemaRef.layerRef, io, layout)
+        schema  <- layer(schemaRef.schemaId)
+        imports = schema.imports.to[List]
+        layerPaths <- imports.map { imp =>
+                       recurse(imp.schemaRef).map(_.map(imp.id :: _))
+                     }.sequence.map(_.flatten)
+      } yield LayerPath(Nil) :: layerPaths
 
     recurse(schemaRef)
   }
@@ -130,7 +140,8 @@ object Layers {
           } yield resolved
       }
 
-    load(ctx.schemaRef.layerRef, io, layout).flatMap(resolve(_, ctx.schemaRef.schemaId, ctx.pointer))
+    load(ctx.schemaRef.layerRef, io, layout)
+      .flatMap(resolve(_, ctx.schemaRef.schemaId, ctx.pointer))
   }
 
   def update(ctx: Context, io: Io, layout: Layout, newLayer: Layer): Try[Context] = {
@@ -144,17 +155,20 @@ object Layers {
             imported <- schema.imports.findBy(layerId)
             layer    <- load(imported.schemaRef.layerRef, io, layout)
             updated  <- doUpdate(layer, schemaId, pointer)
-            layer <- Success(Lenses.layer.importLayer(schemaId, layerId).modify(currentLayer) { sr =>
-                      sr.copy(layerRef = updated)
-                    })
+            layer <- Success(
+                        Lenses.layer.importLayer(schemaId, layerId).modify(currentLayer) { sr =>
+                          sr.copy(layerRef = updated)
+                        })
             layerRef <- save(layout, io, layer)
           } yield layerRef
       }
 
-    load(ctx.schemaRef.layerRef, io, layout).flatMap(doUpdate(_, ctx.schemaRef.schemaId, ctx.pointer)).map { ref =>
-      val newContext = ctx.copy(schemaRef = ctx.schemaRef.copy(layerRef = ref))
-      Context.write(newContext, layout)
-      newContext
-    }
+    load(ctx.schemaRef.layerRef, io, layout)
+      .flatMap(doUpdate(_, ctx.schemaRef.schemaId, ctx.pointer))
+      .map { ref =>
+        val newContext = ctx.copy(schemaRef = ctx.schemaRef.copy(layerRef = ref))
+        Context.write(newContext, layout)
+        newContext
+      }
   }
 }

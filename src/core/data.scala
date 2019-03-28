@@ -772,8 +772,7 @@ case class Schema(
     id: SchemaId,
     projects: SortedSet[Project] = TreeSet(),
     repos: SortedSet[SourceRepo] = TreeSet(),
-    imports: SortedSet[Import] = TreeSet(),
-    main: Option[ProjectId] = None) {
+    imports: SortedSet[Import] = TreeSet()) {
 
   def apply(id: ProjectId) = projects.findBy(id)
 
@@ -785,17 +784,11 @@ case class Schema(
   def compilerRefs(io: Io, layout: Layout): List[ModuleRef] =
     allProjects(io, layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def mainProject: Try[Option[Project]] =
-    main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
-
-  def importCandidates(io: Io, layout: Layout): List[String] =
-    repos.to[List].flatMap(_.importCandidates(io, this, layout).toOption.to[List].flatten)
-
   def hierarchy(io: Io, dir: Path, layout: Layout): Try[Hierarchy] =
     for {
       imps <- imports.map { importRef =>
                for {
-                 layer <- Layers.load(importRef.schemaRef.layerRef, io, layout)
+                 layer    <- Layers.load(importRef.schemaRef.layerRef, io, layout)
                  resolved <- layer.schemas.findBy(importRef.schemaRef.schemaId)
                  tree     <- resolved.hierarchy(io, layout.layersDir(importRef.id), layout)
                } yield tree
@@ -803,7 +796,15 @@ case class Schema(
     } yield Hierarchy(this, dir, imps)
 
   def importedSchemas(io: Io, layout: Layout): Try[List[Schema]] =
-    imports.to[List].map(_.resolve(io, this, layout)).sequence
+    imports
+      .to[List]
+      .map { i =>
+        for {
+          layer  <- Layers.load(i.schemaRef.layerRef, io, layout)
+          schema <- layer(i.schemaRef.schemaId)
+        } yield schema
+      }
+      .sequence
 
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
@@ -968,26 +969,27 @@ object ModuleRef {
 case class EnvVar(key: String, value: String)
 
 object PermissionId {
+
   val all: Set[PermissionId] = Set(
-    PermissionId("java.security.AllPermission"),
-    PermissionId("java.security.SecurityPermission"),
-    PermissionId("java.security.UnresolvedPermission"),
-    PermissionId("java.awt.AWTPermission"),
-    PermissionId("java.io.FilePermission"),
-    PermissionId("java.io.SerializablePermission"),
-    PermissionId("java.lang.reflect.ReflectPermission"),
-    PermissionId("java.lang.iRuntimePermission"),
-    PermissionId("java.net.NetPermission"),
-    PermissionId("java.net.SocketPermission"),
-    PermissionId("java.sql.SQLPermission"),
-    PermissionId("java.util.PropertyPermission"),
-    PermissionId("java.util.logging.LoggingPermission"),
-    PermissionId("javax.net.ssl.SSLPermission"),
-    PermissionId("javax.security.auth.AuthPermission"),
-    PermissionId("javax.security.auth.PrivateCredentialPermission"),
-    PermissionId("javax.security.auth.kerberos.DelegationPermission"),
-    PermissionId("javax.security.auth.kerberos.ServicePermission"),
-    PermissionId("javax.sound.sampled.AudioPermission")
+      PermissionId("java.security.AllPermission"),
+      PermissionId("java.security.SecurityPermission"),
+      PermissionId("java.security.UnresolvedPermission"),
+      PermissionId("java.awt.AWTPermission"),
+      PermissionId("java.io.FilePermission"),
+      PermissionId("java.io.SerializablePermission"),
+      PermissionId("java.lang.reflect.ReflectPermission"),
+      PermissionId("java.lang.iRuntimePermission"),
+      PermissionId("java.net.NetPermission"),
+      PermissionId("java.net.SocketPermission"),
+      PermissionId("java.sql.SQLPermission"),
+      PermissionId("java.util.PropertyPermission"),
+      PermissionId("java.util.logging.LoggingPermission"),
+      PermissionId("javax.net.ssl.SSLPermission"),
+      PermissionId("javax.security.auth.AuthPermission"),
+      PermissionId("javax.security.auth.PrivateCredentialPermission"),
+      PermissionId("javax.security.auth.kerberos.DelegationPermission"),
+      PermissionId("javax.security.auth.kerberos.ServicePermission"),
+      PermissionId("javax.sound.sampled.AudioPermission")
   )
 }
 
@@ -1150,17 +1152,6 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
-  def importCandidates(io: Io, schema: Schema, layout: Layout): Try[List[String]] =
-    for {
-      repoDir     <- repo.fetch(io, layout)
-      layerString <- layout.shell.git.showFile(repoDir, "layer.fury")
-      layer       <- Layer.read(io, layerString, layout)
-      schemas     <- ~layer.schemas.to[List]
-    } yield
-      schemas.map { schema =>
-        str"${id.key}:${schema.id.key}"
-      }
-
   def current(io: Io, layout: Layout): Try[RefSpec] =
     for {
       dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
@@ -1282,13 +1273,6 @@ case class SchemaRef(layerRef: IpfsRef, schemaId: SchemaId)
 
 case class Import(id: LayerId, schemaRef: SchemaRef) {
   def url: String = s"${schemaRef.layerRef.url}@${schemaRef.schemaId.key}"
-
-  def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
-    for {
-      dir      <- ~layout.layersDir(id).extant()
-      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).layerFile, layout)
-      resolved <- layer.schemas.findBy(schemaRef.schemaId)
-    } yield resolved
 }
 
 sealed trait CompileEvent

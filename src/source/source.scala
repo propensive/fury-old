@@ -65,7 +65,8 @@ object SourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
-    } yield new SourceContext(cli, layout, config, layer, context, focus, schema, optProject, optModule)
+    } yield
+      new SourceContext(cli, layout, config, layer, context, focus, schema, optProject, optModule)
 
   def list(ctx: SourceContext): Try[ExitStatus] = {
     import ctx._
@@ -98,7 +99,7 @@ object SourceCli {
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
@@ -130,7 +131,7 @@ object SourceCli {
       source    <- ~Source.unapply(sourceArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)
-      _ <- ~Layer.save(io, layer, layout)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }

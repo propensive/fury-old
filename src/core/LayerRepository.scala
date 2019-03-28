@@ -19,7 +19,7 @@ final class LayerRepository(revisions: LayerRevisions, current: Path) {
     case None => Ogdl.write(layer, current)
     case Some(currentLayer) =>
       for {
-        _ <- revisions.store(currentLayer)
+        _    <- revisions.store(currentLayer)
         path <- Ogdl.write(layer, current)
       } yield path
   }

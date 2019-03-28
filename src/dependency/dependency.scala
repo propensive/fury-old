@@ -52,7 +52,7 @@ object DependencyCli {
       schema    <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli       <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
       optProjectId <- ~schema.flatMap { s =>
-                       cli.peek(ProjectArg).orElse(s.main)
+                       cli.peek(ProjectArg).orElse(focus.projectId)
                      }
       optProject <- ~schema.flatMap { s =>
                      optProjectId.flatMap(s.projects.findBy(_).toOption)
@@ -66,7 +66,17 @@ object DependencyCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module
                   }
-    } yield new DependencyContext(cli, layout, config, layer, context, focus, schema, optProject, optModule)
+    } yield
+      new DependencyContext(
+          cli,
+          layout,
+          config,
+          layer,
+          context,
+          focus,
+          schema,
+          optProject,
+          optModule)
 
   def list(ctx: DependencyContext): Try[ExitStatus] = {
     import ctx._

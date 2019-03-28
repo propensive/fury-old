@@ -56,38 +56,37 @@ object AliasCli {
 
   def mkContext(cli: Cli[CliParam[_]]): Try[MenuContext] =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
       context <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
+      focus   <- Layers(context, Io.silent(config), layout)
+      layer   <- ~focus.layer
     } yield new MenuContext(cli, layout, config, layer, context, focus)
 
-  def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  def list(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      context   <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
-      cli   <- cli.hint(RawArg)
-      invoc <- cli.read()
-      io    <- invoc.io()
-      raw   <- ~invoc(RawArg).isSuccess
-      rows  <- ~layer.aliases.to[List]
-      table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if (!raw) io.println(Tables(config).contextString(layout.base, true)))
-      _     <- ~io.println(table.mkString("\n"))
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
+      context <- Context.read(layout)
+      focus   <- Layers(context, Io.silent(config), layout)
+      layer   <- ~focus.layer
+      cli     <- cli.hint(RawArg)
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      raw     <- ~invoc(RawArg).isSuccess
+      rows    <- ~layer.aliases.to[List]
+      table   <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
+      _       <- ~(if (!raw) io.println(Tables(config).contextString(layout.base, true)))
+      _       <- ~io.println(table.mkString("\n"))
     } yield io.await()
-  }
 
-  def remove(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  def remove(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      context   <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
+      layout     <- cli.layout
+      config     <- Config.read()(cli.env, layout)
+      context    <- Context.read(layout)
+      focus      <- Layers(context, Io.silent(config), layout)
+      layer      <- ~focus.layer
       cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
       invoc      <- cli.read()
       io         <- invoc.io()
@@ -96,19 +95,18 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) --= aliasToDel)
-      _       <- Layers.update(context, io, layout, layer)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
-  }
 
-  def add(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  def add(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      context   <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
+      layout       <- cli.layout
+      config       <- Config.read()(cli.env, layout)
+      context      <- Context.read(layout)
+      focus        <- Layers(context, Io.silent(config), layout)
+      layer        <- ~focus.layer
       cli          <- cli.hint(SchemaArg, layer.schemas)
-      context   <- Context.read(layout)
+      context      <- Context.read(layout)
       optSchemaArg <- ~cli.peek(SchemaArg)
       cli          <- cli.hint(AliasArg)
       cli          <- cli.hint(DescriptionArg)
@@ -135,20 +133,19 @@ object AliasCli {
       layer <- Lenses.updateSchemas(None, layer, true) { s =>
                 Lenses.layer.aliases
               }(_(_) += alias)
-      _       <- Layers.update(context, io, layout, layer)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
-  }
 }
 
 object BuildCli {
 
   def mkContext(cli: Cli[CliParam[_]]): Try[MenuContext] =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      context   <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
+      context <- Context.read(layout)
+      focus   <- Layers(context, Io.silent(config), layout)
+      layer   <- ~focus.layer
     } yield new MenuContext(cli, layout, config, layer, context, focus)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
@@ -238,10 +235,10 @@ object BuildCli {
 
   def getPrompt(context: Context, focus: Focus, layer: Layer, theme: Theme): Try[String] =
     for {
-      schemaId     <- ~layer.main
-      schema       <- layer.schemas.findBy(schemaId)
-      optProject   <- ~focus.projectId.flatMap(schema.projects.findBy(_).toOption)
-      optModuleId  <- ~focus.moduleId
+      schemaId    <- ~layer.main
+      schema      <- layer.schemas.findBy(schemaId)
+      optProject  <- ~focus.projectId.flatMap(schema.projects.findBy(_).toOption)
+      optModuleId <- ~focus.moduleId
       optModule <- ~optModuleId.flatMap { mId =>
                     optProject.flatMap(_.modules.findBy(mId).toOption)
                   }
@@ -373,47 +370,47 @@ object LayerCli {
 
   def init(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout <- cli.newLayout
-      config <- Config.read()(cli.env, layout)
-      invoc  <- cli.read()
-      io     <- invoc.io()
-      layer  <- ~Layer()
+      layout   <- cli.newLayout
+      config   <- Config.read()(cli.env, layout)
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      layer    <- ~Layer()
       layerRef <- Layers.save(layout, io, layer)
-      context <- ~Context(SchemaRef(layerRef, SchemaId.default), Target(None, None))
-      _ <- Context.write(context, layout)
-      _      <- ~io.println("The current context is the empty layer")
+      context  <- ~Context(SchemaRef(layerRef, SchemaId.default), Target(None, None))
+      _        <- Context.write(context, layout)
+      _        <- ~io.println("The current context is the empty layer")
     } yield io.await()
 
   def select(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      context <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
+      layout     <- cli.layout
+      config     <- Config.read()(cli.env, layout)
+      context    <- Context.read(layout)
+      focus      <- Layers(context, Io.silent(config), layout)
+      layer      <- ~focus.layer
       layerPaths <- Layers.children(context.schemaRef, Io.silent(config), layout)
-      cli <- cli.hint(LayerPathArg, layerPaths)
-      invoc <- cli.read()
-      io <- invoc.io()
-      layerPath <- invoc(LayerPathArg)
-      context <- ~context.dereference(layerPath)
-      _ <- Context.write(context, layout)
+      cli        <- cli.hint(LayerPathArg, layerPaths)
+      invoc      <- cli.read()
+      io         <- invoc.io()
+      layerPath  <- invoc(LayerPathArg)
+      context    <- ~context.dereference(layerPath)
+      _          <- Context.write(context, layout)
     } yield io.await()
 
   def share(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
       context <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
-      invoc  <- cli.read()
-      io     <- invoc.io()
-      files  <- ~layer.bundleFiles(layout)
-      dest   <- ~layout.tmpLayer
-      _      <- TarGz.store(files, dest, layout)
-      ref    <- layout.shell.ipfs.add(dest)
-      _      <- ~io.println(msg"The layer is now available at $ref")
+      focus   <- Layers(context, Io.silent(config), layout)
+      layer   <- ~focus.layer
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      files   <- ~layer.bundleFiles(layout)
+      dest    <- ~layout.tmpLayer
+      _       <- TarGz.store(files, dest, layout)
+      ref     <- layout.shell.ipfs.add(dest)
+      _       <- ~io.println(msg"The layer is now available at $ref")
     } yield io.await()
 
   def doClone(cli: Cli[CliParam[_]]): Try[ExitStatus] =
@@ -421,8 +418,8 @@ object LayerCli {
       layout  <- cli.newLayout
       config  <- Config.read()(cli.env, layout)
       context <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
+      focus   <- Layers(context, Io.silent(config), layout)
+      layer   <- ~focus.layer
       cli     <- cli.hint(CloneRefArg)
       cli     <- cli.hint(DirArg)
       invoc   <- cli.read()
@@ -442,8 +439,8 @@ object LayerCli {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, layout)
       context   <- Context.read(layout)
-      focus  <- Layers(context, Io.silent(config), layout)
-      layer  <- ~focus.layer
+      focus     <- Layers(context, Io.silent(config), layout)
+      layer     <- ~focus.layer
       cli       <- cli.hint(LayerRefArg)
       cli       <- cli.hint(LayerNameArg)
       schemaArg <- ~cli.peek(SchemaArg)
@@ -455,7 +452,7 @@ object LayerCli {
       imported  <- ~imported.copy(id = name)
       layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
                   _.modify(_)(_ + imported))
-      _       <- Layers.update(context, io, layout, layer)
+      _ <- Layers.update(context, io, layout, layer)
     } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =

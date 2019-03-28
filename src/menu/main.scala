@@ -50,10 +50,11 @@ object Main {
   def invoke(cli: Cli[CliParam[_]]): ExitStatus = {
 
     val layer = for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
-    } yield layer
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
+      context <- Context.read(layout)
+      focus   <- Layers(context, Io.silent(config), layout)
+    } yield focus.layer
 
     val actions = layer.toOption
       .to[List]

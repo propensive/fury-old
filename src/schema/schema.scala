@@ -24,18 +24,25 @@ import scala.util._
 
 import language.higherKinds
 
-case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
+case class SchemaContext(
+    cli: Cli[CliParam[_]],
+    layout: Layout,
+    config: Config,
+    layer: Layer,
+    context: Context,
+    focus: Focus)
 
 object SchemaCli {
 
   def mkContext(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
-    } yield SchemaCtx(cli, layout, config, layer)
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
+      context <- Context.read(layout)
+      focus   <- Layers(context, Io.silent(config), layout)
+    } yield SchemaContext(cli, layout, config, focus.layer, context, focus)
 
-  def select(ctx: SchemaCtx): Try[ExitStatus] = {
+  def select(ctx: SchemaContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -45,11 +52,11 @@ object SchemaCli {
       _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
       layer    <- ~(lens(layer) = schemaId)
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def list(ctx: SchemaCtx): Try[ExitStatus] = {
+  def list(ctx: SchemaContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -79,7 +86,7 @@ object SchemaCli {
     Tables(config).show(Tables(config).differences(left.id.key, right.id.key), cols, rows, raw)(
         _.label)
 
-  def diff(ctx: SchemaCtx): Try[ExitStatus] = {
+  def diff(ctx: SchemaContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -100,7 +107,7 @@ object SchemaCli {
     } yield io.await()
   }
 
-  def update(ctx: SchemaCtx): Try[ExitStatus] = {
+  def update(ctx: SchemaContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -114,11 +121,11 @@ object SchemaCli {
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
       layer    <- ~(if (layer.main == schema.id) layer.copy(main = newName) else layer)
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def add(ctx: SchemaCtx): Try[ExitStatus] = {
+  def add(ctx: SchemaContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -132,11 +139,11 @@ object SchemaCli {
       lens      <- ~Lenses.layer.schemas
       layer     <- ~lens.modify(layer)(_ + newSchema)
       layer     <- ~layer.copy(main = newSchema.id)
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def remove(ctx: SchemaCtx): Try[ExitStatus] = {
+  def remove(ctx: SchemaContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -146,7 +153,7 @@ object SchemaCli {
       schema   <- layer.schemas.findBy(schemaId)
       lens     <- ~Lenses.layer.schemas
       layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }

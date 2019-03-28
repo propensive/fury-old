@@ -24,20 +24,27 @@ import optometry._
 import mercator._
 import scala.util._
 
-import Lenses._
+import Lenses.{Focus => _, _}
 
 object RepoCli {
 
   def mkContext(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
-      layer  <- Layer.read(Io.silent(config), layout.layerFile, layout)
-    } yield Context(cli, layout, config, layer)
+      layout  <- cli.layout
+      config  <- Config.read()(cli.env, layout)
+      context <- Context.read(layout)
+      focus   <- Layers(context, Io.silent(config), layout)
+    } yield RepoContext(cli, layout, config, focus.layer, context, focus)
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
+  case class RepoContext(
+      cli: Cli[CliParam[_]],
+      layout: Layout,
+      config: Config,
+      layer: Layer,
+      context: Context,
+      focus: Focus)
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: RepoContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -55,7 +62,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def unfork(ctx: Context): Try[ExitStatus] = {
+  def unfork(ctx: RepoContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -69,11 +76,11 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def fork(ctx: Context): Try[ExitStatus] = {
+  def fork(ctx: RepoContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -103,11 +110,11 @@ object RepoCli {
       newRepo <- ~repo.copy(local = Some(absPath))
       lens    <- ~Lenses.layer.repos(schema.id)
       layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _       <- ~Layer.save(io, layer, layout)
+      _       <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def pull(ctx: Context): Try[ExitStatus] = {
+  def pull(ctx: RepoContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -138,7 +145,7 @@ object RepoCli {
       newLayer = newRepos.foldLeft(layer) { (layer, repoDiff) =>
         repoDiff match { case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
       }
-      _ <- ~Layer.save(io, newLayer, layout)
+      _ <- Layers.update(context, io, layout, layer)
       _ <- ~newRepos.foreach {
             case (newRepo, _) =>
               io.println(s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.commit.id}]")
@@ -146,7 +153,7 @@ object RepoCli {
     } yield io.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: RepoContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -184,11 +191,11 @@ object RepoCli {
       sourceRepo <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
       lens       <- ~Lenses.layer.repos(schema.id)
       layer      <- ~(lens.modify(layer)(_ + sourceRepo))
-      _          <- ~Layer.save(io, layer, layout)
+      _          <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def update(ctx: Context): Try[ExitStatus] = {
+  def update(ctx: RepoContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -223,11 +230,11 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      _           <- ~Layer.save(io, layer, layout)
+      _           <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: RepoContext): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -240,7 +247,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- Layers.update(context, io, layout, layer)
     } yield io.await()
   }
 }
