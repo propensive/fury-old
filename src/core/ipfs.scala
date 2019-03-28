@@ -79,7 +79,7 @@ object Layers {
     load(ctx.schemaRef.layerRef, config, layout).flatMap(resolve(_, ctx.schemaRef.schemaId, ctx.pointer))
   }
 
-  def update(ctx: Context, config: Config, layout: Layout, newLayer: Layer): Try[IpfsRef] = {
+  def update(ctx: Context, config: Config, layout: Layout, newLayer: Layer): Try[Context] = {
     def doUpdate(currentLayer: Layer, schemaId: SchemaId, pointer: Pointer): Try[IpfsRef] =
       pointer match {
         case ModulePointer(projectId, moduleId) =>
@@ -97,6 +97,8 @@ object Layers {
           } yield layerRef
       }
 
-    load(ctx.schemaRef.layerRef, config, layout).flatMap(doUpdate(_, ctx.schemaRef.schemaId, ctx.pointer))
+    load(ctx.schemaRef.layerRef, config, layout).flatMap(doUpdate(_, ctx.schemaRef.schemaId, ctx.pointer)).map { ref =>
+      ctx.copy(schemaRef = ctx.schemaRef.copy(layerRef = ref))
+    }
   }
 }

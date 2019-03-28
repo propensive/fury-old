@@ -356,12 +356,14 @@ object LayerCli {
   def init(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.newLayout
+      config <- Config.read()(cli.env, layout)
       invoc  <- cli.read()
       io     <- invoc.io()
       layer  <- ~Layer()
-      _      <- layout.layerFile.mkParents()
-      _      <- ~Layer.save(io, layer, layout)
-      _      <- ~io.println("Created empty layer.fury")
+      layerRef <- Layers.save(layout, config, layer)
+      context <- ~Context(SchemaRef(layerRef, SchemaId.default), ModulePointer(None, None))
+      _ <- Context.write(context, layout)
+      _      <- ~io.println("The current context is the empty layer")
     } yield io.await()
 
   def share(cli: Cli[CliParam[_]]): Try[ExitStatus] =

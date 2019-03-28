@@ -49,7 +49,8 @@ object ProjectCli {
       _         <- schema(projectId)
       lens     <- ~Lenses.focus(optSchemaId, force)
       layer     <- lens(focus.layer, _.lens(_.main)) = Some(Some(projectId))
-      _         <- Layers.update(context, config, layout, layer)
+      ctx         <- Layers.update(context, config, layout, layer)
+      _ <- Context.write(context, layout)
     } yield io.await()
   }
 
@@ -101,9 +102,10 @@ object ProjectCli {
       project   <- ~Project(projectId, license = license, compiler = optCompilerRef)
       layer <- Lenses.updateSchemas(optSchemaId, focus.layer, true)(Lenses.layer.projects(_))(
                   _.modify(_)((_: SortedSet[Project]) + project))
-      layer <- Lenses.updateSchemas(optSchemaId, focus.layer, true)(Lenses.layer.mainProject(_))(
+      layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
                   _(_) = Some(project.id))
-      _         <- Layers.update(context, config, layout, layer)
+      context       <- Layers.update(context, config, layout, layer)
+      _ <- Context.write(context, layout)
       _ <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
   }
@@ -130,7 +132,8 @@ object ProjectCli {
                 (lens, ws) =>
                   if (lens(ws) == Some(projectId))(lens(ws) = None) else ws
               }
-      _         <- Layers.update(context, config, layout, layer)
+      context         <- Layers.update(context, config, layout, layer)
+      _ <- Context.write(context, layout)
     } yield io.await()
   }
 
@@ -171,7 +174,8 @@ object ProjectCli {
       nameArg <- ~invoc(ProjectNameArg).toOption
       newId   <- ~nameArg.flatMap(schema.unused(_).toOption)
       layer   <- lens(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      _         <- Layers.update(context, config, layout, layer)
+      ctx         <- Layers.update(context, config, layout, layer)
+      _ <- Context.write(context, layout)
     } yield io.await()
   }
 }
