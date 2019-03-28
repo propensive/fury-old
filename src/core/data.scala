@@ -37,6 +37,7 @@ import scala.concurrent._
 import scala.util._
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
+import shuttlecraft.repository.maven2._
 
 import java.io._
 import java.net.URI
@@ -91,7 +92,7 @@ object Binary {
     }
 
   private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()
-  
+
   val Jmh = Binary(BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
 }
 
@@ -104,7 +105,7 @@ object Permission {
   implicit val msgShow: MsgShow[Permission] = p => msg"""${p.className} "${p.context}", "${p.permission}";"""
   implicit val stringShow: StringShow[Permission] =
     p => str"""${p.className} "${p.context}", "${p.permission}";"""
-  
+
   implicit def diff: Diff[Permission] = Diff.gen[Permission]
 }
 case class Permission(className: String, context: String, permission: String)
@@ -278,7 +279,7 @@ object BspConnectionManager {
         startedServer = Promise[Unit](),
         generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
       )
-      
+
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
         bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
@@ -309,7 +310,7 @@ object Compilation {
       val handle = BspConnectionManager.bloopLauncher
       BspConnectionManager.HandleHandler.handle(handle, log)
       val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
-      
+
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
         .setRemoteInterface(classOf[FuryBspServer])
@@ -318,18 +319,18 @@ object Compilation {
         .setOutput(handle.in)
         .setLocalService(client)
         .create()
-      
+
       val future = launcher.startListening()
       val server = launcher.getRemoteProxy
       val capabilities = new BuildClientCapabilities(List("scala").asJava)
-      
+
       val initializeParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
           capabilities)
-      
+
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
       val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
-      
+
       handle.broken.future.andThen {
         case Success(_) =>
           log.println(s"Connection for ${dir.value} has been closed.")
@@ -363,7 +364,7 @@ object Compilation {
       case Some(future) => future.transformWith(fn.waive)
       case None         => fn
     }
-    
+
     compilationCache(layout.furyDir)
   }
 
@@ -569,7 +570,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       manifest          = Manifest(bins.map(_.name), module.main)
       dest             <- destination.directory
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _                 = io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
+      _                 = io.println(msg"Saving JAR file to ${path.relativizeTo(layout.base)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
                           else Success()
@@ -584,6 +585,57 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                                             layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
+  }
+
+  def savePom(io: Io, ref: ModuleRef, knownDependencies: Set[Binary], dest: Path, layout: Layout): Try[(shuttlecraft.Artifact, Path)] = {
+    //TODO we assume that the JAR has already been generated and has the correct name
+    val jar = (dest / str"${basename(ref)}.jar")
+    val artifact = createArtifact(ref, knownDependencies, jar)
+    val pom = dest / s"${ref.projectId.key}-${ref.moduleId.key}-0.0.1-SNAPSHOT.pom"
+    val resourceGen = new Maven2ResourceFactory(gpgPassphrase = None, signed = false)
+    for {
+      //FIXME we assume that POM is first, but this might change
+      Seq(tempPom, _) <- resourceGen.prepareBasicResources(artifact)(layout.sharedDir.javaPath)
+      _ <- ~io.println(msg"Saving POM file to ${pom.relativizeTo(layout.base)}")
+      _ <- tempPom.save(pom.javaPath)
+    } yield (artifact, pom)
+  }
+
+  def deploy(io: Io, artifact: shuttlecraft.Artifact, layout: Layout, remoteUrl: String,
+             user: String, password: String): Try[Unit] = {
+    //TODO we assume that we are deploying to a Maven2 repository
+    implicit val workingDir: java.nio.file.Path = layout.workDir.javaPath
+    val mvnApi = new Maven2HttpApi(remoteUrl, user, password)
+    val resourceGen = new Maven2ResourceFactory(gpgPassphrase = None, signed = false)
+    val publisher = new Maven2Publisher(mvnApi, resourceGen)
+    val res: Try[Unit] = for{
+      //_ <- ~io.println(msg"Deploying ${artifact.artifactId} v${artifact.version} to $remoteUrl")
+      _ <- publisher.publish(artifact)
+      //_ <- ~io.println(msg"Deployed ${artifact.artifactId}")
+    } yield ()
+    res
+  }
+
+  private def createArtifact(ref: ModuleRef, knownDependencies: Set[Binary], jar: Path): shuttlecraft.Artifact = {
+    // TODO Pass the version as a command line argument
+    // TODO What about group ID?
+    // TODO Allow the user to provide author and license information
+    val artifactName = str"${ref.projectId.key}-${ref.moduleId.key}"
+    shuttlecraft.Artifact(
+      groupId = "com.example",
+      artifactId = artifactName,
+      version = "0.0.1-SNAPSHOT",
+      author = None,
+      license = None,
+      dependencies = knownDependencies.map{
+        case Binary(_, gr, ar, ve) => (gr, ar, ve)
+      },
+      jar = jar.javaPath
+    )
+  }
+
+  private def basename(ref: ModuleRef): String = {
+    s"${ref.projectId.key}-${ref.moduleId.key}"
   }
 
   def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
@@ -609,14 +661,14 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
                    : Future[CompileResult] = {
-    
+
     val targetIdentifiers = deepDependencies(target.id).map { dep =>
       new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
 
     def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
       Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
-    
+
     Future(blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
@@ -638,7 +690,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
         conn.writeTrace(layout)
         conn.writeMessages(layout)
-        
+
         result.get
       }
     })
@@ -651,7 +703,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               layout: Layout)
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
-    
+
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
       if(futures.contains(dependencyTarget)) futures
@@ -659,7 +711,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
-    
+
     val future = dependencyFutures.flatMap { inputs =>
       if(inputs.exists(!_.isSuccessful)) {
         multiplexer(target.ref) = SkipCompile(target.ref)
@@ -667,7 +719,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         Future.successful(CompileFailure)
       } else {
         val noCompilation = target.sourcePaths.isEmpty
-        
+
         if(noCompilation) deepDependencies(target.id).foreach { targetId =>
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
@@ -686,9 +738,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                   javaSources.map(_.value).to[List])
               }
             }
-            
+
             val out = new StringBuilder()
-            
+
             val res = layout.shell.runJava(
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
@@ -711,7 +763,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             deepDependencies(target.id).foreach { targetId =>
               multiplexer(targetId.ref) = NoCompile(targetId.ref)
             }
-            
+
             multiplexer.close(target.ref)
             multiplexer(target.ref) = StopStreaming
 
@@ -721,7 +773,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         }
       }
     }
-  
+
     newFutures.updated(target.id, future)
   }
 }
@@ -733,7 +785,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   //projects: Map[ProjectId, Project] = Map(),
   //schemas: Map[ProjectId, Schema] = Map(),
   //dirs: Map[ProjectId, Path] = Map()) {
-  
+
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
@@ -836,16 +888,16 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
   lazy val universe: Try[Universe] = {
     val localProjectIds = schema.projects.map(_.id)
-    
+
     def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
       projects <- universe
       nextProjects <- hierarchy.universe
       potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
-      
+
       conflictIds = potentialConflictIds.filter { id =>
         projects.entity(id).map(_.project) != nextProjects.entity(id).map(_.project)
       }
-      
+
       allProjects <- conflictIds match {
         case x if x.isEmpty => Success(projects ++ nextProjects)
         case _ => Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
@@ -853,7 +905,7 @@ case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
     } yield allProjects
 
     val empty: Try[Universe] = Success(Universe())
-    
+
     for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
       val schemaEntities = schema.projects.map { project => project.id -> Entity(project, schema, dir) }
       allInherited ++ Universe(schemaEntities.toMap)
@@ -1278,10 +1330,10 @@ case object CompileFailure extends CompileResult {
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
-  
+
   def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
     TargetId(str"${schemaId}_${projectId}_${moduleId}")
-  
+
   def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
     TargetId(schemaId, ref.projectId, ref.moduleId)
 }
@@ -1329,7 +1381,7 @@ case class Project(id: ProjectId,
                    license: LicenseId = License.unknown,
                    description: String = "",
                    compiler: Option[ModuleRef] = None) {
-  
+
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
   def mainModule: Try[Option[Module]] = main.map(modules.findBy(_)).to[List].sequence.map(_.headOption)

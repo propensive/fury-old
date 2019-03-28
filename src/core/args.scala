@@ -92,6 +92,11 @@ object Args {
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
   val CompareArg = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 
+  // TODO these are temporary args to make the deploy feature useable.
+  // Ideally the credentials should be read from a file or a prompt, never from the command line
+  val UserArg = CliParam[String]('U', 'user, "specify a user name")
+  val PasswordArg = CliParam[String]('X', 'password, "specify a password")
+
   val KindArg = CliParam[Kind]('t', 'type,
       "Type of module (library, application, plugin, compiler, benchmarks)")
 

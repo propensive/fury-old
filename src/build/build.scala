@@ -249,6 +249,50 @@ object BuildCli {
       compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
       _              <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
                             dir in layout.pwd, layout, fatJar)
+      _            <- compilation.savePom(io, module.ref(project), module.allBinaries, dir in layout.pwd, layout)
+    } yield io.await()
+  }
+
+  def deploy(ctx: MenuContext): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
+      cli          <- cli.hint(ProjectArg, schema.projects)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+      cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli          <- cli.hint(DirArg)
+      invoc        <- cli.read()
+      io           <- invoc.io()
+      dir          <- invoc(DirArg)
+      url              <- invoc(UrlArg)
+      username         <- invoc(UserArg)
+      password         <- invoc(PasswordArg)
+      project      <- optProject.ascribe(UnspecifiedProject())
+      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
+      optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
+      module       <- optModule.ascribe(UnspecifiedModule())
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
+      _           <- ~compilation.checkoutAll(io, layout)
+      _           <- compilation.generateFiles(io, layout)
+      multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
+        compilation.targets.map(_._1).to[List]))
+      future <- ~compilation
+        .compile(io, module.ref(project), multiplexer, Map(), layout)
+        .apply(TargetId(schema.id, module.ref(project)))
+        .andThen {
+          case compRes =>
+            multiplexer.closeAll()
+            compRes
+        }
+      _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
+      compileSuccess  <- Await.result(future, duration.Duration.Inf).asTry
+      _               <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
+                             dir in layout.pwd, layout, fatJar = false)
+      (artifact, pom) <- compilation.savePom(io, module.ref(project), module.allBinaries, dir in layout.pwd, layout)
+      _               <- compilation.deploy(io, artifact, layout, url, username, password)
     } yield io.await()
   }
 

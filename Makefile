@@ -2,7 +2,7 @@ VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git 
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.3.2
-DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
+DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine shuttlecraft
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=launcher ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -48,6 +48,10 @@ bootstrap/scala:
 	mkdir -p $@
 	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1
 
+bootstrap/git/shuttlecraft:
+	mkdir -p $@
+	git clone --recursive https://github.com/VirtusLab/shuttlecraft.git $@ --branch=make
+
 bootstrap/git/%:
 	mkdir -p $@
 	git clone --recursive https://github.com/propensive/$*.git $@ --branch=fury
@@ -63,7 +67,8 @@ bootstrap/bin:
 jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
 bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4 ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M14-4
-external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
+shuttlecraft_jars=com.lihaoyi:ujson_2.12:0.7.1 com.lihaoyi:upickle-core_2.12:0.7.1 com.typesafe.scala-logging:scala-logging_2.12:3.9.0 org.slf4j:slf4j-api:1.7.25 ch.qos.logback:logback-core:1.2.3 ch.qos.logback:logback-classic:1.2.3
+external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars) $(shuttlecraft_jars)
 
 dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
 	for JAR in $(shell dist/bundle/bin/coursier fetch -r sonatype:releases -r bintray:scalameta/maven -r bintray:scalacenter/releases $(external_jars)); do \

@@ -8,8 +8,10 @@ Starting compilation of module bar/app
 Successfully compiled module bar/app
 Hello World
 
-Saving JAR file out/bar-app.jar
+Saving JAR file to out/bar-app.jar
+Saving POM file to out/bar-app-0.0.1-SNAPSHOT.pom
 0
+bar-app-0.0.1-SNAPSHOT.pom
 bar-app.jar
 scala/math/Ordering$OptionOrdering.class
 scala/Option$.class

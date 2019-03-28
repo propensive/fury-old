@@ -28,7 +28,7 @@ import scala.util.Try
 
 object Layout {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
-  
+
   def find(home: Path, pwd: Path, env: Environment): Try[Layout] = findBase(pwd).map(Layout(home, pwd, env, _))
 
   private def findBase(dir: Path): Try[Path] = {
@@ -38,7 +38,7 @@ object Layout {
     val parents = Stream.iterate(here.toAbsolutePath)(_.getParent)
     val parentsWithinFs = parents.takeWhile(Option(_).exists(getFileStore(_) == fileSystem))
     val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve("layer.fury")) }.map(Path(_))
-    
+
     optParent.ascribe(UnspecifiedProject())
   }
 }
@@ -53,7 +53,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   private[this] val nowString: String = Layout.dateFormat.format(new Date())
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   private[this] val userDir = (home / ".furyrc").extant()
-  
+
   lazy val furyDir: Path = (base / ".fury").extant()
   lazy val bspDir: Path = (base / ".bsp").extant()
   lazy val historyDir: Path = (furyDir / "history").extant()
@@ -71,13 +71,14 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
   lazy val furyConfig: Path = base / "layer.fury"
-  
+
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
   def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()
   def benchmarksDir(targetId: TargetId): Path = (benchmarksDir / targetId.key).extant()
   def classesDir(targetId: TargetId): Path = (classesDir / targetId.key).extant()
   def resourcesDir(targetId: TargetId): Path = (resourcesDir / targetId.key).extant()
-  
+  def pomFile(targetId: TargetId): Path = resourcesDir(targetId) / "pom.xml"
+
   val shell = Shell(env)
 }

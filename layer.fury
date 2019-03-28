@@ -64,6 +64,10 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
+							shuttlecraft/core	projectId	shuttlecraft
+								moduleId	core
+								intransitive	true
+								hidden	false
 						params	
 						sources	src/core	src/core
 						binaries	ch.epfl.scala:bloop-launcher_2.12:1.3.2	binRepo	bintray:scalacenter/releases
@@ -159,7 +163,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/io	src/io
-						binaries	
+						binaries	ch.qos.logback:logback-classic:1.2.3	binRepo	central
+								group	ch.qos.logback
+								artifact	logback-classic
+								version	1.2.3
 						resources	
 						bloopSpec	None
 					jsongen	id	jsongen
@@ -223,7 +230,11 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/menu	src/menu
-						binaries	com.facebook:nailgun-server:1.0.0	binRepo	central
+						binaries	ch.qos.logback:logback-classic:1.2.3	binRepo	central
+								group	ch.qos.logback
+								artifact	logback-classic
+								version	1.2.3
+							com.facebook:nailgun-server:1.0.0	binRepo	central
 								group	com.facebook
 								artifact	nailgun-server
 								version	1.0.0
@@ -457,7 +468,14 @@ schemas	default	id	default
 				track	fury
 				commit	27c0dfc6c7487feeee425ce194bf6bc37bcdf8a7
 				local	None
+			shuttlecraft	id	shuttlecraft
+				repo	git@github.com:VirtusLab/shuttlecraft.git
+				track	master
+				commit	12361d64fd055bbe6b6ad501fdc9e7244d2aecec
+				local	None
 		imports	platform:default	repo	platform
+				schema	default
+			shuttlecraft:default	repo	shuttlecraft
 				schema	default
 		main	Some	fury
 main	default
