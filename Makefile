@@ -57,7 +57,7 @@ bootstrap/scala:
 	mkdir -p $@
 	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C $@ --strip 1
 
-bootstrap/git/%: bootstrap/git/.dir
+bootstrap/git/%:
 	mkdir -p $@
 	git clone https://github.com/propensive/$*.git $@ --branch=fury
 
@@ -98,7 +98,6 @@ dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib
 
 %/.dir:
 	mkdir -p ${@D}
-	touch $@
 
 dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
 	cp etc/fury $@
