@@ -41,6 +41,8 @@ import scala.util._
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 
+import java.util.concurrent.Executors
+
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
   implicit val msgShow: MsgShow[ManifestEntry] = v =>
@@ -170,9 +172,15 @@ object BloopSpec {
 
 case class BloopSpec(org: String, name: String, version: String)
 
-case class BspConnection(client: BuildingClient, server: BuildServer) {
+case class BspConnection(
+    future: java.util.concurrent.Future[Void],
+    client: BuildingClient,
+    server: BuildServer) {
 
-  def shutdown(): Unit = server.buildShutdown()
+  def shutdown(): Unit = {
+    server.buildShutdown()
+    future.cancel(true)
+  }
 
   def provision[T](
       currentCompilation: Compilation,
@@ -189,6 +197,8 @@ case class BspConnection(client: BuildingClient, server: BuildServer) {
 
 object Compilation {
 
+  private val compilationThreadPool = Executors.newCachedThreadPool()
+
   val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](3, 3000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
@@ -198,12 +208,12 @@ object Compilation {
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[BuildServer]()
         .setRemoteInterface(classOf[BuildServer])
-        .setExecutorService(null)
+        .setExecutorService(compilationThreadPool)
         .setInput(handle.getInputStream)
         .setOutput(handle.getOutputStream)
         .setLocalService(client)
         .create()
-      launcher.startListening()
+      val future = launcher.startListening()
       val server = launcher.getRemoteProxy
       val initializeParams = new InitializeBuildParams(
           "fury",
@@ -214,7 +224,7 @@ object Compilation {
       )
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      BspConnection(client, server)
+      BspConnection(future, client, server)
     }
   }
 
