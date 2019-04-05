@@ -41,6 +41,8 @@ import scala.util._
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 
+import java.util.concurrent.Executors
+
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
   implicit val msgShow: MsgShow[ManifestEntry] = v =>
@@ -170,7 +172,15 @@ object BloopSpec {
 
 case class BloopSpec(org: String, name: String, version: String)
 
-case class BspConnection(client: BuildingClient, server: BuildServer) {
+case class BspConnection(
+    future: java.util.concurrent.Future[Void],
+    client: BuildingClient,
+    server: BuildServer) {
+
+  def shutdown(): Unit = {
+    server.buildShutdown()
+    future.cancel(true)
+  }
 
   def provision[T](
       currentCompilation: Compilation,
@@ -187,28 +197,35 @@ case class BspConnection(client: BuildingClient, server: BuildServer) {
 
 object Compilation {
 
-  val bspPool: Pool[Path, BspConnection] = dir => {
-    val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
-    val client = new BuildingClient()
-    val launcher = new Launcher.Builder[BuildServer]()
-      .setRemoteInterface(classOf[BuildServer])
-      .setExecutorService(null)
-      .setInput(handle.getInputStream)
-      .setOutput(handle.getOutputStream)
-      .setLocalService(client)
-      .create()
-    launcher.startListening()
-    val server = launcher.getRemoteProxy
-    val initializeParams = new InitializeBuildParams(
-        "fury",
-        Version.current,
-        "2.0.0-M4",
-        dir.uriString,
-        new BuildClientCapabilities(List("scala").asJava)
-    )
-    server.buildInitialize(initializeParams).get
-    server.onBuildInitialized()
-    BspConnection(client, server)
+  private val compilationThreadPool = Executors.newCachedThreadPool()
+
+  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](5000L) {
+
+    def destroy(value: BspConnection): Unit = value.shutdown()
+
+    def create(dir: Path): BspConnection = {
+      val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
+      val client = new BuildingClient()
+      val launcher = new Launcher.Builder[BuildServer]()
+        .setRemoteInterface(classOf[BuildServer])
+        .setExecutorService(compilationThreadPool)
+        .setInput(handle.getInputStream)
+        .setOutput(handle.getOutputStream)
+        .setLocalService(client)
+        .create()
+      val future = launcher.startListening()
+      val server = launcher.getRemoteProxy
+      val initializeParams = new InitializeBuildParams(
+          "fury",
+          Version.current,
+          "2.0.0-M4",
+          dir.uriString,
+          new BuildClientCapabilities(List("scala").asJava)
+      )
+      server.buildInitialize(initializeParams).get
+      server.onBuildInitialized()
+      BspConnection(future, client, server)
+    }
   }
 
 }

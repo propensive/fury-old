@@ -166,7 +166,7 @@ object ModuleCli {
   def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      cli    <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli <- cli.hint(
                 CompilerArg,
                 defaultSchema.toOption.to[List].flatMap(_.compilerRefs(Io.silent(config), layout)))
