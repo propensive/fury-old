@@ -18,7 +18,6 @@ package fury.core
 import fury.strings._, fury.io._
 
 import escritoire._
-import eucalyptus._
 import gastronomy._
 
 import scala.collection.immutable.SortedSet

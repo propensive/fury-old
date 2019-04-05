@@ -318,8 +318,8 @@ object BuildCli {
                   }
       invoc       <- cli.read()
       io          <- invoc.io()
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
       compilation <- universe.compilation(io, module.ref(project), layout)
@@ -344,8 +344,8 @@ object BuildCli {
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
       artifact    <- universe.artifact(io, module.ref(project), layout)

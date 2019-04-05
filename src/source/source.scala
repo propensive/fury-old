@@ -70,8 +70,8 @@ object SourceCli {
       invoc   <- cli.read()
       io      <- invoc.io()
       raw     <- ~invoc(RawArg).isSuccess
-      module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.sources.to[List]
       table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
@@ -92,8 +92,8 @@ object SourceCli {
       io          <- invoc.io()
       sourceArg   <- invoc(SourceArg)
       source      <- ~Source.unapply(sourceArg)
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
       sourceToDel <- ~module.sources.find(Some(_) == source)
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
@@ -124,8 +124,8 @@ object SourceCli {
       cli       <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
       invoc     <- cli.read()
       io        <- invoc.io()
-      module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
+      module    <- optModule.ascribe(UnspecifiedModule())
       sourceArg <- invoc(SourceArg)
       source    <- ~Source.unapply(sourceArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(

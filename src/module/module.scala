@@ -309,8 +309,8 @@ object BinaryCli {
       invoc       <- cli.read()
       io          <- invoc.io()
       binaryArg   <- invoc(BinaryArg)
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
       binaryToDel <- ~module.binaries.find(_.spec == binaryArg)
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
@@ -326,8 +326,8 @@ object BinaryCli {
       cli       <- cli.hint(BinaryRepoArg, List(RepoId("central")))
       invoc     <- cli.read()
       io        <- invoc.io()
-      module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
+      module    <- optModule.ascribe(UnspecifiedModule())
       binaryArg <- invoc(BinaryArg)
       repoId    <- ~invoc(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
       binary    <- Binary.unapply(repoId, binaryArg)
@@ -384,8 +384,8 @@ object ParamCli {
       invoc    <- cli.read()
       io       <- invoc.io()
       paramArg <- invoc(ParamArg)
-      module   <- optModule.ascribe(UnspecifiedModule())
       project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- optModule.ascribe(UnspecifiedModule())
       force    <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
@@ -399,8 +399,8 @@ object ParamCli {
       cli     <- cli.hint(ParamArg)
       invoc   <- cli.read()
       io      <- invoc.io()
-      module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
       param   <- invoc(ParamArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) += param)
