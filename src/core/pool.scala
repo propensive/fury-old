@@ -20,7 +20,7 @@ import scala.concurrent._, duration._
 import scala.util._
 import scala.annotation._
 
-abstract class Pool[K, T](max: Int, timeout: Long)(implicit ec: ExecutionContext) {
+abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
   def create(key: K): T
   def destroy(value: T): Unit
@@ -35,17 +35,7 @@ abstract class Pool[K, T](max: Int, timeout: Long)(implicit ec: ExecutionContext
   private[this] def createOrRecycle(key: K): T = {
     val result = pool.find(_.key == key) match {
       case None =>
-        if(count >= max) {
-          pool.headOption match {
-            case None =>
-              Thread.sleep(timeout)
-              None
-            case Some(entry) =>
-              destroy(entry.value)
-              count -= 1
-              None
-          }
-        } else Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
           count += 1
           pool += Entry(System.currentTimeMillis, key, value)
           Some(value)

@@ -199,7 +199,7 @@ object Compilation {
 
   private val compilationThreadPool = Executors.newCachedThreadPool()
 
-  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](3, 3000L) {
+  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](5000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
 
