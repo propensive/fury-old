@@ -41,6 +41,8 @@ import java.util.concurrent.Executors
 
 import language.higherKinds
 
+import java.util.concurrent.Executors
+
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
   implicit val msgShow: MsgShow[ManifestEntry] = v =>
