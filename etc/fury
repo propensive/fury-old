@@ -41,7 +41,22 @@ coursier(){
 }
 
 killFury() {
-  nailgun ng-stop > /dev/null && printf 'Fury daemon has shut down\n'
+  case "$1" in
+    "--force")
+      nuke &
+      ;;
+    *)
+      nailgun ng-stop > /dev/null && printf 'Fury daemon has shut down\n'
+      ;;
+  esac
+}
+
+nuke(){
+bash <<END
+  printf 'Killing everything that looks like fury or bloop...\n'
+  pkill --signal SIGKILL -f '(fury)|(bloop)'
+  pgrep -f '(fury)|(bloop)' && printf 'Processes with these PIDs have survived...\n' || printf 'Done! \n'
+END
 }
 
 stopFury() {
@@ -98,7 +113,7 @@ case "$1" in
     silently startFuryDirect "${@:2}"
     ;;
   "kill")
-    silently killFury
+    silently killFury "${@:2}"
     ;;
   "stop")
     silently stopFury
