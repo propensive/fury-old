@@ -17,13 +17,7 @@ package fury.core
 
 import fury.io._, fury.strings._, fury.ogdl._
 
-import ch.epfl.scala.bsp4j.{
-  BuildClientCapabilities,
-  BuildServer,
-  CompileParams,
-  InitializeBuildParams,
-  _
-}
+import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import exoskeleton._
 import gastronomy._
 import kaleidoscope._
@@ -41,6 +35,8 @@ import scala.util._
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 
+import java.io.{CharArrayWriter, PrintWriter}
+import java.time.LocalDateTime
 import java.util.concurrent.Executors
 
 object ManifestEntry {
@@ -175,7 +171,9 @@ case class BloopSpec(org: String, name: String, version: String)
 case class BspConnection(
     future: java.util.concurrent.Future[Void],
     client: BuildingClient,
-    server: BuildServer) {
+    server: BuildServer,
+    logBuffer: CharArrayWriter
+  ) {
 
   def shutdown(): Unit = {
     server.buildShutdown()
@@ -193,6 +191,10 @@ case class BspConnection(
     client.multiplexer = currentMultiplexer
     action(server)
   }
+
+  def writeTrace(layout: Layout): Try[Unit] = {
+    layout.traceLogfile.appendSync(logBuffer.toString)
+  }
 }
 
 object Compilation {
@@ -204,9 +206,13 @@ object Compilation {
     def destroy(value: BspConnection): Unit = value.shutdown()
 
     def create(dir: Path): BspConnection = {
+      val bspLogBuffer = new CharArrayWriter()
+      val log = new java.io.PrintWriter(bspLogBuffer, true)
+      log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[BuildServer]()
+        .traceMessages(log)
         .setRemoteInterface(classOf[BuildServer])
         .setExecutorService(compilationThreadPool)
         .setInput(handle.getInputStream)
@@ -224,7 +230,7 @@ object Compilation {
       )
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      BspConnection(future, client, server)
+      BspConnection(future, client, server, bspLogBuffer)
     }
   }
 
@@ -495,7 +501,11 @@ case class Compilation(
           val targets = server.workspaceBuildTargets.get
           targets.getTargets.asScala.find(_.getDisplayName == target) match {
             case Some(target) =>
-              server.buildTargetCompile(new CompileParams(List(target.getId).asJava)).get
+              val result = server.buildTargetCompile(new CompileParams(List(target.getId).asJava)).get
+              if(result.getStatusCode != StatusCode.OK){
+                conn.writeTrace(layout)
+              }.map{ _ => io.println(str"BSP trace saved to ${layout.traceLogfile}")}.get
+              result
             case None =>
               throw new RuntimeException(
                   s"Fatal error: target '${target}' not found in build targets ${targets.getTargets.asScala
