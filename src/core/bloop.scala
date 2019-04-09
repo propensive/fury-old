@@ -84,9 +84,9 @@ object Bloop {
       compilerClasspath <- ~artifact.compiler.map { c =>
                             compilation.classpath(c.ref, layout)
                           }.getOrElse(classpath)
-      bloopSpec = artifact.compiler
-        .flatMap(_.bloopSpec)
-        .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7"))
+      bloopSpec <- artifact.bloopSpec.orElse(artifact.compiler.flatMap(_.bloopSpec)).ascribe(
+        new IllegalStateException(s"Artifact ${artifact.ref} has no compiler")
+      )
       params <- ~compilation.allParams(io, artifact.ref, layout)
     } yield
       Json(
