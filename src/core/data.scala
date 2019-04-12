@@ -518,10 +518,10 @@ case class Compilation(
       val targetHash = hash(target).encoded
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, layout, multiplexer) { server =>
-          val targets = server.workspaceBuildTargets.get.getTargets.asScala
-          targets.find(_.getDisplayName == targetHash) match {
-            case Some(t) =>
-              val result = server.buildTargetCompile(new CompileParams(List(t.getId).asJava)).get
+          val targets = server.workspaceBuildTargets.get
+          targets.getTargets.asScala.find(_.getDisplayName == target) match {
+            case Some(target) =>
+              val result = server.buildTargetCompile(new CompileParams(List(target.getId).asJava)).get
               if(result.getStatusCode != StatusCode.OK){
                 conn.writeTrace(layout)
               }.map{ _ => io.println(str"BSP trace saved to ${layout.traceLogfile}")}.get
