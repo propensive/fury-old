@@ -7,8 +7,7 @@
       "$ROOT/bootstrap/git/guillotine/src/macros"
     ],
     "dependencies": [
-      "contextual/core",
-      "mitigation/core"
+      "contextual/core"
     ],
     "classpath": [
       "$ROOT/bootstrap/scala/lib/scala-library.jar",
