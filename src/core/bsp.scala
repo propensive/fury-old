@@ -15,7 +15,7 @@
  */
 package fury.core
 
-import fury.strings._, fury.jsongen._
+import fury.strings._, fury.jsongen._, fury.io.Path
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
@@ -27,6 +27,7 @@ import ch.epfl.scala.bsp4j
 import ch.epfl.scala.bsp4j._
 import FuryBuildServer._
 import gastronomy.{Bytes, Digest, Md5}
+import guillotine._
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
 
@@ -43,22 +44,24 @@ object Bsp {
     val bspConfig = bspDir / "fury.json"
 
     for {
-      configFile <- ~Files.write(
-                       bspConfig.javaPath,
-                       bspConfigJson(layout).serialize.getBytes(StandardCharsets.UTF_8),
-                       StandardOpenOption.CREATE,
-                       StandardOpenOption.TRUNCATE_EXISTING)
-    } yield Done
+      // FIXME we should use fury launch jar directly with java here
+      fury <- whichFury(layout)
+      config = bspConfigJson(fury)
+      _ <- bspConfig.writeSync(config.serialize)
+    } yield ()
   }
 
-  private def bspConfigJson(layout: Layout): Json = {
-    // FIXME we should use fury launch jar directly with java here
-    val furyExecutable = layout.home / "fury-0.4.0" / "bin" / "fury"
+  private def whichFury(layout: Layout): Try[Path] = {
+    implicit val env = layout.env
+    sh"command -v fury".exec[Try[String]].map(Path.apply)
+  }
+
+  private def bspConfigJson(fury: Path): Json = {
 
     Json(
         name = "Fury",
         argv = List(
-            furyExecutable.javaPath.toAbsolutePath.toString,
+            fury.javaPath.toAbsolutePath.toString,
             "direct",
             "bsp"
         ),
