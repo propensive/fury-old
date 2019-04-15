@@ -505,25 +505,26 @@ case class Compilation(
 
   def compileModule(
       io: Io,
-      target: String,
+      target: ModuleRef,
       layout: Layout,
       multiplexer: Multiplexer[ModuleRef, CompileEvent]
     ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future {
     blocking {
+      val targetHash = hash(target).encoded
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, layout, multiplexer) { server =>
-          val targets = server.workspaceBuildTargets.get
-          targets.getTargets.asScala.find(_.getDisplayName == target) match {
-            case Some(target) =>
-              val result = server.buildTargetCompile(new CompileParams(List(target.getId).asJava)).get
+          val targets = server.workspaceBuildTargets.get.getTargets.asScala
+          targets.find(_.getDisplayName == targetHash) match {
+            case Some(t) =>
+              val result = server.buildTargetCompile(new CompileParams(List(t.getId).asJava)).get
               if(result.getStatusCode != StatusCode.OK){
                 conn.writeTrace(layout)
               }.map{ _ => io.println(str"BSP trace saved to ${layout.traceLogfile}")}.get
               result
             case None =>
               throw new RuntimeException(
-                  s"Fatal error: target '${target}' not found in build targets ${targets.getTargets.asScala
-                    .map(_.getDisplayName)} of '${layout.furyDir}'")
+                  s"Fatal error: target for $target ($targetHash) not found in build targets of '${layout.furyDir.value}'. " +
+                    s"Known targets are: ${targets.map(_.getDisplayName)}")
 
           }
         }
@@ -557,9 +558,8 @@ case class Compilation(
           if (noCompilation) deepDependencies(artifact.ref).foreach { ref =>
             multiplexer(ref) = NoCompile(ref)
           }
-          val targetHash = hash(artifact.ref).encoded
           blocking {
-            compileModule(io, targetHash, layout, multiplexer).map(_.getStatusCode == StatusCode.OK)
+            compileModule(io, artifact.ref, layout, multiplexer).map(_.getStatusCode == StatusCode.OK)
           }.map { compileResult =>
             if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {
               if (artifact.kind == Benchmarks) {
