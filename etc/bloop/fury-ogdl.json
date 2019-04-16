@@ -9,8 +9,7 @@
     "dependencies": [
       "fury/io",
       "magnolia/core",
-      "kaleidoscope/core",
-      "mitigation/core"
+      "kaleidoscope/core"
     ],
     "classpath": [
       "$ROOT/bootstrap/scala/lib/scala-library.jar",

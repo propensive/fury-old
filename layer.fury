@@ -260,10 +260,6 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
-							mitigation/core	projectId	mitigation
-								moduleId	core
-								intransitive	false
-								hidden	false
 						params	
 						sources	src/ogdl	src/ogdl
 						binaries	
@@ -381,7 +377,7 @@ schemas	default	id	default
 			exoskeleton	id	exoskeleton
 				repo	git@github.com:propensive/exoskeleton.git
 				track	fury
-				commit	73f61a385ba969d5ce9217d8dfba61f101f9f900
+				commit	80aacbcd5f7bdf606f412915bd16dd9f2ea5d74b
 				local	None
 			fury	id	fury
 				repo	git@github.com:propensive/fury.git
@@ -396,12 +392,12 @@ schemas	default	id	default
 			guillotine	id	guillotine
 				repo	git@github.com:propensive/guillotine.git
 				track	fury
-				commit	3c4922d2b66522a347de91b01754d5bce84f111f
+				commit	8f46d3bd23037a1e37eac32315ba50b44583fed6
 				local	None
 			kaleidoscope	id	kaleidoscope
 				repo	git@github.com:propensive/kaleidoscope.git
 				track	fury
-				commit	9a1b935da76e0a2b6945dd00a3627525af9ac31b
+				commit	1ab60f1ceb80c7a89ae516e0cf56fb848859b9ee
 				local	None
 			magnolia	id	magnolia
 				repo	git@github.com:propensive/magnolia.git
@@ -413,11 +409,6 @@ schemas	default	id	default
 				track	fury
 				commit	97601f41c2bdf4faf285c3d2beb4be9631dc4d03
 				local	None
-			mitigation	id	mitigation
-				repo	git@github.com:propensive/mitigation.git
-				track	fury
-				commit	60cc495e216c76d70b68b9a63b4e18ce0e249ad5
-				local	None
 			optometry	id	optometry
 				repo	git@github.com:propensive/optometry.git
 				track	master
@@ -426,7 +417,7 @@ schemas	default	id	default
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	e996234c57544932516f903c4511a35efdeab3a0
+				commit	b71a7abc62b96f34d1f80c4bf2ab95986271f597
 				local	None
 			probably	id	probably
 				repo	git@github.com:propensive/probably.git
@@ -437,11 +428,6 @@ schemas	default	id	default
 				repo	git@github.com:propensive/.scala.git
 				track	master
 				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
-				local	None
-			totalitarian	id	totalitarian
-				repo	git@github.com:propensive/totalitarian.git
-				track	fury
-				commit	69bb818130a61fc46c77db8446d5a1ef51e8996c
 				local	None
 		imports	platform:default	repo	platform
 				schema	default
