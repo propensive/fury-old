@@ -427,8 +427,9 @@ case class Compilation(
   def checkoutAll(io: Io, layout: Layout): Unit =
     checkouts.foreach(_.get(io, layout).unit)
 
-  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] =
-    Bloop.generateFiles(io, this, layout)
+  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] = {
+    Bloop.clean(layout).flatMap{ _ => Bloop.generateFiles(io, this, layout) }
+  }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
     allDependencies.flatMap { a =>
