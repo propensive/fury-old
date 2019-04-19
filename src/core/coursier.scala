@@ -17,8 +17,7 @@ package fury.core
 
 import fury.io._, fury.strings._
 
-import scala.util._
-import scala.collection._
+import scala.collection.mutable.{HashMap => MutableMap}
 import scala.concurrent._
 import coursier.{Module => CModule, _}
 
@@ -26,8 +25,14 @@ object Coursier {
 
   implicit val ec: ExecutionContext = ExecutionContext.global
 
-  private val cache: mutable.HashMap[Binary, Future[List[Path]]] =
-    mutable.HashMap()
+  private val cache: MutableMap[Binary, Future[List[Path]]] = MutableMap()
+
+  private val scalaCore = Set(
+    Organization("org.scala-lang") -> ModuleName("scala-library"),
+    Organization("org.scala-lang") -> ModuleName("scala-compiler"),
+    Organization("org.scala-lang") -> ModuleName("scala-reflect"),
+    Organization("org.scala-lang") -> ModuleName("scala-xml")
+  )
 
   def fetch(io: Io, binary: Binary): Future[List[Path]] = {
     def resolveRepository(repoId: String): Future[Repository] =
@@ -50,8 +55,11 @@ object Coursier {
         .addRepositories(repo)
         .addDependencies(
             Dependency(
-                CModule(Organization(binary.group), ModuleName(binary.artifact)),
-                binary.version))
+                module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
+                version = binary.version,
+                exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
+            )
+        )
         .future
         .map(_._2.to[List].map { a =>
           Path(a._2.getAbsolutePath)
