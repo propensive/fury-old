@@ -63,6 +63,10 @@ object Bloop {
         }
     }*/
 
+  def clean(layout: Layout): Try[Boolean] = {
+    layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
+  }
+
   def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
     new CollOps(compilation.artifacts.values.map { artifact =>
       for {
