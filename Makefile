@@ -12,7 +12,6 @@ DEPENDENCY_JARS=$(foreach dep, $(DEPS), dist/bundle/lib/$(dep).jar)
 JARS:= $(DEPENDENCY_JARS) dist/bundle/lib/fury.jar
 NATIVEJARS=$(JARS) $(NAILGUNJARPATH) $(LIBS)
 SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
-CFGS:=$(shell ls etc/bloop)
 DOCKER_TAG=fury-ci
 TESTDEPS=ogdl core
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
@@ -47,15 +46,16 @@ dist/bundle/etc:
 
 clean-compile: bloop-clean compile
 
-watch: compile
+watch: bootstrap/bin/fury
 	bloop compile fury/menu --watch
 
 bloop-clean:
 	bloop clean fury/menu
 
-bootstrap/scala:
+bootstrap/scala: bootstrap/bin
 	mkdir -p $@
 	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C $@ --strip 1
+	touch bootstrap/scala
 
 bootstrap/git/%:
 	mkdir -p $@
@@ -64,20 +64,69 @@ bootstrap/git/%:
 bootstrap/bin:
 	mkdir -p $@
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
-	$< --skip-bsp-connection $(BLOOPVERSION)
-	bloop compile fury/menu
+bootstrap/bin/fury: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) bootstrap/bin/contextual bootstrap/bin/mercator bootstrap/bin/magnolia bootstrap/bin/guillotine bootstrap/bin/eucalyptus bootstrap/bin/kaleidoscope bootstrap/bin/optometry bootstrap/bin/escritoire bootstrap/bin/gastronomy
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/strings/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/io/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/ogdl/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/jsongen/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/core/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/module/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/project/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/repo/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/build/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/schema/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/source/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/dependency/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/imports/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/menu/*.scala
+	echo "$(VERSION)" > bootstrap/bin/fury/.version
+	touch bootstrap/bin/fury
 
-.bloop:
-	mkdir -p .bloop
+bootstrap/bin/contextual: bootstrap/scala bootstrap/git/contextual
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/contextual/src/core/*.scala
+	touch bootstrap/bin/contextual
 
-.bloop/%.json: .bloop
-	sed "s#\$$ROOT#$(ROOTDIR)#" etc/bloop/$*.json > .bloop/$*.json
+bootstrap/bin/mercator: bootstrap/scala bootstrap/git/mercator
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/mercator/src/core/*.scala
+	touch bootstrap/bin/mercator
 
-bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
-	echo "$(VERSION)" > $@
+bootstrap/bin/magnolia: bootstrap/scala bootstrap/git/magnolia bootstrap/bin/mercator
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/magnolia/src/core/*.scala
+	touch bootstrap/bin/magnolia
+
+bootstrap/bin/guillotine: bootstrap/scala bootstrap/git/guillotine bootstrap/bin/contextual
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/guillotine/src/macros/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/guillotine/src/core/*.scala
+	touch bootstrap/bin/guillotine
+
+bootstrap/bin/exoskeleton: bootstrap/scala bootstrap/git/exoskeleton
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/exoskeleton/src/core/*.scala
+	touch bootstrap/bin/exoskeleton
+
+bootstrap/bin/eucalyptus: bootstrap/scala bootstrap/git/eucalyptus
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/eucalyptus/src/core/*.scala
+	touch bootstrap/bin/eucalyptus
+
+bootstrap/bin/kaleidoscope: bootstrap/scala bootstrap/git/kaleidoscope bootstrap/bin/contextual
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/kaleidoscope/src/core/*.scala
+	touch bootstrap/bin/kaleidoscope
+
+bootstrap/bin/optometry: bootstrap/scala bootstrap/git/optometry
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/optometry/src/core/*.scala
+	touch bootstrap/bin/optometry
+
+bootstrap/bin/escritoire: bootstrap/scala bootstrap/git/escritoire
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/escritoire/src/core/*.scala
+	touch bootstrap/bin/escritoire
+
+bootstrap/bin/gastronomy: bootstrap/scala bootstrap/git/gastronomy bootstrap/bin/magnolia
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/gastronomy/src/core/*.scala
+	touch bootstrap/bin/gastronomy
 
 # Libraries
+
+bootstrap/classes:
+	mkdir -p bootstrap/classes
 
 dist/bundle/lib:
 	mkdir -p $@
@@ -87,11 +136,11 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
 
 all-jars: $(JARS)
 
-dist/bundle/lib/fury.jar: bootstrap/bin compile bootstrap/bin/fury/.version
-	jar -cf $@ -C $< fury
+dist/bundle/lib/fury.jar: bootstrap/bin/fury
+	jar -cf $@ -C bootstrap/bin fury
 	jar -uf $@ -C bootstrap/bin/fury .version
 
-dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib bootstrap/git/% compile
+dist/bundle/lib/%.jar: bootstrap/bin dist/bundle/lib bootstrap/bin/% compile
 	jar -cf $@ -C $< $*
 
 # Binaries
@@ -139,10 +188,10 @@ $(TESTS): %-test: dist/bundle/bin/launcher bootstrap/git/probably
 	bloop compile fury/$*-test
 	bloop run fury/$*-test --main fury.Tests
 
-test: bootstrap/bin/fury/.version $(TESTS)
+test: $(TESTS)
 
 integration:
-	etc/testall
+	etc/integration
 
 test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
@@ -163,9 +212,7 @@ clean-dist:
 	rm -rf dist
 
 clean: clean-dist
-	rm -rf bootstrap/bin/fury
 	rm -rf bootstrap
-	rm -rf .bloop
 
 download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop

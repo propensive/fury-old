@@ -27,7 +27,7 @@ RUN sh -c "echo test > /build/.version"
 
 # Build a local version of Fury
 ADD src /build/src
-RUN (cd /build && make dist/install.sh)
+RUN (cd /build && make -j8 dist/install.sh)
 
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh

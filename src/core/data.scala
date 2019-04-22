@@ -176,7 +176,8 @@ case class BspConnection(
   ) {
 
   def shutdown(): Unit = {
-    server.buildShutdown()
+    try server.buildShutdown().get() finally server.onBuildExit()
+    Thread.sleep(1000)
     future.cancel(true)
   }
 
@@ -1062,12 +1063,12 @@ case class Checkout(
 
         if (path(layout).exists()) {
           io.println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources"
-          else sources.map(_.value).mkString("[", ", ", "]")}.")
+          else sources.map(_.value).mkString("[", ", ", "]")}")
           path(layout).delete()
         }
 
         io.println(msg"Checking out ${if (sources.isEmpty) "all sources from repository ${repoId}"
-        else sources.map(_.value).mkString("[", ", ", "]")}.")
+        else sources.map(_.value).mkString("[", ", ", "]")}")
         path(layout).mkdir()
         layout.shell.git
           .sparseCheckout(
@@ -1099,6 +1100,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
                  .toOption
                  .orElse(layout.shell.git.getBranchHead(dir, track.id).toOption)
                  .getOrElse(track.id)
+      _ <- ~println("commit: '"+commit+"'")
       files <- local.map { _ =>
                 Success(dir.children.map(Path(_)))
               }.getOrElse(layout.shell.git.lsTree(dir, commit))
@@ -1169,11 +1171,11 @@ case class Repo(url: String) {
   def fetch(io: Io, layout: Layout): Try[Path] =
     if (!(path(layout) / ".done").exists) {
       if (path(layout).exists()) {
-        io.println(s"Found incomplete clone of ${localizedUrl(layout)}.")
+        io.println(s"Found incomplete clone of ${localizedUrl(layout)}")
         path(layout).delete()
       }
 
-      io.println(s"Cloning Git repository ${localizedUrl(layout)}.")
+      io.println(s"Cloning Git repository ${localizedUrl(layout)}")
       path(layout).mkdir()
       layout.shell.git.cloneBare(url, path(layout)).map { _ =>
         path(layout)

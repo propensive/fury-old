@@ -447,7 +447,9 @@ schemas	default	id	default
 				track	fury
 				commit	69bb818130a61fc46c77db8446d5a1ef51e8996c
 				local	None
-		imports	platform:default	repo	platform
+		imports	base:2.12.6	repo	base
+				schema	2.12.6
+			platform:default	repo	platform
 				schema	default
 			scala:scala-2.12.8	repo	scala
 				schema	scala-2.12.8

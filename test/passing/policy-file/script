@@ -1,3 +1,4 @@
+fury config set --theme nocolor
 fury layer init
 fury project add -n policy-file-test
 fury repo add -u https://github.com/propensive/base.git -n base
@@ -13,5 +14,5 @@ fury source add -d src
 fury module update -c scala/compiler
 fury module update --type application
 fury module update --main test.WriteOutsideSharedDir
-fury build compile --output quiet | sed 's/java.io.FilePermission.*//'
+fury build compile --output linear
 echo $?

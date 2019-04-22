@@ -1,0 +1,32 @@
+version	3
+schemas	default	id	default
+		projects	policy-file-test	id	policy-file-test
+				modules	write-inside-shared	id	write-inside-shared
+						kind	Application
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	src	src
+						binaries	
+						resources	
+						bloopSpec	None
+				main	Some	write-inside-shared
+				license	unknown
+				description	
+				compiler	None
+		repos	base	id	base
+				repo	https://github.com/propensive/base.git
+				track	master
+				commit	b7021d258bd9411bd7662025072d6a8e8c64fa0e
+				local	None
+		imports	base:2.12.6	repo	base
+				schema	2.12.6
+		main	Some	policy-file-test
+main	default
+aliases	

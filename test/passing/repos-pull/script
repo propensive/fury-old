@@ -1,10 +1,10 @@
+fury config set --theme nocolor
 mkdir -p repo1
 (
     cd repo1
     mkdir src
     git init -q
     touch src/version1 && git add -A && git commit -q -m"."
-    
 )
 
 mkdir -p fury_project
@@ -19,7 +19,7 @@ mkdir -p fury_project
     fury repo add -u https://github.com/propensive/base.git -n base
     fury import add -i base:2.12.6
     fury module update -c scala/compiler
-    fury repo add -u $(realpath ../repo1) -n repo1 --version master
+    fury repo add -d $(realpath ../repo1) -n repo1
     fury source add -d repo1:src
 )
 
