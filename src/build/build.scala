@@ -25,6 +25,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import Args._
 
+import language.higherKinds
+
 object ConfigCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config)

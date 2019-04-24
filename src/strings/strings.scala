@@ -15,6 +15,8 @@
  */
 package fury.strings
 
+import language.implicitConversions
+
 object `package` {
   implicit def joinable(values: Traversable[String]): Joinable   = Joinable(values)
   implicit def stringContexts(sc: StringContext): StringContexts = StringContexts(sc)

@@ -4,6 +4,8 @@ import fury.io._, fury.ogdl._
 
 import scala.util._
 
+import language.higherKinds
+
 final class LayerRepository(revisions: LayerRevisions, current: Path) {
 
   def restorePrevious(io: Io, layout: Layout): Try[Unit] =

@@ -39,6 +39,8 @@ import java.io.{CharArrayWriter, PrintWriter}
 import java.time.LocalDateTime
 import java.util.concurrent.Executors
 
+import language.higherKinds
+
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
   implicit val msgShow: MsgShow[ManifestEntry] = v =>

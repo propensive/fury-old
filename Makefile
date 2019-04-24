@@ -63,20 +63,9 @@ bootstrap/bin:
 	mkdir -p $@
 
 bootstrap/bin/fury: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) bootstrap/bin/contextual bootstrap/bin/mercator bootstrap/bin/magnolia bootstrap/bin/guillotine bootstrap/bin/eucalyptus bootstrap/bin/kaleidoscope bootstrap/bin/optometry bootstrap/bin/escritoire bootstrap/bin/gastronomy
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/strings/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/io/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/ogdl/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/jsongen/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/core/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/module/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/project/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/repo/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/build/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/schema/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/source/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/dependency/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/imports/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/menu/*.scala
+	for M in strings io ogdl jsongen core module project repo build schema source dependency imports menu; do \
+		bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/$$M/*.scala ;\
+	done
 	echo "$(VERSION)" > bootstrap/bin/fury/.version
 	touch bootstrap/bin/fury
 
@@ -122,9 +111,6 @@ bootstrap/bin/gastronomy: bootstrap/scala bootstrap/git/gastronomy bootstrap/bin
 	touch bootstrap/bin/gastronomy
 
 # Libraries
-
-bootstrap/classes:
-	mkdir -p bootstrap/classes
 
 dist/bundle/lib:
 	mkdir -p $@
@@ -197,10 +183,10 @@ test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
 
 integration-isolated: ci
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/testall
+	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/integration
 
 integration-isolated-no-rebuild:
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/testall
+	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /build/etc/integration
 
 ci:
 	docker build -t $(DOCKER_TAG) .

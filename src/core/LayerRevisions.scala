@@ -7,6 +7,8 @@ import kaleidoscope._
 import scala.annotation.tailrec
 import scala.util._
 
+import language.higherKinds
+
 final class LayerRevisions(directory: Path, retained: Int) {
 
   def store(layer: Layer): Try[Unit] = {

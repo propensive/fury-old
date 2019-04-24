@@ -35,6 +35,8 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
+import language.higherKinds
+
 object Bsp {
 
   val bspVersion = "2.0.0"
