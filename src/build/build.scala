@@ -362,7 +362,7 @@ object LayerCli {
       _      <- ~io.println("Created empty layer.fury")
     } yield io.await()
 
-  def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+  def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
       config    <- Config.read()(cli.env, cli.globalLayout)
@@ -383,13 +383,15 @@ object LayerCli {
     } yield io.await()
   }
 
-  def publish(ctx: LayerCtx) = {
+  def publish(ctx: MenuContext) = {
     import ctx._
     for {
       suggestedTags <- layout.shell.git.tags(layout.pwd)
       cli           <- cli.hint(TagArg, suggestedTags)
       invoc         <- cli.read()
       io            <- invoc.io()
+      schemaArg     <- ~optSchemaId.getOrElse(layer.main)
+      schema        <- layer.schemas.findBy(schemaArg)
       hierarchy     <- schema.hierarchy(io, layout.pwd, layout)
       universe      <- hierarchy.universe
       _             <- Verifier.verifyLayer(universe, layer)

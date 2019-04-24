@@ -1,13 +1,12 @@
 package fury.module
 
-import fury._
-import fury.error._
+import fury.core._
 
-import scala.util.Success
+import scala.util.{Success, Try}
 
 object Verifier {
 
-  def verifyLayer(universe: Universe, layer: Layer): Outcome[Set[ModuleId]] = {
+  def verifyLayer(universe: Universe, layer: Layer): Try[Set[ModuleId]] = {
     val dependencies = for {
       schema     <- layer.schemas
       project    <- schema.projects
@@ -18,7 +17,7 @@ object Verifier {
     verify(universe, dependencies.toList, Set())
   }
 
-  def verifyModule(universe: Universe, module: Module): Outcome[Set[ModuleId]] = {
+  def verifyModule(universe: Universe, module: Module): Try[Set[ModuleId]] = {
     val dependencies = module.after + module.compiler
     verify(universe, dependencies.toList, Set())
   }
@@ -27,7 +26,7 @@ object Verifier {
       universe: Universe,
       dependencies: List[ModuleRef],
       verified: Set[ModuleId]
-    ): Outcome[Set[ModuleId]] =
+    ): Try[Set[ModuleId]] =
     dependencies match {
       case Nil                       => Success(verified)
       case ModuleRef.JavaRef :: tail => verify(universe, tail, verified)
@@ -35,8 +34,7 @@ object Verifier {
       case ref :: tail if verified.contains(ref.moduleId) => verify(universe, tail, verified)
       case ref :: tail =>
         for {
-          project <- universe.project(ref.projectId)
-          module  <- project.apply(ref.moduleId)
+          module <- universe.getMod(ref)
           deps    = module.after + module.compiler
           result  <- verify(universe, tail ++ deps, verified + module.id)
         } yield result

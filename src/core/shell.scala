@@ -115,8 +115,29 @@ case class Shell(environment: Environment) {
           sh"git ls-remote $url $refSpec".exec[Try[String]].map(_.take(40)))
     }
 
+    def checkout(dir: Path, commit: String): Try[String] =
+      sh"git -C ${dir.value} checkout $commit".exec[Try[String]].map { out =>
+        (dir / ".done").touch()
+        out
+      }
+
+    def commit(dir: Path, message: String): Try[String] =
+      sh"git -C ${dir.value} commit -m $message".exec[Try[String]]
+
+    def add(dir: Path, paths: List[Path]): Try[String] =
+      sh"git -C ${dir.value} add ${paths.map(_.value)}".exec[Try[String]]
+
+    def status(dir: Path): Try[String] =
+      sh"git -C ${dir.value} status --porcelain".exec[Try[String]]
+
+    def pull(dir: Path, refspec: Option[RefSpec]): Try[String] =
+      sh"git -C ${dir.value} pull origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
+
     def fetch(dir: Path, refspec: Option[RefSpec]): Try[String] =
       sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
+
+    def push(dir: Path, all: Boolean): Try[String] =
+      (if (all) sh"git -C ${dir.value} push --all" else sh"git push").exec[Try[String]]
 
     def showFile(dir: Path, file: String): Try[String] =
       sh"git -C ${dir.value} show HEAD:$file".exec[Try[String]]
@@ -132,6 +153,14 @@ case class Shell(environment: Environment) {
 
     def getTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]]
+
+    def tag(dir: Path, tag: String): Try[String] =
+      sh"git -C ${dir.value} tag $tag".exec[Try[String]]
+
+    def tags(dir: Path): Try[List[String]] =
+      for {
+        output <- sh"git -C ${dir.value} tag -l".exec[Try[String]]
+      } yield output.split("\n").to[List]
   }
 
   object java {
