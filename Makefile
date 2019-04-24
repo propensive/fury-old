@@ -44,8 +44,6 @@ dist/bundle/etc:
 
 # Compilation
 
-clean-compile: bloop-clean compile
-
 watch: bootstrap/bin/fury
 	bloop compile fury/menu --watch
 
@@ -131,7 +129,8 @@ bootstrap/classes:
 dist/bundle/lib:
 	mkdir -p $@
 
-dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
+dist/bundle/lib/$(NAILGUNJAR):
+	mkdir -p dist/bundle/lib
 	curl -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 all-jars: $(JARS)
@@ -140,19 +139,17 @@ dist/bundle/lib/fury.jar: bootstrap/bin/fury
 	jar -cf $@ -C bootstrap/bin fury
 	jar -uf $@ -C bootstrap/bin/fury .version
 
-dist/bundle/lib/%.jar: bootstrap/bin dist/bundle/lib bootstrap/bin/% compile
-	jar -cf $@ -C $< $*
+dist/bundle/lib/%.jar: dist/bundle/lib bootstrap/bin/%
+	jar -cf $@ -C bootstrap/bin $*
 
 # Binaries
-
-%/.dir:
-	mkdir -p ${@D}
 
 dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
 	cp etc/fury $@
 	chmod +x $@
 
-dist/bundle/bin/coursier: dist/bundle/bin/.dir
+dist/bundle/bin/coursier:
+	mkdir -p dist/bundle/bin
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
 
@@ -167,13 +164,16 @@ dependency-jars: dist/bundle/bin/coursier
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
-dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
+dist/bundle/bin/launcher: dist/bundle/bin/coursier
+	mkdir -p dist/bundle/bin
 	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
-dist/bundle/bin/ng.c: bootstrap/ng/.dir
+dist/bundle/bin/ng.c:
+	mkdir -p bootstrap/ng
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
 
-dist/bundle/bin/ng.py: dist/bundle/bin/.dir
+dist/bundle/bin/ng.py:
+	mkdir -p dist/bundle/bin
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py
 	sed -i.bak '1 s/$$/2.7/' $@ && rm $@.bak
 	chmod +x $@
