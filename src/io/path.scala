@@ -89,18 +89,6 @@ case class Path(value: String) {
     else javaPath.toFile.setLastModified(System.currentTimeMillis())
   }
 
-  //def read[T: OgdlReader]: Try[T] = Ogdl.read[T](this, x => x)
-
-  /*def write[T: OgdlWriter](value: T): Try[Unit] =
-    Outcome.rescue[java.io.IOException](FileWriteError(this)) {
-      val content: String = Ogdl.serialize(implicitly[OgdlWriter[T]].write(value))
-      Files.write(
-          javaPath,
-          content.getBytes(),
-          StandardOpenOption.CREATE,
-          StandardOpenOption.TRUNCATE_EXISTING)
-    }*/
-
   def extant(): Path = {
     mkdir()
     this
