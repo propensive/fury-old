@@ -22,7 +22,7 @@ nailgun() {
   fi
 }
 
-silently(){
+silently() {
   #See https://unix.stackexchange.com/a/181938
   #See https://stackoverflow.com/q/3838322
   #See https://www.gnu.org/software/bash/manual/html_node/Command-Grouping.html
@@ -36,7 +36,7 @@ silently(){
   exit $EXITCODE
 }
 
-coursier(){
+coursier() {
   "${FURYHOME}/bin/coursier" "$@"
 }
 
@@ -51,11 +51,11 @@ killFury() {
   esac
 }
 
-nuke(){
+nuke() {
 bash <<END
   printf 'Killing everything that looks like fury or bloop...\n'
   pkill --signal SIGKILL -f '(fury)|(bloop)'
-  pgrep -f '(fury)|(bloop)' && printf 'Processes with these PIDs have survived...\n' || printf 'Done! \n'
+  pgrep -f '(fury)|(bloop)' && printf 'Processes with these PIDs have survived...\n' || printf 'Done!\n'
 END
 }
 
