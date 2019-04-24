@@ -37,7 +37,9 @@ runtest() {
     )
   echo "===================================================================================================="
   cd "$BASE"
-  rm -fr "$TMPDIR"
+  if [ $SUCCESS = 0 ]; then
+    rm -fr "$TMPDIR"
+  fi
   return $SUCCESS
 }
 
