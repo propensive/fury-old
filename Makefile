@@ -167,6 +167,7 @@ dist/bundle/lib/$(NAILGUNJAR):
 all-jars: $(JARS)
 
 dist/bundle/lib/fury.jar: bootstrap/bin/fury
+	echo "$(VERSION)" > bootstrap/bin/fury/.version
 	jar -cf $@ -C bootstrap/bin fury
 	jar -uf $@ -C bootstrap/bin/fury .version
 
