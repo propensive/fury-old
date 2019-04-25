@@ -9,7 +9,14 @@
 # ./installation_test bash " && "
 
 SHELL_NAME="$1"
-JOIN="$2"
+
+case "$SHELL_NAME" in
+  fish)
+    JOIN=" ; and " ;;
+  *)
+    JOIN="&&" ;;
+esac
+
 apt-get install -y "${SHELL_NAME}"
 HOME="/home/${SHELL_NAME}_user"
 USER="${SHELL_NAME}_user"
