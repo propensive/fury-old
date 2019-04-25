@@ -119,7 +119,7 @@ bootstrap/bin/fury/jsongen: bootstrap/scala bootstrap/bin/fury/strings
 	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/jsongen/*.scala
 	touch bootstrap/bin/fury/jsongen
 
-bootstrap/bin/fury/core: bootstrap/scala bootstrap/bin/fury/strings bootstrap/bin/fury/io bootstrap/bin/fury/jsongen bootstrap/bin/fury/ogdl bootstrap/bin/gastronomy bootstrap/bin/optometry bootstrap/bin/exoskeleton bootstrap/bin/guillotine bootstrap/bin/escritoire bootstrap/bin/eucalyptus
+bootstrap/bin/fury/core: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) bootstrap/bin/fury/strings bootstrap/bin/fury/io bootstrap/bin/fury/jsongen bootstrap/bin/fury/ogdl bootstrap/bin/gastronomy bootstrap/bin/optometry bootstrap/bin/exoskeleton bootstrap/bin/guillotine bootstrap/bin/escritoire bootstrap/bin/eucalyptus
 	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/core/*.scala
 	touch bootstrap/bin/fury/core
 
