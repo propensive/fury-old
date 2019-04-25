@@ -62,13 +62,6 @@ bootstrap/git/%:
 bootstrap/bin:
 	mkdir -p $@
 
-bootstrap/bin/fury: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) bootstrap/bin/contextual bootstrap/bin/mercator bootstrap/bin/magnolia bootstrap/bin/guillotine bootstrap/bin/eucalyptus bootstrap/bin/kaleidoscope bootstrap/bin/optometry bootstrap/bin/escritoire bootstrap/bin/gastronomy
-	for M in strings io ogdl jsongen core module project repo build schema source dependency menu; do \
-		bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/$$M/*.scala ;\
-	done
-	echo "$(VERSION)" > bootstrap/bin/fury/.version
-	touch bootstrap/bin/fury
-
 bootstrap/bin/contextual: bootstrap/scala bootstrap/git/contextual
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/contextual/src/core/*.scala
 	touch bootstrap/bin/contextual
@@ -109,6 +102,58 @@ bootstrap/bin/escritoire: bootstrap/scala bootstrap/git/escritoire
 bootstrap/bin/gastronomy: bootstrap/scala bootstrap/git/gastronomy bootstrap/bin/magnolia
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp bootstrap/bin bootstrap/git/gastronomy/src/core/*.scala
 	touch bootstrap/bin/gastronomy
+
+bootstrap/bin/fury/strings: bootstrap/scala bootstrap/bin/contextual
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/strings/*.scala
+	touch bootstrap/bin/fury/strings
+	
+bootstrap/bin/fury/io: bootstrap/scala bootstrap/bin/kaleidoscope bootstrap/bin/fury/strings
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/io/*.scala
+	touch bootstrap/bin/fury/io
+
+bootstrap/bin/fury/ogdl: bootstrap/scala bootstrap/bin/magnolia bootstrap/bin/fury/io bootstrap/bin/fury/strings
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/ogdl/*.scala
+	touch bootstrap/bin/fury/ogdl
+
+bootstrap/bin/fury/jsongen: bootstrap/scala bootstrap/bin/fury/strings
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/jsongen/*.scala
+	touch bootstrap/bin/fury/jsongen
+
+bootstrap/bin/fury/core: bootstrap/scala bootstrap/bin/fury/strings bootstrap/bin/fury/io bootstrap/bin/fury/jsongen bootstrap/bin/fury/ogdl
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/core/*.scala
+	touch bootstrap/bin/fury/core
+
+bootstrap/bin/fury/module: bootstrap/scala bootstrap/bin/fury/core
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/module/*.scala
+	touch bootstrap/bin/fury/module
+
+bootstrap/bin/fury/project: bootstrap/scala bootstrap/bin/fury/core
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/project/*.scala
+	touch bootstrap/bin/fury/project
+
+bootstrap/bin/fury/dependency: bootstrap/scala bootstrap/bin/fury/core
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/dependency/*.scala
+	touch bootstrap/bin/fury/dependency
+
+bootstrap/bin/fury/schema: bootstrap/scala bootstrap/bin/fury/core
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/schema/*.scala
+	touch bootstrap/bin/fury/schema
+
+bootstrap/bin/fury/source: bootstrap/scala bootstrap/bin/fury/core
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/source/*.scala
+	touch bootstrap/bin/fury/source
+
+bootstrap/bin/fury/build: bootstrap/scala bootstrap/bin/fury/core
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/build/*.scala
+	touch bootstrap/bin/fury/build
+
+bootstrap/bin/fury/repo: bootstrap/scala bootstrap/bin/fury/core
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/repo/*.scala
+	touch bootstrap/bin/fury/repo
+
+bootstrap/bin/fury: bootstrap/scala bootstrap/bin/fury/repo bootstrap/bin/fury/build bootstrap/bin/fury/source bootstrap/bin/fury/schema bootstrap/bin/fury/dependency bootstrap/bin/fury/project bootstrap/bin/fury/module
+	bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/module/*.scala
+	touch bootstrap/bin/fury
 
 # Libraries
 
