@@ -63,7 +63,7 @@ bootstrap/bin:
 	mkdir -p $@
 
 bootstrap/bin/fury: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) bootstrap/bin/contextual bootstrap/bin/mercator bootstrap/bin/magnolia bootstrap/bin/guillotine bootstrap/bin/eucalyptus bootstrap/bin/kaleidoscope bootstrap/bin/optometry bootstrap/bin/escritoire bootstrap/bin/gastronomy
-	for M in strings io ogdl jsongen core module project repo build schema source dependency imports menu; do \
+	for M in strings io ogdl jsongen core module project repo build schema source dependency menu; do \
 		bootstrap/scala/bin/scalac -feature -d bootstrap/bin -cp bootstrap/bin:dist/bundle/lib/'*' src/$$M/*.scala ;\
 	done
 	echo "$(VERSION)" > bootstrap/bin/fury/.version

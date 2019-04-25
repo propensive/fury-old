@@ -23,6 +23,8 @@ import scala.util._
 import mercator._
 import kaleidoscope._
 
+import language.higherKinds
+
 sealed trait Pointer
 case class Target(project: Option[ProjectId], module: Option[ModuleId]) extends Pointer
 case class Deref(layerId: LayerId, pointer: Pointer)                    extends Pointer

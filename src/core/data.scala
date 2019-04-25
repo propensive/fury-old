@@ -43,11 +43,6 @@ import language.higherKinds
 
 import java.util.concurrent.Executors
 
-sealed trait Focus
-case class ModuleFocus(project: Option[Project], module: Option[Module]) extends Focus
-case class LayerFocus(layerId: LayerId, focus: Focus) extends Focus
-case class Context(baseLayer: IpfsRef, schema: SchemaId, focus: Focus)
-
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
   implicit val msgShow: MsgShow[ManifestEntry]       = v => msg"${v.key}"
@@ -519,8 +514,8 @@ case class Compilation(
       val targetHash = hash(target).encoded
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, layout, multiplexer) { server =>
-          val targets = server.workspaceBuildTargets.get
-          targets.getTargets.asScala.find(_.getDisplayName == target) match {
+          val targets = server.workspaceBuildTargets.get.getTargets.asScala
+          targets.find(_.getDisplayName == target) match {
             case Some(target) =>
               val result = server.buildTargetCompile(new CompileParams(List(target.getId).asJava)).get
               if(result.getStatusCode != StatusCode.OK){

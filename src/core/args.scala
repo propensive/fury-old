@@ -24,7 +24,6 @@ object Args {
   implicit private val schemaId: TExtractor[SchemaId] =
     _.headOption.flatMap(SchemaId.parse(_).toOption)
   
-  implicit private val schemaRef: TExtractor[SchemaRef] = _.headOption.flatMap(SchemaRef.unapply(_))
   implicit private val aliasCmd: TExtractor[AliasCmd]   = _.headOption.map(AliasCmd(_))
   implicit private val parameter: TExtractor[Parameter] = _.headOption.map(Parameter(_))
   implicit private val licenseId: TExtractor[LicenseId] = _.headOption.map(LicenseId(_))
