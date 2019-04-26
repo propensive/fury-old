@@ -1,6 +1,6 @@
 #!/bin/bash
 
-FURYHOME=$(dirname "$0")/..
+FURYHOME="$(dirname "$(readlink -f "$0")")/.."
 
 PORT="8462"
 CLASSPATH="$FURYHOME/lib/*"
@@ -64,8 +64,7 @@ stopFury() {
 }
 
 isRunning() {
-  nc -z 127.0.0.1 "${PORT}" > /dev/null || nailgun "${FURY_MAIN}" about > /dev/null
-}
+  cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null
 
 fury() {
 	(isRunning || (startFury > /dev/null)) && nailgun "${FURY_MAIN}" "$@"
