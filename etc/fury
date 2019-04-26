@@ -69,7 +69,7 @@ stopFury() {
 }
 
 isRunning() {
-  (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT}" > /dev/null) 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null
+  (cat < /dev/null > "/dev/tcp/127.0.0.1/${PORT}" > /dev/null) 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null
 }
 
 fury() {
