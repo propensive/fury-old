@@ -22,21 +22,26 @@ nailgun() {
   fi
 }
 
-silently(){
+silently() {
   #See https://unix.stackexchange.com/a/181938
   #See https://stackoverflow.com/q/3838322
   #See https://www.gnu.org/software/bash/manual/html_node/Command-Grouping.html
   TMPFILE=$(mktemp "/tmp/fury.err.XXXXXX")
-  exec 3>"$TMPFILE"
-  exec 4<"$TMPFILE"
-  rm "$TMPFILE"
-  ( $@; ) 2>&3
-  EXITCODE=$?
-  [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
-  exit $EXITCODE
+  if [ "$DEBUG" = "1" ]; then
+    exec 3>"$TMPFILE"
+    exec 4<"$TMPFILE"
+    rm "$TMPFILE"
+    ( $@; ) 2>&3
+    EXITCODE=$?
+    [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
+    exit $EXITCODE
+  else
+    $@;
+    exit $?
+  fi
 }
 
-coursier(){
+coursier() {
   "${FURYHOME}/bin/coursier" "$@"
 }
 
@@ -51,7 +56,7 @@ killFury() {
   esac
 }
 
-nuke(){
+nuke() {
 bash <<END
   printf 'Killing everything that looks like fury or bloop...\n'
   pkill --signal SIGKILL -f '(fury)|(bloop)'
@@ -64,7 +69,7 @@ stopFury() {
 }
 
 isRunning() {
-  cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null
+  bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/${PORT}" > /dev/null 2>&1 || nailgun "${FURY_MAIN}" about > /dev/null
 }
 
 fury() {
