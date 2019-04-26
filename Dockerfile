@@ -35,9 +35,9 @@ RUN mv /build/dist/install.sh /install.sh
 
 # Install Fury via multiple shells
 ADD etc/testshell.sh /testshell.sh
-RUN /testshell.sh bash " && "
-RUN /testshell.sh zsh  " && "
-RUN /testshell.sh fish  " ; and "
+RUN /testshell.sh bash
+RUN /testshell.sh zsh 
+RUN /testshell.sh fish
 
 # Quick tests of native nailgun clietn (enabled when GCC is available)
 RUN apt-get -y install gcc
