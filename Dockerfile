@@ -44,4 +44,5 @@ RUN apt-get -y install gcc
 RUN su bash_user -c "/install.sh"
 RUN su bash_user -c "source ~/.bashrc && fury start && fury about"
 
+ADD etc/integration /integration
 ADD test /test

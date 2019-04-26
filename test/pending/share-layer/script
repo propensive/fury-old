@@ -1,0 +1,6 @@
+fury config set --theme nocolor
+fury layer init
+fury layer share
+fury project add -n example
+fury module add -n core
+fury layer share
