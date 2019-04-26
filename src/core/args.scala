@@ -76,7 +76,7 @@ object Args {
   val BloopSpecArg = CliParam[String](
       'C',
       Symbol("compiler-spec"),
-      "specify a specification for the compiler in the form <organization>:<compiler ID>")
+      "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
   val ProjectArg   = CliParam[ProjectId]('p', 'project, "specify a project")
   val ParamArg     = CliParam[Parameter]('P', 'param, "compiler parameter")
   val QuietArg     = CliParam[Unit]('q', 'quiet, "show less output")
