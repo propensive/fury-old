@@ -138,7 +138,7 @@ $(TESTS): %-test: dist/bundle/bin/launcher bootstrap/git/probably
 	bloop compile fury/$*-test
 	bloop run fury/$*-test --main fury.Tests
 
-test: bootstrap/bin/fury/.version $(TESTS)
+test: $(TESTS)
 
 integration:
 	etc/integration
