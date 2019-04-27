@@ -1,4 +1,3 @@
-fury config set --theme nocolor
 fury layer init
 fury project add -n example
 fury module add -n core

@@ -138,7 +138,7 @@ $(TESTS): %-test: dist/bundle/bin/launcher bootstrap/git/probably
 	bloop compile fury/$*-test
 	bloop run fury/$*-test --main fury.Tests
 
-test: bootstrap/bin/fury/.version $(TESTS)
+test: $(TESTS)
 
 integration:
 	etc/integration
@@ -147,7 +147,7 @@ test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
 
 integration-isolated: ci
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /etc/integration
+	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /integration
 
 ci:
 	docker build -t $(DOCKER_TAG) .
