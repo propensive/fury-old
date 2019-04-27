@@ -47,6 +47,7 @@ runtest() {
 if [ "$1" = "" ]; then
 
   fury start
+  fory config set --theme nocolor
 
   for ATEST in $(ls $ROOT/test/passing); do
     let ACOUNT="$ACOUNT+1"
