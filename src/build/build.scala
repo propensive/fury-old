@@ -31,7 +31,6 @@ object ConfigCli {
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
       config <- ~Config.read()(cli.env, cli.globalLayout).toOption.getOrElse(Config())
     } yield new Context(cli, config)
 
