@@ -51,7 +51,7 @@ object Main {
 
     val layer = for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield layer
 

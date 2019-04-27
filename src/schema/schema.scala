@@ -29,7 +29,7 @@ object SchemaCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield SchemaCtx(cli, layout, config, layer)
 

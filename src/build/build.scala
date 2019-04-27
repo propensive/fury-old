@@ -27,13 +27,13 @@ import Args._
 
 object ConfigCli {
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config)
+  case class Context(cli: Cli[CliParam[_]], config: Config)
 
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
-    } yield new Context(cli, layout, config)
+      config <- ~Config.read()(cli.env, cli.globalLayout).toOption.getOrElse(Config())
+    } yield new Context(cli, config)
 
   def set(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -45,7 +45,7 @@ object ConfigCli {
       config <- ~newTheme.map { th =>
                  config.copy(theme = th)
                }.getOrElse(config)
-      _ <- ~Ogdl.write(config, layout.userConfig)
+      _ <- ~Ogdl.write(config, cli.globalLayout.userConfig)
     } yield io.await()
   }
 }
@@ -55,7 +55,7 @@ object AliasCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
@@ -130,7 +130,7 @@ object BuildCli {
   def context(cli: Cli[CliParam[_]]): Try[MenuContext] =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
@@ -240,7 +240,7 @@ object BuildCli {
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
       msg <- layer
               .map(getPrompt(_, config.theme))
@@ -373,7 +373,7 @@ object LayerCli {
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout    <- cli.layout
-      config    <- Config.read()(cli.env, layout)
+      config    <- Config.read()(cli.env, cli.globalLayout)
       layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)

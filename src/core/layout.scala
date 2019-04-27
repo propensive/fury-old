@@ -47,6 +47,12 @@ object Layout {
     findBase(pwd).map { Layout(home, pwd, env, _) }
 }
 
+case class GlobalLayout(home: Path) {
+  private[this] val userDir    = (home / ".furyrc").extant()
+  lazy val userConfig: Path    = userDir / "config.fury"
+  lazy val aliasesPath: Path   = userDir / "aliases"
+}
+
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
 
   private val nowString: String = Layout.dateFormat.format(new Date())
@@ -69,8 +75,6 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val sharedDir: Path     = (furyDir / "build" / uniqueId).extant()
   lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val traceLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
-  lazy val userConfig: Path    = userDir / "config.fury"
-  lazy val aliasesPath: Path   = userDir / "aliases"
 
   def bloopConfig(digest: Digest): Path =
     bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"

@@ -163,7 +163,9 @@ case class Cli[+Hinted <: CliParam[_]](
     Layout.find(Path(env.variables("HOME")), Path(pwd), env)
   }
 
-  lazy val config: Config = layout.flatMap(Config.read()(env, _)).toOption.getOrElse(Config())
+  lazy val globalLayout: GlobalLayout = GlobalLayout(Path(env.variables("HOME")))
+
+  lazy val config: Config = Config.read()(env, globalLayout).toOption.getOrElse(Config())
 
   def next: Option[String] = args.prefix.headOption.map(_.value)
 
