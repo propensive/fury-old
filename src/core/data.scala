@@ -1044,7 +1044,7 @@ case class Checkout(
           path(layout).delete()
         }
 
-        io.println(msg"Checking out ${if (sources.isEmpty) "all sources from repository ${repoId}"
+        io.println(msg"Checking out ${if (sources.isEmpty) msg"all sources from repository ${repoId}"
         else sources.map(_.value).mkString("[", ", ", "]")}.")
         path(layout).mkdir()
         layout.shell.git
