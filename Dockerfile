@@ -21,14 +21,13 @@ RUN apt-get -y install gcc libz-dev
 RUN mkdir -p /build /build/bootstrap
 RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
 ADD Makefile /build/Makefile
-RUN (cd /build && make download)
 ADD etc /build/etc
 ENV PATH="/root/.bloop:${PATH}"
 RUN sh -c "echo test > /build/.version"
 
 # Build a local version of Fury
 ADD src /build/src
-RUN (cd /build && make dist/install.sh)
+RUN (cd /build && make -j10 dist/install.sh)
 
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh
