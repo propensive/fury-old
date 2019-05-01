@@ -120,7 +120,7 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
 
-dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
+dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
 	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
 dist/bundle/bin/ng.c: bootstrap/ng/.dir

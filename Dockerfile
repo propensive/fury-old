@@ -21,7 +21,6 @@ RUN apt-get -y install gcc libz-dev
 RUN mkdir -p /build /build/bootstrap
 RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
 ADD Makefile /build/Makefile
-RUN (cd /build && make download)
 ADD etc /build/etc
 ENV PATH="/root/.bloop:${PATH}"
 RUN sh -c "echo test > /build/.version"
