@@ -8,5 +8,5 @@ fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello World") }' > src/hw.scala
-timeout 10 fury build compile --output linear
+timeout 40 fury build compile --output linear
 echo $?
