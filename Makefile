@@ -98,6 +98,7 @@ dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib
 
 %/.dir:
 	mkdir -p ${@D}
+	touch ${@D}/.dir
 
 dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
 	cp etc/fury $@
