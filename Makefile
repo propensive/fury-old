@@ -136,10 +136,9 @@ fury-native: all-jars
 
 ## Verification
 
-$(TESTS): %-test: dist/bundle/bin/launcher bootstrap/git/probably
-	$< --skip-bsp-connection $(BLOOPVERSION)
-	bloop compile fury/$*-test
-	bloop run fury/$*-test --main fury.Tests
+$(TESTS): %-test: bootstrap/git/probably dist/bundle/lib/probably.jar
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/$*-test/*.scala
+	bootstrap/scala/bin/scala -cp dist/bundle/lib/'*':bootstrap/bin fury.Tests
 
 test: $(TESTS)
 
