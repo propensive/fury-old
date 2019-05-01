@@ -12,7 +12,6 @@ DEPENDENCY_JARS=$(foreach dep, $(DEPS), dist/bundle/lib/$(dep).jar)
 JARS:= $(DEPENDENCY_JARS) dist/bundle/lib/fury.jar
 NATIVEJARS=$(JARS) $(NAILGUNJARPATH) $(LIBS)
 SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
-CFGS:=$(shell ls etc/bloop)
 DOCKER_TAG=fury-ci
 TESTDEPS=ogdl core
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
@@ -45,34 +44,47 @@ dist/bundle/etc:
 
 # Compilation
 
-clean-compile: bloop-clean compile
-
-watch: compile
-	bloop compile fury/menu --watch
-
-bloop-clean:
-	bloop clean fury/menu
-
 bootstrap/scala:
 	mkdir -p $@
 	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C $@ --strip 1
 
 bootstrap/git/%:
 	mkdir -p $@
-	git clone https://github.com/propensive/$*.git $@ --branch=fury
+	git clone --recursive https://github.com/propensive/$*.git $@ --branch=fury
+
+dist/bundle/lib/%.jar: bootstrap/git/%
+	mkdir -p bootstrap/lib
+	(cd bootstrap/git/$* && make)
+	cp bootstrap/git/$*/lib/$*.jar $@
 
 bootstrap/bin:
 	mkdir -p $@
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
-	$< --skip-bsp-connection $(BLOOPVERSION)
-	bloop compile fury/menu
+jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
+bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4
+coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M12
+external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
 
-.bloop:
-	mkdir -p .bloop
+dependency-jars: dist/bundle/bin/coursier
+	for JAR in $(shell dist/bundle/bin/coursier fetch $(external_jars)); do \
+		cp $$JAR dist/bundle/lib/ ; \
+	done
 
-.bloop/%.json: .bloop
-	sed "s#\$$ROOT#$(ROOTDIR)#" etc/bloop/$*.json > .bloop/$*.json
+compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/strings/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/io/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/ogdl/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/jsongen/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/core/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/module/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/source/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/schema/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/project/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/repo/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/build/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/dependency/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/imports/*.scala
+	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/menu/*.scala
 
 bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 	echo "$(VERSION)" > $@
@@ -100,23 +112,13 @@ dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib
 	mkdir -p ${@D}
 	touch ${@D}/.dir
 
-dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
+dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D)) $(foreach D, $(DEPS), dist/bundle/lib/$(D).jar)
 	cp etc/fury $@
 	chmod +x $@
 
 dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
-
-jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
-bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4
-coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M12
-external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
-
-dependency-jars: dist/bundle/bin/coursier
-	for JAR in $(shell dist/bundle/bin/coursier fetch $(external_jars)); do \
-		cp $$JAR dist/bundle/lib/ ; \
-	done
 
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
 	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
@@ -160,9 +162,7 @@ clean-dist:
 	rm -rf dist
 
 clean: clean-dist
-	rm -rf bootstrap/bin/fury
 	rm -rf bootstrap
-	rm -rf .bloop
 
 download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
