@@ -1,1 +1,1 @@
-sets up a simple 'Hello World' application and runs it
+tests that the compilation success message is only output once
