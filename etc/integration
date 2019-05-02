@@ -72,6 +72,9 @@ if [ "$1" = "" ]; then
   [ $ACOUNT = 0 ] && echo "No tests were run." && exit 1
   [ $ACOUNT = $APASSED ]
 else
+  fury start
+  fury config set --theme nocolor
+
   if [ -d "$ROOT/test/passing/$1" ]; then
     runtest "$ROOT/test/passing" "$1"
   elif [ -d "$ROOT/test/pending/$1" ]; then
