@@ -23,7 +23,7 @@ import gastronomy._
 import guillotine._
 import mercator._
 
-import scala.concurrent.duration._
+import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 import scala.util._
 import scala.util.control.NonFatal
 
@@ -31,8 +31,9 @@ object Bloop {
 
   private[this] var launcher: Future[Try[String]] = Future.never
 
-  def launch(shell: Shell): Unit =
-    if(launcher == Future.never) launcher = shell.launcher() else launcher
+  def launch(shell: Shell): Unit = synchronized {
+    if(launcher == Future.never) launcher = Future(shell.launcher()) else launcher
+  }
 
   def awaitLaunch(io: Io): Try[Unit] = {
     if(!launcher.isCompleted) io.println("Waiting up to 20s to start the Bloop server")
