@@ -35,7 +35,7 @@ case class InvalidKind(expected: Kind)                extends FuryException
 case class UnspecifiedRepo()                          extends FuryException
 case class ProjectConflict(ids: Set[ProjectId])       extends FuryException
 case class SchemaDifferences()                        extends FuryException
-case class LauncherTimeout()                          extends FuryException
+case class LauncherFailure(msg: String)               extends FuryException
 
 object ItemNotFound {
 

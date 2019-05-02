@@ -27,19 +27,27 @@ import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 import scala.util._
 import scala.util.control.NonFatal
 
+import bloop.launcher._
+
 object Bloop {
 
-  private[this] var launcher: Future[Try[String]] = Future.never
+  private[this] var launcher: Future[LauncherStatus] = Future.never
 
   def launch(shell: Shell): Unit = synchronized {
-    if(launcher == Future.never) launcher = Future(shell.launcher()) else launcher
+    if(launcher == Future.never) launcher = Future(Launcher.runLauncher("1.2.5", true, Nil))
   }
 
   def awaitLaunch(io: Io): Try[Unit] = {
-    if(!launcher.isCompleted) io.println("Waiting up to 20s to start the Bloop server")
-    Await.result(launcher, Duration(20, SECONDS)) match {
-      case Success(v) => Success(())
-      case Failure(e) => Failure(LauncherTimeout())
+    if(!launcher.isCompleted) io.println("Waiting up to 120s to start the Bloop server")
+    Try(Await.result(launcher, Duration(120, SECONDS))) match {
+      case Success(res) => res match {
+        case LauncherStatus.FailedToConnectToServer => Failure(LauncherFailure("failed to connect to server"))
+        case LauncherStatus.FailedToInstallBloop => Failure(LauncherFailure("failed to install Bloop"))
+        case LauncherStatus.FailedToOpenBspConnection => Failure(LauncherFailure("failed to open BSP connection"))
+        case LauncherStatus.FailedToParseArguments => Failure(LauncherFailure("failed to parse argument"))
+        case LauncherStatus.SuccessfulRun => Success(())
+      }
+      case Failure(e) => Failure(LauncherFailure("timed out after 120s"))
     }
   }
 

@@ -4,7 +4,7 @@ ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
 DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
-BINDEPS=launcher ng.py ng
+BINDEPS=ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 LIBS=bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
@@ -61,7 +61,7 @@ bootstrap/bin:
 	mkdir -p $@
 
 jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
-bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4
+bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4 ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M12
 external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
 
@@ -70,7 +70,7 @@ dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
+compile: bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/strings/*.scala
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/io/*.scala
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/ogdl/*.scala
@@ -120,9 +120,6 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://git.io/coursier
 	chmod +x $@
 
-dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
-	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
-
 dist/bundle/bin/ng.c: bootstrap/ng/.dir
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
 
@@ -163,8 +160,7 @@ clean-dist:
 clean: clean-dist
 	rm -rf bootstrap
 
-download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
-	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
+download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 
 install: dist/install.sh
 	dist/install.sh

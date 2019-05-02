@@ -134,9 +134,6 @@ case class Shell(environment: Environment) {
       sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]]
   }
 
-  def launcher(): Try[String] =
-    sh"sh -c 'launcher --skip-bsp-connection ${Version.current} > /dev/null'".exec[Try[String]]
-
   object java {
 
     def ensureIsGraalVM(): Try[Unit] =
