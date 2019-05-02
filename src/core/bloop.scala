@@ -31,24 +31,31 @@ import bloop.launcher._
 
 object Bloop {
 
-  private[this] var launcher: Future[LauncherStatus] = Future.never
+  private[this] var launcher: Future[Unit] = Future.never
 
   def launch(shell: Shell): Unit = synchronized {
-    if(launcher == Future.never) launcher = Future(Launcher.runLauncher("1.2.5", true, Nil))
+    if(launcher == Future.never) launcher = {
+      val promise = Promise[Unit]()
+      val launcherMain = new LauncherMain(System.in, System.out, System.err, java.nio.charset.StandardCharsets.UTF_8, bloop.launcher.core.Shell.default, nailgunPort = None, promise)
+      
+      launcherMain.runLauncher("1.2.5", true, Nil) match {
+        case LauncherStatus.FailedToConnectToServer =>
+          Future.failed(LauncherFailure("failed to connect to server"))
+        case LauncherStatus.FailedToInstallBloop =>
+          Future.failed(LauncherFailure("failed to install Bloop"))
+        case LauncherStatus.FailedToOpenBspConnection =>
+          Future.failed(LauncherFailure("failed to open BSP connection"))
+        case LauncherStatus.FailedToParseArguments =>
+          Future.failed(LauncherFailure("failed to parse argument"))
+        case LauncherStatus.SuccessfulRun =>
+          promise.future
+      }
+    }
   }
 
   def awaitLaunch(io: Io): Try[Unit] = {
     if(!launcher.isCompleted) io.println("Waiting up to 120s to start the Bloop server")
-    Try(Await.result(launcher, Duration(120, SECONDS))) match {
-      case Success(res) => res match {
-        case LauncherStatus.FailedToConnectToServer => Failure(LauncherFailure("failed to connect to server"))
-        case LauncherStatus.FailedToInstallBloop => Failure(LauncherFailure("failed to install Bloop"))
-        case LauncherStatus.FailedToOpenBspConnection => Failure(LauncherFailure("failed to open BSP connection"))
-        case LauncherStatus.FailedToParseArguments => Failure(LauncherFailure("failed to parse argument"))
-        case LauncherStatus.SuccessfulRun => Success(())
-      }
-      case Failure(e) => Failure(LauncherFailure("timed out after 120s"))
-    }
+    Try(Await.result(launcher, Duration(120, SECONDS)))
   }
 
   private[this] def testServer(): Try[Unit] =
