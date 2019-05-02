@@ -52,6 +52,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"The parameter $param was not provided.")
         case NoPreviousRevision =>
           cli.abort(msg"No earlier revision can be found")
+        case LauncherTimeout() =>
+          cli.abort(msg"Bloop launcher did not start after waiting 20 seconds")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>

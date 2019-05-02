@@ -52,7 +52,7 @@ bootstrap/git/%:
 	mkdir -p $@
 	git clone --recursive https://github.com/propensive/$*.git $@ --branch=fury
 
-dist/bundle/lib/%.jar: bootstrap/git/%
+dist/bundle/lib/%.jar: bootstrap/git/% dist/bundle/lib
 	mkdir -p bootstrap/lib
 	(cd bootstrap/git/$* && make)
 	cp bootstrap/git/$*/lib/$*.jar $@
@@ -65,7 +65,7 @@ bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2
 coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M12
 external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
 
-dependency-jars: dist/bundle/bin/coursier
+dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
 	for JAR in $(shell dist/bundle/bin/coursier fetch $(external_jars)); do \
 		cp $$JAR dist/bundle/lib/ ; \
 	done
@@ -94,7 +94,7 @@ bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 dist/bundle/lib:
 	mkdir -p $@
 
-dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
+dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 all-jars: $(JARS)
@@ -136,7 +136,7 @@ fury-native: all-jars
 
 ## Verification
 
-$(TESTS): %-test: bootstrap/git/probably dist/bundle/lib/probably.jar
+$(TESTS): %-test: bootstrap/git/probably dist/bundle/lib/probably.jar dist/bundle/lib
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/$*-test/*.scala
 	bootstrap/scala/bin/scala -cp dist/bundle/lib/'*':bootstrap/bin fury.Tests
 
@@ -163,7 +163,7 @@ clean-dist:
 clean: clean-dist
 	rm -rf bootstrap
 
-download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
+download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
 
 install: dist/install.sh

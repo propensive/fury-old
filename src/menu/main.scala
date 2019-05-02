@@ -25,8 +25,9 @@ import scala.collection.mutable.HashSet
 
 import annotation.tailrec
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.concurrent._, duration._
 
-import scala.util.Try
+import scala.util._
 
 object Main {
 
@@ -34,6 +35,16 @@ object Main {
   private[this] val running: HashSet[Thread]   = new HashSet()
   private[this] def busy(): Option[Int] =
     running.synchronized(if (running.size > 1) Some(running.size - 1) else None)
+
+  private[this] var launcher: Future[Unit] = Future.never
+
+  def launch(shell: Shell): Unit =
+    if(launcher == Future.never) launcher = shell.launcher() else launcher
+
+  def awaitLaunch(): Try[Unit] = Await.result(launcher, Duration(20, SECONDS)) match {
+    case Success(v) => Success(v)
+    case Failure(e) => Failure(LauncherTimeout())
+  }
 
   private[this] def trackThread(action: => Int): Int =
     if (!terminating.get) {
@@ -101,6 +112,7 @@ object Main {
       env: Environment
     ) =
     exit {
+      launch(Shell(env))
       trackThread {
         val cli = Cli(out, ParamMap(args: _*), None, Nil, env)
         val end = invoke(cli).code
