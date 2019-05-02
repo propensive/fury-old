@@ -36,19 +36,6 @@ object Main {
   private[this] def busy(): Option[Int] =
     running.synchronized(if (running.size > 1) Some(running.size - 1) else None)
 
-  private[this] var launcher: Future[Try[String]] = Future.never
-
-  def launch(shell: Shell): Unit =
-    if(launcher == Future.never) launcher = shell.launcher() else launcher
-
-  def awaitLaunch(io: Io): Try[Unit] = {
-    if(!launcher.isCompleted) io.println("Waiting up to 20s to start the Bloop server")
-    Await.result(launcher, Duration(20, SECONDS)) match {
-      case Success(v) => Success(())
-      case Failure(e) => Failure(LauncherTimeout())
-    }
-  }
-
   private[this] def trackThread(action: => Int): Int =
     if (!terminating.get) {
       running.synchronized(running += Thread.currentThread)

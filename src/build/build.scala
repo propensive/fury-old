@@ -204,7 +204,7 @@ object BuildCli {
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
                         compilation.artifacts.map(_._1).to[List]))
-      _           <- Main.awaitLaunch()
+      _           <- Bloop.awaitLaunch()
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
                  .apply(module.ref(project))

@@ -29,6 +29,19 @@ import scala.util.control.NonFatal
 
 object Bloop {
 
+  private[this] var launcher: Future[Try[String]] = Future.never
+
+  def launch(shell: Shell): Unit =
+    if(launcher == Future.never) launcher = shell.launcher() else launcher
+
+  def awaitLaunch(io: Io): Try[Unit] = {
+    if(!launcher.isCompleted) io.println("Waiting up to 20s to start the Bloop server")
+    Await.result(launcher, Duration(20, SECONDS)) match {
+      case Success(v) => Success(())
+      case Failure(e) => Failure(LauncherTimeout())
+    }
+  }
+
   private[this] def testServer(): Try[Unit] =
     Try(new Socket("localhost", 8212).close().unit)
 
