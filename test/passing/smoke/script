@@ -1,0 +1,3 @@
+which fury
+ls /usr/local/bin
+ls $HOME/.bloop
