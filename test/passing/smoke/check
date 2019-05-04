@@ -1,0 +1,11 @@
+/usr/local/bin/fury
+docker-java-home
+fury
+bash
+bloop
+blp-coursier
+blp-server
+fish
+systemd
+xdg
+zsh
