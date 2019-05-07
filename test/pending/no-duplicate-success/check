@@ -4,6 +4,8 @@ Set current module to compiler
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
-Resolving org.scala-lang:scala-compiler:2.12.8
-Hello World
+Starting compilation of module hello-world/app
+Successfully compiled module hello-world/app
+Hello world
+
 0

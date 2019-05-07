@@ -15,7 +15,7 @@
  */
 package fury.core
 
-import fury.io._
+import fury.io._, fury.strings._
 
 import guillotine._
 import kaleidoscope._
@@ -133,25 +133,6 @@ case class Shell(environment: Environment) {
     def getTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]]
   }
-
-  /*object bloop {
-    private val defaultConfigDir = Path(".fury") / "bloop"
-
-    //def start(version: String): Running =
-      //sh"sh -c 'launcher --skip-bsp-connection ${version} > /dev/null'".async(_ => (), _ => ())
-
-    def running(): Boolean =
-      sh"bloop help".exec[Exit[String]].status == 0
-
-    def clean(name: String, configDir: Path = defaultConfigDir)(output: String => Unit): Running =
-      sh"bloop clean --config-dir ${configDir.value} $name".async(output(_), output(_))
-
-    def compile(name: String, configDir: Path = defaultConfigDir)(output: String => Unit): Running =
-      sh"bloop compile $name --config-dir ${configDir.value}".async(output(_), output(_))
-
-    def startBsp(socket: String): Running =
-      sh"bloop bsp --socket $socket".async(println(_), _ => ())
-  }*/
 
   object java {
 

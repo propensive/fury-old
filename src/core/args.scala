@@ -37,6 +37,7 @@ object Args {
   implicit private val kindKey: TExtractor[Kind]    = _.headOption.flatMap(Kind.unapply(_))
   implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
   implicit private val theme: TExtractor[Theme]     = _.headOption.flatMap(Theme.unapply(_))
+  implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
@@ -83,6 +84,10 @@ object Args {
   val RepoArg      = CliParam[RepoId]('r', 'repo, "specify a repository")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
   val RetryArg     = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
+  
+  private val allReporters = Reporter.all.map(_.name).mkString(", ")
+  val ReporterArg  = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
+  
   val SchemaArg    = CliParam[SchemaId]('s', 'schema, "specify a schema")
   val TargetArg    = CliParam[String]('T', 'target, "target file/directory")
   val TagArg       = CliParam[String]('t', 'tag, "git tag")

@@ -201,7 +201,7 @@ object Compilation {
 
   private val compilationThreadPool = Executors.newCachedThreadPool()
 
-  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](5000L) {
+  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
 
@@ -209,7 +209,10 @@ object Compilation {
       val bspLogBuffer = new CharArrayWriter()
       val log = new java.io.PrintWriter(bspLogBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
-      val handle = Runtime.getRuntime.exec(s"launcher ${Bloop.version}")
+      val furyHome = System.getProperty("fury.home")
+      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5")
+      val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
+      new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[BuildServer]()
         .traceMessages(log)

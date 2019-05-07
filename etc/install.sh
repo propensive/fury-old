@@ -90,13 +90,6 @@ tryCompilingNailgun() {
     exit 0
 }
 
-launchBloop() {
-  message "Launching Bloop version $BLOOP_VERSION..."
-    $DESTINATION/bin/launcher --skip-bsp-connection $BLOOP_VERSION && \
-    echo "$RESET" && \
-    message "Launched Bloop $BLOOP_VERSION."
-}
-
 updateShell() {
   SH="$1"
   RCFILE="$HOME/.${SH}rc"
@@ -158,7 +151,7 @@ completion() {
   echo ""
 }
 
-prepare && checkJava && untarPayload && launchBloop && updateShells && restartFury && completion
+prepare && checkJava && untarPayload && updateShells && restartFury && completion
 
 exit 0
 
