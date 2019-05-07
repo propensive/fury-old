@@ -4,7 +4,7 @@ ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.2.5
 DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
-BINDEPS=ng.py ng
+BINDEPS=launcher ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 LIBS=bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
@@ -66,11 +66,11 @@ coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M12
 external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
 
 dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
-	for JAR in $(shell dist/bundle/bin/coursier fetch $(external_jars)); do \
+	for JAR in $(shell dist/bundle/bin/coursier fetch -r bintray:scalameta/maven -r bintray:scalacenter/releases $(external_jars)); do \
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
-compile: bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
+compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/strings/*.scala
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/io/*.scala
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/ogdl/*.scala
@@ -85,6 +85,9 @@ compile: bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(fo
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/dependency/*.scala
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/imports/*.scala
 	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/menu/*.scala
+
+dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
+	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
 bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 	echo "$(VERSION)" > $@
@@ -160,7 +163,7 @@ clean-dist:
 clean: clean-dist
 	rm -rf bootstrap
 
-download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
+download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 
 install: dist/install.sh
 	dist/install.sh

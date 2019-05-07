@@ -102,7 +102,6 @@ object Main {
       env: Environment
     ) =
     exit {
-      Bloop.launch(Shell(env))
       trackThread {
         val cli = Cli(out, ParamMap(args: _*), None, Nil, env)
         val end = invoke(cli).code

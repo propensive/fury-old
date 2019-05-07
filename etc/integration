@@ -11,7 +11,7 @@ BFAILED=0
 runtest() {
   DIR="$1"
   TEST="$2"
-  TMPDIR=".${TEST}.tmp"
+  TMPDIR="test/tmp/${TEST}"
   BASE="$PWD"
   ESC=$(printf '\e')
   RED=$(printf '\e[31m')
@@ -26,7 +26,8 @@ runtest() {
   echo "----------------------------------------------------------------------------------------------------"
 
   rm -fr "$TMPDIR"
-  cp -r "$DIR/$TEST" "$TMPDIR"
+  mkdir -p "test/tmp"
+  cp -r "$DIR/$TEST" "$TMPDIR/"
   cd "$TMPDIR"
   source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m,"
   echo "----------------------------------------------------------------------------------------------------"
@@ -46,6 +47,7 @@ runtest() {
 
 if [ "$1" = "" ]; then
 
+  
   fury start
   fury config set --theme nocolor
 
