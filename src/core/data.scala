@@ -210,7 +210,7 @@ object Compilation {
       val log = new java.io.PrintWriter(bspLogBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val furyHome = System.getProperty("fury.home")
-      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5")
+      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+271-7c4a6e6a")
       val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
       new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
       val client = new BuildingClient()
