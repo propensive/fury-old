@@ -211,6 +211,8 @@ object Compilation {
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val furyHome = System.getProperty("fury.home")
       val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5")
+      val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
+      new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[BuildServer]()
         .traceMessages(log)
