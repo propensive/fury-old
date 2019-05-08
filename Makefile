@@ -122,7 +122,7 @@ src/menu: src/schema src/repo src/dependency src/source src/build src/imports sr
 compile: src/menu
 
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
-	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
+	$< bootstrap --quiet -r bintray:scalacenter/releases -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
 bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 	echo "$(VERSION)" > $@
