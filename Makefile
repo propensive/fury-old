@@ -15,6 +15,7 @@ SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
 DOCKER_TAG=fury-ci
 TESTDEPS=ogdl core
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
+export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
 
 all: all-jars
 
@@ -52,7 +53,7 @@ bootstrap/git/%:
 	mkdir -p $@
 	git clone --recursive https://github.com/propensive/$*.git $@ --branch=fury
 
-dist/bundle/lib/%.jar: bootstrap/git/% dist/bundle/lib
+dist/bundle/lib/%.jar: bootstrap/scala bootstrap/git/% dist/bundle/lib
 	mkdir -p bootstrap/lib
 	(cd bootstrap/git/$* && make)
 	cp bootstrap/git/$*/lib/$*.jar $@
@@ -70,21 +71,55 @@ dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/strings/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/io/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/ogdl/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/jsongen/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/core/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/module/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/source/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/schema/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/project/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/repo/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/build/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/dependency/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/imports/*.scala
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/menu/*.scala
+define compile-module =
+scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin $@/*.scala
+endef
+
+pre-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
+
+src/strings: pre-compile
+	$(compile-module)
+
+src/jsongen: src/strings
+	$(compile-module)
+
+src/io: src/strings
+	$(compile-module)
+
+src/ogdl: src/io
+	$(compile-module)
+
+src/core: src/jsongen src/ogdl
+	$(compile-module)
+
+src/module: src/core
+	$(compile-module)
+
+src/source: src/core
+	$(compile-module)
+
+src/schema: src/core
+	$(compile-module)
+
+src/project: src/core
+	$(compile-module)
+
+src/repo: src/core
+	$(compile-module)
+
+src/build: src/core
+	$(compile-module)
+
+src/dependency: src/core
+	$(compile-module)
+
+src/imports: src/core
+	$(compile-module)
+
+src/menu: src/schema src/repo src/dependency src/source src/build src/imports src/module src/project
+	$(compile-module)
+
+compile: src/menu
 
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
 	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
@@ -137,8 +172,8 @@ fury-native: all-jars
 ## Verification
 
 $(TESTS): %-test: bootstrap/git/probably dist/bundle/lib/probably.jar dist/bundle/lib
-	bootstrap/scala/bin/scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/$*-test/*.scala
-	bootstrap/scala/bin/scala -cp dist/bundle/lib/'*':bootstrap/bin fury.Tests
+	scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/$*-test/*.scala
+	scala -cp dist/bundle/lib/'*':bootstrap/bin fury.Tests
 
 test: $(TESTS)
 
@@ -168,4 +203,4 @@ download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bi
 install: dist/install.sh
 	dist/install.sh
 
-.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars
+.PHONY: all publish compile pre-compile src/* watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars
