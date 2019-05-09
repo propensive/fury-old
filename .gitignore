@@ -11,6 +11,7 @@ bootstrap/
 *~
 **/#*
 **/.#*
+test/tmp/
 log
 project
 target
