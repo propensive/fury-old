@@ -596,9 +596,6 @@ case class Compilation(
               multiplexer(artifact.ref) = StopStreaming
               res
             } else compileResult
-
-// end inserted
-
           }.map(CompileResult(_))
         }
       }
