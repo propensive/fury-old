@@ -168,6 +168,8 @@ object BloopSpec {
 
 case class BloopSpec(org: String, name: String, version: String)
 
+trait FuryBspServer extends BuildServer with ScalaBuildServer
+
 case class BspConnection(
     future: java.util.concurrent.Future[Void],
     client: BuildingClient,
