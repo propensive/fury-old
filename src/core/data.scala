@@ -168,10 +168,12 @@ object BloopSpec {
 
 case class BloopSpec(org: String, name: String, version: String)
 
+trait FuryBspServer extends BuildServer with ScalaBuildServer
+
 case class BspConnection(
     future: java.util.concurrent.Future[Void],
     client: BuildingClient,
-    server: BuildServer,
+    server: FuryBspServer,
     logBuffer: CharArrayWriter
   ) {
 
@@ -184,7 +186,7 @@ case class BspConnection(
       currentCompilation: Compilation,
       layout: Layout,
       currentMultiplexer: Multiplexer[ModuleRef, CompileEvent]
-    )(action: BuildServer => T
+    )(action: FuryBspServer => T
     ): T = {
     client.compilation = currentCompilation
     client.layout = layout
@@ -210,13 +212,13 @@ object Compilation {
       val log = new java.io.PrintWriter(bspLogBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val furyHome = System.getProperty("fury.home")
-      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5")
+      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+271-7c4a6e6a")
       val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
       new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
       val client = new BuildingClient()
-      val launcher = new Launcher.Builder[BuildServer]()
+      val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
-        .setRemoteInterface(classOf[BuildServer])
+        .setRemoteInterface(classOf[FuryBspServer])
         .setExecutorService(compilationThreadPool)
         .setInput(handle.getInputStream)
         .setOutput(handle.getOutputStream)
@@ -497,8 +499,9 @@ case class Compilation(
       io: Io,
       target: ModuleRef,
       layout: Layout,
+      application: Boolean,
       multiplexer: Multiplexer[ModuleRef, CompileEvent]
-    ): Future[ch.epfl.scala.bsp4j.CompileResult] = Future {
+    ): Future[Boolean] = Future {
     blocking {
       val targetHash = hash(target).encoded
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
@@ -506,11 +509,17 @@ case class Compilation(
           val targets = server.workspaceBuildTargets.get.getTargets.asScala
           targets.find(_.getDisplayName == targetHash) match {
             case Some(t) =>
-              val result = server.buildTargetCompile(new CompileParams(List(t.getId).asJava)).get
-              if(result.getStatusCode != StatusCode.OK){
-                conn.writeTrace(layout)
-              }.map{ _ => io.println(str"BSP trace saved to ${layout.traceLogfile}")}.get
-              result
+              if(application) {
+                val result = server.buildTargetRun(new RunParams(t.getId)).get
+                if(result.getStatusCode != StatusCode.OK) conn.writeTrace(layout)
+                result.getStatusCode == StatusCode.OK
+              } else {
+                val result = server.buildTargetCompile(new CompileParams(List(t.getId).asJava)).get
+                if(result.getStatusCode != StatusCode.OK) {
+                  conn.writeTrace(layout)
+                }.map { _ => io.println(str"BSP trace saved to ${layout.traceLogfile}")}.get
+                result.getStatusCode == StatusCode.OK
+              }
             case None =>
               throw new RuntimeException(
                   s"Fatal error: target for $target ($targetHash) not found in build targets of '${layout.furyDir.value}'. " +
@@ -549,21 +558,20 @@ case class Compilation(
             multiplexer(ref) = NoCompile(ref)
           }
           blocking {
-            compileModule(io, artifact.ref, layout, multiplexer).map(_.getStatusCode == StatusCode.OK)
+            compileModule(io, artifact.ref, layout, artifact.kind == Application, multiplexer)
           }.map { compileResult =>
-            if (compileResult && (artifact.kind == Application || artifact.kind == Benchmarks)) {
-              if (artifact.kind == Benchmarks) {
-                Jmh.instrument(
-                    layout.classesDir(hash(artifact.ref)),
-                    layout.benchmarksDir(hash(artifact.ref)),
-                    layout.resourcesDir(hash(artifact.ref)))
-                val javaSources =
-                  layout.benchmarksDir(hash(artifact.ref)).findChildren(_.endsWith(".java"))
-                layout.shell.javac(
-                    classpath(artifact.ref, layout).to[List].map(_.value),
-                    layout.classesDir(hash(artifact.ref)).value,
-                    javaSources.map(_.value).to[List])
-              }
+            if (compileResult && artifact.kind == Benchmarks) {
+              // FIXME: This will need to use a different classes directory for instrumenting the classfiles, since bloop now uses a different directory
+              Jmh.instrument(
+                  layout.classesDir(hash(artifact.ref)),
+                  layout.benchmarksDir(hash(artifact.ref)),
+                  layout.resourcesDir(hash(artifact.ref)))
+              val javaSources =
+                layout.benchmarksDir(hash(artifact.ref)).findChildren(_.endsWith(".java"))
+              layout.shell.javac(
+                  classpath(artifact.ref, layout).to[List].map(_.value),
+                  layout.classesDir(hash(artifact.ref)).value,
+                  javaSources.map(_.value).to[List])
               val out = new StringBuilder()
               val res = layout.shell
                 .runJava(
@@ -578,8 +586,7 @@ case class Compilation(
                     out.append(ln)
                     out.append("\n")
                   }
-                }
-                .await() == 0
+                }.await() == 0
               multiplexer(artifact.ref) = DiagnosticMsg(artifact.ref, OtherMessage(out.mkString))
               deepDependencies(artifact.ref).foreach { ref =>
                 multiplexer(ref) = NoCompile(ref)

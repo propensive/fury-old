@@ -1,7 +1,7 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
-BLOOPVERSION=1.2.5
+BLOOPVERSION=1.2.5+271-7c4a6e6a
 DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=launcher ng.py ng
@@ -122,7 +122,7 @@ src/menu: src/schema src/repo src/dependency src/source src/build src/imports sr
 compile: src/menu
 
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
-	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
+	$< bootstrap --quiet -r bintray:scalacenter/releases -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
 bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 	echo "$(VERSION)" > $@

@@ -8,6 +8,4 @@ Resolving org.scala-lang:scala-compiler:2.12.8
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello World
-
-Successfully compiled module hello-world/app
 0

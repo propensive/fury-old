@@ -80,7 +80,7 @@ object Bloop {
               ),
               java = Json(options = Nil),
               test = Json(frameworks = Nil, options = Json(excludes = Nil, arguments = Nil)),
-              platform = Json(
+              jvmPlatform = Json(
                   name = "jvm",
                   config = Json(home = "", options = Nil),
                   mainClass = artifact.main.to[List]
