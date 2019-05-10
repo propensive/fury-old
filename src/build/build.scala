@@ -17,13 +17,15 @@ package fury
 
 import fury.strings._, fury.io._, fury.core._, fury.ogdl._
 
+import Args._
+
 import guillotine._
 
 import scala.concurrent._
 import scala.util._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import Args._
+import language.higherKinds
 
 object ConfigCli {
 
@@ -197,7 +199,7 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
-      artifact    <- universe.target(io, module.ref(project), layout)
+      target    <- universe.makeTarget(io, module.ref(project), layout)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
@@ -206,7 +208,7 @@ object BuildCli {
                         compilation.targets.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
-                 .apply(module.ref(project))
+                 .apply(target.id)
                  .andThen {
                    case compRes =>
                      multiplexer.closeAll()
@@ -339,10 +341,10 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
-      artifact    <- universe.target(io, module.ref(project), layout)
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      target      <- universe.makeTarget(io, module.ref(project), layout)
+      compilation <- universe.compilation(io, target.id.ref, layout)
       _ <- ~Graph
-            .draw(compilation.allDependenciesGraph.mapValues(_.to[Set]), true, Map())(config.theme)
+            .draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true, Map())(config.theme)
             .foreach(io.println(_))
     } yield io.await()
   }

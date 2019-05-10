@@ -65,7 +65,7 @@ object Bloop {
               directory = layout.workDir(target.id).value,
               sources = target.sourcePaths.map(_.value),
               dependencies = compilation
-                .allDependenciesGraph(target.id.ref).map(_.toString),
+                .graph(target.id).map(_.toString),
               classpath = (classpath ++ compilerClasspath).map(_.value),
               out = str"${layout.outputDir(target.id).value}",
               classesDir = str"${layout.classesDir(target.id).value}",

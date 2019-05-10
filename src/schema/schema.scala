@@ -20,7 +20,10 @@ import fury.strings._, fury.io._, fury.core._
 import Args._
 
 import guillotine._
+
 import scala.util._
+
+import language.higherKinds
 
 case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
 

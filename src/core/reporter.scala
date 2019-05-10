@@ -51,7 +51,7 @@ object GraphReporter extends Reporter("graph") {
     Graph.live(
         changed = false,
         io,
-        compilation.allDependenciesGraph.mapValues(_.to[Set]),
+        compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) },
         multiplexer.stream(50, Some(Tick)),
         Map(),
         false)(theme)

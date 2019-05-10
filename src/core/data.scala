@@ -365,8 +365,8 @@ class BuildingClient() extends BuildClient {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
     multiplexer(targetId.ref) = StartCompile(targetId.ref)
-    compilation.deepDependencies(targetId.ref).foreach { ref =>
-      multiplexer(ref) = NoCompile(ref)
+    compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
+      multiplexer(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
     }
   }
   override def onBuildTaskFinish(params: TaskFinishParams): Unit =
@@ -386,8 +386,8 @@ class BuildingClient() extends BuildClient {
 }
 
 case class Compilation(
-    allDependenciesGraph: Map[ModuleRef, List[ModuleRef]],
-    subgraphs: Map[ModuleRef, List[ModuleRef]],
+    graph: Map[TargetId, List[TargetId]],
+    subgraphs: Map[TargetId, List[TargetId]],
     checkouts: Set[Checkout],
     targets: Map[ModuleRef, Target],
     universe: Universe) {
@@ -399,8 +399,8 @@ case class Compilation(
   def apply(ref: ModuleRef): Try[Target] =
     targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
-  def deepDependencies(ref: ModuleRef): Set[ModuleRef] =
-    Set(ref) ++ allDependenciesGraph(ref).to[Set].flatMap(deepDependencies(_))
+  def deepDependencies(targetId: TargetId): Set[TargetId] =
+    Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
 
   def checkoutAll(io: Io, layout: Layout): Unit =
     checkouts.foreach(_.get(io, layout).unit)
@@ -468,46 +468,36 @@ case class Compilation(
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
-  def compileModule(
-      io: Io,
-      targetId: TargetId,
-      layout: Layout,
-      application: Boolean,
-      multiplexer: Multiplexer[ModuleRef, CompileEvent]
-    ): Future[Boolean] = Future {
-    blocking {
+  def compileModule(io: Io,
+                    targetId: TargetId,
+                    layout: Layout,
+                    application: Boolean,
+                    multiplexer: Multiplexer[ModuleRef, CompileEvent])
+                    : Future[Boolean] =
+    Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, layout, multiplexer) { server =>
-          if(application) {
-            val result = server.buildTargetRun(new RunParams(new BuildTargetIdentifier(targetId.key))).get
-            if(result.getStatusCode != StatusCode.OK) conn.writeTrace(layout)
-            result.getStatusCode == StatusCode.OK
-          } else {
-            val result = server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(targetId.key)).asJava)).get
-            if(result.getStatusCode != StatusCode.OK) {
-              conn.writeTrace(layout)
-            }.map { _ => io.println(str"BSP trace saved to ${layout.traceLogfile}")}.get
-            result.getStatusCode == StatusCode.OK
-          }
+          val statusCode =
+            if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(targetId.key))).get.getStatusCode
+            else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(targetId.key)).asJava)).get.getStatusCode
+          if(statusCode != StatusCode.OK) conn.writeTrace(layout)
+          statusCode == StatusCode.OK
         }
       }
-    }
-  }
+    } }
 
-  def compile(
-      io: Io,
-      moduleRef: ModuleRef,
-      multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      futures: Map[ModuleRef, Future[CompileResult]] = Map(),
-      layout: Layout
-    ): Map[ModuleRef, Future[CompileResult]] = {
-
+  def compile(io: Io,
+              moduleRef: ModuleRef,
+              multiplexer: Multiplexer[ModuleRef, CompileEvent],
+              futures: Map[TargetId, Future[CompileResult]] = Map(),
+              layout: Layout)
+              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
-    val newFutures = subgraphs(moduleRef).foldLeft(futures) { (futures, dep) =>
-      if (futures.contains(dep)) futures else compile(io, dep, multiplexer, futures, layout)
+    val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
+      if (futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
-    val dependencyFutures = Future.sequence(subgraphs(moduleRef).map(newFutures))
+    val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
     val future =
       dependencyFutures.flatMap { inputs =>
         if (inputs.exists(!_.success)) {
@@ -516,8 +506,8 @@ case class Compilation(
           Future.successful(CompileResult(false))
         } else {
           val noCompilation = target.sourcePaths.isEmpty
-          if (noCompilation) deepDependencies(target.ref).foreach { ref =>
-            multiplexer(ref) = NoCompile(ref)
+          if (noCompilation) deepDependencies(target.id).foreach { targetId =>
+            multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           blocking {
             compileModule(io, target.id, layout, target.kind == Application, multiplexer)
@@ -551,8 +541,8 @@ case class Compilation(
                   }
                 }.await() == 0
               multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
-              deepDependencies(target.ref).foreach { ref =>
-                multiplexer(ref) = NoCompile(ref)
+              deepDependencies(target.id).foreach { targetId =>
+                multiplexer(targetId.ref) = NoCompile(targetId.ref)
               }
               multiplexer(target.ref) = StopCompile(target.ref, res)
               multiplexer.close(target.ref)
@@ -562,7 +552,7 @@ case class Compilation(
           }.map(CompileResult(_))
         }
       }
-    newFutures.updated(target.ref, future)
+    newFutures.updated(target.id, future)
   }
 }
 case class Entity(project: Project, schema: Schema, path: Path)
@@ -577,12 +567,12 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def entity(id: ProjectId): Try[Entity] =
     entities.get(id).ascribe(ItemNotFound(id))
 
-  def target(io: Io, ref: ModuleRef, layout: Layout): Try[Target] =
+  def makeTarget(io: Io, ref: ModuleRef, layout: Layout): Try[Target] =
     for {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
-                 else target(io, module.compiler, layout).map(Some(_))
+                 else makeTarget(io, module.compiler, layout).map(Some(_))
       binaries <- ~Await.result(
                      module.allBinaries.map(_.paths(io)).sequence.map(_.flatten),
                      duration.Duration.Inf)
@@ -597,7 +587,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
           entity.schema.repos.map(_.repo).to[List],
           checkouts.to[List],
           binaries.to[List],
-          module.after.to[List],
+          module.after.map(TargetId(entity.schema.id, _)).to[List],
           compiler,
           module.bloopSpec,
           module.params.to[List],
@@ -639,8 +629,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     for {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)
-      deps   = module.after ++ module.compilerDependencies
-      art    <- target(io, ref, layout)
+      deps    = module.after ++ module.compilerDependencies
       tDeps  <- deps.map(dependencies(io, _, layout)).sequence
     } yield deps ++ tDeps.flatten
 
@@ -655,37 +644,24 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] =
     for {
-      art <- target(io, ref, layout)
-      graph <- dependencies(io, ref, layout)
-                .map(_.map(target(io, _, layout)).map { a =>
-                  a.map { a =>
-                    (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
+      target <- makeTarget(io, ref, layout)
+      entity <- entity(ref.projectId)
+      graph  <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
+                  a.map { dependencyTarget =>
+                    (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
                   }
-                }.sequence
-                  .map(_.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide))))
-                .flatten
-      allModuleRefs = graph.keys
-      allModules    <- allModuleRefs.traverse(ref => getMod(ref).map((ref, _)))
-      applicationModulesRefs = allModules.filter {
-        case (_, mod) => mod.kind == Application || mod.kind == Benchmarks
-      }.map {
-        case (ref, _) => ref
-      }
-      subgraphs = DirectedGraph(graph.mapValues(_.toSet))
-        .subgraph(applicationModulesRefs.toSet + ref)
-        .connections
-        .mapValues(_.toList)
-      targets <- graph.keys.map { key =>
-                    target(io, key, layout).map(key -> _)
-                  }.sequence.map(_.toMap)
-      checkouts <- graph.keys.map(checkout(_, layout)).sequence
+                }.sequence.map(_.toMap.updated(target.id, target.dependencies ++ target.compiler.map(_.id)))).flatten
+      targets   <- graph.keys.map { targetId => makeTarget(io, targetId.ref, layout).map(targetId.ref -> _) }.sequence.map(_.toMap)
+      appModules = targets.filter(_._2.executed)
+      subgraphs = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] + TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
+      checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
     } yield
       Compilation(
           graph,
           subgraphs,
           checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-          targets ++ (art.compiler.map { c =>
-            c.ref -> c
+          targets ++ (target.compiler.map { compilerTarget =>
+            compilerTarget.ref -> compilerTarget
           }),
           this)
 }
@@ -1181,12 +1157,18 @@ case class CompileResult(success: Boolean)
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
+  
+  def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
+    TargetId(str"$schemaId:$projectId:$moduleId")
+  
+    def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
+      TargetId(schemaId, ref.projectId, ref.moduleId)
 }
 
 case class TargetId(key: String) extends AnyVal {
-  def moduleId: ModuleId = ModuleId(key.split("\\.")(2))
-  def projectId: ProjectId = ProjectId(key.split("\\.")(1))
-  def schemaId: SchemaId = SchemaId(key.split("\\.")(0))
+  def moduleId: ModuleId = ModuleId(key.split(":")(2))
+  def projectId: ProjectId = ProjectId(key.split(":")(1))
+  def schemaId: SchemaId = SchemaId(key.split(":")(0))
   def ref: ModuleRef = ModuleRef(projectId, moduleId)
 }
 
@@ -1199,14 +1181,16 @@ case class Target(
     repos: List[Repo],
     checkouts: List[Checkout],
     binaries: List[Path],
-    dependencies: List[ModuleRef],
+    dependencies: List[TargetId],
     compiler: Option[Target],
     bloopSpec: Option[BloopSpec],
     params: List[Parameter],
     intransitive: Boolean,
     sourcePaths: List[Path]) {
 
-  def id: TargetId = TargetId(str"$schemaId.${ref.projectId}.${ref.moduleId}")
+  def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
+
+  def executed = kind == Application || kind == Benchmarks
 }
 
 object Project {
