@@ -35,6 +35,8 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
+import language.higherKinds
+
 object Bsp {
 
   val bspVersion = "2.0.0"
@@ -123,7 +125,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
                   for {
                     ds <- universe.dependencies(io, ref, layout)
                     arts <- (ds + ref).map { d =>
-                             universe.artifact(io, d, layout)
+                             universe.target(io, d, layout)
                            }.sequence
                   } yield {
                     arts.map { a =>
@@ -135,11 +137,11 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
                 .map(_.flatten.toMap)
       allModuleRefs = graph.keys
       modules       <- allModuleRefs.traverse(ref => universe.getMod(ref).map((ref, _)))
-      artifacts <- graph.keys.map { key =>
-                    universe.artifact(io, key, layout).map(key -> _)
+      targets <- graph.keys.map { key =>
+                    universe.target(io, key, layout).map(key -> _)
                   }.sequence.map(_.toMap)
       checkouts <- graph.keys.map(universe.checkout(_, layout)).sequence
-    } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), artifacts)
+    } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
 
   override def buildInitialize(
       initializeBuildParams: InitializeBuildParams
@@ -188,7 +190,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
     val result = for {
       struct <- structure
     } yield {
-      val targets = struct.artifacts.values.map(artifactToTarget(_, struct))
+      val targets = struct.targets.values.map(toTarget(_, struct))
       new WorkspaceBuildTargetsResult(targets.toList.asJava)
     }
 
@@ -213,7 +215,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
       targets = sourcesParams.getTargets.asScala
       items <- targets.traverse { t =>
                 struct.moduleRef(t).map { ref =>
-                  artifactSourcesItem(t, struct.artifacts(ref))
+                  targetSourcesItem(t, struct.targets(ref))
                 }
               }
     } yield new SourcesResult(items.asJava)
@@ -227,7 +229,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
     future
   }
 
-  private def artifactSourcesItem(target: BuildTargetIdentifier, a: Artifact): SourcesItem = {
+  private def targetSourcesItem(target: BuildTargetIdentifier, a: Target): SourcesItem = {
     val items = a.sourcePaths.map { p =>
       new SourceItem(p.javaPath.toUri.toString, SourceItemKind.DIRECTORY, false)
     }
@@ -302,7 +304,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
       struct: Structure
     ): Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
-      val art    = struct.artifacts(ref)
+      val art    = struct.targets(ref)
       val params = art.params.map(_.parameter)
       val paths = art.binaries.map { p =>
         p.javaPath.toUri.toString
@@ -365,28 +367,28 @@ object FuryBuildServer {
       modules: Map[ModuleRef, Module],
       graph: Map[ModuleRef, List[ModuleRef]],
       checkouts: Set[Checkout],
-      artifacts: Map[ModuleRef, Artifact]) {
+      targets: Map[ModuleRef, Target]) {
 
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
 
     // TODO unify this with Compilation.hash
     def hash(ref: ModuleRef): Digest = {
-      val artifact = artifacts(ref)
+      val target = targets(ref)
       hashes.getOrElseUpdate(
           ref, {
             val food = (
-                artifact.kind,
-                artifact.main,
-                artifact.plugin,
-                artifact.checkouts,
-                artifact.binaries,
-                artifact.dependencies,
-                artifact.compiler.map { c =>
+                target.kind,
+                target.main,
+                target.plugin,
+                target.checkouts,
+                target.binaries,
+                target.dependencies,
+                target.compiler.map { c =>
                   hash(c.ref)
                 },
-                artifact.params,
-                artifact.intransitive,
-                artifact.sourcePaths,
+                target.params,
+                target.intransitive,
+                target.sourcePaths,
                 graph(ref).map(hash)
             )
             food.digest[Md5]
@@ -409,31 +411,32 @@ object FuryBuildServer {
     }
   }
 
-  private def artifactToTarget(artifact: Artifact, struct: Structure) = {
-    val ref          = artifact.ref
-    val id           = struct.buildTarget(artifact.ref)
-    val tags         = List(moduleKindToBuildTargetTag(artifact.kind))
+  private def toTarget(target: Target, struct: Structure) = {
+    val ref          = target.ref
+    val id           = struct.buildTarget(target.ref)
+    val tags         = List(moduleKindToBuildTargetTag(target.kind))
     val languageIds  = List("java", "scala") // TODO get these from somewhere?
-    val dependencies = artifact.dependencies.map(struct.buildTarget)
+    val dependencies = target.dependencies.map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
-    val target =
+    val buildTarget =
       new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
-    target.setDisplayName(moduleRefDisplayName(ref))
+    
+      buildTarget.setDisplayName(moduleRefDisplayName(ref))
 
     for {
-      compiler <- artifact.compiler
+      compiler <- target.compiler
       bs       <- compiler.bloopSpec
       if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
       val scalaBuildTarget =
         new ScalaBuildTarget(bs.org, bs.version, bs.version, ScalaPlatform.JVM, libs)
-      target.setDataKind(BuildTargetDataKind.SCALA)
-      target.setData(scalaBuildTarget)
+      buildTarget.setDataKind(BuildTargetDataKind.SCALA)
+      buildTarget.setData(scalaBuildTarget)
     }
 
-    target
+    buildTarget
   }
 
   private def moduleRefDisplayName(moduleRef: ModuleRef): String =

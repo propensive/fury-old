@@ -21,6 +21,8 @@ import guillotine._
 
 import scala.util._
 
+import language.higherKinds
+
 object Config {
 
   def read()(implicit env: Environment, globalLayout: GlobalLayout): Try[Config] =

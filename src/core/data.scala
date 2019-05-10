@@ -15,16 +15,18 @@
  */
 package fury.core
 
-import fury.io._, fury.strings._, fury.ogdl._
+import fury._, io._, strings._, ogdl._
 
-import ch.epfl.scala.bsp4j.{CompileResult => _, _}
+import Graph.{Compiling, CompilerDiagnostic, OtherMessage, DiagnosticMessage}
+
 import exoskeleton._
 import gastronomy._
 import kaleidoscope._
 import mercator._
+
 import org.eclipse.lsp4j.jsonrpc.Launcher
+import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
-import Graph.{Compiling, CompilerDiagnostic, OtherMessage, DiagnosticMessage}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
@@ -38,6 +40,8 @@ import scala.reflect.{ClassTag, classTag}
 import java.io.{CharArrayWriter, PrintWriter}
 import java.time.LocalDateTime
 import java.util.concurrent.Executors
+
+import language.higherKinds
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
@@ -390,41 +394,41 @@ case class Compilation(
     allDependenciesGraph: Map[ModuleRef, List[ModuleRef]],
     modulesToExecuteBloopGraph: Map[ModuleRef, List[ModuleRef]],
     checkouts: Set[Checkout],
-    artifacts: Map[ModuleRef, Artifact],
+    targets: Map[ModuleRef, Target],
     universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
 
-  val reverseHashes = artifacts.keys.map { moduleRef =>
+  val reverseHashes = targets.keys.map { moduleRef =>
     hash(moduleRef).encoded[Base64Url] -> moduleRef
   }.toMap
 
   def hash(ref: ModuleRef): Digest = {
-    val artifact = artifacts(ref)
+    val target = targets(ref)
     hashes.getOrElseUpdate(
         ref, {
           (
-              artifact.kind,
-              artifact.main,
-              artifact.plugin,
-              artifact.checkouts,
-              artifact.binaries,
-              artifact.dependencies,
-              artifact.compiler.map { c =>
+              target.kind,
+              target.main,
+              target.plugin,
+              target.checkouts,
+              target.binaries,
+              target.dependencies,
+              target.compiler.map { c =>
                 hash(c.ref)
               },
-              artifact.params,
-              artifact.intransitive,
-              artifact.sourcePaths,
+              target.params,
+              target.intransitive,
+              target.sourcePaths,
               allDependenciesGraph(ref).map(hash(_))).digest[Md5]
         }
     )
   }
 
-  lazy val allDependencies: Set[Artifact] = artifacts.values.to[Set]
+  lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def apply(ref: ModuleRef): Try[Artifact] =
-    artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
+  def apply(ref: ModuleRef): Try[Target] =
+    targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def deepDependencies(ref: ModuleRef): Set[ModuleRef] =
     Set(ref) ++ allDependenciesGraph(ref).to[Set].flatMap(deepDependencies(_))
@@ -439,16 +443,16 @@ case class Compilation(
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
     allDependencies.flatMap { a =>
       Set(layout.classesDir(hash(a.ref)), layout.resourcesDir(hash(a.ref)))
-    } ++ allDependencies.flatMap(_.binaries) ++ artifacts(ref).binaries
+    } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
-    val artifact = artifacts(ref)
-    if (artifact.kind == Plugin) {
+    val target = targets(ref)
+    if (target.kind == Plugin) {
       val file = layout.classesDir(hash(ref)) / "scalac-plugin.xml"
 
-      artifact.main.foreach { main =>
+      target.main.foreach { main =>
         file.writeSync(
-            str"<plugin><name>${artifact.plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
+            str"<plugin><name>${target.plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
       }
     }
   }
@@ -463,7 +467,7 @@ case class Compilation(
   def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Try[Unit] =
     for {
       dest <- dest.directory
-      dirs <- ~(allDependencies + artifacts(ref)).map { a =>
+      dirs <- ~(allDependencies + targets(ref)).map { a =>
                layout.classesDir(hash(a.ref))
              }
       files <- ~dirs.map { dir =>
@@ -481,17 +485,17 @@ case class Compilation(
     } yield ()
 
   def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
-    (artifacts(ref).params ++ allDependencies.filter(_.kind == Plugin).map { plugin =>
+    (targets(ref).params ++ allDependencies.filter(_.kind == Plugin).map { plugin =>
       Parameter(str"Xplugin:${layout.classesDir(hash(plugin.ref))}")
     }).map(_.parameter)
 
   def jmhRuntimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
-    artifacts(ref).compiler.to[Set].flatMap { c =>
+    targets(ref).compiler.to[Set].flatMap { c =>
       Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
     } ++ classpath(ref, layout)
 
   def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
-    artifacts(ref).compiler.to[Set].flatMap { c =>
+    targets(ref).compiler.to[Set].flatMap { c =>
       Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
     } ++ classpath(ref, layout) + layout.classesDir(hash(ref)) + layout.resourcesDir(hash(ref))
 
@@ -539,7 +543,7 @@ case class Compilation(
       layout: Layout
     ): Map[ModuleRef, Future[CompileResult]] = {
 
-    val artifact = artifacts(moduleRef)
+    val target = targets(moduleRef)
     val newFutures = modulesToExecuteBloopGraph(moduleRef).foldLeft(futures) { (futures, dep) =>
       if (futures.contains(dep)) futures
       else compile(io, dep, multiplexer, futures, layout)
@@ -549,57 +553,57 @@ case class Compilation(
     val future =
       dependencyFutures.flatMap { inputs =>
         if (inputs.exists(!_.success)) {
-          multiplexer(artifact.ref) = SkipCompile(artifact.ref)
-          multiplexer.close(artifact.ref)
+          multiplexer(target.ref) = SkipCompile(target.ref)
+          multiplexer.close(target.ref)
           Future.successful(CompileResult(false))
         } else {
-          val noCompilation = artifact.sourcePaths.isEmpty
-          if (noCompilation) deepDependencies(artifact.ref).foreach { ref =>
+          val noCompilation = target.sourcePaths.isEmpty
+          if (noCompilation) deepDependencies(target.ref).foreach { ref =>
             multiplexer(ref) = NoCompile(ref)
           }
           blocking {
-            compileModule(io, artifact.ref, layout, artifact.kind == Application, multiplexer)
+            compileModule(io, target.ref, layout, target.kind == Application, multiplexer)
           }.map { compileResult =>
-            if (compileResult && artifact.kind == Benchmarks) {
+            if (compileResult && target.kind == Benchmarks) {
               // FIXME: This will need to use a different classes directory for instrumenting the classfiles, since bloop now uses a different directory
               Jmh.instrument(
-                  layout.classesDir(hash(artifact.ref)),
-                  layout.benchmarksDir(hash(artifact.ref)),
-                  layout.resourcesDir(hash(artifact.ref)))
+                  layout.classesDir(hash(target.ref)),
+                  layout.benchmarksDir(hash(target.ref)),
+                  layout.resourcesDir(hash(target.ref)))
               val javaSources =
-                layout.benchmarksDir(hash(artifact.ref)).findChildren(_.endsWith(".java"))
+                layout.benchmarksDir(hash(target.ref)).findChildren(_.endsWith(".java"))
               layout.shell.javac(
-                  classpath(artifact.ref, layout).to[List].map(_.value),
-                  layout.classesDir(hash(artifact.ref)).value,
+                  classpath(target.ref, layout).to[List].map(_.value),
+                  layout.classesDir(hash(target.ref)).value,
                   javaSources.map(_.value).to[List])
               val out = new StringBuilder()
               val res = layout.shell
                 .runJava(
-                    jmhRuntimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
-                    if (artifact.kind == Benchmarks) "org.openjdk.jmh.Main"
-                    else artifact.main.getOrElse(""),
-                    securePolicy = artifact.kind == Application,
+                    jmhRuntimeClasspath(io, target.ref, layout).to[List].map(_.value),
+                    if (target.kind == Benchmarks) "org.openjdk.jmh.Main"
+                    else target.main.getOrElse(""),
+                    securePolicy = target.kind == Application,
                     layout
                 ) { ln =>
-                  if (artifact.kind == Benchmarks) multiplexer(artifact.ref) = Print(ln)
+                  if (target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
                   else {
                     out.append(ln)
                     out.append("\n")
                   }
                 }.await() == 0
-              multiplexer(artifact.ref) = DiagnosticMsg(artifact.ref, OtherMessage(out.mkString))
-              deepDependencies(artifact.ref).foreach { ref =>
+              multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
+              deepDependencies(target.ref).foreach { ref =>
                 multiplexer(ref) = NoCompile(ref)
               }
-              multiplexer(artifact.ref) = StopCompile(artifact.ref, res)
-              multiplexer.close(artifact.ref)
-              multiplexer(artifact.ref) = StopStreaming
+              multiplexer(target.ref) = StopCompile(target.ref, res)
+              multiplexer.close(target.ref)
+              multiplexer(target.ref) = StopStreaming
               res
             } else compileResult
           }.map(CompileResult(_))
         }
       }
-    newFutures.updated(artifact.ref, future)
+    newFutures.updated(target.ref, future)
   }
 }
 case class Entity(project: Project, schema: Schema, path: Path)
@@ -614,18 +618,18 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def entity(id: ProjectId): Try[Entity] =
     entities.get(id).ascribe(ItemNotFound(id))
 
-  def artifact(io: Io, ref: ModuleRef, layout: Layout): Try[Artifact] =
+  def target(io: Io, ref: ModuleRef, layout: Layout): Try[Target] =
     for {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
-                 else artifact(io, module.compiler, layout).map(Some(_))
+                 else target(io, module.compiler, layout).map(Some(_))
       binaries <- ~Await.result(
                      module.allBinaries.map(_.paths(io)).sequence.map(_.flatten),
                      duration.Duration.Inf)
       checkouts <- checkout(ref, layout)
     } yield
-      Artifact(
+      Target(
           ref,
           module.kind,
           module.main,
@@ -676,7 +680,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)
       deps   = module.after ++ module.compilerDependencies
-      art    <- artifact(io, ref, layout)
+      art    <- target(io, ref, layout)
       tDeps  <- deps.map(dependencies(io, _, layout)).sequence
     } yield deps ++ tDeps.flatten
 
@@ -691,9 +695,9 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] =
     for {
-      art <- artifact(io, ref, layout)
+      art <- target(io, ref, layout)
       graph <- dependencies(io, ref, layout)
-                .map(_.map(artifact(io, _, layout)).map { a =>
+                .map(_.map(target(io, _, layout)).map { a =>
                   a.map { a =>
                     (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
                   }
@@ -711,8 +715,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         .subgraph(applicationModulesRefs.toSet + ref)
         .connections
         .mapValues(_.toList)
-      artifacts <- graph.keys.map { key =>
-                    artifact(io, key, layout).map(key -> _)
+      targets <- graph.keys.map { key =>
+                    target(io, key, layout).map(key -> _)
                   }.sequence.map(_.toMap)
       checkouts <- graph.keys.map(checkout(_, layout)).sequence
     } yield
@@ -720,7 +724,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
           graph,
           reducedGraph,
           checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-          artifacts ++ (art.compiler.map { c =>
+          targets ++ (art.compiler.map { c =>
             c.ref -> c
           }),
           this)
@@ -1215,7 +1219,7 @@ case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends Compile
 
 case class CompileResult(success: Boolean)
 
-case class Artifact(
+case class Target(
     ref: ModuleRef,
     kind: Kind,
     main: Option[String],
@@ -1224,11 +1228,11 @@ case class Artifact(
     checkouts: List[Checkout],
     binaries: List[Path],
     dependencies: List[ModuleRef],
-    compiler: Option[Artifact],
+    compiler: Option[Target],
     bloopSpec: Option[BloopSpec],
     params: List[Parameter],
     intransitive: Boolean,
-    sourcePaths: List[Path]) {}
+    sourcePaths: List[Path])
 
 object Project {
   implicit val msgShow: MsgShow[Project]       = v => UserMsg(_.project(v.id.key))
