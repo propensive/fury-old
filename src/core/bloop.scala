@@ -29,14 +29,13 @@ import scala.util.control.NonFatal
 
 object Bloop {
 
-  def clean(layout: Layout): Try[Boolean] = {
+  def clean(layout: Layout): Try[Boolean] =
     layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
-  }
 
   def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
     new CollOps(compilation.targets.values.map { target =>
       for {
-        path       <- layout.bloopConfig(compilation.hash(target.ref)).mkParents()
+        path       <- layout.bloopConfig(target.id).mkParents()
         jsonString <- makeConfig(io, target, compilation, layout)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
@@ -62,15 +61,14 @@ object Bloop {
       Json(
           version = "1.0.0",
           project = Json(
-              name = compilation.hash(target.ref).encoded[Base64Url],
-              directory = layout.workDir(compilation.hash(target.ref)).value,
+              name = target.id.key,
+              directory = layout.workDir(target.id).value,
               sources = target.sourcePaths.map(_.value),
               dependencies = compilation
-                .allDependenciesGraph(target.ref)
-                .map(compilation.hash(_).encoded[Base64Url]),
+                .allDependenciesGraph(target.id.ref).map(_.toString),
               classpath = (classpath ++ compilerClasspath).map(_.value),
-              out = str"${layout.outputDir(compilation.hash(target.ref)).value}",
-              classesDir = str"${layout.classesDir(compilation.hash(target.ref)).value}",
+              out = str"${layout.outputDir(target.id).value}",
+              classesDir = str"${layout.classesDir(target.id).value}",
               scala = Json(
                   organization = bloopSpec.org,
                   name = bloopSpec.name,
