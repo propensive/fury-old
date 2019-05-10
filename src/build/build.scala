@@ -197,13 +197,13 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
-      artifact    <- universe.artifact(io, module.ref(project), layout)
+      artifact    <- universe.target(io, module.ref(project), layout)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
-                        compilation.artifacts.map(_._1).to[List]))
+                        compilation.targets.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
                  .apply(module.ref(project))
@@ -339,7 +339,7 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
-      artifact    <- universe.artifact(io, module.ref(project), layout)
+      artifact    <- universe.target(io, module.ref(project), layout)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _ <- ~Graph
             .draw(compilation.allDependenciesGraph.mapValues(_.to[Set]), true, Map())(config.theme)
