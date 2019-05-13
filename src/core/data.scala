@@ -732,24 +732,31 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
 
   lazy val universe: Try[Universe] = {
-    val localProjectIds      = schema.projects.map(_.id)
-    val empty: Try[Universe] = Success(Universe())
-    inherited
-      .foldLeft(empty) { (projects, hierarchy) =>
-        projects.flatMap { projects =>
-          hierarchy.universe.flatMap { nextProjects =>
-            val potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
-            val conflictIds = potentialConflictIds.filter { id =>
-              projects.entity(id).map(_.project) != nextProjects.entity(id).map(_.project)
-            }
-            if (conflictIds.isEmpty) Success(projects ++ nextProjects)
-            else Failure(ProjectConflict(conflictIds))
-          }
-        }
+    val localProjectIds = schema.projects.map(_.id)
+    def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
+      projects <- universe
+      nextProjects <- hierarchy.universe
+      potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+      conflictIds = potentialConflictIds.filter { id =>
+        projects.entity(id).map(_.project) != nextProjects.entity(id).map(_.project)
       }
-      .map(_ ++ Universe(schema.projects.map { project =>
+      allProjects <- conflictIds match {
+        case x if x.isEmpty => Success(projects ++ nextProjects)
+        case _ =>
+          Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
+      }
+    } yield allProjects
+
+    val empty: Try[Universe] = Success(Universe())
+    for{
+      allInherited <- inherited.foldLeft(empty)(merge)
+    } yield {
+      val schemaEntities = schema.projects.map { project =>
         project.id -> Entity(project, schema, dir)
-      }.toMap))
+      }
+      allInherited ++ Universe(schemaEntities.toMap)
+    }
+
   }
 }
 

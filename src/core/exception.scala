@@ -33,7 +33,7 @@ case class UnspecifiedMain(module: ModuleId)          extends FuryException
 case class GraalVMError(message: String)              extends FuryException
 case class InvalidKind(expected: Kind)                extends FuryException
 case class UnspecifiedRepo()                          extends FuryException
-case class ProjectConflict(ids: Set[ProjectId])       extends FuryException
+case class ProjectConflict(ids: Set[ProjectId], h1: Hierarchy, h2: Hierarchy)       extends FuryException
 case class SchemaDifferences()                        extends FuryException
 case class LauncherFailure(msg: String)               extends FuryException
 
