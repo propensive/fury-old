@@ -159,7 +159,7 @@ case class Module(
 
 object BloopSpec {
   implicit val msgShow: MsgShow[BloopSpec]       = v => msg"${v.org}:${v.name}"
-  implicit val stringShow: StringShow[BloopSpec] = bs => s"${bs.org}:${bs.name}"
+  implicit val stringShow: StringShow[BloopSpec] = bs => str"${bs.org}:${bs.name}"
   implicit def diff: Diff[BloopSpec]             = Diff.gen[BloopSpec]
 
   def parse(str: String): Try[BloopSpec] = str match {
@@ -1126,9 +1126,9 @@ case class Repo(url: String) {
     } else Success(path(layout))
 
   def simplified: String = url match {
-    case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => s"gh:$group/$project"
-    case r"git@bitbucket.com:$group@(.*)/$project@(.*)\.git" => s"bb:$group/$project"
-    case r"git@gitlab.com:$group@(.*)/$project@(.*)\.git"    => s"gl:$group/$project"
+    case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => str"gh:$group/$project"
+    case r"git@bitbucket.com:$group@(.*)/$project@(.*)\.git" => str"bb:$group/$project"
+    case r"git@gitlab.com:$group@(.*)/$project@(.*)\.git"    => str"gl:$group/$project"
     case other                                               => other
   }
 
