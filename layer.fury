@@ -362,22 +362,22 @@ schemas	default	id	default
 		repos	contextual	id	contextual
 				repo	git@github.com:propensive/contextual.git
 				track	fury
-				commit	6e082fb93fd599375f442aa9d1b2bd35747f2dca
+				commit	c549e94895e90f20db264717a0de2338825b73d9
 				local	None
 			escritoire	id	escritoire
 				repo	git@github.com:propensive/escritoire.git
 				track	fury
-				commit	44eeba3bb718418b67fb0875aaa684ea5a395ebe
+				commit	3c996af5f7009bed3e2bbb2387267d5788c32bc6
 				local	None
 			eucalyptus	id	eucalyptus
 				repo	git@github.com:propensive/eucalyptus.git
 				track	fury
-				commit	f8dee747070e1905fe95dd55f981dc497037df9d
+				commit	db8e4af0e105f5418e889805294a2c7c733dadbe
 				local	None
 			exoskeleton	id	exoskeleton
 				repo	git@github.com:propensive/exoskeleton.git
 				track	fury
-				commit	80aacbcd5f7bdf606f412915bd16dd9f2ea5d74b
+				commit	ab630c47e208795fcb5b2bb624325ccc180e21a7
 				local	None
 			fury	id	fury
 				repo	git@github.com:propensive/fury.git
@@ -387,27 +387,27 @@ schemas	default	id	default
 			gastronomy	id	gastronomy
 				repo	git@github.com:propensive/gastronomy.git
 				track	fury
-				commit	e4ffb9ad10258bef3993efd90bac69d6a563aed3
+				commit	c37837bd9dc6693c993bc7a9a299bbbcbef8a179
 				local	None
 			guillotine	id	guillotine
 				repo	git@github.com:propensive/guillotine.git
 				track	fury
-				commit	8f46d3bd23037a1e37eac32315ba50b44583fed6
+				commit	ef4d25bad64b96ab78387cc647cb0c7b680f19d7
 				local	None
 			kaleidoscope	id	kaleidoscope
 				repo	git@github.com:propensive/kaleidoscope.git
 				track	fury
-				commit	1ab60f1ceb80c7a89ae516e0cf56fb848859b9ee
+				commit	fe9304024980fe9a9134062c10c075e1769b046d
 				local	None
 			magnolia	id	magnolia
 				repo	git@github.com:propensive/magnolia.git
 				track	fury
-				commit	7d40249f44ed09a92d01f065a924da684efc7560
+				commit	5f571508b860d532bf3040428b0fa1b07b75bcbc
 				local	None
 			mercator	id	mercator
 				repo	git@github.com:propensive/mercator.git
 				track	fury
-				commit	97601f41c2bdf4faf285c3d2beb4be9631dc4d03
+				commit	e1ae061ee3262707d49da3f79fa55f160864235c
 				local	None
 			optometry	id	optometry
 				repo	git@github.com:propensive/optometry.git
@@ -417,12 +417,12 @@ schemas	default	id	default
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	b71a7abc62b96f34d1f80c4bf2ab95986271f597
+				commit	58e4963d98007da74593ff0ee74c654e63663dd2
 				local	None
 			probably	id	probably
 				repo	git@github.com:propensive/probably.git
 				track	fury
-				commit	a05a9b5699235a6a2cae0a45cfdde7eb0717f3d3
+				commit	27c0dfc6c7487feeee425ce194bf6bc37bcdf8a7
 				local	None
 			scala	id	scala
 				repo	git@github.com:propensive/.scala.git
