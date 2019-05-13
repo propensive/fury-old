@@ -218,6 +218,7 @@ object Compilation {
       val furyHome = System.getProperty("fury.home")
       val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+271-7c4a6e6a")
       val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
+      // FIXME: This surely isn't the best way to consume a stream.
       new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[FuryBspServer]()
@@ -242,6 +243,25 @@ object Compilation {
       BspConnection(future, client, server, bspLogBuffer)
     }
   }
+
+  private val compilationCache: HashMap[Path, Future[Try[Compilation]]] = HashMap()
+
+  def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
+    hierarchy   <- schema.hierarchy(io, layout.base, layout)
+    universe    <- hierarchy.universe
+    compilation <- universe.compilation(io, ref, layout)
+    paths       <- compilation.generateFiles(io, layout)
+    _           <- ~compilation.bspUpdate(io, layout)
+  } yield compilation
+
+  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
+    compilationCache.getOrElse(layout.bloopDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
+  }
+
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
+    compilationCache.get(layout.bloopDir).map(Await.result(_, Duration.Inf)).getOrElse(mkCompilation(io, schema, ref, layout))
+  }
+
 
 }
 
@@ -395,6 +415,13 @@ case class Compilation(
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
 
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
+
+  def bspUpdate(io: Io, layout: Layout): Unit =
+    Compilation.bspPool.borrow(io, layout.bloopDir) { conn =>
+      conn.provision(this, layout, null) { server =>
+        server.workspaceBuildTargets.get.getTargets.asScala
+      }
+    }
 
   def apply(ref: ModuleRef): Try[Target] =
     targets.get(ref).ascribe(ItemNotFound(ref.moduleId))

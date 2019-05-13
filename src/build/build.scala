@@ -199,7 +199,6 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
-      target    <- universe.makeTarget(io, module.ref(project), layout)
       compilation <- universe.compilation(io, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
@@ -208,7 +207,7 @@ object BuildCli {
                         compilation.targets.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
-                 .apply(target.id)
+                 .apply(TargetId(schema.id, module.ref(project)))
                  .andThen {
                    case compRes =>
                      multiplexer.closeAll()
@@ -341,8 +340,7 @@ object BuildCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       hierarchy   <- schema.hierarchy(io, layout.base, layout)
       universe    <- hierarchy.universe
-      target      <- universe.makeTarget(io, module.ref(project), layout)
-      compilation <- universe.compilation(io, target.id.ref, layout)
+      compilation <- universe.compilation(io, module.ref(project), layout)
       _ <- ~Graph
             .draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true, Map())(config.theme)
             .foreach(io.println(_))
