@@ -372,7 +372,7 @@ class BuildingClient() extends BuildClient {
       }
       .toMap
 
-    TargetId(uriQuery("id"))
+    TargetId(uriQuery("id").replace("__", ":"))
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
@@ -504,9 +504,10 @@ case class Compilation(
     Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, layout, multiplexer) { server =>
+          val uri: String = s"file://${layout.workDir(targetId).value}?id=${targetId.toString}"
           val statusCode =
-            if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(targetId.key))).get.getStatusCode
-            else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(targetId.key)).asJava)).get.getStatusCode
+            if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
+            else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
           if(statusCode != StatusCode.OK) conn.writeTrace(layout)
           statusCode == StatusCode.OK
         }
@@ -1197,6 +1198,8 @@ case class TargetId(key: String) extends AnyVal {
   def projectId: ProjectId = ProjectId(key.split(":")(1))
   def schemaId: SchemaId = SchemaId(key.split(":")(0))
   def ref: ModuleRef = ModuleRef(projectId, moduleId)
+
+  override def toString: String = key.replace(":", "__")
 }
 
 case class Target(

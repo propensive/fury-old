@@ -61,11 +61,11 @@ object Bloop {
       Json(
           version = "1.0.0",
           project = Json(
-              name = target.id.key,
+              name = target.id.toString,
               directory = layout.workDir(target.id).value,
               sources = target.sourcePaths.map(_.value),
               dependencies = compilation
-                .graph(target.id).map(_.key),
+                .graph(target.id).map(_.toString),
               classpath = (classpath ++ compilerClasspath).map(_.value),
               out = str"${layout.outputDir(target.id).value}",
               classesDir = str"${layout.classesDir(target.id).value}",

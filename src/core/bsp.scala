@@ -39,7 +39,7 @@ import language.higherKinds
 
 object Bsp {
 
-  val bspVersion = "2.0.0"
+  val bspVersion = "2.0.0-M4"
 
   def createConfig(layout: Layout): Try[Unit] = {
     val bspDir    = layout.bspDir.extant()
