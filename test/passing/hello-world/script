@@ -9,5 +9,5 @@ fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { new java.io.PrintWriter("test/tmp/hello-world/.content") { write("Hello World\n"); close() } }' > src/hw.scala
 timeout 180 fury build compile --output linear
-cat .content
 echo $?
+cat .content
