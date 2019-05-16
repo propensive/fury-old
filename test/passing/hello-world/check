@@ -5,21 +5,7 @@ Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
 Resolving org.scala-lang:scala-compiler:2.12.8
-other: NoCompile(scala/compiler)
 Starting compilation of module hello-world/app
-other: NoCompile(hello-world/app)
-other: CompilationProgress(hello-world/app,0.15384615384615385)
-other: CompilationProgress(hello-world/app,0.15384615384615385)
-other: CompilationProgress(hello-world/app,0.3076923076923077)
-other: CompilationProgress(hello-world/app,0.3076923076923077)
-other: CompilationProgress(hello-world/app,0.5)
-other: CompilationProgress(hello-world/app,0.5)
-other: CompilationProgress(hello-world/app,0.6538461538461539)
-other: CompilationProgress(hello-world/app,0.6538461538461539)
-other: CompilationProgress(hello-world/app,0.8076923076923077)
-other: CompilationProgress(hello-world/app,0.8076923076923077)
-other: CompilationProgress(hello-world/app,1.0)
-other: CompilationProgress(hello-world/app,1.0)
 Successfully compiled module hello-world/app
 0
 Hello World
