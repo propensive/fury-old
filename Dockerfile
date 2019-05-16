@@ -17,6 +17,12 @@ RUN sh -c "cd /opt &&  curl -s -L https://github.com/oracle/graal/releases/downl
 ENV GRAAL_HOME "/opt/graalvm-ce-${GRAAL_VERSION}"
 RUN apt-get -qq install gcc libz-dev > /dev/null
 
+# Set up mirror for Maven Central
+RUN mkdir -p /root/.config/coursier/
+ADD etc/ci-mirror.properties /root/.config/coursier/mirror.properties
+RUN mkdir -p /home/bash_user/.config/coursier/
+ADD etc/ci-mirror.properties /home/bash_user/.config/coursier/mirror.properties
+
 # Set up build directory
 RUN mkdir -p /build /build/bootstrap
 RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala

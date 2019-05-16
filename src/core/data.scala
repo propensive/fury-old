@@ -106,7 +106,7 @@ object Binary {
 
   def unapply(service: BinRepoId, string: String): Try[Binary] =
     string match {
-      case r"$g@([\.\-_a-zA-Z0-9]*)\:$a@([\.\-_a-zA-Z0-9]*)\:$v@([\.\-_a-zA-Z0-9]*)" =>
+      case r"$g@([\.\-_a-zA-Z0-9]*)\:$a@([\.\-_a-zA-Z0-9]*)\:$v@([\.\-\+_a-zA-Z0-9]*)" =>
         Success(Binary(service, g, a, v))
       case _ =>
         Failure(InvalidArgValue("binary", string))
@@ -215,7 +215,7 @@ object Compilation {
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val furyHome = System.getProperty("fury.home")
-      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+271-7c4a6e6a")
+      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+424-f4facec5")
       val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
       // FIXME: This surely isn't the best way to consume a stream.
       new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()

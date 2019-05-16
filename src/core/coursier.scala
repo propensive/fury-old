@@ -36,11 +36,9 @@ object Coursier {
 
   def fetch(io: Io, binary: Binary): Future[List[Path]] = {
     def resolveRepository(repoId: String): Future[Repository] =
-      coursier.cache.CacheParse
-        .repositories(Seq(repoId))
-        .either
-        .map { repos =>
-          Future.successful(repos.head)
+      coursier.internal.SharedRepositoryParser.repository(repoId)
+        .map { repo =>
+          Future.successful(repo)
         }
         .left
         .map { _ =>
@@ -60,10 +58,9 @@ object Coursier {
                 exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
             )
         )
-        .future
-        .map(_._2.to[List].map { a =>
-          Path(a._2.getAbsolutePath)
-        })
+        .future.map (_.map{ a =>
+          Path(a.getAbsolutePath)
+        }.toList)
     }
 
     cache.getOrElseUpdate(binary, resolveRepository(binary.binRepo.id).flatMap(resolve))
