@@ -49,9 +49,9 @@ object GraphReporter extends Reporter("graph") {
       startTime: Long
     ): Unit = {
     Graph.live(
-        changed = false,
+        changed = true,
         io,
-        compilation.allDependenciesGraph.mapValues(_.to[Set]),
+        compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) },
         multiplexer.stream(50, Some(Tick)),
         Map(),
         false)(theme)
@@ -74,7 +74,7 @@ object LinearReporter extends Reporter("linear") {
       case StopCompile(ref, true)      => io.println(msg"Successfully compiled module $ref")
       case StopCompile(ref, false)     => io.println(msg"Compilation of module $ref failed")
       case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out)
-      case _ => ()
+      case other => ()
     }
 }
 

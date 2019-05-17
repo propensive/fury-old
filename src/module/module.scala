@@ -159,6 +159,8 @@ object ModuleCli {
                       lens(ws) = optCompilerRef
                   } else Try(layer)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
       _ <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
@@ -187,6 +189,8 @@ object ModuleCli {
                 if (lens(ws) == Some(moduleId)) lens(ws) = None else ws
               }
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 
@@ -259,6 +263,8 @@ object ModuleCli {
                 pluginName.map(Some(_))
       layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
       _     <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 }
@@ -316,6 +322,8 @@ object BinaryCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 
@@ -334,6 +342,8 @@ object BinaryCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 }
@@ -390,6 +400,8 @@ object ParamCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 
@@ -405,6 +417,8 @@ object ParamCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) += param)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 }

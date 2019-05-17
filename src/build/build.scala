@@ -17,13 +17,15 @@ package fury
 
 import fury.strings._, fury.io._, fury.core._, fury.ogdl._
 
+import Args._
+
 import guillotine._
 
 import scala.concurrent._
 import scala.util._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import Args._
+import language.higherKinds
 
 object ConfigCli {
 
@@ -195,18 +197,15 @@ object BuildCli {
                       .orElse(project.main)
       optModule   <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module      <- optModule.ascribe(UnspecifiedModule())
-      hierarchy   <- schema.hierarchy(io, layout.base, layout)
-      universe    <- hierarchy.universe
-      artifact    <- universe.artifact(io, module.ref(project), layout)
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      compilation <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
-                        compilation.artifacts.map(_._1).to[List]))
+                        compilation.targets.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
-                 .apply(module.ref(project))
+                 .apply(TargetId(schema.id, module.ref(project)))
                  .andThen {
                    case compRes =>
                      multiplexer.closeAll()
@@ -259,9 +258,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      hierarchy    <- schema.hierarchy(io, layout.base, layout)
-      universe     <- hierarchy.universe
-      compilation  <- universe.compilation(io, module.ref(project), layout)
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _            <- compilation.saveJars(io, module.ref(project), dir in layout.pwd, layout)
     } yield io.await()
   }
@@ -284,9 +281,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      hierarchy    <- schema.hierarchy(io, layout.base, layout)
-      universe     <- hierarchy.universe
-      compilation  <- universe.compilation(io, module.ref(project), layout)
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _            <- if (module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
       _            <- compilation.saveNative(io, module.ref(project), dir in layout.pwd, layout, main)
@@ -311,9 +306,7 @@ object BuildCli {
       io          <- invoc.io()
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      hierarchy   <- schema.hierarchy(io, layout.base, layout)
-      universe    <- hierarchy.universe
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      compilation <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       classpath   <- ~compilation.classpath(module.ref(project), layout)
       _           <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
@@ -337,12 +330,9 @@ object BuildCli {
                   }
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      hierarchy   <- schema.hierarchy(io, layout.base, layout)
-      universe    <- hierarchy.universe
-      artifact    <- universe.artifact(io, module.ref(project), layout)
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      compilation <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _ <- ~Graph
-            .draw(compilation.allDependenciesGraph.mapValues(_.to[Set]), true, Map())(config.theme)
+            .draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true, Map())(config.theme)
             .foreach(io.println(_))
     } yield io.await()
   }

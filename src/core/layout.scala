@@ -15,7 +15,7 @@
  */
 package fury.core
 
-import fury.io._
+import fury._, io._, strings._
 
 import gastronomy._
 import guillotine._
@@ -76,28 +76,28 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val traceLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
 
-  def bloopConfig(digest: Digest): Path =
-    bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
+  def bloopConfig(targetId: TargetId): Path =
+    bloopDir.extant() / str"${targetId.key}.json"
 
   lazy val furyConfig: Path = base / "layer.fury"
 
-  def outputDir(digest: Digest): Path =
-    (analysisDir / digest.encoded[Base64Url]).extant()
+  def outputDir(targetId: TargetId): Path =
+    (analysisDir / targetId.key).extant()
 
-  def workDir(digest: Digest): Path =
-    (workDir / digest.encoded[Base64Url]).extant()
+  def workDir(targetId: TargetId): Path =
+    (workDir / targetId.key).extant()
 
-  def benchmarksDir(digest: Digest): Path =
-    (benchmarksDir / digest.encoded[Base64Url]).extant()
+  def benchmarksDir(targetId: TargetId): Path =
+    (benchmarksDir / targetId.key).extant()
 
-  def classesDir(digest: Digest): Path =
-    (classesDir / digest.encoded[Base64Url]).extant()
+  def classesDir(targetId: TargetId): Path =
+    (classesDir / targetId.key).extant()
 
-  def resourcesDir(digest: Digest): Path =
-    (resourcesDir / digest.encoded[Base64Url]).extant()
+  def resourcesDir(targetId: TargetId): Path =
+    (resourcesDir / targetId.key).extant()
 
-  def manifestFile(digest: Digest): Path =
-    resourcesDir(digest) / "manifest.mf"
+  def manifestFile(targetId: TargetId): Path =
+    resourcesDir(targetId) / "manifest.mf"
 
   val shell = Shell(env)
 

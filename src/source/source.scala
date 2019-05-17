@@ -99,6 +99,7 @@ object SourceCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
       _ <- ~Layer.save(io, layer, layout)
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout))
     } yield io.await()
   }
 
@@ -131,6 +132,7 @@ object SourceCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)
       _ <- ~Layer.save(io, layer, layout)
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout))
     } yield io.await()
   }
 }

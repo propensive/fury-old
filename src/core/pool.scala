@@ -28,7 +28,6 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   object Entry { implicit val ord: Ordering[Entry] = Ordering[Long].on(_.timestamp) }
   case class Entry(timestamp: Long, key: K, value: T)
 
-  private[this] var count: Int = 0
   private[this] var pool: SortedSet[Entry] = TreeSet()
 
   @tailrec
@@ -36,7 +35,6 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
     val result = pool.find(_.key == key) match {
       case None =>
         Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
-          count += 1
           pool += Entry(System.currentTimeMillis, key, value)
           Some(value)
         }.toOption.getOrElse(None)

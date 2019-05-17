@@ -15,16 +15,18 @@
  */
 package fury.core
 
-import fury.io._, fury.strings._, fury.ogdl._
+import fury._, io._, strings._, ogdl._
 
-import ch.epfl.scala.bsp4j.{CompileResult => _, _}
+import Graph.{Compiling, CompilerDiagnostic, OtherMessage, DiagnosticMessage}
+
 import exoskeleton._
 import gastronomy._
 import kaleidoscope._
 import mercator._
+
 import org.eclipse.lsp4j.jsonrpc.Launcher
+import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
-import Graph.{Compiling, CompilerDiagnostic, OtherMessage, DiagnosticMessage}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
@@ -38,6 +40,8 @@ import scala.reflect.{ClassTag, classTag}
 import java.io.{CharArrayWriter, PrintWriter}
 import java.time.LocalDateTime
 import java.util.concurrent.Executors
+
+import language.higherKinds
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
@@ -155,7 +159,7 @@ case class Module(
 
 object BloopSpec {
   implicit val msgShow: MsgShow[BloopSpec]       = v => msg"${v.org}:${v.name}"
-  implicit val stringShow: StringShow[BloopSpec] = bs => s"${bs.org}:${bs.name}"
+  implicit val stringShow: StringShow[BloopSpec] = bs => str"${bs.org}:${bs.name}"
   implicit def diff: Diff[BloopSpec]             = Diff.gen[BloopSpec]
 
   def parse(str: String): Try[BloopSpec] = str match {
@@ -182,12 +186,11 @@ case class BspConnection(
     future.cancel(true)
   }
 
-  def provision[T](
-      currentCompilation: Compilation,
-      layout: Layout,
-      currentMultiplexer: Multiplexer[ModuleRef, CompileEvent]
-    )(action: FuryBspServer => T
-    ): T = {
+  def provision[T](currentCompilation: Compilation,
+                   layout: Layout,
+                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]])
+                  (action: FuryBspServer => T)
+                  : T = {
     client.compilation = currentCompilation
     client.layout = layout
     client.multiplexer = currentMultiplexer
@@ -214,6 +217,7 @@ object Compilation {
       val furyHome = System.getProperty("fury.home")
       val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+271-7c4a6e6a")
       val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
+      // FIXME: This surely isn't the best way to consume a stream.
       new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[FuryBspServer]()
@@ -239,6 +243,23 @@ object Compilation {
     }
   }
 
+  private val compilationCache: HashMap[Path, Future[Try[Compilation]]] = HashMap()
+
+  def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
+    hierarchy   <- schema.hierarchy(io, layout.base, layout)
+    universe    <- hierarchy.universe
+    compilation <- universe.compilation(io, ref, layout)
+    paths       <- compilation.generateFiles(io, layout)
+    _           <- ~compilation.bspUpdate(io, layout)
+  } yield compilation
+
+  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
+    compilationCache.getOrElse(layout.furyDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
+  }
+
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
+    compilationCache.get(layout.furyDir).map(Await.result(_, Duration.Inf)).getOrElse(mkCompilation(io, schema, ref, layout))
+  }
 }
 
 object LineNo {
@@ -249,15 +270,14 @@ case class LineNo(line: Int) extends AnyVal
 class BuildingClient() extends BuildClient {
   var compilation: Compilation                          = _
   var layout: Layout                                    = _
-  var multiplexer: Multiplexer[ModuleRef, CompileEvent] = _
+  var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {}
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-    val hash     = getModuleHash(params.getBuildTarget.getUri)
-    val modref   = compilation.reverseHashes(hash)
+    val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
 
     val repos = compilation.checkouts.map { checkout =>
@@ -303,10 +323,11 @@ class BuildingClient() extends BuildClient {
         case _ => msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("H")}${Ansi.Color.base01("]")}"
       }
 
-      multiplexer(modref) = DiagnosticMsg(
-          modref,
+      multiplexer.foreach { mp =>
+        mp(targetId.ref) = DiagnosticMsg(
+          targetId.ref,
           CompilerDiagnostic(
-              msg"""$severity ${modref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
+              msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
   ${'|'} ${UserMsg(
                   theme =>
                     diag.getMessage
@@ -324,7 +345,8 @@ class BuildingClient() extends BuildClient {
               lineNo,
               charNum
           )
-      )
+        )
+      }
     }
   }
 
@@ -338,7 +360,8 @@ class BuildingClient() extends BuildClient {
     report
   }
 
-  def getModuleHash(bspUri: String) = {
+  // FIXME: We should implement this using a regular expression
+  def getTargetId(bspUri: String): TargetId = {
     val uriQuery = new java.net.URI(bspUri).getRawQuery
       .split("&")
       .to[List]
@@ -348,86 +371,64 @@ class BuildingClient() extends BuildClient {
       }
       .toMap
 
-    uriQuery("id")
+    TargetId(uriQuery("id"))
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
-    val report = convertDataTo[CompileTask](params.getData)
-    val hash   = getModuleHash(report.getTarget.getUri)
-    val modref = compilation.reverseHashes(hash)
-    multiplexer(modref) = CompilationProgress(modref, params.getProgress.toDouble / params.getTotal)
+    val report   = convertDataTo[CompileTask](params.getData)
+    val targetId = getTargetId(report.getTarget.getUri)
+    multiplexer.foreach { mp =>
+      mp(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
+    }
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
-    val report = convertDataTo[CompileTask](params.getData)
-    val hash   = getModuleHash(report.getTarget.getUri)
-    val modref = compilation.reverseHashes(hash)
-    multiplexer(modref) = StartCompile(modref)
-    compilation.deepDependencies(modref).foreach { ref =>
-      multiplexer(ref) = NoCompile(ref)
+    val report   = convertDataTo[CompileTask](params.getData)
+    val targetId = getTargetId(report.getTarget.getUri)
+    multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
+    compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
+      multiplexer.foreach { mp => mp(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref) }
     }
   }
   override def onBuildTaskFinish(params: TaskFinishParams): Unit =
     params.getDataKind match {
       case TaskDataKind.COMPILE_REPORT =>
         val report = convertDataTo[CompileReport](params.getData)
-        val modref = compilation.reverseHashes.compose(getModuleHash)(report.getTarget.getUri)
+        val targetId = getTargetId(report.getTarget.getUri)
         params.getStatus match {
-          case StatusCode.OK => {
-            multiplexer(modref) = StopCompile(modref, true)
-          }
-          case StatusCode.ERROR => {
-            multiplexer(modref) = StopCompile(modref, false)
-          }
-          case StatusCode.CANCELLED => {
-            multiplexer(modref) = StopCompile(modref, false)
-          }
+          case StatusCode.OK =>
+            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, true) }
+          case StatusCode.ERROR =>
+            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
+          case StatusCode.CANCELLED =>
+            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
         }
     }
 }
 
 case class Compilation(
-    allDependenciesGraph: Map[ModuleRef, List[ModuleRef]],
-    modulesToExecuteBloopGraph: Map[ModuleRef, List[ModuleRef]],
+    graph: Map[TargetId, List[TargetId]],
+    subgraphs: Map[TargetId, List[TargetId]],
     checkouts: Set[Checkout],
-    artifacts: Map[ModuleRef, Artifact],
+    targets: Map[ModuleRef, Target],
     universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
 
-  val reverseHashes = artifacts.keys.map { moduleRef =>
-    hash(moduleRef).encoded[Base64Url] -> moduleRef
-  }.toMap
+  lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def hash(ref: ModuleRef): Digest = {
-    val artifact = artifacts(ref)
-    hashes.getOrElseUpdate(
-        ref, {
-          (
-              artifact.kind,
-              artifact.main,
-              artifact.plugin,
-              artifact.checkouts,
-              artifact.binaries,
-              artifact.dependencies,
-              artifact.compiler.map { c =>
-                hash(c.ref)
-              },
-              artifact.params,
-              artifact.intransitive,
-              artifact.sourcePaths,
-              allDependenciesGraph(ref).map(hash(_))).digest[Md5]
-        }
-    )
-  }
+  def bspUpdate(io: Io, layout: Layout): Unit =
+    Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+      conn.provision(this, layout, None) { server =>
+        server.workspaceBuildTargets.get.getTargets.asScala.toString
+      }
+    }
 
-  lazy val allDependencies: Set[Artifact] = artifacts.values.to[Set]
+  def apply(ref: ModuleRef): Try[Target] =
+    targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
-  def apply(ref: ModuleRef): Try[Artifact] =
-    artifacts.get(ref).ascribe(ItemNotFound(ref.moduleId))
-
-  def deepDependencies(ref: ModuleRef): Set[ModuleRef] =
-    Set(ref) ++ allDependenciesGraph(ref).to[Set].flatMap(deepDependencies(_))
+  def deepDependencies(targetId: TargetId): Set[TargetId] =
+    Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
 
   def checkoutAll(io: Io, layout: Layout): Unit =
     checkouts.foreach(_.get(io, layout).unit)
@@ -437,18 +438,18 @@ case class Compilation(
   }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
-    allDependencies.flatMap { a =>
-      Set(layout.classesDir(hash(a.ref)), layout.resourcesDir(hash(a.ref)))
-    } ++ allDependencies.flatMap(_.binaries) ++ artifacts(ref).binaries
+    allDependencies.flatMap { target =>
+      Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
+    } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
-    val artifact = artifacts(ref)
-    if (artifact.kind == Plugin) {
-      val file = layout.classesDir(hash(ref)) / "scalac-plugin.xml"
+    val target = targets(ref)
+    if (target.kind == Plugin) {
+      val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
-      artifact.main.foreach { main =>
+      target.main.foreach { main =>
         file.writeSync(
-            str"<plugin><name>${artifact.plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
+            str"<plugin><name>${target.plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
       }
     }
   }
@@ -463,146 +464,124 @@ case class Compilation(
   def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Try[Unit] =
     for {
       dest <- dest.directory
-      dirs <- ~(allDependencies + artifacts(ref)).map { a =>
-               layout.classesDir(hash(a.ref))
+      dirs <- ~(allDependencies + targets(ref)).map { target =>
+               layout.classesDir(target.id)
              }
       files <- ~dirs.map { dir =>
                 (dir, dir.children)
               }.filter(_._2.nonEmpty)
       bins         <- ~allDependencies.flatMap(_.binaries)
-      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(hash(ref))}")
-      manifestFile <- Manifest.file(layout.manifestFile(hash(ref)), bins.map(_.name), None)
+      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(targets(ref).id)}")
+      manifestFile <- Manifest.file(layout.manifestFile(targets(ref).id), bins.map(_.name), None)
       path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _            <- ~io.println(msg"Saving JAR file $path")
       _            <- layout.shell.aggregatedJar(path, files, manifestFile)
-      _ <- ~bins.foreach { b =>
-            b.copyTo(dest / b.name)
+      _ <- ~bins.foreach { bin =>
+            bin.copyTo(dest / bin.name)
           }
     } yield ()
 
   def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
-    (artifacts(ref).params ++ allDependencies.filter(_.kind == Plugin).map { plugin =>
-      Parameter(str"Xplugin:${layout.classesDir(hash(plugin.ref))}")
+    (targets(ref).params ++ allDependencies.filter(_.kind == Plugin).map { pluginTarget =>
+      Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
     }).map(_.parameter)
 
   def jmhRuntimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
-    artifacts(ref).compiler.to[Set].flatMap { c =>
-      Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
+    targets(ref).compiler.to[Set].flatMap { compilerTarget =>
+      Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout)
 
   def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
-    artifacts(ref).compiler.to[Set].flatMap { c =>
-      Set(layout.classesDir(hash(c.ref)), layout.resourcesDir(hash(c.ref)))
-    } ++ classpath(ref, layout) + layout.classesDir(hash(ref)) + layout.resourcesDir(hash(ref))
+    targets(ref).compiler.to[Set].flatMap { compilerTarget =>
+      Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
+    } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
-  def compileModule(
-      io: Io,
-      target: ModuleRef,
-      layout: Layout,
-      application: Boolean,
-      multiplexer: Multiplexer[ModuleRef, CompileEvent]
-    ): Future[Boolean] = Future {
-    blocking {
-      val targetHash = hash(target).encoded
+  def compileModule(io: Io,
+                    targetId: TargetId,
+                    layout: Layout,
+                    application: Boolean,
+                    multiplexer: Multiplexer[ModuleRef, CompileEvent])
+                    : Future[Boolean] =
+    Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
-        conn.provision(this, layout, multiplexer) { server =>
-          val targets = server.workspaceBuildTargets.get.getTargets.asScala
-          targets.find(_.getDisplayName == targetHash) match {
-            case Some(t) =>
-              if(application) {
-                val result = server.buildTargetRun(new RunParams(t.getId)).get
-                if(result.getStatusCode != StatusCode.OK) conn.writeTrace(layout)
-                result.getStatusCode == StatusCode.OK
-              } else {
-                val result = server.buildTargetCompile(new CompileParams(List(t.getId).asJava)).get
-                if(result.getStatusCode != StatusCode.OK) {
-                  conn.writeTrace(layout)
-                }.map { _ => io.println(str"BSP trace saved to ${layout.traceLogfile}")}.get
-                result.getStatusCode == StatusCode.OK
-              }
-            case None =>
-              throw new RuntimeException(
-                  s"Fatal error: target for $target ($targetHash) not found in build targets of '${layout.furyDir.value}'. " +
-                    s"Known targets are: ${targets.map(_.getDisplayName)}")
-
-          }
+        conn.provision(this, layout, Some(multiplexer)) { server =>
+          val uri: String = s"file://${layout.workDir(targetId).value}?id=${targetId.key}"
+          val statusCode =
+            if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
+            else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
+          if(statusCode != StatusCode.OK) conn.writeTrace(layout)
+          statusCode == StatusCode.OK
         }
       }
-    }
-  }
+    } }
 
-  def compile(
-      io: Io,
-      moduleRef: ModuleRef,
-      multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      futures: Map[ModuleRef, Future[CompileResult]] = Map(),
-      layout: Layout
-    ): Map[ModuleRef, Future[CompileResult]] = {
-
-    val artifact = artifacts(moduleRef)
-    val newFutures = modulesToExecuteBloopGraph(moduleRef).foldLeft(futures) { (futures, dep) =>
-      if (futures.contains(dep)) futures
-      else compile(io, dep, multiplexer, futures, layout)
+  def compile(io: Io,
+              moduleRef: ModuleRef,
+              multiplexer: Multiplexer[ModuleRef, CompileEvent],
+              futures: Map[TargetId, Future[CompileResult]] = Map(),
+              layout: Layout)
+              : Map[TargetId, Future[CompileResult]] = {
+    val target = targets(moduleRef)
+    val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
+      if (futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
-    val dependencyFutures = Future.sequence(modulesToExecuteBloopGraph(moduleRef).map(newFutures))
+    val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
     val future =
       dependencyFutures.flatMap { inputs =>
         if (inputs.exists(!_.success)) {
-          multiplexer(artifact.ref) = SkipCompile(artifact.ref)
-          multiplexer.close(artifact.ref)
+          multiplexer(target.ref) = SkipCompile(target.ref)
+          multiplexer.close(target.ref)
           Future.successful(CompileResult(false))
         } else {
-          val noCompilation = artifact.sourcePaths.isEmpty
-          if (noCompilation) deepDependencies(artifact.ref).foreach { ref =>
-            multiplexer(ref) = NoCompile(ref)
+          val noCompilation = target.sourcePaths.isEmpty
+          if (noCompilation) deepDependencies(target.id).foreach { targetId =>
+            multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           blocking {
-            compileModule(io, artifact.ref, layout, artifact.kind == Application, multiplexer)
+            compileModule(io, target.id, layout, target.kind == Application, multiplexer)
           }.map { compileResult =>
-            if (compileResult && artifact.kind == Benchmarks) {
+            if (compileResult && target.kind == Benchmarks) {
               // FIXME: This will need to use a different classes directory for instrumenting the classfiles, since bloop now uses a different directory
               Jmh.instrument(
-                  layout.classesDir(hash(artifact.ref)),
-                  layout.benchmarksDir(hash(artifact.ref)),
-                  layout.resourcesDir(hash(artifact.ref)))
+                  layout.classesDir(target.id),
+                  layout.benchmarksDir(target.id),
+                  layout.resourcesDir(target.id))
+
               val javaSources =
-                layout.benchmarksDir(hash(artifact.ref)).findChildren(_.endsWith(".java"))
+                layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
               layout.shell.javac(
-                  classpath(artifact.ref, layout).to[List].map(_.value),
-                  layout.classesDir(hash(artifact.ref)).value,
+                  classpath(target.ref, layout).to[List].map(_.value),
+                  layout.classesDir(target.id).value,
                   javaSources.map(_.value).to[List])
               val out = new StringBuilder()
               val res = layout.shell
                 .runJava(
-                    jmhRuntimeClasspath(io, artifact.ref, layout).to[List].map(_.value),
-                    if (artifact.kind == Benchmarks) "org.openjdk.jmh.Main"
-                    else artifact.main.getOrElse(""),
-                    securePolicy = artifact.kind == Application,
+                    jmhRuntimeClasspath(io, target.ref, layout).to[List].map(_.value),
+                    if (target.kind == Benchmarks) "org.openjdk.jmh.Main"
+                    else target.main.getOrElse(""),
+                    securePolicy = target.kind == Application,
                     layout
                 ) { ln =>
-                  if (artifact.kind == Benchmarks) multiplexer(artifact.ref) = Print(ln)
+                  if (target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
                   else {
                     out.append(ln)
                     out.append("\n")
                   }
                 }.await() == 0
-              multiplexer(artifact.ref) = DiagnosticMsg(artifact.ref, OtherMessage(out.mkString))
-              deepDependencies(artifact.ref).foreach { ref =>
-                multiplexer(ref) = NoCompile(ref)
+              multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
+              deepDependencies(target.id).foreach { targetId =>
+                multiplexer(targetId.ref) = NoCompile(targetId.ref)
               }
-              multiplexer(artifact.ref) = StopCompile(artifact.ref, res)
-              multiplexer.close(artifact.ref)
-              multiplexer(artifact.ref) = StopStreaming
+              multiplexer(target.ref) = StopCompile(target.ref, res)
+              multiplexer.close(target.ref)
+              multiplexer(target.ref) = StopStreaming
               res
             } else compileResult
-
-// end inserted
-
           }.map(CompileResult(_))
         }
       }
-    newFutures.updated(artifact.ref, future)
+    newFutures.updated(target.id, future)
   }
 }
 case class Entity(project: Project, schema: Schema, path: Path)
@@ -617,26 +596,27 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def entity(id: ProjectId): Try[Entity] =
     entities.get(id).ascribe(ItemNotFound(id))
 
-  def artifact(io: Io, ref: ModuleRef, layout: Layout): Try[Artifact] =
+  def makeTarget(io: Io, ref: ModuleRef, layout: Layout): Try[Target] =
     for {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)
       compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
-                 else artifact(io, module.compiler, layout).map(Some(_))
+                 else makeTarget(io, module.compiler, layout).map(Some(_))
       binaries <- ~Await.result(
                      module.allBinaries.map(_.paths(io)).sequence.map(_.flatten),
                      duration.Duration.Inf)
       checkouts <- checkout(ref, layout)
     } yield
-      Artifact(
+      Target(
           ref,
+          entity.schema.id,
           module.kind,
           module.main,
           module.plugin,
           entity.schema.repos.map(_.repo).to[List],
           checkouts.to[List],
           binaries.to[List],
-          module.after.to[List],
+          module.after.map(TargetId(entity.schema.id, _)).to[List],
           compiler,
           module.bloopSpec,
           module.params.to[List],
@@ -678,8 +658,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     for {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)
-      deps   = module.after ++ module.compilerDependencies
-      art    <- artifact(io, ref, layout)
+      deps    = module.after ++ module.compilerDependencies
       tDeps  <- deps.map(dependencies(io, _, layout)).sequence
     } yield deps ++ tDeps.flatten
 
@@ -694,37 +673,24 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] =
     for {
-      art <- artifact(io, ref, layout)
-      graph <- dependencies(io, ref, layout)
-                .map(_.map(artifact(io, _, layout)).map { a =>
-                  a.map { a =>
-                    (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
+      target <- makeTarget(io, ref, layout)
+      entity <- entity(ref.projectId)
+      graph  <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
+                  a.map { dependencyTarget =>
+                    (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
                   }
-                }.sequence
-                  .map(_.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide))))
-                .flatten
-      allModuleRefs = graph.keys
-      allModules    <- allModuleRefs.traverse(ref => getMod(ref).map((ref, _)))
-      applicationModulesRefs = allModules.filter {
-        case (_, mod) => mod.kind == Application || mod.kind == Benchmarks
-      }.map {
-        case (ref, _) => ref
-      }
-      reducedGraph = DirectedGraph(graph.mapValues(_.toSet))
-        .subgraph(applicationModulesRefs.toSet + ref)
-        .connections
-        .mapValues(_.toList)
-      artifacts <- graph.keys.map { key =>
-                    artifact(io, key, layout).map(key -> _)
-                  }.sequence.map(_.toMap)
-      checkouts <- graph.keys.map(checkout(_, layout)).sequence
+                }.sequence.map(_.toMap.updated(target.id, target.dependencies ++ target.compiler.map(_.id)))).flatten
+      targets   <- graph.keys.map { targetId => makeTarget(io, targetId.ref, layout).map(targetId.ref -> _) }.sequence.map(_.toMap)
+      appModules = targets.filter(_._2.executed)
+      subgraphs = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] + TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
+      checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
     } yield
       Compilation(
           graph,
-          reducedGraph,
+          subgraphs,
           checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-          artifacts ++ (art.compiler.map { c =>
-            c.ref -> c
+          targets ++ (target.compiler.map { compilerTarget =>
+            compilerTarget.ref -> compilerTarget
           }),
           this)
 }
@@ -944,7 +910,7 @@ object ModuleRef {
       case _ =>
         Failure(ItemNotFound(ModuleId(string)))
     }
-}
+  }
 
 case class ModuleRef(
     projectId: ProjectId,
@@ -973,8 +939,8 @@ object SchemaId {
   final val default = SchemaId("default")
 
   def parse(name: String): Try[SchemaId] = name match {
-    case r"[a-z]([-._]?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
-    case _                             => Failure(InvalidValue(name))
+    case r"[a-z](-?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
+    case _                         => Failure(InvalidValue(name))
   }
 }
 
@@ -1169,9 +1135,9 @@ case class Repo(url: String) {
     } else Success(path(layout))
 
   def simplified: String = url match {
-    case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => s"gh:$group/$project"
-    case r"git@bitbucket.com:$group@(.*)/$project@(.*)\.git" => s"bb:$group/$project"
-    case r"git@gitlab.com:$group@(.*)/$project@(.*)\.git"    => s"gl:$group/$project"
+    case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => str"gh:$group/$project"
+    case r"git@bitbucket.com:$group@(.*)/$project@(.*)\.git" => str"bb:$group/$project"
+    case r"git@gitlab.com:$group@(.*)/$project@(.*)\.git"    => str"gl:$group/$project"
     case other                                               => other
   }
 
@@ -1225,20 +1191,43 @@ case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends Compile
 
 case class CompileResult(success: Boolean)
 
-case class Artifact(
+object TargetId {
+  implicit val stringShow: StringShow[TargetId] = _.key
+  
+  def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
+    TargetId(str"${schemaId}_${projectId}_${moduleId}")
+  
+    def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
+      TargetId(schemaId, ref.projectId, ref.moduleId)
+}
+
+case class TargetId(key: String) extends AnyVal {
+  def moduleId: ModuleId = ModuleId(key.split("_")(2))
+  def projectId: ProjectId = ProjectId(key.split("_")(1))
+  def schemaId: SchemaId = SchemaId(key.split("_")(0))
+  def ref: ModuleRef = ModuleRef(projectId, moduleId)
+}
+
+case class Target(
     ref: ModuleRef,
+    schemaId: SchemaId,
     kind: Kind,
     main: Option[String],
     plugin: Option[String],
     repos: List[Repo],
     checkouts: List[Checkout],
     binaries: List[Path],
-    dependencies: List[ModuleRef],
-    compiler: Option[Artifact],
+    dependencies: List[TargetId],
+    compiler: Option[Target],
     bloopSpec: Option[BloopSpec],
     params: List[Parameter],
     intransitive: Boolean,
-    sourcePaths: List[Path]) {}
+    sourcePaths: List[Path]) {
+
+  def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
+
+  def executed = kind == Application || kind == Benchmarks
+}
 
 object Project {
   implicit val msgShow: MsgShow[Project]       = v => UserMsg(_.project(v.id.key))

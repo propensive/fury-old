@@ -29,48 +29,45 @@ import scala.util.control.NonFatal
 
 object Bloop {
 
-  def clean(layout: Layout): Try[Boolean] = {
+  def clean(layout: Layout): Try[Boolean] =
     layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
-  }
 
   def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
-    new CollOps(compilation.artifacts.values.map { artifact =>
+    new CollOps(compilation.targets.values.map { target =>
       for {
-        path       <- layout.bloopConfig(compilation.hash(artifact.ref)).mkParents()
-        jsonString <- makeConfig(io, artifact, compilation, layout)
+        path       <- layout.bloopConfig(target.id).mkParents()
+        jsonString <- makeConfig(io, target, compilation, layout)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
   private def makeConfig(
       io: Io,
-      artifact: Artifact,
+      target: Target,
       compilation: Compilation,
       layout: Layout
     ): Try[String] =
     for {
-      _         <- ~compilation.writePlugin(artifact.ref, layout)
-      classpath <- ~compilation.classpath(artifact.ref, layout)
-      compilerClasspath <- ~artifact.compiler.map { c =>
+      _         <- ~compilation.writePlugin(target.ref, layout)
+      classpath <- ~compilation.classpath(target.ref, layout)
+      compilerClasspath <- ~target.compiler.map { c =>
                             compilation.classpath(c.ref, layout)
                           }.getOrElse(classpath)
-      bloopSpec = artifact.compiler
+      bloopSpec = target.compiler
         .flatMap(_.bloopSpec)
         .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7"))
-      params <- ~compilation.allParams(io, artifact.ref, layout)
+      params <- ~compilation.allParams(io, target.ref, layout)
     } yield
       Json(
           version = "1.0.0",
           project = Json(
-              name = compilation.hash(artifact.ref).encoded[Base64Url],
-              directory = layout.workDir(compilation.hash(artifact.ref)).value,
-              sources = artifact.sourcePaths.map(_.value),
-              dependencies = compilation
-                .allDependenciesGraph(artifact.ref)
-                .map(compilation.hash(_).encoded[Base64Url]),
+              name = target.id.key,
+              directory = layout.workDir(target.id).value,
+              sources = target.sourcePaths.map(_.value),
+              dependencies = compilation.graph(target.id).map(_.key),
               classpath = (classpath ++ compilerClasspath).map(_.value),
-              out = str"${layout.outputDir(compilation.hash(artifact.ref)).value}",
-              classesDir = str"${layout.classesDir(compilation.hash(artifact.ref)).value}",
+              out = str"${layout.outputDir(target.id).value}",
+              classesDir = str"${layout.classesDir(target.id).value}",
               scala = Json(
                   organization = bloopSpec.org,
                   name = bloopSpec.name,
@@ -83,7 +80,7 @@ object Bloop {
               jvmPlatform = Json(
                   name = "jvm",
                   config = Json(home = "", options = Nil),
-                  mainClass = artifact.main.to[List]
+                  mainClass = target.main.to[List]
               ),
               resolution = Json(modules = Nil)
           )
