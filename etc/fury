@@ -69,7 +69,7 @@ stopFury() {
 }
 
 isRunning() {
-  (cat < /dev/null > "/dev/tcp/127.0.0.1/${PORT}" > /dev/null) 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null
+  (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>&1) > /dev/null 2>&1  || (printf "Starting Fury daemon...\n" && nailgun "${FURY_MAIN}" about > /dev/null 2>&1)
 }
 
 fury() {
@@ -80,7 +80,7 @@ startFury() {
   isRunning && printf "Fury daemon is running\n" && exit 0
 
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
 
   printf 'Fury daemon is starting...'
   for I in $(seq 1 25); do
