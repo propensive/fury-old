@@ -254,13 +254,12 @@ object Compilation {
   } yield compilation
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
-    compilationCache.getOrElse(layout.bloopDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
+    compilationCache.getOrElse(layout.furyDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
   }
 
-  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] =
-    compilationCache.get(layout.bloopDir).map(Await.result(_, Duration.Inf)).getOrElse(synchronized(mkCompilation(io, schema, ref, layout)))
-
-
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
+    compilationCache.get(layout.furyDir).map(Await.result(_, Duration.Inf)).getOrElse(mkCompilation(io, schema, ref, layout))
+  }
 }
 
 object LineNo {
