@@ -77,24 +77,24 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val traceLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
 
   def bloopConfig(targetId: TargetId): Path =
-    bloopDir.extant() / str"${targetId.toString}.json"
+    bloopDir.extant() / str"${targetId.key}.json"
 
   lazy val furyConfig: Path = base / "layer.fury"
 
   def outputDir(targetId: TargetId): Path =
-    (analysisDir / targetId.toString).extant()
+    (analysisDir / targetId.key).extant()
 
   def workDir(targetId: TargetId): Path =
-    (workDir / targetId.toString).extant()
+    (workDir / targetId.key).extant()
 
   def benchmarksDir(targetId: TargetId): Path =
-    (benchmarksDir / targetId.toString).extant()
+    (benchmarksDir / targetId.key).extant()
 
   def classesDir(targetId: TargetId): Path =
-    (classesDir / targetId.toString).extant()
+    (classesDir / targetId.key).extant()
 
   def resourcesDir(targetId: TargetId): Path =
-    (resourcesDir / targetId.toString).extant()
+    (resourcesDir / targetId.key).extant()
 
   def manifestFile(targetId: TargetId): Path =
     resourcesDir(targetId) / "manifest.mf"

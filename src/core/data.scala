@@ -372,7 +372,7 @@ class BuildingClient() extends BuildClient {
       }
       .toMap
 
-    TargetId(uriQuery("id").replace("__", ":"))
+    TargetId(uriQuery("id"))
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
@@ -504,7 +504,7 @@ case class Compilation(
     Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, layout, multiplexer) { server =>
-          val uri: String = s"file://${layout.workDir(targetId).value}?id=${targetId.toString}"
+          val uri: String = s"file://${layout.workDir(targetId).value}?id=${targetId.key}"
           val statusCode =
             if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
             else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
@@ -931,8 +931,8 @@ object SchemaId {
   final val default = SchemaId("default")
 
   def parse(name: String): Try[SchemaId] = name match {
-    case r"[a-z]([-._]?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
-    case _                             => Failure(InvalidValue(name))
+    case r"[a-z](-?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
+    case _                         => Failure(InvalidValue(name))
   }
 }
 
@@ -1187,19 +1187,17 @@ object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
   
   def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
-    TargetId(str"$schemaId:$projectId:$moduleId")
+    TargetId(str"${schemaId}_${projectId}_${moduleId}")
   
     def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
       TargetId(schemaId, ref.projectId, ref.moduleId)
 }
 
 case class TargetId(key: String) extends AnyVal {
-  def moduleId: ModuleId = ModuleId(key.split(":")(2))
-  def projectId: ProjectId = ProjectId(key.split(":")(1))
-  def schemaId: SchemaId = SchemaId(key.split(":")(0))
+  def moduleId: ModuleId = ModuleId(key.split("_")(2))
+  def projectId: ProjectId = ProjectId(key.split("_")(1))
+  def schemaId: SchemaId = SchemaId(key.split("_")(0))
   def ref: ModuleRef = ModuleRef(projectId, moduleId)
-
-  override def toString: String = key.replace(":", "__")
 }
 
 case class Target(
