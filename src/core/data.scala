@@ -186,12 +186,11 @@ case class BspConnection(
     future.cancel(true)
   }
 
-  def provision[T](
-      currentCompilation: Compilation,
-      layout: Layout,
-      currentMultiplexer: Multiplexer[ModuleRef, CompileEvent]
-    )(action: FuryBspServer => T
-    ): T = {
+  def provision[T](currentCompilation: Compilation,
+                   layout: Layout,
+                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]])
+                  (action: FuryBspServer => T)
+                  : T = {
     client.compilation = currentCompilation
     client.layout = layout
     client.multiplexer = currentMultiplexer
@@ -258,9 +257,8 @@ object Compilation {
     compilationCache.getOrElse(layout.bloopDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
   }
 
-  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
-    compilationCache.get(layout.bloopDir).map(Await.result(_, Duration.Inf)).getOrElse(mkCompilation(io, schema, ref, layout))
-  }
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] =
+    compilationCache.get(layout.bloopDir).map(Await.result(_, Duration.Inf)).getOrElse(synchronized(mkCompilation(io, schema, ref, layout)))
 
 
 }
@@ -273,7 +271,7 @@ case class LineNo(line: Int) extends AnyVal
 class BuildingClient() extends BuildClient {
   var compilation: Compilation                          = _
   var layout: Layout                                    = _
-  var multiplexer: Multiplexer[ModuleRef, CompileEvent] = _
+  var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
 
@@ -326,7 +324,8 @@ class BuildingClient() extends BuildClient {
         case _ => msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("H")}${Ansi.Color.base01("]")}"
       }
 
-      multiplexer(targetId.ref) = DiagnosticMsg(
+      multiplexer.foreach { mp =>
+        mp(targetId.ref) = DiagnosticMsg(
           targetId.ref,
           CompilerDiagnostic(
               msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
@@ -347,7 +346,8 @@ class BuildingClient() extends BuildClient {
               lineNo,
               charNum
           )
-      )
+        )
+      }
     }
   }
 
@@ -378,15 +378,17 @@ class BuildingClient() extends BuildClient {
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
-    multiplexer(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
+    multiplexer.foreach { mp =>
+      mp(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
+    }
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
-    multiplexer(targetId.ref) = StartCompile(targetId.ref)
+    multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      multiplexer(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
+      multiplexer.foreach { mp => mp(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref) }
     }
   }
   override def onBuildTaskFinish(params: TaskFinishParams): Unit =
@@ -396,11 +398,11 @@ class BuildingClient() extends BuildClient {
         val targetId = getTargetId(report.getTarget.getUri)
         params.getStatus match {
           case StatusCode.OK =>
-            multiplexer(targetId.ref) = StopCompile(targetId.ref, true)
+            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, true) }
           case StatusCode.ERROR =>
-            multiplexer(targetId.ref) = StopCompile(targetId.ref, false)
+            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
           case StatusCode.CANCELLED =>
-            multiplexer(targetId.ref) = StopCompile(targetId.ref, false)
+            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
         }
     }
 }
@@ -417,9 +419,9 @@ case class Compilation(
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   def bspUpdate(io: Io, layout: Layout): Unit =
-    Compilation.bspPool.borrow(io, layout.bloopDir) { conn =>
-      conn.provision(this, layout, null) { server =>
-        server.workspaceBuildTargets.get.getTargets.asScala
+    Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+      conn.provision(this, layout, None) { server =>
+        io.println(server.workspaceBuildTargets.get.getTargets.asScala.toString)
       }
     }
 
@@ -503,7 +505,7 @@ case class Compilation(
                     : Future[Boolean] =
     Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
-        conn.provision(this, layout, multiplexer) { server =>
+        conn.provision(this, layout, Some(multiplexer)) { server =>
           val uri: String = s"file://${layout.workDir(targetId).value}?id=${targetId.key}"
           val statusCode =
             if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode

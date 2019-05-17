@@ -49,7 +49,7 @@ object GraphReporter extends Reporter("graph") {
       startTime: Long
     ): Unit = {
     Graph.live(
-        changed = false,
+        changed = true,
         io,
         compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) },
         multiplexer.stream(50, Some(Tick)),
