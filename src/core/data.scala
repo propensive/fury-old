@@ -421,7 +421,7 @@ case class Compilation(
   def bspUpdate(io: Io, layout: Layout): Unit =
     Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
       conn.provision(this, layout, None) { server =>
-        io.println(server.workspaceBuildTargets.get.getTargets.asScala.toString)
+        server.workspaceBuildTargets.get.getTargets.asScala.toString
       }
     }
 
