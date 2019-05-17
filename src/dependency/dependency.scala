@@ -100,7 +100,7 @@ object DependencyCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
       _ <- ~Layer.save(io, layer, layout)
-      optSchema <- layer.mainSchema.toOption
+      optSchema <- ~layer.mainSchema.toOption
       _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout))
     } yield io.await()
   }
