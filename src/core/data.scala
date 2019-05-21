@@ -23,7 +23,6 @@ import exoskeleton._
 import gastronomy._
 import kaleidoscope._
 import mercator._
-
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
@@ -36,10 +35,12 @@ import scala.concurrent._
 import scala.util._
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
-
-import java.io.{CharArrayWriter, PrintWriter}
+import java.io.{ByteArrayOutputStream, CharArrayWriter, PipedInputStream, PipedOutputStream, PrintStream, PrintWriter}
+import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.Executors
+
+import bloop.launcher.LauncherMain
 
 import language.higherKinds
 
@@ -106,7 +107,7 @@ object Binary {
 
   def unapply(service: BinRepoId, string: String): Try[Binary] =
     string match {
-      case r"$g@([\.\-_a-zA-Z0-9]*)\:$a@([\.\-_a-zA-Z0-9]*)\:$v@([\.\-_a-zA-Z0-9]*)" =>
+      case r"$g@([\.\-_a-zA-Z0-9]*)\:$a@([\.\-_a-zA-Z0-9]*)\:$v@([\.\-\+_a-zA-Z0-9]*)" =>
         Success(Binary(service, g, a, v))
       case _ =>
         Failure(InvalidArgValue("binary", string))
@@ -178,7 +179,7 @@ case class BspConnection(
     future: java.util.concurrent.Future[Void],
     client: BuildingClient,
     server: FuryBspServer,
-    traceBuffer: CharArrayWriter
+    traceBuffer: ByteArrayOutputStream
   ) {
 
   def shutdown(): Unit = {
@@ -204,6 +205,8 @@ case class BspConnection(
 
 object Compilation {
 
+  private val bloopVersion = "1.2.5+271-7c4a6e6a"
+
   private val compilationThreadPool = Executors.newCachedThreadPool()
 
   val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
@@ -211,21 +214,47 @@ object Compilation {
     def destroy(value: BspConnection): Unit = value.shutdown()
 
     def create(dir: Path): BspConnection = {
-      val bspTraceBuffer = new CharArrayWriter()
-      val log = new java.io.PrintWriter(bspTraceBuffer, true)
+      val bspTraceBuffer = new ByteArrayOutputStream
+      val log = new PrintWriter(bspTraceBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val furyHome = System.getProperty("fury.home")
-      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+271-7c4a6e6a")
-      val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
-      // FIXME: This surely isn't the best way to consume a stream.
-      new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
+
+      val bloopIn = new PipedInputStream()
+      val bloopOut = new PipedOutputStream()
+
+      val lspOut = new PipedOutputStream()
+      bloopIn.connect(lspOut)
+
+      val lspIn = new PipedInputStream()
+      bloopOut.connect(lspIn)
+
+      val bloopLauncher = new LauncherMain(
+        clientIn = bloopIn,
+        clientOut = bloopOut,
+        out = new PrintStream(bspTraceBuffer),
+        charset = StandardCharsets.UTF_8,
+        shell = bloop.launcher.core.Shell.default,
+        nailgunPort = None,
+        startedServer = Promise[Unit](),
+        generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
+      )
+
+      val launcherStatus = Future{
+        bloopLauncher.runLauncher(
+          bloopVersionToInstall = bloopVersion,
+          bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
+          skipBspConnection = false,
+          serverJvmOptions = Nil
+        )
+      }
+
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
         .setRemoteInterface(classOf[FuryBspServer])
         .setExecutorService(compilationThreadPool)
-        .setInput(handle.getInputStream)
-        .setOutput(handle.getOutputStream)
+        .setInput(lspIn)
+        .setOutput(lspOut)
         .setLocalService(client)
         .create()
       val future = launcher.startListening()
