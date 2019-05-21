@@ -74,6 +74,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val workDir: Path       = (furyDir / "work").extant()
   lazy val sharedDir: Path     = (furyDir / "build" / uniqueId).extant()
   lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
+  lazy val messagesLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
 
   def bloopConfig(targetId: TargetId): Path =

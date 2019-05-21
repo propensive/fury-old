@@ -178,7 +178,7 @@ case class BspConnection(
     future: java.util.concurrent.Future[Void],
     client: BuildingClient,
     server: FuryBspServer,
-    logBuffer: CharArrayWriter
+    traceBuffer: CharArrayWriter
   ) {
 
   def shutdown(): Unit = {
@@ -198,7 +198,7 @@ case class BspConnection(
   }
 
   def writeTrace(layout: Layout): Try[Unit] = {
-    layout.traceLogfile.appendSync(logBuffer.toString)
+    layout.traceLogfile.appendSync(traceBuffer.toString)
   }
 }
 
@@ -211,8 +211,8 @@ object Compilation {
     def destroy(value: BspConnection): Unit = value.shutdown()
 
     def create(dir: Path): BspConnection = {
-      val bspLogBuffer = new CharArrayWriter()
-      val log = new java.io.PrintWriter(bspLogBuffer, true)
+      val bspTraceBuffer = new CharArrayWriter()
+      val log = new java.io.PrintWriter(bspTraceBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val furyHome = System.getProperty("fury.home")
       val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+271-7c4a6e6a")
@@ -239,7 +239,7 @@ object Compilation {
       )
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      BspConnection(future, client, server, bspLogBuffer)
+      BspConnection(future, client, server, bspTraceBuffer)
     }
   }
 
@@ -272,9 +272,16 @@ class BuildingClient() extends BuildClient {
   var layout: Layout                                    = _
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
-  override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
+  private val bspMessageBuffer = new CharArrayWriter()
+  val log = new java.io.PrintWriter(bspMessageBuffer, true)
 
-  override def onBuildLogMessage(params: LogMessageParams): Unit = {}
+  override def onBuildShowMessage(params: ShowMessageParams): Unit = {
+    log.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
+  }
+
+  override def onBuildLogMessage(params: LogMessageParams): Unit = {
+    log.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
+  }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
@@ -390,7 +397,7 @@ class BuildingClient() extends BuildClient {
       multiplexer.foreach { mp => mp(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref) }
     }
   }
-  override def onBuildTaskFinish(params: TaskFinishParams): Unit =
+  override def onBuildTaskFinish(params: TaskFinishParams): Unit = {
     params.getDataKind match {
       case TaskDataKind.COMPILE_REPORT =>
         val report = convertDataTo[CompileReport](params.getData)
@@ -404,6 +411,8 @@ class BuildingClient() extends BuildClient {
             multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
         }
     }
+    layout.messagesLogfile.appendSync(bspMessageBuffer.toString)
+  }
 }
 
 case class Compilation(
