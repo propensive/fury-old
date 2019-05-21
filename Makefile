@@ -36,7 +36,7 @@ dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	chmod +x dist/install.sh
 
 dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
-	tar czvf $@ -C dist/bundle .
+	tar czf $@ -C dist/bundle .
 
 #TODO refactor etc structure (separate bundled scripts from development ones)
 dist/bundle/etc:
@@ -47,7 +47,7 @@ dist/bundle/etc:
 
 bootstrap/scala:
 	mkdir -p $@
-	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C $@ --strip 1
+	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1
 
 bootstrap/git/%:
 	mkdir -p $@
@@ -133,7 +133,7 @@ dist/bundle/lib:
 	mkdir -p $@
 
 dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
-	curl -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
+	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 all-jars: $(JARS)
 
