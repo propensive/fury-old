@@ -23,7 +23,6 @@ import exoskeleton._
 import gastronomy._
 import kaleidoscope._
 import mercator._
-import org.eclipse.lsp4j.jsonrpc.Launcher
 import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
 
@@ -39,8 +38,6 @@ import java.io.{ByteArrayOutputStream, CharArrayWriter, PipedInputStream, PipedO
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.Executors
-
-import bloop.launcher.LauncherMain
 
 import language.higherKinds
 
@@ -178,8 +175,7 @@ trait FuryBspServer extends BuildServer with ScalaBuildServer
 case class BspConnection(
     future: java.util.concurrent.Future[Void],
     client: BuildingClient,
-    server: FuryBspServer,
-    traceBuffer: ByteArrayOutputStream
+    server: FuryBspServer
   ) {
 
   def shutdown(): Unit = {
@@ -197,15 +193,58 @@ case class BspConnection(
     client.multiplexer = currentMultiplexer
     action(server)
   }
+}
+
+object BspConnectionManager{
+  import bloop.launcher.{LauncherMain, LauncherStatus}
+
+  private val bloopVersion = "1.2.5+271-7c4a6e6a"
+
+  private val bloopIn = new PipedInputStream()
+  private val bloopOut = new PipedOutputStream()
+
+  val lspOut = new PipedOutputStream()
+  bloopIn.connect(lspOut)
+
+  val lspIn = new PipedInputStream()
+  bloopOut.connect(lspIn)
+
+  private val bspTraceBuffer = new ByteArrayOutputStream
+  lazy val log = new PrintWriter(System.out, true)
+
+  private lazy val launcher = new LauncherMain(
+    clientIn = bloopIn,
+    clientOut = bloopOut,
+    //out = new PrintStream(bspTraceBuffer),
+    out = System.out,
+    charset = StandardCharsets.UTF_8,
+    shell = bloop.launcher.core.Shell.default,
+    nailgunPort = None,
+    startedServer = Promise[Unit](),
+    generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
+  )
+
+  private val xxx = Future(blocking{
+    val status = launcher.runLauncher(
+      bloopVersionToInstall = bloopVersion,
+      bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
+      skipBspConnection = false,
+      serverJvmOptions = Nil
+    )
+    bloopLauncher.success(status)
+  })
+
+  val bloopLauncher = Promise[LauncherStatus]()
 
   def writeTrace(layout: Layout): Try[Unit] = {
-    layout.traceLogfile.appendSync(traceBuffer.toString)
+    layout.traceLogfile.appendSync(bspTraceBuffer.toString)
   }
+
 }
 
 object Compilation {
+  import org.eclipse.lsp4j.jsonrpc.Launcher
 
-  private val bloopVersion = "1.2.5+271-7c4a6e6a"
 
   private val compilationThreadPool = Executors.newCachedThreadPool()
 
@@ -213,62 +252,38 @@ object Compilation {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
 
-    def create(dir: Path): BspConnection = {
-      val bspTraceBuffer = new ByteArrayOutputStream
-      val log = new PrintWriter(bspTraceBuffer, true)
-      log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
+    def create(dir: Path): Future[BspConnection] = {
+      BspConnectionManager.log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val furyHome = System.getProperty("fury.home")
 
-      val bloopIn = new PipedInputStream()
-      val bloopOut = new PipedOutputStream()
+      BspConnectionManager.bloopLauncher.future.map{ status =>
+        BspConnectionManager.log.println(status.toString)
+        System.out.println(status.toString)
 
-      val lspOut = new PipedOutputStream()
-      bloopIn.connect(lspOut)
+        val client = new BuildingClient()
+        val launcher = new Launcher.Builder[FuryBspServer]()
+          .traceMessages(BspConnectionManager.log)
+          .setRemoteInterface(classOf[FuryBspServer])
+          .setExecutorService(compilationThreadPool)
+          .setInput(BspConnectionManager.lspIn)
+          .setOutput(BspConnectionManager.lspOut)
+          .setLocalService(client)
+          .create()
+        val future = launcher.startListening()
 
-      val lspIn = new PipedInputStream()
-      bloopOut.connect(lspIn)
-
-      val bloopLauncher = new LauncherMain(
-        clientIn = bloopIn,
-        clientOut = bloopOut,
-        out = new PrintStream(bspTraceBuffer),
-        charset = StandardCharsets.UTF_8,
-        shell = bloop.launcher.core.Shell.default,
-        nailgunPort = None,
-        startedServer = Promise[Unit](),
-        generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
-      )
-
-      val launcherStatus = Future{
-        bloopLauncher.runLauncher(
-          bloopVersionToInstall = bloopVersion,
-          bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
-          skipBspConnection = false,
-          serverJvmOptions = Nil
-        )
-      }
-
-      val client = new BuildingClient()
-      val launcher = new Launcher.Builder[FuryBspServer]()
-        .traceMessages(log)
-        .setRemoteInterface(classOf[FuryBspServer])
-        .setExecutorService(compilationThreadPool)
-        .setInput(lspIn)
-        .setOutput(lspOut)
-        .setLocalService(client)
-        .create()
-      val future = launcher.startListening()
-      val server = launcher.getRemoteProxy
-      val initializeParams = new InitializeBuildParams(
+        /////
+        val server = launcher.getRemoteProxy
+        val initializeParams = new InitializeBuildParams(
           "fury",
           Version.current,
           "2.0.0-M4",
           dir.uriString,
           new BuildClientCapabilities(List("scala").asJava)
-      )
-      server.buildInitialize(initializeParams).get
-      server.onBuildInitialized()
-      BspConnection(future, client, server, bspTraceBuffer)
+        )
+        server.buildInitialize(initializeParams).get
+        server.onBuildInitialized()
+        BspConnection(future, client, server)
+      }
     }
   }
 
@@ -302,7 +317,7 @@ class BuildingClient() extends BuildClient {
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
   private val bspMessageBuffer = new CharArrayWriter()
-  val log = new java.io.PrintWriter(bspMessageBuffer, true)
+  val log = new java.io.PrintWriter(layout.messagesLogfile.name)
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
     log.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
@@ -440,7 +455,6 @@ class BuildingClient() extends BuildClient {
             multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
         }
     }
-    layout.messagesLogfile.appendSync(bspMessageBuffer.toString)
   }
 }
 
@@ -547,7 +561,7 @@ case class Compilation(
           val statusCode =
             if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
             else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
-          if(statusCode != StatusCode.OK) conn.writeTrace(layout)
+          if(statusCode != StatusCode.OK) BspConnectionManager.writeTrace(layout)
           statusCode == StatusCode.OK
         }
       }

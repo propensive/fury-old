@@ -22,7 +22,7 @@ import scala.annotation._
 
 abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
-  def create(key: K): T
+  def create(key: K): Future[T]
   def destroy(value: T): Unit
 
   object Entry { implicit val ord: Ordering[Entry] = Ordering[Long].on(_.timestamp) }
@@ -34,7 +34,7 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   private[this] def createOrRecycle(key: K): T = {
     val result = pool.find(_.key == key) match {
       case None =>
-        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+        Try(Await.result(create(key), timeout.milliseconds)).map { value =>
           pool += Entry(System.currentTimeMillis, key, value)
           Some(value)
         }.toOption.getOrElse(None)
