@@ -37,7 +37,8 @@ import scala.util._
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 
-import java.io.{CharArrayWriter, PrintWriter}
+import java.io._
+import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.Executors
 
@@ -178,7 +179,8 @@ case class BspConnection(
     future: java.util.concurrent.Future[Void],
     client: BuildingClient,
     server: FuryBspServer,
-    traceBuffer: CharArrayWriter
+    traceBuffer: CharArrayWriter,
+    messageBuffer: CharArrayWriter
   ) {
 
   def shutdown(): Unit = {
@@ -187,11 +189,13 @@ case class BspConnection(
   }
 
   def provision[T](currentCompilation: Compilation,
+                   targetId: TargetId,
                    layout: Layout,
                    currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]])
                   (action: FuryBspServer => T)
                   : T = {
     client.compilation = currentCompilation
+    client.targetId = targetId
     client.layout = layout
     client.multiplexer = currentMultiplexer
     action(server)
@@ -200,6 +204,71 @@ case class BspConnection(
   def writeTrace(layout: Layout): Try[Unit] = {
     layout.traceLogfile.appendSync(traceBuffer.toString)
   }
+
+  def writeMessages(layout: Layout): Try[Unit] = {
+    layout.messagesLogfile.appendSync(messageBuffer.toString)
+  }
+}
+
+object BspConnectionManager {
+
+  case class Handle(in: OutputStream, out: InputStream, err: InputStream) extends AutoCloseable {
+    override def close(): Unit = {
+      in.close()
+      out.close()
+      err.close()
+    }
+  }
+
+  import bloop.launcher.LauncherMain
+  import bloop.launcher.LauncherStatus._
+
+  private val bloopVersion = "1.2.5+424-f4facec5"
+
+  def bloopLauncher: Handle = {
+
+    val bloopIn = new PipedInputStream
+    val in = new PipedOutputStream
+    in.connect(bloopIn)
+
+    val bloopOut = new PipedOutputStream
+    val out = new PipedInputStream
+    out.connect(bloopOut)
+
+    val bloopErr = new PipedOutputStream
+    val err = new PipedInputStream
+    err.connect(bloopErr)
+
+    val handle = Handle(in, out, err)
+
+    Future(blocking{
+      val launcher = new LauncherMain(
+        clientIn = bloopIn,
+        clientOut = bloopOut,
+        out = new PrintStream(bloopErr),
+        charset = StandardCharsets.UTF_8,
+        shell = bloop.launcher.core.Shell.default,
+        nailgunPort = None,
+        startedServer = Promise[Unit](),
+        generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
+      )
+      launcher.runLauncher(
+        bloopVersionToInstall = bloopVersion,
+        bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
+        skipBspConnection = false,
+        serverJvmOptions = Nil
+      )
+    }).map{ status =>
+      System.out.println(s"Launcher status: $status")
+      status match {
+        case SuccessfulRun => ()
+        case _ => handle.close()
+      }
+    }
+
+    handle
+  }
+
 }
 
 object Compilation {
@@ -211,21 +280,21 @@ object Compilation {
     def destroy(value: BspConnection): Unit = value.shutdown()
 
     def create(dir: Path): BspConnection = {
+      val bspMessageBuffer = new CharArrayWriter()
       val bspTraceBuffer = new CharArrayWriter()
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
-      val furyHome = System.getProperty("fury.home")
-      val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+424-f4facec5")
-      val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
+      val handle = BspConnectionManager.bloopLauncher
+      val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.err))
       // FIXME: This surely isn't the best way to consume a stream.
       new Thread { override def run(): Unit = Stream.continually{Thread.sleep(100); err.readLine()}.filter(_ != null).foreach(log.println) }.start()
-      val client = new BuildingClient()
+      val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
         .setRemoteInterface(classOf[FuryBspServer])
         .setExecutorService(compilationThreadPool)
-        .setInput(handle.getInputStream)
-        .setOutput(handle.getOutputStream)
+        .setInput(handle.out)
+        .setOutput(handle.in)
         .setLocalService(client)
         .create()
       val future = launcher.startListening()
@@ -239,7 +308,7 @@ object Compilation {
       )
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      BspConnection(future, client, server, bspTraceBuffer)
+      BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
     }
   }
 
@@ -249,9 +318,11 @@ object Compilation {
     hierarchy   <- schema.hierarchy(io, layout.base, layout)
     universe    <- hierarchy.universe
     compilation <- universe.compilation(io, ref, layout)
-    paths       <- compilation.generateFiles(io, layout)
-    _           <- ~compilation.bspUpdate(io, layout)
-  } yield compilation
+    _           <- compilation.generateFiles(io, layout)
+  } yield {
+    compilation.bspUpdate(io, compilation.targets(ref).id, layout)
+    compilation
+  }
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
     compilationCache.getOrElse(layout.furyDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
@@ -267,20 +338,20 @@ object LineNo {
 }
 case class LineNo(line: Int) extends AnyVal
 
-class BuildingClient() extends BuildClient {
+class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   var compilation: Compilation                          = _
+  var targetId: TargetId                                = _
   var layout: Layout                                    = _
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
-  private val bspMessageBuffer = new CharArrayWriter()
-  val log = new java.io.PrintWriter(bspMessageBuffer, true)
-
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
-    log.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
+    multiplexer.foreach(_(targetId.ref) = Print(params.getMessage))
+    messageSink.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
   }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {
-    log.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
+    multiplexer.foreach(_(targetId.ref) = Print(params.getMessage))
+    messageSink.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
   }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
@@ -411,7 +482,6 @@ class BuildingClient() extends BuildClient {
             multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
         }
     }
-    layout.messagesLogfile.appendSync(bspMessageBuffer.toString)
   }
 }
 
@@ -426,9 +496,9 @@ case class Compilation(
 
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, layout: Layout): Unit =
+  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Unit =
     Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
-      conn.provision(this, layout, None) { server =>
+      conn.provision(this, targetId, layout, None) { server =>
         server.workspaceBuildTargets.get.getTargets.asScala.toString
       }
     }
@@ -506,19 +576,24 @@ case class Compilation(
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
   def compileModule(io: Io,
-                    targetId: TargetId,
+                    target: Target,
                     layout: Layout,
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
                     : Future[Boolean] =
     Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
-        conn.provision(this, layout, Some(multiplexer)) { server =>
-          val uri: String = s"file://${layout.workDir(targetId).value}?id=${targetId.key}"
+        conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+          multiplexer(target.ref) = StartStreaming
+          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
           val statusCode =
             if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
             else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
-          if(statusCode != StatusCode.OK) conn.writeTrace(layout)
+          if(statusCode != StatusCode.OK){
+            conn.writeTrace(layout)
+            conn.writeMessages(layout)
+          }
+          multiplexer(target.ref) = StopStreaming
           statusCode == StatusCode.OK
         }
       }
@@ -548,7 +623,7 @@ case class Compilation(
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           blocking {
-            compileModule(io, target.id, layout, target.kind == Application, multiplexer)
+            compileModule(io, target, layout, target.kind == Application, multiplexer)
           }.map { compileResult =>
             if (compileResult && target.kind == Benchmarks) {
               // FIXME: This will need to use a different classes directory for instrumenting the classfiles, since bloop now uses a different directory
