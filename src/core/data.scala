@@ -218,7 +218,7 @@ object Compilation {
       val handle = Runtime.getRuntime.exec(s"$furyHome/bin/launcher 1.2.5+424-f4facec5")
       val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.getErrorStream))
       // FIXME: This surely isn't the best way to consume a stream.
-      new Thread { override def run(): Unit = while(true) log.println(err.readLine) }.start()
+      new Thread { override def run(): Unit = Stream.continually{Thread.sleep(100); err.readLine()}.filter(_ != null).foreach(log.println) }.start()
       val client = new BuildingClient()
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
