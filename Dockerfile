@@ -52,6 +52,7 @@ RUN su bash_user -c "source ~/.bashrc && fury start && fury about"
 ADD etc/integration /integration
 ADD test /home/bash_user/test
 RUN chown -R bash_user:bash_user /home/bash_user/test
+RUN chown -R bash_user:bash_user /home/bash_user/.config
 
 ENV FURYHOME "/home/bash_user/fury-test"
 RUN ln -sf /home/bash_user/fury-test/bin/fury /usr/local/bin/fury
