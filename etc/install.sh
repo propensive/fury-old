@@ -66,6 +66,9 @@ prepare() {
 }
 
 checkJava() {
+  whoami
+  echo $PATH
+  java -version
   # We only want to capture stderr, stdout can be discarded.
   JAVA=$(java -version 2>&1 >/dev/null | head -n1 | grep -o '".*"' | sed 's/"//g')
   if [ -z "$JAVA" ]

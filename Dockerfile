@@ -13,6 +13,8 @@ RUN mkdir /opt/scala-2.12.8 && \
 # Prepare environment variables
 RUN mkdir -p /etc/profile.d
 ADD etc/exports /etc/profile.d/exports
+RUN whoami
+RUN echo "${PATH}"
 
 # Install GraalVM
 ENV GRAAL_VERSION "1.0.0-rc11"
