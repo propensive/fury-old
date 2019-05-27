@@ -1,0 +1,1 @@
+export PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:$PATH"
