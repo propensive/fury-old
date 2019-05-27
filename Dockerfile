@@ -38,12 +38,6 @@ RUN (cd /build && make -j10 dist/install.sh)
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh
 
-# Install Fury via multiple shells
-ADD etc/testshell.sh /testshell.sh
-RUN /testshell.sh bash
-RUN /testshell.sh zsh 
-RUN /testshell.sh fish
-
 # Quick tests of native nailgun client (enabled when GCC is available)
 RUN apt-get -qq install gcc > /dev/null
 RUN su bash_user -c "/install.sh"
