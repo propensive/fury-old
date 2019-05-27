@@ -1,0 +1,11 @@
+SHELL_NAME="bash"
+USER_NAME="bash_user"
+USER_HOME="/home/${USER_NAME}"
+JOIN="&&"
+
+apt-get install -qq "${SHELL_NAME}"
+useradd -s "$(which ${SHELL_NAME})" -d "${USER_HOME}" "${USER_NAME}"
+mkdir -p "${USER_HOME}"
+chown "${USER_NAME}" "${USER_HOME}"
+chmod 755 "/shells/${SHELL_NAME}/test.sh"
+su -l "${USER_NAME}" -c "/shells/${SHELL_NAME}/test.sh"
