@@ -25,6 +25,6 @@ mkdir -p "$HOME"
 chown "$USER" "$HOME"
 git config --global user.email "${USER}@${USER}"
 git config --global user.name "${USER}"
-su "$USER" -c "touch $HOME/.${SHELL_NAME}rc"
-su "$USER" -c "${SHELL_NAME}" -c /install.sh
-su "$USER" -c "${SHELL_NAME}" -c "source /home/${SHELL_NAME}_user/.${SHELL_NAME}rc ${JOIN} fury start ${JOIN} fury about ${JOIN} fury stop"
+su -p "$USER" -c "touch $HOME/.${SHELL_NAME}rc"
+su -p "$USER" -c "${SHELL_NAME}" -c /install.sh
+su -p "$USER" -c "${SHELL_NAME}" -c "source /home/${SHELL_NAME}_user/.${SHELL_NAME}rc ${JOIN} fury start ${JOIN} fury about ${JOIN} fury stop"
