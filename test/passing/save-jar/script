@@ -3,13 +3,13 @@ fury project add -n scala
 fury module add -n compiler -t compiler
 fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
-fury project add -n hello-world
+fury project add -n foo
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury source add -d src
 mkdir -p src
-echo 'object HelloWorld extends App { new java.io.PrintWriter("test/tmp/hello-world/.content") { write("Hello World\n"); close() } }' > src/hw.scala
-timeout 180 fury build compile --output linear
+echo 'object HelloWorld extends App { new java.io.PrintWriter("test/tmp/save-jar/.content") { write("Hello World\n"); close() } }' > src/hw.scala
 mkdir -p out
-fury build save --dir out
+timeout 180 fury build save --dir out --output linear
+echo $?
 ls out
-unzip out/hello-world-app.jar
+jar tf out/foo-app.jar | sort

@@ -594,10 +594,9 @@ case class Compilation(
       dest <- dest.directory
       files <- ~srcs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
       bins         <- ~allDependencies.flatMap(_.binaries)
-      _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(targets(ref).id)}")
       manifestFile <- Manifest.file(layout.manifestFile(targets(ref).id), bins.map(_.name), None)
       path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _            <- ~io.println(msg"Saving JAR file $path")
+      _            <- ~io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
       _            <- layout.shell.aggregatedJar(path, files, manifestFile)
       _            <- bins.traverse { bin => bin.copyTo(dest / bin.name) }
     } yield ()

@@ -175,19 +175,16 @@ case class Shell(environment: Environment) {
     } yield ()
   }
 
-  def copyTo(src: Path, dest: Path): Try[Path] =
-    sh"cp -r ${src.value} ${dest.parent.value}/".exec[Try[String]].map { _ =>
-      dest
-    }
-
-  def aggregatedJar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] =
+  def aggregatedJar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] = {
+    import mercator._
+    val dir = dest.parent / "staging"
+    dir.mkdir()
     for {
-      dir <- ~(dest.parent / "staging")
-      _   <- ~dir.mkdir()
-      _   <- ~(for ((p, fs) <- files; f <- fs) copyTo(p / f, dir / f))
-      _   <- ~jar(dest, Set((dir, dir.children)), manifestFile)
-      _   <- dir.delete()
+      _ <- files.traverse{case (p, fs) => fs.traverse{f => (p / f).copyTo(dir /f)}}
+      _ <- jar(dest, Set((dir, dir.children)), manifestFile)
+      _ <- dir.delete()
     } yield ()
+  }
 }
 
 object Cached {
