@@ -29,7 +29,7 @@ publish: dist/install.sh
 	@echo "  sh install-$(VERSION).sh"
 	@echo
 
-dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
+dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc dist/bundle/lib/fury-installer.jar
 	cat etc/install.sh $< > dist/install.sh
 	sed -i "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh
 	chmod +x dist/install.sh
@@ -118,6 +118,9 @@ src/imports: src/core
 src/menu: src/schema src/repo src/dependency src/source src/build src/imports src/module src/project
 	$(compile-module)
 
+src/installer: src/io
+	$(compile-module)
+
 compile: src/menu
 
 dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
@@ -139,6 +142,9 @@ all-jars: $(JARS)
 dist/bundle/lib/fury.jar: bootstrap/bin compile bootstrap/bin/fury/.version
 	jar -cf $@ -C $< fury
 	jar -uf $@ -C bootstrap/bin/fury .version
+
+dist/bundle/lib/fury-installer.jar: bootstrap/bin src/installer dist/fury-$(VERSION).tar.gz bootstrap/bin/fury/.version
+	jar -cvfe $@ fury.installer.Installer -C $< fury/installer -C $< fury/.version -C dist fury-$(VERSION).tar.gz
 
 dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib bootstrap/git/% compile
 	jar -cf $@ -C $< $*
@@ -199,7 +205,8 @@ clean: clean-dist
 
 download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 
-install: dist/install.sh
+install: dist/install.sh dist/bundle/lib/fury-installer.jar
 	dist/install.sh
+	java -cp './dist/bundle/lib/*' fury.installer.Installer
 
 .PHONY: all publish compile pre-compile src/* watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars
