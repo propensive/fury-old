@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 
 BLOOP_VERSION="1.2.5"
 DESTINATION="$HOME/fury-$FURY_VERSION"
@@ -107,15 +108,14 @@ updateFish() {
   if [ -d "$HOME/.config/fish" ] || [ "$SHELL" = "/usr/bin/fish" ]
   then
     RCFILE="$HOME/.config/fish/config.fish"
-    if [ -e "$RCFILE" ]
+    if [ -e "$RCFILE" ] || [ "$SHELL" = "/usr/bin/fish" ]
     then
       touch "$RCFILE" && \
       echo "Backing up $RCFILE as $RCFILE.bak" && \
       sed -i.bak -e '/\# Added by Fury/d' "$RCFILE" && \
-      echo "source ~/.furyrc/fish # Added by Fury" >> "$HOME/.config/fish/config.fish"
+      echo "set -Ux FURYHOME $DESTINATION" >> "$RCFILE"
+      echo "set -Ux fish_user_paths $DESTINATION/bin \$fish_user_paths" >> "$RCFILE"
     fi
-    fish -c "set -Ux FURYHOME $DESTINATION"
-    fish -c "set -Ux fish_user_paths $DESTINATION/bin \$fish_user_paths"
   fi
   cp "$DESTINATION/etc/fishrc" "$CONFIG/fish"
 }

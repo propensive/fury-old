@@ -1,2 +1,3 @@
+set -U fish_user_paths $fish_user_paths $FURYHOME/bin
 # FIXME: Need to include fish completions
 source $HOME/.furyrc/aliases
