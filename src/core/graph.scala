@@ -142,7 +142,7 @@ object Graph {
         io.println(Ansi.down(graph.size + 1)())
         live(true, io, graph, tail, state, true)
       case Print(line) #:: tail =>
-        if (streaming) io.println(line)
+        io.println(line)
         live(true, io, graph, tail, state, streaming)
       case StopStreaming #:: tail =>
         live(true, io, graph, tail, state, false)
