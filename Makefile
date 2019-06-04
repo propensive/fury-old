@@ -1,7 +1,7 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
-BLOOPVERSION=1.2.5+424-f4facec5
+BLOOPVERSION=1.3.0-RC1
 DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=launcher ng.py ng
@@ -67,7 +67,7 @@ coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M14-4
 external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
 
 dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
-	for JAR in $(shell dist/bundle/bin/coursier fetch -r bintray:scalameta/maven -r bintray:scalacenter/releases $(external_jars)); do \
+	for JAR in $(shell dist/bundle/bin/coursier fetch -r sonatype:releases -r bintray:scalameta/maven -r bintray:scalacenter/releases $(external_jars)); do \
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
