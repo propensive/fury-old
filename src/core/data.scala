@@ -584,7 +584,6 @@ case class Compilation(
     Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-          multiplexer(target.ref) = StartStreaming
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
           val statusCode =
             if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
@@ -593,7 +592,6 @@ case class Compilation(
             conn.writeTrace(layout)
             conn.writeMessages(layout)
           }
-          multiplexer(target.ref) = StopStreaming
           statusCode == StatusCode.OK
         }
       }
@@ -631,7 +629,7 @@ case class Compilation(
                   layout.classesDir(target.id),
                   layout.benchmarksDir(target.id),
                   layout.resourcesDir(target.id))
-
+              multiplexer(target.ref) = StartStreaming
               val javaSources =
                 layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
               layout.shell.javac(
@@ -660,6 +658,7 @@ case class Compilation(
               multiplexer(target.ref) = StopCompile(target.ref, res)
               multiplexer.close(target.ref)
               multiplexer(target.ref) = StopStreaming
+
               res
             } else compileResult
           }.map(CompileResult(_))
