@@ -323,13 +323,11 @@ object Compilation {
     universe    <- hierarchy.universe
     compilation <- universe.compilation(io, ref, layout)
     _           <- compilation.generateFiles(io, layout)
-  } yield {
-    compilation.bspUpdate(io, compilation.targets(ref).id, layout)
-    compilation
-  }
+    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
+  } yield compilation
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
-    compilationCache.getOrElse(layout.furyDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
+    compilationCache.getOrElse(layout.furyDir, Future{ mkCompilation(io, schema, ref, layout) })
   }
 
   def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
@@ -500,10 +498,10 @@ case class Compilation(
 
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Unit =
+  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
     Compilation.bspPool.borrow(layout.furyDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
-        server.workspaceBuildTargets.get.getTargets.asScala.toString
+        Try{ server.workspaceBuildTargets.get }.map(_.getTargets.asScala.toString)
       }
     }
 
