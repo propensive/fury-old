@@ -23,7 +23,6 @@ import exoskeleton._
 import gastronomy._
 import kaleidoscope._
 import mercator._
-
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
@@ -273,7 +272,14 @@ object BspConnectionManager {
 
 object Compilation {
 
-  private val compilationThreadPool = Executors.newCachedThreadPool()
+  private val compilationThreadPool = {
+    import java.util.concurrent._
+    val x = Executors.newCachedThreadPool().asInstanceOf[ThreadPoolExecutor]
+    x.setKeepAliveTime(5, TimeUnit.SECONDS)
+    x.allowCoreThreadTimeOut(true)
+    x
+  }
+
 
   val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
 
