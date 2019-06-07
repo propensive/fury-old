@@ -29,6 +29,8 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   case class Entry(timestamp: Long, key: K, value: T)
 
   private[this] var pool: SortedSet[Entry] = TreeSet()
+  
+  def size: Int = pool.size
 
   @tailrec
   private[this] def createOrRecycle(key: K): T = {
@@ -45,7 +47,7 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
     if(result.isEmpty) createOrRecycle(key) else result.get
   }
 
-  def borrow[S](io: Io, key: K)(action: T => S): S = {
+  def borrow[S](key: K)(action: T => S): S = {
     val value: T = synchronized {
       pool.headOption.fold(createOrRecycle(key)) { e =>
         pool -= e

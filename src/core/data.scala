@@ -497,7 +497,7 @@ case class Compilation(
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Unit =
-    Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+    Compilation.bspPool.borrow(layout.furyDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         server.workspaceBuildTargets.get.getTargets.asScala.toString
       }
@@ -582,7 +582,7 @@ case class Compilation(
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
                     : Future[Boolean] =
     Future { blocking {
-      Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+      Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           multiplexer(target.ref) = StartStreaming
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
