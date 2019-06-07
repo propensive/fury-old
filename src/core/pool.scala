@@ -25,38 +25,39 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   def create(key: K): T
   def destroy(value: T): Unit
 
-  object Entry { implicit val ord: Ordering[Entry] = Ordering[Long].on(_.timestamp) }
-  case class Entry(timestamp: Long, key: K, value: T)
+  case class Entry(key: K, value: T)
 
-  private[this] var pool: SortedSet[Entry] = TreeSet()
+  private[this] var pool: Map[K, T] = scala.collection.concurrent.TrieMap()
   
   def size: Int = pool.size
 
   @tailrec
   private[this] def createOrRecycle(key: K): T = {
-    val result = pool.find(_.key == key) match {
+    val result = pool.get(key) match {
       case None =>
         Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
-          pool += Entry(System.currentTimeMillis, key, value)
+          pool(key) = value
           Some(value)
         }.toOption.getOrElse(None)
-      case Some(entry) =>
-        pool -= entry
-        Some(entry.value)
+      case Some(value) =>
+        pool -= key
+        Some(value)
     }
     if(result.isEmpty) createOrRecycle(key) else result.get
   }
 
   def borrow[S](key: K)(action: T => S): S = {
     val value: T = synchronized {
-      pool.find(_.key == key).fold(createOrRecycle(key)) { e =>
-        pool -= e
-        e.value
+      pool.get(key).fold(createOrRecycle(key)) { value =>
+        pool -= key
+        value
       }
     }
 
     val result: S = action(value)
-    synchronized { pool += Entry(System.currentTimeMillis, key, value) }
+    synchronized {
+      pool(key) = value
+    }
     result
   }
 }
