@@ -49,7 +49,7 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
   def borrow[S](key: K)(action: T => S): S = {
     val value: T = synchronized {
-      pool.headOption.fold(createOrRecycle(key)) { e =>
+      pool.find(_.key == key).fold(createOrRecycle(key)) { e =>
         pool -= e
         e.value
       }
