@@ -10,6 +10,7 @@ object PoolTest extends TestApp {
   private val dummyPool: Pool[String, Symbol] = new Pool[String, Symbol](10L) {
     override def create(key: String): Symbol = Symbol(key)
     override def destroy(value: Symbol): Unit = ()
+    override def isBad(value: Symbol): Boolean = false
   }
 
   override def tests(): Unit = {

@@ -24,6 +24,8 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
   def create(key: K): T
   def destroy(value: T): Unit
+  
+  def isBad(value: T): Boolean
 
   case class Entry(key: K, value: T)
 
@@ -41,7 +43,11 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
         }.toOption.getOrElse(None)
       case Some(value) =>
         pool -= key
-        Some(value)
+        if(isBad(value)){
+          destroy(value)
+          None
+        }
+        else Some(value)
     }
     if(result.isEmpty) createOrRecycle(key) else result.get
   }
