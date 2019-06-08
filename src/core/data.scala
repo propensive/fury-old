@@ -262,7 +262,7 @@ object BspConnectionManager {
       System.out.println(s"Launcher status: $status")
       status match {
         case SuccessfulRun => ()
-        case _ => handle.close()
+        case x => throw new Exception(s"Launcher failed: $x")
       }
     }
 
@@ -278,6 +278,10 @@ object Compilation {
   val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
+
+    def isBad(value: BspConnection): Boolean = {
+      value.future.isDone
+    }
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
