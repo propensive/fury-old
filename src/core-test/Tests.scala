@@ -9,5 +9,5 @@ object Tests {
       TablesTest
   )
 
-  def main(args: Array[String]): Unit = testSuites.foreach(_.main(args))
+  def main(args: Array[String]): Unit = testSuites.foreach(_.execute())
 }
