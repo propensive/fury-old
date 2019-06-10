@@ -223,7 +223,7 @@ object BspConnectionManager {
   import bloop.launcher.LauncherMain
   import bloop.launcher.LauncherStatus._
 
-  private val bloopVersion = "1.3.0-RC1"
+  private val bloopVersion = "1.3.0"
 
   def bloopLauncher: Handle = {
 
@@ -262,7 +262,7 @@ object BspConnectionManager {
       System.out.println(s"Launcher status: $status")
       status match {
         case SuccessfulRun => ()
-        case _ => handle.close()
+        case x => throw new Exception(s"Launcher failed: $x")
       }
     }
 
@@ -278,6 +278,10 @@ object Compilation {
   val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
+
+    def isBad(value: BspConnection): Boolean = {
+      value.future.isDone
+    }
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
@@ -497,7 +501,7 @@ case class Compilation(
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Unit =
-    Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+    Compilation.bspPool.borrow(layout.furyDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         server.workspaceBuildTargets.get.getTargets.asScala.toString
       }
@@ -582,7 +586,7 @@ case class Compilation(
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
                     : Future[Boolean] =
     Future { blocking {
-      Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+      Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
           val statusCode =
