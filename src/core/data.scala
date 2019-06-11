@@ -260,7 +260,7 @@ object BspConnectionManager {
   import bloop.launcher.LauncherMain
   import bloop.launcher.LauncherStatus._
 
-  private val bloopVersion = "1.3.0-RC1"
+  private val bloopVersion = "1.3.2"
 
   def bloopLauncher: Handle = {
 

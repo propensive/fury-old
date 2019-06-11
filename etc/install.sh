@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-BLOOP_VERSION="1.2.5"
 DESTINATION="$HOME/fury-$FURY_VERSION"
 CONFIG="$HOME/.furyrc"
 
