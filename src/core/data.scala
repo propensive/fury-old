@@ -211,14 +211,45 @@ case class BspConnection(
   }
 }
 
+
+
 object BspConnectionManager {
 
   case class Handle(in: OutputStream, out: InputStream, err: InputStream) extends AutoCloseable {
+
+    lazy val errReader = new BufferedReader(new InputStreamReader(err))
+
     override def close(): Unit = {
       in.close()
       out.close()
       err.close()
     }
+  }
+
+  object HandleHandler {
+    private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = scala.collection.concurrent.TrieMap()
+
+    private val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(), throw _)
+
+    def handle(handle: Handle, sink: PrintWriter): Unit = {
+      handles(handle) = sink
+    }
+
+    Future{
+      while(true){
+        handles.foreach{
+          case (handle, sink) =>
+            try {
+              val line = handle.errReader.readLine()
+              if(line != null) sink.println(line)
+            } catch {
+              case e: IOException => e.printStackTrace(sink)
+            }
+        }
+        Thread.sleep(100)
+      }
+    }(ec)
+
   }
 
   import bloop.launcher.LauncherMain
@@ -290,9 +321,7 @@ object Compilation {
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val handle = BspConnectionManager.bloopLauncher
-      val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.err))
-      // FIXME: This surely isn't the best way to consume a stream.
-      new Thread { override def run(): Unit = Stream.continually{Thread.sleep(100); err.readLine()}.filter(_ != null).foreach(log.println) }.start()
+      BspConnectionManager.HandleHandler.handle(handle, log)
       val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
