@@ -215,11 +215,12 @@ case class BspConnection(
 
 object BspConnectionManager {
 
-  case class Handle(in: OutputStream, out: InputStream, err: InputStream) extends AutoCloseable {
+  case class Handle(in: OutputStream, out: InputStream, err: InputStream, broken: Promise[Unit]) extends AutoCloseable {
 
     lazy val errReader = new BufferedReader(new InputStreamReader(err))
 
     override def close(): Unit = {
+      broken.success(())
       in.close()
       out.close()
       err.close()
@@ -238,12 +239,16 @@ object BspConnectionManager {
     Future{
       while(true){
         handles.foreach{
-          case (handle, sink) =>
+          case (handle, sink) if !handle.broken.isCompleted =>
             try {
               val line = handle.errReader.readLine()
               if(line != null) sink.println(line)
             } catch {
-              case e: IOException => e.printStackTrace(sink)
+              case e: IOException =>
+                sink.println("Broken handle!")
+                e.printStackTrace(sink)
+                handles -= handle
+                handle.broken.failure(e)
             }
         }
         Thread.sleep(100)
@@ -271,7 +276,7 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
-    val handle = Handle(in, out, err)
+    val handle = Handle(in, out, err, Promise[Unit])
 
     Future(blocking{
       val launcher = new LauncherMain(
@@ -342,7 +347,19 @@ object Compilation {
       )
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      val x = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      handle.broken.future.andThen{
+        case Success(_) =>
+          log.println(s"Connection for ${dir.value} has been closed.")
+          log.flush()
+          x.future.cancel(true)
+        case Failure(e) =>
+          log.println(s"Connection for ${dir.value} is broken! Cause: ${e.getMessage}")
+          e.printStackTrace(log)
+          log.flush()
+          x.future.cancel(true)
+      }
+      x
     }
   }
 
@@ -353,7 +370,7 @@ object Compilation {
     universe    <- hierarchy.universe
     compilation <- universe.compilation(io, ref, layout)
     _           <- compilation.generateFiles(io, layout)
-    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
+    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover{case x: Throwable => io.println(str"$schema --- ${x.getMessage}")}
   } yield compilation
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
