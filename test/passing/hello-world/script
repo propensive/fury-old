@@ -5,9 +5,11 @@ fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
-fury source add -d src
 mkdir -p src
-echo 'object HelloWorld extends App { new java.io.PrintWriter("test/tmp/hello-world/.content") { write("Hello World\n"); close() } }' > src/hw.scala
+touch .content
+echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write("Hello World\n"); close() } }' > src/hw.scala
+fury source add -d src
 timeout 180 fury build compile --output linear
 echo $?
 cat .content
+find . -name '*.class'
