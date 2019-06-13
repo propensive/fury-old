@@ -29,6 +29,7 @@ object CleanCli {
     for {
       _ <- cleanBloop(ctx)
       _ <- cleanClasses(ctx)
+      _ <- cleanLogs(ctx)
       _ <- cleanRepos(ctx)
       _ <- cleanSources(ctx)
     } yield Done
@@ -42,6 +43,11 @@ object CleanCli {
   def cleanClasses(ctx: Context): Try[ExitStatus] =
     for {
       _ <- ctx.layout.classesDir.delete()
+    } yield Done
+
+  def cleanLogs(ctx: Context): Try[ExitStatus] =
+    for {
+      _ <- ctx.layout.logsDir.delete()
     } yield Done
 
   def cleanRepos(ctx: Context): Try[ExitStatus] =

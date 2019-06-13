@@ -46,6 +46,7 @@ object FuryMenu {
             Action('all, msg"clean all", CleanCli.cleanAll),
             Action('bloop, msg"clean bloop artifacts", CleanCli.cleanBloop),
             Action('classes, msg"clean compiled classes", CleanCli.cleanClasses),
+            Action('logs, msg"clean logs", CleanCli.cleanLogs),
             Action('repositories, msg"clean repositories", CleanCli.cleanRepos),
             Action('sources, msg"clean checked out sources", CleanCli.cleanSources)
         ),

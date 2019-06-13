@@ -589,10 +589,8 @@ case class Compilation(
           val statusCode =
             if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
             else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
-          if(statusCode != StatusCode.OK){
-            conn.writeTrace(layout)
-            conn.writeMessages(layout)
-          }
+          conn.writeTrace(layout)
+          conn.writeMessages(layout)
           multiplexer(target.ref) = StopStreaming
           statusCode == StatusCode.OK
         }
