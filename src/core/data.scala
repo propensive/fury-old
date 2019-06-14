@@ -325,7 +325,7 @@ object Compilation {
   }
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
-    compilationCache.getOrElse(layout.furyDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
+    compilationCache.getOrElse(layout.furyDir, Future.successful(Failure(new Exception("Oops!"))))
   }
 
   def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
