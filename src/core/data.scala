@@ -586,9 +586,12 @@ case class Compilation(
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           multiplexer(target.ref) = StartStreaming
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
-          val statusCode =
+          val statusCode = try {
             if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
             else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
+          } catch {
+            case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
+          }
           conn.writeTrace(layout)
           conn.writeMessages(layout)
           multiplexer(target.ref) = StopStreaming
