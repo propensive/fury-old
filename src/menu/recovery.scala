@@ -78,6 +78,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Main class not defined for module '${moduleId}'.")
         case GraalVMError(message: String) =>
           cli.abort(msg"Problem with GrallVM:'${message}'. Please double-check the PATH")
+        case BuildServerError(cause: Throwable) =>
+          cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}${rootCause(cause).getStackTrace.mkString("\n  at ")}")
         case InvalidKind(expected: Kind) =>
           cli.abort(msg"The module must be of type '${expected}'.")
         case e: UnknownCompiler =>
@@ -95,7 +97,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
         case e =>
           val errorString =
-            s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
+            s"$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
             invoc  <- cli.read()
@@ -120,4 +122,9 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           }.toOption.get
       }
   }
+
+  private def rootCause(t: Throwable) = {
+    Stream.iterate(t)(_.getCause).takeWhile(_ != null).last
+  }
+
 }
