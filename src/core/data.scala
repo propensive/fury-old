@@ -38,6 +38,7 @@ import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 
 import java.io._
+import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.Executors
@@ -580,7 +581,7 @@ case class Compilation(
                     layout: Layout,
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
-                    : Future[Boolean] =
+                    : Future[StatusCode] =
     Future { blocking {
       Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
@@ -593,10 +594,27 @@ case class Compilation(
           }
           conn.writeTrace(layout)
           conn.writeMessages(layout)
-          statusCode == StatusCode.OK
+          statusCode
         }
       }
     } }
+
+  def getClassDirectory(io: Io, target: Target, layout: Layout, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Future[Path] = {
+    val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+    val targetIdentifier = new BuildTargetIdentifier(uri)
+    Future (blocking {
+      Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+        conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+          val result = try {
+            server.buildTargetScalacOptions(new ScalacOptionsParams(List(targetIdentifier).asJava)).get
+          } catch {
+            case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
+          }
+          Path(new URI(result.getItems.asScala.find(_.getTarget == targetIdentifier).get.getClassDirectory))
+        }
+      }
+    })
+  }
 
   def compile(io: Io,
               moduleRef: ModuleRef,
@@ -606,6 +624,7 @@ case class Compilation(
               : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
+      io.println(str"Scheduling ${dependencyTarget}")
       if (futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
@@ -622,9 +641,15 @@ case class Compilation(
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           blocking {
-            compileModule(io, target, layout, target.kind == Application, multiplexer)
+            for{
+              statusCode <- compileModule(io, target, layout, target.kind == Application, multiplexer)
+              classDirectory <- getClassDirectory(io, target, layout, multiplexer)
+            } yield {
+              classDirectory.copyTo(layout.classesDir(target.id))
+              CompileResult(statusCode == StatusCode.OK)
+            }
           }.map { compileResult =>
-            if (compileResult && target.kind == Benchmarks) {
+            if (compileResult.success && target.kind == Benchmarks) {
               // FIXME: This will need to use a different classes directory for instrumenting the classfiles, since bloop now uses a different directory
               Jmh.instrument(
                   layout.classesDir(target.id),
@@ -660,14 +685,15 @@ case class Compilation(
               multiplexer.close(target.ref)
               multiplexer(target.ref) = StopStreaming
 
-              res
+              CompileResult(res)
             } else compileResult
-          }.map(CompileResult(_))
+          }
         }
       }
     newFutures.updated(target.id, future)
   }
 }
+
 case class Entity(project: Project, schema: Schema, path: Path)
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
