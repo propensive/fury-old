@@ -16,7 +16,9 @@
 package fury.io
 
 import java.io.FileNotFoundException
-import java.nio.file.{Files, Paths, StandardOpenOption, Path => JPath}
+import java.net.URI
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardOpenOption, Path => JPath}
 import java.util.zip.ZipFile
 
 import kaleidoscope._
@@ -25,7 +27,6 @@ import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
-
 import fury.strings._
 
 object Path {
@@ -42,6 +43,23 @@ object Path {
 
   def getTempDir(prefix: String): Try[Path] =
     Try { Path(Files.createTempDirectory(prefix).toString) }
+
+  def apply(uri: URI): Path = Path(Paths.get(uri))
+
+  // Rewritten from https://stackoverflow.com/a/10068306
+  private class CopyFileVisitor(sourcePath: JPath, targetPath: JPath) extends SimpleFileVisitor[JPath] {
+
+    override def preVisitDirectory(dir: JPath, attrs: BasicFileAttributes): FileVisitResult = {
+      Files.createDirectories(targetPath.resolve(sourcePath.relativize(dir)))
+      FileVisitResult.CONTINUE
+    }
+
+    override def visitFile(file: JPath, attrs: BasicFileAttributes): FileVisitResult = {
+      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)));
+      FileVisitResult.CONTINUE
+    }
+
+  }
 
 }
 
@@ -220,6 +238,7 @@ case class Path(value: String) {
   def copyTo(path: Path): Try[Path] =
     Outcome.rescue[java.io.IOException](FileWriteError(path)) {
       Files.copy(javaPath, path.javaPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+      Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
       path
     }
 
