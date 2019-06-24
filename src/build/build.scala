@@ -212,7 +212,7 @@ object BuildCli {
                      compRes
                  }
       _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
-    } yield io.await(Await.result(future, duration.Duration.Inf).success)
+    } yield io.await(Await.result(future, duration.Duration.Inf).isSuccessful)
   }
 
   def getPrompt(layer: Layer, theme: Theme): Try[String] =
@@ -259,7 +259,21 @@ object BuildCli {
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
       compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
-      _            <- compilation.saveJars(io, module.ref(project), dir in layout.pwd, layout)
+      _           <- ~compilation.checkoutAll(io, layout)
+      _           <- compilation.generateFiles(io, layout)
+      multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
+        compilation.targets.map(_._1).to[List]))
+      future <- ~compilation
+        .compile(io, module.ref(project), multiplexer, Map(), layout)
+        .apply(TargetId(schema.id, module.ref(project)))
+        .andThen {
+          case compRes =>
+            multiplexer.closeAll()
+            compRes
+        }
+      _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
+      compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
+      _            <- compilation.saveJars(io, module.ref(project), Set(compileSuccess.outputDirectory), dir in layout.pwd, layout)
     } yield io.await()
   }
 

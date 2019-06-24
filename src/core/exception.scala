@@ -37,6 +37,7 @@ case class UnspecifiedRepo()                          extends FuryException
 case class ProjectConflict(ids: Set[ProjectId], h1: Hierarchy, h2: Hierarchy)       extends FuryException
 case class SchemaDifferences()                        extends FuryException
 case class LauncherFailure(msg: String)               extends FuryException
+case class CompilationFailure()                       extends FuryException
 
 object ItemNotFound {
 
