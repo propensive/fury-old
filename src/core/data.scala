@@ -631,10 +631,10 @@ case class Compilation(
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
     val future =
       dependencyFutures.flatMap { inputs =>
-        if (inputs.exists(!_.success)) {
+        if (inputs.exists(!_.isSuccessful)) {
           multiplexer(target.ref) = SkipCompile(target.ref)
           multiplexer.close(target.ref)
-          Future.successful(CompileResult(false))
+          Future.successful(CompileFailure)
         } else {
           val noCompilation = target.sourcePaths.isEmpty
           if (noCompilation) deepDependencies(target.id).foreach { targetId =>
@@ -646,10 +646,10 @@ case class Compilation(
               classDirectory <- getClassDirectory(io, target, layout, multiplexer)
             } yield {
               classDirectory.copyTo(layout.classesDir(target.id))
-              CompileResult(statusCode == StatusCode.OK)
+              if(statusCode == StatusCode.OK) CompileSuccess(classDirectory) else CompileFailure
             }
           }.map { compileResult =>
-            if (compileResult.success && target.kind == Benchmarks) {
+            if (compileResult.isSuccessful && target.kind == Benchmarks) {
               // FIXME: This will need to use a different classes directory for instrumenting the classfiles, since bloop now uses a different directory
               Jmh.instrument(
                   layout.classesDir(target.id),
@@ -685,7 +685,7 @@ case class Compilation(
               multiplexer.close(target.ref)
               multiplexer(target.ref) = StopStreaming
 
-              CompileResult(res)
+              if(res) compileResult else CompileFailure
             } else compileResult
           }
         }
@@ -1299,7 +1299,17 @@ object StartStreaming                                            extends Compile
 object StopStreaming                                             extends CompileEvent
 case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent
 
-case class CompileResult(success: Boolean)
+sealed trait CompileResult {
+  def isSuccessful: Boolean
+}
+
+case class CompileSuccess(outputDirectory: Path) extends CompileResult{
+  override def isSuccessful: Boolean = true
+}
+
+case object CompileFailure extends CompileResult{
+  override def isSuccessful: Boolean = false
+}
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key

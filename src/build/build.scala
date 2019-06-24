@@ -212,7 +212,7 @@ object BuildCli {
                      compRes
                  }
       _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
-    } yield io.await(Await.result(future, duration.Duration.Inf).success)
+    } yield io.await(Await.result(future, duration.Duration.Inf).isSuccessful)
   }
 
   def getPrompt(layer: Layer, theme: Theme): Try[String] =
