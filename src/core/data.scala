@@ -541,24 +541,17 @@ case class Compilation(
       _    <- layout.shell.native(dest, cp, main)
     } yield ()
 
-  def saveJars(io: Io, ref: ModuleRef, dest: Path, layout: Layout): Try[Unit] =
+  def saveJars(io: Io, ref: ModuleRef, srcs: Set[Path], dest: Path, layout: Layout): Try[Unit] =
     for {
       dest <- dest.directory
-      dirs <- ~(allDependencies + targets(ref)).map { target =>
-               layout.classesDir(target.id)
-             }
-      files <- ~dirs.map { dir =>
-                (dir, dir.children)
-              }.filter(_._2.nonEmpty)
+      files <- ~srcs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
       bins         <- ~allDependencies.flatMap(_.binaries)
       _            <- ~io.println(msg"Writing manifest file ${layout.manifestFile(targets(ref).id)}")
       manifestFile <- Manifest.file(layout.manifestFile(targets(ref).id), bins.map(_.name), None)
       path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _            <- ~io.println(msg"Saving JAR file $path")
       _            <- layout.shell.aggregatedJar(path, files, manifestFile)
-      _ <- ~bins.foreach { bin =>
-            bin.copyTo(dest / bin.name)
-          }
+      _            <- bins.traverse { bin => bin.copyTo(dest / bin.name) }
     } yield ()
 
   def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
@@ -645,14 +638,12 @@ case class Compilation(
               statusCode <- compileModule(io, target, layout, target.kind == Application, multiplexer)
               classDirectory <- getClassDirectory(io, target, layout, multiplexer)
             } yield {
-              classDirectory.copyTo(layout.classesDir(target.id))
               if(statusCode == StatusCode.OK) CompileSuccess(classDirectory) else CompileFailure
             }
-          }.map { compileResult =>
-            if (compileResult.isSuccessful && target.kind == Benchmarks) {
-              // FIXME: This will need to use a different classes directory for instrumenting the classfiles, since bloop now uses a different directory
+          }.map {
+            case CompileSuccess(classDirectory) if target.kind == Benchmarks =>
               Jmh.instrument(
-                  layout.classesDir(target.id),
+                  classDirectory,
                   layout.benchmarksDir(target.id),
                   layout.resourcesDir(target.id))
               multiplexer(target.ref) = StartStreaming
@@ -660,7 +651,7 @@ case class Compilation(
                 layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
               layout.shell.javac(
                   classpath(target.ref, layout).to[List].map(_.value),
-                  layout.classesDir(target.id).value,
+                  classDirectory.value,
                   javaSources.map(_.value).to[List])
               val out = new StringBuilder()
               val res = layout.shell
@@ -685,8 +676,8 @@ case class Compilation(
               multiplexer.close(target.ref)
               multiplexer(target.ref) = StopStreaming
 
-              if(res) compileResult else CompileFailure
-            } else compileResult
+              if(res) CompileSuccess(classDirectory) else CompileFailure
+            case compileResult => compileResult
           }
         }
       }
@@ -1301,14 +1292,17 @@ case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends Compile
 
 sealed trait CompileResult {
   def isSuccessful: Boolean
+  def asTry: Try[CompileSuccess]
 }
 
 case class CompileSuccess(outputDirectory: Path) extends CompileResult{
   override def isSuccessful: Boolean = true
+  override def asTry: Try[CompileSuccess] = Success(this)
 }
 
 case object CompileFailure extends CompileResult{
   override def isSuccessful: Boolean = false
+  override def asTry: Try[CompileSuccess] = Failure(CompilationFailure())
 }
 
 object TargetId {
