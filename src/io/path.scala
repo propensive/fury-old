@@ -55,7 +55,7 @@ object Path {
     }
 
     override def visitFile(file: JPath, attrs: BasicFileAttributes): FileVisitResult = {
-      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)));
+      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       FileVisitResult.CONTINUE
     }
 
