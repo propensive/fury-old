@@ -498,7 +498,7 @@ case class Compilation(
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Unit =
-    Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+    Compilation.bspPool.borrow(layout.furyDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         server.workspaceBuildTargets.get.getTargets.asScala.toString
       }
@@ -576,7 +576,7 @@ case class Compilation(
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
                     : Future[StatusCode] =
     Future { blocking {
-      Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+      Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
           val statusCode = try {
@@ -592,11 +592,11 @@ case class Compilation(
       }
     } }
 
-  def getClassDirectory(io: Io, target: Target, layout: Layout, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Future[Path] = {
+  def getClassDirectory(target: Target, layout: Layout, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Future[Path] = {
     val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val targetIdentifier = new BuildTargetIdentifier(uri)
     Future (blocking {
-      Compilation.bspPool.borrow(io, layout.furyDir) { conn =>
+      Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val result = try {
             server.buildTargetScalacOptions(new ScalacOptionsParams(List(targetIdentifier).asJava)).get
@@ -636,7 +636,7 @@ case class Compilation(
           blocking {
             for{
               statusCode <- compileModule(io, target, layout, target.kind == Application, multiplexer)
-              classDirectory <- getClassDirectory(io, target, layout, multiplexer)
+              classDirectory <- getClassDirectory(target, layout, multiplexer)
             } yield {
               if(statusCode == StatusCode.OK) CompileSuccess(classDirectory) else CompileFailure
             }

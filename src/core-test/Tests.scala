@@ -6,7 +6,8 @@ object Tests {
   private val testSuites = List[TestApp](
       DirectedGraphTest,
       LayerRepositoryTest,
-      TablesTest
+      TablesTest,    
+      PoolTest
   )
 
   def main(args: Array[String]): Unit = testSuites.foreach(_.execute())
