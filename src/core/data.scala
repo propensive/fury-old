@@ -211,14 +211,50 @@ case class BspConnection(
   }
 }
 
+
+
 object BspConnectionManager {
 
-  case class Handle(in: OutputStream, out: InputStream, err: InputStream) extends AutoCloseable {
+  case class Handle(in: OutputStream, out: InputStream, err: InputStream, broken: Promise[Unit]) extends AutoCloseable {
+
+    lazy val errReader = new BufferedReader(new InputStreamReader(err))
+
     override def close(): Unit = {
+      broken.success(())
       in.close()
       out.close()
       err.close()
     }
+  }
+
+  object HandleHandler {
+    private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = scala.collection.concurrent.TrieMap()
+
+    private val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(), throw _)
+
+    def handle(handle: Handle, sink: PrintWriter): Unit = {
+      handles(handle) = sink
+    }
+
+    Future{
+      while(true){
+        handles.foreach{
+          case (handle, sink) if !handle.broken.isCompleted =>
+            try {
+              val line = handle.errReader.readLine()
+              if(line != null) sink.println(line)
+            } catch {
+              case e: IOException =>
+                sink.println("Broken handle!")
+                e.printStackTrace(sink)
+                handles -= handle
+                handle.broken.failure(e)
+            }
+        }
+        Thread.sleep(100)
+      }
+    }(ec)
+
   }
 
   import bloop.launcher.LauncherMain
@@ -240,7 +276,7 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
-    val handle = Handle(in, out, err)
+    val handle = Handle(in, out, err, Promise[Unit])
 
     Future(blocking{
       val launcher = new LauncherMain(
@@ -263,7 +299,7 @@ object BspConnectionManager {
       System.out.println(s"Launcher status: $status")
       status match {
         case SuccessfulRun => ()
-        case _ => handle.close()
+        case x => throw new Exception(s"Launcher failed: $x")
       }
     }
 
@@ -280,15 +316,17 @@ object Compilation {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
 
+    def isBad(value: BspConnection): Boolean = {
+      value.future.isDone
+    }
+
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
       val bspTraceBuffer = new CharArrayWriter()
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
       log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val handle = BspConnectionManager.bloopLauncher
-      val err = new java.io.BufferedReader(new java.io.InputStreamReader(handle.err))
-      // FIXME: This surely isn't the best way to consume a stream.
-      new Thread { override def run(): Unit = Stream.continually{Thread.sleep(100); err.readLine()}.filter(_ != null).foreach(log.println) }.start()
+      BspConnectionManager.HandleHandler.handle(handle, log)
       val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
@@ -309,7 +347,19 @@ object Compilation {
       )
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      val x = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      handle.broken.future.andThen{
+        case Success(_) =>
+          log.println(s"Connection for ${dir.value} has been closed.")
+          log.flush()
+          x.future.cancel(true)
+        case Failure(e) =>
+          log.println(s"Connection for ${dir.value} is broken! Cause: ${e.getMessage}")
+          e.printStackTrace(log)
+          log.flush()
+          x.future.cancel(true)
+      }
+      x
     }
   }
 
@@ -320,13 +370,11 @@ object Compilation {
     universe    <- hierarchy.universe
     compilation <- universe.compilation(io, ref, layout)
     _           <- compilation.generateFiles(io, layout)
-  } yield {
-    compilation.bspUpdate(io, compilation.targets(ref).id, layout)
-    compilation
-  }
+    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover{case x: Throwable => io.println(str"$schema --- ${x.getMessage}")}
+  } yield compilation
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
-    compilationCache.getOrElse(layout.furyDir, Future.successful(())).map { _ => mkCompilation(io, schema, ref, layout) }
+    compilationCache.getOrElse(layout.furyDir, Future{ mkCompilation(io, schema, ref, layout) })
   }
 
   def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
@@ -497,10 +545,10 @@ case class Compilation(
 
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Unit =
+  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
     Compilation.bspPool.borrow(layout.furyDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
-        server.workspaceBuildTargets.get.getTargets.asScala.toString
+        Try{ server.workspaceBuildTargets.get }.map(_.getTargets.asScala.toString)
       }
     }
 
