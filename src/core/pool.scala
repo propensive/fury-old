@@ -67,3 +67,19 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
     result
   }
 }
+
+abstract class RetryingPool[K, T, E](timeout: Long)(implicit ec: ExecutionContext) extends Pool[K, T](timeout)(ec){
+  
+  private def retry[S](times: Int = 1)(key: K)(action: T => S): S = {
+    try{
+      super.borrow(key)(action)
+    } catch {
+      case e: E if e.isInstanceOf[E] && times > 0 => retry(times - 1)(key)(action)
+    }
+  }
+
+  override def borrow[S](key: K)(action: T => S): S = {
+    retry(2)(key)(action)
+  }
+  
+}
