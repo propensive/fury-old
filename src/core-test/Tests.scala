@@ -7,7 +7,8 @@ object Tests {
       DirectedGraphTest,
       LayerRepositoryTest,
       TablesTest,    
-      PoolTest
+      PoolTest,
+      RetryingPoolTest
   )
 
   def main(args: Array[String]): Unit = testSuites.foreach(_.execute())
