@@ -236,8 +236,7 @@ case class Path(value: String) {
   }
 
   def copyTo(path: Path): Try[Path] =
-    Outcome.rescue[java.io.IOException](FileWriteError(path)) {
-      Files.copy(javaPath, path.javaPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    Try {
       Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
       path
     }

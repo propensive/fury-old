@@ -90,7 +90,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(
               msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
         case e: CompilationFailure =>
-          cli.abort(msg"Compilation failed.")
+          cli.abort(msg"One of the compile or run tasks failed. Check the logs for details.")
         case e: ModuleAlreadyExists =>
           cli.abort(msg"The module '${e.module}' already exists.")
         case e: ProjectAlreadyExists =>
