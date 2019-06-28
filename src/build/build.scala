@@ -273,7 +273,7 @@ object BuildCli {
         }
       _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
       compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
-      _            <- compilation.saveJars(io, module.ref(project), Set(compileSuccess.outputDirectory), dir in layout.pwd, layout)
+      _            <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories, dir in layout.pwd, layout)
     } yield io.await()
   }
 

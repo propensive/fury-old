@@ -592,14 +592,21 @@ case class Compilation(
   def saveJars(io: Io, ref: ModuleRef, srcs: Set[Path], dest: Path, layout: Layout): Try[Unit] =
     for {
       dest <- dest.directory
-      files <- ~srcs.map { dir => (dir, dir.children) }.filter(_._2.nonEmpty)
       bins         <- ~allDependencies.flatMap(_.binaries)
       manifestFile <- Manifest.file(layout.manifestFile(targets(ref).id), bins.map(_.name), None)
       path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _            <- ~io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
-      _            <- layout.shell.aggregatedJar(path, files, manifestFile)
+      stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
+      _            <- layout.shell.jar(path, Set(stagingDirectory -> stagingDirectory.children), manifestFile)
       _            <- bins.traverse { bin => bin.copyTo(dest / bin.name) }
     } yield ()
+
+  private def aggregateCompileResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
+    val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
+    for{
+      _ <- compileResults.traverse{case x => x.copyTo(stagingDirectory)}
+    } yield stagingDirectory
+  }
 
   def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
     (targets(ref).params ++ allDependencies.filter(_.kind == Plugin).map { pluginTarget =>
@@ -639,18 +646,18 @@ case class Compilation(
       }
     } }
 
-  def getClassDirectory(target: Target, layout: Layout, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Future[Path] = {
-    val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
-    val targetIdentifier = new BuildTargetIdentifier(uri)
+  def getClassDirectories(io: Io, target: Target, layout: Layout, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Future[Set[Path]] = {
+    val targetIdentifiers = deepDependencies(target.id)
+      .map{ dep => new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")}
     Future (blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val result = try {
-            server.buildTargetScalacOptions(new ScalacOptionsParams(List(targetIdentifier).asJava)).get
+            server.buildTargetScalacOptions(new ScalacOptionsParams(targetIdentifiers.toList.asJava)).get
           } catch {
             case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
           }
-          Path(new URI(result.getItems.asScala.find(_.getTarget == targetIdentifier).get.getClassDirectory))
+          result.getItems.asScala.toSet.map{x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
         }
       }
     })
@@ -683,23 +690,25 @@ case class Compilation(
           blocking {
             for{
               statusCode <- compileModule(io, target, layout, target.kind == Application, multiplexer)
-              classDirectory <- getClassDirectory(target, layout, multiplexer)
+              classDirectories <- getClassDirectories(io, target, layout, multiplexer)
             } yield {
-              if(statusCode == StatusCode.OK) CompileSuccess(classDirectory) else CompileFailure
+              if(statusCode == StatusCode.OK) CompileSuccess(classDirectories) else CompileFailure
             }
           }.map {
-            case CompileSuccess(classDirectory) if target.kind == Benchmarks =>
-              Jmh.instrument(
+            case CompileSuccess(classDirectories) if target.kind == Benchmarks =>
+              classDirectories.foreach { classDirectory =>
+                Jmh.instrument(
                   classDirectory,
                   layout.benchmarksDir(target.id),
                   layout.resourcesDir(target.id))
-              multiplexer(target.ref) = StartStreaming
-              val javaSources =
-                layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
-              layout.shell.javac(
+                multiplexer(target.ref) = StartStreaming
+                val javaSources =
+                  layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+                layout.shell.javac(
                   classpath(target.ref, layout).to[List].map(_.value),
                   classDirectory.value,
                   javaSources.map(_.value).to[List])
+              }
               val out = new StringBuilder()
               val res = layout.shell
                 .runJava(
@@ -723,7 +732,7 @@ case class Compilation(
               multiplexer.close(target.ref)
               multiplexer(target.ref) = StopStreaming
 
-              if(res) CompileSuccess(classDirectory) else CompileFailure
+              if(res) CompileSuccess(classDirectories) else CompileFailure
             case compileResult => compileResult
           }
         }
@@ -1342,7 +1351,7 @@ sealed trait CompileResult {
   def asTry: Try[CompileSuccess]
 }
 
-case class CompileSuccess(outputDirectory: Path) extends CompileResult{
+case class CompileSuccess(outputDirectories: Set[Path]) extends CompileResult{
   override def isSuccessful: Boolean = true
   override def asTry: Try[CompileSuccess] = Success(this)
 }

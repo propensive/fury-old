@@ -151,17 +151,15 @@ case class Shell(environment: Environment) {
       )
   }
 
-  private def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] =
-    sh"jar cmf ${manifestFile.value} ${dest.value}".exec[Try[String]].map { str =>
-      val params = files.to[List].flatMap {
-        case (path, files) =>
-          files.flatMap { file =>
-            List("-C", path.value, file)
-          }
-      }
-      sh"jar uf ${dest.value} $params".exec[Try[String]]
-      ()
+  def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] = {
+    val params = files.to[List].flatMap {
+      case (path, files) =>
+        files.flatMap { file =>
+          List("-C", path.value, file)
+        }
     }
+    sh"jar cmf ${manifestFile.value} ${dest.value} $params".exec[Try[String]].map(_ => ())
+  }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
     implicit val defaultEnvironment: Environment =
@@ -175,16 +173,6 @@ case class Shell(environment: Environment) {
     } yield ()
   }
 
-  def aggregatedJar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] = {
-    import mercator._
-    val dir = dest.parent / "staging"
-    dir.mkdir()
-    for {
-      _ <- files.traverse{case (p, fs) => fs.traverse{f => (p / f).copyTo(dir /f)}}
-      _ <- jar(dest, Set((dir, dir.children)), manifestFile)
-      _ <- dir.delete()
-    } yield ()
-  }
 }
 
 object Cached {

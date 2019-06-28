@@ -4,10 +4,15 @@ fury module add -n compiler -t compiler
 fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n foo
+fury module add -n lib -c scala/compiler
+mkdir -p src/lib
+fury source add -d src/lib
+echo 'object Constants { val text = "Hello World\n" }' > src/lib/constants.scala
 fury module add -n app -c scala/compiler -t application -M HelloWorld
-fury source add -d src
-mkdir -p src
-echo 'object HelloWorld extends App { new java.io.PrintWriter("test/tmp/save-jar/.content") { write("Hello World\n"); close() } }' > src/hw.scala
+fury dependency add -l lib
+mkdir -p src/app
+fury source add -d src/app
+echo 'object HelloWorld extends App { new java.io.PrintWriter("test/tmp/save-jar/.content") { write(Constants.text); close() } }' > src/app/hw.scala
 mkdir -p out
 timeout 180 fury build save --dir out --output linear
 echo $?
