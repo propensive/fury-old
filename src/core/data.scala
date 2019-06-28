@@ -363,7 +363,7 @@ object Compilation {
     }
   }
 
-  private val compilationCache: HashMap[Path, Future[Try[Compilation]]] = HashMap()
+  private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = collection.concurrent.TrieMap()
 
   def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
     hierarchy   <- schema.hierarchy(io, layout.base, layout)
@@ -373,13 +373,17 @@ object Compilation {
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover{case x: Throwable => io.println(str"$schema --- ${x.getMessage}")}
   } yield compilation
 
-  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
-    compilationCache.getOrElse(layout.furyDir, Future{ mkCompilation(io, schema, ref, layout) })
+  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout))
+    compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
+      case Some(future) => future.transformWith { case _ : Try[Compilation] => fn }
+      case None => fn
+    }
+    compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
-    compilationCache.get(layout.furyDir).map(Await.result(_, Duration.Inf)).getOrElse(mkCompilation(io, schema, ref, layout))
-  }
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] =
+    Await.result(asyncCompilation(io, schema, ref, layout), Duration.Inf)
 }
 
 object LineNo {
@@ -604,7 +608,7 @@ case class Compilation(
   private def aggregateCompileResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
     for{
-      _ <- compileResults.traverse{case x => x.copyTo(stagingDirectory)}
+      _ <- compileResults.filter(_.exists()).traverse{case x => x.copyTo(stagingDirectory)}
     } yield stagingDirectory
   }
 
@@ -628,40 +632,34 @@ case class Compilation(
                     layout: Layout,
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
-                    : Future[StatusCode] =
-    Future { blocking {
-      Compilation.bspPool.borrow(layout.furyDir) { conn =>
-        conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
-          val statusCode = try {
-            if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
-            else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
-          } catch {
-            case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
-          }
-          conn.writeTrace(layout)
-          conn.writeMessages(layout)
-          statusCode
-        }
-      }
-    } }
-
-  def getClassDirectories(io: Io, target: Target, layout: Layout, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Future[Set[Path]] = {
+                    : Future[CompileResult] = {
     val targetIdentifiers = deepDependencies(target.id)
       .map{ dep => new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")}
     Future (blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
           val result = try {
-            server.buildTargetScalacOptions(new ScalacOptionsParams(targetIdentifiers.toList.asJava)).get
+            val statusCode = if (application)
+              server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
+            else
+              server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
+            if(statusCode == StatusCode.OK){
+              val outputDirectories = server.buildTargetScalacOptions(new ScalacOptionsParams(targetIdentifiers.toList.asJava)).get
+                .getItems.asScala.toSet.map{x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
+              CompileSuccess(outputDirectories)
+            } else CompileFailure
           } catch {
             case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
           }
-          result.getItems.asScala.toSet.map{x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
+          conn.writeTrace(layout)
+          conn.writeMessages(layout)
+          result
         }
       }
     })
   }
+
 
   def compile(io: Io,
               moduleRef: ModuleRef,
@@ -687,14 +685,7 @@ case class Compilation(
           if (noCompilation) deepDependencies(target.id).foreach { targetId =>
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
-          blocking {
-            for{
-              statusCode <- compileModule(io, target, layout, target.kind == Application, multiplexer)
-              classDirectories <- getClassDirectories(io, target, layout, multiplexer)
-            } yield {
-              if(statusCode == StatusCode.OK) CompileSuccess(classDirectories) else CompileFailure
-            }
-          }.map {
+          compileModule(io, target, layout, target.kind == Application, multiplexer).map {
             case CompileSuccess(classDirectories) if target.kind == Benchmarks =>
               classDirectories.foreach { classDirectory =>
                 Jmh.instrument(
