@@ -363,7 +363,7 @@ object Compilation {
     }
   }
 
-  private val compilationCache: HashMap[Path, Future[Try[Compilation]]] = HashMap()
+  private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = collection.concurrent.TrieMap()
 
   def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
     hierarchy   <- schema.hierarchy(io, layout.base, layout)
@@ -373,13 +373,17 @@ object Compilation {
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover{case x: Throwable => io.println(str"$schema --- ${x.getMessage}")}
   } yield compilation
 
-  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = synchronized {
-    compilationCache.getOrElse(layout.furyDir, Future{ mkCompilation(io, schema, ref, layout) })
+  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
+    def fn = mkCompilation(io, schema, ref, layout)
+    compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
+      case Some(future) => future.andThen { case _ => fn }
+      case None => Future(fn)
+    }
+    compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = synchronized {
-    compilationCache.get(layout.furyDir).map(Await.result(_, Duration.Inf)).getOrElse(mkCompilation(io, schema, ref, layout))
-  }
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] =
+    Await.result(asyncCompilation(io, schema, ref, layout), Duration.Inf)
 }
 
 object LineNo {
