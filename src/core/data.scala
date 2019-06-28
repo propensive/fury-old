@@ -608,7 +608,7 @@ case class Compilation(
   private def aggregateCompileResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
     for{
-      _ <- compileResults.traverse{case x => x.copyTo(stagingDirectory)}
+      _ <- compileResults.filter(_.exists()).traverse{case x => x.copyTo(stagingDirectory)}
     } yield stagingDirectory
   }
 
