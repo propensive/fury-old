@@ -628,40 +628,34 @@ case class Compilation(
                     layout: Layout,
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
-                    : Future[StatusCode] =
-    Future { blocking {
-      Compilation.bspPool.borrow(layout.furyDir) { conn =>
-        conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
-          val statusCode = try {
-            if(application) server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
-            else server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
-          } catch {
-            case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
-          }
-          conn.writeTrace(layout)
-          conn.writeMessages(layout)
-          statusCode
-        }
-      }
-    } }
-
-  def getClassDirectories(io: Io, target: Target, layout: Layout, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Future[Set[Path]] = {
+                    : Future[CompileResult] = {
     val targetIdentifiers = deepDependencies(target.id)
       .map{ dep => new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")}
     Future (blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
           val result = try {
-            server.buildTargetScalacOptions(new ScalacOptionsParams(targetIdentifiers.toList.asJava)).get
+            val statusCode = if (application)
+              server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
+            else
+              server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
+            if(statusCode == StatusCode.OK){
+              val outputDirectories = server.buildTargetScalacOptions(new ScalacOptionsParams(targetIdentifiers.toList.asJava)).get
+                .getItems.asScala.toSet.map{x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
+              CompileSuccess(outputDirectories)
+            } else CompileFailure
           } catch {
             case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
           }
-          result.getItems.asScala.toSet.map{x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
+          conn.writeTrace(layout)
+          conn.writeMessages(layout)
+          result
         }
       }
     })
   }
+
 
   def compile(io: Io,
               moduleRef: ModuleRef,
@@ -687,14 +681,7 @@ case class Compilation(
           if (noCompilation) deepDependencies(target.id).foreach { targetId =>
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
-          blocking {
-            for{
-              statusCode <- compileModule(io, target, layout, target.kind == Application, multiplexer)
-              classDirectories <- getClassDirectories(io, target, layout, multiplexer)
-            } yield {
-              if(statusCode == StatusCode.OK) CompileSuccess(classDirectories) else CompileFailure
-            }
-          }.map {
+          compileModule(io, target, layout, target.kind == Application, multiplexer).map {
             case CompileSuccess(classDirectories) if target.kind == Benchmarks =>
               classDirectories.foreach { classDirectory =>
                 Jmh.instrument(
