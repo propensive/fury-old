@@ -374,10 +374,10 @@ object Compilation {
   } yield compilation
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
-    def fn = mkCompilation(io, schema, ref, layout)
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout))
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
-      case Some(future) => future.andThen { case _ => fn }
-      case None => Future(fn)
+      case Some(future) => future.transformWith { case _ : Try[Compilation] => fn }
+      case None => fn
     }
     compilationCache(layout.furyDir)
   }
