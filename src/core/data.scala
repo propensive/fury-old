@@ -376,7 +376,7 @@ object Compilation {
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
     def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout))
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
-      case Some(future) => future.transformWith { case _ : Try[Compilation] => fn }
+      case Some(future) => future.transformWith { _ => fn }
       case None => fn
     }
     compilationCache(layout.furyDir)
