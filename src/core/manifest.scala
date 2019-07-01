@@ -15,29 +15,21 @@
  */
 package fury.core
 
-import fury.io._, fury.strings._
-
-import scala.util._
+import fury.strings._
+import java.util.jar.{Attributes, Manifest => JManifest}
 
 object Manifest {
 
-  def file(file: Path, classpath: Set[String], mainClass: Option[String]): Try[Path] = {
-    val classpathString = classpath.join(" ")
+  def apply(classpath: Set[String], mainClass: Option[String]): JManifest = {
+    import Attributes.Name._
 
-    val content: String = List(
-        List("Manifest-Version"             -> "1.0"),
-        mainClass.to[List].map("Main-Class" -> _),
-        List("Class-Path"                   -> classpathString),
-        List("Created-By"                   -> str"Fury ${Version.current}")
-    ).flatten.map {
-      case (k, v) =>
-        val line = s"$k: $v"
-        line.tail.grouped(71).mkString(line.head.toString, "\n ", "")
-    }.mkString
-
-    file.writeSync(content).map { _ =>
-      file
-    }
+    val result = new JManifest
+    val mainAttributes = result.getMainAttributes
+    mainAttributes.put(MANIFEST_VERSION, "1.0")
+    mainClass.foreach(mainAttributes.put(MAIN_CLASS, _))
+    mainAttributes.put(CLASS_PATH, classpath.join(" "))
+    mainAttributes.putValue("Created-By", str"Fury ${Version.current}")
+    result
   }
 
 }

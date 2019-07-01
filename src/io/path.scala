@@ -19,7 +19,7 @@ import java.io.FileNotFoundException
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardOpenOption, Path => JPath}
-import java.util.zip.ZipFile
+import java.util.zip.{ZipEntry, ZipFile, ZipOutputStream}
 
 import kaleidoscope._
 
@@ -56,6 +56,19 @@ object Path {
 
     override def visitFile(file: JPath, attrs: BasicFileAttributes): FileVisitResult = {
       Files.copy(file, targetPath.resolve(sourcePath.relativize(file)), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      FileVisitResult.CONTINUE
+    }
+
+  }
+
+  private class ZippingFileVisitor(sourcePath: JPath, out: ZipOutputStream) extends SimpleFileVisitor[JPath] {
+
+    override def visitFile(file: JPath, attrs: BasicFileAttributes): FileVisitResult = {
+      val entry = new ZipEntry(sourcePath.relativize(file).toString)
+      val content = Files.readAllBytes(file)
+      out.putNextEntry(entry)
+      out.write(content, 0, content.length)
+      out.closeEntry()
       FileVisitResult.CONTINUE
     }
 
@@ -239,6 +252,11 @@ case class Path(value: String) {
     Try {
       Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
       path
+    }
+
+  def zipTo(out: ZipOutputStream): Try[Unit] =
+    Try {
+      Files.walkFileTree(javaPath, new Path.ZippingFileVisitor(javaPath, out))
     }
 
   def ifExists(): Option[Path] =

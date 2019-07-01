@@ -593,17 +593,18 @@ case class Compilation(
       _    <- layout.shell.native(dest, cp, main)
     } yield ()
 
-  def saveJars(io: Io, ref: ModuleRef, srcs: Set[Path], dest: Path, layout: Layout): Try[Unit] =
+  def saveJars(io: Io, ref: ModuleRef, srcs: Set[Path], destination: Path, layout: Layout): Try[Unit] = {
+    val bins = allDependencies.flatMap(_.binaries)
+    val manifest = Manifest(bins.map(_.name), None)
     for {
-      dest <- dest.directory
-      bins         <- ~allDependencies.flatMap(_.binaries)
-      manifestFile <- Manifest.file(layout.manifestFile(targets(ref).id), bins.map(_.name), None)
-      path         <- ~(dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _            <- ~io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
+      dest             <- destination.directory
+      path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
+      _                 = io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
-      _            <- layout.shell.jar(path, Set(stagingDirectory -> stagingDirectory.children), manifestFile)
-      _            <- bins.traverse { bin => bin.copyTo(dest / bin.name) }
+      _                <- layout.shell.jar(path, Set(stagingDirectory), manifest)
+      _                <- bins.traverse { bin => bin.copyTo(dest / bin.name) }
     } yield ()
+  }
 
   private def aggregateCompileResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"

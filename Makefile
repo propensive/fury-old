@@ -30,9 +30,8 @@ publish: dist/install.sh
 	@echo
 
 dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
-	echo "#!/usr/bin/env sh" > dist/install.sh
-	echo "FURY_VERSION=$(VERSION)" >> dist/install.sh
-	cat etc/install.sh $< >> dist/install.sh
+	cat etc/install.sh $< > dist/install.sh
+	sed -i "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh
 	chmod +x dist/install.sh
 
 dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
