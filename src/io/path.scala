@@ -15,15 +15,11 @@
  */
 package fury.io
 
-import java.io.FileNotFoundException
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardOpenOption, Path => JPath}
-import java.util.zip.{ZipEntry, ZipFile, ZipOutputStream}
 
 import kaleidoscope._
-
-import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
@@ -61,19 +57,6 @@ object Path {
 
   }
 
-  private class ZippingFileVisitor(sourcePath: JPath, out: ZipOutputStream) extends SimpleFileVisitor[JPath] {
-
-    override def visitFile(file: JPath, attrs: BasicFileAttributes): FileVisitResult = {
-      val entry = new ZipEntry(sourcePath.relativize(file).toString)
-      val content = Files.readAllBytes(file)
-      out.putNextEntry(entry)
-      out.write(content, 0, content.length)
-      out.closeEntry()
-      FileVisitResult.CONTINUE
-    }
-
-  }
-
 }
 
 case class Path(value: String) {
@@ -84,16 +67,6 @@ case class Path(value: String) {
   def uriString: String = javaPath.toFile.toURI.toString
 
   def name: String = javaPath.getFileName.toString
-
-  def zipfileEntries: Try[List[ZipfileEntry]] =
-    for {
-      zipFile     <- Outcome.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
-      entries     <- Try(zipFile.entries)
-      entriesList = entries.asScala.to[List]
-    } yield
-      entriesList.map { entry =>
-        ZipfileEntry(entry.getName, () => zipFile.getInputStream(entry))
-      }
 
   def /(child: String): Path = Path(s"$filename/$child")
 
@@ -252,11 +225,6 @@ case class Path(value: String) {
     Try {
       Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
       path
-    }
-
-  def zipTo(out: ZipOutputStream): Try[Unit] =
-    Try {
-      Files.walkFileTree(javaPath, new Path.ZippingFileVisitor(javaPath, out))
     }
 
   def ifExists(): Option[Path] =

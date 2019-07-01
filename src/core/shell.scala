@@ -154,12 +154,9 @@ case class Shell(environment: Environment) {
 
   def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
     val out = new JarOutputStream(new FileOutputStream(dest.value), manifest)
-    try{
-      inputs.foreach(_.zipTo(out))
-      out.finish()
-    } finally {
-      out.close()
-    }
+    out.finish()
+    out.close()
+    inputs.foreach(f => Zipper.pack(f, dest))
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
