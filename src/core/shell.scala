@@ -15,9 +15,6 @@
  */
 package fury.core
 
-import java.io.FileOutputStream
-import java.util.jar.{JarOutputStream, Manifest => JManifest}
-
 import fury.io._
 import guillotine._
 
@@ -150,16 +147,6 @@ case class Shell(environment: Environment) {
           _ => Failure(GraalVMError("native-image could not be executed")),
           _.map(_ => ())
       )
-  }
-
-  def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
-    val out = new JarOutputStream(new FileOutputStream(dest.value), manifest)
-    try{
-      inputs.foreach(_.zipTo(out))
-      out.finish()
-    } finally {
-      out.close()
-    }
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {

@@ -2,7 +2,7 @@ VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git 
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.3.2
-DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
+DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine canner
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=launcher ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -47,6 +47,10 @@ dist/bundle/etc:
 bootstrap/scala:
 	mkdir -p $@
 	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1
+
+bootstrap/git/canner:
+	mkdir -p $@
+	git clone --recursive https://github.com/odisseus/canner.git $@ --branch=make
 
 bootstrap/git/%:
 	mkdir -p $@

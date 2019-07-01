@@ -28,7 +28,11 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	escritoire/core	projectId	escritoire
+						after	canner/core	projectId	canner
+								moduleId	core
+								intransitive	false
+								hidden	false
+							escritoire/core	projectId	escritoire
 								moduleId	core
 								intransitive	false
 								hidden	false
@@ -363,7 +367,12 @@ schemas	default	id	default
 						moduleId	compiler
 						intransitive	true
 						hidden	false
-		repos	contextual	id	contextual
+		repos	canner	id	canner
+				repo	git@github.com:odisseus/canner.git
+				track	master
+				commit	8bc371b3dfc148facc5e7917578824001f9285e2
+				local	None
+			contextual	id	contextual
 				repo	git@github.com:propensive/contextual.git
 				track	fury
 				commit	c549e94895e90f20db264717a0de2338825b73d9
@@ -433,7 +442,9 @@ schemas	default	id	default
 				track	master
 				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
 				local	None
-		imports	platform:default	repo	platform
+		imports	canner:default	repo	canner
+				schema	default
+			platform:default	repo	platform
 				schema	default
 			scala:scala-2.12.8	repo	scala
 				schema	scala-2.12.8

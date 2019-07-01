@@ -593,16 +593,19 @@ case class Compilation(
       _    <- layout.shell.native(dest, cp, main)
     } yield ()
 
-  def saveJars(io: Io, ref: ModuleRef, srcs: Set[Path], destination: Path, layout: Layout): Try[Unit] = {
+  def saveJars(io: Io, ref: ModuleRef, srcs: Set[Path], destination: Path, layout: Layout, fatJar: Boolean): Try[Unit] = {
     val bins = allDependencies.flatMap(_.binaries)
-    val manifest = Manifest(bins.map(_.name), None)
     for {
+      entity           <- universe.entity(ref.projectId)
+      module           <- entity.project(ref.moduleId)
+      manifest          = Manifest(bins.map(_.name), module.main)
       dest             <- destination.directory
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
-      _                <- layout.shell.jar(path, Set(stagingDirectory), manifest)
-      _                <- bins.traverse { bin => bin.copyTo(dest / bin.name) }
+      _                <- if(fatJar) bins.traverse { bin => canner.Zipper.unpack(bin.javaPath, stagingDirectory.javaPath) } else Success()
+      _                <- canner.Canner.packJar(stagingDirectory.children.map(stagingDirectory / _).map(_.javaPath).to[Set], path.javaPath, manifest)
+      _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success()
     } yield ()
   }
 
