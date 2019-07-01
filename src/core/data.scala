@@ -312,7 +312,7 @@ object Compilation {
 
   private val compilationThreadPool = Executors.newCachedThreadPool()
 
-  val bspPool: Pool[Path, BspConnection] = new RetryingPool[Path, BspConnection, java.util.concurrent.ExecutionException](60000L) {
+  val bspPool: Pool[Path, BspConnection] = new RetryingPool[Path, BspConnection, BuildServerError](60000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
 
