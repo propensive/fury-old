@@ -97,9 +97,6 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   def resourcesDir(targetId: TargetId): Path =
     (resourcesDir / targetId.key).extant()
 
-  def manifestFile(targetId: TargetId): Path =
-    resourcesDir(targetId) / "manifest.mf"
-
   val shell = Shell(env)
 
 }

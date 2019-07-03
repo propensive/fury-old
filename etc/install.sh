@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+FURY_VERSION=test
 DESTINATION="$HOME/fury-$FURY_VERSION"
 CONFIG="$HOME/.furyrc"
 

@@ -28,10 +28,10 @@ RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
 ADD Makefile /build/Makefile
 ADD etc /build/etc
 ENV PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:/root/.bloop:${PATH}"
-RUN sh -c "echo test > /build/.version"
 
 # Build a local version of Fury
 ADD src /build/src
+ADD .version /build/.version
 RUN (cd /build && make -j10 dist/install.sh)
 
 # Clean up build
@@ -53,5 +53,4 @@ ADD test /home/bash_user/test
 RUN chown -R bash_user:bash_user /home/bash_user/test
 RUN chown -R bash_user:bash_user /home/bash_user/.config
 
-ENV FURYHOME "/home/bash_user/fury-test"
-RUN ln -sf /home/bash_user/fury-test/bin/fury /usr/local/bin/fury
+RUN FURY_VERSION=`cat /build/.version`; ln -sf "/home/bash_user/fury-${FURY_VERSION}/bin/fury" /usr/local/bin/fury

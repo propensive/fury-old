@@ -15,13 +15,14 @@
  */
 package fury.core
 
-import fury.io._, fury.strings._
+import java.io.FileOutputStream
+import java.util.jar.{JarOutputStream, Manifest => JManifest}
 
+import fury.io._
 import guillotine._
-import kaleidoscope._
 
 import scala.util._
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.HashMap
 
 case class Shell(environment: Environment) {
   private val furyHome   = Path(System.getProperty("fury.home"))
@@ -151,14 +152,14 @@ case class Shell(environment: Environment) {
       )
   }
 
-  def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] = {
-    val params = files.to[List].flatMap {
-      case (path, files) =>
-        files.flatMap { file =>
-          List("-C", path.value, file)
-        }
+  def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
+    val out = new JarOutputStream(new FileOutputStream(dest.value), manifest)
+    try{
+      inputs.foreach(_.zipTo(out))
+      out.finish()
+    } finally {
+      out.close()
     }
-    sh"jar cmf ${manifestFile.value} ${dest.value} $params".exec[Try[String]].map(_ => ())
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
