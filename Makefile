@@ -56,6 +56,10 @@ dist/bundle/lib/%.jar: bootstrap/scala bootstrap/git/% dist/bundle/lib
 	mkdir -p bootstrap/lib
 	(cd bootstrap/git/$* && make)
 	cp bootstrap/git/$*/lib/$*.jar $@
+	for DEP in $(DEPS); do \
+		mkdir -p bootstrap/git/$$DEP/lib ; test -f bootstrap/git/$$DEP/lib/$*.jar || cp bootstrap/git/$*/lib/$*.jar bootstrap/git/$$DEP/lib/ ; \
+	done
+
 
 bootstrap/bin:
 	mkdir -p $@
