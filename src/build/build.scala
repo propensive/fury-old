@@ -251,6 +251,7 @@ object BuildCli {
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(DirArg)
+      cli          <- cli.hint(FatJarArg)
       invoc        <- cli.read()
       io           <- invoc.io()
       dir          <- invoc(DirArg)
@@ -258,6 +259,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
+      fatJar       = invoc(FatJarArg).toOption.isDefined
       compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
@@ -273,7 +275,7 @@ object BuildCli {
         }
       _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
       compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
-      _            <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories, dir in layout.pwd, layout)
+      _            <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories, dir in layout.pwd, layout, fatJar)
     } yield io.await()
   }
 
