@@ -31,7 +31,7 @@ publish: dist/install.sh
 
 dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	cat etc/install.sh $< > dist/install.sh
-	sed -i "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh
+	LC_ALL=C sed -i.bak "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh
 	chmod +x dist/install.sh
 
 dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
@@ -70,11 +70,11 @@ dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
 		cp $$JAR dist/bundle/lib/ ; \
 	done
 
-define compile-module =
-scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin $@/*.scala
+define compile-module
+scalac -d bootstrap/bin/ -cp dist/bundle/lib/'*':bootstrap/bin $@/*.scala
 endef
 
-pre-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
+pre-compile: bootstrap/bin dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
 
 src/strings: pre-compile
 	$(compile-module)
