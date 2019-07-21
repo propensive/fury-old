@@ -153,6 +153,10 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
+							mercator/core	projectId	mercator
+								moduleId	core
+								intransitive	false
+								hidden	false
 						params	
 						sources	src/io	src/io
 						binaries	

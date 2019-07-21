@@ -1,18 +1,20 @@
 /*
-  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
+   ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║                                                                                                           ║
+   ║ The primary distribution site is: https://propensive.com/                                                 ║
+   ║                                                                                                           ║
+   ║ Licensed under  the Apache License,  Version 2.0 (the  "License"); you  may not use  this file  except in ║
+   ║ compliance with the License. You may obtain a copy of the License at                                      ║
+   ║                                                                                                           ║
+   ║     http://www.apache.org/licenses/LICENSE-2.0                                                            ║
+   ║                                                                                                           ║
+   ║ Unless required  by applicable law  or agreed to in  writing, software  distributed under the  License is ║
+   ║ distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. ║
+   ║ See the License for the specific language governing permissions and limitations under the License.        ║
+   ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+*/
 
-  The primary distribution site is: https://propensive.com/
-
-  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
-  in compliance with the License. You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required  by applicable  law or  agreed to  in writing,  software  distributed  under the
-  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-  express  or  implied.  See  the  License for  the specific  language  governing  permissions and
-  limitations under the License.
- */
 package fury.core
 
 import java.io.FileOutputStream
@@ -30,16 +32,15 @@ case class Shell(environment: Environment) {
 
   implicit private[this] val defaultEnvironment: Environment = environment
 
-  def runJava(
-      classpath: List[String],
-      main: String,
-      securePolicy: Boolean,
-      layout: Layout
-    )(output: String => Unit
-    ): Running = {
+  def runJava(classpath: List[String],
+              main: String,
+              securePolicy: Boolean,
+              layout: Layout)
+             (output: String => Unit)
+             : Running = {
     layout.sharedDir.mkdir()
-    implicit val defaultEnvironment: Environment =
-      environment.append("SHARED", layout.sharedDir.value)
+    implicit val defaultEnvironment: Environment = environment.append("SHARED", layout.sharedDir.value)
+    
     val cmd =
       if (securePolicy)
         sh"java -Djava.security.manager -Djava.security.policy=${policyFile.value} -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath
@@ -53,7 +54,6 @@ case class Shell(environment: Environment) {
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
 
   object git {
-
     def cloneBare(url: String, dir: Path): Try[String] = {
       implicit val defaultEnvironment: Environment =
         environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
@@ -64,13 +64,12 @@ case class Shell(environment: Environment) {
       }
     }
 
-    def sparseCheckout(
-        from: Path,
-        dir: Path,
-        sources: List[Path],
-        refSpec: String,
-        commit: String
-      ): Try[String] =
+    def sparseCheckout(from: Path,
+                       dir: Path,
+                       sources: List[Path],
+                       refSpec: String,
+                       commit: String)
+                      : Try[String] =
       for {
         _ <- sh"git -C ${dir.value} init".exec[Try[String]]
         _ <- if (!sources.isEmpty)
@@ -136,14 +135,11 @@ case class Shell(environment: Environment) {
   }
 
   object java {
-
     def ensureIsGraalVM(): Try[Unit] =
-      sh"sh -c 'java -version 2>&1'"
-        .exec[Try[String]]
-        .map(_.contains("GraalVM"))
-        .fold(
-            _ => Failure(GraalVMError("Could not check Java version")),
-            isGraal => if (isGraal) Success(()) else Failure(GraalVMError("non-GraalVM java")))
+      sh"sh -c 'java -version 2>&1'".exec[Try[String]].map(_.contains("GraalVM")).transform(
+        if(_) Success(()) else Failure(GraalVMError("non-GraalVM java")),
+        _ => Failure(GraalVMError("Could not check Java version"))
+      )
 
     def ensureNativeImageInPath(): Try[Unit] =
       Try(sh"native-image --help".exec[Try[String]]).fold(
@@ -156,12 +152,13 @@ case class Shell(environment: Environment) {
     val out = new JarOutputStream(new FileOutputStream(dest.value), manifest)
     out.finish()
     out.close()
-    inputs.foreach(f => Zipper.pack(f, dest))
+
+    inputs.foreach(Zipper.pack(_, dest))
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
-    implicit val defaultEnvironment: Environment =
-      environment.copy(workDir = Some(dest.value))
+    implicit val defaultEnvironment: Environment = environment.copy(workDir = Some(dest.value))
+
     for {
       _ <- java.ensureNativeImageInPath
       _ <- java.ensureIsGraalVM()
@@ -170,10 +167,9 @@ case class Shell(environment: Environment) {
           }
     } yield ()
   }
-
 }
 
 object Cached {
-  val lsRemote: HashMap[String, Try[List[String]]]            = new HashMap()
+  val lsRemote: HashMap[String, Try[List[String]]] = new HashMap()
   val lsRemoteRefSpec: HashMap[(String, String), Try[String]] = new HashMap()
 }
