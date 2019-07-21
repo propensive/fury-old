@@ -40,7 +40,7 @@ object SourceCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout    <- cli.layout
-      config    <- Config.read()(cli.env, layout)
+      config    <- Config.read()(cli.env, cli.globalLayout)
       layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
@@ -70,8 +70,8 @@ object SourceCli {
       invoc   <- cli.read()
       io      <- invoc.io()
       raw     <- ~invoc(RawArg).isSuccess
-      module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.sources.to[List]
       table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
@@ -92,13 +92,14 @@ object SourceCli {
       io          <- invoc.io()
       sourceArg   <- invoc(SourceArg)
       source      <- ~Source.unapply(sourceArg)
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
       sourceToDel <- ~module.sources.find(Some(_) == source)
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) --= sourceToDel)
       _ <- ~Layer.save(io, layer, layout)
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout))
     } yield io.await()
   }
 
@@ -124,13 +125,14 @@ object SourceCli {
       cli       <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
       invoc     <- cli.read()
       io        <- invoc.io()
-      module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
+      module    <- optModule.ascribe(UnspecifiedModule())
       sourceArg <- invoc(SourceArg)
       source    <- ~Source.unapply(sourceArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.sources(_, project.id, module.id))(_(_) ++= source)
       _ <- ~Layer.save(io, layer, layout)
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout))
     } yield io.await()
   }
 }

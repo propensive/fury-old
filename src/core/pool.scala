@@ -16,23 +16,69 @@
 package fury.core
 
 import scala.collection.mutable._
+import scala.concurrent._, duration._
+import scala.util._
+import scala.annotation._
 
-abstract class Pool[K, T]() {
+import scala.reflect.ClassTag
 
-  private[this] val pool: Map[K, Set[T]] = new HashMap().withDefaultValue(Set())
+abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
-  def borrow[S](io: Io, key: K)(action: T => S): S = {
-    val element = synchronized {
-      pool(key).headOption.fold(create(key)) { e =>
-        pool(key) = pool(key) - e
-        e
+  def create(key: K): T
+  def destroy(value: T): Unit
+  
+  def isBad(value: T): Boolean
+
+  case class Entry(key: K, value: T)
+
+  private[this] val pool: Map[K, T] = scala.collection.concurrent.TrieMap()
+  
+  def size: Int = pool.size
+
+  @tailrec
+  private[this] def createOrRecycle(key: K): T = {
+    val result = pool.get(key) match {
+      case None =>
+        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+          pool(key) = value
+          Some(value)
+        }.toOption.getOrElse(None)
+      case Some(value) =>
+        pool -= key
+        if(isBad(value)){
+          destroy(value)
+          None
+        }
+        else Some(value)
+    }
+    if(result.isEmpty) createOrRecycle(key) else result.get
+  }
+
+  def borrow[S](key: K)(action: T => S): S = {
+    val value: T = synchronized {
+      pool.get(key).fold(createOrRecycle(key)) { value =>
+        pool -= key
+        value
       }
     }
 
-    val result: S = action(element)
-    synchronized { pool(key) = pool(key) + element }
+    val result: S = action(value)
+    synchronized {
+      pool(key) = value
+    }
     result
   }
+}
 
-  def create(key: K): T
+abstract class RetryingPool[K, T, E: ClassTag](timeout: Long)(implicit ec: ExecutionContext) extends Pool[K, T](timeout)(ec){
+  
+  private def retry[S](times: Int = 1)(key: K)(action: T => S): S =
+    try super.borrow(key)(action) catch {
+      case e: E if times > 0 => retry(times - 1)(key)(action)
+    }
+
+  override def borrow[S](key: K)(action: T => S): S = {
+    retry(2)(key)(action)
+  }
+  
 }

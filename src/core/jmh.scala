@@ -30,7 +30,7 @@ object Jmh {
     val out                   = System.out
     System.setOut(new PrintStream(discard))
     val result = Try(
-        JmhBytecodeGenerator.main(Array(bytecode.value, sources.value, resources.value, "asm")))
+        JmhBytecodeGenerator.main(Array(bytecode.value, sources.value, resources.value, "reflection")))
     System.setOut(out)
     result
   }

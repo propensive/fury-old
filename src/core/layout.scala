@@ -15,7 +15,7 @@
  */
 package fury.core
 
-import fury.io._
+import fury._, io._, strings._
 
 import gastronomy._
 import guillotine._
@@ -47,6 +47,12 @@ object Layout {
     findBase(pwd).map { Layout(home, pwd, env, _) }
 }
 
+case class GlobalLayout(home: Path) {
+  private[this] val userDir    = (home / ".furyrc").extant()
+  lazy val userConfig: Path    = userDir / "config.fury"
+  lazy val aliasesPath: Path   = userDir / "aliases"
+}
+
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
 
   private val nowString: String = Layout.dateFormat.format(new Date())
@@ -68,31 +74,28 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val workDir: Path       = (furyDir / "work").extant()
   lazy val sharedDir: Path     = (furyDir / "build" / uniqueId).extant()
   lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
-  lazy val userConfig: Path    = userDir / "config.fury"
-  lazy val aliasesPath: Path   = userDir / "aliases"
+  lazy val messagesLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
+  lazy val traceLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
 
-  def bloopConfig(digest: Digest): Path =
-    bloopDir.extant() / s"${digest.encoded[Base64Url]}.json"
+  def bloopConfig(targetId: TargetId): Path =
+    bloopDir.extant() / str"${targetId.key}.json"
 
   lazy val furyConfig: Path = base / "layer.fury"
 
-  def outputDir(digest: Digest): Path =
-    (analysisDir / digest.encoded[Base64Url]).extant()
+  def outputDir(targetId: TargetId): Path =
+    (analysisDir / targetId.key).extant()
 
-  def workDir(digest: Digest): Path =
-    (workDir / digest.encoded[Base64Url]).extant()
+  def workDir(targetId: TargetId): Path =
+    (workDir / targetId.key).extant()
 
-  def benchmarksDir(digest: Digest): Path =
-    (benchmarksDir / digest.encoded[Base64Url]).extant()
+  def benchmarksDir(targetId: TargetId): Path =
+    (benchmarksDir / targetId.key).extant()
 
-  def classesDir(digest: Digest): Path =
-    (classesDir / digest.encoded[Base64Url]).extant()
+  def classesDir(targetId: TargetId): Path =
+    (classesDir / targetId.key).extant()
 
-  def resourcesDir(digest: Digest): Path =
-    (resourcesDir / digest.encoded[Base64Url]).extant()
-
-  def manifestFile(digest: Digest): Path =
-    resourcesDir(digest) / "manifest.mf"
+  def resourcesDir(targetId: TargetId): Path =
+    (resourcesDir / targetId.key).extant()
 
   val shell = Shell(env)
 

@@ -15,7 +15,7 @@
  */
 package fury.core
 
-import fury.strings._
+import fury.strings._, fury.io._
 
 import annotation.tailrec
 import optometry.Lens
@@ -28,10 +28,11 @@ object Graph {
   final private val chars = "   ┐ ─┌┬ ┘│┤└┴├┼".toCharArray
 
   sealed trait DiagnosticMessage {
-    def msg: String
+    def msg: UserMsg
   }
-  case class CompilerDiagnostic(msg: String) extends DiagnosticMessage
-  case class OtherMessage(msg: String)       extends DiagnosticMessage
+  case class CompilerDiagnostic(msg: UserMsg, repo: RepoId, path: Path, line: LineNo, charNum: Int)
+      extends DiagnosticMessage
+  case class OtherMessage(msg: UserMsg) extends DiagnosticMessage
 
   case class CompilationInfo(state: CompileState, messages: List[DiagnosticMessage])
 
@@ -117,9 +118,8 @@ object Graph {
             else updateState(ref, _.copy(state = AlreadyCompiled)),
             streaming
         )
-      case StopCompile(ref, out, success) #:: tail => {
-        val trimmedOutput = out.trim
-        val msgs          = state(ref).messages
+      case StopCompile(ref, success) #:: tail => {
+        val msgs = state(ref).messages
         live(
             true,
             io,
@@ -129,12 +129,9 @@ object Graph {
                 ref,
                 CompilationInfo(
                     (if (success)
-                       Successful(
-                           if (trimmedOutput.isEmpty) None
-                           else Some(trimmedOutput)
-                       )
-                     else Failed(trimmedOutput)),
-                    msgs :+ OtherMessage(out)
+                       Successful(None)
+                     else Failed("")),
+                    msgs
                 )
             ),
             streaming
@@ -145,7 +142,7 @@ object Graph {
         io.println(Ansi.down(graph.size + 1)())
         live(true, io, graph, tail, state, true)
       case Print(line) #:: tail =>
-        if (streaming) io.println(line)
+        io.println(line)
         live(true, io, graph, tail, state, streaming)
       case StopStreaming #:: tail =>
         live(true, io, graph, tail, state, false)
@@ -162,20 +159,14 @@ object Graph {
         io.print(Ansi.showCursor())
         val output = state.collect {
           case (ref, CompilationInfo(Failed(_), out)) =>
-            UserMsg { theme =>
-              (msg"Output from $ref:"
-                .string(theme)
-                .trim + "\n" + out.map(_.msg).mkString("\n\n").trim)
-            }
-          case (ref, CompilationInfo(Successful(Some(_)), out)) =>
-            UserMsg { theme =>
-              (msg"Output from $ref:"
-                .string(theme)
-                .trim + "\n" + out.map(_.msg).mkString("\n\n").trim)
-            }
-        }.foldLeft(msg"")(_ + _)
+            out.map(_.msg)
+          case (ref, CompilationInfo(Successful(_), out)) =>
+            out.map(_.msg)
+        }.flatten
         io.println(Ansi.down(graph.size + 1)())
-        io.println(output)
+        output.foreach { diag =>
+          io.println(diag)
+        }
     }
   }
 

@@ -17,7 +17,7 @@ package fury.jsongen
 
 import fury.strings._
 
-import language.dynamics
+import language.dynamics, language.implicitConversions
 
 sealed trait Json { def serialize: String }
 

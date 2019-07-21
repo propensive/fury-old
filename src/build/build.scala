@@ -17,23 +17,24 @@ package fury
 
 import fury.strings._, fury.io._, fury.core._, fury.ogdl._
 
+import Args._
+
 import guillotine._
 
 import scala.concurrent._
 import scala.util._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import Args._
+import language.higherKinds
 
 object ConfigCli {
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config)
+  case class Context(cli: Cli[CliParam[_]], config: Config)
 
   def context(cli: Cli[CliParam[_]]) =
     for {
-      layout <- cli.layout
-      config <- ~Config.read()(cli.env, layout).toOption.getOrElse(Config())
-    } yield new Context(cli, layout, config)
+      config <- ~Config.read()(cli.env, cli.globalLayout).toOption.getOrElse(Config())
+    } yield new Context(cli, config)
 
   def set(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -45,7 +46,7 @@ object ConfigCli {
       config <- ~newTheme.map { th =>
                  config.copy(theme = th)
                }.getOrElse(config)
-      _ <- ~Ogdl.write(config, layout.userConfig)
+      _ <- ~Ogdl.write(config, cli.globalLayout.userConfig)
     } yield io.await()
   }
 }
@@ -55,7 +56,7 @@ object AliasCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
@@ -127,10 +128,10 @@ object AliasCli {
 
 object BuildCli {
 
-  def context(cli: Cli[CliParam[_]]) =
+  def context(cli: Cli[CliParam[_]]): Try[MenuContext] =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
@@ -184,6 +185,7 @@ object BuildCli {
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(WatchArg)
+      cli          <- cli.hint(ReporterArg, Reporter.all)
       cli <- cli
               .hint(DebugArg, optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
       invoc   <- cli.read()
@@ -195,55 +197,40 @@ object BuildCli {
                       .orElse(project.main)
       optModule   <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module      <- optModule.ascribe(UnspecifiedModule())
-      hierarchy   <- schema.hierarchy(io, layout.base, layout)
-      universe    <- hierarchy.universe
-      artifact    <- universe.artifact(io, module.ref(project), layout)
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      compilation <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _           <- ~compilation.checkoutAll(io, layout)
       _           <- compilation.generateFiles(io, layout)
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
-                        compilation.artifacts.map(_._1).to[List]))
+                        compilation.targets.map(_._1).to[List]))
       future <- ~compilation
                  .compile(io, module.ref(project), multiplexer, Map(), layout)
-                 .apply(module.ref(project))
+                 .apply(TargetId(schema.id, module.ref(project)))
                  .andThen {
                    case compRes =>
                      multiplexer.closeAll()
                      compRes
                  }
-      _ <- ~Graph.live(
-              changed = false,
-              io,
-              compilation.allDependenciesGraph.mapValues(_.to[Set]),
-              multiplexer.stream(50, Some(Tick)),
-              Map(),
-              false)(config.theme)
-      res = Await.result(future, duration.Duration.Inf)
-      t1  <- Success(System.currentTimeMillis - t0)
-      _   <- ~io.println(s"Total time: ${if (t1 >= 10000) s"${t1 / 1000}s" else s"${t1}ms"}\n")
-    } yield io.await(res.success)
+      _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
+    } yield io.await(Await.result(future, duration.Duration.Inf).isSuccessful)
   }
 
   def getPrompt(layer: Layer, theme: Theme): Try[String] =
     for {
       schemaId     <- ~layer.main
       schema       <- layer.schemas.findBy(schemaId)
-      schemaPart   <- ~(if (layer.schemas.size == 1) "*" else schemaId.key)
       optProjectId <- ~schema.main
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
-      projectPart  <- ~optProjectId.map(_.key).getOrElse("-")
       optModuleId  <- ~optProject.flatMap(_.main)
       optModule <- ~optModuleId.flatMap { mId =>
                     optProject.flatMap(_.modules.findBy(mId).toOption)
                   }
-      modulePart <- ~optModuleId.map(_.key).getOrElse("-")
     } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
       msg <- layer
               .map(getPrompt(_, config.theme))
@@ -264,6 +251,7 @@ object BuildCli {
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(DirArg)
+      cli          <- cli.hint(FatJarArg)
       invoc        <- cli.read()
       io           <- invoc.io()
       dir          <- invoc(DirArg)
@@ -271,10 +259,23 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      hierarchy    <- schema.hierarchy(io, layout.base, layout)
-      universe     <- hierarchy.universe
-      compilation  <- universe.compilation(io, module.ref(project), layout)
-      _            <- compilation.saveJars(io, module.ref(project), dir, layout)
+      fatJar       = invoc(FatJarArg).toOption.isDefined
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
+      _           <- ~compilation.checkoutAll(io, layout)
+      _           <- compilation.generateFiles(io, layout)
+      multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
+        compilation.targets.map(_._1).to[List]))
+      future <- ~compilation
+        .compile(io, module.ref(project), multiplexer, Map(), layout)
+        .apply(TargetId(schema.id, module.ref(project)))
+        .andThen {
+          case compRes =>
+            multiplexer.closeAll()
+            compRes
+        }
+      _ <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
+      compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
+      _            <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories, dir in layout.pwd, layout, fatJar)
     } yield io.await()
   }
 
@@ -296,9 +297,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      hierarchy    <- schema.hierarchy(io, layout.base, layout)
-      universe     <- hierarchy.universe
-      compilation  <- universe.compilation(io, module.ref(project), layout)
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _            <- if (module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
       _            <- compilation.saveNative(io, module.ref(project), dir, layout, main)
@@ -321,11 +320,9 @@ object BuildCli {
                   }
       invoc       <- cli.read()
       io          <- invoc.io()
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      hierarchy   <- schema.hierarchy(io, layout.base, layout)
-      universe    <- hierarchy.universe
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      module      <- optModule.ascribe(UnspecifiedModule())
+      compilation <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       classpath   <- ~compilation.classpath(module.ref(project), layout)
       _           <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
@@ -347,14 +344,11 @@ object BuildCli {
       optModule <- ~optModuleId.flatMap { arg =>
                     optProject.flatMap(_.modules.findBy(arg).toOption)
                   }
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      hierarchy   <- schema.hierarchy(io, layout.base, layout)
-      universe    <- hierarchy.universe
-      artifact    <- universe.artifact(io, module.ref(project), layout)
-      compilation <- universe.compilation(io, module.ref(project), layout)
+      module      <- optModule.ascribe(UnspecifiedModule())
+      compilation <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
       _ <- ~Graph
-            .draw(compilation.allDependenciesGraph.mapValues(_.to[Set]), true, Map())(config.theme)
+            .draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true, Map())(config.theme)
             .foreach(io.println(_))
     } yield io.await()
   }
@@ -365,21 +359,18 @@ object LayerCli {
   def init(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout <- cli.newLayout
-      cli    <- cli.hint(ForceArg)
       invoc  <- cli.read()
       io     <- invoc.io()
-      force  <- ~invoc(ForceArg).toOption.isDefined
       layer  <- ~Layer()
       _      <- layout.furyConfig.mkParents()
       _      <- ~Layer.save(io, layer, layout)
-      _      <- Bsp.createConfig(layout)
-      _      <- ~io.println("Created empty layer.fury and BSP configuration")
+      _      <- ~io.println("Created empty layer.fury")
     } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout    <- cli.layout
-      config    <- Config.read()(cli.env, layout)
+      config    <- Config.read()(cli.env, cli.globalLayout)
       layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)

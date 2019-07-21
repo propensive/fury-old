@@ -31,10 +31,12 @@ object Recovery {
       err match {
         case EarlyCompletions() =>
           Done
-        case ProjectConflict(ps) =>
-          cli.abort(
-              msg"""Your dependency tree contains references to two or more conflicting projects: ${ps
-                .mkString(", ")}""")
+        case ProjectConflict(ps, h1, h2) =>
+          val projectIds = ps.toSeq.sortBy(_.key).map { x => msg"$x" }
+          val message = msg"Your dependency tree contains references to two or more conflicting projects: "
+          val beginning = projectIds.tail.foldLeft(message + projectIds.head)(_ + ", " + _)
+          val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
+          cli.abort(beginning + ending)
         case e: SchemaDifferences =>
           cli.abort(
               msg"""You are attempting to make this change to all schemas, however the value you are
@@ -52,6 +54,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"The parameter $param was not provided.")
         case NoPreviousRevision =>
           cli.abort(msg"No earlier revision can be found")
+        case LauncherFailure(msg) =>
+          cli.abort(msg"Bloop did not start successfully: $msg")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
@@ -74,13 +78,19 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Main class not defined for module '${moduleId}'.")
         case GraalVMError(message: String) =>
           cli.abort(msg"Problem with GrallVM:'${message}'. Please double-check the PATH")
+        case BuildServerError(cause: Throwable) =>
+          cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}${rootCause(cause).getStackTrace.mkString("\n  at ")}")
         case InvalidKind(expected: Kind) =>
           cli.abort(msg"The module must be of type '${expected}'.")
         case e: UnknownCompiler =>
           cli.abort(msg"This compiler is not known.")
+        case UnknownBinaryRepository(repoId: BinRepoId) =>
+          cli.abort(msg"The binary repository $repoId could not be resolved.")
         case e: ShellFailure =>
           cli.abort(
               msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
+        case e: CompilationFailure =>
+          cli.abort(msg"One of the compile or run tasks failed. Check the logs for details.")
         case e: ModuleAlreadyExists =>
           cli.abort(msg"The module '${e.module}' already exists.")
         case e: ProjectAlreadyExists =>
@@ -89,7 +99,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
         case e =>
           val errorString =
-            s"$e\n${e.getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
+            s"$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
             invoc  <- cli.read()
@@ -114,4 +124,9 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           }.toOption.get
       }
   }
+
+  private def rootCause(t: Throwable) = {
+    Stream.iterate(t)(_.getCause).takeWhile(_ != null).last
+  }
+
 }

@@ -1,0 +1,30 @@
+Created empty layer.fury
+Set current project to scala
+Set current module to compiler
+Set current project to foo
+Setting default compiler for project foo to scala/compiler
+Set current module to lib
+Set current module to app
+Starting compilation of module foo/lib
+Successfully compiled module foo/lib
+Starting compilation of module foo/app
+Successfully compiled module foo/app
+Saving JAR file out/foo-app.jar
+0
+foo-app.jar
+scala-compiler-2.12.8.jar
+scala-library-2.12.8.jar
+scala-reflect-2.12.8.jar
+scala-xml_2.12-1.0.6.jar
+Constants$.class
+Constants.class
+HelloWorld$$anon$1.class
+HelloWorld$.class
+HelloWorld.class
+META-INF/MANIFEST.MF
+Manifest-Version: 1.0
+Class-Path: scala-library-2.12.8.jar scala-compiler-2.12.8.jar scala-x
+ ml_2.12-1.0.6.jar scala-reflect-2.12.8.jar
+Created-By: Fury 0.4.0
+Main-Class: HelloWorld
+

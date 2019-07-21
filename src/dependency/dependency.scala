@@ -41,7 +41,7 @@ object DependencyCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout    <- cli.layout
-      config    <- Config.read()(cli.env, layout)
+      config    <- Config.read()(cli.env, cli.globalLayout)
       layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
@@ -100,6 +100,8 @@ object DependencyCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
       _ <- ~Layer.save(io, layer, layout)
+      optSchema <- ~layer.mainSchema.toOption
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout))
     } yield io.await()
   }
 
@@ -123,6 +125,7 @@ object DependencyCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)
       _ <- ~Layer.save(io, layer, layout)
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout))
     } yield io.await()
   }
 }

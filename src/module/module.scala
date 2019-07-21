@@ -43,7 +43,7 @@ object ModuleCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout    <- cli.layout
-      config    <- Config.read()(cli.env, layout)
+      config    <- Config.read()(cli.env, cli.globalLayout)
       layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas)
       schemaArg <- ~cli.peek(SchemaArg)
@@ -64,7 +64,6 @@ object ModuleCli {
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
       io       <- invoc.io()
-      schema   <- defaultSchema
       project  <- optProject.ascribe(UnspecifiedProject())
       moduleId <- ~invoc(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
@@ -160,6 +159,8 @@ object ModuleCli {
                       lens(ws) = optCompilerRef
                   } else Try(layer)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
       _ <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
@@ -167,8 +168,7 @@ object ModuleCli {
   def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      cli    <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      schema <- defaultSchema
+      cli <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli <- cli.hint(
                 CompilerArg,
                 defaultSchema.toOption.to[List].flatMap(_.compilerRefs(Io.silent(config), layout)))
@@ -189,6 +189,8 @@ object ModuleCli {
                 if (lens(ws) == Some(moduleId)) lens(ws) = None else ws
               }
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 
@@ -238,7 +240,6 @@ object ModuleCli {
                       .to[List]
                       .sequence
                       .map(_.headOption)
-      kind       <- ~optKind.getOrElse(module.kind)
       mainClass  <- ~invoc(MainArg).toOption
       pluginName <- ~invoc(PluginArg).toOption
       nameArg    <- ~invoc(ModuleNameArg).toOption
@@ -262,6 +263,8 @@ object ModuleCli {
                 pluginName.map(Some(_))
       layer <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
       _     <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 }
@@ -312,13 +315,15 @@ object BinaryCli {
       invoc       <- cli.read()
       io          <- invoc.io()
       binaryArg   <- invoc(BinaryArg)
-      module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
       binaryToDel <- ~module.binaries.find(_.spec == binaryArg)
       force       <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) --= binaryToDel)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 
@@ -329,14 +334,16 @@ object BinaryCli {
       cli       <- cli.hint(BinaryRepoArg, List(RepoId("central")))
       invoc     <- cli.read()
       io        <- invoc.io()
-      module    <- optModule.ascribe(UnspecifiedModule())
       project   <- optProject.ascribe(UnspecifiedProject())
+      module    <- optModule.ascribe(UnspecifiedModule())
       binaryArg <- invoc(BinaryArg)
       repoId    <- ~invoc(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
       binary    <- Binary.unapply(repoId, binaryArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.binaries(_, project.id, module.id))(_(_) += binary)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 }
@@ -387,12 +394,14 @@ object ParamCli {
       invoc    <- cli.read()
       io       <- invoc.io()
       paramArg <- invoc(ParamArg)
-      module   <- optModule.ascribe(UnspecifiedModule())
       project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- optModule.ascribe(UnspecifiedModule())
       force    <- ~invoc(ForceArg).isSuccess
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) -= paramArg)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 
@@ -402,12 +411,14 @@ object ParamCli {
       cli     <- cli.hint(ParamArg)
       invoc   <- cli.read()
       io      <- invoc.io()
-      module  <- optModule.ascribe(UnspecifiedModule())
       project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
       param   <- invoc(ParamArg)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.params(_, project.id, module.id))(_(_) += param)
       _ <- ~Layer.save(io, layer, layout)
+      schema <- defaultSchema
+      _ <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout)
     } yield io.await()
   }
 }

@@ -1,8 +1,8 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
-BLOOPVERSION=1.2.5
-DEPS=kaleidoscope totalitarian mitigation optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
+BLOOPVERSION=1.3.2
+DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
 BINDEPS=launcher ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -12,10 +12,10 @@ DEPENDENCY_JARS=$(foreach dep, $(DEPS), dist/bundle/lib/$(dep).jar)
 JARS:= $(DEPENDENCY_JARS) dist/bundle/lib/fury.jar
 NATIVEJARS=$(JARS) $(NAILGUNJARPATH) $(LIBS)
 SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
-CFGS:=$(shell ls etc/bloop)
 DOCKER_TAG=fury-ci
 TESTDEPS=ogdl core
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
+export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
 
 all: all-jars
 
@@ -30,13 +30,12 @@ publish: dist/install.sh
 	@echo
 
 dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
-	echo "#!/usr/bin/env sh" > dist/install.sh
-	echo "FURY_VERSION=$(VERSION)" >> dist/install.sh
-	cat etc/install.sh $< >> dist/install.sh
+	cat etc/install.sh $< > dist/install.sh
+	LC_ALL=C sed -i.bak "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh
 	chmod +x dist/install.sh
 
 dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
-	tar czvf $@ -C dist/bundle .
+	tar czf $@ -C dist/bundle .
 
 #TODO refactor etc structure (separate bundled scripts from development ones)
 dist/bundle/etc:
@@ -45,34 +44,88 @@ dist/bundle/etc:
 
 # Compilation
 
-clean-compile: bloop-clean compile
-
-watch: compile
-	bloop compile fury/menu --watch
-
-bloop-clean:
-	bloop clean fury
-
 bootstrap/scala:
 	mkdir -p $@
-	curl https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xvz -C $@ --strip 1
+	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1
 
-bootstrap/git/%: bootstrap/git/.dir
+bootstrap/git/%:
 	mkdir -p $@
-	git clone https://github.com/propensive/$*.git $@ --branch=fury
+	git clone --recursive https://github.com/propensive/$*.git $@ --branch=fury
+
+dist/bundle/lib/%.jar: bootstrap/scala bootstrap/git/% dist/bundle/lib
+	mkdir -p bootstrap/lib
+	(cd bootstrap/git/$* && make)
+	cp bootstrap/git/$*/lib/$*.jar $@
+	for DEP in $(DEPS); do \
+		mkdir -p bootstrap/git/$$DEP/lib ; test -f bootstrap/git/$$DEP/lib/$*.jar || cp bootstrap/git/$*/lib/$*.jar bootstrap/git/$$DEP/lib/ ; \
+	done
+
 
 bootstrap/bin:
 	mkdir -p $@
 
-compile: dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(SRCS) $(foreach CFG, $(CFGS), .bloop/$(CFG))
-	$< --skip-bsp-connection $(BLOOPVERSION)
-	bloop compile fury/menu
+jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
+bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4 ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
+coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M14-4
+external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
 
-.bloop:
-	mkdir -p .bloop
+dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
+	for JAR in $(shell dist/bundle/bin/coursier fetch -r sonatype:releases -r bintray:scalameta/maven -r bintray:scalacenter/releases $(external_jars)); do \
+		cp $$JAR dist/bundle/lib/ ; \
+	done
 
-.bloop/%.json: .bloop
-	sed "s#\$$ROOT#$(ROOTDIR)#" etc/bloop/$*.json > .bloop/$*.json
+define compile-module
+scalac -d bootstrap/bin/ -cp dist/bundle/lib/'*':bootstrap/bin $@/*.scala
+endef
+
+pre-compile: bootstrap/bin dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
+
+src/strings: pre-compile
+	$(compile-module)
+
+src/jsongen: src/strings
+	$(compile-module)
+
+src/io: src/strings
+	$(compile-module)
+
+src/ogdl: src/io
+	$(compile-module)
+
+src/core: src/jsongen src/ogdl
+	$(compile-module)
+
+src/module: src/core
+	$(compile-module)
+
+src/source: src/core
+	$(compile-module)
+
+src/schema: src/core
+	$(compile-module)
+
+src/project: src/core
+	$(compile-module)
+
+src/repo: src/core
+	$(compile-module)
+
+src/build: src/core
+	$(compile-module)
+
+src/dependency: src/core
+	$(compile-module)
+
+src/imports: src/core
+	$(compile-module)
+
+src/menu: src/schema src/repo src/dependency src/source src/build src/imports src/module src/project
+	$(compile-module)
+
+compile: src/menu
+
+dist/bundle/bin/launcher: dist/bundle/bin/coursier dependency-jars dist/bundle/bin/.dir
+	$< bootstrap --quiet -r bintray:scalacenter/releases -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
 bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 	echo "$(VERSION)" > $@
@@ -82,8 +135,8 @@ bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 dist/bundle/lib:
 	mkdir -p $@
 
-dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib/.dir
-	curl -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
+dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
+	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 all-jars: $(JARS)
 
@@ -98,28 +151,15 @@ dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib
 
 %/.dir:
 	mkdir -p ${@D}
-	touch $@
+	touch ${@D}/.dir
 
-dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
+dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D)) $(foreach D, $(DEPS), dist/bundle/lib/$(D).jar)
 	cp etc/fury $@
 	chmod +x $@
 
 dist/bundle/bin/coursier: dist/bundle/bin/.dir
-	curl -s -L -o $@ https://git.io/coursier
+	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v1.1.0-M14-4/coursier
 	chmod +x $@
-
-jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
-bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4
-coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M12
-external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
-
-dependency-jars: dist/bundle/bin/coursier
-	for JAR in $(shell dist/bundle/bin/coursier fetch $(external_jars)); do \
-		cp $$JAR dist/bundle/lib/ ; \
-	done
-
-dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
-	$< bootstrap --quiet -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
 
 dist/bundle/bin/ng.c: bootstrap/ng/.dir
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
@@ -134,21 +174,20 @@ fury-native: all-jars
 
 ## Verification
 
-$(TESTS): %-test: dist/bundle/bin/launcher bootstrap/git/probably
-	$< --skip-bsp-connection $(BLOOPVERSION)
-	bloop compile fury/$*-test
-	bloop run fury/$*-test --main fury.Tests
+$(TESTS): %-test: bootstrap/git/probably dist/bundle/lib/probably.jar dist/bundle/lib
+	scalac -d bootstrap/bin -cp dist/bundle/lib/'*':bootstrap/bin src/$*-test/*.scala
+	scala -cp dist/bundle/lib/'*':bootstrap/bin fury.Tests
 
-test: bootstrap/bin/fury/.version $(TESTS)
+test: $(TESTS)
 
 integration:
-	@echo "Not yet implemented"
+	etc/integration
 
 test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
 
 integration-isolated: ci
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /test/run_all
+	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /integration'
 
 ci:
 	docker build -t $(DOCKER_TAG) .
@@ -160,14 +199,11 @@ clean-dist:
 	rm -rf dist
 
 clean: clean-dist
-	rm -rf bootstrap/bin/fury
 	rm -rf bootstrap
-	rm -rf .bloop
 
-download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
-	dist/bundle/bin/launcher --skip-bsp-connection $(BLOOPVERSION) # to download bloop
+download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 
 install: dist/install.sh
 	dist/install.sh
 
-.PHONY: all publish compile watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars
+.PHONY: all publish compile pre-compile src/* watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars

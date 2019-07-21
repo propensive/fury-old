@@ -15,13 +15,14 @@
  */
 package fury.core
 
-import fury.io._
+import java.io.FileOutputStream
+import java.util.jar.{JarOutputStream, Manifest => JManifest}
 
+import fury.io._
 import guillotine._
-import kaleidoscope._
 
 import scala.util._
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.HashMap
 
 case class Shell(environment: Environment) {
   private val furyHome   = Path(System.getProperty("fury.home"))
@@ -134,25 +135,6 @@ case class Shell(environment: Environment) {
       sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]]
   }
 
-  /*object bloop {
-    private val defaultConfigDir = Path(".fury") / "bloop"
-
-    //def start(version: String): Running =
-      //sh"sh -c 'launcher --skip-bsp-connection ${version} > /dev/null'".async(_ => (), _ => ())
-
-    def running(): Boolean =
-      sh"bloop help".exec[Exit[String]].status == 0
-
-    def clean(name: String, configDir: Path = defaultConfigDir)(output: String => Unit): Running =
-      sh"bloop clean --config-dir ${configDir.value} $name".async(output(_), output(_))
-
-    def compile(name: String, configDir: Path = defaultConfigDir)(output: String => Unit): Running =
-      sh"bloop compile $name --config-dir ${configDir.value}".async(output(_), output(_))
-
-    def startBsp(socket: String): Running =
-      sh"bloop bsp --socket $socket".async(println(_), _ => ())
-  }*/
-
   object java {
 
     def ensureIsGraalVM(): Try[Unit] =
@@ -170,17 +152,12 @@ case class Shell(environment: Environment) {
       )
   }
 
-  private def jar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] =
-    sh"jar cmf ${manifestFile.value} ${dest.value}".exec[Try[String]].map { str =>
-      val params = files.to[List].flatMap {
-        case (path, files) =>
-          files.flatMap { file =>
-            List("-C", path.value, file)
-          }
-      }
-      sh"jar uf ${dest.value} $params".exec[Try[String]]
-      ()
-    }
+  def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
+    val out = new JarOutputStream(new FileOutputStream(dest.value), manifest)
+    out.finish()
+    out.close()
+    inputs.foreach(f => Zipper.pack(f, dest))
+  }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
     implicit val defaultEnvironment: Environment =
@@ -194,19 +171,6 @@ case class Shell(environment: Environment) {
     } yield ()
   }
 
-  def copyTo(src: Path, dest: Path): Try[Path] =
-    sh"cp -r ${src.value} ${dest.parent.value}/".exec[Try[String]].map { _ =>
-      dest
-    }
-
-  def aggregatedJar(dest: Path, files: Set[(Path, List[String])], manifestFile: Path): Try[Unit] =
-    for {
-      dir <- ~(dest.parent / "staging")
-      _   <- ~dir.mkdir()
-      _   <- ~(for ((p, fs) <- files; f <- fs) copyTo(p / f, dir / f))
-      _   <- ~jar(dest, Set((dir, dir.children)), manifestFile)
-      _   <- dir.delete()
-    } yield ()
 }
 
 object Cached {

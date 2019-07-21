@@ -1,6 +1,10 @@
 #!/bin/bash
 
-FURYHOME=$(dirname "$0")/..
+if [ "$(uname -s)" = 'Linux' ]; then
+FURYHOME="$(dirname "$(readlink -f "$0")")/.."
+else
+FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
+fi
 
 PORT="8462"
 CLASSPATH="$FURYHOME/lib/*"
@@ -22,32 +26,66 @@ nailgun() {
   fi
 }
 
+silently() {
+  #See https://unix.stackexchange.com/a/181938
+  #See https://stackoverflow.com/q/3838322
+  #See https://www.gnu.org/software/bash/manual/html_node/Command-Grouping.html
 
-coursier(){
+  if [ "$DEBUG" = "1" ]; then
+    TMPFILE=$(mktemp "/tmp/fury.err.XXXXXX")
+    exec 3>"$TMPFILE"
+    exec 4<"$TMPFILE"
+    rm "$TMPFILE"
+    ( $@; ) 2>&3
+    EXITCODE=$?
+    [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
+    exit $EXITCODE
+  else
+    $@;
+    exit $?
+  fi
+}
+
+coursier() {
   "${FURYHOME}/bin/coursier" "$@"
 }
 
 killFury() {
-  nailgun ng-stop > /dev/null 2> /dev/null && printf 'Fury daemon has shut down\n'
+  case "$1" in
+    "--force")
+      nuke &
+      ;;
+    *)
+      nailgun ng-stop > /dev/null && printf 'Fury daemon has shut down\n'
+      ;;
+  esac
+}
+
+nuke() {
+bash <<END
+  printf 'Killing everything that looks like fury or bloop...\n'
+  pkill --signal SIGKILL -f '(fury)|(bloop)'
+  pgrep -f '(fury)|(bloop)' && printf 'Processes with these PIDs have survived...\n' || printf 'Done! \n'
+END
 }
 
 stopFury() {
-  nailgun "${FURY_MAIN}" "stop" 2> /dev/null && killFury
+  nailgun "${FURY_MAIN}" "stop" && killFury
 }
 
 isRunning() {
-  nc -z 127.0.0.1 "${PORT}" > /dev/null 2> /dev/null || nailgun "${FURY_MAIN}" about > /dev/null 2> /dev/null
+  (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>&1) > /dev/null 2>&1  || (printf "Starting Fury daemon...\n" && nailgun "${FURY_MAIN}" about > /dev/null 2>&1)
 }
 
 fury() {
-	(isRunning || (startFury > /dev/null 2> /dev/null)) && nailgun "${FURY_MAIN}" "$@"
+	(isRunning || (startFury > /dev/null)) && nailgun "${FURY_MAIN}" "$@"
 }
 
 startFury() {
   isRunning && printf "Fury daemon is running\n" && exit 0
 
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2> /dev/null &
+  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
 
   printf 'Fury daemon is starting...'
   for I in $(seq 1 25); do
@@ -60,46 +98,42 @@ startFury() {
   printf 'Starting Fury is taking longer than expected\n'
 }
 
-startFuryStandalone() {
-  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT"
+restartFury() {
+  stopFury && startFury
 }
 
-startFuryDirect() {
-  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:25005 "$FURY_MAIN" "$@"
+startFuryStandalone() {
+  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8)
+  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$FURY_MAIN" "$@"
 }
 
 case "$1" in
   "start")
-    startFury
+    silently startFury
     ;;
   "standalone")
-    startFuryStandalone
-    ;;
-  "direct")
-    startFuryDirect "${@:2}"
+    startFuryStandalone "${@:2}"
     ;;
   "kill")
-    killFury
+    silently killFury "${@:2}"
     ;;
   "stop")
-    stopFury
+    silently stopFury
     ;;
   "restart")
-    stopFury && startFury
+    silently restartFury
     ;;
   "prompt")
-    fury "$@" 2> /dev/null || printf " %{\e[0;30m%}[ ]"
+    silently fury "$@" || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
-    fury "$@" 2> /dev/null || printf "1:Command:((start:'start the Fury daemon'))\n"
+    silently fury "$@" || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   "--help")
-    fury "help"
+    silently fury "help"
     ;;
   *)
-    fury "$@"
+    silently fury "$@"
     res=$?
     cleanup
     exit $res

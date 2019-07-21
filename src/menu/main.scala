@@ -25,8 +25,9 @@ import scala.collection.mutable.HashSet
 
 import annotation.tailrec
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.concurrent._, duration._
 
-import scala.util.Try
+import scala.util._
 
 object Main {
 
@@ -51,7 +52,7 @@ object Main {
 
     val layer = for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield layer
 

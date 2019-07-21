@@ -46,6 +46,7 @@ object FuryMenu {
             Action('all, msg"clean all", CleanCli.cleanAll),
             Action('bloop, msg"clean bloop artifacts", CleanCli.cleanBloop),
             Action('classes, msg"clean compiled classes", CleanCli.cleanClasses),
+            Action('logs, msg"clean logs", CleanCli.cleanLogs),
             Action('repositories, msg"clean repositories", CleanCli.cleanRepos),
             Action('sources, msg"clean checked out sources", CleanCli.cleanSources)
         ),
@@ -91,7 +92,7 @@ object FuryMenu {
             Action('list, msg"list sources for the module", SourceCli.list)
         ),
         Action('stop, msg"gracefully shut down the Fury server", Main.shutdown()),
-        Action('kill, msg"kill the Fury server", BuildCli.about),
+        Action('kill, msg"kill the Fury server", BuildCli.notImplemented),
         Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
             Action('add, msg"add a schema to the layer", SchemaCli.add),
             Action('remove, msg"remove a schema from the layer", SchemaCli.remove),

@@ -37,6 +37,7 @@ object Args {
   implicit private val kindKey: TExtractor[Kind]    = _.headOption.flatMap(Kind.unapply(_))
   implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
   implicit private val theme: TExtractor[Theme]     = _.headOption.flatMap(Theme.unapply(_))
+  implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
@@ -55,6 +56,7 @@ object Args {
   val DescriptionArg =
     CliParam[String]('D', 'description, "specify a brief description of the project")
   val ForceArg  = CliParam[Unit]('F', 'force, "force this operation")
+  val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg   = CliParam[Path]('f', 'file, "destination file")
   val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external schema to import")
 
@@ -76,13 +78,17 @@ object Args {
   val BloopSpecArg = CliParam[String](
       'C',
       Symbol("compiler-spec"),
-      "specify a specification for the compiler in the form <organization>:<compiler ID>")
+      "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
   val ProjectArg   = CliParam[ProjectId]('p', 'project, "specify a project")
   val ParamArg     = CliParam[Parameter]('P', 'param, "compiler parameter")
   val QuietArg     = CliParam[Unit]('q', 'quiet, "show less output")
   val RepoArg      = CliParam[RepoId]('r', 'repo, "specify a repository")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
   val RetryArg     = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
+  
+  private val allReporters = Reporter.all.map(_.name).mkString(", ")
+  val ReporterArg  = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
+  
   val SchemaArg    = CliParam[SchemaId]('s', 'schema, "specify a schema")
   val TargetArg    = CliParam[String]('T', 'target, "target file/directory")
   val TagArg       = CliParam[String]('t', 'tag, "git tag")

@@ -66,14 +66,18 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
+						binaries	ch.epfl.scala:bloop-launcher_2.12:1.3.2	binRepo	bintray:scalacenter/releases
+								group	ch.epfl.scala
+								artifact	bloop-launcher_2.12
+								version	1.3.2
+							ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
 								group	ch.epfl.scala
 								artifact	bsp4j
 								version	2.0.0-M4
-							io.get-coursier:coursier_2.12:1.1.0-M12	binRepo	central
+							io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
 								group	io.get-coursier
 								artifact	coursier_2.12
-								version	1.1.0-M12
+								version	1.1.0-M14-4
 							org.openjdk.jmh:jmh-core:1.21	binRepo	central
 								group	org.openjdk.jmh
 								artifact	jmh-core
@@ -260,10 +264,6 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
-							mitigation/core	projectId	mitigation
-								moduleId	core
-								intransitive	false
-								hidden	false
 						params	
 						sources	src/ogdl	src/ogdl
 						binaries	
@@ -366,22 +366,22 @@ schemas	default	id	default
 		repos	contextual	id	contextual
 				repo	git@github.com:propensive/contextual.git
 				track	fury
-				commit	6e082fb93fd599375f442aa9d1b2bd35747f2dca
+				commit	c549e94895e90f20db264717a0de2338825b73d9
 				local	None
 			escritoire	id	escritoire
 				repo	git@github.com:propensive/escritoire.git
 				track	fury
-				commit	44eeba3bb718418b67fb0875aaa684ea5a395ebe
+				commit	3c996af5f7009bed3e2bbb2387267d5788c32bc6
 				local	None
 			eucalyptus	id	eucalyptus
 				repo	git@github.com:propensive/eucalyptus.git
 				track	fury
-				commit	99c500355e570e35e0e1229aa607a9bdea4ae073
+				commit	db8e4af0e105f5418e889805294a2c7c733dadbe
 				local	None
 			exoskeleton	id	exoskeleton
 				repo	git@github.com:propensive/exoskeleton.git
 				track	fury
-				commit	73f61a385ba969d5ce9217d8dfba61f101f9f900
+				commit	ab630c47e208795fcb5b2bb624325ccc180e21a7
 				local	None
 			fury	id	fury
 				repo	git@github.com:propensive/fury.git
@@ -391,32 +391,27 @@ schemas	default	id	default
 			gastronomy	id	gastronomy
 				repo	git@github.com:propensive/gastronomy.git
 				track	fury
-				commit	e4ffb9ad10258bef3993efd90bac69d6a563aed3
+				commit	c37837bd9dc6693c993bc7a9a299bbbcbef8a179
 				local	None
 			guillotine	id	guillotine
 				repo	git@github.com:propensive/guillotine.git
 				track	fury
-				commit	3c4922d2b66522a347de91b01754d5bce84f111f
+				commit	ef4d25bad64b96ab78387cc647cb0c7b680f19d7
 				local	None
 			kaleidoscope	id	kaleidoscope
 				repo	git@github.com:propensive/kaleidoscope.git
 				track	fury
-				commit	9a1b935da76e0a2b6945dd00a3627525af9ac31b
+				commit	fe9304024980fe9a9134062c10c075e1769b046d
 				local	None
 			magnolia	id	magnolia
 				repo	git@github.com:propensive/magnolia.git
 				track	fury
-				commit	7d40249f44ed09a92d01f065a924da684efc7560
+				commit	5f571508b860d532bf3040428b0fa1b07b75bcbc
 				local	None
 			mercator	id	mercator
 				repo	git@github.com:propensive/mercator.git
 				track	fury
-				commit	97601f41c2bdf4faf285c3d2beb4be9631dc4d03
-				local	None
-			mitigation	id	mitigation
-				repo	git@github.com:propensive/mitigation.git
-				track	fury
-				commit	60cc495e216c76d70b68b9a63b4e18ce0e249ad5
+				commit	e1ae061ee3262707d49da3f79fa55f160864235c
 				local	None
 			optometry	id	optometry
 				repo	git@github.com:propensive/optometry.git
@@ -426,22 +421,17 @@ schemas	default	id	default
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	a1f0cc3ff90cb669132db599c8f9eec3362550cf
+				commit	58e4963d98007da74593ff0ee74c654e63663dd2
 				local	None
-			probation	id	probation
-				repo	git@github.com:propensive/probation.git
+			probably	id	probably
+				repo	git@github.com:propensive/probably.git
 				track	fury
-				commit	458f949e4a79f7ca735449c9d0094b2a846af10d
+				commit	27c0dfc6c7487feeee425ce194bf6bc37bcdf8a7
 				local	None
 			scala	id	scala
 				repo	git@github.com:propensive/.scala.git
 				track	master
 				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
-				local	None
-			totalitarian	id	totalitarian
-				repo	git@github.com:propensive/totalitarian.git
-				track	fury
-				commit	69bb818130a61fc46c77db8446d5a1ef51e8996c
 				local	None
 		imports	platform:default	repo	platform
 				schema	default

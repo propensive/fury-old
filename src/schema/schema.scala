@@ -20,7 +20,10 @@ import fury.strings._, fury.io._, fury.core._
 import Args._
 
 import guillotine._
+
 import scala.util._
+
+import language.higherKinds
 
 case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
 
@@ -29,7 +32,7 @@ object SchemaCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, layout)
+      config <- Config.read()(cli.env, cli.globalLayout)
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield SchemaCtx(cli, layout, config, layer)
 

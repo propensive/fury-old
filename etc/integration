@@ -1,0 +1,87 @@
+#!/bin/bash
+
+ROOT="$PWD"
+ACOUNT=0
+APASSED=0
+AFAILED=0
+BCOUNT=0
+BPASSED=0
+BFAILED=0
+
+runtest() {
+  DIR="$1"
+  TEST="$2"
+  TMPDIR="test/tmp/${TEST}"
+  BASE="$PWD"
+  ESC=$(printf '\e')
+  RED=$(printf '\e[31m')
+  GREEN=$(printf '\e[32m')
+  GRAY=$(printf '\e[37m')
+  RESET=$(printf '\e[0m')
+  BOLD=$(printf '\e[1m')
+
+  echo
+  echo "----------------------------------------------------------------------------------------------------"
+  echo " ${BOLD}${TEST}${RESET}: $(cat $DIR/$TEST/description)"
+  echo "----------------------------------------------------------------------------------------------------"
+
+  rm -fr "$TMPDIR"
+  mkdir -p "test/tmp"
+  cp -r "$DIR/$TEST" "$TMPDIR"
+  cd "$TMPDIR"
+  source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m,"
+  echo "----------------------------------------------------------------------------------------------------"
+  diff --color check output
+  SUCCESS=$?
+  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
+      echo "----------------------------------------------------------------------------------------------------"
+      echo " [${RED}FAIL${RESET}] ${TEST}" && mv output "../$TEST.log"
+    )
+  echo "===================================================================================================="
+  cd "$BASE"
+  if [ $SUCCESS = 0 ]; then
+    rm -fr "$TMPDIR"
+  fi
+  return $SUCCESS
+}
+
+if [ "$1" = "" ]; then
+
+  
+  fury start
+  fury config set --theme nocolor
+
+  for ATEST in $(ls $ROOT/test/passing); do
+    let ACOUNT="$ACOUNT+1"
+    runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
+  done
+
+  for BTEST in $(ls $ROOT/test/pending); do
+    let BCOUNT="$BCOUNT+1"
+    runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
+  done
+
+  echo ""
+  echo "===================================================================================================="
+  echo " Passing tests     PASSED: $APASSED"
+  echo "                   FAILED: $AFAILED"
+  echo "                    TOTAL: $ACOUNT"
+
+  echo " Pending tests     PASSED: $BPASSED"
+  echo "                   FAILED: $BFAILED"
+  echo "                    TOTAL: $BCOUNT"
+  echo "===================================================================================================="
+  [ $ACOUNT = 0 ] && echo "No tests were run." && exit 1
+  [ $ACOUNT = $APASSED ]
+else
+  fury start
+  fury config set --theme nocolor
+
+  if [ -d "$ROOT/test/passing/$1" ]; then
+    runtest "$ROOT/test/passing" "$1"
+  elif [ -d "$ROOT/test/pending/$1" ]; then
+    runtest "$ROOT/test/pending" "$1"
+  else
+    echo "Could not find test $1"
+  fi
+fi

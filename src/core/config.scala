@@ -21,10 +21,12 @@ import guillotine._
 
 import scala.util._
 
+import language.higherKinds
+
 object Config {
 
-  def read()(implicit env: Environment, layout: Layout): Try[Config] =
-    Success(Ogdl.read[Config](layout.userConfig, identity(_)).toOption.getOrElse(Config()))
+  def read()(implicit env: Environment, globalLayout: GlobalLayout): Try[Config] =
+    Success(Ogdl.read[Config](globalLayout.userConfig, identity(_)).toOption.getOrElse(Config()))
 }
 
 case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5)

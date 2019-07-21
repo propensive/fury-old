@@ -1,5 +1,5 @@
-
-BLOOP_VERSION="1.2.5"
+#!/usr/bin/env bash
+FURY_VERSION=test
 DESTINATION="$HOME/fury-$FURY_VERSION"
 CONFIG="$HOME/.furyrc"
 
@@ -11,7 +11,7 @@ echo "                   \___/"
 echo ""
 echo "Fury build tool for Scala, version $FURY_VERSION."
 echo "This software is provided under the Apache 2.0 License."
-echo "© Copyright 2018 Jon Pretty, Propensive Ltd."
+echo "Copyright 2018 Jon Pretty, Propensive Ltd."
 echo ""
 echo "This will install Fury on your computer."
 echo ""
@@ -90,13 +90,6 @@ tryCompilingNailgun() {
     exit 0
 }
 
-launchBloop() {
-  message "Launching Bloop version $BLOOP_VERSION..."
-    $DESTINATION/bin/launcher --skip-bsp-connection $BLOOP_VERSION && \
-    echo "$RESET" && \
-    message "Launched Bloop $BLOOP_VERSION."
-}
-
 updateShell() {
   SH="$1"
   RCFILE="$HOME/.${SH}rc"
@@ -114,15 +107,14 @@ updateFish() {
   if [ -d "$HOME/.config/fish" ] || [ "$SHELL" = "/usr/bin/fish" ]
   then
     RCFILE="$HOME/.config/fish/config.fish"
-    if [ -e "$RCFILE" ]
+    if [ -e "$RCFILE" ] || [ "$SHELL" = "/usr/bin/fish" ]
     then
       touch "$RCFILE" && \
       echo "Backing up $RCFILE as $RCFILE.bak" && \
       sed -i.bak -e '/\# Added by Fury/d' "$RCFILE" && \
-      echo "source ~/.furyrc/fish # Added by Fury" >> "$HOME/.config/fish/config.fish"
+      echo "set -Ux FURYHOME $DESTINATION" >> "$RCFILE"
+      echo "set -Ux fish_user_paths $DESTINATION/bin \$fish_user_paths" >> "$RCFILE"
     fi
-    fish -c "set -Ux FURYHOME $DESTINATION"
-    fish -c "set -Ux fish_user_paths $DESTINATION/bin \$fish_user_paths"
   fi
   cp "$DESTINATION/etc/fishrc" "$CONFIG/fish"
 }
@@ -158,7 +150,7 @@ completion() {
   echo ""
 }
 
-prepare && checkJava && untarPayload && launchBloop && updateShells && restartFury && completion
+prepare && checkJava && untarPayload && updateShells && restartFury && completion
 
 exit 0
 

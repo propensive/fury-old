@@ -15,6 +15,8 @@
  */
 package fury.strings
 
+import language.implicitConversions
+
 object `package` {
   implicit def joinable(values: Traversable[String]): Joinable   = Joinable(values)
   implicit def stringContexts(sc: StringContext): StringContexts = StringContexts(sc)
@@ -22,10 +24,8 @@ object `package` {
   implicit def stringPart[T: StringShow](value: T): StringPart =
     StringPart(implicitly[StringShow[T]].show(value))
 
-  implicit def userMsg[T: StringShow](value: T): UserMsg =
-    UserMsg { _ =>
-      implicitly[StringShow[T]].show(value)
-    }
+  implicit def userMsg[T: MsgShow](value: T): UserMsg =
+    implicitly[MsgShow[T]].show(value)
 }
 
 object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }

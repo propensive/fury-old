@@ -11,9 +11,11 @@ bootstrap/
 *~
 **/#*
 **/.#*
+test/tmp/
 log
 project
 target
 lib
 test-lib
 .bsp
+.metals/

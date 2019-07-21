@@ -18,7 +18,6 @@ package fury.core
 import fury.strings._, fury.io._
 
 import escritoire._
-import eucalyptus._
 import gastronomy._
 
 import scala.collection.immutable.SortedSet
@@ -41,7 +40,6 @@ object `package` {
     Ordering.String.on(implicitly[StringShow[T]].show(_))
 
   implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
-  implicit val mainTag: Tag                     = Tag("fury")
   implicit val msgShowBoolean: MsgShow[Boolean] = if (_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
 

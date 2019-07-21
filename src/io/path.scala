@@ -15,17 +15,14 @@
  */
 package fury.io
 
-import java.io.FileNotFoundException
-import java.nio.file.{Files, Paths, StandardOpenOption, Path => JPath}
-import java.util.zip.ZipFile
+import java.net.URI
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardOpenOption, Path => JPath}
 
 import kaleidoscope._
-
-import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
-
 import fury.strings._
 
 object Path {
@@ -43,6 +40,23 @@ object Path {
   def getTempDir(prefix: String): Try[Path] =
     Try { Path(Files.createTempDirectory(prefix).toString) }
 
+  def apply(uri: URI): Path = Path(Paths.get(uri))
+
+  // Rewritten from https://stackoverflow.com/a/10068306
+  private class CopyFileVisitor(sourcePath: JPath, targetPath: JPath) extends SimpleFileVisitor[JPath] {
+
+    override def preVisitDirectory(dir: JPath, attrs: BasicFileAttributes): FileVisitResult = {
+      Files.createDirectories(targetPath.resolve(sourcePath.relativize(dir)))
+      FileVisitResult.CONTINUE
+    }
+
+    override def visitFile(file: JPath, attrs: BasicFileAttributes): FileVisitResult = {
+      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      FileVisitResult.CONTINUE
+    }
+
+  }
+
 }
 
 case class Path(value: String) {
@@ -53,16 +67,6 @@ case class Path(value: String) {
   def uriString: String = javaPath.toFile.toURI.toString
 
   def name: String = javaPath.getFileName.toString
-
-  def zipfileEntries: Try[List[ZipfileEntry]] =
-    for {
-      zipFile     <- Outcome.rescue[FileNotFoundException](FileNotFound(this))(new ZipFile(filename))
-      entries     <- Try(zipFile.entries)
-      entriesList = entries.asScala.to[List]
-    } yield
-      entriesList.map { entry =>
-        ZipfileEntry(entry.getName, () => zipFile.getInputStream(entry))
-      }
 
   def /(child: String): Path = Path(s"$filename/$child")
 
@@ -218,8 +222,8 @@ case class Path(value: String) {
   }
 
   def copyTo(path: Path): Try[Path] =
-    Outcome.rescue[java.io.IOException](FileWriteError(path)) {
-      Files.copy(javaPath, path.javaPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    Try {
+      Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
       path
     }
 
@@ -235,8 +239,7 @@ case class Path(value: String) {
 
   def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath)
 
-  def relativizeTo(dir: Path) =
-    if (value.startsWith("/")) this else Path(s"${dir.value}/$value")
+  def relativizeTo(dir: Path) = Path(dir.javaPath.relativize(this.javaPath))
 
   def parent = Path(javaPath.getParent.toString)
 

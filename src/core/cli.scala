@@ -50,7 +50,7 @@ object Cli {
     val newCli = Cli[H](
         cli.output,
         ParamMap(cli.args.suffix.map(_.value).tail: _*),
-        cli.args(Args.ParamNoArg).opt,
+        cli.args(Args.ParamNoArg).toOption,
         cli.optCompletions,
         cli.env)
 
@@ -134,7 +134,7 @@ case class Cli[+Hinted <: CliParam[_]](
   class Invocation private[Cli] () {
 
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] =
-      args.get(param.param).toTry
+      args.get(param.param)
 
     def io(): Try[Io] = Success(new Io(output, config))
 
@@ -151,7 +151,7 @@ case class Cli[+Hinted <: CliParam[_]](
     } else Success(new Invocation())
   }
 
-  def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).opt
+  def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).toOption
 
   private def pwd = env.workDir.ascribe(FileNotFound(Path("/")))
 
@@ -163,7 +163,9 @@ case class Cli[+Hinted <: CliParam[_]](
     Layout.find(Path(env.variables("HOME")), Path(pwd), env)
   }
 
-  lazy val config: Config = layout.flatMap(Config.read()(env, _)).toOption.getOrElse(Config())
+  lazy val globalLayout: GlobalLayout = GlobalLayout(Path(env.variables("HOME")))
+
+  lazy val config: Config = Config.read()(env, globalLayout).toOption.getOrElse(Config())
 
   def next: Option[String] = args.prefix.headOption.map(_.value)
 
@@ -178,7 +180,7 @@ case class Cli[+Hinted <: CliParam[_]](
     Abort
   }
 
-  def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).opt)
+  def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).toOption)
 
   def hint[T: StringShow: Descriptor](
       arg: CliParam[_],
