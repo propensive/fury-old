@@ -20,3 +20,4 @@ test-lib
 .bsp
 .metals/
 out/**/*
+.*.bak

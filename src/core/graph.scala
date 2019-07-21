@@ -1,18 +1,20 @@
 /*
-  Fury, version 0.4.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.
+   ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║                                                                                                           ║
+   ║ The primary distribution site is: https://propensive.com/                                                 ║
+   ║                                                                                                           ║
+   ║ Licensed under  the Apache License,  Version 2.0 (the  "License"); you  may not use  this file  except in ║
+   ║ compliance with the License. You may obtain a copy of the License at                                      ║
+   ║                                                                                                           ║
+   ║     http://www.apache.org/licenses/LICENSE-2.0                                                            ║
+   ║                                                                                                           ║
+   ║ Unless required  by applicable law  or agreed to in  writing, software  distributed under the  License is ║
+   ║ distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. ║
+   ║ See the License for the specific language governing permissions and limitations under the License.        ║
+   ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+*/
 
-  The primary distribution site is: https://propensive.com/
-
-  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
-  in compliance with the License. You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required  by applicable  law or  agreed to  in writing,  software  distributed  under the
-  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-  express  or  implied.  See  the  License for  the specific  language  governing  permissions and
-  limitations under the License.
- */
 package fury.core
 
 import fury.strings._, fury.io._
@@ -27,9 +29,7 @@ object Graph {
   final private val West  = 1
   final private val chars = "   ┐ ─┌┬ ┘│┤└┴├┼".toCharArray
 
-  sealed trait DiagnosticMessage {
-    def msg: UserMsg
-  }
+  sealed trait DiagnosticMessage { def msg: UserMsg }
   case class CompilerDiagnostic(msg: UserMsg, repo: RepoId, path: Path, line: LineNo, charNum: Int)
       extends DiagnosticMessage
   case class OtherMessage(msg: UserMsg) extends DiagnosticMessage
@@ -43,21 +43,18 @@ object Graph {
   case class Failed(output: String)              extends CompileState
   case object Skipped                            extends CompileState
 
-  def updateValue[A, B](map: Map[A, B], ref: A, f: B => B, default: B): Map[A, B] = {
-    val st = map.getOrElse(ref, default)
-    map.updated(ref, f(st))
-  }
+  def updateValue[A, B](map: Map[A, B], ref: A, f: B => B, default: B): Map[A, B] =
+    map.updated(ref, f(map.getOrElse(ref, default)))
 
   @tailrec
-  def live(
-      changed: Boolean,
-      io: Io,
-      graph: Map[ModuleRef, Set[ModuleRef]],
-      stream: Stream[CompileEvent],
-      state: Map[ModuleRef, CompilationInfo],
-      streaming: Boolean
-    )(implicit theme: Theme
-    ): Unit = {
+  def live(changed: Boolean,
+           io: Io,
+           graph: Map[ModuleRef, Set[ModuleRef]],
+           stream: Stream[CompileEvent],
+           state: Map[ModuleRef, CompilationInfo],
+           streaming: Boolean)
+          (implicit theme: Theme)
+          : Unit = {
 
     def updateState(
         ref: ModuleRef,
@@ -76,68 +73,20 @@ object Graph {
         }
         live(false, io, graph, tail, state, streaming)
 
-      case CompilationProgress(ref, progress) #:: tail => {
-        live(
-            true,
-            io,
-            graph,
-            tail,
-            updateState(ref, _.copy(state = Compiling(progress))),
-            streaming
-        )
-      }
+      case CompilationProgress(ref, progress) #:: tail =>
+        live(true, io, graph, tail, updateState(ref, _.copy(state = Compiling(progress))), streaming)
       case StartCompile(ref) #:: tail =>
-        live(
-            true,
-            io,
-            graph,
-            tail,
-            updateState(ref, _.copy(state = Compiling(0))),
-            streaming
-        )
-      case DiagnosticMsg(ref, msg) #:: tail => {
-        live(
-            false,
-            io,
-            graph,
-            tail,
-            updateState(
-                ref,
-                st => Lens[CompilationInfo](_.messages).modify(st)(_ :+ msg)
-            ),
-            streaming
-        )
-      }
+        live(true, io, graph, tail, updateState(ref, _.copy(state = Compiling(0))), streaming)
+      case DiagnosticMsg(ref, msg) #:: tail =>
+        live(false, io, graph, tail, updateState(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)),
+            streaming)
       case NoCompile(ref) #:: tail =>
-        live(
-            true,
-            io,
-            graph,
-            tail,
-            if (state.contains(ref)) state
-            else updateState(ref, _.copy(state = AlreadyCompiled)),
-            streaming
-        )
-      case StopCompile(ref, success) #:: tail => {
+        val newState = if (state.contains(ref)) state else updateState(ref, _.copy(state = AlreadyCompiled))
+        live(true, io, graph, tail, newState, streaming)
+      case StopCompile(ref, success) #:: tail =>
         val msgs = state(ref).messages
-        live(
-            true,
-            io,
-            graph,
-            tail,
-            state.updated(
-                ref,
-                CompilationInfo(
-                    (if (success)
-                       Successful(None)
-                     else Failed("")),
-                    msgs
-                )
-            ),
-            streaming
-        )
-      }
-
+        val newState = state.updated(ref, CompilationInfo(if (success) Successful(None) else Failed(""),msgs))
+        live(true, io, graph, tail, newState, streaming)
       case StartStreaming #:: tail =>
         io.println(Ansi.down(graph.size + 1)())
         live(true, io, graph, tail, state, true)
@@ -147,38 +96,25 @@ object Graph {
       case StopStreaming #:: tail =>
         live(true, io, graph, tail, state, false)
       case SkipCompile(ref) #:: tail =>
-        live(
-            true,
-            io,
-            graph,
-            tail,
-            updateState(ref, _.copy(state = Skipped)),
-            streaming
-        )
+        live(true, io, graph, tail, updateState(ref, _.copy(state = Skipped)), streaming)
       case Stream.Empty =>
         io.print(Ansi.showCursor())
         val output = state.collect {
-          case (ref, CompilationInfo(Failed(_), out)) =>
-            out.map(_.msg)
-          case (ref, CompilationInfo(Successful(_), out)) =>
-            out.map(_.msg)
+          case (ref, CompilationInfo(Failed(_), out))     => out.map(_.msg)
+          case (ref, CompilationInfo(Successful(_), out)) => out.map(_.msg)
         }.flatten
         io.println(Ansi.down(graph.size + 1)())
-        output.foreach { diag =>
-          io.println(diag)
-        }
+        output.foreach(io.println(_))
     }
   }
 
-  def draw(
-      graph: Map[ModuleRef, Set[ModuleRef]],
-      describe: Boolean,
-      state: Map[ModuleRef, CompilationInfo] = Map()
-    )(implicit theme: Theme
-    ): Vector[String] = {
+  def draw(graph: Map[ModuleRef, Set[ModuleRef]],
+           describe: Boolean,
+           state: Map[ModuleRef, CompilationInfo] = Map())
+          (implicit theme: Theme)
+          : Vector[String] = {
     def sort(todo: Map[ModuleRef, Set[ModuleRef]], done: List[ModuleRef]): List[ModuleRef] =
-      if (todo.isEmpty) done
-      else {
+      if (todo.isEmpty) done else {
         val node = todo.find { case (k, v) => (v -- done).isEmpty }.get._1
         sort((todo - node).mapValues(_.filter(_ != node)), node :: done)
       }
@@ -228,9 +164,9 @@ object Graph {
             theme.gray("■" * 10)
           case _ => theme.bold(theme.failure("          "))
         }
-
-        (msg"${chs.filter(_ != '.').mkString} ${if (state.get(moduleRef) == Some(Skipped)) theme.strike(text)
-        else text} ", if (describe) msg"   " else msg" ${theme.gray("[")}$errors${theme.gray("]")}", p.length + m.length + 4)
+        val name = if (state.get(moduleRef) == Some(Skipped)) theme.strike(text) else text
+        val errorsAnsi = if (describe) msg"   " else msg" ${theme.gray("[")}$errors${theme.gray("]")}"
+        (msg"${chs.filter(_ != '.').mkString} $name ", errorsAnsi, p.length + m.length + 4)
     }
 
     val maxStrippedLength = namedLines.zipWithIndex.map { case ((_, _, len), idx) => len + idx * 2 }.max + 4
@@ -246,7 +182,6 @@ object Graph {
 }
 
 object Diamond {
-
   def draw(
       topLeft: UserMsg,
       topRight: UserMsg,
@@ -265,5 +200,4 @@ object Diamond {
         msg"  ${" " * width}   ■ $bottom"
     )
   }
-
 }
