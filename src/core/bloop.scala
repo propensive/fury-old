@@ -43,49 +43,39 @@ object Bloop {
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(
-      io: Io,
-      target: Target,
-      compilation: Compilation,
-      layout: Layout
-    ): Try[String] =
-    for {
-      _         <- ~compilation.writePlugin(target.ref, layout)
-      classpath <- ~compilation.classpath(target.ref, layout)
-      compilerClasspath <- ~target.compiler.map { c =>
-                            compilation.classpath(c.ref, layout)
-                          }.getOrElse(classpath)
-      bloopSpec = target.compiler
-        .flatMap(_.bloopSpec)
-        .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7"))
-      params <- ~compilation.allParams(io, target.ref, layout)
-    } yield
-      Json(
-          version = "1.0.0",
-          project = Json(
-              name = target.id.key,
-              directory = layout.workDir(target.id).value,
-              sources = target.sourcePaths.map(_.value),
-              dependencies = compilation.graph(target.id).map(_.key),
-              classpath = (classpath ++ compilerClasspath).map(_.value),
-              out = str"${layout.outputDir(target.id).value}",
-              classesDir = str"${layout.classesDir(target.id).value}",
-              scala = Json(
-                  organization = bloopSpec.org,
-                  name = bloopSpec.name,
-                  version = bloopSpec.version,
-                  options = params,
-                  jars = compilerClasspath.map(_.value)
-              ),
-              java = Json(options = Nil),
-              test = Json(frameworks = Nil, options = Json(excludes = Nil, arguments = Nil)),
-              jvmPlatform = Json(
-                  name = "jvm",
-                  config = Json(home = "", options = Nil),
-                  mainClass = target.main.to[List]
-              ),
-              resolution = Json(modules = Nil)
-          )
-      ).serialize
-
+  private def makeConfig(io: Io, target: Target, compilation: Compilation, layout: Layout): Try[String] = for {
+    _         <- ~compilation.writePlugin(target.ref, layout)
+    classpath <- ~compilation.classpath(target.ref, layout)
+    compilerClasspath <- ~target.compiler.map(_.ref).map(compilation.classpath(_, layout)).getOrElse(classpath)
+    bloopSpec = target.compiler
+      .flatMap(_.bloopSpec)
+      .getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7"))
+    params <- ~compilation.allParams(io, target.ref, layout)
+  } yield Json(
+    version = "1.0.0",
+    project = Json(
+      name = target.id.key,
+      directory = layout.workDir(target.id).value,
+      sources = target.sourcePaths.map(_.value),
+      dependencies = compilation.graph(target.id).map(_.key),
+      classpath = (classpath ++ compilerClasspath).map(_.value),
+      out = str"${layout.outputDir(target.id).value}",
+      classesDir = str"${layout.classesDir(target.id).value}",
+      scala = Json(
+        organization = bloopSpec.org,
+        name = bloopSpec.name,
+        version = bloopSpec.version,
+        options = params,
+        jars = compilerClasspath.map(_.value)
+      ),
+      java = Json(options = Nil),
+      test = Json(frameworks = Nil, options = Json(excludes = Nil, arguments = Nil)),
+      jvmPlatform = Json(
+        name = "jvm",
+        config = Json(home = "", options = Nil),
+        mainClass = target.main.to[List]
+      ),
+      resolution = Json(modules = Nil)
+    )
+  ).serialize
 }

@@ -32,6 +32,7 @@ import com.google.gson.{Gson, JsonElement}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
+import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent._
@@ -49,64 +50,39 @@ import language.higherKinds
 
 object ManifestEntry {
   implicit val stringShow: StringShow[ManifestEntry] = _.key
-  implicit val msgShow: MsgShow[ManifestEntry] = v =>
-    UserMsg { t =>
-      v.key
-    }
-
-  implicit val diff: Diff[ManifestEntry] =
-    (l, r) => Diff.stringDiff.diff(l.pairString, r.pairString)
+  implicit val msgShow: MsgShow[ManifestEntry] = v => UserMsg { t => v.key }
+  implicit val diff: Diff[ManifestEntry] = (l, r) => Diff.stringDiff.diff(l.pairString, r.pairString)
 }
 
-case class ManifestEntry(key: String, value: String) {
-  def pairString: String = str"$key=$value"
-}
+case class ManifestEntry(key: String, value: String) { def pairString: String = str"$key=$value" }
 
 object Kind {
-  implicit val msgShow: MsgShow[Kind] = v =>
-    UserMsg { t =>
-      v.name
-    }
+  implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
   implicit val stringShow: StringShow[Kind] = _.name
-
   val all: List[Kind] = List(Library, Compiler, Plugin, Application, Benchmarks)
-
   def unapply(str: String): Option[Kind] = all.find(_.name == str)
 }
 
 sealed abstract class Kind(val name: String)
-case object Library     extends Kind("library")
-case object Compiler    extends Kind("compiler")
-case object Plugin      extends Kind("plugin")
+case object Library extends Kind("library")
+case object Compiler extends Kind("compiler")
+case object Plugin extends Kind("plugin")
 case object Application extends Kind("application")
-case object Benchmarks  extends Kind("benchmarks")
+case object Benchmarks extends Kind("benchmarks")
 
 object Module {
   implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
   implicit val stringShow: StringShow[Module] = _.id.key
-
-  implicitly[StringShow[Path]]
-  implicitly[MsgShow[Path]]
-  implicitly[EntityName[Path]]
-  implicitly[Diff[Path]]
-
-  Diff.traversableDiff[Path]
-
   implicit val diff: Diff[Module] = Diff.gen[Module]
 
   def available(id: ModuleId, project: Project): Try[ModuleId] =
-    project.modules
-      .find(_.id == id)
-      .map { module =>
-        Failure(ModuleAlreadyExists(module.id))
-      }
-      .getOrElse(Success(id))
+    project.modules.find(_.id == id).fold(Try(id)) { module => Failure(ModuleAlreadyExists(module.id)) }
 }
 
 object Binary {
-  implicit val msgShow: MsgShow[Binary]       = v => UserMsg(_.binary(v.spec))
+  implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
   implicit val stringShow: StringShow[Binary] = _.spec
-  implicit def diff: Diff[Binary]             = Diff.gen[Binary]
+  implicit def diff: Diff[Binary] = Diff.gen[Binary]
 
   def unapply(service: BinRepoId, string: String): Try[Binary] =
     string match {
@@ -116,48 +92,34 @@ object Binary {
         Failure(InvalidArgValue("binary", string))
     }
 
-  private val compilerVersionCache: HashMap[Binary, Try[String]] =
-    HashMap()
+  private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()
+  
+  val Jmh = Binary(BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
 }
 
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
-
   def paths(io: Io): Future[List[Path]] = Coursier.fetch(io, this)
 }
 
-case class Module(
-    id: ModuleId,
-    kind: Kind = Library,
-    main: Option[String] = None,
-    plugin: Option[String] = None,
-    manifest: List[ManifestEntry] = List(),
-    compiler: ModuleRef = ModuleRef.JavaRef,
-    after: SortedSet[ModuleRef] = TreeSet(),
-    params: SortedSet[Parameter] = TreeSet(),
-    sources: SortedSet[Source] = TreeSet(),
-    binaries: SortedSet[Binary] = TreeSet(),
-    resources: SortedSet[Path] = TreeSet(),
-    bloopSpec: Option[BloopSpec] = None) {
+case class Module(id: ModuleId,
+                  kind: Kind = Library,
+                  main: Option[String] = None,
+                  plugin: Option[String] = None,
+                  manifest: List[ManifestEntry] = List(),
+                  compiler: ModuleRef = ModuleRef.JavaRef,
+                  after: SortedSet[ModuleRef] = TreeSet(),
+                  params: SortedSet[Parameter] = TreeSet(),
+                  sources: SortedSet[Source] = TreeSet(),
+                  binaries: SortedSet[Binary] = TreeSet(),
+                  resources: SortedSet[Path] = TreeSet(),
+                  bloopSpec: Option[BloopSpec] = None) {
 
-  def allBinaries: SortedSet[Binary] =
-    if (kind == Benchmarks)
-      binaries + Binary(BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
-    else binaries
-
-  def compilerDependencies: Set[ModuleRef] =
-    Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
-
+  def allBinaries: SortedSet[Binary] = if (kind == Benchmarks) binaries + Binary.Jmh else binaries
+  def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
-
-  def externalSources: SortedSet[ExternalSource] = sources.collect {
-    case src: ExternalSource => src
-  }
-
-  def sharedSources: SortedSet[SharedSource] = sources.collect {
-    case src: SharedSource => src
-  }
-
+  def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
+  def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
 }
 
@@ -178,13 +140,11 @@ case class BloopSpec(org: String, name: String, version: String)
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-case class BspConnection(
-    future: java.util.concurrent.Future[Void],
-    client: BuildingClient,
-    server: FuryBspServer,
-    traceBuffer: CharArrayWriter,
-    messageBuffer: CharArrayWriter
-  ) {
+case class BspConnection(future: java.util.concurrent.Future[Void],
+                         client: BuildingClient,
+                         server: FuryBspServer,
+                         traceBuffer: CharArrayWriter,
+                         messageBuffer: CharArrayWriter) {
 
   def shutdown(): Unit = {
     server.buildShutdown()
@@ -204,21 +164,13 @@ case class BspConnection(
     action(server)
   }
 
-  def writeTrace(layout: Layout): Try[Unit] = {
-    layout.traceLogfile.appendSync(traceBuffer.toString)
-  }
-
-  def writeMessages(layout: Layout): Try[Unit] = {
-    layout.messagesLogfile.appendSync(messageBuffer.toString)
-  }
+  def writeTrace(layout: Layout): Try[Unit] = layout.traceLogfile.appendSync(traceBuffer.toString)
+  def writeMessages(layout: Layout): Try[Unit] = layout.messagesLogfile.appendSync(messageBuffer.toString)
 }
 
-
-
 object BspConnectionManager {
-
-  case class Handle(in: OutputStream, out: InputStream, err: InputStream, broken: Promise[Unit]) extends AutoCloseable {
-
+  case class Handle(in: OutputStream, out: InputStream, err: InputStream, broken: Promise[Unit])
+      extends AutoCloseable {
     lazy val errReader = new BufferedReader(new InputStreamReader(err))
 
     override def close(): Unit = {
@@ -230,17 +182,16 @@ object BspConnectionManager {
   }
 
   object HandleHandler {
-    private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = scala.collection.concurrent.TrieMap()
+    private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
 
-    private val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(), throw _)
+    private val ec: ExecutionContext =
+      ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(), throw _)
 
-    def handle(handle: Handle, sink: PrintWriter): Unit = {
-      handles(handle) = sink
-    }
+    def handle(handle: Handle, sink: PrintWriter): Unit = handles(handle) = sink
 
-    Future{
-      while(true){
-        handles.foreach{
+    Future {
+      while(true) {
+        handles.foreach {
           case (handle, sink) if !handle.broken.isCompleted =>
             try {
               val line = handle.errReader.readLine()
@@ -255,7 +206,7 @@ object BspConnectionManager {
         }
         Thread.sleep(100)
       }
-    }(ec)
+    } (ec)
 
   }
 
@@ -280,7 +231,7 @@ object BspConnectionManager {
 
     val handle = Handle(in, out, err, Promise[Unit])
 
-    Future(blocking{
+    Future(blocking {
       val launcher = new LauncherMain(
         clientIn = bloopIn,
         clientOut = bloopOut,
@@ -291,45 +242,38 @@ object BspConnectionManager {
         startedServer = Promise[Unit](),
         generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
       )
+      
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
         bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
         skipBspConnection = false,
         serverJvmOptions = Nil
       )
-    }).map{ status =>
-      System.out.println(s"Launcher status: $status")
-      status match {
-        case SuccessfulRun => ()
-        case x => throw new Exception(s"Launcher failed: $x")
-      }
+    }).map {
+      case SuccessfulRun => ()
+      case failure => throw new Exception(s"Launcher failed: $failure")
     }
 
     handle
   }
-
 }
 
 object Compilation {
-
   private val compilationThreadPool = Executors.newCachedThreadPool()
 
   val bspPool: Pool[Path, BspConnection] = new RetryingPool[Path, BspConnection, BuildServerError](60000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
-
-    def isBad(value: BspConnection): Boolean = {
-      value.future.isDone
-    }
+    def isBad(value: BspConnection): Boolean = value.future.isDone
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
       val bspTraceBuffer = new CharArrayWriter()
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
-      log.println(s"----------- ${LocalDateTime.now} --- Compilation log for ${dir.value}")
       val handle = BspConnectionManager.bloopLauncher
       BspConnectionManager.HandleHandler.handle(handle, log)
       val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
+      
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
         .setRemoteInterface(classOf[FuryBspServer])
@@ -338,41 +282,43 @@ object Compilation {
         .setOutput(handle.in)
         .setLocalService(client)
         .create()
+      
       val future = launcher.startListening()
       val server = launcher.getRemoteProxy
-      val initializeParams = new InitializeBuildParams(
-          "fury",
-          Version.current,
-          "2.0.0-M4",
-          dir.uriString,
-          new BuildClientCapabilities(List("scala").asJava)
-      )
+      val capabilities = new BuildClientCapabilities(List("scala").asJava)
+      
+      val initializeParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
+          capabilities)
+      
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      val x = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
-      handle.broken.future.andThen{
+      val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      
+      handle.broken.future.andThen {
         case Success(_) =>
           log.println(s"Connection for ${dir.value} has been closed.")
           log.flush()
-          x.future.cancel(true)
+          bspConn.future.cancel(true)
         case Failure(e) =>
           log.println(s"Connection for ${dir.value} is broken! Cause: ${e.getMessage}")
           e.printStackTrace(log)
           log.flush()
-          x.future.cancel(true)
+          bspConn.future.cancel(true)
       }
-      x
+      bspConn
     }
   }
 
-  private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = collection.concurrent.TrieMap()
+  private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
   def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
     hierarchy   <- schema.hierarchy(io, layout.base, layout)
     universe    <- hierarchy.universe
     compilation <- universe.compilation(io, ref, layout)
     _           <- compilation.generateFiles(io, layout)
-    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover{case x: Throwable => io.println(str"$schema --- ${x.getMessage}")}
+    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover { case x: Throwable =>
+                     io.println(str"$schema --- ${x.getMessage}")
+                   }
   } yield compilation
 
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
@@ -381,6 +327,7 @@ object Compilation {
       case Some(future) => future.transformWith { _ => fn }
       case None => fn
     }
+    
     compilationCache(layout.furyDir)
   }
 
@@ -388,15 +335,13 @@ object Compilation {
     Await.result(asyncCompilation(io, schema, ref, layout), Duration.Inf)
 }
 
-object LineNo {
-  implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString))
-}
+object LineNo { implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString)) }
 case class LineNo(line: Int) extends AnyVal
 
 class BuildingClient(messageSink: PrintWriter) extends BuildClient {
-  var compilation: Compilation                          = _
-  var targetId: TargetId                                = _
-  var layout: Layout                                    = _
+  var compilation: Compilation = _
+  var targetId: TargetId = _
+  var layout: Layout = _
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
@@ -412,10 +357,7 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-
-    val repos = compilation.checkouts.map { checkout =>
-      (checkout.path(layout).value, checkout.repoId)
-    }.toMap
+    val repos = compilation.checkouts.map { checkout => (checkout.path(layout).value, checkout.repoId)}.toMap
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
@@ -496,11 +438,8 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   def getTargetId(bspUri: String): TargetId = {
     val uriQuery = new java.net.URI(bspUri).getRawQuery
       .split("&")
-      .to[List]
       .map(_.split("=", 2))
-      .map { x =>
-        x(0) -> x(1)
-      }
+      .map { x => x(0) -> x(1) }
       .toMap
 
     TargetId(uriQuery("id"))
@@ -509,8 +448,8 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
-    multiplexer.foreach { mp =>
-      mp(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
+    multiplexer.foreach {
+      _(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
     }
   }
 
@@ -519,56 +458,41 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
     val targetId = getTargetId(report.getTarget.getUri)
     multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      multiplexer.foreach { mp => mp(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref) }
+      multiplexer.foreach(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
     }
   }
-  override def onBuildTaskFinish(params: TaskFinishParams): Unit = {
-    params.getDataKind match {
-      case TaskDataKind.COMPILE_REPORT =>
-        val report = convertDataTo[CompileReport](params.getData)
-        val targetId = getTargetId(report.getTarget.getUri)
-        params.getStatus match {
-          case StatusCode.OK =>
-            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, true) }
-          case StatusCode.ERROR =>
-            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
-          case StatusCode.CANCELLED =>
-            multiplexer.foreach { mp => mp(targetId.ref) = StopCompile(targetId.ref, false) }
-        }
-    }
+  override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
+    case TaskDataKind.COMPILE_REPORT =>
+      val report = convertDataTo[CompileReport](params.getData)
+      val targetId = getTargetId(report.getTarget.getUri)
+      multiplexer.foreach(_(targetId.ref) = StopCompile(targetId.ref, params.getStatus == StatusCode.OK))
   }
 }
 
-case class Compilation(
-    graph: Map[TargetId, List[TargetId]],
-    subgraphs: Map[TargetId, List[TargetId]],
-    checkouts: Set[Checkout],
-    targets: Map[ModuleRef, Target],
-    universe: Universe) {
+case class Compilation(graph: Map[TargetId, List[TargetId]],
+                       subgraphs: Map[TargetId, List[TargetId]],
+                       checkouts: Set[Checkout],
+                       targets: Map[ModuleRef, Target],
+                       universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
-
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
     Compilation.bspPool.borrow(layout.furyDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
-        Try{ server.workspaceBuildTargets.get }.map(_.getTargets.asScala.toString)
+        Try(server.workspaceBuildTargets.get).map(_.getTargets.asScala.toString)
       }
     }
 
-  def apply(ref: ModuleRef): Try[Target] =
-    targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
+  def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
+  def checkoutAll(io: Io, layout: Layout): Unit = checkouts.foreach(_.get(io, layout).unit)
 
   def deepDependencies(targetId: TargetId): Set[TargetId] =
     Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
 
-  def checkoutAll(io: Io, layout: Layout): Unit =
-    checkouts.foreach(_.get(io, layout).unit)
-
-  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] = {
-    Bloop.clean(layout).flatMap{ _ => Bloop.generateFiles(io, this, layout) }
-  }
+  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] =
+    Bloop.clean(layout).flatMap { _ => Bloop.generateFiles(io, this, layout) }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
     allDependencies.flatMap { target =>
@@ -594,7 +518,13 @@ case class Compilation(
       _    <- layout.shell.native(dest, cp, main)
     } yield ()
 
-  def saveJars(io: Io, ref: ModuleRef, srcs: Set[Path], destination: Path, layout: Layout, fatJar: Boolean): Try[Unit] = {
+  def saveJars(io: Io,
+               ref: ModuleRef,
+               srcs: Set[Path],
+               destination: Path,
+               layout: Layout,
+               fatJar: Boolean)
+              : Try[Unit] = {
     val bins = allDependencies.flatMap(_.binaries)
     for {
       entity           <- universe.entity(ref.projectId)
@@ -612,9 +542,7 @@ case class Compilation(
 
   private def aggregateCompileResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
-    for{
-      _ <- compileResults.filter(_.exists()).traverse{case x => x.copyTo(stagingDirectory)}
-    } yield stagingDirectory
+    for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
   def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
@@ -637,26 +565,29 @@ case class Compilation(
                     layout: Layout,
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
-                    : Future[CompileResult] = {
+                   : Future[CompileResult] = {
     val targetIdentifiers = deepDependencies(target.id)
-      .map{ dep => new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")}
+      .map { dep => new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")}
     Future (blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+          
           val result = try {
             val statusCode = if (application)
               server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
             else
               server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
-            if(statusCode == StatusCode.OK){
-              val outputDirectories = server.buildTargetScalacOptions(new ScalacOptionsParams(targetIdentifiers.toList.asJava)).get
-                .getItems.asScala.toSet.map{x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
-              CompileSuccess(outputDirectories)
+            if(statusCode == StatusCode.OK) {
+              val scalacOptions = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
+              
+              val outputDirectories = server.buildTargetScalacOptions(scalacOptions).get
+                .getItems.asScala.toSet.map {x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
+              
+                CompileSuccess(outputDirectories)
             } else CompileFailure
-          } catch {
-            case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause)
-          }
+          } catch { case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause) }
+          
           conn.writeTrace(layout)
           conn.writeMessages(layout)
           result
@@ -671,7 +602,7 @@ case class Compilation(
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
               layout: Layout)
-              : Map[TargetId, Future[CompileResult]] = {
+             : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
@@ -679,60 +610,68 @@ case class Compilation(
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
-    val future =
-      dependencyFutures.flatMap { inputs =>
-        if (inputs.exists(!_.isSuccessful)) {
-          multiplexer(target.ref) = SkipCompile(target.ref)
-          multiplexer.close(target.ref)
-          Future.successful(CompileFailure)
-        } else {
-          val noCompilation = target.sourcePaths.isEmpty
-          if (noCompilation) deepDependencies(target.id).foreach { targetId =>
-            multiplexer(targetId.ref) = NoCompile(targetId.ref)
-          }
-          compileModule(io, target, layout, target.kind == Application, multiplexer).map {
-            case CompileSuccess(classDirectories) if target.kind == Benchmarks =>
-              classDirectories.foreach { classDirectory =>
-                Jmh.instrument(
-                  classDirectory,
-                  layout.benchmarksDir(target.id),
-                  layout.resourcesDir(target.id))
-                multiplexer(target.ref) = StartStreaming
-                val javaSources =
-                  layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
-                layout.shell.javac(
-                  classpath(target.ref, layout).to[List].map(_.value),
-                  classDirectory.value,
-                  javaSources.map(_.value).to[List])
-              }
-              val out = new StringBuilder()
-              val res = layout.shell
-                .runJava(
-                    jmhRuntimeClasspath(io, target.ref, layout).to[List].map(_.value),
-                    if (target.kind == Benchmarks) "org.openjdk.jmh.Main"
-                    else target.main.getOrElse(""),
-                    securePolicy = target.kind == Application,
-                    layout
-                ) { ln =>
-                  if (target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
-                  else {
-                    out.append(ln)
-                    out.append("\n")
-                  }
-                }.await() == 0
-              multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
-              deepDependencies(target.id).foreach { targetId =>
-                multiplexer(targetId.ref) = NoCompile(targetId.ref)
-              }
-              multiplexer(target.ref) = StopCompile(target.ref, res)
-              multiplexer.close(target.ref)
-              multiplexer(target.ref) = StopStreaming
+    
+    val future = dependencyFutures.flatMap { inputs =>
+      if (inputs.exists(!_.isSuccessful)) {
+        multiplexer(target.ref) = SkipCompile(target.ref)
+        multiplexer.close(target.ref)
+        Future.successful(CompileFailure)
+      } else {
+        val noCompilation = target.sourcePaths.isEmpty
+        
+        if (noCompilation) deepDependencies(target.id).foreach { targetId =>
+          multiplexer(targetId.ref) = NoCompile(targetId.ref)
+        }
 
-              if(res) CompileSuccess(classDirectories) else CompileFailure
-            case compileResult => compileResult
-          }
+        compileModule(io, target, layout, target.kind == Application, multiplexer).map {
+          case CompileSuccess(classDirectories) if target.kind == Benchmarks =>
+            classDirectories.foreach { classDirectory =>
+              Jmh.instrument(
+                classDirectory,
+                layout.benchmarksDir(target.id),
+                layout.resourcesDir(target.id))
+              multiplexer(target.ref) = StartStreaming
+              val javaSources =
+                layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+              layout.shell.javac(
+                classpath(target.ref, layout).to[List].map(_.value),
+                classDirectory.value,
+                javaSources.map(_.value).to[List])
+            }
+            
+            val out = new StringBuilder()
+            
+            val res = layout.shell.runJava(
+                jmhRuntimeClasspath(io, target.ref, layout).to[List].map(_.value),
+                if (target.kind == Benchmarks) "org.openjdk.jmh.Main"
+                else target.main.getOrElse(""),
+                securePolicy = target.kind == Application,
+                layout
+            ) { ln =>
+              if (target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
+              else {
+                out.append(ln)
+                out.append("\n")
+              }
+            }.await() == 0
+          
+            multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
+            
+            deepDependencies(target.id).foreach { targetId =>
+              multiplexer(targetId.ref) = NoCompile(targetId.ref)
+            }
+            
+            multiplexer(target.ref) = StopCompile(target.ref, res)
+            multiplexer.close(target.ref)
+            multiplexer(target.ref) = StopStreaming
+
+            if(res) CompileSuccess(classDirectories) else CompileFailure
+          case compileResult =>
+            compileResult
         }
       }
+    }
+  
     newFutures.updated(target.id, future)
   }
 }
@@ -744,10 +683,9 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   //projects: Map[ProjectId, Project] = Map(),
   //schemas: Map[ProjectId, Schema] = Map(),
   //dirs: Map[ProjectId, Path] = Map()) {
+  
   def ids: Set[ProjectId] = entities.keySet
-
-  def entity(id: ProjectId): Try[Entity] =
-    entities.get(id).ascribe(ItemNotFound(id))
+  def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
   def makeTarget(io: Io, ref: ModuleRef, layout: Layout): Try[Target] =
     for {
@@ -815,117 +753,96 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       tDeps  <- deps.map(dependencies(io, _, layout)).sequence
     } yield deps ++ tDeps.flatten
 
-  def clean(ref: ModuleRef, layout: Layout): Unit =
-    layout.classesDir.delete().unit
+  def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
-  def getMod(ref: ModuleRef): Try[Module] =
-    for {
-      entity <- entity(ref.projectId)
-      module <- entity.project(ref.moduleId)
-    } yield module
+  def getMod(ref: ModuleRef): Try[Module] = for {
+    entity <- entity(ref.projectId)
+    module <- entity.project(ref.moduleId)
+  } yield module
 
-  def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] =
-    for {
-      target <- makeTarget(io, ref, layout)
-      entity <- entity(ref.projectId)
-      graph  <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
-                  a.map { dependencyTarget =>
-                    (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
-                  }
-                }.sequence.map(_.toMap.updated(target.id, target.dependencies ++ target.compiler.map(_.id)))).flatten
-      targets   <- graph.keys.map { targetId => makeTarget(io, targetId.ref, layout).map(targetId.ref -> _) }.sequence.map(_.toMap)
-      appModules = targets.filter(_._2.executed)
-      subgraphs = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] + TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
-      checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
-    } yield
-      Compilation(
-          graph,
-          subgraphs,
-          checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-          targets ++ (target.compiler.map { compilerTarget =>
-            compilerTarget.ref -> compilerTarget
-          }),
-          this)
+  def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
+    target <- makeTarget(io, ref, layout)
+    entity <- entity(ref.projectId)
+    graph  <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
+                a.map { dependencyTarget =>
+                  (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
+                }
+              }.sequence.map(_.toMap.updated(target.id, target.dependencies ++ target.compiler.map(_.id)))).flatten
+    targets   <- graph.keys.map { targetId => makeTarget(io, targetId.ref, layout).map(targetId.ref -> _) }.sequence.map(_.toMap)
+    appModules = targets.filter(_._2.executed)
+    subgraphs = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] + TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
+    checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
+  } yield
+    Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
+        targets ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), this)
 }
 
 case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
-
   lazy val universe: Try[Universe] = {
     val localProjectIds = schema.projects.map(_.id)
+    
     def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
       projects <- universe
       nextProjects <- hierarchy.universe
       potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+      
       conflictIds = potentialConflictIds.filter { id =>
         projects.entity(id).map(_.project) != nextProjects.entity(id).map(_.project)
       }
+      
       allProjects <- conflictIds match {
         case x if x.isEmpty => Success(projects ++ nextProjects)
-        case _ =>
-          Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
+        case _ => Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
       }
     } yield allProjects
 
     val empty: Try[Universe] = Success(Universe())
-    for{
-      allInherited <- inherited.foldLeft(empty)(merge)
-    } yield {
-      val schemaEntities = schema.projects.map { project =>
-        project.id -> Entity(project, schema, dir)
-      }
+    
+    for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
+      val schemaEntities = schema.projects.map { project => project.id -> Entity(project, schema, dir) }
       allInherited ++ Universe(schemaEntities.toMap)
     }
-
   }
 }
 
 object Schema {
-  implicit val msgShow: MsgShow[Schema]       = v => UserMsg(_.schema(v.id.key))
+  implicit val msgShow: MsgShow[Schema] = v => UserMsg(_.schema(v.id.key))
   implicit val stringShow: StringShow[Schema] = _.id.key
-  implicit def diff: Diff[Schema]             = Diff.gen[Schema]
+  implicit def diff: Diff[Schema] = Diff.gen[Schema]
 }
 
-case class Schema(
-    id: SchemaId,
-    projects: SortedSet[Project] = TreeSet(),
-    repos: SortedSet[SourceRepo] = TreeSet(),
-    imports: SortedSet[SchemaRef] = TreeSet(),
-    main: Option[ProjectId] = None) {
+case class Schema(id: SchemaId,
+                  projects: SortedSet[Project] = TreeSet(),
+                  repos: SortedSet[SourceRepo] = TreeSet(),
+                  imports: SortedSet[SchemaRef] = TreeSet(),
+                  main: Option[ProjectId] = None) {
 
   def apply(id: ProjectId) = projects.findBy(id)
-
-  def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] =
-    repos.findBy(repoId)
-
+  def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
+  def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
+  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
+  def duplicate(id: String) = copy(id = SchemaId(id))
 
   def compilerRefs(io: Io, layout: Layout): List[ModuleRef] =
     allProjects(io, layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def mainProject: Try[Option[Project]] =
-    main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
-
   def importCandidates(io: Io, layout: Layout): List[String] =
     repos.to[List].flatMap(_.importCandidates(io, this, layout).toOption.to[List].flatten)
 
-  def hierarchy(io: Io, dir: Path, layout: Layout): Try[Hierarchy] =
-    for {
-      imps <- imports.map { ref =>
-               for {
-                 repo         <- repos.findBy(ref.repo)
-                 repoDir      <- repo.fullCheckout.get(io, layout)
-                 nestedLayout <- ~Layout(layout.home, repoDir, layout.env, repoDir)
-                 layer        <- Layer.read(io, nestedLayout.furyConfig, nestedLayout)
-                 resolved     <- layer.schemas.findBy(ref.schema)
-                 tree         <- resolved.hierarchy(io, repoDir, layout)
-               } yield tree
-             }.sequence
-    } yield Hierarchy(this, dir, imps)
+  def hierarchy(io: Io, dir: Path, layout: Layout): Try[Hierarchy] = for {
+    imps <- imports.map { ref => for {
+      repo         <- repos.findBy(ref.repo)
+      repoDir      <- repo.fullCheckout.get(io, layout)
+      nestedLayout <- ~Layout(layout.home, repoDir, layout.env, repoDir)
+      layer        <- Layer.read(io, nestedLayout.furyConfig, nestedLayout)
+      resolved     <- layer.schemas.findBy(ref.schema)
+      tree         <- resolved.hierarchy(io, repoDir, layout)
+    } yield tree }.sequence
+  } yield Hierarchy(this, dir, imps)
 
   def importedSchemas(io: Io, layout: Layout): Try[List[Schema]] =
     imports.to[List].map(_.resolve(io, this, layout)).sequence
-
-  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def allProjects(io: Io, layout: Layout): Try[List[Project]] =
     importedSchemas(io, layout)
@@ -936,37 +853,30 @@ case class Schema(
     case None    => Success(projectId)
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
-
-  def duplicate(id: String) = copy(id = SchemaId(id))
 }
 
 object AliasCmd {
-  implicit val msgShow: MsgShow[AliasCmd]       = v => UserMsg(_.module(v.key))
+  implicit val msgShow: MsgShow[AliasCmd] = v => UserMsg(_.module(v.key))
   implicit val stringShow: StringShow[AliasCmd] = _.key
 }
 
 case class AliasCmd(key: String)
 
 object Alias {
-  implicit val msgShow: MsgShow[Alias]       = v => UserMsg(_.module(v.cmd.key))
+  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.cmd.key))
   implicit val stringShow: StringShow[Alias] = _.cmd.key
 }
 
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
-case class Layer(
-    version: Int = Layer.CurrentVersion,
-    schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
-    main: SchemaId = SchemaId.default,
-    aliases: SortedSet[Alias] = TreeSet()) { layer =>
+case class Layer(version: Int = Layer.CurrentVersion,
+                 schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
+                 main: SchemaId = SchemaId.default,
+                 aliases: SortedSet[Alias] = TreeSet()) { layer =>
 
   def mainSchema: Try[Schema] = schemas.findBy(main)
-
   def showSchema: Boolean = schemas.size > 1
-
-  def apply(schemaId: SchemaId): Try[Schema] =
-    schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
-
+  def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
 }
 
@@ -979,11 +889,10 @@ object Layer {
   def read(io: Io, file: Path, layout: Layout): Try[Layer] =
     Success(Ogdl.read[Layer](file, upgrade(io, layout, _)).toOption.getOrElse(Layer()))
 
-  def save(io: Io, layer: Layer, layout: Layout): Try[Unit] =
-    for {
-      layerRepo <- LayerRepository(layout).update(io, layer, layout)
-      _         <- Bsp.createConfig(layout)
-    } yield ()
+  def save(io: Io, layer: Layer, layout: Layout): Try[Unit] = for {
+    layerRepo <- LayerRepository(layout).update(io, layer, layout)
+    _         <- Bsp.createConfig(layout)
+  } yield ()
 
   private def upgrade(io: Io, layout: Layout, ogdl: Ogdl): Ogdl =
     Try(ogdl.version().toInt).getOrElse(1) match {
@@ -1028,22 +937,17 @@ object Layer {
         )
       case CurrentVersion => ogdl
     }
-
 }
 
 object ModuleRef {
-
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
-
-  implicit val msgShow: MsgShow[ModuleRef] =
-    ref =>
-      UserMsg { theme =>
-        msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}"
-          .string(theme)
-      }
-
   val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
+
+  implicit val msgShow: MsgShow[ModuleRef] = ref =>
+    UserMsg { theme =>
+      msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}".string(theme)
+    }
 
   def parseFull(string: String, intransitive: Boolean): Try[ModuleRef] = string match {
     case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
@@ -1065,30 +969,25 @@ object ModuleRef {
     }
   }
 
-case class ModuleRef(
-    projectId: ProjectId,
-    moduleId: ModuleId,
-    intransitive: Boolean = false,
-    hidden: Boolean = false) {
+case class ModuleRef(projectId: ProjectId,
+                     moduleId: ModuleId,
+                     intransitive: Boolean = false,
+                     hidden: Boolean = false) {
+
   override def equals(that: Any): Boolean = that match {
     case ModuleRef(p, m, _, _) => projectId == p && moduleId == m
     case _                     => false
   }
 
   def hide = copy(hidden = true)
-
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode
-
   override def toString: String = str"$projectId/$moduleId"
 }
 
 object SchemaId {
   implicit val msgShow: MsgShow[SchemaId]       = v => UserMsg(_.schema(v.key))
   implicit val stringShow: StringShow[SchemaId] = _.key
-
-  implicit val diff: Diff[SchemaId] =
-    (l, r) => Diff.stringDiff.diff(l.key, r.key)
-
+  implicit val diff: Diff[SchemaId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   final val default = SchemaId("default")
 
   def parse(name: String): Try[SchemaId] = name match {
@@ -1133,50 +1032,48 @@ object Repo {
   case class ExistingLocalFileAsAbspath(absPath: String)
 
   object ExistingLocalFileAsAbspath {
-
     def unapply(path: String): Option[String] = Path(path).absolutePath().toOption match {
       case Some(absPath) => absPath.ifExists().map(_.value)
       case None          => None
     }
   }
 
-  def fromString(str: String): Repo = str match {
-    case "." => Repo("")
+  def fromString(str: String): Repo = Repo(str match {
+    case "." => ""
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      Repo(str"git@github.com:$group/$project.git")
+      str"git@github.com:$group/$project.git"
     case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      Repo(str"git@gitlab.com:$group/$project.git")
+      str"git@gitlab.com:$group/$project.git"
     case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      Repo(str"git@bitbucket.com:$group/$project.git")
-    case ExistingLocalFileAsAbspath(abspath) => Repo(abspath)
-    case other                               => Repo(other)
-  }
+      str"git@bitbucket.com:$group/$project.git"
+    case ExistingLocalFileAsAbspath(abspath) =>
+      abspath
+    case other =>
+      other
+  })
 }
 
-case class Checkout(
-    repoId: RepoId,
-    repo: Repo,
-    local: Option[Path],
-    commit: Commit,
-    refSpec: RefSpec,
-    sources: List[Path]) {
+case class Checkout(repoId: RepoId,
+                    repo: Repo,
+                    local: Option[Path],
+                    commit: Commit,
+                    refSpec: RefSpec,
+                    sources: List[Path]) {
 
-  def hash: Digest               = this.digest[Md5]
+  def hash: Digest = this.digest[Md5]
   def path(layout: Layout): Path = layout.srcsDir / hash.encoded
 
-  def get(io: Io, layout: Layout): Try[Path] =
-    for {
-      repoDir    <- repo.fetch(io, layout)
-      workingDir <- checkout(io, layout)
-    } yield workingDir
+  def get(io: Io, layout: Layout): Try[Path] = for {
+    repoDir    <- repo.fetch(io, layout)
+    workingDir <- checkout(io, layout)
+  } yield workingDir
 
   private def checkout(io: Io, layout: Layout): Try[Path] =
     local.map(Success(_)).getOrElse {
       if (!(path(layout) / ".done").exists) {
-
         if (path(layout).exists()) {
-          io.println(s"Found incomplete checkout of ${if (sources.isEmpty) "all sources"
-          else sources.map(_.value).mkString("[", ", ", "]")}.")
+          val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
+          io.println(s"Found incomplete checkout of $sourceText.")
           path(layout).delete()
         }
 
@@ -1184,94 +1081,72 @@ case class Checkout(
         else sources.map(_.value).mkString("[", ", ", "]")}.")
         path(layout).mkdir()
         layout.shell.git
-          .sparseCheckout(
-              repo.path(layout),
-              path(layout),
-              sources,
-              refSpec = refSpec.id,
-              commit = commit.id)
-          .map { _ =>
-            path(layout)
-          }
+          .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
+          .map { _ => path(layout) }
       } else Success(path(layout))
     }
 }
 
 object SourceRepo {
-  implicit val msgShow: MsgShow[SourceRepo]       = r => UserMsg(_.repo(r.id.key))
+  implicit val msgShow: MsgShow[SourceRepo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[SourceRepo] = _.id.key
-  implicit def diff: Diff[SourceRepo]             = Diff.gen[SourceRepo]
+  implicit def diff: Diff[SourceRepo] = Diff.gen[SourceRepo]
 }
 
-case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) { // TODO: change Option[String] to RefSpec
-
-  def listFiles(io: Io, layout: Layout): Try[List[Path]] =
-    for {
-      dir <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
-      commit <- ~layout.shell.git
-                 .getTag(dir, track.id)
-                 .toOption
-                 .orElse(layout.shell.git.getBranchHead(dir, track.id).toOption)
-                 .getOrElse(track.id)
-      files <- local.map { _ =>
-                Success(dir.children.map(Path(_)))
-              }.getOrElse(layout.shell.git.lsTree(dir, commit))
-    } yield files
+case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
+  def listFiles(io: Io, layout: Layout): Try[List[Path]] = for {
+    dir <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
+    commit <- ~layout.shell.git
+                .getTag(dir, track.id)
+                .toOption
+                .orElse(layout.shell.git.getBranchHead(dir, track.id).toOption)
+                .getOrElse(track.id)
+    files <- local.map { _ =>
+              Success(dir.children.map(Path(_)))
+            }.getOrElse(layout.shell.git.lsTree(dir, commit))
+  } yield files
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
-  def importCandidates(io: Io, schema: Schema, layout: Layout): Try[List[String]] =
-    for {
-      repoDir     <- repo.fetch(io, layout)
-      layerString <- layout.shell.git.showFile(repoDir, "layer.fury")
-      layer       <- Layer.read(io, layerString, layout)
-      schemas     <- ~layer.schemas.to[List]
-    } yield
-      schemas.map { schema =>
-        str"${id.key}:${schema.id.key}"
-      }
+  def importCandidates(io: Io, schema: Schema, layout: Layout): Try[List[String]] = for {
+    repoDir     <- repo.fetch(io, layout)
+    layerString <- layout.shell.git.showFile(repoDir, "layer.fury")
+    layer       <- Layer.read(io, layerString, layout)
+    schemas     <- ~layer.schemas.to[List]
+  } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
-  def current(io: Io, layout: Layout): Try[RefSpec] =
-    for {
-      dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
-      commit <- layout.shell.git.getCommit(dir)
-    } yield RefSpec(commit)
+  def current(io: Io, layout: Layout): Try[RefSpec] = for {
+    dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
+    commit <- layout.shell.git.getCommit(dir)
+  } yield RefSpec(commit)
 
   def sourceCandidates(io: Io, layout: Layout)(pred: String => Boolean): Try[Set[Source]] =
-    listFiles(io, layout).map { files =>
-      files.filter { f =>
-        pred(f.filename)
-      }.map { p =>
-        ExternalSource(id, p.parent): Source
-      }.to[Set]
-    }
+    listFiles(io, layout).map(_.filter { f => pred(f.filename) }.map { p =>
+        ExternalSource(id, p.parent): Source }.to[Set])
 }
 
 case class BinRepoId(id: String)
 
 object BinRepoId {
-  implicit val msgShow: MsgShow[BinRepoId]       = v => UserMsg(_.repo(v.id))
+  implicit val msgShow: MsgShow[BinRepoId] = v => UserMsg(_.repo(v.id))
   implicit val stringShow: StringShow[BinRepoId] = _.id
-  final val Central: BinRepoId                   = BinRepoId("central")
+  final val Central: BinRepoId = BinRepoId("central")
 }
 
 case class Repo(url: String) {
   def hash: Digest               = url.digest[Md5]
   def path(layout: Layout): Path = layout.reposDir / hash.encoded
 
-  def update(layout: Layout): Try[UserMsg] =
-    for {
-      oldCommit <- layout.shell.git.getCommit(path(layout))
-      _         <- layout.shell.git.fetch(path(layout), None)
-      newCommit <- layout.shell.git.getCommit(path(layout))
-      msg <- ~(if (oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
-               else msg"Repository ${url} is unchanged")
-    } yield msg
+  def update(layout: Layout): Try[UserMsg] = for {
+    oldCommit <- layout.shell.git.getCommit(path(layout))
+    _         <- layout.shell.git.fetch(path(layout), None)
+    newCommit <- layout.shell.git.getCommit(path(layout))
+    msg <- ~(if (oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
+              else msg"Repository ${url} is unchanged")
+  } yield msg
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[String] =
-    for {
-      commit <- layout.shell.git.getCommitFromTag(path(layout), tag.id)
-    } yield commit
+    for(commit <- layout.shell.git.getCommitFromTag(path(layout), tag.id)) yield commit
 
   def fetch(io: Io, layout: Layout): Try[Path] =
     if (!(path(layout) / ".done").exists) {
@@ -1302,11 +1177,8 @@ case class Repo(url: String) {
 
 object SchemaRef {
 
-  implicit val msgShow: MsgShow[SchemaRef] =
-    v =>
-      UserMsg { theme =>
-        msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme)
-      }
+  implicit val msgShow: MsgShow[SchemaRef] = v =>
+    UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
 
   implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
   implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
@@ -1321,13 +1193,12 @@ object SchemaRef {
 
 case class SchemaRef(repo: RepoId, schema: SchemaId) {
 
-  def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] =
-    for {
-      repo     <- base.repos.findBy(repo)
-      dir      <- repo.fullCheckout.get(io, layout)
-      layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
-      resolved <- layer.schemas.findBy(schema)
-    } yield resolved
+  def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] = for {
+    repo     <- base.repos.findBy(repo)
+    dir      <- repo.fullCheckout.get(io, layout)
+    layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
+    resolved <- layer.schemas.findBy(schema)
+  } yield resolved
 }
 
 sealed trait CompileEvent
@@ -1347,12 +1218,12 @@ sealed trait CompileResult {
   def asTry: Try[CompileSuccess]
 }
 
-case class CompileSuccess(outputDirectories: Set[Path]) extends CompileResult{
+case class CompileSuccess(outputDirectories: Set[Path]) extends CompileResult {
   override def isSuccessful: Boolean = true
   override def asTry: Try[CompileSuccess] = Success(this)
 }
 
-case object CompileFailure extends CompileResult{
+case object CompileFailure extends CompileResult {
   override def isSuccessful: Boolean = false
   override def asTry: Try[CompileSuccess] = Failure(CompilationFailure())
 }
@@ -1363,8 +1234,8 @@ object TargetId {
   def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
     TargetId(str"${schemaId}_${projectId}_${moduleId}")
   
-    def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
-      TargetId(schemaId, ref.projectId, ref.moduleId)
+  def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
+    TargetId(schemaId, ref.projectId, ref.moduleId)
 }
 
 case class TargetId(key: String) extends AnyVal {
@@ -1374,24 +1245,22 @@ case class TargetId(key: String) extends AnyVal {
   def ref: ModuleRef = ModuleRef(projectId, moduleId)
 }
 
-case class Target(
-    ref: ModuleRef,
-    schemaId: SchemaId,
-    kind: Kind,
-    main: Option[String],
-    plugin: Option[String],
-    repos: List[Repo],
-    checkouts: List[Checkout],
-    binaries: List[Path],
-    dependencies: List[TargetId],
-    compiler: Option[Target],
-    bloopSpec: Option[BloopSpec],
-    params: List[Parameter],
-    intransitive: Boolean,
-    sourcePaths: List[Path]) {
+case class Target(ref: ModuleRef,
+                  schemaId: SchemaId,
+                  kind: Kind,
+                  main: Option[String],
+                  plugin: Option[String],
+                  repos: List[Repo],
+                  checkouts: List[Checkout],
+                  binaries: List[Path],
+                  dependencies: List[TargetId],
+                  compiler: Option[Target],
+                  bloopSpec: Option[BloopSpec],
+                  params: List[Parameter],
+                  intransitive: Boolean,
+                  sourcePaths: List[Path]) {
 
   def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
-
   def executed = kind == Application || kind == Benchmarks
 }
 
@@ -1404,38 +1273,30 @@ object Project {
     !layer.projects.toOption.to[List].flatten.findBy(projectId).isSuccess
 }
 
-case class Project(
-    id: ProjectId,
-    modules: SortedSet[Module] = TreeSet(),
-    main: Option[ModuleId] = None,
-    license: LicenseId = License.unknown,
-    description: String = "",
-    compiler: Option[ModuleRef] = None) {
+case class Project(id: ProjectId,
+                   modules: SortedSet[Module] = TreeSet(),
+                   main: Option[ModuleId] = None,
+                   license: LicenseId = License.unknown,
+                   description: String = "",
+                   compiler: Option[ModuleRef] = None) {
+  
+  def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
-
-  def mainModule: Try[Option[Module]] =
-    main.map(modules.findBy(_)).to[List].sequence.map(_.headOption)
+  def mainModule: Try[Option[Module]] = main.map(modules.findBy(_)).to[List].sequence.map(_.headOption)
 
   def compilerRefs: List[ModuleRef] =
-    modules.to[List].collect {
-      case m @ Module(_, Compiler, _, _, _, _, _, _, _, _, _, _) => m.ref(this)
-    }
+    modules.to[List].collect { case m @ Module(_, Compiler, _, _, _, _, _, _, _, _, _, _) => m.ref(this) }
 
   def unused(moduleId: ModuleId) =
     modules.findBy(moduleId) match {
-      case Success(_) =>
-        Failure(ModuleAlreadyExists(moduleId))
-      case _ =>
-        Success(moduleId)
+      case Success(_) => Failure(ModuleAlreadyExists(moduleId))
+      case _          => Success(moduleId)
     }
-
-  def apply(module: ModuleId): Try[Module] = modules.findBy(module)
 }
 
 object License {
   implicit val msgShow: MsgShow[License]       = v => UserMsg(_.license(v.id.key))
   implicit val stringShow: StringShow[License] = _.id.key
-
   val unknown = LicenseId("unknown")
 
   val standardLicenses = List(
@@ -1479,6 +1340,7 @@ object LicenseId {
   implicit val msgShow: MsgShow[LicenseId]       = v => UserMsg(_.license(v.key))
   implicit val stringShow: StringShow[LicenseId] = _.key
 }
+
 case class LicenseId(key: String) extends Key(msg"license")
 
 case class License(id: LicenseId, name: String)
@@ -1486,8 +1348,7 @@ case class License(id: LicenseId, name: String)
 object RefSpec {
   implicit val msgShow: MsgShow[RefSpec]       = v => UserMsg(_.version(v.id))
   implicit val stringShow: StringShow[RefSpec] = _.id
-
-  val master = RefSpec("master")
+  val master: RefSpec = RefSpec("master")
 }
 case class RefSpec(id: String)
 
@@ -1499,29 +1360,30 @@ case class Commit(id: String)
 
 object Source {
   implicit val stringShow: StringShow[Source] = _.description
+  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
+  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.description)
 
-  implicit val msgShow: MsgShow[Source] = v =>
-    UserMsg { theme =>
-      v match {
-        case ExternalSource(repoId, path) =>
-          msg"${theme.repo(repoId.key)}${theme.gray(":")}${theme.path(path.value)}".string(theme)
-        case SharedSource(path) =>
-          msg"${theme.repo("shared")}${theme.gray(":")}${theme.path(path.value)}".string(theme)
-        case LocalSource(path) => msg"${theme.path(path.value)}".string(theme)
-      }
+  implicit val msgShow: MsgShow[Source] = v => UserMsg { theme =>
+    v match {
+      case ExternalSource(repoId, path) =>
+        msg"${theme.repo(repoId.key)}${theme.gray(":")}${theme.path(path.value)}".string(theme)
+      case SharedSource(path) =>
+        msg"${theme.repo("shared")}${theme.gray(":")}${theme.path(path.value)}".string(theme)
+      case LocalSource(path) =>
+        msg"${theme.path(path.value)}".string(theme)
     }
+  }
 
   def unapply(string: String): Option[Source] = string match {
     case r"shared:$path@(.*)" =>
       Some(SharedSource(Path(path)))
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$path@(.*)" =>
       Some(ExternalSource(RepoId(repo), Path(path)))
-    case r"$path@(.*)" => Some(LocalSource(Path(path)))
-    case _             => None
+    case r"$path@(.*)" =>
+      Some(LocalSource(Path(path)))
+    case _ =>
+      None
   }
-
-  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
-  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.description)
 
   def repoId(src: Source): Option[RepoId] = src match {
     case ExternalSource(repoId, _) => Some(repoId)
@@ -1531,7 +1393,6 @@ object Source {
 
 trait Source {
   def description: String
-
   def hash(schema: Schema, layout: Layout): Try[Digest]
   def path: Path
   def repoIdentifier: RepoId
@@ -1539,28 +1400,19 @@ trait Source {
 
 case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def description: String = str"${repoId}:${path.value}"
-
-  def hash(schema: Schema, layout: Layout): Try[Digest] =
-    schema.repo(repoId, layout).map((path, _).digest[Md5])
-
+  def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((path, _).digest[Md5])
   def repoIdentifier: RepoId = repoId
 }
 
 case class SharedSource(path: Path) extends Source {
   def description: String = str"shared:${path.value}"
-
-  def hash(schema: Schema, layout: Layout): Try[Digest] =
-    Success((-2, path).digest[Md5])
-
+  def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-2, path).digest[Md5])
   def repoIdentifier: RepoId = RepoId("-")
 }
 
 case class LocalSource(path: Path) extends Source {
   def description: String = str"${path.value}"
-
-  def hash(schema: Schema, layout: Layout): Try[Digest] =
-    Success((-1, path).digest[Md5])
-
+  def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, path).digest[Md5])
   def repoIdentifier: RepoId = RepoId("-")
 }
 
