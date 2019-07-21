@@ -1,6 +1,10 @@
 #!/bin/bash
 
+if [ "$(uname -s)" = 'Linux' ]; then
 FURYHOME="$(dirname "$(readlink -f "$0")")/.."
+else
+FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
+fi
 
 PORT="8462"
 CLASSPATH="$FURYHOME/lib/*"
@@ -26,8 +30,9 @@ silently() {
   #See https://unix.stackexchange.com/a/181938
   #See https://stackoverflow.com/q/3838322
   #See https://www.gnu.org/software/bash/manual/html_node/Command-Grouping.html
-  TMPFILE=$(mktemp "/tmp/fury.err.XXXXXX")
+
   if [ "$DEBUG" = "1" ]; then
+    TMPFILE=$(mktemp "/tmp/fury.err.XXXXXX")
     exec 3>"$TMPFILE"
     exec 4<"$TMPFILE"
     rm "$TMPFILE"
@@ -98,13 +103,8 @@ restartFury() {
 }
 
 startFuryStandalone() {
-  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT"
-}
-
-startFuryDirect() {
-  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:25005 "$FURY_MAIN" "$@"
+  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8)
+  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$FURY_MAIN" "$@"
 }
 
 case "$1" in
@@ -112,10 +112,7 @@ case "$1" in
     silently startFury
     ;;
   "standalone")
-    silently startFuryStandalone
-    ;;
-  "direct")
-    silently startFuryDirect "${@:2}"
+    startFuryStandalone "${@:2}"
     ;;
   "kill")
     silently killFury "${@:2}"

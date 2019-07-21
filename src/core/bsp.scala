@@ -47,9 +47,9 @@ object Bsp {
 
     for {
       // FIXME we should use fury launch jar directly with java here
-      fury <- whichFury(layout)
+      fury   <- whichFury(layout)
       config = bspConfigJson(fury)
-      _ <- bspConfig.writeSync(config.serialize)
+      _      <- bspConfig.writeSync(config.serialize)
     } yield ()
   }
 
@@ -58,20 +58,18 @@ object Bsp {
     sh"command -v fury".exec[Try[String]].map(Path.apply)
   }
 
-  private def bspConfigJson(fury: Path): Json = {
-
+  private def bspConfigJson(fury: Path): Json =
     Json(
         name = "Fury",
         argv = List(
             fury.javaPath.toAbsolutePath.toString,
-            "direct",
+            "standalone",
             "bsp"
         ),
         version = Version.current,
         bspVersion = bspVersion,
         languages = List("java", "scala")
     )
-  }
 
   def startServer(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
@@ -128,7 +126,10 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
                              universe.makeTarget(io, d, layout)
                            }.sequence
                   } yield arts.map { a =>
-                    (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler.map(_.ref.hide): Option[ModuleRef]))
+                    (
+                        a.ref,
+                        (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
+                          .map(_.ref.hide): Option[ModuleRef]))
                   }
                 }
                 .sequence
@@ -136,8 +137,8 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
       allModuleRefs = graph.keys
       modules       <- allModuleRefs.traverse(ref => universe.getMod(ref).map((ref, _)))
       targets <- graph.keys.map { key =>
-                    universe.makeTarget(io, key, layout).map(key -> _)
-                  }.sequence.map(_.toMap)
+                  universe.makeTarget(io, key, layout).map(key -> _)
+                }.sequence.map(_.toMap)
       checkouts <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
 
@@ -419,8 +420,8 @@ object FuryBuildServer {
 
     val buildTarget =
       new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
-    
-      buildTarget.setDisplayName(moduleRefDisplayName(ref))
+
+    buildTarget.setDisplayName(moduleRefDisplayName(ref))
 
     for {
       compiler <- target.compiler
