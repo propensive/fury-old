@@ -42,7 +42,7 @@ case class Shell(environment: Environment) {
     implicit val defaultEnvironment: Environment = environment.append("SHARED", layout.sharedDir.value)
     
     val cmd =
-      if (securePolicy)
+      if(securePolicy)
         sh"java -Djava.security.manager -Djava.security.policy=${policyFile.value} -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath
           .mkString(":")} $main"
       else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main"
@@ -72,7 +72,7 @@ case class Shell(environment: Environment) {
                       : Try[String] =
       for {
         _ <- sh"git -C ${dir.value} init".exec[Try[String]]
-        _ <- if (!sources.isEmpty)
+        _ <- if(!sources.isEmpty)
               sh"git -C ${dir.value} config core.sparseCheckout true".exec[Try[String]]
             else Success(())
         _ <- Success {

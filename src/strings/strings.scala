@@ -102,7 +102,7 @@ object Compare {
       dist(0) = oldDist(0) + 1
 
       for (j <- 1 to n)
-        dist(j) = (oldDist(j - 1) + (if (from(i - 1) == to(j - 1)) 0 else 1))
+        dist(j) = (oldDist(j - 1) + (if(from(i - 1) == to(j - 1)) 0 else 1))
           .min(oldDist(j) + 1)
           .min(dist(j - 1) + 1)
 

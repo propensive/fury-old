@@ -18,20 +18,18 @@
 package fury.core
 
 import fury.strings._
-import java.util.jar.{Attributes, Manifest => JManifest}
+import java.util.jar.{Attributes, Manifest => JavaManifest}
+import Attributes.Name._
 
 object Manifest {
-
-  def apply(classpath: Set[String], mainClass: Option[String]): JManifest = {
-    import Attributes.Name._
-
-    val result = new JManifest
+  def apply(classpath: Set[String], mainClass: Option[String]): JavaManifest = {
+    val result = new JavaManifest
     val mainAttributes = result.getMainAttributes
     mainAttributes.put(MANIFEST_VERSION, "1.0")
     mainClass.foreach(mainAttributes.put(MAIN_CLASS, _))
     mainAttributes.put(CLASS_PATH, classpath.join(" "))
     mainAttributes.putValue("Created-By", str"Fury ${Version.current}")
+    
     result
   }
-
 }

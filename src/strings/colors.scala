@@ -18,8 +18,8 @@
 package fury.strings
 
 case class AnsiCode(private val code: String) {
-  def apply(): String             = if (code == "") "" else s"\u001b[$code"
-  def apply(str: String): String  = if (code == "") str else s"${apply()}$str${Ansi.reset()}"
+  def apply(): String             = if(code == "") "" else s"\u001b[$code"
+  def apply(str: String): String  = if(code == "") str else s"${apply()}$str${Ansi.reset()}"
   def +(that: AnsiCode): AnsiCode = AnsiCode(s"${code}\u001b${that.code}")
 }
 

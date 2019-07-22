@@ -69,7 +69,7 @@ object ProjectCli {
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()
@@ -119,7 +119,7 @@ object ProjectCli {
                   _.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) {
                 (lens, ws) =>
-                  if (lens(ws) == Some(projectId))(lens(ws) = None) else ws
+                  if(lens(ws) == Some(projectId))(lens(ws) = None) else ws
               }
       _ <- ~Layer.save(io, layer, layout)
     } yield io.await()

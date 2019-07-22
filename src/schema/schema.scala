@@ -65,7 +65,7 @@ object SchemaCli {
       rows      <- ~layer.schemas.to[List]
       table <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(
                   _.id)
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
@@ -99,7 +99,7 @@ object SchemaCli {
       other     <- layer.schemas.findBy(otherArg)
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~diffTable(config, schema, other, rows, cli.cols, raw)
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
@@ -120,7 +120,7 @@ object SchemaCli {
       force    <- ~invoc(ForceArg).toOption.isDefined
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
-      layer    <- ~(if (layer.main == schema.id) layer.copy(main = newName) else layer)
+      layer    <- ~(if(layer.main == schema.id) layer.copy(main = newName) else layer)
       _        <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }

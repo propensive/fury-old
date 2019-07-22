@@ -49,12 +49,12 @@ case class Menu[T, S](
   def apply(cli: Cli[CliParam[_]], ctx: T): Try[ExitStatus] =
     cli.args.prefix.headOption match {
       case None =>
-        if (cli.completion) cli.completeCommand(this)
+        if(cli.completion) cli.completeCommand(this)
         else apply(cli.prefix(default.name), ctx)
       case Some(next) =>
         items.find(_.command.name == next.value) match {
           case None =>
-            if (cli.completion) cli.completeCommand(this)
+            if(cli.completion) cli.completeCommand(this)
             else Failure(UnknownCommand(next.value))
           case Some(item @ Menu(_, _, _, _, _)) =>
             action(ctx).flatMap(item(cli.tail, _))

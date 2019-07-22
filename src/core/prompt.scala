@@ -34,7 +34,7 @@ object Prompt {
     val projectId = optProject.map(_.id.key).getOrElse("-")
     val moduleId  = optModule.map(_.id.key).getOrElse("-")
     val schemaText =
-      if (layer.schemas.size <= 1) "" else s"${escape(theme.schema)}$schemaId${escape(theme.gray)}/"
+      if(layer.schemas.size <= 1) "" else s"${escape(theme.schema)}$schemaId${escape(theme.gray)}/"
 
     msg" ${escape(theme.gray)}[$schemaText${escape(theme.project)}$projectId${escape(theme.gray)}/${escape(
         theme.module)}$moduleId${escape(theme.gray)}]${escape(Ansi.reset)}".string(theme)

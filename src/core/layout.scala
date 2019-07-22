@@ -28,25 +28,19 @@ import scala.util.Try
 
 object Layout {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
+  
+  def find(home: Path, pwd: Path, env: Environment): Try[Layout] = findBase(pwd).map(Layout(home, pwd, env, _))
 
   private def findBase(dir: Path): Try[Path] = {
     import java.nio.file.Files.{getFileStore, isRegularFile}
     val here       = dir.javaPath
     val fileSystem = getFileStore(here)
-    Stream
-      .iterate(here.toAbsolutePath)(_.getParent)
-      .takeWhile {
-        Option(_).exists(getFileStore(_) == fileSystem)
-      }
-      .find { path =>
-        isRegularFile(path.resolve("layer.fury"))
-      }
-      .map(Path(_))
-      .ascribe(UnspecifiedProject())
+    val parents = Stream.iterate(here.toAbsolutePath)(_.getParent)
+    val parentsWithinFs = parents.takeWhile(Option(_).exists(getFileStore(_) == fileSystem))
+    val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve("layer.fury")) }.map(Path(_))
+    
+    optParent.ascribe(UnspecifiedProject())
   }
-
-  def find(home: Path, pwd: Path, env: Environment): Try[Layout] =
-    findBase(pwd).map { Layout(home, pwd, env, _) }
 }
 
 case class GlobalLayout(home: Path) {
@@ -56,49 +50,34 @@ case class GlobalLayout(home: Path) {
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
-
-  private val nowString: String = Layout.dateFormat.format(new Date())
-
+  private[this] val nowString: String = Layout.dateFormat.format(new Date())
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
-  private[this] val userDir          = (home / ".furyrc").extant()
-
-  lazy val furyDir: Path       = (base / ".fury").extant()
-  lazy val bspDir: Path        = (base / ".bsp").extant()
-  lazy val historyDir: Path    = (furyDir / "history").extant()
-  lazy val bloopDir: Path      = (furyDir / ".bloop").extant()
-  lazy val classesDir: Path    = (furyDir / "classes").extant()
+  private[this] val userDir = (home / ".furyrc").extant()
+  
+  lazy val furyDir: Path = (base / ".fury").extant()
+  lazy val bspDir: Path = (base / ".bsp").extant()
+  lazy val historyDir: Path = (furyDir / "history").extant()
+  lazy val bloopDir: Path = (furyDir / ".bloop").extant()
+  lazy val classesDir: Path = (furyDir / "classes").extant()
   lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
-  lazy val analysisDir: Path   = (furyDir / "analysis").extant()
-  lazy val resourcesDir: Path  = (furyDir / "resources").extant()
-  lazy val reposDir: Path      = (userDir / "repos").extant()
-  lazy val srcsDir: Path       = (userDir / "sources").extant()
-  lazy val logsDir: Path       = (furyDir / "logs").extant()
-  lazy val workDir: Path       = (furyDir / "work").extant()
-  lazy val sharedDir: Path     = (furyDir / "build" / uniqueId).extant()
-  lazy val errorLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.log"
-  lazy val messagesLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
-  lazy val traceLogfile: Path  = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
-
-  def bloopConfig(targetId: TargetId): Path =
-    bloopDir.extant() / str"${targetId.key}.json"
-
+  lazy val analysisDir: Path = (furyDir / "analysis").extant()
+  lazy val resourcesDir: Path = (furyDir / "resources").extant()
+  lazy val reposDir: Path = (userDir / "repos").extant()
+  lazy val srcsDir: Path = (userDir / "sources").extant()
+  lazy val logsDir: Path = (furyDir / "logs").extant()
+  lazy val workDir: Path = (furyDir / "work").extant()
+  lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
+  lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
+  lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
+  lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
   lazy val furyConfig: Path = base / "layer.fury"
-
-  def outputDir(targetId: TargetId): Path =
-    (analysisDir / targetId.key).extant()
-
-  def workDir(targetId: TargetId): Path =
-    (workDir / targetId.key).extant()
-
-  def benchmarksDir(targetId: TargetId): Path =
-    (benchmarksDir / targetId.key).extant()
-
-  def classesDir(targetId: TargetId): Path =
-    (classesDir / targetId.key).extant()
-
-  def resourcesDir(targetId: TargetId): Path =
-    (resourcesDir / targetId.key).extant()
-
+  
+  def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
+  def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
+  def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()
+  def benchmarksDir(targetId: TargetId): Path = (benchmarksDir / targetId.key).extant()
+  def classesDir(targetId: TargetId): Path = (classesDir / targetId.key).extant()
+  def resourcesDir(targetId: TargetId): Path = (resourcesDir / targetId.key).extant()
+  
   val shell = Shell(env)
-
 }

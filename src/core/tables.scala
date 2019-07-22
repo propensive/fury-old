@@ -36,12 +36,12 @@ case class Tables(config: Config) {
       raw: Boolean
     )(main: T => S
     ): Seq[String] =
-    if (raw) rows.map(main).map { e =>
+    if(raw) rows.map(main).map { e =>
       implicitly[MsgShow[S]].show(e).string(Theme.NoColor)
     } else table.tabulate(cols, rows)
 
   def contextString(layer: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
-    (if (showSchema) elements else elements.tail).foldLeft(layer) { (l, r) =>
+    (if(showSchema) elements else elements.tail).foldLeft(layer) { (l, r) =>
       msg"$l/$r"
     }
 
@@ -61,8 +61,8 @@ case class Tables(config: Config) {
   private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] =
     _.map {
       case ModuleRef(p, m, intransitive, _) =>
-        val extra = (if (intransitive) msg"*" else msg"")
-        if (p == projectId) msg"${theme.module(m.key)}$extra"
+        val extra = (if(intransitive) msg"*" else msg"")
+        if(p == projectId) msg"${theme.module(m.key)}$extra"
         else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"
     }.foldLeft(msg"")(_ + _ + "\n").string(theme)
 

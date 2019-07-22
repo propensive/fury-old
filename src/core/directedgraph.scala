@@ -23,7 +23,7 @@ case class DirectedGraph[T](connections: Map[T, Set[T]]) {
   def remove(element: T): DirectedGraph[T] = {
     val pointingTo = connections(element)
     val noFromEdge = connections - element
-    DirectedGraph(noFromEdge.mapValues { map => if (map(element)) map ++ pointingTo - element else map })
+    DirectedGraph(noFromEdge.mapValues { map => if(map(element)) map ++ pointingTo - element else map })
   }
 
   def subgraph(verticesToLeave: Set[T]): DirectedGraph[T] =

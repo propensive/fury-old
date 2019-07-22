@@ -70,7 +70,7 @@ object Ogdl {
     case Ogdl(Vector()) => current
     case Ogdl((k, v) +: t) =>
       var c = current
-      if (c > i) {
+      if(c > i) {
         sb.append('\n')
         c = 0
       }
@@ -88,7 +88,7 @@ object Ogdl {
       val bak = path.rename { f =>
         s".$f.bak"
       }
-      if (path.exists()) path.copyTo(bak)
+      if(path.exists()) path.copyTo(bak)
       val sb = new StringBuilder()
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
       sb.append('\n')

@@ -36,10 +36,10 @@ object Main {
   private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
   private[this] val running: HashSet[Thread]   = new HashSet()
   private[this] def busy(): Option[Int] =
-    running.synchronized(if (running.size > 1) Some(running.size - 1) else None)
+    running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
   private[this] def trackThread(action: => Int): Int =
-    if (!terminating.get) {
+    if(!terminating.get) {
       running.synchronized(running += Thread.currentThread)
       try action
       finally {
@@ -119,8 +119,8 @@ object Main {
     busy() match {
       case None => util.Success(Done)
       case Some(count) =>
-        if (previous != count) {
-          val plural = if (count > 1) "s" else ""
+        if(previous != count) {
+          val plural = if(count > 1) "s" else ""
           println(s"Waiting for $count active task$plural to complete...")
         }
         Thread.sleep(10)

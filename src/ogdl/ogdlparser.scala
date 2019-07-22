@@ -34,7 +34,7 @@ object OgdlParser {
     }
 
     def readIndent(i: Int): Int =
-      if (buffer.remaining == 0) i
+      if(buffer.remaining == 0) i
       else
         (buffer.get(): @switch) match {
           case '\t' =>
@@ -46,18 +46,18 @@ object OgdlParser {
 
     def append(ogdl: Ogdl, string: String, index: Int): Ogdl = ogdl match {
       case Ogdl(Vector()) =>
-        if (index == 0) Ogdl(Vector((string, Ogdl(Vector()))))
+        if(index == 0) Ogdl(Vector((string, Ogdl(Vector()))))
         else {
           throw new Exception(s"Attempt to access '$string', index $index in $ogdl")
         }
       case Ogdl(lm) =>
-        if (index == 0) Ogdl(lm :+ ((string, Ogdl(Vector()))))
+        if(index == 0) Ogdl(lm :+ ((string, Ogdl(Vector()))))
         else Ogdl(lm.init :+ ((lm.last._1, append(lm.last._2, string, index - 1))))
     }
 
     @tailrec
     def parse(root: Ogdl, focus: Int, mark: Int): Ogdl =
-      if (buffer.remaining == 0) root
+      if(buffer.remaining == 0) root
       else
         (buffer.get(): @switch) match {
           case '\n' =>

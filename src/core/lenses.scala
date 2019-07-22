@@ -36,7 +36,7 @@ object Lenses {
       case None           => layer.schemas.map(_.id).to[List].map(lens(_))
     }
 
-    for (lenses <- if (force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
+    for (lenses <- if(force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
                   else Failure(SchemaDifferences()))
       yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
   }
@@ -61,7 +61,7 @@ object Lenses {
             }
         }
 
-        for (lenses <- if (force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
+        for (lenses <- if(force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
                       else Failure(SchemaDifferences()))
           yield lenses.foldLeft(layer) { case (layer, lens) => lens(layer) = value }
     }

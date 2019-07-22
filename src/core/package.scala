@@ -42,7 +42,7 @@ object `package` {
     Ordering.String.on(implicitly[StringShow[T]].show(_))
 
   implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
-  implicit val msgShowBoolean: MsgShow[Boolean] = if (_) msg">" else msg""
+  implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
 
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =

@@ -20,17 +20,10 @@ package fury.core
 import fury.io._, fury.strings._
 
 object Install {
-  private val zshrc = List(
-      "autoload -Uz compinit",
-      "fpath=($FURYHOME/completion/zsh $fpath)"
-  )
-
+  private val zshrc = List("autoload -Uz compinit", "fpath=($FURYHOME/completion/zsh $fpath)")
   private val bashrc = List()
   private val fishrc = List()
-
-  def alias(name: String, dir: Path, module: ModuleRef): String =
-    str"alias $name='fury --layer=$dir '"
-
+  def alias(name: String, dir: Path, module: ModuleRef): String = str"alias $name='fury --layer=$dir '"
 }
 
 case class Installation(name: String, dir: Path, module: ModuleRef)

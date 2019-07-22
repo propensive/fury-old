@@ -104,9 +104,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator)
-    extends BuildServer
-    with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
 
   private val config = Config()
@@ -114,42 +112,30 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
 
   private def structure: Try[Structure] =
     for {
-      layer     <- Layer.read(io, layout.furyConfig, layout)
-      schema    <- layer.mainSchema
-      hierarchy <- schema.hierarchy(io, layout.pwd, layout)
-      universe  <- hierarchy.universe
-      projects  <- layer.projects
-      graph <- projects
-                .flatMap(_.moduleRefs)
-                .map { ref =>
-                  for {
-                    ds <- universe.dependencies(io, ref, layout)
-                    arts <- (ds + ref).map { d =>
-                             universe.makeTarget(io, d, layout)
-                           }.sequence
-                  } yield arts.map { a =>
-                    (
-                        a.ref,
-                        (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
-                          .map(_.ref.hide): Option[ModuleRef]))
-                  }
-                }
-                .sequence
-                .map(_.flatten.toMap)
-      allModuleRefs = graph.keys
+      layer          <- Layer.read(io, layout.furyConfig, layout)
+      schema         <- layer.mainSchema
+      hierarchy      <- schema.hierarchy(io, layout.pwd, layout)
+      universe       <- hierarchy.universe
+      projects       <- layer.projects
+      graph          <- projects.flatMap(_.moduleRefs).map { ref =>
+                          for {
+                            ds   <- universe.dependencies(io, ref, layout)
+                            arts <- (ds + ref).map { d => universe.makeTarget(io, d, layout) }.sequence
+                          } yield arts.map { a =>
+                            (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
+                                .map(_.ref.hide): Option[ModuleRef]))
+                          }
+                        }.sequence.map(_.flatten.toMap)
+      allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse(ref => universe.getMod(ref).map((ref, _)))
-      targets <- graph.keys.map { key =>
-                  universe.makeTarget(io, key, layout).map(key -> _)
-                }.sequence.map(_.toMap)
-      checkouts <- graph.keys.map(universe.checkout(_, layout)).sequence
+      targets       <- graph.keys.map { key =>
+                         universe.makeTarget(io, key, layout).map(key -> _)
+                       }.sequence.map(_.toMap)
+      checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
 
-  override def buildInitialize(
-      initializeBuildParams: InitializeBuildParams
-    ): CompletableFuture[InitializeBuildResult] = {
-
-    io.println("**> buildInitialize")
-
+  override def buildInitialize(initializeBuildParams: InitializeBuildParams)
+                              : CompletableFuture[InitializeBuildResult] = {
     val capabilities = new BuildServerCapabilities()
     capabilities.setBuildTargetChangedProvider(false)
     val compileProvider = new CompileProvider(List("java", "scala").asJava)
@@ -157,14 +143,21 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
     capabilities.setDependencySourcesProvider(false)
     capabilities.setInverseSourcesProvider(false)
     capabilities.setResourcesProvider(false)
-    val runProvider = new RunProvider(List.empty[String].asJava) // TODO fury can provide run
+    
+    // FIXME: fury can provide run
+    val runProvider = new RunProvider(List.empty[String].asJava)
+    
     capabilities.setRunProvider(runProvider)
-    val testProvider = new TestProvider(List.empty[String].asJava) // fury does not yet have a dedicated test interface
+    
+    // Fury has no plans to provide a testing interface
+    val testProvider = new TestProvider(List.empty[String].asJava)
+    
     capabilities.setTestProvider(testProvider)
 
     val result = new InitializeBuildResult("Fury", Version.current, Bsp.bspVersion, capabilities)
     val future = new CompletableFuture[InitializeBuildResult]()
     future.complete(result)
+    
     future
   }
 
@@ -188,12 +181,9 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
 
     io.println("**> workspaceBuildTargets")
 
-    val result = for {
-      struct <- structure
-    } yield {
-      val targets = struct.targets.values.map(toTarget(_, struct))
-      new WorkspaceBuildTargetsResult(targets.toList.asJava)
-    }
+    val result =
+      for(struct <- structure)
+      yield new WorkspaceBuildTargetsResult(struct.targets.values.map(toTarget(_, struct)).to[List].asJava)
 
     val future = new CompletableFuture[WorkspaceBuildTargetsResult]()
 
@@ -205,20 +195,16 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
     future
   }
 
-  override def buildTargetSources(
-      sourcesParams: SourcesParams
-    ): CompletableFuture[SourcesResult] = {
+  override def buildTargetSources(sourcesParams: SourcesParams): CompletableFuture[SourcesResult] = {
 
     io.println("**> buildTargetSources")
 
     val sourceItems = for {
       struct  <- structure
-      targets = sourcesParams.getTargets.asScala
-      items <- targets.traverse { t =>
-                struct.moduleRef(t).map { ref =>
-                  targetSourcesItem(t, struct.targets(ref))
-                }
-              }
+      targets  = sourcesParams.getTargets.asScala
+      items   <- targets.traverse { t =>
+                   struct.moduleRef(t).map { ref => targetSourcesItem(t, struct.targets(ref)) }
+                 }
     } yield new SourcesResult(items.asJava)
 
     val future = new CompletableFuture[SourcesResult]()
@@ -233,142 +219,133 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
   private def targetSourcesItem(target: BuildTargetIdentifier, a: Target): SourcesItem = {
     val items = a.sourcePaths.map { p =>
       new SourceItem(p.javaPath.toUri.toString, SourceItemKind.DIRECTORY, false)
-    }
-    new SourcesItem(target, items.asJava)
+    }.asJava
+    
+    new SourcesItem(target, items)
   }
 
-  override def buildTargetInverseSources(
-      inverseSourcesParams: InverseSourcesParams
-    ): CompletableFuture[InverseSourcesResult] = {
+  override def buildTargetInverseSources(inverseSourcesParams: InverseSourcesParams)
+                                        : CompletableFuture[InverseSourcesResult] = {
     val future = new CompletableFuture[InverseSourcesResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
+
     future
   }
 
-  override def buildTargetDependencySources(
-      dependencySourcesParams: DependencySourcesParams
-    ): CompletableFuture[DependencySourcesResult] = {
+  override def buildTargetDependencySources(dependencySourcesParams: DependencySourcesParams)
+                                           : CompletableFuture[DependencySourcesResult] = {
 
     io.println("**> buildTargetDependencySources")
 
     val result = Try(new DependencySourcesResult(List.empty.asJava))
-
     val future = new CompletableFuture[DependencySourcesResult]()
+    
     result match {
       case Success(value)     => future.complete(value)
       case Failure(exception) => future.completeExceptionally(exception)
     }
+    
     future
   }
 
-  override def buildTargetResources(
-      resourcesParams: ResourcesParams
-    ): CompletableFuture[ResourcesResult] = {
+  override def buildTargetResources(resourcesParams: ResourcesParams): CompletableFuture[ResourcesResult] = {
     val future = new CompletableFuture[ResourcesResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
+    
     future
   }
 
-  override def buildTargetCompile(
-      compileParams: CompileParams
-    ): CompletableFuture[bsp4j.CompileResult] = {
+  override def buildTargetCompile(compileParams: CompileParams): CompletableFuture[bsp4j.CompileResult] = {
     // TODO MVP
     val future = new CompletableFuture[bsp4j.CompileResult]()
     val result = new bsp4j.CompileResult(StatusCode.CANCELLED)
     future.complete(result)
+
     future
   }
 
   override def buildTargetTest(testParams: TestParams): CompletableFuture[TestResult] = {
     val future = new CompletableFuture[TestResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
+    
     future
   }
 
   override def buildTargetRun(runParams: RunParams): CompletableFuture[RunResult] = {
     val future = new CompletableFuture[RunResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
+    
     future
   }
 
-  override def buildTargetCleanCache(
-      cleanCacheParams: CleanCacheParams
-    ): CompletableFuture[CleanCacheResult] = {
+  override def buildTargetCleanCache(cleanCacheParams: CleanCacheParams)
+                                    : CompletableFuture[CleanCacheResult] = {
     // TODO fury supports cleaning
     val future = new CompletableFuture[CleanCacheResult]()
     future.completeExceptionally(new NotImplementedError("method not implemented"))
+    
     future
   }
 
-  private def scalacOptionsItem(
-      target: BuildTargetIdentifier,
-      struct: Structure
-    ): Try[ScalacOptionsItem] =
+  private def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure): Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
-      val art    = struct.targets(ref)
+      val art = struct.targets(ref)
       val params = art.params.map(_.parameter)
-      val paths = art.binaries.map { p =>
-        p.javaPath.toUri.toString
-      }
+      val paths = art.binaries.map(_.javaPath.toUri.toString)
       val classesDir = layout.classesDir.javaPath.toAbsolutePath.toUri.toString
+      
       new ScalacOptionsItem(target, params.asJava, paths.asJava, classesDir)
     }
 
-  override def buildTargetScalacOptions(
-      scalacOptionsParams: ScalacOptionsParams
-    ): CompletableFuture[ScalacOptionsResult] = {
+  override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams)
+                                       : CompletableFuture[ScalacOptionsResult] = {
 
     io.println("**> buildTargetScalacOptions")
 
     val result = for {
       struct  <- structure
-      targets = scalacOptionsParams.getTargets.asScala
-      items <- targets.traverse { target =>
-                struct.moduleRef(target).flatMap { ref =>
-                  scalacOptionsItem(target, struct)
-                }
-              }
+      targets  = scalacOptionsParams.getTargets.asScala
+      items   <- targets.traverse { target =>
+                   struct.moduleRef(target).flatMap { ref => scalacOptionsItem(target, struct) }
+                 }
     } yield new ScalacOptionsResult(items.asJava)
 
     val future = new CompletableFuture[ScalacOptionsResult]()
+    
     result match {
       case Success(value)     => future.complete(value)
       case Failure(exception) => future.completeExceptionally(exception)
     }
+
     future
   }
 
-  override def buildTargetScalaTestClasses(
-      scalaTestClassesParams: ScalaTestClassesParams
-    ): CompletableFuture[ScalaTestClassesResult] = {
+  override def buildTargetScalaTestClasses(scalaTestClassesParams: ScalaTestClassesParams)
+                                          : CompletableFuture[ScalaTestClassesResult] = {
     val future = new CompletableFuture[ScalaTestClassesResult]()
     val result = new ScalaTestClassesResult(List.empty.asJava)
     future.complete(result)
+
     future
   }
 
-  override def buildTargetScalaMainClasses(
-      scalaMainClassesParams: ScalaMainClassesParams
-    ): CompletableFuture[ScalaMainClassesResult] = {
+  override def buildTargetScalaMainClasses(scalaMainClassesParams: ScalaMainClassesParams)
+                                          : CompletableFuture[ScalaMainClassesResult] = {
     val future = new CompletableFuture[ScalaMainClassesResult]()
     val result = new ScalaMainClassesResult(List.empty.asJava)
     future.complete(result)
+
     future
   }
-
 }
 
 object FuryBuildServer {
+  class Cancelator { var cancel: () => Unit = () => () }
 
-  class Cancelator {
-    var cancel: () => Unit = () => ()
-  }
-
-  case class Structure(
-      modules: Map[ModuleRef, Module],
-      graph: Map[ModuleRef, List[ModuleRef]],
-      checkouts: Set[Checkout],
-      targets: Map[ModuleRef, Target]) {
+  case class Structure(modules: Map[ModuleRef, Module],
+                       graph: Map[ModuleRef, List[ModuleRef]],
+                       checkouts: Set[Checkout],
+                       targets: Map[ModuleRef, Target]) {
 
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
 
@@ -376,24 +353,9 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-          ref, {
-            val food = (
-                target.kind,
-                target.main,
-                target.plugin,
-                target.checkouts,
-                target.binaries,
-                target.dependencies,
-                target.compiler.map { c =>
-                  hash(c.ref)
-                },
-                target.params,
-                target.intransitive,
-                target.sourcePaths,
-                graph(ref).map(hash)
-            )
-            food.digest[Md5]
-          }
+        ref, (target.kind, target.main, target.plugin, target.checkouts, target.binaries, target.dependencies,
+            target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
+            graph(ref).map(hash)).digest[Md5]
       )
     }
 
@@ -403,37 +365,37 @@ object FuryBuildServer {
     }
 
     def moduleRef(bti: BuildTargetIdentifier): Try[ModuleRef] = {
-      val id     = new URI(bti.getUri).getSchemeSpecificPart
-      val bytes  = java.util.Base64.getDecoder.decode(id) // TODO depends on assumption about how digest is encoded
+      val id = new URI(bti.getUri).getSchemeSpecificPart
+
+      // TODO depends on assumption about how digest is encoded
+      val bytes  = java.util.Base64.getDecoder.decode(id)
+      
       val digest = Digest(Bytes(bytes))
-      modules.find { case (ref, _) => hash(ref) == digest }
-        .map(_._1)
-        .ascribe(ItemNotFound(ModuleId(id)))
+      
+      modules.find { case (ref, _) => hash(ref) == digest }.map(_._1).ascribe(ItemNotFound(ModuleId(id)))
     }
   }
 
   private def toTarget(target: Target, struct: Structure) = {
-    val ref          = target.ref
-    val id           = struct.buildTarget(target.ref)
-    val tags         = List(moduleKindToBuildTargetTag(target.kind))
-    val languageIds  = List("java", "scala") // TODO get these from somewhere?
+    val ref = target.ref
+    val id = struct.buildTarget(target.ref)
+    val tags = List(moduleKindToBuildTargetTag(target.kind))
+    val languageIds = List("java", "scala") // TODO get these from somewhere?
     val dependencies = target.dependencies.map(_.ref).map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
-    val buildTarget =
-      new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
-
+    val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
     buildTarget.setDisplayName(moduleRefDisplayName(ref))
 
     for {
       compiler <- target.compiler
       bs       <- compiler.bloopSpec
-      if compiler.binaries.nonEmpty
+               if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
-      val scalaBuildTarget =
-        new ScalaBuildTarget(bs.org, bs.version, bs.version, ScalaPlatform.JVM, libs)
+      val scalaBuildTarget = new ScalaBuildTarget(bs.org, bs.version, bs.version, ScalaPlatform.JVM, libs)
       buildTarget.setDataKind(BuildTargetDataKind.SCALA)
+
       buildTarget.setData(scalaBuildTarget)
     }
 
