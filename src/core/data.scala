@@ -115,7 +115,7 @@ case class Module(id: ModuleId,
                   resources: SortedSet[Path] = TreeSet(),
                   bloopSpec: Option[BloopSpec] = None) {
 
-  def allBinaries: SortedSet[Binary] = if (kind == Benchmarks) binaries + Binary.Jmh else binaries
+  def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
@@ -370,7 +370,7 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
 
       def takeSame(str: String): (String, String) = {
         val ch = str.find(_ != '_').getOrElse('_')
-        val matching = if (isSymbolic(ch)) str.takeWhile(isSymbolic) else str.takeWhile(isAlphanumeric)
+        val matching = if(isSymbolic(ch)) str.takeWhile(isSymbolic) else str.takeWhile(isAlphanumeric)
         val remainder = str.drop(matching.length)
         (matching, remainder)
       }
@@ -501,7 +501,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
-    if (target.kind == Plugin) {
+    if(target.kind == Plugin) {
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
       target.main.foreach { main =>
@@ -566,23 +566,29 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])
                    : Future[CompileResult] = {
-    val targetIdentifiers = deepDependencies(target.id)
-      .map { dep => new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")}
-    Future (blocking {
+    
+    val targetIdentifiers = deepDependencies(target.id).map { dep =>
+      new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")
+    }
+    
+    Future { blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
           
           val result = try {
-            val statusCode = if (application)
-              server.buildTargetRun(new RunParams(new BuildTargetIdentifier(uri))).get.getStatusCode
-            else
-              server.buildTargetCompile(new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)).get.getStatusCode
+            val statusCode = if(application) {
+              val params = new RunParams(new BuildTargetIdentifier(uri))
+              server.buildTargetRun(params).get.getStatusCode
+            } else {
+              val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+              server.buildTargetCompile(params).get.getStatusCode
+            }
+
             if(statusCode == StatusCode.OK) {
               val scalacOptions = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
-              
               val outputDirectories = server.buildTargetScalacOptions(scalacOptions).get
-                .getItems.asScala.toSet.map {x: ScalacOptionsItem => Path(new URI(x.getClassDirectory))}
+                .getItems.asScala.toSet.map { x: ScalacOptionsItem => Path(new URI(x.getClassDirectory)) }
               
                 CompileSuccess(outputDirectories)
             } else CompileFailure
@@ -593,9 +599,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           result
         }
       }
-    })
+    } }
   }
-
 
   def compile(io: Io,
               moduleRef: ModuleRef,
@@ -604,35 +609,33 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               layout: Layout)
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
+    
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
-      if (futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
+      if(futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
     
     val future = dependencyFutures.flatMap { inputs =>
-      if (inputs.exists(!_.isSuccessful)) {
+      if(inputs.exists(!_.isSuccessful)) {
         multiplexer(target.ref) = SkipCompile(target.ref)
         multiplexer.close(target.ref)
         Future.successful(CompileFailure)
       } else {
         val noCompilation = target.sourcePaths.isEmpty
         
-        if (noCompilation) deepDependencies(target.id).foreach { targetId =>
+        if(noCompilation) deepDependencies(target.id).foreach { targetId =>
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
         compileModule(io, target, layout, target.kind == Application, multiplexer).map {
           case CompileSuccess(classDirectories) if target.kind == Benchmarks =>
             classDirectories.foreach { classDirectory =>
-              Jmh.instrument(
-                classDirectory,
-                layout.benchmarksDir(target.id),
-                layout.resourcesDir(target.id))
+              Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
               multiplexer(target.ref) = StartStreaming
-              val javaSources =
-                layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+              val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+              
               layout.shell.javac(
                 classpath(target.ref, layout).to[List].map(_.value),
                 classDirectory.value,
@@ -642,13 +645,12 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             val out = new StringBuilder()
             
             val res = layout.shell.runJava(
-                jmhRuntimeClasspath(io, target.ref, layout).to[List].map(_.value),
-                if (target.kind == Benchmarks) "org.openjdk.jmh.Main"
-                else target.main.getOrElse(""),
-                securePolicy = target.kind == Application,
-                layout
+              jmhRuntimeClasspath(io, target.ref, layout).to[List].map(_.value),
+              if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
+              securePolicy = target.kind == Application,
+              layout
             ) { ln =>
-              if (target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
+              if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
               else {
                 out.append(ln)
                 out.append("\n")
@@ -691,7 +693,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     for {
       entity <- entity(ref.projectId)
       module <- entity.project(ref.moduleId)
-      compiler <- if (module.compiler == ModuleRef.JavaRef) Success(None)
+      compiler <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                  else makeTarget(io, module.compiler, layout).map(Some(_))
       binaries <- ~Await.result(
                      module.allBinaries.map(_.paths(io)).sequence.map(_.flatten),
@@ -1070,14 +1072,14 @@ case class Checkout(repoId: RepoId,
 
   private def checkout(io: Io, layout: Layout): Try[Path] =
     local.map(Success(_)).getOrElse {
-      if (!(path(layout) / ".done").exists) {
-        if (path(layout).exists()) {
+      if(!(path(layout) / ".done").exists) {
+        if(path(layout).exists()) {
           val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
           io.println(s"Found incomplete checkout of $sourceText.")
           path(layout).delete()
         }
 
-        io.println(msg"Checking out ${if (sources.isEmpty) msg"all sources from repository ${repoId}"
+        io.println(msg"Checking out ${if(sources.isEmpty) msg"all sources from repository ${repoId}"
         else sources.map(_.value).mkString("[", ", ", "]")}.")
         path(layout).mkdir()
         layout.shell.git
@@ -1141,7 +1143,7 @@ case class Repo(url: String) {
     oldCommit <- layout.shell.git.getCommit(path(layout))
     _         <- layout.shell.git.fetch(path(layout), None)
     newCommit <- layout.shell.git.getCommit(path(layout))
-    msg <- ~(if (oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
+    msg <- ~(if(oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
               else msg"Repository ${url} is unchanged")
   } yield msg
 
@@ -1149,8 +1151,8 @@ case class Repo(url: String) {
     for(commit <- layout.shell.git.getCommitFromTag(path(layout), tag.id)) yield commit
 
   def fetch(io: Io, layout: Layout): Try[Path] =
-    if (!(path(layout) / ".done").exists) {
-      if (path(layout).exists()) {
+    if(!(path(layout) / ".done").exists) {
+      if(path(layout).exists()) {
         io.println(s"Found incomplete clone of $url.")
         path(layout).delete()
       }

@@ -71,7 +71,7 @@ object AliasCli {
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if (!raw) io.println(Tables(config).contextString(layout.base, true)))
+      _     <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, true)))
       _ <- ~io.println(UserMsg { theme =>
             table.mkString("\n")
           })
@@ -300,7 +300,7 @@ object BuildCli {
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
       compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
-      _            <- if (module.kind == Application) Success(()) else Failure(InvalidKind(Application))
+      _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
       _            <- compilation.saveNative(io, module.ref(project), dir in layout.pwd, layout, main)
     } yield io.await()
@@ -384,7 +384,7 @@ object LayerCli {
       projects  <- schema.allProjects(io, layout)
       table <- ~Tables(config)
                 .show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
       _ <- ~io.println(table.mkString("\n"))
     } yield io.await()

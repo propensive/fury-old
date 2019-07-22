@@ -26,7 +26,6 @@ import scala.util._
 import language.higherKinds
 
 object Config {
-
   def read()(implicit env: Environment, globalLayout: GlobalLayout): Try[Config] =
     Success(Ogdl.read[Config](globalLayout.userConfig, identity(_)).toOption.getOrElse(Config()))
 }

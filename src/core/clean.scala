@@ -21,12 +21,8 @@ import scala.util._
 
 object CleanCli {
   case class Context(cli: Cli[CliParam[_]], layout: Layout)
-
-  def context(cli: Cli[CliParam[_]]) =
-    for {
-      layout <- cli.layout
-    } yield Context(cli, layout)
-
+  def context(cli: Cli[CliParam[_]]) = cli.layout.map(Context(cli, _))
+  
   def cleanAll(ctx: Context): Try[ExitStatus] =
     for {
       _ <- cleanBloop(ctx)
@@ -42,23 +38,8 @@ object CleanCli {
       _ <- ctx.layout.analysisDir.delete()
     } yield Done
 
-  def cleanClasses(ctx: Context): Try[ExitStatus] =
-    for {
-      _ <- ctx.layout.classesDir.delete()
-    } yield Done
-
-  def cleanLogs(ctx: Context): Try[ExitStatus] =
-    for {
-      _ <- ctx.layout.logsDir.delete()
-    } yield Done
-
-  def cleanRepos(ctx: Context): Try[ExitStatus] =
-    for {
-      _ <- ctx.layout.reposDir.delete()
-    } yield Done
-
-  def cleanSources(ctx: Context): Try[ExitStatus] =
-    for {
-      _ <- ctx.layout.srcsDir.delete()
-    } yield Done
+  def cleanClasses(ctx: Context): Try[ExitStatus] = ctx.layout.classesDir.delete().map { _ => Done }
+  def cleanLogs(ctx: Context): Try[ExitStatus] = ctx.layout.logsDir.delete().map { _ => Done }
+  def cleanRepos(ctx: Context): Try[ExitStatus] = ctx.layout.reposDir.delete().map { _ => Done }
+  def cleanSources(ctx: Context): Try[ExitStatus] = ctx.layout.srcsDir.delete().map { _ => Done }
 }

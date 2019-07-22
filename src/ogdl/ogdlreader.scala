@@ -33,11 +33,11 @@ object OgdlReader {
   def combine[T](caseClass: CaseClass[OgdlReader, T]): OgdlReader[T] = {
     case ogdl @ Ogdl(list) =>
       val map = list.toMap
-      if (caseClass.isValueClass || caseClass.parameters.length == 1)
+      if(caseClass.isValueClass || caseClass.parameters.length == 1)
         caseClass.construct(_.typeclass.read(ogdl))
       else
         caseClass.construct { param =>
-          if (map.contains(param.label)) param.typeclass.read(map(param.label))
+          if(map.contains(param.label)) param.typeclass.read(map(param.label))
           else
             param.default.getOrElse(
                 throw new RuntimeException(s"missing value ${param.label} in ${list}"))
@@ -64,7 +64,7 @@ object OgdlReader {
       implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
     ): OgdlReader[Coll[T]] = {
     case ogdl @ Ogdl(vector) =>
-      if (vector.head._1 == "") Vector[T]().to[Coll]
+      if(vector.head._1 == "") Vector[T]().to[Coll]
       else
         vector.map { v =>
           implicitly[OgdlReader[T]].read(v._2)

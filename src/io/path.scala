@@ -37,7 +37,7 @@ object Path {
   def apply(uri: URI): Path = Path(Paths.get(uri))
 
   def unapply(str: String): Option[Path] = str match {
-    case r"""$dir@([^*?:;,&|"\%<>]*)""" => Some(Path(if (dir.endsWith("/")) dir.dropRight(1) else dir))
+    case r"""$dir@([^*?:;,&|"\%<>]*)""" => Some(Path(if(dir.endsWith("/")) dir.dropRight(1) else dir))
     case _ => None
   }
 
@@ -78,7 +78,7 @@ case class Path(value: String) {
   def empty: Boolean = 0 == fileCount(_ => true)
 
   def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
-    if (!exists()) new java.io.FileOutputStream(javaFile).close()
+    if(!exists()) new java.io.FileOutputStream(javaFile).close()
     else javaFile.setLastModified(System.currentTimeMillis())
   }
 
@@ -91,7 +91,7 @@ case class Path(value: String) {
     def findMagnitude(count: Long, suffixes: List[String]): String = suffixes match {
       case Nil => count.toString
       case last :: Nil => s"${count}$last"
-      case head :: tail => if (count < 1024) s"$count$head" else findMagnitude(count/1024, tail)
+      case head :: tail => if(count < 1024) s"$count$head" else findMagnitude(count/1024, tail)
     }
 
     findMagnitude(count, List("B", "kiB", "MiB", "GiB", "TiB", "PiB"))
@@ -102,7 +102,7 @@ case class Path(value: String) {
 
   def fileSize(pred: String => Boolean): Long =
     Option(javaFile.listFiles).map { files =>
-      val found = files.map { f => if (pred(f.getName)) f.length else 0 }.sum
+      val found = files.map { f => if(pred(f.getName)) f.length else 0 }.sum
       found + files.filter(_.isDirectory).map { f => Path(f).fileSize(pred) }.sum
     }.getOrElse(0)
 
@@ -123,7 +123,7 @@ case class Path(value: String) {
 
   def findSubdirsContaining(pred: String => Boolean): Set[Path] =
     Option(javaFile.listFiles).map { files =>
-      val found = if (files.exists { f => pred(f.getName) }) Set(this) else Set()
+      val found = if(files.exists { f => pred(f.getName) }) Set(this) else Set()
       val subdirs = files.filter(_.isDirectory).filterNot(_.getName.startsWith(".")).map(Path(_)).to[Set]
 
       subdirs.flatMap(_.findSubdirsContaining(pred)) ++ found
@@ -131,7 +131,7 @@ case class Path(value: String) {
 
   def delete(): Try[Boolean] = {
     def delete(file: JavaFile): Boolean =
-      if (file.isDirectory) file.listFiles.forall(delete) && file.delete() else file.delete()
+      if(file.isDirectory) file.listFiles.forall(delete) && file.delete() else file.delete()
 
     Outcome.rescue[java.io.IOException](FileWriteError(this))(delete(javaFile))
   }
@@ -148,19 +148,19 @@ case class Path(value: String) {
     Success(writer.close())
   }.transform(identity, _ => Failure(FileWriteError(this)))
 
-  def directory: Try[Path] = if (!exists()) {
+  def directory: Try[Path] = if(!exists()) {
     mkdir()
-    if (exists()) Success(this) else Failure(FileWriteError(this))
-  } else if (javaFile.isDirectory) Success(this) else Failure(FileWriteError(this))
+    if(exists()) Success(this) else Failure(FileWriteError(this))
+  } else if(javaFile.isDirectory) Success(this) else Failure(FileWriteError(this))
 
   def copyTo(path: Path): Try[Path] = Try {
     Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
     path
   }
 
-  def children: List[String] = if (exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
+  def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
   def exists(): Boolean = Files.exists(javaPath)
-  def ifExists(): Option[Path] = if (exists) Some(this) else None
+  def ifExists(): Option[Path] = if(exists) Some(this) else None
   def absolutePath(): Try[Path] = Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
   def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath)
   def relativizeTo(dir: Path) = Path(dir.javaPath.relativize(this.javaPath))

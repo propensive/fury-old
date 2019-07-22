@@ -30,8 +30,8 @@ object Jmh {
     val discard: OutputStream = _ => ()
     val out = System.out
     System.setOut(new PrintStream(discard))
-    val result = Try(
-        JmhBytecodeGenerator.main(Array(bytecode.value, sources.value, resources.value, "reflection")))
+    val args = Array(bytecode.value, sources.value, resources.value, "reflection")
+    val result = Try(JmhBytecodeGenerator.main(args))
     System.setOut(out)
     
     result

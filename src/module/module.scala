@@ -89,7 +89,7 @@ object ModuleCli {
       table <- ~Tables(config)
                 .show(Tables(config).modules(project.id, project.main), cli.cols, rows, raw)(_.id)
       schema <- defaultSchema
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(
                    Tables(config).contextString(layout.base, layer.showSchema, schema, project)))
       _ <- ~io.println(table.mkString("\n"))
@@ -137,10 +137,10 @@ object ModuleCli {
                  module.copy(kind = k)
                }.getOrElse(module)
       module <- ~invoc(MainArg).toOption.map { m =>
-                 module.copy(main = if (m == "") None else Some(m))
+                 module.copy(main = if(m == "") None else Some(m))
                }.getOrElse(module)
       module <- ~invoc(PluginArg).toOption.map { p =>
-                 module.copy(plugin = if (p == "") None else Some(p))
+                 module.copy(plugin = if(p == "") None else Some(p))
                }.getOrElse(module)
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.modules(_, project.id)) {
                 (lens, ws) =>
@@ -150,7 +150,7 @@ object ModuleCli {
                   Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
                 lens(ws) = Some(module.id)
               }
-      layer <- if (project.compiler.isEmpty)
+      layer <- if(project.compiler.isEmpty)
                 Lenses
                   .updateSchemas(optSchemaId, layer, true)(Lenses.layer.compiler(_, project.id)) {
                     (lens, ws) =>
@@ -188,7 +188,7 @@ object ModuleCli {
                 }
       layer <- Lenses.updateSchemas(optSchemaId, layer, force)(
                   Lenses.layer.mainModule(_, project.id)) { (lens, ws) =>
-                if (lens(ws) == Some(moduleId)) lens(ws) = None else ws
+                if(lens(ws) == Some(moduleId)) lens(ws) = None else ws
               }
       _ <- ~Layer.save(io, layer, layout)
       schema <- defaultSchema
@@ -301,7 +301,7 @@ object BinaryCli {
       rows    <- ~module.allBinaries.to[List]
       schema  <- defaultSchema
       table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(
                    Tables(config)
                      .contextString(layout.base, layer.showSchema, schema, project, module)))
@@ -380,7 +380,7 @@ object ParamCli {
       rows    <- ~module.params.to[List]
       table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(
                    Tables(config)
                      .contextString(layout.base, layer.showSchema, schema, project, module)))

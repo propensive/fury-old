@@ -42,9 +42,7 @@ case class LauncherFailure(msg: String) extends FuryException
 case class CompilationFailure() extends FuryException
 
 object ItemNotFound {
-
-  def apply[K <: Key: MsgShow](key: K): ItemNotFound =
-    ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
+  def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
 
 case class ItemNotFound(item: UserMsg, kind: UserMsg) extends FuryException

@@ -33,7 +33,7 @@ object OgdlWriter {
   type Typeclass[T] = OgdlWriter[T]
 
   def combine[T](caseClass: CaseClass[OgdlWriter, T]): OgdlWriter[T] = { value =>
-    if (caseClass.isValueClass || caseClass.parameters.length == 1) {
+    if(caseClass.isValueClass || caseClass.parameters.length == 1) {
       val param = caseClass.parameters.head
       param.typeclass.write(param.dereference(value))
     } else
@@ -58,7 +58,7 @@ object OgdlWriter {
   implicit def list[T: OgdlWriter: StringShow]: OgdlWriter[List[T]] =
     coll =>
       Ogdl {
-        if (coll.isEmpty) Vector(("", Ogdl(Vector())))
+        if(coll.isEmpty) Vector(("", Ogdl(Vector())))
         else
           (coll.to[Vector].map { e =>
             implicitly[StringShow[T]].show(e) -> Ogdl(e)
@@ -68,7 +68,7 @@ object OgdlWriter {
   implicit def treeSet[T: OgdlWriter: StringShow]: OgdlWriter[SortedSet[T]] =
     coll =>
       Ogdl {
-        if (coll.isEmpty) Vector(("", Ogdl(Vector())))
+        if(coll.isEmpty) Vector(("", Ogdl(Vector())))
         else
           (coll.to[Vector].map { e =>
             implicitly[StringShow[T]].show(e) -> Ogdl(e)

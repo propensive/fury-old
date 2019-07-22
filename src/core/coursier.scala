@@ -43,11 +43,13 @@ object Coursier {
 
     def resolve(repo: Repository): Future[List[Path]] = {
       io.println(msg"Resolving $binary")
+      
       val dependency = Dependency(
-          module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
-          version = binary.version,
-          exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
+        module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
+        version = binary.version,
+        exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
       )
+      
       val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).future
       
       request.map(_.map(Path(_)).to[List])

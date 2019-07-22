@@ -42,7 +42,7 @@ final class LayerRepository(revisions: LayerRevisions, current: Path) {
   }
 
   private def currentLayer(io: Io, layout: Layout): Option[Layer] =
-    if (current.exists) Layer.read(io, current, layout).toOption
+    if(current.exists) Layer.read(io, current, layout).toOption
     else None
 }
 

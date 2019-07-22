@@ -86,7 +86,7 @@ object ImportCli {
              }
       table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows, raw)(
                   _._1.schema.key)
-      _ <- ~(if (!raw)
+      _ <- ~(if(!raw)
                io.println(Tables(config).contextString(layout.base, layer.showSchema, schema))
              else io)
       _ <- ~io.println(UserMsg { theme =>
