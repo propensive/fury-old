@@ -41,6 +41,6 @@ object Prompt {
   }
 
   def empty(config: Config)(implicit theme: Theme) =
-    msg" ${escape(config.theme.gray)}[${escape(config.theme.schema)}+${escape(config.theme.gray)}]${escape(Ansi.reset)}"
-      .string(theme)
+    msg" ${escape(config.theme.gray)}[${escape(config.theme.schema)}+${escape(config.theme.gray)}]${escape(
+        Ansi.reset)}".string(theme)
 }

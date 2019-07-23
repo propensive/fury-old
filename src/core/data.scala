@@ -505,8 +505,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
       target.main.foreach { main =>
-        file.writeSync(
-            str"<plugin><name>${target.plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
+        file.writeSync(str"""|<plugin>
+                             | <name>${target.plugin.getOrElse("plugin"): String}</name>
+                             | <classname>${main}</classname>
+                             |</plugin>""".stripMargin)
       }
     }
   }
@@ -534,8 +536,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
-      _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) } else Success()
-      _                <- layout.shell.jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set], manifest)
+      _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
+                          else Success()
+      _                <- layout.shell.jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
+                              manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success()
     } yield ()
   }
@@ -612,7 +616,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
-      if(futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
+      if(futures.contains(dependencyTarget)) futures
+      else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -763,16 +768,20 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   } yield module
 
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
-    target <- makeTarget(io, ref, layout)
-    entity <- entity(ref.projectId)
-    graph  <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
-                a.map { dependencyTarget =>
-                  (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
-                }
-              }.sequence.map(_.toMap.updated(target.id, target.dependencies ++ target.compiler.map(_.id)))).flatten
-    targets   <- graph.keys.map { targetId => makeTarget(io, targetId.ref, layout).map(targetId.ref -> _) }.sequence.map(_.toMap)
+    target    <- makeTarget(io, ref, layout)
+    entity    <- entity(ref.projectId)
+    graph     <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
+                   a.map { dependencyTarget =>
+                     (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
+                   }
+                 }.sequence.map(_.toMap.updated(target.id, target.dependencies ++
+                     target.compiler.map(_.id)))).flatten
+    targets   <- graph.keys.map { targetId =>
+                  makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
+                }.sequence.map(_.toMap)
     appModules = targets.filter(_._2.executed)
-    subgraphs = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] + TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
+    subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] +
+                     TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
     checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
   } yield
     Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),

@@ -28,7 +28,6 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
   def create(key: K): T
   def destroy(value: T): Unit
-  
   def isBad(value: T): Boolean
 
   case class Entry(key: K, value: T)
@@ -65,22 +64,17 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
     }
 
     val result: S = action(value)
-    synchronized {
-      pool(key) = value
-    }
+    synchronized { pool(key) = value }
+
     result
   }
 }
 
-abstract class RetryingPool[K, T, E: ClassTag](timeout: Long)(implicit ec: ExecutionContext) extends Pool[K, T](timeout)(ec){
+abstract class RetryingPool[K, T, E: ClassTag](timeout: Long)(implicit ec: ExecutionContext)
+    extends Pool[K, T](timeout)(ec) {
   
   private def retry[S](times: Int = 1)(key: K)(action: T => S): S =
-    try super.borrow(key)(action) catch {
-      case e: E if times > 0 => retry(times - 1)(key)(action)
-    }
+    try super.borrow(key)(action) catch { case e: E if times > 0 => retry(times - 1)(key)(action) }
 
-  override def borrow[S](key: K)(action: T => S): S = {
-    retry(2)(key)(action)
-  }
-  
+  override def borrow[S](key: K)(action: T => S): S = retry(2)(key)(action)
 }

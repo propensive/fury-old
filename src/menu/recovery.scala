@@ -81,7 +81,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
         case GraalVMError(message: String) =>
           cli.abort(msg"Problem with GrallVM:'${message}'. Please double-check the PATH")
         case BuildServerError(cause: Throwable) =>
-          cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}${rootCause(cause).getStackTrace.mkString("\n  at ")}")
+          val stack = rootCause(cause).getStackTrace.mkString("\n  at ")
+          cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}$stack")
         case InvalidKind(expected: Kind) =>
           cli.abort(msg"The module must be of type '${expected}'.")
         case e: UnknownCompiler =>
@@ -110,14 +111,10 @@ want to make this change to all schemas, please add the --force/-F argument.""")
             _      <- ~layout.errorLogfile.writeSync(errorString)
             _      <- ~io.await()
           } yield
-            cli.abort {
-              msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}"
-            }
+            cli.abort(msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}")
 
-          def unloggable =
-            cli.abort(
-                "An unexpected error occurred which could not " +
-                  s"be logged to disk.\n\n$errorString")
+          def unloggable = cli.abort("An unexpected error occurred which could not be logged to disk.\n\n"+
+              errorString) 
 
           result.recover {
             case e: FileWriteError   => unloggable
@@ -130,5 +127,4 @@ want to make this change to all schemas, please add the --force/-F argument.""")
   private def rootCause(t: Throwable) = {
     Stream.iterate(t)(_.getCause).takeWhile(_ != null).last
   }
-
 }
