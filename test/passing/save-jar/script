@@ -12,7 +12,7 @@ fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury dependency add -l lib
 mkdir -p src/app
 fury source add -d src/app
-echo 'object HelloWorld extends App { new java.io.PrintWriter("test/tmp/save-jar/.content") { write(Constants.text); close() } }' > src/app/hw.scala
+echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write(Constants.text); close() } }' > src/app/hw.scala
 mkdir -p out
 timeout 180 fury build save --dir out --output linear
 echo $?
