@@ -367,6 +367,31 @@ schemas	default	id	default
 						moduleId	compiler
 						intransitive	true
 						hidden	false
+			scala	id	scala
+				modules	compiler	id	compiler
+						kind	Compiler
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	java
+							moduleId	compiler
+							intransitive	false
+							hidden	false
+						after	
+						params	
+						sources	
+						binaries	org.scala-lang:scala-compiler:2.12.8	binRepo	central
+								group	org.scala-lang
+								artifact	scala-compiler
+								version	2.12.8
+						resources	
+						bloopSpec	Some	org	scala-lang.org
+								name	scala-compiler
+								version	2.12.8
+				main	Some	compiler
+				license	unknown
+				description	
+				compiler	None
 		repos	contextual	id	contextual
 				repo	git@github.com:propensive/contextual.git
 				track	fury
@@ -432,15 +457,8 @@ schemas	default	id	default
 				track	fury
 				commit	27c0dfc6c7487feeee425ce194bf6bc37bcdf8a7
 				local	None
-			scala	id	scala
-				repo	git@github.com:propensive/.scala.git
-				track	master
-				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
-				local	None
 		imports	platform:default	repo	platform
 				schema	default
-			scala:scala-2.12.8	repo	scala
-				schema	scala-2.12.8
 		main	Some	fury
 main	default
 aliases	
