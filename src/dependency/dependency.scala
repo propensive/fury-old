@@ -131,3 +131,198 @@ object DependencyCli {
     } yield io.await()
   }
 }
+
+object EnvCli {
+
+  case class Context(
+      override val cli: Cli[CliParam[_]],
+      override val layout: Layout,
+      override val config: Config,
+      override val layer: Layer,
+      optSchema: Option[Schema],
+      optProject: Option[Project],
+      optModule: Option[Module])
+      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
+  }
+
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout       <- cli.layout
+    config       <- Config.read()(cli.env, cli.globalLayout)
+    layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
+    schemaArg    <- ~cli.peek(SchemaArg)
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
+    optProjectId <- ~schema.flatMap { s =>
+                      cli.peek(ProjectArg).orElse(s.main)
+                    }
+    optProject   <- ~schema.flatMap { s =>
+                      optProjectId.flatMap(s.projects.findBy(_).toOption)
+                    }
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    optModule    <- Success { for {
+                      project  <- optProject
+                      moduleId <- optModuleId
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module }
+  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+
+  def list(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli     <- cli.hint(RawArg)
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      raw     <- ~invoc(RawArg).isSuccess
+      project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
+      rows    <- ~module.environment.to[List].sorted
+      table   <- ~Tables(config).show(Tables(config).envs, cli.cols, rows, raw)(identity)
+      schema  <- defaultSchema
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project, module)))
+      _       <- ~io.println(table.mkString("\n"))
+    } yield io.await()
+  }
+
+  def remove(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli       <- cli.hint(EnvArg, optModule.to[List].flatMap(_.environment.to[List]))
+      cli       <- cli.hint(ForceArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      envArg    <- invoc(EnvArg)
+      project   <- optProject.ascribe(UnspecifiedProject())
+      module    <- optModule.ascribe(UnspecifiedModule())
+      force     <- ~invoc(ForceArg).isSuccess
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force) {
+                     Lenses.layer.environment(_, project.id, module.id)
+                   } (_(_) -= envArg)
+      _         <- ~Layer.save(io, layer, layout)
+      optSchema <- ~layer.mainSchema.toOption
+    } yield io.await()
+  }
+
+  def add(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      optSchema       <- ~layer.mainSchema.toOption
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
+      allModules       = allSchemas.map(_.moduleRefs).flatten
+      cli             <- cli.hint(EnvArg)
+      invoc           <- cli.read()
+      io              <- invoc.io()
+      project         <- optProject.ascribe(UnspecifiedProject())
+      module          <- optModule.ascribe(UnspecifiedModule())
+      envArg          <- invoc(EnvArg)
+      layer           <- Lenses.updateSchemas(optSchemaId, layer, true) {
+                           Lenses.layer.environment(_, project.id, module.id)
+                         } (_(_) += envArg)
+      _               <- ~Layer.save(io, layer, layout)
+    } yield io.await()
+  }
+}
+
+object PropertyCli {
+
+  case class Context(
+      override val cli: Cli[CliParam[_]],
+      override val layout: Layout,
+      override val config: Config,
+      override val layer: Layer,
+      optSchema: Option[Schema],
+      optProject: Option[Project],
+      optModule: Option[Module])
+      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
+  }
+
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout       <- cli.layout
+    config       <- Config.read()(cli.env, cli.globalLayout)
+    layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
+    schemaArg    <- ~cli.peek(SchemaArg)
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
+    optProjectId <- ~schema.flatMap { s =>
+                      cli.peek(ProjectArg).orElse(s.main)
+                    }
+    optProject   <- ~schema.flatMap { s =>
+                      optProjectId.flatMap(s.projects.findBy(_).toOption)
+                    }
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    optModule    <- Success { for {
+                      project  <- optProject
+                      moduleId <- optModuleId
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module }
+  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+
+  def list(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli     <- cli.hint(RawArg)
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      raw     <- ~invoc(RawArg).isSuccess
+      project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
+      rows    <- ~module.properties.to[List].sorted
+      table   <- ~Tables(config).show(Tables(config).props, cli.cols, rows, raw)(identity)
+      schema  <- defaultSchema
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project, module)))
+      _       <- ~io.println(table.mkString("\n"))
+    } yield io.await()
+  }
+
+  def remove(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli       <- cli.hint(PropArg, optModule.to[List].flatMap(_.properties.to[List]))
+      cli       <- cli.hint(ForceArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      propArg   <- invoc(PropArg)
+      project   <- optProject.ascribe(UnspecifiedProject())
+      module    <- optModule.ascribe(UnspecifiedModule())
+      force     <- ~invoc(ForceArg).isSuccess
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force) {
+                     Lenses.layer.properties(_, project.id, module.id)
+                   } (_(_) -= propArg)
+      _         <- ~Layer.save(io, layer, layout)
+      optSchema <- ~layer.mainSchema.toOption
+    } yield io.await()
+  }
+
+  def add(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      optSchema       <- ~layer.mainSchema.toOption
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
+      allModules       = allSchemas.map(_.moduleRefs).flatten
+      cli             <- cli.hint(PropArg)
+      invoc           <- cli.read()
+      io              <- invoc.io()
+      project         <- optProject.ascribe(UnspecifiedProject())
+      module          <- optModule.ascribe(UnspecifiedModule())
+      propArg         <- invoc(PropArg)
+      layer           <- Lenses.updateSchemas(optSchemaId, layer, true) {
+                           Lenses.layer.properties(_, project.id, module.id)
+                         } (_(_) += propArg)
+      _               <- ~Layer.save(io, layer, layout)
+    } yield io.await()
+  }
+}
+

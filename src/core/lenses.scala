@@ -154,6 +154,14 @@ object Lenses {
     def sources(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).sources)
 
+    def environment(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId)
+                   : Lens[Layer, SortedSet[EnvVar], SortedSet[EnvVar]] =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).environment)
+
+    def properties(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId)
+                   : Lens[Layer, SortedSet[JavaProperty], SortedSet[JavaProperty]] =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).properties)
+
     def binaries(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).binaries)
 

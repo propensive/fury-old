@@ -61,6 +61,11 @@ object FuryMenu {
             Action('remove, msg"remove a dependency", DependencyCli.remove),
             Action('list, msg"list dependencies for the module", DependencyCli.list)
         ),
+        Menu('env, msg"manage application environment variables", EnvCli.context, 'list)(
+            Action('add, msg"add an environment variable", EnvCli.add),
+            Action('remove, msg"remove an environment variable", EnvCli.remove),
+            Action('list, msg"list environment variable", EnvCli.list)
+        ),
         Action('help, msg"help on using Fury", help),
         Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
             Action('add, msg"add an imported schema", ImportCli.add),
@@ -87,6 +92,11 @@ object FuryMenu {
             Action('update, msg"update a project", ProjectCli.update)
         ),
         Action('prompt, msg"show a context prompt", BuildCli.prompt, false),
+        Menu('property, msg"manage application -D properties", PropertyCli.context, 'list)(
+            Action('add, msg"add a -D property", PropertyCli.add),
+            Action('remove, msg"remove a -D property", PropertyCli.remove),
+            Action('list, msg"list -D properties", PropertyCli.list)
+        ),
         Action('restart, msg"restart the Fury server", BuildCli.notImplemented),
         Menu('source, msg"manage sources for the module", SourceCli.context, 'list)(
             Action('add, msg"add a source directory to the module", SourceCli.add),
