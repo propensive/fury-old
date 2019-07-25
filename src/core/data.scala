@@ -615,8 +615,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
-      if(futures.contains(dependencyTarget)) futures
-      else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
+      if(futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
