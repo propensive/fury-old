@@ -100,6 +100,29 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
   def paths(io: Io): Future[List[Path]] = Coursier.fetch(io, this)
 }
 
+object Permission {
+  implicit val msgShow: MsgShow[Permission] = p => msg"""${p.className} "${p.context}", "${p.permission}";"""
+  implicit val stringShow: StringShow[Permission] =
+    p => str"""${p.className} "${p.context}", "${p.permission}";"""
+  
+  implicit def diff: Diff[Permission] = Diff.gen[Permission]
+}
+case class Permission(className: String, context: String, permission: String)
+
+object EnvVar {
+  implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
+  implicit val stringShow: StringShow[EnvVar] = e => str"${e.key}=${e.value}"
+  implicit def diff: Diff[EnvVar] = Diff.gen[EnvVar]
+}
+case class EnvVar(key: String, value: String)
+
+object JavaProperty {
+  implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.key}=${e.value}"
+  implicit val stringShow: StringShow[JavaProperty] = e => str"${e.key}=${e.value}"
+  implicit def diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
+}
+case class JavaProperty(key: String, value: String)
+
 case class Module(id: ModuleId,
                   kind: Kind = Library,
                   main: Option[String] = None,
@@ -111,7 +134,10 @@ case class Module(id: ModuleId,
                   sources: SortedSet[Source] = TreeSet(),
                   binaries: SortedSet[Binary] = TreeSet(),
                   resources: SortedSet[Path] = TreeSet(),
-                  bloopSpec: Option[BloopSpec] = None) {
+                  bloopSpec: Option[BloopSpec] = None,
+                  environment: SortedSet[EnvVar] = TreeSet(),
+                  properties: SortedSet[JavaProperty] = TreeSet(),
+                  policy: SortedSet[Permission] = TreeSet()) {
 
   def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
@@ -1290,7 +1316,7 @@ case class Project(id: ProjectId,
   def mainModule: Try[Option[Module]] = main.map(modules.findBy(_)).to[List].sequence.map(_.headOption)
 
   def compilerRefs: List[ModuleRef] =
-    modules.to[List].collect { case m @ Module(_, Compiler, _, _, _, _, _, _, _, _, _, _) => m.ref(this) }
+    modules.to[List].collect { case m if m.kind == Compiler => m.ref(this) }
 
   def unused(moduleId: ModuleId) =
     modules.findBy(moduleId) match {
