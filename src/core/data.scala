@@ -691,7 +691,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
               securePolicy = target.kind == Application,
-              environment = target.environment,
+              env = target.environment,
               properties = target.properties,
               layout = layout
             ) { ln =>

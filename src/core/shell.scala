@@ -36,7 +36,7 @@ case class Shell(environment: Environment) {
   def runJava(classpath: List[String],
               main: String,
               securePolicy: Boolean,
-              environment: Map[String, String],
+              env: Map[String, String],
               properties: Map[String, String],
               layout: Layout)
              (output: String => Unit)
@@ -44,7 +44,7 @@ case class Shell(environment: Environment) {
     layout.sharedDir.mkdir()
     
     implicit val defaultEnvironment: Environment =
-      Environment(environment, Some(layout.furyDir.value)).append("SHARED", layout.sharedDir.value)
+      Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
 
     val allProperties: Map[String, String] =
       properties.updated("java.security.manager", "").updated("java.security.policy",policyFile.value)
