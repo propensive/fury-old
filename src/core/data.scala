@@ -18,9 +18,7 @@
 package fury.core
 
 import fury._, io._, strings._, ogdl._
-
-import Graph.{Compiling, CompilerDiagnostic, OtherMessage, DiagnosticMessage}
-
+import Graph.{CompilerDiagnostic, DiagnosticMessage, OtherMessage}
 import exoskeleton._
 import gastronomy._
 import kaleidoscope._
@@ -44,7 +42,7 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
-import java.util.concurrent.Executors
+import java.util.concurrent.{CompletableFuture, Executors}
 
 import language.higherKinds
 
@@ -63,12 +61,12 @@ object Kind {
   def unapply(str: String): Option[Kind] = all.find(_.name == str)
 }
 
-sealed abstract class Kind(val name: String)
-case object Library extends Kind("library")
-case object Compiler extends Kind("compiler")
-case object Plugin extends Kind("plugin")
-case object Application extends Kind("application")
-case object Benchmarks extends Kind("benchmarks")
+sealed abstract class Kind(val name: String, val needsExecution: Boolean)
+case object Library extends Kind("library", false)
+case object Compiler extends Kind("compiler", false)
+case object Plugin extends Kind("plugin", false)
+case object Application extends Kind("application", true)
+case object Benchmarks extends Kind("benchmarks", true)
 
 object Module {
   implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
@@ -540,7 +538,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     } yield ()
   }
 
-  private def aggregateCompileResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
+  private[this] def aggregateCompileResults(ref: ModuleRef,
+                                            compileResults: Set[Path],
+                                            layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
@@ -550,15 +550,17 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
     }).map(_.parameter)
 
-  def jmhRuntimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
+  def jmhRuntimeClasspath(io: Io, ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
     targets(ref).compiler.to[Set].flatMap { compilerTarget =>
-      Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
+      classesDirs + layout.resourcesDir(compilerTarget.id)
     } ++ classpath(ref, layout)
 
   def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
     targets(ref).compiler.to[Set].flatMap { compilerTarget =>
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
+
+  private[this] case object CompilationFailed extends Exception
 
   def compileModule(io: Io,
                     target: Target,
@@ -570,36 +572,35 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val targetIdentifiers = deepDependencies(target.id).map { dep =>
       new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
-    
-    Future { blocking {
-      Compilation.bspPool.borrow(layout.furyDir) { conn =>
-        conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
-          
-          val result = try {
-            val statusCode = if(application) {
-              val params = new RunParams(new BuildTargetIdentifier(uri))
-              server.buildTargetRun(params).get.getStatusCode
-            } else {
-              val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
-              server.buildTargetCompile(params).get.getStatusCode
-            }
 
-            if(statusCode == StatusCode.OK) {
-              val scalacOptions = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
-              val outputDirectories = server.buildTargetScalacOptions(scalacOptions).get
-                .getItems.asScala.toSet.map { x: ScalacOptionsItem => Path(new URI(x.getClassDirectory)) }
-              
-                CompileSuccess(outputDirectories)
-            } else CompileFailure
-          } catch { case e: java.util.concurrent.ExecutionException => throw BuildServerError(e.getCause) }
-          
-          conn.writeTrace(layout)
-          conn.writeMessages(layout)
-          result
+    def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
+      Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
+    
+    Future(blocking {
+      Compilation.bspPool.borrow(layout.furyDir) { conn =>
+        val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+
+          val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+          val scalacOptionsParams = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
+
+          (for {
+            compileResult     <- wrapServerErrors(server.buildTargetCompile(params))
+            statusCode         = compileResult.getStatusCode
+            _                 <- if(statusCode == StatusCode.OK) ~() else Failure(CompilationFailed)
+            scalacOptions     <- wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
+            outputDirectories  = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
+                                   Path(new URI(x.getClassDirectory))
+                                 }
+          } yield CompileSuccess(outputDirectories)).recover { case CompilationFailed => CompileFailure }
         }
+
+        conn.writeTrace(layout)
+        conn.writeMessages(layout)
+        
+        result.get
       }
-    } }
+    })
   }
 
   def compile(io: Io,
@@ -612,7 +613,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
-      if(futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
+      if(futures.contains(dependencyTarget)) futures
+      else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -630,22 +632,24 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         }
 
         compileModule(io, target, layout, target.kind == Application, multiplexer).map {
-          case CompileSuccess(classDirectories) if target.kind == Benchmarks =>
-            classDirectories.foreach { classDirectory =>
-              Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
-              multiplexer(target.ref) = StartStreaming
-              val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
-              
-              layout.shell.javac(
-                classpath(target.ref, layout).to[List].map(_.value),
-                classDirectory.value,
-                javaSources.map(_.value).to[List])
+          case CompileSuccess(classDirectories) if target.kind.needsExecution =>
+            if(target.kind == Benchmarks) {
+              classDirectories.foreach { classDirectory =>
+                Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
+                multiplexer(target.ref) = StartStreaming
+                val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+
+                layout.shell.javac(
+                  classpath(target.ref, layout).to[List].map(_.value),
+                  classDirectory.value,
+                  javaSources.map(_.value).to[List])
+              }
             }
             
             val out = new StringBuilder()
             
             val res = layout.shell.runJava(
-              jmhRuntimeClasspath(io, target.ref, layout).to[List].map(_.value),
+              jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
               securePolicy = target.kind == Application,
               layout
@@ -663,7 +667,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               multiplexer(targetId.ref) = NoCompile(targetId.ref)
             }
             
-            multiplexer(target.ref) = StopCompile(target.ref, res)
             multiplexer.close(target.ref)
             multiplexer(target.ref) = StopStreaming
 
