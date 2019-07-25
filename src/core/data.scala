@@ -351,7 +351,7 @@ object Compilation {
     compilation <- universe.compilation(io, ref, layout)
     _           <- compilation.generateFiles(io, layout)
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover { case x: Throwable =>
-                     io.println(str"$schema --- ${x.getMessage}")
+                     () //io.println(str"$schema --- ${x.getMessage}")
                    }
   } yield compilation
 
