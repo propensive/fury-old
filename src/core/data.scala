@@ -113,6 +113,11 @@ object EnvVar {
   implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
   implicit val stringShow: StringShow[EnvVar] = e => str"${e.key}=${e.value}"
   implicit def diff: Diff[EnvVar] = Diff.gen[EnvVar]
+
+  def parse(str: String): Option[EnvVar] = str.split("=", 2) match {
+    case Array(key, value) => Some(EnvVar(key, value))
+    case _                 => None
+  }
 }
 case class EnvVar(key: String, value: String)
 
@@ -120,6 +125,11 @@ object JavaProperty {
   implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.key}=${e.value}"
   implicit val stringShow: StringShow[JavaProperty] = e => str"${e.key}=${e.value}"
   implicit def diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
+
+  def parse(str: String): Option[JavaProperty] = str.split("=", 2) match {
+    case Array(key, value) => Some(JavaProperty(key, value))
+    case _                 => None
+  }
 }
 case class JavaProperty(key: String, value: String)
 
