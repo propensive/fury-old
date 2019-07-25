@@ -36,19 +36,26 @@ case class Shell(environment: Environment) {
   def runJava(classpath: List[String],
               main: String,
               securePolicy: Boolean,
+              environment: Map[String, String],
+              properties: Map[String, String],
               layout: Layout)
              (output: String => Unit)
              : Running = {
     layout.sharedDir.mkdir()
-    implicit val defaultEnvironment: Environment = environment.append("SHARED", layout.sharedDir.value)
-  
-    val securityManager = str"-Djava.security.manager"
-    val policy = str"-Djava.security.policy=${policyFile.value}"
-    val sharedDir = str"-Dfury.sharedDir=${layout.sharedDir.value}"
+    
+    implicit val defaultEnvironment: Environment =
+      Environment(environment, Some(layout.furyDir.value)).append("SHARED", layout.sharedDir.value)
+
+    val allProperties: Map[String, String] =
+      properties.updated("java.security.manager", "").updated("java.security.policy",policyFile.value)
+          .updated("fury.sharedDir", layout.sharedDir.value)
+
+    val propArgs = allProperties.map { case (k, v) => if(v.isEmpty) str"-D$k" else str"-D$k=$v" }.to[List]
+
     val classpathStr = classpath.mkString(":")
     
     val cmd =
-      if(securePolicy) sh"java $securityManager $policy $sharedDir -cp $classpathStr $main"
+      if(securePolicy) sh"java $propArgs -cp $classpathStr $main"
       else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main"
 
     cmd.async(output(_), output(_))
