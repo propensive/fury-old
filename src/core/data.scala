@@ -61,12 +61,12 @@ object Kind {
   def unapply(str: String): Option[Kind] = all.find(_.name == str)
 }
 
-sealed abstract class Kind(val name: String)
-case object Library extends Kind("library")
-case object Compiler extends Kind("compiler")
-case object Plugin extends Kind("plugin")
-case object Application extends Kind("application")
-case object Benchmarks extends Kind("benchmarks")
+sealed abstract class Kind(val name: String, val needsExecution: Boolean)
+case object Library extends Kind("library", false)
+case object Compiler extends Kind("compiler", false)
+case object Plugin extends Kind("plugin", false)
+case object Application extends Kind("application", true)
+case object Benchmarks extends Kind("benchmarks", true)
 
 object Module {
   implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
@@ -538,7 +538,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     } yield ()
   }
 
-  private def aggregateCompileResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
+  private[this] def aggregateCompileResults(ref: ModuleRef,
+                                            compileResults: Set[Path],
+                                            layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
@@ -558,7 +560,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
-  private case object CompilationFailed extends Exception
+  private[this] case object CompilationFailed extends Exception
 
   def compileModule(io: Io,
                     target: Target,
@@ -571,11 +573,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
 
-    def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] = {
-      Outcome.rescue[java.util.concurrent.ExecutionException]{e: ExecutionException => BuildServerError(e.getCause)}(f.get)
-    }
+    def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
+      Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
     
-    Future (blocking {
+    Future(blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
@@ -584,18 +585,19 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           val scalacOptionsParams = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
 
           (for {
-            compileResult <- wrapServerErrors(server.buildTargetCompile(params))
-            statusCode = compileResult.getStatusCode
-            _ <- if(statusCode == StatusCode.OK) ~() else Failure(CompilationFailed)
-            scalacOptions <- wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
-            outputDirectories = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem => Path(new URI(x.getClassDirectory)) }
-          } yield CompileSuccess(outputDirectories)).recover{
-            case CompilationFailed => CompileFailure
-          }
+            compileResult     <- wrapServerErrors(server.buildTargetCompile(params))
+            statusCode         = compileResult.getStatusCode
+            _                 <- if(statusCode == StatusCode.OK) ~() else Failure(CompilationFailed)
+            scalacOptions     <- wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
+            outputDirectories  = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
+                                   Path(new URI(x.getClassDirectory))
+                                 }
+          } yield CompileSuccess(outputDirectories)).recover { case CompilationFailed => CompileFailure }
         }
 
         conn.writeTrace(layout)
         conn.writeMessages(layout)
+        
         result.get
       }
     })
@@ -611,7 +613,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
-      if(futures.contains(dependencyTarget)) futures else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
+      if(futures.contains(dependencyTarget)) futures
+      else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -629,7 +632,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         }
 
         compileModule(io, target, layout, target.kind == Application, multiplexer).map {
-          case CompileSuccess(classDirectories) if target.kind == Application || target.kind == Benchmarks =>
+          case CompileSuccess(classDirectories) if target.kind.needsExecution =>
             if(target.kind == Benchmarks) {
               classDirectories.foreach { classDirectory =>
                 Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
