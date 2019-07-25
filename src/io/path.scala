@@ -17,16 +17,19 @@
 
 package fury.io
 
-import java.net.URI
-import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardOpenOption, Path => JavaPath}
-import java.io.{File => JavaFile}
+import fury.strings._
 
 import kaleidoscope._
+
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
-import fury.strings._
+
+import java.net.URI
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardOpenOption, Path => JavaPath}
+import java.nio.file.StandardCopyOption._
+import java.io.{File => JavaFile}
 
 object Path {
 
@@ -44,7 +47,8 @@ object Path {
   def getTempDir(prefix: String): Try[Path] = Try(Path(Files.createTempDirectory(prefix).toString))
 
   // Rewritten from https://stackoverflow.com/a/10068306
-  private class CopyFileVisitor(sourcePath: JavaPath, targetPath: JavaPath) extends SimpleFileVisitor[JavaPath] {
+  private class CopyFileVisitor(sourcePath: JavaPath, targetPath: JavaPath)
+      extends SimpleFileVisitor[JavaPath] {
 
     override def preVisitDirectory(dir: JavaPath, attrs: BasicFileAttributes): FileVisitResult = {
       Files.createDirectories(targetPath.resolve(sourcePath.relativize(dir)))
@@ -52,7 +56,7 @@ object Path {
     }
 
     override def visitFile(file: JavaPath, attrs: BasicFileAttributes): FileVisitResult = {
-      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)), REPLACE_EXISTING);
       FileVisitResult.CONTINUE
     }
   }
@@ -70,7 +74,7 @@ case class Path(value: String) {
   def fileCount(pred: String => Boolean): Int =
     Option(javaFile.listFiles).map { files =>
       val current = files.count { f => pred(f.getName) }
-      val descendants = files.filter(_.isDirectory).map { f => Path(f.getAbsolutePath).fileCount(pred) }.sum
+      val descendants = files.filter(_.isDirectory).map(Path(_).fileCount(pred))sum
 
       current + descendants
     }.getOrElse(0)

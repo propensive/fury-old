@@ -38,8 +38,8 @@ object CleanCli {
       _ <- ctx.layout.analysisDir.delete()
     } yield Done
 
-  def cleanClasses(ctx: Context): Try[ExitStatus] = ctx.layout.classesDir.delete().map { _ => Done }
-  def cleanLogs(ctx: Context): Try[ExitStatus] = ctx.layout.logsDir.delete().map { _ => Done }
-  def cleanRepos(ctx: Context): Try[ExitStatus] = ctx.layout.reposDir.delete().map { _ => Done }
-  def cleanSources(ctx: Context): Try[ExitStatus] = ctx.layout.srcsDir.delete().map { _ => Done }
+  def cleanClasses(ctx: Context): Try[ExitStatus] = ctx.layout.classesDir.delete().map(Done.waive)
+  def cleanLogs(ctx: Context): Try[ExitStatus] = ctx.layout.logsDir.delete().map(Done.waive)
+  def cleanRepos(ctx: Context): Try[ExitStatus] = ctx.layout.reposDir.delete().map(Done.waive)
+  def cleanSources(ctx: Context): Try[ExitStatus] = ctx.layout.srcsDir.delete().map(Done.waive)
 }

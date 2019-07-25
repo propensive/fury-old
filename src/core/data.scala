@@ -275,7 +275,7 @@ object BspConnectionManager {
       )
     }).map {
       case SuccessfulRun => ()
-      case failure => throw new Exception(s"Launcher failed: $failure")
+      case failure       => throw new Exception(s"Launcher failed: $failure")
     }
 
     handle
@@ -348,8 +348,8 @@ object Compilation {
   def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
     def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout))
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
-      case Some(future) => future.transformWith { _ => fn }
-      case None => fn
+      case Some(future) => future.transformWith(fn.waive)
+      case None         => fn
     }
     
     compilationCache(layout.furyDir)
@@ -516,12 +516,11 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
 
   def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] =
-    Bloop.clean(layout).flatMap { _ => Bloop.generateFiles(io, this, layout) }
+    Bloop.clean(layout).flatMap(Bloop.generateFiles(io, this, layout).waive)
 
-  def classpath(ref: ModuleRef, layout: Layout): Set[Path] =
-    allDependencies.flatMap { target =>
-      Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
-    } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
+  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
+    Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
+  } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
@@ -529,8 +528,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
       target.main.foreach { main =>
-        file.writeSync(
-            str"<plugin><name>${target.plugin.getOrElse("plugin"): String}</name><classname>${main}</classname></plugin>")
+        file.writeSync(str"""|<plugin>
+                             | <name>${target.plugin.getOrElse("plugin"): String}</name>
+                             | <classname>${main}</classname>
+                             |</plugin>""".stripMargin)
       }
     }
   }
@@ -558,8 +559,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
-      _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) } else Success()
-      _                <- layout.shell.jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set], manifest)
+      _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
+                          else Success()
+      _                <- layout.shell.jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
+                              manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success()
     } yield ()
   }
@@ -792,16 +795,20 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   } yield module
 
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
-    target <- makeTarget(io, ref, layout)
-    entity <- entity(ref.projectId)
-    graph  <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
-                a.map { dependencyTarget =>
-                  (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
-                }
-              }.sequence.map(_.toMap.updated(target.id, target.dependencies ++ target.compiler.map(_.id)))).flatten
-    targets   <- graph.keys.map { targetId => makeTarget(io, targetId.ref, layout).map(targetId.ref -> _) }.sequence.map(_.toMap)
+    target    <- makeTarget(io, ref, layout)
+    entity    <- entity(ref.projectId)
+    graph     <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
+                   a.map { dependencyTarget =>
+                     (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
+                   }
+                 }.sequence.map(_.toMap.updated(target.id, target.dependencies ++
+                     target.compiler.map(_.id)))).flatten
+    targets   <- graph.keys.map { targetId =>
+                  makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
+                }.sequence.map(_.toMap)
     appModules = targets.filter(_._2.executed)
-    subgraphs = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] + TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
+    subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] +
+                     TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
     checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
   } yield
     Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
@@ -1113,7 +1120,7 @@ case class Checkout(repoId: RepoId,
         path(layout).mkdir()
         layout.shell.git
           .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
-          .map { _ => path(layout) }
+          .map(path(layout).waive)
       } else Success(path(layout))
     }
 }
@@ -1126,15 +1133,11 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(io: Io, layout: Layout): Try[List[Path]] = for {
-    dir <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
-    commit <- ~layout.shell.git
-                .getTag(dir, track.id)
-                .toOption
-                .orElse(layout.shell.git.getBranchHead(dir, track.id).toOption)
-                .getOrElse(track.id)
-    files <- local.map { _ =>
-              Success(dir.children.map(Path(_)))
-            }.getOrElse(layout.shell.git.lsTree(dir, commit))
+    dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
+    commit <- ~layout.shell.git.getTag(dir, track.id).toOption.orElse(layout.shell.git.getBranchHead(dir,
+                  track.id).toOption).getOrElse(track.id)
+    files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(layout.shell.git.lsTree(dir,
+                  commit))
   } yield files
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
@@ -1188,9 +1191,7 @@ case class Repo(url: String) {
 
       io.println(s"Cloning Git repository $url.")
       path(layout).mkdir()
-      layout.shell.git.cloneBare(url, path(layout)).map { _ =>
-        path(layout)
-      }
+      layout.shell.git.cloneBare(url, path(layout)).map(path(layout).waive)
     } else Success(path(layout))
 
   def simplified: String = url match {

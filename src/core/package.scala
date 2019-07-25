@@ -30,25 +30,22 @@ object `package` {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
 
   implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
-    value => implicitly[MsgShow[T]].show(value).string(theme)
+    implicitly[MsgShow[T]].show(_).string(theme)
 
-  implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] =
-    xs =>
-      UserMsg { theme =>
-        xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n")
-      }
+  implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] = xs =>
+    UserMsg { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
 
   implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
     Ordering.String.on(implicitly[StringShow[T]].show(_))
 
-  implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
-  implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
-  implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
-
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
 
-  implicit class Unitize[T](t: T)   { def unit: Unit       = ()         }
+  implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
+  implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
+  implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
+  implicit class Unitize[T](t: T) { def unit: Unit = ()         }
+  implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
   implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
   implicit class Ascribe[T](value: Option[T]) {
     def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
