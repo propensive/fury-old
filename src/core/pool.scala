@@ -46,7 +46,7 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
         }.toOption.getOrElse(None)
       case Some(value) =>
         pool -= key
-        if(isBad(value)){
+        if(isBad(value)) {
           destroy(value)
           None
         }
@@ -70,8 +70,10 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   }
 }
 
-abstract class RetryingPool[K, T, E: ClassTag](timeout: Long)(implicit ec: ExecutionContext)
-    extends Pool[K, T](timeout)(ec) {
+abstract class RetryingPool[K, T, E: ClassTag]
+                           (timeout: Long)
+                           (implicit ec: ExecutionContext)
+                           extends Pool[K, T](timeout)(ec) {
   
   private def retry[S](times: Int = 1)(key: K)(action: T => S): S =
     try super.borrow(key)(action) catch { case e: E if times > 0 => retry(times - 1)(key)(action) }

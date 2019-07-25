@@ -38,8 +38,7 @@ object Coursier {
     def resolveRepository(repoId: String): Future[Repository] =
       coursier.internal.SharedRepositoryParser.repository(repoId)
         .map(Future.successful(_)).left
-        .map { _ => Future.failed[Repository](UnknownBinaryRepository(binary.binRepo)) }
-        .merge
+        .map(Future.failed[Repository](UnknownBinaryRepository(binary.binRepo)).waive).merge
 
     def resolve(repo: Repository): Future[List[Path]] = {
       io.println(msg"Resolving $binary")

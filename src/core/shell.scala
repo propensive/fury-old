@@ -17,14 +17,15 @@
 
 package fury.core
 
-import java.io.FileOutputStream
-import java.util.jar.{JarOutputStream, Manifest => JManifest}
+import fury.io._, fury.strings._
 
-import fury.io._
 import guillotine._
 
 import scala.util._
 import scala.collection.mutable.HashMap
+
+import java.io.FileOutputStream
+import java.util.jar.{JarOutputStream, Manifest => JManifest}
 
 case class Shell(environment: Environment) {
   private val furyHome   = Path(System.getProperty("fury.home"))
@@ -40,11 +41,14 @@ case class Shell(environment: Environment) {
              : Running = {
     layout.sharedDir.mkdir()
     implicit val defaultEnvironment: Environment = environment.append("SHARED", layout.sharedDir.value)
+  
+    val securityManager = str"-Djava.security.manager"
+    val policy = str"-Djava.security.policy=${policyFile.value}"
+    val sharedDir = str"-Dfury.sharedDir=${layout.sharedDir.value}"
+    val classpathStr = classpath.mkString(":")
     
     val cmd =
-      if(securePolicy)
-        sh"java -Djava.security.manager -Djava.security.policy=${policyFile.value} -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath
-          .mkString(":")} $main"
+      if(securePolicy) sh"java $securityManager $policy $sharedDir -cp $classpathStr $main"
       else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main"
 
     cmd.async(output(_), output(_))
@@ -55,13 +59,9 @@ case class Shell(environment: Environment) {
 
   object git {
     def cloneBare(url: String, dir: Path): Try[String] = {
-      implicit val defaultEnvironment: Environment =
-        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+      implicit val defaultEnvironment: Environment = sshBatchEnv
 
-      sh"git clone --mirror $url ${dir.value}".exec[Try[String]].map { out =>
-        (dir / ".done").touch()
-        out
-      }
+      sh"git clone --mirror $url ${dir.value}".exec[Try[String]].map { out => (dir / ".done").touch(); out }
     }
 
     def sparseCheckout(from: Path,
@@ -69,50 +69,41 @@ case class Shell(environment: Environment) {
                        sources: List[Path],
                        refSpec: String,
                        commit: String)
-                      : Try[String] =
-      for {
-        _ <- sh"git -C ${dir.value} init".exec[Try[String]]
-        _ <- if(!sources.isEmpty)
-              sh"git -C ${dir.value} config core.sparseCheckout true".exec[Try[String]]
-            else Success(())
-        _ <- Success {
-              (dir / ".git" / "info" / "sparse-checkout")
-                .writeSync(sources.map(_.value + "/*\n").mkString)
-            }
-        _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Try[String]]
-        str <- sh"git -C ${dir.value} fetch origin $refSpec".exec[Try[String]]
-        _   <- sh"git -C ${dir.value} checkout $commit".exec[Try[String]]
-        _   <- ~(dir / ".done").touch()
-      } yield str
+                      : Try[String] = for {
+      _   <- sh"git -C ${dir.value} init".exec[Try[String]]
+      _   <- if(!sources.isEmpty) sh"git -C ${dir.value} config core.sparseCheckout true".exec[Try[String]]
+             else Success(())
+      _   <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
+      _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Try[String]]
+      str <- sh"git -C ${dir.value} fetch origin $refSpec".exec[Try[String]]
+      _   <- sh"git -C ${dir.value} checkout $commit".exec[Try[String]]
+      _   <- ~(dir / ".done").touch()
+    } yield str
 
-    def lsTree(dir: Path, commit: String): Try[List[Path]] =
-      for {
-        string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Try[String]]
-        files  <- ~string.split("\n").to[List].map(Path(_))
-      } yield files
+    def lsTree(dir: Path, commit: String): Try[List[Path]] = for {
+      string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Try[String]]
+      files  <- ~string.split("\n").to[List].map(Path(_))
+    } yield files
 
-    def showRefs(dir: Path): Try[List[String]] =
-      for {
-        refs  <- sh"git -C ${dir.value} show-ref --heads --tags".exec[Try[String]]
-        lines <- ~refs.split("\n").to[List]
-      } yield lines.map(_.split("/").last)
+    def showRefs(dir: Path): Try[List[String]] = for {
+      refs  <- sh"git -C ${dir.value} show-ref --heads --tags".exec[Try[String]]
+      lines <- ~refs.split("\n").to[List]
+    } yield lines.map(_.split("/").last)
+
+    private def sshBatchEnv: Environment = environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
     def lsRemote(url: String): Try[List[String]] = {
-      implicit val defaultEnvironment: Environment =
-        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
-      Cached.lsRemote.getOrElseUpdate(
-          url,
-          sh"git ls-remote --tags --heads $url"
-            .exec[Try[String]]
-            .map(_.split("\n").to[List].map(_.split("/").last)))
+      implicit val defaultEnvironment: Environment = sshBatchEnv
+      
+      Cached.lsRemote.getOrElseUpdate(url, sh"git ls-remote --tags --heads $url".exec[Try[String]].map(_.split(
+          "\n").to[List].map(_.split("/").last)))
     }
 
     def lsRemoteRefSpec(url: String, refSpec: String): Try[String] = {
-      implicit val defaultEnvironment: Environment =
-        environment.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
-      Cached.lsRemoteRefSpec.getOrElseUpdate(
-          (url, refSpec),
-          sh"git ls-remote $url $refSpec".exec[Try[String]].map(_.take(40)))
+      implicit val defaultEnvironment: Environment = sshBatchEnv
+      
+      Cached.lsRemoteRefSpec.getOrElseUpdate((url, refSpec), sh"git ls-remote $url $refSpec".exec[
+          Try[String]].map(_.take(40)))
     }
 
     def fetch(dir: Path, refspec: Option[RefSpec]): Try[String] =
@@ -124,8 +115,7 @@ case class Shell(environment: Environment) {
     def getCommitFromTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} rev-parse $tag".exec[Try[String]]
 
-    def getCommit(dir: Path): Try[String] =
-      sh"git -C ${dir.value} rev-parse --short HEAD".exec[Try[String]]
+    def getCommit(dir: Path): Try[String] = sh"git -C ${dir.value} rev-parse --short HEAD".exec[Try[String]]
 
     def getBranchHead(dir: Path, branch: String): Try[String] =
       sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]]
@@ -160,11 +150,10 @@ case class Shell(environment: Environment) {
     implicit val defaultEnvironment: Environment = environment.copy(workDir = Some(dest.value))
 
     for {
-      _ <- java.ensureNativeImageInPath
-      _ <- java.ensureIsGraalVM()
-      _ <- sh"native-image -cp ${classpath.mkString(":")} ${main}".exec[Try[String]].map { _ =>
-            main.toLowerCase()
-          }
+      _  <- java.ensureNativeImageInPath
+      _  <- java.ensureIsGraalVM()
+      cp  = classpath.mkString(":")
+      _  <- sh"native-image -cp $cp $main".exec[Try[String]].map(main.toLowerCase.waive)
     } yield ()
   }
 }
