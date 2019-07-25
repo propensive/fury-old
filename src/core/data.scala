@@ -116,6 +116,7 @@ object EnvVar {
 
   def parse(str: String): Option[EnvVar] = str.split("=", 2) match {
     case Array(key, value) => Some(EnvVar(key, value))
+    case Array(key)        => Some(EnvVar(key, ""))
     case _                 => None
   }
 }
@@ -128,6 +129,7 @@ object JavaProperty {
 
   def parse(str: String): Option[JavaProperty] = str.split("=", 2) match {
     case Array(key, value) => Some(JavaProperty(key, value))
+    case Array(key)        => Some(JavaProperty(key, ""))
     case _                 => None
   }
 }
