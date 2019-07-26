@@ -700,7 +700,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               }
             }.await() == 0
           
-            multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
+            if(!out.isEmpty){
+              multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
+            }
             
             deepDependencies(target.id).foreach { targetId =>
               multiplexer(targetId.ref) = NoCompile(targetId.ref)
