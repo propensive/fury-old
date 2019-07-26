@@ -9,7 +9,6 @@ Starting compilation of module foo/lib
 Successfully compiled module foo/lib
 Starting compilation of module foo/app
 Successfully compiled module foo/app
-
 Saving JAR file out/foo-app.jar
 0
 foo-app.jar

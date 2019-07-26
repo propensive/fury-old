@@ -7,7 +7,7 @@ fury project add -n hello-world2
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury source add -d src
 mkdir -p src
-echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { println("Hello World 2"); close() } }' > src/hw.scala
+echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write("Hello World 2\n"); close() } }' > src/hw.scala
 timeout 180 fury build compile --output linear
 echo $?
 cat .content
