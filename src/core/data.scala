@@ -116,6 +116,7 @@ object EnvVar {
 
   def parse(str: String): Option[EnvVar] = str.split("=", 2) match {
     case Array(key, value) => Some(EnvVar(key, value))
+    case Array(key)        => Some(EnvVar(key, ""))
     case _                 => None
   }
 }
@@ -128,6 +129,7 @@ object JavaProperty {
 
   def parse(str: String): Option[JavaProperty] = str.split("=", 2) match {
     case Array(key, value) => Some(JavaProperty(key, value))
+    case Array(key)        => Some(JavaProperty(key, ""))
     case _                 => None
   }
 }
@@ -691,7 +693,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
               securePolicy = target.kind == Application,
-              layout
+              env = target.environment,
+              properties = target.properties,
+              layout = layout
             ) { ln =>
               if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
               else {
@@ -745,27 +749,29 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       checkouts <- checkout(ref, layout)
     } yield
       Target(
-          ref,
-          entity.schema.id,
-          module.kind,
-          module.main,
-          module.plugin,
-          entity.schema.repos.map(_.repo).to[List],
-          checkouts.to[List],
-          binaries.to[List],
-          module.after.map(TargetId(entity.schema.id, _)).to[List],
-          compiler,
-          module.bloopSpec,
-          module.params.to[List],
-          ref.intransitive,
-          module.localSources.map(_ in entity.path).to[List] ++ module.sharedSources
-            .map(_.path in layout.sharedDir)
-            .to[List] ++ checkouts.flatMap { c =>
-            c.local match {
-              case Some(p) => c.sources.map(_ in p)
-              case None    => c.sources.map(_ in c.path(layout))
-            }
+        ref,
+        entity.schema.id,
+        module.kind,
+        module.main,
+        module.plugin,
+        entity.schema.repos.map(_.repo).to[List],
+        checkouts.to[List],
+        binaries.to[List],
+        module.after.map(TargetId(entity.schema.id, _)).to[List],
+        compiler,
+        module.bloopSpec,
+        module.params.to[List],
+        ref.intransitive,
+        module.localSources.map(_ in entity.path).to[List] ++ module.sharedSources
+          .map(_.path in layout.sharedDir)
+          .to[List] ++ checkouts.flatMap { c =>
+          c.local match {
+            case Some(p) => c.sources.map(_ in p)
+            case None    => c.sources.map(_ in c.path(layout))
           }
+        },
+        module.environment.map { e => (e.key, e.value) }.toMap,
+        module.properties.map { p => (p.key, p.value) }.toMap
       )
 
   def checkout(ref: ModuleRef, layout: Layout): Try[Set[Checkout]] =
@@ -1302,7 +1308,9 @@ case class Target(ref: ModuleRef,
                   bloopSpec: Option[BloopSpec],
                   params: List[Parameter],
                   intransitive: Boolean,
-                  sourcePaths: List[Path]) {
+                  sourcePaths: List[Path],
+                  environment: Map[String, String],
+                  properties: Map[String, String]) {
 
   def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
   def executed = kind == Application || kind == Benchmarks

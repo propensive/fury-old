@@ -1,0 +1,9 @@
+Created empty layer.fury
+Set current project to scala
+Set current module to compiler
+Set current project to example
+Setting default compiler for project example to scala/compiler
+Set current module to app
+Starting compilation of module example/app
+Successfully compiled module example/app
+Test:something
