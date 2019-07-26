@@ -696,6 +696,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
               else {
                 out.append(ln)
+                out.append("\n")
               }
             }.await() == 0
           
