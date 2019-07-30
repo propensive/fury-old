@@ -1014,9 +1014,7 @@ object ModuleRef {
 
   def parse(project: Project, string: String, intransitive: Boolean): Try[ModuleRef] =
     string match {
-      // `dummy1` and `dummy2` are not used, but binding them to the inner capturing groups
-      // works around a bug in Kaleidoscope
-      case r"$projectId@([a-z]$dummy1@(-?[a-z0-9]+)*)\/$moduleId@([a-z]$dummy2@(-?[a-z0-9]+)*)" =>
+      case r"$projectId@([a-z](-?[a-z0-9]+)*)\/$moduleId@([a-z](-?[a-z0-9]+)*)" =>
         Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
       case r"[a-z](-?[a-z0-9]+)*" =>
         Success(ModuleRef(project.id, ModuleId(string), intransitive))

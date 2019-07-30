@@ -430,7 +430,7 @@ schemas	default	id	default
 			kaleidoscope	id	kaleidoscope
 				repo	git@github.com:propensive/kaleidoscope.git
 				track	fury
-				commit	fe9304024980fe9a9134062c10c075e1769b046d
+				commit	a8bf8e5e9070416a84ffe10bdd9dce4842d2616e
 				local	None
 			magnolia	id	magnolia
 				repo	git@github.com:propensive/magnolia.git
