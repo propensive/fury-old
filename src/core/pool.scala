@@ -22,8 +22,6 @@ import scala.concurrent._, duration._
 import scala.util._
 import scala.annotation._
 
-import scala.reflect.ClassTag
-
 abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
   def create(key: K): T
@@ -57,7 +55,7 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
   def borrow[S](key: K)(action: T => S): S = {
     val value: T = synchronized {
-      pool.get(key).fold(createOrRecycle(key)) { value =>
+      pool.get(key).filter(!isBad(_)).fold(createOrRecycle(key)) { value =>
         pool -= key
         value
       }
@@ -68,15 +66,4 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
     result
   }
-}
-
-abstract class RetryingPool[K, T, E: ClassTag]
-                           (timeout: Long)
-                           (implicit ec: ExecutionContext)
-                           extends Pool[K, T](timeout)(ec) {
-  
-  private def retry[S](times: Int = 1)(key: K)(action: T => S): S =
-    try super.borrow(key)(action) catch { case e: E if times > 0 => retry(times - 1)(key)(action) }
-
-  override def borrow[S](key: K)(action: T => S): S = retry(2)(key)(action)
 }
