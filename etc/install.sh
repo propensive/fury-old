@@ -13,7 +13,6 @@ echo "Copyright 2019 Jon Pretty, Propensive OÜ."
 echo ""
 echo "This will install Fury on your computer."
 echo ""
-echo "Checking for dependencies..."
 
 RED="$(printf '\e[31m')"
 GREEN="$(printf '\e[32m')"
@@ -66,9 +65,15 @@ restartFury() {
 
 # Remove an existing installation, if there is one.
 prepare() {
-  question "Where should Fury be installed? [${DESTINATION}]"
-  read ANSWER
-  [ "${ANSWER}" != "" ] && DESTINATION=${ANSWER}
+  if [ -z "$1" ]
+  then
+    question "Where should Fury be installed? [${DESTINATION}]"
+    read ANSWER
+  else
+    ANSWER=""
+  fi
+
+  [ "${ANSWER}" != "" ] && DESTINATION="${ANSWER}"
 
   if [ -d "${DESTINATION}" ]
   then
@@ -143,7 +148,7 @@ updateFish() {
 }
 
 updateShells() {
-  echo "Updating shell configuration"
+  message "Updating shell configuration"
   mkdir -p "${CONFIG}"
   cp "${DESTINATION}/etc/aliases" "${CONFIG}/aliases"
 
