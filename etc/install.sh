@@ -20,18 +20,23 @@ GREEN="$(printf '\e[32m')"
 YELLOW="$(printf '\e[33m')"
 RESET="$(printf '\e[0m')"
 
-if [ $EUID == 0 ]
+if [ -z "$1" ]
 then
-  DESTINATION="/opt/fury-${FURY_VERSION}"
-  CONFIG="/etc/fury"
-else
-  if [ -z "${FURYHOME}" ]
+  if [ $EUID == 0 ]
   then
-    DESTINATION="${HOME}/.fury"
+    DESTINATION="/opt/fury-${FURY_VERSION}"
+    CONFIG="/etc/fury"
   else
-    DESTINATION="${FURYHOME}"
+    if [ -z "${FURYHOME}" ]
+    then
+      DESTINATION="${HOME}/.fury"
+    else
+      DESTINATION="${FURYHOME}"
+    fi
+    CONFIG="${HOME}/.furyrc"
   fi
-  CONFIG="${HOME}/.furyrc"
+else
+  DESTINATION="$1"
 fi
 
 question() {
@@ -67,8 +72,13 @@ prepare() {
 
   if [ -d "${DESTINATION}" ]
   then
-    question "Target directory ${DESTINATION} already exists. Overwrite? (Y/n)"
-    read ANSWER
+    if [ -z "$1" ]
+    then
+      question "Target directory ${DESTINATION} already exists. Overwrite? (Y/n)"
+      read ANSWER
+    else
+      ANSWER="Y"
+    fi
     if [ "${ANSWER}" = "" ] || [ "${ANSWER}" = "y" ] || [ "${ANSWER}" = "Y" ]
     then
       rm -r "${DESTINATION}"
@@ -93,13 +103,14 @@ checkJava() {
 }
 
 tryCompilingNailgun() {
-    if [ gcc ${DESTINATION}/bin/ng.c -O0 ${DESTINATION}/bin/ng ]; then
-	echo "Nailgun native client compilation: SUCCESS"
-    else
-	echo "Nailgun native client compilation: FAILURE"
-	echo "Nailgun python client will be used"
-    fi
-    exit 0
+  if [ gcc ${DESTINATION}/bin/ng.c -O0 ${DESTINATION}/bin/ng ]
+  then
+	  message "Native Nailgun client was compiled successfully"
+  else
+	  warn "Native Nailgun client compilation failed"
+	  message "Python Nailgun client will be used"
+  fi
+  exit 0
 }
 
 updateShell() {
@@ -108,7 +119,7 @@ updateShell() {
   if [ -e "${RCFILE}" ] || [ "${SHELL}" = "/bin/${SH}" ]
   then
     touch "${RCFILE}" && \
-    echo "Backing up ${RCFILE} as ${RCFILE}.bak" && \
+    message "Backing up ${RCFILE} as ${RCFILE}.bak" && \
     sed -i.bak -e '/\# Added by Fury/d' "${RCFILE}" && \
     echo "export FURYHOME=${DESTINATION} && source ${CONFIG}/${SH} # Added by Fury" >> "${RCFILE}"
   fi
@@ -122,9 +133,9 @@ updateFish() {
     if [ -e "${RCFILE}" ] || [ "${SHELL}" = "/usr/bin/fish" ]
     then
       touch "${RCFILE}" && \
-      echo "Backing up ${RCFILE} as ${RCFILE}.bak" && \
+      message "Backing up ${RCFILE} as ${RCFILE}.bak" && \
       sed -i.bak -e '/\# Added by Fury/d' "${RCFILE}" && \
-      echo "set -Ux FURYHOME ${DESTINATION}" >> "${RCFILE}"
+      echo "set -Ux FURYHOME ${DESTINATION}" >> "${RCFILE}" && \
       echo "set -Ux fish_user_paths ${DESTINATION}/bin \$fish_user_paths" >> "${RCFILE}"
     fi
   fi
