@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 FURY_VERSION=test
-DESTINATION="$HOME/fury-$FURY_VERSION"
 CONFIG="$HOME/.furyrc"
 
 echo "     _____"
@@ -21,6 +20,17 @@ RED=$(printf '\e[31m')
 GREEN=$(printf '\e[32m')
 YELLOW=$(printf '\e[33m')
 RESET=$(printf '\e[0m')
+
+if [ $EUID == 0 ]
+then
+  DESTINATION="/opt/fury-$FURY_VERSION"
+else
+  if [ -z "$FURYHOME" ]; then
+    DESTINATION="$HOME/.fury"
+  else
+    DESTINATION="$FURYHOME"
+  fi
+fi
 
 question() {
   printf " $YELLOW*$RESET $1 "
