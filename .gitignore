@@ -21,3 +21,4 @@ test-lib
 .metals/
 out/**/*
 .*.bak
+pkg/

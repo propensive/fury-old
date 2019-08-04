@@ -1,10 +1,7 @@
-VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 MKFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOTDIR := $(dir $(MKFILE))
 BLOOPVERSION=1.3.2
-DEPS=kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
 REPOS:=$(foreach dep, $(DEPS), bootstrap/git/$(dep))
-BINDEPS=launcher ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 LIBS=bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
@@ -15,6 +12,20 @@ SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
 DOCKER_TAG=fury-ci
 TESTDEPS=ogdl core
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
+
+fury.version := ${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
+fury.link := https://storage.googleapis.com/revivalist/downloads/fury.build/fury-$(fury.version).sh
+
+scala.version := 2.12.8
+scala.link := https://downloads.lightbend.com/scala/${scala.version}/scala-${scala.version}.tgz
+
+graalvm.version := 1.0.0-rc11
+graalvm.link := https://github.com/oracle/graal/releases/download/vm-${graalvm.version}/graalvm-ce-${graalvm.version}-linux-amd64.tar.gz
+
+dependencies.package := scala graalvm
+dependencies.binary := launcher ng.py ng
+dependencies.source := kaleidoscope optometry eucalyptus exoskeleton escritoire mercator magnolia gastronomy contextual guillotine
+
 export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
 
 all: all-jars
@@ -29,12 +40,12 @@ publish: dist/install.sh
 	@echo "  sh install-$(VERSION).sh"
 	@echo
 
-dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
+dist/install.sh: dist/fury-$(fury.version).tar.gz dist/bundle/etc
 	cat etc/install.sh $< > dist/install.sh
 	LC_ALL=C sed -i.bak "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh
 	chmod +x dist/install.sh
 
-dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
+dist/fury-$(fury.version).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
 	tar czf $@ -C dist/bundle .
 
 #TODO refactor etc structure (separate bundled scripts from development ones)
@@ -44,13 +55,16 @@ dist/bundle/etc:
 
 # Compilation
 
-bootstrap/scala:
+bootstrap/scala: pkg/scala.tar.gz
 	mkdir -p $@
-	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1
+	tar xzf $< -C $@ --strip 1
 
 bootstrap/git/%:
 	mkdir -p $@
 	git clone --recursive https://github.com/propensive/$*.git $@ --branch=fury
+
+pkg/%.tar.gz: pkg
+	curl --silent --location --continue-at - --output $@ ${$*.link}
 
 dist/bundle/lib/%.jar: bootstrap/scala bootstrap/git/% dist/bundle/lib
 	mkdir -p bootstrap/lib
@@ -74,7 +88,7 @@ define compile-module
 scalac -d bootstrap/bin/ -cp dist/bundle/lib/'*':bootstrap/bin $@/*.scala
 endef
 
-pre-compile: bootstrap/bin dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(foreach D,$(DEPS),dist/bundle/lib/$D.jar)
+pre-compile: bootstrap/bin dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH) dependency-jars $(REPOS) $(foreach D,$(dependencies.source),dist/bundle/lib/$D.jar)
 
 src/strings: pre-compile
 	$(compile-module)
@@ -131,8 +145,11 @@ bootstrap/bin/fury/.version: bootstrap/bin/fury/.dir compile
 dist/bundle/lib:
 	mkdir -p $@
 
+pkg:
+	mkdir -p $@
+
 dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
-	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
+	curl --location --continue-at - --output $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 all-jars: $(JARS)
 
@@ -149,7 +166,7 @@ dist/bundle/lib/%.jar: bootstrap/bin bootstrap/bin/fury/.version dist/bundle/lib
 	mkdir -p ${@D}
 	touch ${@D}/.dir
 
-dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D)) $(foreach D, $(DEPS), dist/bundle/lib/$(D).jar)
+dist/bundle/bin/fury: $(foreach D, $(dependencies.binary), dist/bundle/bin/$(D)) $(foreach D, $(DEPS), dist/bundle/lib/$(D).jar)
 	cp etc/fury $@
 	chmod +x $@
 
@@ -185,7 +202,7 @@ test-isolated: ci
 integration-isolated: ci
 	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /integration'
 
-ci:
+ci: $(foreach dependency,$(dependencies.package),pkg/$(dependency).tar.gz)
 	docker build -t $(DOCKER_TAG) .
 
 clean-ci:
@@ -202,4 +219,4 @@ download: $(REPOS) dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bi
 install: dist/install.sh
 	dist/install.sh
 
-.PHONY: all publish compile pre-compile src/* watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars
+.PHONY: all publish compile pre-compile src/* watch bloop-clean clean-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration $(TESTS) all-jars download install dependency-jars pkg/*.tar.gz
