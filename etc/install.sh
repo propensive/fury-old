@@ -19,6 +19,8 @@ GREEN="$(printf '\e[32m')"
 YELLOW="$(printf '\e[33m')"
 RESET="$(printf '\e[0m')"
 
+CONFIG="${HOME}/.furyrc"
+
 if [ -z "$1" ]
 then
   if [ $EUID == 0 ]
@@ -32,7 +34,6 @@ then
     else
       DESTINATION="${FURYHOME}"
     fi
-    CONFIG="${HOME}/.furyrc"
   fi
 else
   DESTINATION="$1"
