@@ -905,7 +905,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module <- entity.project(ref.moduleId)
       repos <- module.externalSources
                 .groupBy(_.repoId)
-                .map { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }
+                .map { case (k, v) => entity.schema.repo(k).map(_ -> v) }
                 .sequence
     } yield
       repos.map {
@@ -961,19 +961,22 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
   lazy val universe: Try[Universe] = {
     val localProjectIds = schema.projects.map(_.id)
-    
+
     def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
       projects <- universe
       nextProjects <- hierarchy.universe
       potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
-      
       conflictIds = potentialConflictIds.filter { id =>
         projects.entity(id).map(_.project) != nextProjects.entity(id).map(_.project)
       }
-      
-      allProjects <- conflictIds match {
-        case x if x.isEmpty => Success(projects ++ nextProjects)
-        case _ => Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
+      potentialConflictRepoIds = schema.sourceRepoIds.intersect(hierarchy.schema.sourceRepoIds)
+      conflictRepoIds = potentialConflictRepoIds.filter { id =>
+        schema.repo(id).map(_.commit) != hierarchy.schema.repo(id).map(_.commit)
+      }
+      allProjects <- {
+        if (!conflictIds.isEmpty) Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
+        else if(!conflictRepoIds.isEmpty) Failure(RepoConflict(conflictRepoIds, h1 = this, h2 = hierarchy))
+        else Success(projects ++ nextProjects)
       }
     } yield allProjects
 
@@ -999,7 +1002,7 @@ case class Schema(id: SchemaId,
                   main: Option[ProjectId] = None) {
 
   def apply(id: ProjectId) = projects.findBy(id)
-  def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
+  def repo(repoId: RepoId): Try[SourceRepo] = repos.findBy(repoId)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
@@ -1575,7 +1578,7 @@ trait Source {
 
 case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def description: String = str"${repoId}:${path.value}"
-  def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((path, _).digest[Md5])
+  def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId).map((path, _).digest[Md5])
   def repoIdentifier: RepoId = repoId
 }
 

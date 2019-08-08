@@ -39,6 +39,12 @@ object Recovery {
           val beginning = projectIds.tail.foldLeft(message + projectIds.head)(_ + ", " + _)
           val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
           cli.abort(beginning + ending)
+        case RepoConflict(ps, h1, h2) =>
+          val repoIds = ps.toSeq.sortBy(_.key).map { x => msg"$x" }
+          val message = msg"Your dependency tree contains two or more conflicting references to the same repositories: "
+          val beginning = repoIds.tail.foldLeft(message + repoIds.head)(_ + ", " + _)
+          val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
+          cli.abort(beginning + ending)
         case e: SchemaDifferences =>
           cli.abort(
               msg"""You are attempting to make this change to all schemas, however the value you are

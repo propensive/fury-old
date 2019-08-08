@@ -126,7 +126,7 @@ object RepoCli {
                    .map(scala.collection.immutable.SortedSet(_))
                    .orElse(all.map(_ => schema.repos.map(_.id)))
                    .ascribe(exoskeleton.MissingArg("repo"))
-      repos <- optRepos.map(schema.repo(_, layout)).sequence
+      repos <- optRepos.map(schema.repo).sequence
       io    <- invoc.io()
       msgs  <- repos.map(_.repo.update(layout).map(io.println(_))).sequence
       lens  <- ~Lenses.layer.repos(schema.id)
