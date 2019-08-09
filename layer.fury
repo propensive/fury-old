@@ -392,70 +392,15 @@ schemas	default	id	default
 				license	unknown
 				description	
 				compiler	None
-		repos	contextual	id	contextual
-				repo	git@github.com:propensive/contextual.git
-				track	fury
-				commit	c549e94895e90f20db264717a0de2338825b73d9
-				local	None
-			escritoire	id	escritoire
-				repo	git@github.com:propensive/escritoire.git
-				track	fury
-				commit	3c996af5f7009bed3e2bbb2387267d5788c32bc6
-				local	None
-			eucalyptus	id	eucalyptus
-				repo	git@github.com:propensive/eucalyptus.git
-				track	fury
-				commit	db8e4af0e105f5418e889805294a2c7c733dadbe
-				local	None
-			exoskeleton	id	exoskeleton
-				repo	git@github.com:propensive/exoskeleton.git
-				track	fury
-				commit	ab630c47e208795fcb5b2bb624325ccc180e21a7
-				local	None
-			fury	id	fury
+		repos	fury	id	fury
 				repo	git@github.com:propensive/fury.git
 				track	master
 				commit	bd2495ba835321077c539921b7efe4bb3b64aef7
 				local	Some	../fury
-			gastronomy	id	gastronomy
-				repo	git@github.com:propensive/gastronomy.git
-				track	fury
-				commit	c37837bd9dc6693c993bc7a9a299bbbcbef8a179
-				local	None
-			guillotine	id	guillotine
-				repo	git@github.com:propensive/guillotine.git
-				track	fury
-				commit	ef4d25bad64b96ab78387cc647cb0c7b680f19d7
-				local	None
-			kaleidoscope	id	kaleidoscope
-				repo	git@github.com:propensive/kaleidoscope.git
-				track	fury
-				commit	a8bf8e5e9070416a84ffe10bdd9dce4842d2616e
-				local	None
-			magnolia	id	magnolia
-				repo	git@github.com:propensive/magnolia.git
-				track	fury
-				commit	5f571508b860d532bf3040428b0fa1b07b75bcbc
-				local	None
-			mercator	id	mercator
-				repo	git@github.com:propensive/mercator.git
-				track	fury
-				commit	e1ae061ee3262707d49da3f79fa55f160864235c
-				local	None
-			optometry	id	optometry
-				repo	git@github.com:propensive/optometry.git
-				track	master
-				commit	d0afa0b3e95636beb43f7703a932bbb8aa60e533
-				local	None
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
 				commit	58e4963d98007da74593ff0ee74c654e63663dd2
-				local	None
-			probably	id	probably
-				repo	git@github.com:propensive/probably.git
-				track	fury
-				commit	27c0dfc6c7487feeee425ce194bf6bc37bcdf8a7
 				local	None
 		imports	platform:default	repo	platform
 				schema	default
