@@ -85,9 +85,7 @@ object Ogdl {
 
   def write[T: OgdlWriter](value: T, path: Path): Try[Unit] =
     Outcome.rescue[IOException](FileWriteError(path)) {
-      val bak = path.rename { f =>
-        s".$f.bak"
-      }
+      val bak = path.rename { f => s".$f.bak" }
       if(path.exists()) path.copyTo(bak)
       val sb = new StringBuilder()
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))

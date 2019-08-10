@@ -44,9 +44,10 @@ object Layout {
 }
 
 case class GlobalLayout(home: Path) {
-  private[this] val userDir    = (home / ".furyrc").extant()
-  lazy val userConfig: Path    = userDir / "config.fury"
-  lazy val aliasesPath: Path   = userDir / "aliases"
+  private[this] val userDir = (home / ".furyrc").extant()
+  lazy val userConfig: Path = userDir / "config.fury"
+  lazy val aliasesPath: Path = userDir / "aliases"
+  lazy val policyFile: Path = userDir / "policy.fury"
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {

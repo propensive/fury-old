@@ -39,6 +39,7 @@ object Args {
   implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
   implicit private val theme: TExtractor[Theme] = _.headOption.flatMap(Theme.unapply(_))
   implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
+  implicit private val scopeId: TExtractor[ScopeId] = _.headOption.flatMap(ScopeId.unapply(_))
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
@@ -79,6 +80,7 @@ object Args {
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
   val ParamArg = CliParam[Parameter]('P', 'param, "compiler parameter")
+  val PermissionArg = CliParam[String]('P', 'permission, "permission entry")
   val PropArg = CliParam[JavaProperty]('D', 'param, "Java -D property")
   val QuietArg = CliParam[Unit]('q', 'quiet, "show less output")
   val RepoArg = CliParam[RepoId]('r', 'repo, "specify a repository")
@@ -88,6 +90,7 @@ object Args {
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val SchemaArg = CliParam[SchemaId]('s', 'schema, "specify a schema")
+  val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
   val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
   val TagArg = CliParam[String]('t', 'tag, "git tag")

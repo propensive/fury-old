@@ -110,10 +110,11 @@ object Compare {
     dist(n)
   }
 
-  def uniquePrefixes(xs: Set[String]): Set[String] = {
+  def uniquePrefixLength(xs: Set[String]): Int = {
     val array = xs.to[Array]
     scala.util.Sorting.quickSort(array)
-    val prefixSize = array.indices.init.foldLeft(-1) { (base, idx) =>
+    if(array.isEmpty) 0
+    else array.indices.init.foldLeft(-1) { (base, idx) =>
       val a = array(idx)
       val b = array(idx + 1)
       val size = a.length.min(b.length)
@@ -123,7 +124,5 @@ object Compare {
         case n  => n + 1
       })
     }
-
-    array.map(_.take(prefixSize)).to[Set]
   }
 }

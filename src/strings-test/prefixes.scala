@@ -35,23 +35,31 @@ object StringsTests extends TestApp {
 
   override def tests(): Unit = {
     test("distinct trigraphs need just a single character") {
-      Compare.uniquePrefixes(distinctFirstCharacters)
-    }.assert(_ == Set("a", "d", "g", "j"))
+      Compare.uniquePrefixLength(distinctFirstCharacters)
+    }.assert(_ == 1)
 
     test("one duplicate first character requires two characters") {
-      Compare.uniquePrefixes(duplicateFirstCharacter)
-    }.assert(_ == Set("ab", "af", "de", "gh", "jk"))
+      Compare.uniquePrefixLength(duplicateFirstCharacter)
+    }.assert(_ == 2)
 
     test("different length strings") {
-      Compare.uniquePrefixes(Set("one", "two", "three", "four"))
+      val numbers = Set("one", "two", "three", "four")
+      val length = Compare.uniquePrefixLength(numbers)
+      numbers.map(_.take(length))
     }.assert(_.size == 4)
 
     test("large set all distinct") {
-      Compare.uniquePrefixes(randomDoubles)
+      val length = Compare.uniquePrefixLength(randomDoubles)
+      randomDoubles.map(_.take(length))
     }.assert(_.size == randomDoubles.size)
     
     test("large set not longer than necessary") {
-      Compare.uniquePrefixes(randomDoubles).map(_.dropRight(1))
+      val length = Compare.uniquePrefixLength(randomDoubles)
+      randomDoubles.map(_.take(length - 1))
     }.assert(_.size < randomDoubles.size)
+    
+    test("does not fail on empty input") {
+      Compare.uniquePrefixLength(Set())
+    }.assert(_ == 0)
   }
 }

@@ -103,8 +103,8 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
 object Permission {
   implicit val msgShow: MsgShow[Permission] = stringShow.show
   
-  implicit val stringShow: StringShow[Permission] = p =>
-    str"""${p.className} "${p.context}"${p.permission.fold("") { p => s""", "$p"""" }}";"""
+  implicit val stringShow: StringShow[Permission] =
+    p => str"${p.className} ${p.target} ${p.action.getOrElse("-"): String}"
   
   implicit def diff: Diff[Permission] = Diff.gen[Permission]
 
@@ -139,7 +139,90 @@ object Permission {
     "javax.xml.ws.WebServicePermission"
   )
 }
-case class Permission(className: String, context: String, permission: Option[String])
+case class Permission(className: String, target: String, action: Option[String]) {
+  def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
+}
+
+object PermissionHash {
+  implicit val stringShow: StringShow[PermissionHash] = _.key
+  implicit val msgShow: MsgShow[PermissionHash] = _.key
+}
+case class PermissionHash(key: String) extends Key(msg"permission")
+
+object ScopeId {
+  implicit val stringShow: StringShow[ScopeId] = _.id
+
+  case object Project extends ScopeId("project")
+  case object Directory extends ScopeId("directory")
+  //case object Layer extends ScopeId("layer")
+
+  val All = List(Project, Directory)//, Layer)
+
+  def unapply(id: String): Option[ScopeId] = All.find(_.id == id)
+}
+
+sealed abstract class ScopeId(val id: String) extends scala.Product with scala.Serializable
+
+object Scope {
+  def apply(id: ScopeId, layout: Layout, layer: Layer, project: Project) = id match {
+    case ScopeId.Project => ProjectScope(project.id)
+    case ScopeId.Directory => DirectoryScope(layout.base.value)
+    //case ScopeId.Layer => LayerScope()
+  }
+}
+
+sealed trait Scope extends scala.Product with scala.Serializable
+case class DirectoryScope(dir: String) extends Scope
+case class ProjectScope(name: ProjectId) extends Scope
+//case class LayerScope(layerHash: String) extends Scope
+
+object Grant {
+  implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
+  implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
+}
+
+case class Grant(scope: Scope, permission: Permission)
+
+object GlobalPolicy {
+  def read(io: Io, layout: GlobalLayout): Try[GlobalPolicy] =
+    Success(Ogdl.read[GlobalPolicy](layout.policyFile,
+        upgrade(io, layout, _)).toOption.getOrElse(GlobalPolicy(SortedSet.empty[Grant])))
+
+  def save(io: Io, layout: GlobalLayout, policy: GlobalPolicy): Try[Unit] =
+    layout.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
+  
+  private def upgrade(io: Io, layout: GlobalLayout, ogdl: Ogdl): Ogdl = ogdl
+}
+
+case class GlobalPolicy(policy: SortedSet[Grant] = TreeSet()) {
+  def forContext(layout: Layout, project: Project, layer: Layer): GlobalPolicy = GlobalPolicy(policy.filter {
+    case Grant(DirectoryScope(dir), _)     => dir == layout.base.value
+    case Grant(ProjectScope(projectId), _) => project.id == projectId
+    //case Grant(LayerScope(hash), _)        => hash == layer.hash
+  })
+
+  def grant(scope: Scope, permission: Permission): GlobalPolicy =
+    copy(policy = policy + Grant(scope, permission))
+  
+  def save(file: Path): Try[Unit] = file.writeSync {
+    val sb = new StringBuilder()
+    sb.append("grant {\n")
+    policy.foreach { grant =>
+      val p = grant.permission
+      sb.append(str""" permission ${p.className} "${p.target}"${p.action.fold("") { a => """, "$a\"""" }};\n""")
+      sb.append('\n')
+    }
+    sb.append("};\n")
+    sb.toString
+  }
+}
+
+object PermissionEntry {
+  implicit val msgShow: MsgShow[PermissionEntry] = pe => msg"${pe.hash.key} ${pe.permission}"
+  implicit val stringShow: StringShow[PermissionEntry] = pe => pe.hash.key
+}
+
+case class PermissionEntry(permission: Permission, hash: PermissionHash)
 
 object EnvVar {
   implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
@@ -152,6 +235,7 @@ object EnvVar {
     case _                 => None
   }
 }
+
 case class EnvVar(key: String, value: String)
 
 object JavaProperty {
@@ -189,6 +273,11 @@ case class Module(id: ModuleId,
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
   def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
+  
+  def policyEntries: Set[PermissionEntry] = {
+    val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash))
+    policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
+  }
 }
 
 object BloopSpec {

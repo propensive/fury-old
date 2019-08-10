@@ -114,6 +114,13 @@ case class Tables(config: Config) {
     Heading("PARAM", _.name)
   )
 
+  val permissions: Tabulation[PermissionEntry] = Tabulation(
+    Heading("HASH", _.hash),
+    Heading("CLASS", _.permission.className),
+    Heading("TARGET", _.permission.target),
+    Heading("ACTION", _.permission.action.getOrElse("-")),
+  )
+
   val envs: Tabulation[EnvVar] = Tabulation(
     Heading("KEY", _.key),
     Heading("VALUE", _.value)
