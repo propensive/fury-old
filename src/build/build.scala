@@ -186,7 +186,8 @@ object BuildCli {
       _            <- compilation.generateFiles(io, layout)
       debugStr     <- ~invoc(DebugArg).toOption
       multiplexer  <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
-      future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout)
+      globalPolicy <- GlobalPolicy.read(io, cli.globalLayout)
+      future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout, globalPolicy)
                         .apply(TargetId(schema.id, module.ref(project))).andThen { case compRes =>
                           multiplexer.closeAll()
                           compRes
@@ -239,8 +240,10 @@ object BuildCli {
       _              <- ~compilation.checkoutAll(io, layout)
       _              <- compilation.generateFiles(io, layout)
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
-      future         <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout).apply(
-                            TargetId(schema.id, module.ref(project))).andThen { case compRes =>
+      globalPolicy   <- GlobalPolicy.read(io, cli.globalLayout)
+      future         <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
+                            globalPolicy).apply(TargetId(schema.id,
+                            module.ref(project))).andThen { case compRes =>
                           multiplexer.closeAll()
                           compRes
                         }

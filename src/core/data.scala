@@ -195,11 +195,12 @@ object GlobalPolicy {
 }
 
 case class GlobalPolicy(policy: SortedSet[Grant] = TreeSet()) {
-  def forContext(layout: Layout, project: Project, layer: Layer): GlobalPolicy = GlobalPolicy(policy.filter {
-    case Grant(DirectoryScope(dir), _)     => dir == layout.base.value
-    case Grant(ProjectScope(projectId), _) => project.id == projectId
-    //case Grant(LayerScope(hash), _)        => hash == layer.hash
-  })
+  def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): GlobalPolicy =
+    GlobalPolicy(policy.filter {
+      case Grant(DirectoryScope(dir), _) => dir == layout.base.value
+      case Grant(ProjectScope(id), _)    => projectId == id
+      //case Grant(LayerScope(hash), _)    => hash == layer.hash
+    })
 
   def grant(scope: Scope, permission: Permission): GlobalPolicy =
     copy(policy = policy + Grant(scope, permission))
@@ -769,14 +770,15 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               moduleRef: ModuleRef,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
-              layout: Layout)
+              layout: Layout,
+              globalPolicy: GlobalPolicy)
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
       if(futures.contains(dependencyTarget)) futures
-      else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
+      else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -816,6 +818,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               securePolicy = target.kind == Application,
               env = target.environment,
               properties = target.properties,
+              policy = globalPolicy.forContext(layout, target.ref.projectId),
               layout = layout
             ) { ln =>
               if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)

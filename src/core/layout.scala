@@ -67,6 +67,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val srcsDir: Path = (userDir / "sources").extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val workDir: Path = (furyDir / "work").extant()
+  lazy val policyDir: Path = (furyDir / "policy").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
