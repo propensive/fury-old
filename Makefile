@@ -13,7 +13,7 @@ JARS:= $(DEPENDENCY_JARS) dist/bundle/lib/fury.jar
 NATIVEJARS=$(JARS) $(NAILGUNJARPATH) $(LIBS)
 SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
 DOCKER_TAG=fury-ci
-TESTDEPS=ogdl core
+TESTDEPS=ogdl core strings
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
 export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
 
