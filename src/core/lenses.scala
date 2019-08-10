@@ -158,6 +158,10 @@ object Lenses {
                    : Lens[Layer, SortedSet[EnvVar], SortedSet[EnvVar]] =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).environment)
 
+    def policy(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId)
+                   : Lens[Layer, SortedSet[Permission], SortedSet[Permission]] =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).policy)
+
     def properties(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId)
                    : Lens[Layer, SortedSet[JavaProperty], SortedSet[JavaProperty]] =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).properties)

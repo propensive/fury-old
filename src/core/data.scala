@@ -101,13 +101,45 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
 }
 
 object Permission {
-  implicit val msgShow: MsgShow[Permission] = p => msg"""${p.className} "${p.context}", "${p.permission}";"""
-  implicit val stringShow: StringShow[Permission] =
-    p => str"""${p.className} "${p.context}", "${p.permission}";"""
+  implicit val msgShow: MsgShow[Permission] = stringShow.show
+  
+  implicit val stringShow: StringShow[Permission] = p =>
+    str"""${p.className} "${p.context}"${p.permission.fold("") { p => s""", "$p"""" }}";"""
   
   implicit def diff: Diff[Permission] = Diff.gen[Permission]
+
+  val Classes: List[String] = List(
+    "java.awt.AWTPermission",
+    "java.io.FilePermission",
+    "java.io.SerializablePermission",
+    "java.lang.management.ManagementPermission",
+    "java.lang.reflect.ReflectPermission",
+    "java.lang.RuntimePermission",
+    "java.net.NetPermission",
+    "java.net.SocketPermission",
+    "java.net.URLPermission",
+    "java.nio.file.LinkPermission",
+    "java.security.AllPermission",
+    "java.security.SecurityPermission",
+    "java.security.UnresolvedPermission",
+    "java.sql.SQLPermission",
+    "java.util.logging.LoggingPermission",
+    "java.util.PropertyPermission",
+    "javax.management.MBeanPermission",
+    "javax.management.MBeanServerPermission",
+    "javax.management.MBeanTrustPermission",
+    "javax.management.remote.SubjectDelegationPermission",
+    "javax.net.ssl.SSLPermission",
+    "javax.security.auth.AuthPermission",
+    "javax.security.auth.kerberos.DelegationPermission",
+    "javax.security.auth.kerberos.ServicePermission",
+    "javax.security.auth.PrivateCredentialPermission",
+    "javax.sound.sampled.AudioPermission",
+    "javax.xml.bind.JAXBPermission",
+    "javax.xml.ws.WebServicePermission"
+  )
 }
-case class Permission(className: String, context: String, permission: String)
+case class Permission(className: String, context: String, permission: Option[String])
 
 object EnvVar {
   implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"

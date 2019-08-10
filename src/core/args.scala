@@ -44,8 +44,10 @@ object Args {
 
   val BinaryRepoArg = CliParam[BinRepoId]('r', 'repo, "Specify the repository from which to fetch binaries")
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
+  val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[String]('b', 'binary, "specify a binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
+  val ClassArg = CliParam[String]('C', 'class, "specify a class name")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
   val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
   val SourceArg = CliParam[String]('d', 'source, "specify a source directory")
@@ -87,6 +89,7 @@ object Args {
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val SchemaArg = CliParam[SchemaId]('s', 'schema, "specify a schema")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
+  val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
   val TagArg = CliParam[String]('t', 'tag, "git tag")
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
