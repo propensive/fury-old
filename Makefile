@@ -40,7 +40,7 @@ dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
 #TODO refactor etc structure (separate bundled scripts from development ones)
 dist/bundle/etc:
 	mkdir -p $@
-	cp -r etc/aliases etc/bashrc etc/fishrc etc/zshrc etc/completion etc/security $@
+	cp -r etc/aliases etc/bashrc etc/fishrc etc/zshrc etc/completion $@
 
 # Compilation
 
