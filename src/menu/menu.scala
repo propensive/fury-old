@@ -84,6 +84,12 @@ object FuryMenu {
             Action('remove, msg"remove a compiler parameter from the module", ParamCli.remove),
             Action('list, msg"list compiler parameters for the module", ParamCli.list)
         ),
+        Menu('permission, msg"manage application permissions", PermissionCli.context, 'list)(
+            Action('grant, msg"grant an application permissions on your system", PermissionCli.grant),
+            Action('list, msg"list application permissions", PermissionCli.list),
+            Action('obviate, msg"remove an application permission", PermissionCli.obviate),
+            Action('require, msg"add an application permission", PermissionCli.require),
+        ),
         Menu('project, msg"manage projects", ProjectCli.context, 'list)(
             Action('add, msg"add a new project to the schema", ProjectCli.add),
             Action('remove, msg"remove a project from the schema", ProjectCli.remove),

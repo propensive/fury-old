@@ -13,7 +13,7 @@ JARS:= $(DEPENDENCY_JARS) dist/bundle/lib/fury.jar
 NATIVEJARS=$(JARS) $(NAILGUNJARPATH) $(LIBS)
 SRCS:=$(shell find $(PWD)/src -type f -name '*.scala')
 DOCKER_TAG=fury-ci
-TESTDEPS=ogdl core
+TESTDEPS=ogdl core strings
 TESTS=$(foreach DEP, $(TESTDEPS), $(DEP)-test)
 export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
 
@@ -40,7 +40,7 @@ dist/fury-$(VERSION).tar.gz: all-jars dist/bundle/bin/fury dist/bundle/etc
 #TODO refactor etc structure (separate bundled scripts from development ones)
 dist/bundle/etc:
 	mkdir -p $@
-	cp -r etc/aliases etc/bashrc etc/fishrc etc/zshrc etc/completion etc/security $@
+	cp -r etc/aliases etc/bashrc etc/fishrc etc/zshrc etc/completion $@
 
 # Compilation
 

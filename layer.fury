@@ -19,6 +19,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					core	id	core
 						kind	Library
 						main	None
@@ -100,6 +103,9 @@ schemas	default	id	default
 								version	1.0.0
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					dependency	id	dependency
 						kind	Library
 						main	None
@@ -118,6 +124,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					imports	id	imports
 						kind	Library
 						main	None
@@ -136,6 +145,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					io	id	io
 						kind	Library
 						main	None
@@ -162,6 +174,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					jsongen	id	jsongen
 						kind	Library
 						main	None
@@ -180,6 +195,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					menu	id	menu
 						kind	Library
 						main	None
@@ -229,6 +247,9 @@ schemas	default	id	default
 								version	1.0.0
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					module	id	module
 						kind	Library
 						main	None
@@ -247,6 +268,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					ogdl	id	ogdl
 						kind	Library
 						main	None
@@ -273,6 +297,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					project	id	project
 						kind	Library
 						main	None
@@ -291,6 +318,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					repo	id	repo
 						kind	Library
 						main	None
@@ -309,6 +339,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					schema	id	schema
 						kind	Library
 						main	None
@@ -327,6 +360,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					source	id	source
 						kind	Library
 						main	None
@@ -345,6 +381,9 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					strings	id	strings
 						kind	Library
 						main	None
@@ -360,6 +399,105 @@ schemas	default	id	default
 						binaries	
 						resources	
 						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					test	id	test
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/test-core	projectId	fury
+								moduleId	test-core
+								intransitive	false
+								hidden	false
+						params	
+						sources	
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					test-core	id	test-core
+						kind	Application
+						main	Some	fury.Tests
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/core	projectId	fury
+								moduleId	core
+								intransitive	false
+								hidden	false
+							fury/test-ogdl	projectId	fury
+								moduleId	test-ogdl
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/core-test	src/core-test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					test-ogdl	id	test-ogdl
+						kind	Application
+						main	Some	fury.Tests
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/ogdl	projectId	fury
+								moduleId	ogdl
+								intransitive	false
+								hidden	false
+							fury/test-strings	projectId	fury
+								moduleId	test-strings
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/ogdl-test	src/ogdl-test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					test-strings	id	test-strings
+						kind	Application
+						main	Some	fury.StringsTests
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/strings	projectId	fury
+								moduleId	strings
+								intransitive	false
+								hidden	false
+							probably/cli	projectId	probably
+								moduleId	cli
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/strings-test	src/strings-test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
 				main	Some	menu
 				license	apache-2.0
 				description	
@@ -388,77 +526,31 @@ schemas	default	id	default
 						bloopSpec	Some	org	scala-lang.org
 								name	scala-compiler
 								version	2.12.8
+						environment	
+						properties	
+						policy	
 				main	Some	compiler
 				license	unknown
 				description	
 				compiler	None
-		repos	contextual	id	contextual
-				repo	git@github.com:propensive/contextual.git
-				track	fury
-				commit	c549e94895e90f20db264717a0de2338825b73d9
-				local	None
-			escritoire	id	escritoire
-				repo	git@github.com:propensive/escritoire.git
-				track	fury
-				commit	3c996af5f7009bed3e2bbb2387267d5788c32bc6
-				local	None
-			eucalyptus	id	eucalyptus
-				repo	git@github.com:propensive/eucalyptus.git
-				track	fury
-				commit	db8e4af0e105f5418e889805294a2c7c733dadbe
-				local	None
-			exoskeleton	id	exoskeleton
-				repo	git@github.com:propensive/exoskeleton.git
-				track	fury
-				commit	ab630c47e208795fcb5b2bb624325ccc180e21a7
-				local	None
-			fury	id	fury
+		repos	fury	id	fury
 				repo	git@github.com:propensive/fury.git
 				track	master
 				commit	bd2495ba835321077c539921b7efe4bb3b64aef7
 				local	Some	../fury
-			gastronomy	id	gastronomy
-				repo	git@github.com:propensive/gastronomy.git
-				track	fury
-				commit	c37837bd9dc6693c993bc7a9a299bbbcbef8a179
-				local	None
-			guillotine	id	guillotine
-				repo	git@github.com:propensive/guillotine.git
-				track	fury
-				commit	ef4d25bad64b96ab78387cc647cb0c7b680f19d7
-				local	None
-			kaleidoscope	id	kaleidoscope
-				repo	git@github.com:propensive/kaleidoscope.git
-				track	fury
-				commit	a8bf8e5e9070416a84ffe10bdd9dce4842d2616e
-				local	None
-			magnolia	id	magnolia
-				repo	git@github.com:propensive/magnolia.git
-				track	fury
-				commit	5f571508b860d532bf3040428b0fa1b07b75bcbc
-				local	None
-			mercator	id	mercator
-				repo	git@github.com:propensive/mercator.git
-				track	fury
-				commit	e1ae061ee3262707d49da3f79fa55f160864235c
-				local	None
-			optometry	id	optometry
-				repo	git@github.com:propensive/optometry.git
-				track	master
-				commit	d0afa0b3e95636beb43f7703a932bbb8aa60e533
-				local	None
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	58e4963d98007da74593ff0ee74c654e63663dd2
-				local	None
-			probably	id	probably
-				repo	git@github.com:propensive/probably.git
-				track	fury
-				commit	27c0dfc6c7487feeee425ce194bf6bc37bcdf8a7
+				commit	e4fbf14f16e7c70a5e8a2bbfb6b47687cf1c20da
 				local	None
 		imports	platform:default	repo	platform
 				schema	default
 		main	Some	fury
 main	default
-aliases	
+aliases	test	cmd	test
+		description	run the Fury tests
+		schema	None
+		module	projectId	fury
+			moduleId	test
+			intransitive	false
+			hidden	false
