@@ -30,14 +30,13 @@ import scala.collection.immutable.SortedSet
 object ProjectCli {
   import Args._
 
-  def context(cli: Cli[CliParam[_]]) =
-    for {
-      layout       <- cli.layout
-      config       <- Config.read()(cli.env, cli.globalLayout)
-      layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-      cli          <- cli.hint(SchemaArg, layer.schemas)
-      optSchemaArg <- ~cli.peek(SchemaArg)
-    } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout       <- cli.layout
+    config       <- Config.read()(cli.env, cli.globalLayout)
+    layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
+    optSchemaArg <- ~cli.peek(SchemaArg)
+  } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
 
   def select(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
@@ -69,38 +68,37 @@ object ProjectCli {
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
-      _ <- ~(if(!raw)
-               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
-      _ <- ~io.println(table.mkString("\n"))
+      _      <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _      <- ~io.println(table.mkString("\n"))
     } yield io.await()
   }
 
   def add(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
-      cli     <- cli.hint(ProjectNameArg)
-      cli     <- cli.hint(LicenseArg, License.standardLicenses)
-      dSchema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-      cli <- cli.hint(
-                DefaultCompilerArg,
-                ModuleRef.JavaRef :: dSchema.compilerRefs(Io.silent(config), layout))
-      invoc      <- cli.read()
-      io         <- invoc.io()
-      compilerId <- ~invoc(DefaultCompilerArg).toOption
-      optCompilerRef <- compilerId
-                         .map(ModuleRef.parseFull(_, true))
-                         .to[List]
-                         .sequence
-                         .map(_.headOption)
-      projectId <- invoc(ProjectNameArg)
-      license   <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
-      project   <- ~Project(projectId, license = license, compiler = optCompilerRef)
-      layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
-                  _.modify(_)((_: SortedSet[Project]) + project))
-      layer <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(
-                  _(_) = Some(project.id))
-      _ <- ~Layer.save(io, layer, layout)
-      _ <- ~io.println(msg"Set current project to ${project.id}")
+      cli            <- cli.hint(ProjectNameArg)
+      cli            <- cli.hint(LicenseArg, License.standardLicenses)
+      dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+
+      cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
+                            Io.silent(config), layout))
+
+      invoc          <- cli.read()
+      io             <- invoc.io()
+      compilerId     <- ~invoc(DefaultCompilerArg).toOption
+      optCompilerRef <- compilerId.map(ModuleRef.parseFull(_, true)).to[List].sequence.map(_.headOption)
+      projectId      <- invoc(ProjectNameArg)
+      license        <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
+      project        <- ~Project(projectId, license = license, compiler = optCompilerRef)
+
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
+                            _.modify(_)((_: SortedSet[Project]) + project))
+
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(_(_) =
+                            Some(project.id))
+
+      _              <- ~Layer.save(io, layer, layout)
+      _              <- ~io.println(msg"Set current project to ${project.id}")
     } yield io.await()
   }
 
@@ -115,27 +113,27 @@ object ProjectCli {
       projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
       force     <- ~invoc(ForceArg).toOption.isDefined
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(
-                  _.modify(_)((_: SortedSet[Project]).filterNot(_.id == project.id)))
-      layer <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) {
-                (lens, ws) =>
-                  if(lens(ws) == Some(projectId))(lens(ws) = None) else ws
-              }
-      _ <- ~Layer.save(io, layer, layout)
+
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(_.modify(_)((_:
+                       SortedSet[Project]).filterNot(_.id == project.id)))
+
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) { (lens, ws) =>
+                       if(lens(ws) == Some(projectId))(lens(ws) = None) else ws }
+
+      _         <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
   def update(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
     for {
-      dSchema <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
-      cli     <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
-      cli     <- cli.hint(DescriptionArg)
-      cli <- cli.hint(
-                DefaultCompilerArg,
-                ModuleRef.JavaRef :: dSchema
-                  .to[List]
-                  .flatMap(_.compilerRefs(Io.silent(config), layout)))
+      dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
+      cli            <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
+      cli            <- cli.hint(DescriptionArg)
+
+      cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
+                            _.compilerRefs(Io.silent(config), layout)))
+      
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
@@ -151,13 +149,12 @@ object ProjectCli {
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
       descriptionArg <- ~invoc(DescriptionArg).toOption
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
-      compilerArg <- ~invoc(DefaultCompilerArg).toOption
-                      .flatMap(ModuleRef.parseFull(_, true).toOption)
-      layer   <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
-      nameArg <- ~invoc(ProjectNameArg).toOption
-      newId   <- ~nameArg.flatMap(schema.unused(_).toOption)
-      layer   <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      _       <- ~Layer.save(io, layer, layout)
+      compilerArg    <- ~invoc(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true).toOption)
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
+      nameArg        <- ~invoc(ProjectNameArg).toOption
+      newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
+      _              <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 }

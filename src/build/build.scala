@@ -91,12 +91,16 @@ object AliasCli {
       optSchemaArg     <- ~cli.peek(SchemaArg)
       cli              <- cli.hint(AliasArg)
       cli              <- cli.hint(DescriptionArg)
+
       optDefaultSchema <- ~optSchemaArg.flatMap(layer.schemas.findBy(_).toOption).orElse(
                             layer.mainSchema.toOption)
+      
       cli              <- cli.hint(ProjectArg, optDefaultSchema.map(_.projects).getOrElse(Nil))
       optProjectId     <- ~cli.peek(ProjectArg)
+      
       optProject       <- ~optProjectId.orElse(optDefaultSchema.flatMap(_.main)).flatMap { id =>
                               optDefaultSchema.flatMap(_.projects.findBy(id).toOption) }.to[List].headOption
+      
       cli              <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       invoc            <- cli.read()
       io               <- invoc.io()
@@ -184,13 +188,17 @@ object BuildCli {
       debugStr     <- ~invoc(DebugArg).toOption
       multiplexer  <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
       globalPolicy <- Policy.read(io, cli.globalLayout)
-      future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout, globalPolicy)
-                        .apply(TargetId(schema.id, module.ref(project))).andThen { case compRes =>
-                          multiplexer.closeAll()
-                          compRes
-                        }
+      
+      future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
+                          globalPolicy).apply(TargetId(schema.id, module.ref(project))).andThen {
+                          case compRes =>
+                        multiplexer.closeAll()
+                        compRes
+                      }
+      
       _            <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation,
                           config.theme, multiplexer, System.currentTimeMillis)
+      
     } yield io.await(Await.result(future, duration.Duration.Inf).isSuccessful)
   }
 
@@ -238,17 +246,22 @@ object BuildCli {
       _              <- compilation.generateFiles(io, layout)
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
       globalPolicy   <- Policy.read(io, cli.globalLayout)
+
       future         <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
                             globalPolicy).apply(TargetId(schema.id,
                             module.ref(project))).andThen { case compRes =>
                           multiplexer.closeAll()
                           compRes
                         }
+
       _              <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation,
                             config.theme, multiplexer, System.currentTimeMillis)
+
       compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
+
       _              <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
                             dir in layout.pwd, layout, fatJar)
+
     } yield io.await()
   }
 
@@ -316,8 +329,10 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
       compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
+
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
                           Map())(config.theme).foreach(io.println(_))
+
     } yield io.await()
   }
 }
