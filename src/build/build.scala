@@ -115,12 +115,11 @@ object AliasCli {
 
 object BuildCli {
 
-  def context(cli: Cli[CliParam[_]]): Try[MenuContext] =
-    for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-    } yield new MenuContext(cli, layout, config, layer)
+  def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
+    layout <- cli.layout
+    config <- Config.read()(cli.env, cli.globalLayout)
+    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+  } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
@@ -157,11 +156,9 @@ object BuildCli {
     } yield Done
   }
 
-  def compile(
-      optSchema: Option[SchemaId],
-      moduleRef: Option[ModuleRef]
-    )(ctx: MenuContext
-    ): Try[ExitStatus] = {
+  def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
+             (ctx: MenuContext)
+             : Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -186,7 +183,8 @@ object BuildCli {
       _            <- compilation.generateFiles(io, layout)
       debugStr     <- ~invoc(DebugArg).toOption
       multiplexer  <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
-      future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout)
+      globalPolicy <- Policy.read(io, cli.globalLayout)
+      future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout, globalPolicy)
                         .apply(TargetId(schema.id, module.ref(project))).andThen { case compRes =>
                           multiplexer.closeAll()
                           compRes
@@ -239,8 +237,10 @@ object BuildCli {
       _              <- ~compilation.checkoutAll(io, layout)
       _              <- compilation.generateFiles(io, layout)
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
-      future         <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout).apply(
-                            TargetId(schema.id, module.ref(project))).andThen { case compRes =>
+      globalPolicy   <- Policy.read(io, cli.globalLayout)
+      future         <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
+                            globalPolicy).apply(TargetId(schema.id,
+                            module.ref(project))).andThen { case compRes =>
                           multiplexer.closeAll()
                           compRes
                         }
@@ -323,16 +323,15 @@ object BuildCli {
 }
 
 object LayerCli {
-  def init(cli: Cli[CliParam[_]]): Try[ExitStatus] =
-    for {
-      layout <- cli.newLayout
-      invoc  <- cli.read()
-      io     <- invoc.io()
-      layer  <- ~Layer()
-      _      <- layout.furyConfig.mkParents()
-      _      <- ~Layer.save(io, layer, layout)
-      _      <- ~io.println("Created empty layer.fury")
-    } yield io.await()
+  def init(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    layout <- cli.newLayout
+    invoc  <- cli.read()
+    io     <- invoc.io()
+    layer  <- ~Layer()
+    _      <- layout.furyConfig.mkParents()
+    _      <- ~Layer.save(io, layer, layout)
+    _      <- ~io.println("Created empty layer.fury")
+  } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout

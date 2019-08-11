@@ -90,7 +90,6 @@ object StringShow {
 trait StringShow[-T] { def show(value: T): String }
 
 object Compare {
-
   def editDistance(from: String, to: String) = {
     val m       = from.length
     val n       = to.length
@@ -109,5 +108,21 @@ object Compare {
       for (j <- 0 to n) oldDist(j) = dist(j)
     }
     dist(n)
+  }
+
+  def uniquePrefixLength(xs: Set[String]): Int = {
+    val array = xs.to[Array]
+    scala.util.Sorting.quickSort(array)
+    if(array.isEmpty) 0
+    else array.indices.init.foldLeft(-1) { (base, idx) =>
+      val a = array(idx)
+      val b = array(idx + 1)
+      val size = a.length.min(b.length)
+      
+      base.max(((0 until size).indexWhere { i => a(i) != b(i) }) match {
+        case -1 => size + 1
+        case n  => n + 1
+      })
+    }
   }
 }

@@ -25,11 +25,11 @@ import scala.util._
 import scala.collection.mutable.HashMap
 
 import java.io.FileOutputStream
+import java.util.UUID
 import java.util.jar.{JarOutputStream, Manifest => JManifest}
 
 case class Shell(environment: Environment) {
   private val furyHome   = Path(System.getProperty("fury.home"))
-  private val policyFile = furyHome / "etc" / "security" / "fury_application_module.policy"
 
   implicit private[this] val defaultEnvironment: Environment = environment
 
@@ -38,6 +38,7 @@ case class Shell(environment: Environment) {
               securePolicy: Boolean,
               env: Map[String, String],
               properties: Map[String, String],
+              policy: Policy,
               layout: Layout)
              (output: String => Unit)
              : Running = {
@@ -46,8 +47,11 @@ case class Shell(environment: Environment) {
     implicit val defaultEnvironment: Environment =
       Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
 
+    val policyFile = layout.policyDir / UUID.randomUUID().toString
+    policy.save(policyFile)
+
     val allProperties: Map[String, String] =
-      properties.updated("java.security.manager", "").updated("java.security.policy",policyFile.value)
+      properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)
           .updated("fury.sharedDir", layout.sharedDir.value)
 
     val propArgs = allProperties.map { case (k, v) => if(v.isEmpty) str"-D$k" else str"-D$k=$v" }.to[List]

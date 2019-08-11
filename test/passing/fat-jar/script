@@ -5,6 +5,18 @@ fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n bar
 fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.time -A read
+fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
+fury permission require -C java.util.PropertyPermission -T test.property -A read
+fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
+fury permission grant -P 0
+fury permission grant -P 1
+fury permission grant -P 4
+fury permission grant -P 7
+fury permission grant -P c
+fury permission grant -P d
 mkdir -p src/app
 fury source add -d src/app
 echo 'object HelloWorld extends App { println("Hello World") }' > src/app/hw.scala

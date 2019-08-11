@@ -229,6 +229,126 @@ object EnvCli {
   }
 }
 
+object PermissionCli {
+  case class Context(
+      override val cli: Cli[CliParam[_]],
+      override val layout: Layout,
+      override val config: Config,
+      override val layer: Layer,
+      optSchema: Option[Schema],
+      optProject: Option[Project],
+      optModule: Option[Module])
+      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
+  }
+
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout       <- cli.layout
+    config       <- Config.read()(cli.env, cli.globalLayout)
+    layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    cli          <- cli.hint(SchemaArg, layer.schemas)
+    schemaArg    <- ~cli.peek(SchemaArg)
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
+    optProjectId <- ~schema.flatMap { s =>
+                      cli.peek(ProjectArg).orElse(s.main)
+                    }
+    optProject   <- ~schema.flatMap { s =>
+                      optProjectId.flatMap(s.projects.findBy(_).toOption)
+                    }
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    optModule    <- Success { for {
+                      project  <- optProject
+                      moduleId <- optModuleId
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module }
+  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+
+  def require(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      optSchema       <- ~layer.mainSchema.toOption
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
+      allModules       = allSchemas.map(_.moduleRefs).flatten
+      cli             <- cli.hint(ClassArg, Permission.Classes)
+      cli             <- cli.hint(PermissionTargetArg)
+      cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
+      invoc           <- cli.read()
+      io              <- invoc.io()
+      project         <- optProject.ascribe(UnspecifiedProject())
+      module          <- optModule.ascribe(UnspecifiedModule())
+      classArg        <- invoc(ClassArg)
+      targetArg       <- invoc(PermissionTargetArg)
+      actionArg          <- ~invoc(ActionArg).toOption
+      permission      <- ~Permission(classArg, targetArg, actionArg)
+      layer           <- Lenses.updateSchemas(optSchemaId, layer, true) {
+                           Lenses.layer.policy(_, project.id, module.id)
+                         } (_(_) += permission)
+      _               <- ~Layer.save(io, layer, layout)
+    } yield io.await()
+  }
+
+  def obviate(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli      <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
+      cli      <- cli.hint(ForceArg)
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      permHash <- invoc(PermissionArg).map(PermissionHash(_))
+      project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- optModule.ascribe(UnspecifiedModule())
+      entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
+      force    <- ~invoc(ForceArg).isSuccess
+      layer    <- Lenses.updateSchemas(optSchemaId, layer, force) {
+                    Lenses.layer.policy(_, project.id, module.id)
+                  } (_(_) -= entry.permission)
+      _        <- ~Layer.save(io, layer, layout)
+    } yield io.await()
+  }
+  
+  def list(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli     <- cli.hint(RawArg)
+      invoc   <- cli.read()
+      io      <- invoc.io()
+      raw     <- ~invoc(RawArg).isSuccess
+      project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
+      rows    <- ~module.policyEntries.to[List].sortBy(_.hash.key)
+      table   <- ~Tables(config).show(Tables(config).permissions, cli.cols, rows, raw)(identity)
+      schema  <- defaultSchema
+      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project, module)))
+      _       <- ~io.println(table.mkString("\n"))
+    } yield io.await()
+  }
+
+  def grant(ctx: Context): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli      <- cli.hint(ScopeArg, ScopeId.All)
+      cli      <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
+      invoc    <- cli.read()
+      io       <- invoc.io()
+      scopeId  <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
+      project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- optModule.ascribe(UnspecifiedModule())
+      permHash <- invoc(PermissionArg).map(PermissionHash(_))
+      entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
+      policy   <- Policy.read(io, cli.globalLayout)
+      policy   <- ~policy.grant(Scope(scopeId, layout, layer, project), entry.permission)
+      _        <- ~Policy.save(io, cli.globalLayout, policy)
+    } yield io.await()
+  }
+
+}
+
 object PropertyCli {
 
   case class Context(
@@ -301,7 +421,6 @@ object PropertyCli {
                      Lenses.layer.properties(_, project.id, module.id)
                    } (_(_) -= propArg)
       _         <- ~Layer.save(io, layer, layout)
-      optSchema <- ~layer.mainSchema.toOption
     } yield io.await()
   }
 

@@ -101,13 +101,130 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
 }
 
 object Permission {
-  implicit val msgShow: MsgShow[Permission] = p => msg"""${p.className} "${p.context}", "${p.permission}";"""
+  implicit val msgShow: MsgShow[Permission] = stringShow.show
+  
   implicit val stringShow: StringShow[Permission] =
-    p => str"""${p.className} "${p.context}", "${p.permission}";"""
+    p => str"${p.className} ${p.target} ${p.action.getOrElse("-"): String}"
   
   implicit def diff: Diff[Permission] = Diff.gen[Permission]
+
+  val Classes: List[String] = List(
+    "java.awt.AWTPermission",
+    "java.io.FilePermission",
+    "java.io.SerializablePermission",
+    "java.lang.management.ManagementPermission",
+    "java.lang.reflect.ReflectPermission",
+    "java.lang.RuntimePermission",
+    "java.net.NetPermission",
+    "java.net.SocketPermission",
+    "java.net.URLPermission",
+    "java.nio.file.LinkPermission",
+    "java.security.AllPermission",
+    "java.security.SecurityPermission",
+    "java.security.UnresolvedPermission",
+    "java.sql.SQLPermission",
+    "java.util.logging.LoggingPermission",
+    "java.util.PropertyPermission",
+    "javax.management.MBeanPermission",
+    "javax.management.MBeanServerPermission",
+    "javax.management.MBeanTrustPermission",
+    "javax.management.remote.SubjectDelegationPermission",
+    "javax.net.ssl.SSLPermission",
+    "javax.security.auth.AuthPermission",
+    "javax.security.auth.kerberos.DelegationPermission",
+    "javax.security.auth.kerberos.ServicePermission",
+    "javax.security.auth.PrivateCredentialPermission",
+    "javax.sound.sampled.AudioPermission",
+    "javax.xml.bind.JAXBPermission",
+    "javax.xml.ws.WebServicePermission"
+  )
 }
-case class Permission(className: String, context: String, permission: String)
+case class Permission(className: String, target: String, action: Option[String]) {
+  def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
+}
+
+object PermissionHash {
+  implicit val stringShow: StringShow[PermissionHash] = _.key
+  implicit val msgShow: MsgShow[PermissionHash] = _.key
+}
+case class PermissionHash(key: String) extends Key(msg"permission")
+
+object ScopeId {
+  implicit val stringShow: StringShow[ScopeId] = _.id
+
+  case object Project extends ScopeId("project")
+  case object Directory extends ScopeId("directory")
+  //case object Layer extends ScopeId("layer")
+
+  val All = List(Project, Directory)//, Layer)
+
+  def unapply(id: String): Option[ScopeId] = All.find(_.id == id)
+}
+
+sealed abstract class ScopeId(val id: String) extends scala.Product with scala.Serializable
+
+object Scope {
+  def apply(id: ScopeId, layout: Layout, layer: Layer, project: Project) = id match {
+    case ScopeId.Project => ProjectScope(project.id)
+    case ScopeId.Directory => DirectoryScope(layout.base.value)
+    //case ScopeId.Layer => LayerScope()
+  }
+}
+
+sealed trait Scope extends scala.Product with scala.Serializable
+case class DirectoryScope(dir: String) extends Scope
+case class ProjectScope(name: ProjectId) extends Scope
+//case class LayerScope(layerHash: String) extends Scope
+
+object Grant {
+  implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
+  implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
+}
+
+case class Grant(scope: Scope, permission: Permission)
+
+object Policy {
+  def read(io: Io, layout: GlobalLayout): Try[Policy] =
+    Success(Ogdl.read[Policy](layout.policyFile,
+        upgrade(io, layout, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant])))
+
+  def save(io: Io, layout: GlobalLayout, policy: Policy): Try[Unit] =
+    layout.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
+  
+  private def upgrade(io: Io, layout: GlobalLayout, ogdl: Ogdl): Ogdl = ogdl
+}
+
+case class Policy(policy: SortedSet[Grant] = TreeSet()) {
+  def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
+    Policy(policy.filter {
+      case Grant(DirectoryScope(dir), _) => dir == layout.base.value
+      case Grant(ProjectScope(id), _)    => projectId == id
+      //case Grant(LayerScope(hash), _)    => hash == layer.hash
+    })
+
+  def grant(scope: Scope, permission: Permission): Policy =
+    copy(policy = policy + Grant(scope, permission))
+  
+  def save(file: Path): Try[Unit] = file.writeSync {
+    val sb = new StringBuilder()
+    sb.append("grant {\n")
+    policy.foreach { grant =>
+      val p = grant.permission
+      val actionAddendum = p.action.fold("") { a => s""", "$a"""" }
+      sb.append(str""" permission ${p.className} "${p.target}"${actionAddendum};""")
+      sb.append('\n')
+    }
+    sb.append("};\n")
+    sb.toString
+  }
+}
+
+object PermissionEntry {
+  implicit val msgShow: MsgShow[PermissionEntry] = pe => msg"${pe.hash.key} ${pe.permission}"
+  implicit val stringShow: StringShow[PermissionEntry] = pe => pe.hash.key
+}
+
+case class PermissionEntry(permission: Permission, hash: PermissionHash)
 
 object EnvVar {
   implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
@@ -120,6 +237,7 @@ object EnvVar {
     case _                 => None
   }
 }
+
 case class EnvVar(key: String, value: String)
 
 object JavaProperty {
@@ -157,6 +275,11 @@ case class Module(id: ModuleId,
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
   def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
+  
+  def policyEntries: Set[PermissionEntry] = {
+    val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash))
+    policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
+  }
 }
 
 object BloopSpec {
@@ -648,14 +771,15 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               moduleRef: ModuleRef,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
-              layout: Layout)
+              layout: Layout,
+              globalPolicy: Policy)
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
       if(futures.contains(dependencyTarget)) futures
-      else compile(io, dependencyTarget.ref, multiplexer, futures, layout)
+      else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -695,6 +819,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               securePolicy = target.kind == Application,
               env = target.environment,
               properties = target.properties,
+              policy = globalPolicy.forContext(layout, target.ref.projectId),
               layout = layout
             ) { ln =>
               if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
