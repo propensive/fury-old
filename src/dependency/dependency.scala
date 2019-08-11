@@ -341,9 +341,9 @@ object PermissionCli {
       module   <- optModule.ascribe(UnspecifiedModule())
       permHash <- invoc(PermissionArg).map(PermissionHash(_))
       entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
-      policy   <- GlobalPolicy.read(io, cli.globalLayout)
+      policy   <- Policy.read(io, cli.globalLayout)
       policy   <- ~policy.grant(Scope(scopeId, layout, layer, project), entry.permission)
-      _        <- ~GlobalPolicy.save(io, cli.globalLayout, policy)
+      _        <- ~Policy.save(io, cli.globalLayout, policy)
     } yield io.await()
   }
 

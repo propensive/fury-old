@@ -38,7 +38,7 @@ case class Shell(environment: Environment) {
               securePolicy: Boolean,
               env: Map[String, String],
               properties: Map[String, String],
-              policy: GlobalPolicy,
+              policy: Policy,
               layout: Layout)
              (output: String => Unit)
              : Running = {

@@ -183,26 +183,26 @@ object Grant {
 
 case class Grant(scope: Scope, permission: Permission)
 
-object GlobalPolicy {
-  def read(io: Io, layout: GlobalLayout): Try[GlobalPolicy] =
-    Success(Ogdl.read[GlobalPolicy](layout.policyFile,
-        upgrade(io, layout, _)).toOption.getOrElse(GlobalPolicy(SortedSet.empty[Grant])))
+object Policy {
+  def read(io: Io, layout: GlobalLayout): Try[Policy] =
+    Success(Ogdl.read[Policy](layout.policyFile,
+        upgrade(io, layout, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant])))
 
-  def save(io: Io, layout: GlobalLayout, policy: GlobalPolicy): Try[Unit] =
+  def save(io: Io, layout: GlobalLayout, policy: Policy): Try[Unit] =
     layout.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
   
   private def upgrade(io: Io, layout: GlobalLayout, ogdl: Ogdl): Ogdl = ogdl
 }
 
-case class GlobalPolicy(policy: SortedSet[Grant] = TreeSet()) {
-  def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): GlobalPolicy =
-    GlobalPolicy(policy.filter {
+case class Policy(policy: SortedSet[Grant] = TreeSet()) {
+  def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
+    Policy(policy.filter {
       case Grant(DirectoryScope(dir), _) => dir == layout.base.value
       case Grant(ProjectScope(id), _)    => projectId == id
       //case Grant(LayerScope(hash), _)    => hash == layer.hash
     })
 
-  def grant(scope: Scope, permission: Permission): GlobalPolicy =
+  def grant(scope: Scope, permission: Permission): Policy =
     copy(policy = policy + Grant(scope, permission))
   
   def save(file: Path): Try[Unit] = file.writeSync {
@@ -771,7 +771,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
               layout: Layout,
-              globalPolicy: GlobalPolicy)
+              globalPolicy: Policy)
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
     
