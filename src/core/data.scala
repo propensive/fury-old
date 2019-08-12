@@ -206,11 +206,8 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
     copy(policy = policy + Grant(scope, permission))
   
   def checkAll(permissions: Iterable[Permission]): Try[Unit] = {
-    val noPermissions = permissions.to[List].flatMap { p =>
-      if(policy.find(_.permission == p).isEmpty) List(p)
-      else Nil
-    }
-    if(noPermissions.isEmpty) Success(()) else Failure(NoPermissions(noPermissions.to[Set]))
+    val missing = permissions.to[Set] -- policy.map(_.permission)
+    if(missing.isEmpty) Success(()) else Failure(NoPermissions(missing))
   }
 
   def save(file: Path): Try[Unit] = file.writeSync {
