@@ -31,12 +31,11 @@ case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, laye
 
 object SchemaCli {
 
-  def context(cli: Cli[CliParam[_]]) =
-    for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-    } yield SchemaCtx(cli, layout, config, layer)
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout <- cli.layout
+    config <- Config.read()(cli.env, cli.globalLayout)
+    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+  } yield SchemaCtx(cli, layout, config, layer)
 
   def select(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
@@ -63,26 +62,19 @@ object SchemaCli {
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
-      table <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(
-                  _.id)
-      _ <- ~(if(!raw)
-               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
-      _ <- ~io.println(UserMsg { theme =>
-            table.mkString("\n")
-          })
+      table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 
-  private[this] def diffTable(
-      config: Config,
-      left: Schema,
-      right: Schema,
-      rows: Seq[Difference],
-      cols: Int,
-      raw: Boolean
-    ) =
-    Tables(config).show(Tables(config).differences(left.id.key, right.id.key), cols, rows, raw)(
-        _.label)
+  private[this] def diffTable(config: Config,
+                              left: Schema,
+                              right: Schema,
+                              rows: Seq[Difference],
+                              cols: Int,
+                              raw: Boolean) =
+    Tables(config).show(Tables(config).differences(left.id.key, right.id.key), cols, rows, raw)(_.label)
 
   def diff(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
@@ -99,11 +91,8 @@ object SchemaCli {
       other     <- layer.schemas.findBy(otherArg)
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~diffTable(config, schema, other, rows, cli.cols, raw)
-      _ <- ~(if(!raw)
-               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
-      _ <- ~io.println(UserMsg { theme =>
-            table.mkString("\n")
-          })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 

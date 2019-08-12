@@ -28,12 +28,11 @@ object ImportCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
 
-  def context(cli: Cli[CliParam[_]]) =
-    for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-    } yield Context(cli, layout, config, layer)
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout <- cli.layout
+    config <- Config.read()(cli.env, cli.globalLayout)
+    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+  } yield Context(cli, layout, config, layer)
 
   def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -41,15 +40,18 @@ object ImportCli {
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-      cli <- cli.hint(
-                ImportArg,
-                defaultSchema.map(_.importCandidates(Io.silent(config), layout)).getOrElse(Nil))
-      invoc     <- cli.read()
-      io        <- invoc.io()
-      schemaRef <- invoc(ImportArg)
-      layer <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(
-                  _.modify(_)(_ + schemaRef))
-      _ <- ~Layer.save(io, layer, layout)
+
+      cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(Io.silent(config),
+                           layout)).getOrElse(Nil))
+      
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      schemaRef     <- invoc(ImportArg)
+      
+      layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
+                           schemaRef))
+      
+      _             <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -81,17 +83,15 @@ object ImportCli {
       invoc     <- cli.read()
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
-      rows <- ~schema.imports.to[List].map { i =>
-               (i, i.resolve(io, schema, layout))
-             }
-      table <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows, raw)(
-                  _._1.schema.key)
-      _ <- ~(if(!raw)
-               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema))
-             else io)
-      _ <- ~io.println(UserMsg { theme =>
-            table.mkString("\n")
-          })
+      rows      <- ~schema.imports.to[List].map { i => (i, i.resolve(io, schema, layout)) }
+      
+      table     <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows,
+                       raw)(_._1.schema.key)
+      
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema))
+                       else io)
+      
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 }
