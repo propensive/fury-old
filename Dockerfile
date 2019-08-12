@@ -29,6 +29,10 @@ ENV PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:/root/.bloop:${PATH}"
 COPY Makefile /build/Makefile
 COPY etc /build/etc
 
+ENV COURSIER_CACHE="/var/cache/coursier"
+RUN groupadd coursier
+RUN mkdir -p "${COURSIER_CACHE}"
+
 # Build a local version of Fury
 COPY .version /build/.version
 COPY layer.fury /build/layer.fury
@@ -37,6 +41,9 @@ RUN (cd /build && make clean && make dist/install.sh || cat /build/.fury/logs/*)
 
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh
+
+RUN chmod -R 777 "${COURSIER_CACHE}"
+RUN chgrp -R coursier "${COURSIER_CACHE}"
 
 # Install Fury via multiple shells
 COPY etc/testshell.sh /testshell.sh
