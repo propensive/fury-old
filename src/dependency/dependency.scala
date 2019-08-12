@@ -103,7 +103,7 @@ object DependencyCli {
                   Lenses.layer.after(_, project.id, module.id))(_(_) -= moduleRef)
       _ <- ~Layer.save(io, layer, layout)
       optSchema <- ~layer.mainSchema.toOption
-      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout))
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout))
     } yield io.await()
   }
 
@@ -127,7 +127,7 @@ object DependencyCli {
       layer <- Lenses.updateSchemas(optSchemaId, layer, true)(
                   Lenses.layer.after(_, project.id, module.id))(_(_) += moduleRef)
       _ <- ~Layer.save(io, layer, layout)
-      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout))
+      _ <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout))
     } yield io.await()
   }
 }
