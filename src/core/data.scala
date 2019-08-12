@@ -205,6 +205,11 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
   def grant(scope: Scope, permission: Permission): Policy =
     copy(policy = policy + Grant(scope, permission))
   
+  def checkAll(permissions: Iterable[Permission]): Try[Unit] = {
+    val missing = permissions.to[Set] -- policy.map(_.permission)
+    if(missing.isEmpty) Success(()) else Failure(NoPermissions(missing))
+  }
+
   def save(file: Path): Try[Unit] = file.writeSync {
     val sb = new StringBuilder()
     sb.append("grant {\n")
@@ -277,7 +282,7 @@ case class Module(id: ModuleId,
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
   
   def policyEntries: Set[PermissionEntry] = {
-    val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash))
+    val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
   }
 }
@@ -328,8 +333,13 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
 }
 
 object BspConnectionManager {
-  case class Handle(in: OutputStream, out: InputStream, err: InputStream, broken: Promise[Unit])
-      extends AutoCloseable {
+  case class Handle(in: OutputStream,
+                    out: InputStream,
+                    err: InputStream,
+                    broken: Promise[Unit],
+                    launcher: Future[Unit])
+            extends AutoCloseable {
+
     lazy val errReader = new BufferedReader(new InputStreamReader(err))
 
     override def close(): Unit = {
@@ -388,9 +398,7 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
-    val handle = Handle(in, out, err, Promise[Unit])
-
-    Future(blocking {
+    val future = Future(blocking {
       val launcher = new LauncherMain(
         clientIn = bloopIn,
         clientOut = bloopOut,
@@ -413,7 +421,7 @@ object BspConnectionManager {
       case failure       => throw new Exception(s"Launcher failed: $failure")
     }
 
-    handle
+    Handle(in, out, err, Promise[Unit], future)
   }
 }
 
@@ -470,18 +478,19 @@ object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
-  def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
+  def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Try[Compilation] = for {
     hierarchy   <- schema.hierarchy(io, layout.base, layout)
     universe    <- hierarchy.universe
-    compilation <- universe.compilation(io, ref, layout)
+    policy      <- Policy.read(io, globalLayout)
+    compilation <- universe.compilation(io, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover { case x: Throwable =>
                      () //io.println(str"$schema --- ${x.getMessage}")
                    }
   } yield compilation
 
-  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout))
+  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Future[Try[Compilation]] = {
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout))
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
       case None         => fn
@@ -490,8 +499,8 @@ object Compilation {
     compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] =
-    Await.result(asyncCompilation(io, schema, ref, layout), Duration.Inf)
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Try[Compilation] =
+    Await.result(asyncCompilation(io, schema, ref, layout, globalLayout), Duration.Inf)
 }
 
 object LineNo { implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString)) }
@@ -886,6 +895,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         compiler,
         module.bloopSpec,
         module.params.to[List],
+        module.policy.to[List],
         ref.intransitive,
         module.localSources.map(_ in entity.path).to[List] ++ module.sharedSources
           .map(_.path in layout.sharedDir)
@@ -937,7 +947,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     module <- entity.project(ref.moduleId)
   } yield module
 
-  def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
+  def compilation(io: Io, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = for {
     target    <- makeTarget(io, ref, layout)
     entity    <- entity(ref.projectId)
     graph     <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
@@ -949,6 +959,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     targets   <- graph.keys.map { targetId =>
                   makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
                 }.sequence.map(_.toMap)
+    permissions = targets.flatMap(_._2.permissions)
+    _         <- policy.checkAll(permissions)
     appModules = targets.filter(_._2.executed)
     subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] +
                      TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
@@ -1430,6 +1442,7 @@ case class Target(ref: ModuleRef,
                   compiler: Option[Target],
                   bloopSpec: Option[BloopSpec],
                   params: List[Parameter],
+                  permissions: List[Permission],
                   intransitive: Boolean,
                   sourcePaths: List[Path],
                   environment: Map[String, String],

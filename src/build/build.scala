@@ -182,7 +182,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
       _            <- ~compilation.checkoutAll(io, layout)
       _            <- compilation.generateFiles(io, layout)
       debugStr     <- ~invoc(DebugArg).toOption
@@ -241,7 +241,7 @@ object BuildCli {
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module         <- optModule.ascribe(UnspecifiedModule())
       fatJar          = invoc(FatJarArg).toOption.isDefined
-      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
+      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
       _              <- ~compilation.checkoutAll(io, layout)
       _              <- compilation.generateFiles(io, layout)
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
@@ -283,7 +283,7 @@ object BuildCli {
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
       _            <- compilation.saveNative(io, module.ref(project), dir in layout.pwd, layout, main)
@@ -306,7 +306,7 @@ object BuildCli {
       io           <- invoc.io()
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
       classpath    <- ~compilation.classpath(module.ref(project), layout)
       _            <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
@@ -328,8 +328,8 @@ object BuildCli {
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout)
-
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+      
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
                           Map())(config.theme).foreach(io.println(_))
 

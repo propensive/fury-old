@@ -102,7 +102,7 @@ object DependencyCli {
 
       _         <- ~Layer.save(io, layer, layout)
       optSchema <- ~layer.mainSchema.toOption
-      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout))
+      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout))
     } yield io.await()
   }
 
@@ -127,7 +127,10 @@ object DependencyCli {
                               module.id))(_(_) += moduleRef)
 
       _                <- ~Layer.save(io, layer, layout)
-      _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout))
+
+      _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout,
+                              cli.globalLayout))
+
     } yield io.await()
   }
 }
