@@ -30,14 +30,13 @@ import Lenses._
 
 object RepoCli {
 
-  def context(cli: Cli[CliParam[_]]) =
-    for {
-      layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-    } yield Context(cli, layout, config, layer)
-
   case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
+  
+  def context(cli: Cli[CliParam[_]]) = for {
+    layout <- cli.layout
+    config <- Config.read()(cli.env, cli.globalLayout)
+    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+  } yield Context(cli, layout, config, layer)
 
   def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -51,11 +50,8 @@ object RepoCli {
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       io        <- invoc.io()
       table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
-      _ <- ~(if(!raw)
-               io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
-      _ <- ~io.println(UserMsg { theme =>
-            table.mkString("\n")
-          })
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
 
@@ -91,23 +87,22 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       dir       <- invoc(DirArg)
       bareRepo  <- repo.repo.fetch(io, layout)
-      absPath <- (for {
-                  absPath <- dir.absolutePath()
-                  _       <- Try(absPath.mkdir())
-                  _ <- if(absPath.empty) Success(())
-                      else Failure(new Exception("Non-empty dir exists"))
-                } yield absPath).orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+      absPath   <- { for {
+                     absPath <- dir.absolutePath()
+                     _       <- Try(absPath.mkdir())
 
-      _ <- ~layout.shell.git.sparseCheckout(
-              bareRepo,
-              absPath,
-              List(),
-              refSpec = repo.track.id,
-              commit = repo.commit.id)
-      newRepo <- ~repo.copy(local = Some(absPath))
-      lens    <- ~Lenses.layer.repos(schema.id)
-      layer   <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _       <- ~Layer.save(io, layer, layout)
+                     _       <- if(absPath.empty) Success(())
+                                else Failure(new Exception("Non-empty dir exists"))
+
+                   } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+
+      _         <- ~layout.shell.git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
+                       repo.commit.id)
+
+      newRepo   <- ~repo.copy(local = Some(absPath))
+      lens      <- ~Lenses.layer.repos(schema.id)
+      layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+      _         <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -122,31 +117,30 @@ object RepoCli {
       invoc     <- cli.read()
       io        <- invoc.io()
       all       <- ~invoc(AllArg).toOption
-      optRepos <- invoc(RepoArg).toOption
-                   .map(scala.collection.immutable.SortedSet(_))
-                   .orElse(all.map(_ => schema.repos.map(_.id)))
-                   .ascribe(exoskeleton.MissingArg("repo"))
-      repos <- optRepos.map(schema.repo(_, layout)).sequence
-      io    <- invoc.io()
-      msgs  <- repos.map(_.repo.update(layout).map(io.println(_))).sequence
-      lens  <- ~Lenses.layer.repos(schema.id)
-      newRepos <- repos
-                   .map(
-                       repo =>
-                         for {
-                           commit  <- repo.repo.getCommitFromTag(layout, repo.track).map(Commit(_))
-                           newRepo = repo.copy(commit = commit)
-                         } yield (newRepo, repo)
-                   )
-                   .sequence
-      newLayer = newRepos.foldLeft(layer) { (layer, repoDiff) =>
-        repoDiff match { case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
-      }
-      _ <- ~Layer.save(io, newLayer, layout)
-      _ <- ~newRepos.foreach {
-            case (newRepo, _) =>
-              io.println(s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.commit.id}]")
-          }
+      
+      optRepos  <- invoc(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
+                       schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
+
+      repos     <- optRepos.map(schema.repo(_, layout)).sequence
+      io        <- invoc.io()
+      msgs      <- repos.map(_.repo.update(layout).map(io.println(_))).sequence
+      lens      <- ~Lenses.layer.repos(schema.id)
+
+      newRepos  <- repos.map { repo => for {
+                      commit  <- repo.repo.getCommitFromTag(layout, repo.track).map(Commit(_))
+                      newRepo = repo.copy(commit = commit)
+                   } yield (newRepo, repo) }.sequence
+
+      newLayer   = newRepos.foldLeft(layer) { (layer, repoDiff) => repoDiff match {
+                     case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
+                   }
+
+      _         <- ~Layer.save(io, newLayer, layout)
+
+      _         <- ~newRepos.foreach { case (newRepo, _) =>
+                     io.println(s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.commit.id}]")
+                   }
+
     } yield io.await()
   }
 
@@ -160,54 +154,51 @@ object RepoCli {
       cli            <- cli.hint(RepoNameArg, projectNameOpt)
       remoteOpt      <- ~cli.peek(UrlArg)
       repoOpt        <- ~remoteOpt.map(Repo.fromString(_))
-      versions <- repoOpt.map { repo =>
-                   layout.shell.git.lsRemote(repo.url)
-                 }.to[List].sequence.map(_.flatten).recover { case e => Nil }
-      cli          <- cli.hint(VersionArg, versions)
-      invoc        <- cli.read()
-      io           <- invoc.io()
-      optSchemaArg <- ~invoc(SchemaArg).toOption
-      schemaArg    <- ~optSchemaArg.getOrElse(layer.main)
-      schema       <- layer.schemas.findBy(schemaArg)
-      remote       <- ~invoc(UrlArg).toOption
-      dir          <- ~invoc(DirArg).toOption
-      version      <- ~invoc(VersionArg).toOption.getOrElse(RefSpec.master)
-      suggested <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
-                    RepoId(d.value.split("/").last)
-                  })
-      urlArg <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
-      repo   <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
-      _      <- repo.fetch(io, layout)
-      commit <- repo
-                 .getCommitFromTag(layout, version)
-                 .toOption
-                 .ascribe(exoskeleton.InvalidArgValue("version", version.id))
-      nameArg <- invoc(RepoNameArg).toOption
-                  .orElse(suggested)
-                  .ascribe(exoskeleton.MissingArg("name"))
-      sourceRepo <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
-      lens       <- ~Lenses.layer.repos(schema.id)
-      layer      <- ~(lens.modify(layer)(_ + sourceRepo))
-      _          <- ~Layer.save(io, layer, layout)
+      
+      versions       <- repoOpt.map { repo => layout.shell.git.lsRemote(repo.url) }.to[List].sequence.map(
+                            _.flatten).recover { case e => Nil }
+
+      cli            <- cli.hint(VersionArg, versions)
+      invoc          <- cli.read()
+      io             <- invoc.io()
+      optSchemaArg   <- ~invoc(SchemaArg).toOption
+      schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
+      schema         <- layer.schemas.findBy(schemaArg)
+      remote         <- ~invoc(UrlArg).toOption
+      dir            <- ~invoc(DirArg).toOption
+      version        <- ~invoc(VersionArg).toOption.getOrElse(RefSpec.master)
+
+      suggested      <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
+                          RepoId(d.value.split("/").last)
+                        })
+
+      urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
+      repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      _              <- repo.fetch(io, layout)
+
+      commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
+                            exoskeleton.InvalidArgValue("version", version.id))
+
+      nameArg        <- invoc(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
+      sourceRepo     <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
+      lens           <- ~Lenses.layer.repos(schema.id)
+      layer          <- ~(lens.modify(layer)(_ + sourceRepo))
+      _              <- ~Layer.save(io, layer, layout)
     } yield io.await()
   }
 
   def update(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli       <- cli.hint(DirArg)
-      cli       <- cli.hint(UrlArg)
-      cli       <- cli.hint(ForceArg)
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
-      schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(RepoArg, schema.repos)
-      optRepo   <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
-      versions <- optRepo
-                   .to[List]
-                   .map(_.repo.path(layout))
-                   .map(layout.shell.git.showRefs(_))
-                   .sequence
+      cli         <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli         <- cli.hint(DirArg)
+      cli         <- cli.hint(UrlArg)
+      cli         <- cli.hint(ForceArg)
+      schemaArg   <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema      <- layer.schemas.findBy(schemaArg)
+      cli         <- cli.hint(RepoArg, schema.repos)
+      optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
+      versions    <- optRepo.to[List].map(_.repo.path(layout)).map(layout.shell.git.showRefs(_)).sequence
       cli         <- cli.hint(VersionArg, versions.flatten)
       invoc       <- cli.read()
       io          <- invoc.io()
