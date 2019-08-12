@@ -249,7 +249,9 @@ schemas	default	id	default
 						bloopSpec	None
 						environment	
 						properties	
-						policy	
+						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
+								target	modifyThread
+								action	None
 					module	id	module
 						kind	Library
 						main	None
