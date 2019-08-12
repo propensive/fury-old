@@ -55,7 +55,12 @@ want to make this change to all schemas, please add the --force/-F argument.""")
         case MissingArg(param) =>
           cli.abort(msg"The parameter $param was not provided.")
         case NoPermissions(perms) =>
-          val permissions = perms.map { p => str"$p" }.mkString("  ", "\n  ", "\n")
+          val prefixLength = Compare.uniquePrefixLength(perms.map(_.hash)).max(3)
+          val rows = perms.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }.to[List]
+          
+          val permissions = Tables(cli.config).show(Tables(cli.config).permissions, cli.cols, rows,
+              false)(identity(_)).mkString("\n")
+
           cli.abort(msg"""The following permissions are required to run the build:
 ${permissions}
 You can grant these permissions with,

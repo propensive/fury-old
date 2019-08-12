@@ -336,8 +336,13 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
 }
 
 object BspConnectionManager {
-  case class Handle(in: OutputStream, out: InputStream, err: InputStream, broken: Promise[Unit])
-      extends AutoCloseable {
+  case class Handle(in: OutputStream,
+                    out: InputStream,
+                    err: InputStream,
+                    broken: Promise[Unit],
+                    launcher: Future[Unit])
+            extends AutoCloseable {
+
     lazy val errReader = new BufferedReader(new InputStreamReader(err))
 
     override def close(): Unit = {
@@ -396,9 +401,7 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
-    val handle = Handle(in, out, err, Promise[Unit])
-
-    Future(blocking {
+    val future = Future(blocking {
       val launcher = new LauncherMain(
         clientIn = bloopIn,
         clientOut = bloopOut,
@@ -421,7 +424,7 @@ object BspConnectionManager {
       case failure       => throw new Exception(s"Launcher failed: $failure")
     }
 
-    handle
+    Handle(in, out, err, Promise[Unit], future)
   }
 }
 
