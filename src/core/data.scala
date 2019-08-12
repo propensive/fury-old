@@ -285,7 +285,7 @@ case class Module(id: ModuleId,
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
   
   def policyEntries: Set[PermissionEntry] = {
-    val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).min(3)
+    val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
   }
 }

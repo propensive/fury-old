@@ -11,14 +11,14 @@ fury permission require -C java.util.PropertyPermission -T scala.time -A read
 fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
-fury permission grant -P 0
-fury permission grant -P 1
-fury permission grant -P 4
-fury permission grant -P 7
-fury permission grant -P c
-fury permission grant -P d
+fury permission grant -P 0bc
+fury permission grant -P 190
+fury permission grant -P 4d1
+fury permission grant -P 75e
+fury permission grant -P cd7
+fury permission grant -P d42
 fury permission require -C java.io.FilePermission -T '.content' -A write
-fury permission grant -P b
+fury permission grant -P b7d
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write("Hello World 2\n"); close() } }' > src/hw.scala

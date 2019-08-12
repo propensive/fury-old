@@ -22,6 +22,29 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+					compiler	id	compiler
+						kind	Compiler
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	
+						binaries	org.scala-lang:scala-compiler:2.12.8	binRepo	central
+								group	org.scala-lang
+								artifact	scala-compiler
+								version	2.12.8
+						resources	
+						bloopSpec	Some	org	scala-lang.org
+								name	scala-compiler
+								version	2.12.8
+						environment	
+						properties	
+						policy	
 					core	id	core
 						kind	Library
 						main	None
@@ -498,8 +521,54 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-				main	Some	menu
+				main	Some	compiler
 				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			hello-world	id	hello-world
+				modules	app	id	app
+						kind	Application
+						main	Some	HelloWorld
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	java.io.FilePermission .content write	className	java.io.FilePermission
+								target	.content
+								action	Some	write
+							java.lang.RuntimePermission getenv.TEST1 -	className	java.lang.RuntimePermission
+								target	getenv.TEST1
+								action	None
+							java.util.PropertyPermission scala.copyright.string read	className	java.util.PropertyPermission
+								target	scala.copyright.string
+								action	Some	read
+							java.util.PropertyPermission scala.maven.version.number read	className	java.util.PropertyPermission
+								target	scala.maven.version.number
+								action	Some	read
+							java.util.PropertyPermission scala.time read	className	java.util.PropertyPermission
+								target	scala.time
+								action	Some	read
+							java.util.PropertyPermission scala.version.number read	className	java.util.PropertyPermission
+								target	scala.version.number
+								action	Some	read
+							java.util.PropertyPermission test.property read	className	java.util.PropertyPermission
+								target	test.property
+								action	Some	read
+				main	Some	app
+				license	unknown
 				description	
 				compiler	Some	projectId	scala
 						moduleId	compiler
@@ -541,11 +610,11 @@ schemas	default	id	default
 			platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	e4fbf14f16e7c70a5e8a2bbfb6b47687cf1c20da
+				commit	0ae0aa52cd6cdd967cd8f6fd2ca5e5db5ca5c8f0
 				local	None
 		imports	platform:default	repo	platform
 				schema	default
-		main	Some	fury
+		main	Some	hello-world
 main	default
 aliases	test	cmd	test
 		description	run the Fury tests
