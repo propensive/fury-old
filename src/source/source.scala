@@ -98,7 +98,10 @@ object SourceCli {
                          module.id))(_(_) --= sourceToDel)
       
       _           <- ~Layer.save(io, layer, layout)
-      _           <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout, cli.globalLayout))
+
+      _           <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
+                         cli.globalLayout))
+
     } yield io.await()
   }
 

@@ -51,6 +51,5 @@ RUN su -l bash_user -s /bin/bash -c "source ~/.bashrc && fury start && fury abou
 ADD etc/integration /integration
 ADD test /home/bash_user/test
 RUN chown -R bash_user:bash_user /home/bash_user/test
-RUN chown -R bash_user:bash_user /home/bash_user/.config
 
-RUN FURY_VERSION=`cat /build/.version`; ln -sf "/home/bash_user/fury-${FURY_VERSION}/bin/fury" /usr/local/bin/fury
+RUN FURY_VERSION=`cat /build/.version`; ln -sf "/home/bash_user/.fury/bin/fury" /usr/local/bin/fury

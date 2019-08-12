@@ -183,7 +183,10 @@ test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
 
 integration-isolated: ci
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /integration'
+	@docker run -u root -w /root -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /integration'
+
+docker-console: ci
+	@docker run -u bash_user -w /home/bash_user -ti $(DOCKER_TAG) /bin/bash
 
 ci:
 	docker build -t $(DOCKER_TAG) .

@@ -48,6 +48,6 @@ EOF
 chown -R "$NEW_USER" "$NEW_HOME"
 chmod +x "$NEW_HOME/commands"
 
-su -l "$NEW_USER" -c "/install.sh"
+su -l "$NEW_USER" -c "/install.sh ${NEW_HOME}/.fury"
 
-su -l "$NEW_USER" -c "$NEW_HOME/commands"
+su -l "$NEW_USER" -c "${NEW_HOME}/commands"

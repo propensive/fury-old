@@ -127,7 +127,10 @@ object DependencyCli {
                               module.id))(_(_) += moduleRef)
 
       _                <- ~Layer.save(io, layer, layout)
-      _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout))
+
+      _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout,
+                              cli.globalLayout))
+
     } yield io.await()
   }
 }
