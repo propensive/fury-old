@@ -54,6 +54,14 @@ want to make this change to all schemas, please add the --force/-F argument.""")
               msg"""Could not find the file $path. Run `fury layer init` to create a new layer.""")
         case MissingArg(param) =>
           cli.abort(msg"The parameter $param was not provided.")
+        case NoPermissions(perms) =>
+          val permissions = perms.map { p => str"$p" }.mkString("  ", "\n  ", "\n")
+          cli.abort(msg"""The following permissions are required to run the build:
+${permissions}
+You can grant these permissions with,
+
+  fury permission grant -P <permission hash>
+""")
         case NoPreviousRevision =>
           cli.abort(msg"No earlier revision can be found")
         case LauncherFailure(msg) =>

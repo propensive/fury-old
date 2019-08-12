@@ -127,7 +127,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer wi
                           }
                         }.sequence.map(_.flatten.toMap)
       allModuleRefs  = graph.keys
-      modules       <- allModuleRefs.traverse(ref => universe.getMod(ref).map((ref, _)))
+      modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
       targets       <- graph.keys.map { key =>
                          universe.makeTarget(io, key, layout).map(key -> _)
                        }.sequence.map(_.toMap)

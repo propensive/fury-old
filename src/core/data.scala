@@ -205,6 +205,14 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
   def grant(scope: Scope, permission: Permission): Policy =
     copy(policy = policy + Grant(scope, permission))
   
+  def checkAll(permissions: Iterable[Permission]): Try[Unit] = {
+    val noPermissions = permissions.to[List].flatMap { p =>
+      if(policy.find(_.permission == p).isEmpty) List(p)
+      else Nil
+    }
+    if(noPermissions.isEmpty) Success(()) else Failure(NoPermissions(noPermissions.to[Set]))
+  }
+
   def save(file: Path): Try[Unit] = file.writeSync {
     val sb = new StringBuilder()
     sb.append("grant {\n")
@@ -470,18 +478,19 @@ object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
-  def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
+  def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Try[Compilation] = for {
     hierarchy   <- schema.hierarchy(io, layout.base, layout)
     universe    <- hierarchy.universe
-    compilation <- universe.compilation(io, ref, layout)
+    policy      <- Policy.read(io, globalLayout)
+    compilation <- universe.compilation(io, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover { case x: Throwable =>
                      () //io.println(str"$schema --- ${x.getMessage}")
                    }
   } yield compilation
 
-  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Future[Try[Compilation]] = {
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout))
+  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Future[Try[Compilation]] = {
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout))
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
       case None         => fn
@@ -490,8 +499,8 @@ object Compilation {
     compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout): Try[Compilation] =
-    Await.result(asyncCompilation(io, schema, ref, layout), Duration.Inf)
+  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Try[Compilation] =
+    Await.result(asyncCompilation(io, schema, ref, layout, globalLayout), Duration.Inf)
 }
 
 object LineNo { implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString)) }
@@ -886,6 +895,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         compiler,
         module.bloopSpec,
         module.params.to[List],
+        module.policy.to[List],
         ref.intransitive,
         module.localSources.map(_ in entity.path).to[List] ++ module.sharedSources
           .map(_.path in layout.sharedDir)
@@ -937,7 +947,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     module <- entity.project(ref.moduleId)
   } yield module
 
-  def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] = for {
+  def compilation(io: Io, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = for {
     target    <- makeTarget(io, ref, layout)
     entity    <- entity(ref.projectId)
     graph     <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
@@ -949,6 +959,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     targets   <- graph.keys.map { targetId =>
                   makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
                 }.sequence.map(_.toMap)
+    permissions = targets.flatMap(_._2.permissions)
+    _         <- policy.checkAll(permissions)
     appModules = targets.filter(_._2.executed)
     subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] +
                      TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
@@ -1430,6 +1442,7 @@ case class Target(ref: ModuleRef,
                   compiler: Option[Target],
                   bloopSpec: Option[BloopSpec],
                   params: List[Parameter],
+                  permissions: List[Permission],
                   intransitive: Boolean,
                   sourcePaths: List[Path],
                   environment: Map[String, String],
