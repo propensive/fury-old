@@ -860,7 +860,14 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   }
 }
 
-case class Entity(project: Project, schema: Schema, path: Path)
+case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
+
+case class Entity(project: Project, schema: Schema, path: Path) {
+  def spec: ProjectSpec = {
+    val repoIds = project.allRepoIds
+    ProjectSpec(project, schema.repos.to[List].filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
+  }
+}
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(entities: Map[ProjectId, Entity] = Map()) {
@@ -975,18 +982,18 @@ case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
     val localProjectIds = schema.projects.map(_.id)
     
     def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
-      projects <- universe
-      nextProjects <- hierarchy.universe
-      potentialConflictIds = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+      projects             <- universe
+      nextProjects         <- hierarchy.universe
+      potentialConflictIds  = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
       
-      conflictIds = potentialConflictIds.filter { id =>
-        projects.entity(id).map(_.project) != nextProjects.entity(id).map(_.project)
-      }
+      conflictIds           = potentialConflictIds.filter { id =>
+                                projects.entity(id).map(_.spec) != nextProjects.entity(id).map(_.spec)
+                              }
       
-      allProjects <- conflictIds match {
-        case x if x.isEmpty => Success(projects ++ nextProjects)
-        case _ => Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
-      }
+      allProjects          <- conflictIds match {
+                                case x if x.isEmpty => Success(projects ++ nextProjects)
+                                case _ => Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
+                              }
     } yield allProjects
 
     val empty: Try[Universe] = Success(Universe())
@@ -1480,6 +1487,11 @@ case class Project(id: ProjectId,
       case Success(_) => Failure(ModuleAlreadyExists(moduleId))
       case _          => Success(moduleId)
     }
+
+  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).to[List].flatMap {
+    case ExternalSource(repoId, _) => List(repoId)
+    case _                         => List()
+  }.to[Set]
 }
 
 object License {
