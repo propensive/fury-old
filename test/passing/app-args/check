@@ -7,5 +7,6 @@ Set current module to app
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 0
-Hello World
+arg1
+arg2
 
