@@ -1488,10 +1488,7 @@ case class Project(id: ProjectId,
       case _          => Success(moduleId)
     }
 
-  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).to[List].flatMap {
-    case ExternalSource(repoId, _) => List(repoId)
-    case _                         => List()
-  }.to[Set]
+  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect{ case ExternalSource(repoId, _) => repoId }
 }
 
 object License {
