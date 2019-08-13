@@ -24,7 +24,7 @@ import scala.annotation._
 
 abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
-  def create(key: K): T
+  def create(key: K, io: Io): T
   def destroy(value: T): Unit
   def isBad(value: T): Boolean
 
@@ -35,10 +35,10 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   def size: Int = pool.size
 
   @tailrec
-  private[this] def createOrRecycle(key: K): T = {
+  private[this] def createOrRecycle(key: K, io: Io): T = {
     val result = pool.get(key) match {
       case None =>
-        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+        Try(Await.result(Future(blocking(create(key, io))), timeout.milliseconds)).map { value =>
           pool(key) = value
           Some(value)
         }.toOption.getOrElse(None)
@@ -50,12 +50,12 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
         }
         else Some(value)
     }
-    if(result.isEmpty) createOrRecycle(key) else result.get
+    if(result.isEmpty) createOrRecycle(key, io) else result.get
   }
 
-  def borrow[S](key: K)(action: T => S): S = {
+  def borrow[S](key: K, io: Io)(action: T => S): S = {
     val value: T = synchronized {
-      pool.get(key).filter(!isBad(_)).fold(createOrRecycle(key)) { value =>
+      pool.get(key).filter(!isBad(_)).fold(createOrRecycle(key, io)) { value =>
         pool -= key
         value
       }

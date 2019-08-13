@@ -336,14 +336,14 @@ object BspConnectionManager {
   case class Handle(in: OutputStream,
                     out: InputStream,
                     err: InputStream,
-                    broken: Promise[Unit],
+                    broken: Promise[Exception],
                     launcher: Future[Unit])
             extends AutoCloseable {
 
     lazy val errReader = new BufferedReader(new InputStreamReader(err))
 
     override def close(): Unit = {
-      broken.success(())
+      broken.success(new Exception("Closed"))
       in.close()
       out.close()
       err.close()
@@ -384,7 +384,7 @@ object BspConnectionManager {
 
   private val bloopVersion = "1.3.2"
 
-  def bloopLauncher: Handle = {
+  def bloopLauncher(io: Io): Handle = {
 
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
@@ -398,6 +398,14 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
+    val startedServer = Promise[Unit]()
+
+    startedServer.future.andThen { case unit =>
+      io.println("Started bloop server.")
+    }
+
+    val broken = Promise[Exception]()
+
     val future = Future(blocking {
       val launcher = new LauncherMain(
         clientIn = bloopIn,
@@ -406,7 +414,7 @@ object BspConnectionManager {
         charset = StandardCharsets.UTF_8,
         shell = bloop.launcher.core.Shell.default,
         nailgunPort = None,
-        startedServer = Promise[Unit](),
+        startedServer = startedServer,
         generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
       )
       
@@ -418,10 +426,10 @@ object BspConnectionManager {
       )
     }).map {
       case SuccessfulRun => ()
-      case failure       => throw new Exception(s"Launcher failed: $failure")
+      case failure       => broken.success(new Exception(s"Launcher failed: $failure")); throw new Exception()
     }
 
-    Handle(in, out, err, Promise[Unit], future)
+    Handle(in, out, err, broken, future)
   }
 }
 
@@ -433,11 +441,11 @@ object Compilation {
     def destroy(value: BspConnection): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
 
-    def create(dir: Path): BspConnection = {
+    def create(dir: Path, io: Io): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
       val bspTraceBuffer = new CharArrayWriter()
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
-      val handle = BspConnectionManager.bloopLauncher
+      val handle = BspConnectionManager.bloopLauncher(io)
       BspConnectionManager.HandleHandler.handle(handle, log)
       val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
       
@@ -462,7 +470,8 @@ object Compilation {
       val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
       
       handle.broken.future.andThen {
-        case Success(_) =>
+        case Success(failure) =>
+          log.println(s"Connection to BSP failed: ${failure.getMessage}")
           log.println(s"Connection for ${dir.value} has been closed.")
           log.flush()
           bspConn.future.cancel(true)
@@ -647,7 +656,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
-    Compilation.bspPool.borrow(layout.furyDir) { conn =>
+    Compilation.bspPool.borrow(layout.furyDir, io) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         Try(server.workspaceBuildTargets.get).map(_.getTargets.asScala.toString)
       }
@@ -750,7 +759,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
     
     Future(blocking {
-      Compilation.bspPool.borrow(layout.furyDir) { conn =>
+      Compilation.bspPool.borrow(layout.furyDir, io) { conn =>
         val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
 
