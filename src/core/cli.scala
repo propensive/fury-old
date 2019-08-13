@@ -128,6 +128,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   class Invocation private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
     def io(): Try[Io] = Success(new Io(output, config))
+    def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
   def cols: Int = Terminal.columns(env).getOrElse(100)

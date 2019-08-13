@@ -781,14 +781,15 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
               layout: Layout,
-              globalPolicy: Policy)
+              globalPolicy: Policy,
+              args: List[String])
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       io.println(str"Scheduling ${dependencyTarget}")
       if(futures.contains(dependencyTarget)) futures
-      else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy)
+      else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -829,7 +830,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               env = target.environment,
               properties = target.properties,
               policy = globalPolicy.forContext(layout, target.ref.projectId),
-              layout = layout
+              layout = layout,
+              args
             ) { ln =>
               if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
               else {

@@ -39,7 +39,8 @@ case class Shell(environment: Environment) {
               env: Map[String, String],
               properties: Map[String, String],
               policy: Policy,
-              layout: Layout)
+              layout: Layout,
+              args: List[String])
              (output: String => Unit)
              : Running = {
     layout.sharedDir.mkdir()
@@ -60,7 +61,7 @@ case class Shell(environment: Environment) {
     
     val cmd =
       if(securePolicy) sh"java $propArgs -cp $classpathStr $main"
-      else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main"
+      else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main $args"
 
     cmd.async(output(_), output(_))
   }

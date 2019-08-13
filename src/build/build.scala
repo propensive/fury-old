@@ -190,7 +190,7 @@ object BuildCli {
       globalPolicy <- Policy.read(io, cli.globalLayout)
       
       future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
-                          globalPolicy).apply(TargetId(schema.id, module.ref(project))).andThen {
+                          globalPolicy, invoc.suffix).apply(TargetId(schema.id, module.ref(project))).andThen {
                           case compRes =>
                         multiplexer.closeAll()
                         compRes
@@ -248,7 +248,7 @@ object BuildCli {
       globalPolicy   <- Policy.read(io, cli.globalLayout)
 
       future         <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
-                            globalPolicy).apply(TargetId(schema.id,
+                            globalPolicy, invoc.suffix).apply(TargetId(schema.id,
                             module.ref(project))).andThen { case compRes =>
                           multiplexer.closeAll()
                           compRes
