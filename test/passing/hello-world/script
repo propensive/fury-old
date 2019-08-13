@@ -22,6 +22,7 @@ fury permission grant -P b7d
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { println("Hello World\n"); close() } }' > src/hw.scala
+fury stop >> /dev/null
 fury build compile --output linear
 echo $?
 cat .content
