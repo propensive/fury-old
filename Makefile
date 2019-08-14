@@ -62,7 +62,7 @@ bootstrap/bin:
 
 jmh_jars=org.openjdk.jmh:jmh-core:1.21 org.openjdk.jmh:jmh-generator-bytecode:1.21 org.openjdk.jmh:jmh-generator-reflection:1.21 org.openjdk.jmh:jmh-generator-asm:1.21
 bsp_jars=org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.6.0 ch.epfl.scala:bsp4j:2.0.0-M4 ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
-coursier_jars=io.get-coursier:coursier_2.12:2.0.0-RC3-2
+coursier_jars=io.get-coursier:coursier_2.12:1.1.0-M14-4
 external_jars=$(jmh_jars) $(bsp_jars) $(coursier_jars)
 
 dependency-jars: dist/bundle/bin/coursier dist/bundle/lib
@@ -154,7 +154,7 @@ dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D)) $(foreach D
 	chmod +x $@
 
 dist/bundle/bin/coursier: dist/bundle/bin/.dir
-	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v2.0.0-RC3-2/coursier
+	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v1.1.0-M14-4/coursier
 	chmod +x $@
 
 dist/bundle/bin/ng.c: bootstrap/ng/.dir
