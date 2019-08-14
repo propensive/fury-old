@@ -49,18 +49,24 @@ if [ "$1" = "" ]; then
 
   
   fury start
+  cp ~/.furyrc/config.fury ~/.furyrc/.config.fury.bak
   fury config set --theme nocolor
 
   for ATEST in $(ls $ROOT/test/passing); do
     let ACOUNT="$ACOUNT+1"
+    fury stop
+    fury start
     runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
   done
 
   for BTEST in $(ls $ROOT/test/pending); do
     let BCOUNT="$BCOUNT+1"
+    fury stop
     runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
   done
 
+  mv ~/.furyrc/.config.fury.bak ~/.furyrc/config.fury
+  
   echo ""
   echo "===================================================================================================="
   echo " Passing tests     PASSED: $APASSED"

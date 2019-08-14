@@ -28,7 +28,6 @@ mkdir -p src/app
 fury source add -d src/app
 echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write(Constants.text); close() } }' > src/app/hw.scala
 mkdir -p out
-fury stop >> /dev/null
 fury build save --dir out --output linear
 echo $?
 ls out

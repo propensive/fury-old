@@ -22,5 +22,4 @@ fury property add -D test.property=something
 mkdir -p src/app
 fury source add -d src/app
 echo 'object Print extends App { println(System.getenv("TEST1")+":"+System.getProperty("test.property")) }' > src/app/example.scala
-fury stop >> /dev/null
 fury build compile --output linear
