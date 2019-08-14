@@ -535,15 +535,10 @@ schemas	default	id	default
 				license	unknown
 				description	
 				compiler	None
-		repos	fury	id	fury
-				repo	git@github.com:propensive/fury.git
-				track	master
-				commit	bd2495ba835321077c539921b7efe4bb3b64aef7
-				local	Some	../fury
-			platform	id	platform
+		repos	platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	e4fbf14f16e7c70a5e8a2bbfb6b47687cf1c20da
+				commit	0ae0aa52cd6cdd967cd8f6fd2ca5e5db5ca5c8f0
 				local	None
 		imports	platform:default	repo	platform
 				schema	default
