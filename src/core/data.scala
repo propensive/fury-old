@@ -401,7 +401,7 @@ object BspConnectionManager {
     val startedServer = Promise[Unit]()
 
     startedServer.future.andThen { case unit =>
-      io.println("Started bloop server.")
+      io.println("Started bloop server")
     }
 
     val broken = Promise[Exception]()
