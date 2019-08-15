@@ -127,6 +127,60 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+					frontend	id	frontend
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/build	projectId	fury
+								moduleId	build
+								intransitive	false
+								hidden	false
+							fury/dependency	projectId	fury
+								moduleId	dependency
+								intransitive	false
+								hidden	false
+							fury/imports	projectId	fury
+								moduleId	imports
+								intransitive	false
+								hidden	false
+							fury/module	projectId	fury
+								moduleId	module
+								intransitive	false
+								hidden	false
+							fury/project	projectId	fury
+								moduleId	project
+								intransitive	false
+								hidden	false
+							fury/repo	projectId	fury
+								moduleId	repo
+								intransitive	false
+								hidden	false
+							fury/schema	projectId	fury
+								moduleId	schema
+								intransitive	false
+								hidden	false
+							fury/source	projectId	fury
+								moduleId	source
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/menu	src/menu
+						binaries	com.facebook:nailgun-server:1.0.0	binRepo	central
+								group	com.facebook
+								artifact	nailgun-server
+								version	1.0.0
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
+								target	modifyThread
+								action	None
 					imports	id	imports
 						kind	Library
 						main	None
@@ -198,60 +252,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-					menu	id	menu
-						kind	Library
-						main	None
-						plugin	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	true
-							hidden	false
-						after	fury/build	projectId	fury
-								moduleId	build
-								intransitive	false
-								hidden	false
-							fury/dependency	projectId	fury
-								moduleId	dependency
-								intransitive	false
-								hidden	false
-							fury/imports	projectId	fury
-								moduleId	imports
-								intransitive	false
-								hidden	false
-							fury/module	projectId	fury
-								moduleId	module
-								intransitive	false
-								hidden	false
-							fury/project	projectId	fury
-								moduleId	project
-								intransitive	false
-								hidden	false
-							fury/repo	projectId	fury
-								moduleId	repo
-								intransitive	false
-								hidden	false
-							fury/schema	projectId	fury
-								moduleId	schema
-								intransitive	false
-								hidden	false
-							fury/source	projectId	fury
-								moduleId	source
-								intransitive	false
-								hidden	false
-						params	
-						sources	src/menu	src/menu
-						binaries	com.facebook:nailgun-server:1.0.0	binRepo	central
-								group	com.facebook
-								artifact	nailgun-server
-								version	1.0.0
-						resources	
-						bloopSpec	None
-						environment	
-						properties	
-						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
-								target	modifyThread
-								action	None
 					module	id	module
 						kind	Library
 						main	None

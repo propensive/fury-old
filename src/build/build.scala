@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,7 +14,6 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
 import fury.strings._, fury.io._, fury.core._, fury.ogdl._
@@ -140,7 +139,7 @@ object BuildCli {
                                  |Fury build tool for Scala, version ${Version.current}.
                                  |This software is provided under the Apache 2.0 License.
                                  |Fury depends on Bloop, Coursier, Git and Nailgun.
-                                 |© Copyright 2018 Jon Pretty, Propensive Ltd.
+                                 |© Copyright 2018-19 Jon Pretty, Propensive Ltd.
                                  |
                                  |See the Fury website at https://fury.build/, or follow @propensive on Twitter
                                  |for more information.
@@ -233,6 +232,7 @@ object BuildCli {
       cli            <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(FatJarArg)
+      cli            <- cli.hint(ReporterArg, Reporter.all)
       invoc          <- cli.read()
       io             <- invoc.io()
       dir            <- invoc(DirArg)

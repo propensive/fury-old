@@ -1,0 +1,22 @@
+#!/bin/sh
+
+YEAR="$(date +%y)"
+VERSION="$(cat .version)"
+TMP=".tmp.scala"
+HEADER=".header"
+
+if [[ "$VERSION" == "" ]]; then
+  echo 'Usage: revise <version'
+  exit 1
+fi
+
+if [[ ! -f "$HEADER" ]]; then
+  echo 'The file .header does not exist.'
+  exit 1
+fi
+
+for FILE in $(find src -name '*.scala'); do
+  sed 's/%VERSION%/'"$VERSION"'/g' "$HEADER" | sed 's/%YEAR%/'$YEAR'/g' > "$TMP"
+  sed '/package/,$!d' "$FILE" >> "$TMP"
+  mv "$TMP" "$FILE"
+done

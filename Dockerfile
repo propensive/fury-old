@@ -27,7 +27,6 @@ RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
 ENV PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:/root/.bloop:${PATH}"
 
 COPY Makefile /build/Makefile
-COPY Makefile2 /build/Makefile2
 COPY etc /build/etc
 
 # Build a local version of Fury
@@ -36,7 +35,7 @@ COPY layer.fury /build/layer.fury
 COPY src /build/src
 RUN (cd /build && make -j10 dist/install.sh)
 RUN cp -r /build/dist /build/dist2
-RUN (cd /build && make clean && PATH=$PATH:/build/dist2/bundle/bin make --makefile=Makefile2 -j10 dist/install.sh)
+RUN (cd /build && make clean && PATH=$PATH:/build/dist2/bundle/bin make -j10 dist/install.sh)
 
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh
