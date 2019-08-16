@@ -1119,7 +1119,7 @@ case class Repo(ref: String) {
         path(layout).delete()
       }
 
-      io.println(s"Cloning Git repository $ref")
+      io.println(msg"Cloning Git repository $ref")
       path(layout).mkdir()
       Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
     } else Success(path(layout))
