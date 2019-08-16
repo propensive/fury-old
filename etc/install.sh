@@ -59,7 +59,7 @@ fail() {
 restartFury() {
   message "Checking for currently-active Fury daemon..."
   type -p fury > /dev/null && \
-  fury stop && \
+  fury kill 2> /dev/null && \
   message "Starting new version of Fury..." && \
   ${DESTINATION}/bin/fury start
 }
