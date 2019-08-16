@@ -33,7 +33,7 @@ COPY etc /build/etc
 COPY .version /build/.version
 COPY layer.fury /build/layer.fury
 COPY src /build/src
-RUN (cd /build && make clean && make -j10 dist/install.sh && make dist/bundle/bin/launcher)
+RUN (cd /build && make clean && make dist/install.sh)
 
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh
