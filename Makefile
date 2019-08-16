@@ -30,7 +30,7 @@ opt/fury-$(FURYSTABLE).tar.gz: opt
 
 $(FURYLOCAL): opt/fury-$(FURYSTABLE).tar.gz
 	sh opt/fury-$(FURYSTABLE).tar.gz opt/fury-$(FURYSTABLE)
-	fury permission grant -P 729
+	$(FURYLOCAL) permission grant -P 729
 
 dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	cat etc/install.sh $< > dist/install.sh
