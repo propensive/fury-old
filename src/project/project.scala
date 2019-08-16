@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
 import optometry._
@@ -31,7 +31,7 @@ object ProjectCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     optSchemaArg <- ~cli.peek(SchemaArg)

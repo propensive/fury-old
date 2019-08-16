@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import Args._
 
@@ -29,7 +29,7 @@ object ImportCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield Context(cli, layout, config, layer)
 
@@ -84,7 +84,7 @@ object ImportCli {
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
       https     <- ~invoc(HttpsArg).isSuccess
-      rows      <- ~schema.imports.to[List].map { i => (i, i.resolve(io, schema, layout, https)) }
+      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout, https)) }
       
       table     <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)

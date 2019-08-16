@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,19 +14,47 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.external
 
-import fury.strings._, fury.ogdl._
+import scala.collection.immutable.Stream
 
-import guillotine._
+/** a streaming multiplexer optimized for concurrent writes */
+final class Multiplexer[K, V](keys: List[K]) {
+  private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
+  private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
+  private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
 
-import scala.util._
+  private[this] def finished: Boolean = closed.forall(identity)
 
-import language.higherKinds
+  def stream(interval: Int, tick: Option[V] = None): Stream[V] = {
+    def stream(lastSnapshot: List[List[V]]): Stream[V] = {
+      val t0       = System.currentTimeMillis
+      val snapshot = state.to[List]
+      // FIXME: This could be written more efficiently with a builder
+      val changes = snapshot.zip(lastSnapshot).flatMap {
+        case (current, last) =>
+          current.take(current.length - last.length).reverse
+      }
+      if(finished && changes.isEmpty) {
+        tick.to[Stream]
+      } else {
+        val time = System.currentTimeMillis - t0
+        if(time < interval) Thread.sleep(interval - time)
+        changes.to[Stream] #::: tick.to[Stream] #::: stream(snapshot)
+      }
+    }
+    stream(state.to[List])
+  }
 
-object Config {
-  def read()(implicit env: Environment, globalLayout: GlobalLayout): Try[Config] =
-    Success(Ogdl.read[Config](globalLayout.userConfig, identity(_)).toOption.getOrElse(Config()))
+  /** This method should only ever be called from one thread for any given reference, to
+    *  guarantee safe concurrent access. */
+  def update(key: K, value: V): Unit = state(refs(key)) = value :: state(refs(key))
+
+  /** This method should only ever be called from one thread for any given reference, to
+    *  guarantee safe concurrent access. */
+  def close(key: K): Unit = closed(refs(key)) = true
+
+  def closeAll(): Unit = keys.foreach { k =>
+    closed(refs(k)) = true
+  }
 }
-
-case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5)

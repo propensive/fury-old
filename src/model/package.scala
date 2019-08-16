@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,25 +14,20 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury
 
-import fury.io._
-
-import org.openjdk.jmh._
-import generators.bytecode._
+import fury.strings._, fury.io._
 
 import scala.util._
-import java.io._
 
-object Jmh {
-  def instrument(bytecode: Path, sources: Path, resources: Path): Try[Unit] = {
-    val discard: OutputStream = _ => ()
-    val out = System.out
-    System.setOut(new PrintStream(discard))
-    val args = Array(bytecode.value, sources.value, resources.value, "reflection")
-    val result = Try(JmhBytecodeGenerator.main(args))
-    System.setOut(out)
-    
-    result
+import gastronomy._
+
+package object model {
+  
+  implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
+    ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
+  
+  implicit class Ascribe[T](value: Option[T]) {
+    def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
   }
 }

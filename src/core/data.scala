@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury._, io._, strings._, ogdl._
+import fury._, io._, strings._, ogdl._, model._, external._
 import Graph.{CompilerDiagnostic, DiagnosticMessage, OtherMessage}
 import exoskeleton._
 import gastronomy._
@@ -45,37 +45,6 @@ import java.util.concurrent.{CompletableFuture, Executors}
 
 import language.higherKinds
 
-object ManifestEntry {
-  implicit val stringShow: StringShow[ManifestEntry] = _.key
-  implicit val msgShow: MsgShow[ManifestEntry] = v => UserMsg { t => v.key }
-  implicit val diff: Diff[ManifestEntry] = (l, r) => Diff.stringDiff.diff(l.pairString, r.pairString)
-}
-
-case class ManifestEntry(key: String, value: String) { def pairString: String = str"$key=$value" }
-
-object Kind {
-  implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
-  implicit val stringShow: StringShow[Kind] = _.name
-  val all: List[Kind] = List(Library, Compiler, Plugin, Application, Benchmarks)
-  def unapply(str: String): Option[Kind] = all.find(_.name == str)
-}
-
-sealed abstract class Kind(val name: String, val needsExecution: Boolean)
-case object Library extends Kind("library", false)
-case object Compiler extends Kind("compiler", false)
-case object Plugin extends Kind("plugin", false)
-case object Application extends Kind("application", true)
-case object Benchmarks extends Kind("benchmarks", true)
-
-object Module {
-  implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
-  implicit val stringShow: StringShow[Module] = _.id.key
-  implicit val diff: Diff[Module] = Diff.gen[Module]
-
-  def available(id: ModuleId, project: Project): Try[ModuleId] =
-    project.modules.find(_.id == id).fold(Try(id)) { module => Failure(ModuleAlreadyExists(module.id)) }
-}
-
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
   implicit val stringShow: StringShow[Binary] = _.spec
@@ -98,89 +67,6 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
   def spec = str"$group:$artifact:$version"
   def paths(io: Io): Future[List[Path]] = Coursier.fetch(io, this)
 }
-
-object Permission {
-  implicit val msgShow: MsgShow[Permission] = stringShow.show
-  
-  implicit val stringShow: StringShow[Permission] =
-    p => str"${p.className} ${p.target} ${p.action.getOrElse("-"): String}"
-  
-  implicit def diff: Diff[Permission] = Diff.gen[Permission]
-
-  val Classes: List[String] = List(
-    "java.awt.AWTPermission",
-    "java.io.FilePermission",
-    "java.io.SerializablePermission",
-    "java.lang.management.ManagementPermission",
-    "java.lang.reflect.ReflectPermission",
-    "java.lang.RuntimePermission",
-    "java.net.NetPermission",
-    "java.net.SocketPermission",
-    "java.net.URLPermission",
-    "java.nio.file.LinkPermission",
-    "java.security.AllPermission",
-    "java.security.SecurityPermission",
-    "java.security.UnresolvedPermission",
-    "java.sql.SQLPermission",
-    "java.util.logging.LoggingPermission",
-    "java.util.PropertyPermission",
-    "javax.management.MBeanPermission",
-    "javax.management.MBeanServerPermission",
-    "javax.management.MBeanTrustPermission",
-    "javax.management.remote.SubjectDelegationPermission",
-    "javax.net.ssl.SSLPermission",
-    "javax.security.auth.AuthPermission",
-    "javax.security.auth.kerberos.DelegationPermission",
-    "javax.security.auth.kerberos.ServicePermission",
-    "javax.security.auth.PrivateCredentialPermission",
-    "javax.sound.sampled.AudioPermission",
-    "javax.xml.bind.JAXBPermission",
-    "javax.xml.ws.WebServicePermission"
-  )
-}
-case class Permission(className: String, target: String, action: Option[String]) {
-  def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
-}
-
-object PermissionHash {
-  implicit val stringShow: StringShow[PermissionHash] = _.key
-  implicit val msgShow: MsgShow[PermissionHash] = _.key
-}
-case class PermissionHash(key: String) extends Key(msg"permission")
-
-object ScopeId {
-  implicit val stringShow: StringShow[ScopeId] = _.id
-
-  case object Project extends ScopeId("project")
-  case object Directory extends ScopeId("directory")
-  //case object Layer extends ScopeId("layer")
-
-  val All = List(Project, Directory)//, Layer)
-
-  def unapply(id: String): Option[ScopeId] = All.find(_.id == id)
-}
-
-sealed abstract class ScopeId(val id: String) extends scala.Product with scala.Serializable
-
-object Scope {
-  def apply(id: ScopeId, layout: Layout, layer: Layer, project: Project) = id match {
-    case ScopeId.Project => ProjectScope(project.id)
-    case ScopeId.Directory => DirectoryScope(layout.base.value)
-    //case ScopeId.Layer => LayerScope()
-  }
-}
-
-sealed trait Scope extends scala.Product with scala.Serializable
-case class DirectoryScope(dir: String) extends Scope
-case class ProjectScope(name: ProjectId) extends Scope
-//case class LayerScope(layerHash: String) extends Scope
-
-object Grant {
-  implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
-  implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
-}
-
-case class Grant(scope: Scope, permission: Permission)
 
 object Policy {
   def read(io: Io, layout: GlobalLayout): Try[Policy] =
@@ -223,39 +109,14 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
   }
 }
 
-object PermissionEntry {
-  implicit val msgShow: MsgShow[PermissionEntry] = pe => msg"${pe.hash.key} ${pe.permission}"
-  implicit val stringShow: StringShow[PermissionEntry] = pe => pe.hash.key
+object Module {
+  implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
+  implicit val stringShow: StringShow[Module] = _.id.key
+  implicit val diff: Diff[Module] = Diff.gen[Module]
+
+  def available(id: ModuleId, project: Project): Try[ModuleId] =
+    project.modules.find(_.id == id).fold(Try(id)) { module => Failure(ModuleAlreadyExists(module.id)) }
 }
-
-case class PermissionEntry(permission: Permission, hash: PermissionHash)
-
-object EnvVar {
-  implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
-  implicit val stringShow: StringShow[EnvVar] = e => str"${e.key}=${e.value}"
-  implicit def diff: Diff[EnvVar] = Diff.gen[EnvVar]
-
-  def parse(str: String): Option[EnvVar] = str.split("=", 2) match {
-    case Array(key, value) => Some(EnvVar(key, value))
-    case Array(key)        => Some(EnvVar(key, ""))
-    case _                 => None
-  }
-}
-
-case class EnvVar(key: String, value: String)
-
-object JavaProperty {
-  implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.key}=${e.value}"
-  implicit val stringShow: StringShow[JavaProperty] = e => str"${e.key}=${e.value}"
-  implicit def diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
-
-  def parse(str: String): Option[JavaProperty] = str.split("=", 2) match {
-    case Array(key, value) => Some(JavaProperty(key, value))
-    case Array(key)        => Some(JavaProperty(key, ""))
-    case _                 => None
-  }
-}
-case class JavaProperty(key: String, value: String)
 
 case class Module(id: ModuleId,
                   kind: Kind = Library,
@@ -285,21 +146,6 @@ case class Module(id: ModuleId,
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
   }
 }
-
-object BloopSpec {
-  implicit val msgShow: MsgShow[BloopSpec]       = v => msg"${v.org}:${v.name}"
-  implicit val stringShow: StringShow[BloopSpec] = bs => str"${bs.org}:${bs.name}"
-  implicit def diff: Diff[BloopSpec]             = Diff.gen[BloopSpec]
-
-  def parse(str: String): Try[BloopSpec] = str match {
-    case r"$org@([a-z][a-z0-9_\-\.]*):$id@([a-z][a-z0-9_\-\.]*):$version@([0-9a-z][A-Za-z0-9_\-\.]*)" =>
-      Success(BloopSpec(org, id, version))
-    case _ =>
-      Failure(InvalidValue(str))
-  }
-}
-
-case class BloopSpec(org: String, name: String, version: String)
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
@@ -524,9 +370,6 @@ object Compilation {
     Await.result(asyncCompilation(io, schema, ref, layout, globalLayout, https), Duration.Inf)
 }
 
-object LineNo { implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString)) }
-case class LineNo(line: Int) extends AnyVal
-
 class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   var compilation: Compilation = _
   var targetId: TargetId = _
@@ -707,7 +550,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     for {
       dest <- dest.directory
       cp   = runtimeClasspath(io, ref, layout).to[List].map(_.value)
-      _    <- layout.shell.native(dest, cp, main)
+      _    <- Shell(layout.env).native(dest, cp, main)
     } yield ()
 
   def saveJars(io: Io,
@@ -728,7 +571,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
                           else Success()
-      _                <- layout.shell.jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
+      _                <- Shell(layout.env).jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
                               manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success()
     } yield ()
@@ -836,7 +679,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                 multiplexer(target.ref) = StartStreaming
                 val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
 
-                layout.shell.javac(
+                Shell(layout.env).javac(
                   classpath(target.ref, layout).to[List].map(_.value),
                   classDirectory.value,
                   javaSources.map(_.value).to[List])
@@ -845,7 +688,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             
             val out = new StringBuilder()
             
-            val res = layout.shell.runJava(
+            val res = Shell(layout.env).runJava(
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
               securePolicy = target.kind == Application,
@@ -1015,7 +858,7 @@ case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
       
       allProjects          <- conflictIds match {
                                 case x if x.isEmpty => Success(projects ++ nextProjects)
-                                case _ => Failure(ProjectConflict(conflictIds, h1 = this, h2 = hierarchy))
+                                case _ => Failure(ProjectConflict(conflictIds/*, h1 = this, h2 = hierarchy*/))
                               }
     } yield allProjects
 
@@ -1065,7 +908,7 @@ case class Schema(id: SchemaId,
   } yield Hierarchy(this, dir, imps)
 
   def importedSchemas(io: Io, layout: Layout, https: Boolean): Try[List[Schema]] =
-    imports.to[List].map(_.resolve(io, this, layout, https)).sequence
+    imports.to[List].map(resolve(_, io, layout, https)).sequence
 
   def allProjects(io: Io, layout: Layout, https: Boolean): Try[List[Project]] =
     importedSchemas(io, layout, https)
@@ -1076,21 +919,14 @@ case class Schema(id: SchemaId,
     case None    => Success(projectId)
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
+  
+  def resolve(ref: SchemaRef, io: Io, layout: Layout, https: Boolean): Try[Schema] = for {
+    repo     <- repos.findBy(ref.repo)
+    dir      <- repo.fullCheckout.get(io, layout, https)
+    layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
+    resolved <- layer.schemas.findBy(ref.schema)
+  } yield resolved
 }
-
-object AliasCmd {
-  implicit val msgShow: MsgShow[AliasCmd] = v => UserMsg(_.module(v.key))
-  implicit val stringShow: StringShow[AliasCmd] = _.key
-}
-
-case class AliasCmd(key: String)
-
-object Alias {
-  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.cmd.key))
-  implicit val stringShow: StringShow[Alias] = _.cmd.key
-}
-
-case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
 
 case class Layer(version: Int = Layer.CurrentVersion,
                  schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
@@ -1130,7 +966,7 @@ object Layer {
                       repos = schema.repos.map { repo =>
                         io.println(s"Checking commit hash for ${repo.repo()}")
                         val commit =
-                          layout.shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
+                          Shell(layout.env).git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
                         repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
                       }
                   )
@@ -1161,90 +997,6 @@ object Layer {
       case CurrentVersion => ogdl
     }
 }
-
-object ModuleRef {
-  implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
-  implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
-  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
-
-  implicit val msgShow: MsgShow[ModuleRef] = ref =>
-    UserMsg { theme =>
-      msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}".string(theme)
-    }
-
-  def parseFull(string: String, intransitive: Boolean): Try[ModuleRef] = string match {
-    case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
-      Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
-    case _ =>
-      Failure(ItemNotFound(ModuleId(string)))
-  }
-
-  def parse(project: Project, string: String, intransitive: Boolean): Try[ModuleRef] =
-    string match {
-      case r"$projectId@([a-z](-?[a-z0-9]+)*)\/$moduleId@([a-z](-?[a-z0-9]+)*)" =>
-        Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
-      case r"[a-z](-?[a-z0-9]+)*" =>
-        Success(ModuleRef(project.id, ModuleId(string), intransitive))
-      case _ =>
-        Failure(ItemNotFound(ModuleId(string)))
-    }
-  }
-
-case class ModuleRef(projectId: ProjectId,
-                     moduleId: ModuleId,
-                     intransitive: Boolean = false,
-                     hidden: Boolean = false) {
-
-  override def equals(that: Any): Boolean = that match {
-    case ModuleRef(p, m, _, _) => projectId == p && moduleId == m
-    case _                     => false
-  }
-
-  def hide = copy(hidden = true)
-  override def hashCode: Int = projectId.hashCode + moduleId.hashCode
-  override def toString: String = str"$projectId/$moduleId"
-}
-
-object SchemaId {
-  implicit val msgShow: MsgShow[SchemaId]       = v => UserMsg(_.schema(v.key))
-  implicit val stringShow: StringShow[SchemaId] = _.key
-  implicit val diff: Diff[SchemaId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  final val default = SchemaId("default")
-
-  def parse(name: String): Try[SchemaId] = name match {
-    case r"[a-z](-?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
-    case _                         => Failure(InvalidValue(name))
-  }
-}
-
-case class SchemaId(key: String) extends Key(msg"schema")
-
-object ProjectId {
-  implicit val msgShow: MsgShow[ProjectId]       = p => UserMsg(_.project(p.key))
-  implicit val stringShow: StringShow[ProjectId] = _.key
-  implicit def diff: Diff[ProjectId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-
-  def parse(name: String): Try[ProjectId] = name match {
-    case r"[a-z](-?[a-z0-9]+)*" => Success(ProjectId(name))
-    case _                      => Failure(InvalidValue(name))
-  }
-}
-
-case class ProjectId(key: String) extends Key(msg"project")
-
-object ModuleId {
-  implicit val msgShow: MsgShow[ModuleId]       = m => UserMsg(_.module(m.key))
-  implicit val stringShow: StringShow[ModuleId] = _.key
-  implicit def diff: Diff[ModuleId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  final val Core: ModuleId                      = ModuleId("core")
-
-  def parse(name: String): Try[ModuleId] = name match {
-    case r"[a-z](-?[a-z0-9]+)*" => Success(ModuleId(name))
-    case _                      => Failure(InvalidValue(name))
-  }
-}
-
-case class ModuleId(key: String) extends Key(msg"module")
 
 object Repo {
   implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
@@ -1304,7 +1056,7 @@ case class Checkout(repoId: RepoId,
         io.println(msg"Checking out ${if(sources.isEmpty) msg"all sources from repository ${repoId}"
         else sources.map(_.value).mkString("[", ", ", "]")}")
         path(layout).mkdir()
-        layout.shell.git
+        Shell(layout.env).git
           .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
           .map(path(layout).waive)
       } else Success(path(layout))
@@ -1320,9 +1072,9 @@ object SourceRepo {
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(io: Io, layout: Layout, https: Boolean): Try[List[Path]] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout, https))
-    commit <- ~layout.shell.git.getTag(dir, track.id).toOption.orElse(layout.shell.git.getBranchHead(dir,
+    commit <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.getBranchHead(dir,
                   track.id).toOption).getOrElse(track.id)
-    files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(layout.shell.git.lsTree(dir,
+    files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(Shell(layout.env).git.lsTree(dir,
                   commit))
   } yield files
 
@@ -1330,14 +1082,14 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def importCandidates(io: Io, schema: Schema, layout: Layout, https: Boolean): Try[List[String]] = for {
     repoDir     <- repo.fetch(io, layout, https)
-    layerString <- layout.shell.git.showFile(repoDir, "layer.fury")
+    layerString <- Shell(layout.env).git.showFile(repoDir, "layer.fury")
     layer       <- Layer.read(io, layerString, layout)
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
   def current(io: Io, layout: Layout, https: Boolean): Try[RefSpec] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout, https))
-    commit <- layout.shell.git.getCommit(dir)
+    commit <- Shell(layout.env).git.getCommit(dir)
   } yield RefSpec(commit)
 
   def sourceCandidates(io: Io, layout: Layout, https: Boolean)(pred: String => Boolean): Try[Set[Source]] =
@@ -1345,28 +1097,20 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
         ExternalSource(id, p.parent): Source }.to[Set])
 }
 
-case class BinRepoId(id: String)
-
-object BinRepoId {
-  implicit val msgShow: MsgShow[BinRepoId] = v => UserMsg(_.repo(v.id))
-  implicit val stringShow: StringShow[BinRepoId] = _.id
-  final val Central: BinRepoId = BinRepoId("central")
-}
-
 case class Repo(ref: String) {
-  def hash: Digest = ref.digest[Md5]
+  def hash: Digest               = ref.digest[Md5]
   def path(layout: Layout): Path = layout.reposDir / hash.encoded
 
   def update(layout: Layout): Try[UserMsg] = for {
-    oldCommit <- layout.shell.git.getCommit(path(layout))
-    _         <- layout.shell.git.fetch(path(layout), None)
-    newCommit <- layout.shell.git.getCommit(path(layout))
+    oldCommit <- Shell(layout.env).git.getCommit(path(layout))
+    _         <- Shell(layout.env).git.fetch(path(layout), None)
+    newCommit <- Shell(layout.env).git.getCommit(path(layout))
     msg <- ~(if(oldCommit != newCommit) msg"Repository ${ref} updated to new commit $newCommit"
               else msg"Repository ${ref} is unchanged")
   } yield msg
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[String] =
-    for(commit <- layout.shell.git.getCommitFromTag(path(layout), tag.id)) yield commit
+    for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield commit
 
   def fetch(io: Io, layout: Layout, https: Boolean): Try[Path] =
     if(!(path(layout) / ".done").exists) {
@@ -1377,7 +1121,7 @@ case class Repo(ref: String) {
 
       io.println(s"Cloning Git repository $ref")
       path(layout).mkdir()
-      layout.shell.git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
+      Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
     } else Success(path(layout))
 
   def simplified: String = ref match {
@@ -1391,32 +1135,6 @@ case class Repo(ref: String) {
     case r".*/$project@([^\/]*).git" => Success(RepoId(project))
     case value                       => Failure(InvalidValue(value))
   }
-}
-
-object SchemaRef {
-
-  implicit val msgShow: MsgShow[SchemaRef] = v =>
-    UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
-
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
-  implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
-
-  def unapply(value: String): Option[SchemaRef] = value match {
-    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(SchemaRef(RepoId(repo), SchemaId(schema)))
-    case _ =>
-      None
-  }
-}
-
-case class SchemaRef(repo: RepoId, schema: SchemaId) {
-
-  def resolve(io: Io, base: Schema, layout: Layout, https: Boolean): Try[Schema] = for {
-    repo     <- base.repos.findBy(repo)
-    dir      <- repo.fullCheckout.get(io, layout, https)
-    layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
-    resolved <- layer.schemas.findBy(schema)
-  } yield resolved
 }
 
 sealed trait CompileEvent
@@ -1444,23 +1162,6 @@ case class CompileSuccess(outputDirectories: Set[Path]) extends CompileResult {
 case object CompileFailure extends CompileResult {
   override def isSuccessful: Boolean = false
   override def asTry: Try[CompileSuccess] = Failure(CompilationFailure())
-}
-
-object TargetId {
-  implicit val stringShow: StringShow[TargetId] = _.key
-  
-  def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
-    TargetId(str"${schemaId}_${projectId}_${moduleId}")
-  
-  def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
-    TargetId(schemaId, ref.projectId, ref.moduleId)
-}
-
-case class TargetId(key: String) extends AnyVal {
-  def moduleId: ModuleId = ModuleId(key.split("_")(2))
-  def projectId: ProjectId = ProjectId(key.split("_")(1))
-  def schemaId: SchemaId = SchemaId(key.split("_")(0))
-  def ref: ModuleRef = ModuleRef(projectId, moduleId)
 }
 
 case class Target(ref: ModuleRef,
@@ -1520,74 +1221,13 @@ case class Project(id: ProjectId,
   }.to[Set]
 }
 
-object License {
-  implicit val msgShow: MsgShow[License]       = v => UserMsg(_.license(v.id.key))
-  implicit val stringShow: StringShow[License] = _.id.key
-  val unknown = LicenseId("unknown")
-
-  val standardLicenses = List(
-      License(LicenseId("afl-3.0"), "Academic Free License v3.0"),
-      License(LicenseId("apache-2.0"), "Apache license 2.0"),
-      License(LicenseId("artistic-2.0"), "Artistic license 2.0"),
-      License(LicenseId("bsd-2-clause"), "BSD 2-clause \"Simplified\" license"),
-      License(LicenseId("bsd-3-clause"), "BSD 3-clause \"New\" or \"Revised\" license"),
-      License(LicenseId("bsl-1.0"), "Boost Software License 1.0"),
-      License(LicenseId("bsd-3-clause-clear"), "BSD 3-clause Clear license"),
-      License(LicenseId("cc"), "Creative Commons license family"),
-      License(LicenseId("cc0-1.0"), "Creative Commons Zero v1.0 Universal"),
-      License(LicenseId("cc-by-4.0"), "Creative Commons Attribution 4.0"),
-      License(LicenseId("cc-by-sa-4.0"), "Creative Commons Attribution Share Alike 4.0"),
-      License(LicenseId("wtfpl"), "Do What The F*ck You Want To Public License"),
-      License(LicenseId("ecl-2.0"), "Educational Community License v2.0"),
-      License(LicenseId("epl-1.0"), "Eclipse Public License 1.0"),
-      License(LicenseId("epl-1.1"), "European Union Public License 1.1"),
-      License(LicenseId("agpl-3.0"), "GNU Affero General Public License v3.0"),
-      License(LicenseId("gpl"), "GNU General Public License family"),
-      License(LicenseId("gpl-2.0"), "GNU General Public License v2.0"),
-      License(LicenseId("gpl-3.0"), "GNU General Public License v3.0"),
-      License(LicenseId("lgpl"), "GNU Lesser General Public License family"),
-      License(LicenseId("lgpl-2.1"), "GNU Lesser General Public License v2.1"),
-      License(LicenseId("lgpl-3.0"), "GNU Lesser General Public License v3.0"),
-      License(LicenseId("isc"), "ISC"),
-      License(LicenseId("lppl-1.3c"), "LaTeX Project Public License v1.3c"),
-      License(LicenseId("ms-pl"), "Microsoft Public License"),
-      License(LicenseId("mit"), "MIT"),
-      License(LicenseId("mpl-2.0"), "Mozilla Public License 2.0"),
-      License(LicenseId("osl-3.0"), "Open Software License 3.0"),
-      License(LicenseId("postgresql"), "PostgreSQL License"),
-      License(LicenseId("ofl-1.1"), "SIL Open Font License 1.1"),
-      License(LicenseId("ncsa"), "University of Illinois/NCSA Open Source License"),
-      License(LicenseId("unlicense"), "The Unlicense"),
-      License(LicenseId("zlib"), "zLib License")
-  )
-}
-
-object LicenseId {
-  implicit val msgShow: MsgShow[LicenseId]       = v => UserMsg(_.license(v.key))
-  implicit val stringShow: StringShow[LicenseId] = _.key
-}
-
-case class LicenseId(key: String) extends Key(msg"license")
-
-case class License(id: LicenseId, name: String)
-
-object RefSpec {
-  implicit val msgShow: MsgShow[RefSpec]       = v => UserMsg(_.version(v.id))
-  implicit val stringShow: StringShow[RefSpec] = _.id
-  val master: RefSpec = RefSpec("master")
-}
-case class RefSpec(id: String)
-
-object Commit {
-  implicit val stringShow: StringShow[Commit] = _.id
-  implicit val msgShow: MsgShow[Commit]       = r => UserMsg(_.version(r.id.take(7)))
-}
-case class Commit(id: String)
-
 object Source {
   implicit val stringShow: StringShow[Source] = _.description
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
   implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.description)
+
+  implicit val sourceDiff: Diff[Source] =
+    (l, r) => if(l == r) Nil else List(Difference(msg"source", msg"", msg"$l", msg"$r"))
 
   implicit val msgShow: MsgShow[Source] = v => UserMsg { theme =>
     v match {
@@ -1641,19 +1281,3 @@ case class LocalSource(path: Path) extends Source {
   def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, path).digest[Md5])
   def repoIdentifier: RepoId = RepoId("-")
 }
-
-object RepoId {
-  implicit val msgShow: MsgShow[RepoId]       = r => UserMsg(_.repo(r.key))
-  implicit val stringShow: StringShow[RepoId] = _.key
-}
-
-case class RepoId(key: String) extends Key(msg"repository")
-
-object Parameter {
-  implicit val stringShow: StringShow[Parameter] = _.name
-  implicit val msgShow: MsgShow[Parameter]       = v => UserMsg(_.param(v.name))
-}
-
-case class Parameter(name: String) { def parameter = str"-$name" }
-
-abstract class Key(val kind: UserMsg) { def key: String }

@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
 import Args._
@@ -43,7 +43,7 @@ object DependencyCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout       <- cli.layout
-      config       <- Config.read()(cli.env, cli.globalLayout)
+      config       <- ~cli.config
       layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
@@ -95,7 +95,7 @@ object DependencyCli {
       linkArg   <- invoc(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
-      moduleRef <- ModuleRef.parse(project, linkArg, false)
+      moduleRef <- ModuleRef.parse(project.id, linkArg, false)
       force     <- ~invoc(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id,
@@ -125,7 +125,7 @@ object DependencyCli {
       module           <- optModule.ascribe(UnspecifiedModule())
       intransitive     <- ~invoc(IntransitiveArg).isSuccess
       linkArg          <- invoc(LinkArg)
-      moduleRef        <- ModuleRef.parse(project, linkArg, intransitive)
+      moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive)
 
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,
                               module.id))(_(_) += moduleRef)
@@ -156,7 +156,7 @@ object EnvCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
@@ -253,7 +253,7 @@ object PermissionCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
@@ -352,7 +352,7 @@ object PermissionCli {
       permHash <- invoc(PermissionArg).map(PermissionHash(_))
       entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
       policy   <- Policy.read(io, cli.globalLayout)
-      policy   <- ~policy.grant(Scope(scopeId, layout, layer, project), entry.permission)
+      policy   <- ~policy.grant(Scope(scopeId, layout, project.id), entry.permission)
       _        <- ~Policy.save(io, cli.globalLayout, policy)
     } yield io.await()
   }
@@ -377,7 +377,7 @@ object PropertyCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)

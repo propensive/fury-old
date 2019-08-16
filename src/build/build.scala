@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.io._, fury.core._, fury.ogdl._
+import fury.strings._, fury.io._, fury.core._, fury.ogdl._, fury.model._, fury.external._
 
 import Args._
 
@@ -31,9 +31,7 @@ import language.higherKinds
 object ConfigCli {
   case class Context(cli: Cli[CliParam[_]], config: Config)
 
-  def context(cli: Cli[CliParam[_]]) =
-    for(config <- ~Config.read()(cli.env, cli.globalLayout).toOption.getOrElse(Config()))
-    yield new Context(cli, config)
+  def context(cli: Cli[CliParam[_]]): Try[Context] = Try(new Context(cli, cli.config))
 
   def set(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -52,7 +50,7 @@ object AliasCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
+      config <- ~cli.config
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
@@ -120,7 +118,7 @@ object BuildCli {
 
   def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield new MenuContext(cli, layout, config, layer)
 
@@ -217,7 +215,7 @@ object BuildCli {
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
     msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
     invoc  <- cli.read()
@@ -374,7 +372,7 @@ object LayerCli {
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
-    config    <- Config.read()(cli.env, cli.globalLayout)
+    config    <- ~cli.config
     layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli       <- cli.hint(SchemaArg, layer.schemas)
     cli       <- cli.hint(HttpsArg)

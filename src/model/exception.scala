@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,47 +14,35 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.model
 
-import scala.collection.immutable.Stream
+import fury.strings._, fury.io._
 
-/** a streaming multiplexer optimized for concurrent writes */
-final class Multiplexer[K, V](keys: List[K]) {
-  private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
-  private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
-  private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
+case class NotInitialized(dir: Path) extends FuryException
+case class ModuleAlreadyExists(module: ModuleId) extends FuryException
+case class ProjectAlreadyExists(project: ProjectId) extends FuryException
+case class MissingCommand() extends FuryException
+case class UnknownCommand(command: String) extends FuryException
+case class AlreadyInitialized() extends FuryException
+case class UnknownCompiler() extends FuryException
+case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
+case class InvalidValue(value: String) extends FuryException
+case class InitFailure() extends FuryException
+case class UnspecifiedProject() extends FuryException
+case class UnspecifiedModule() extends FuryException
+case class UnspecifiedMain(module: ModuleId) extends FuryException
+case class GraalVMError(message: String) extends FuryException
+case class BuildServerError(cause: Throwable) extends FuryException
+case class InvalidKind(expected: Kind) extends FuryException
+case class UnspecifiedRepo() extends FuryException
+case class ProjectConflict(ids: Set[ProjectId]/*, h1: Hierarchy, h2: Hierarchy*/) extends FuryException
+case class SchemaDifferences() extends FuryException
+case class NoPermissions(permissions: Set[Permission]) extends FuryException
+case class LauncherFailure(msg: String) extends FuryException
+case class CompilationFailure() extends FuryException
 
-  private[this] def finished: Boolean = closed.forall(identity)
-
-  def stream(interval: Int, tick: Option[V] = None): Stream[V] = {
-    def stream(lastSnapshot: List[List[V]]): Stream[V] = {
-      val t0       = System.currentTimeMillis
-      val snapshot = state.to[List]
-      // FIXME: This could be written more efficiently with a builder
-      val changes = snapshot.zip(lastSnapshot).flatMap {
-        case (current, last) =>
-          current.take(current.length - last.length).reverse
-      }
-      if(finished && changes.isEmpty) {
-        tick.to[Stream]
-      } else {
-        val time = System.currentTimeMillis - t0
-        if(time < interval) Thread.sleep(interval - time)
-        changes.to[Stream] #::: tick.to[Stream] #::: stream(snapshot)
-      }
-    }
-    stream(state.to[List])
-  }
-
-  /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def update(key: K, value: V): Unit = state(refs(key)) = value :: state(refs(key))
-
-  /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def close(key: K): Unit = closed(refs(key)) = true
-
-  def closeAll(): Unit = keys.foreach { k =>
-    closed(refs(k)) = true
-  }
+object ItemNotFound {
+  def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
+
+case class ItemNotFound(item: UserMsg, kind: UserMsg) extends FuryException

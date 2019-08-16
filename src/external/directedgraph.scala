@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,7 +14,8 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.external
+
 import scala.annotation.tailrec
 
 case class DirectedGraph[T](connections: Map[T, Set[T]]) {

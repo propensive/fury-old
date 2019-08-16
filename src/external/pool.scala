@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,15 +14,55 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.external
 
-import fury.io._, fury.strings._
+import scala.collection.mutable._
+import scala.concurrent._, duration._
+import scala.util._
+import scala.annotation._
 
-object Install {
-  private val zshrc = List("autoload -Uz compinit", "fpath=($FURYHOME/completion/zsh $fpath)")
-  private val bashrc = List()
-  private val fishrc = List()
-  def alias(name: String, dir: Path, module: ModuleRef): String = str"alias $name='fury --layer=$dir '"
+abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
+
+  def create(key: K): T
+  def destroy(value: T): Unit
+  def isBad(value: T): Boolean
+
+  case class Entry(key: K, value: T)
+
+  private[this] val pool: Map[K, T] = scala.collection.concurrent.TrieMap()
+  
+  def size: Int = pool.size
+
+  @tailrec
+  private[this] def createOrRecycle(key: K): T = {
+    val result = pool.get(key) match {
+      case None =>
+        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+          pool(key) = value
+          Some(value)
+        }.toOption.getOrElse(None)
+      case Some(value) =>
+        pool -= key
+        if(isBad(value)) {
+          destroy(value)
+          None
+        }
+        else Some(value)
+    }
+    if(result.isEmpty) createOrRecycle(key) else result.get
+  }
+
+  def borrow[S](key: K)(action: T => S): S = {
+    val value: T = synchronized {
+      pool.get(key).filter(!isBad(_)).fold(createOrRecycle(key)) { value =>
+        pool -= key
+        value
+      }
+    }
+
+    val result: S = action(value)
+    synchronized { pool(key) = value }
+
+    result
+  }
 }
-
-case class Installation(name: String, dir: Path, module: ModuleRef)

@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,12 +16,11 @@
 */
 package fury
 
-import fury.core._, fury.io._
+import fury.io._, fury.external._
 
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
 
-import fury.core.DirectedGraph
 import probably._
 import fury.core._
 

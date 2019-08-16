@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,7 +14,7 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.model
 
 import fury._, io._, strings._
 
@@ -79,6 +79,4 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   def benchmarksDir(targetId: TargetId): Path = (benchmarksDir / targetId.key).extant()
   def classesDir(targetId: TargetId): Path = (classesDir / targetId.key).extant()
   def resourcesDir(targetId: TargetId): Path = (resourcesDir / targetId.key).extant()
-  
-  val shell = Shell(env)
 }

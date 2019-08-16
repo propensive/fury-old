@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,6 +16,8 @@
 */
 package fury.core
 
+import fury.model._
+
 import guillotine._
 
 class MenuContext(val cli: Cli[CliParam[_]],
@@ -24,6 +26,6 @@ class MenuContext(val cli: Cli[CliParam[_]],
                   val layer: Layer,
                   val optSchemaId: Option[SchemaId] = None) {
   implicit def implicitLayout: Layout   = layout
-  implicit def implicitShell: Shell     = layout.shell
+  implicit def implicitShell: Shell     = Shell(cli.env)
   implicit def implicitEnv: Environment = cli.env
 }

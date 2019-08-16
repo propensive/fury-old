@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -37,16 +37,9 @@ object `package` {
   implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
     Ordering.String.on(implicitly[StringShow[T]].show(_))
 
-  implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
-    ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
-
-  implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
   implicit class Unitize[T](t: T) { def unit: Unit = ()         }
   implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
   implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
-  implicit class Ascribe[T](value: Option[T]) {
-    def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
-  }
 }

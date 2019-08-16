@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,9 +14,7 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
-
-import fury.strings._
+package fury.strings
 
 import magnolia._
 
@@ -99,16 +97,9 @@ object Diff extends Diff_1 {
 
   implicit val intDiff: Diff[Int]             = (l, r) => stringDiff.diff(l.toString, r.toString)
   implicit val booleanDiff: Diff[Boolean]     = (l, r) => stringDiff.diff(l.toString, r.toString)
-  implicit val parameterDiff: Diff[Parameter] = (l, r) => stringDiff.diff(l.name, r.name)
 
   implicit val stringDiff: Diff[String] = (l, r) =>
     if(l == r) Nil else List(Difference(msg"value", msg"", msg"$l", msg"$r"))
-
-  implicit val moduleRefDiff: Diff[ModuleRef] =
-    (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))
-
-  implicit val sourceDiff: Diff[Source] =
-    (l, r) => if(l == r) Nil else List(Difference(msg"source", msg"", msg"$l", msg"$r"))
 }
 
 trait Diff_1 { implicit def gen[T]: Diff[T] = macro Magnolia.gen[T] }
