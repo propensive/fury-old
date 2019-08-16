@@ -17,7 +17,7 @@
 
 package fury.core
 
-import fury.io._, fury.ogdl._
+import fury.io._, fury.ogdl._, fury.model._
 
 import scala.util._
 

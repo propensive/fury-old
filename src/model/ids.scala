@@ -68,6 +68,25 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
+case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5)
+
+object TargetId {
+  implicit val stringShow: StringShow[TargetId] = _.key
+  
+  def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
+    TargetId(str"${schemaId}_${projectId}_${moduleId}")
+  
+  def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
+    TargetId(schemaId, ref.projectId, ref.moduleId)
+}
+
+case class TargetId(key: String) extends AnyVal {
+  def moduleId: ModuleId = ModuleId(key.split("_")(2))
+  def projectId: ProjectId = ProjectId(key.split("_")(1))
+  def schemaId: SchemaId = SchemaId(key.split("_")(0))
+  def ref: ModuleRef = ModuleRef(projectId, moduleId)
+}
+
 case class BinRepoId(id: String)
 
 object BinRepoId {
@@ -188,6 +207,14 @@ object JavaProperty {
 }
 case class JavaProperty(key: String, value: String)
 
+object Scope {
+  def apply(id: ScopeId, layout: Layout, projectId: ProjectId) = id match {
+    case ScopeId.Project => ProjectScope(projectId)
+    case ScopeId.Directory => DirectoryScope(layout.base.value)
+    //case ScopeId.Layer => LayerScope()
+  }
+}
+
 sealed trait Scope extends scala.Product with scala.Serializable
 case class DirectoryScope(dir: String) extends Scope
 case class ProjectScope(name: ProjectId) extends Scope
@@ -224,6 +251,23 @@ object Alias {
 }
 
 case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
+
+object SchemaRef {
+  implicit val msgShow: MsgShow[SchemaRef] = v =>
+    UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
+
+  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
+  implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
+
+  def unapply(value: String): Option[SchemaRef] = value match {
+    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
+      Some(SchemaRef(RepoId(repo), SchemaId(schema)))
+    case _ =>
+      None
+  }
+}
+
+case class SchemaRef(repo: RepoId, schema: SchemaId)
 
 object ModuleRef {
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"

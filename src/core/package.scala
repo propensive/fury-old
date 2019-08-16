@@ -43,7 +43,4 @@ object `package` {
   implicit class Unitize[T](t: T) { def unit: Unit = ()         }
   implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
   implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
-  implicit class Ascribe[T](value: Option[T]) {
-    def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
-  }
 }

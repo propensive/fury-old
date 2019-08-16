@@ -15,9 +15,9 @@
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
 
-package fury.core
+package fury.model
 
-import fury._, io._, strings._, model._
+import fury._, io._, strings._
 
 import gastronomy._
 import guillotine._
@@ -80,6 +80,4 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   def benchmarksDir(targetId: TargetId): Path = (benchmarksDir / targetId.key).extant()
   def classesDir(targetId: TargetId): Path = (classesDir / targetId.key).extant()
   def resourcesDir(targetId: TargetId): Path = (resourcesDir / targetId.key).extant()
-  
-  val shell = Shell(env)
 }

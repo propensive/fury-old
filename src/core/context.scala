@@ -27,6 +27,6 @@ class MenuContext(val cli: Cli[CliParam[_]],
                   val layer: Layer,
                   val optSchemaId: Option[SchemaId] = None) {
   implicit def implicitLayout: Layout   = layout
-  implicit def implicitShell: Shell     = layout.shell
+  implicit def implicitShell: Shell     = Shell(cli.env)
   implicit def implicitEnv: Environment = cli.env
 }

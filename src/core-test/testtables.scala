@@ -20,8 +20,7 @@ package fury
 import java.nio.file.Files
 import java.nio.file.Path
 
-import fury.core._
-import fury.strings._
+import fury.core._, fury.strings._, fury.model._
 
 import probably._
 

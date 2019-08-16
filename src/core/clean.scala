@@ -17,6 +17,8 @@
 
 package fury.core
 
+import fury.model._
+
 import scala.util._
 
 object CleanCli {

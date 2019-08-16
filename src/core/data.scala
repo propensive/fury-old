@@ -46,15 +46,6 @@ import java.util.concurrent.{CompletableFuture, Executors}
 
 import language.higherKinds
 
-object Module {
-  implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
-  implicit val stringShow: StringShow[Module] = _.id.key
-  implicit val diff: Diff[Module] = Diff.gen[Module]
-
-  def available(id: ModuleId, project: Project): Try[ModuleId] =
-    project.modules.find(_.id == id).fold(Try(id)) { module => Failure(ModuleAlreadyExists(module.id)) }
-}
-
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
   implicit val stringShow: StringShow[Binary] = _.spec
@@ -76,14 +67,6 @@ object Binary {
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
   def paths(io: Io): Future[List[Path]] = Coursier.fetch(io, this)
-}
-
-object Scope {
-  def apply(id: ScopeId, layout: Layout, layer: Layer, project: Project) = id match {
-    case ScopeId.Project => ProjectScope(project.id)
-    case ScopeId.Directory => DirectoryScope(layout.base.value)
-    //case ScopeId.Layer => LayerScope()
-  }
 }
 
 object Policy {
@@ -125,6 +108,15 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
     sb.append("};\n")
     sb.toString
   }
+}
+
+object Module {
+  implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
+  implicit val stringShow: StringShow[Module] = _.id.key
+  implicit val diff: Diff[Module] = Diff.gen[Module]
+
+  def available(id: ModuleId, project: Project): Try[ModuleId] =
+    project.modules.find(_.id == id).fold(Try(id)) { module => Failure(ModuleAlreadyExists(module.id)) }
 }
 
 case class Module(id: ModuleId,
@@ -535,7 +527,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     for {
       dest <- dest.directory
       cp   = runtimeClasspath(io, ref, layout).to[List].map(_.value)
-      _    <- layout.shell.native(dest, cp, main)
+      _    <- Shell(layout.env).native(dest, cp, main)
     } yield ()
 
   def saveJars(io: Io,
@@ -556,7 +548,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
                           else Success()
-      _                <- layout.shell.jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
+      _                <- Shell(layout.env).jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
                               manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success()
     } yield ()
@@ -664,7 +656,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                 multiplexer(target.ref) = StartStreaming
                 val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
 
-                layout.shell.javac(
+                Shell(layout.env).javac(
                   classpath(target.ref, layout).to[List].map(_.value),
                   classDirectory.value,
                   javaSources.map(_.value).to[List])
@@ -673,7 +665,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             
             val out = new StringBuilder()
             
-            val res = layout.shell.runJava(
+            val res = Shell(layout.env).runJava(
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
               securePolicy = target.kind == Application,
@@ -893,7 +885,7 @@ case class Schema(id: SchemaId,
   } yield Hierarchy(this, dir, imps)
 
   def importedSchemas(io: Io, layout: Layout): Try[List[Schema]] =
-    imports.to[List].map(_.resolve(io, this, layout)).sequence
+    imports.to[List].map(resolve(_, io, layout)).sequence
 
   def allProjects(io: Io, layout: Layout): Try[List[Project]] =
     importedSchemas(io, layout)
@@ -904,6 +896,13 @@ case class Schema(id: SchemaId,
     case None    => Success(projectId)
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
+  
+  def resolve(ref: SchemaRef, io: Io, layout: Layout): Try[Schema] = for {
+    repo     <- repos.findBy(ref.repo)
+    dir      <- repo.fullCheckout.get(io, layout)
+    layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
+    resolved <- layer.schemas.findBy(ref.schema)
+  } yield resolved
 }
 
 case class Layer(version: Int = Layer.CurrentVersion,
@@ -944,7 +943,7 @@ object Layer {
                       repos = schema.repos.map { repo =>
                         io.println(s"Checking commit hash for ${repo.repo()}")
                         val commit =
-                          layout.shell.git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
+                          Shell(layout.env).git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
                         repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
                       }
                   )
@@ -1031,7 +1030,7 @@ case class Checkout(repoId: RepoId,
         io.println(msg"Checking out ${if(sources.isEmpty) msg"all sources from repository ${repoId}"
         else sources.map(_.value).mkString("[", ", ", "]")}.")
         path(layout).mkdir()
-        layout.shell.git
+        Shell(layout.env).git
           .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
           .map(path(layout).waive)
       } else Success(path(layout))
@@ -1047,9 +1046,9 @@ object SourceRepo {
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(io: Io, layout: Layout): Try[List[Path]] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
-    commit <- ~layout.shell.git.getTag(dir, track.id).toOption.orElse(layout.shell.git.getBranchHead(dir,
+    commit <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.getBranchHead(dir,
                   track.id).toOption).getOrElse(track.id)
-    files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(layout.shell.git.lsTree(dir,
+    files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(Shell(layout.env).git.lsTree(dir,
                   commit))
   } yield files
 
@@ -1057,14 +1056,14 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def importCandidates(io: Io, schema: Schema, layout: Layout): Try[List[String]] = for {
     repoDir     <- repo.fetch(io, layout)
-    layerString <- layout.shell.git.showFile(repoDir, "layer.fury")
+    layerString <- Shell(layout.env).git.showFile(repoDir, "layer.fury")
     layer       <- Layer.read(io, layerString, layout)
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
   def current(io: Io, layout: Layout): Try[RefSpec] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
-    commit <- layout.shell.git.getCommit(dir)
+    commit <- Shell(layout.env).git.getCommit(dir)
   } yield RefSpec(commit)
 
   def sourceCandidates(io: Io, layout: Layout)(pred: String => Boolean): Try[Set[Source]] =
@@ -1077,15 +1076,15 @@ case class Repo(url: String) {
   def path(layout: Layout): Path = layout.reposDir / hash.encoded
 
   def update(layout: Layout): Try[UserMsg] = for {
-    oldCommit <- layout.shell.git.getCommit(path(layout))
-    _         <- layout.shell.git.fetch(path(layout), None)
-    newCommit <- layout.shell.git.getCommit(path(layout))
+    oldCommit <- Shell(layout.env).git.getCommit(path(layout))
+    _         <- Shell(layout.env).git.fetch(path(layout), None)
+    newCommit <- Shell(layout.env).git.getCommit(path(layout))
     msg <- ~(if(oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
               else msg"Repository ${url} is unchanged")
   } yield msg
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[String] =
-    for(commit <- layout.shell.git.getCommitFromTag(path(layout), tag.id)) yield commit
+    for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield commit
 
   def fetch(io: Io, layout: Layout): Try[Path] =
     if(!(path(layout) / ".done").exists) {
@@ -1096,7 +1095,7 @@ case class Repo(url: String) {
 
       io.println(s"Cloning Git repository $url.")
       path(layout).mkdir()
-      layout.shell.git.cloneBare(url, path(layout)).map(path(layout).waive)
+      Shell(layout.env).git.cloneBare(url, path(layout)).map(path(layout).waive)
     } else Success(path(layout))
 
   def simplified: String = url match {
@@ -1110,32 +1109,6 @@ case class Repo(url: String) {
     case r".*/$project@([^\/]*).git" => Success(RepoId(project))
     case value                       => Failure(InvalidValue(value))
   }
-}
-
-object SchemaRef {
-
-  implicit val msgShow: MsgShow[SchemaRef] = v =>
-    UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
-
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
-  implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
-
-  def unapply(value: String): Option[SchemaRef] = value match {
-    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(SchemaRef(RepoId(repo), SchemaId(schema)))
-    case _ =>
-      None
-  }
-}
-
-case class SchemaRef(repo: RepoId, schema: SchemaId) {
-
-  def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] = for {
-    repo     <- base.repos.findBy(repo)
-    dir      <- repo.fullCheckout.get(io, layout)
-    layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
-    resolved <- layer.schemas.findBy(schema)
-  } yield resolved
 }
 
 sealed trait CompileEvent
@@ -1163,23 +1136,6 @@ case class CompileSuccess(outputDirectories: Set[Path]) extends CompileResult {
 case object CompileFailure extends CompileResult {
   override def isSuccessful: Boolean = false
   override def asTry: Try[CompileSuccess] = Failure(CompilationFailure())
-}
-
-object TargetId {
-  implicit val stringShow: StringShow[TargetId] = _.key
-  
-  def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
-    TargetId(str"${schemaId}_${projectId}_${moduleId}")
-  
-  def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
-    TargetId(schemaId, ref.projectId, ref.moduleId)
-}
-
-case class TargetId(key: String) extends AnyVal {
-  def moduleId: ModuleId = ModuleId(key.split("_")(2))
-  def projectId: ProjectId = ProjectId(key.split("_")(1))
-  def schemaId: SchemaId = SchemaId(key.split("_")(0))
-  def ref: ModuleRef = ModuleRef(projectId, moduleId)
 }
 
 case class Target(ref: ModuleRef,
