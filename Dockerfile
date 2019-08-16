@@ -35,7 +35,7 @@ COPY layer.fury /build/layer.fury
 COPY src /build/src
 RUN (cd /build && make -j10 dist/install.sh)
 RUN cp -r /build/dist /build/dist2
-RUN (cd /build && make clean && PATH=$PATH:/build/dist2/bundle/bin make -j10 dist/install.sh)
+RUN (cd /build && make clean && PATH=$PATH:/build/dist2/bundle/bin make -j10 dist/install.sh && PATH=$PATH:/build/dist2/bundle/bin make dist/bundle/bin/launcher)
 
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh
