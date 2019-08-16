@@ -99,7 +99,7 @@ object ModuleCli {
       cli            <- cli.hint(ModuleNameArg)
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Io.silent(config), layout)))
+                            _.compilerRefs(Io.silent(config), layout, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -148,7 +148,10 @@ object ModuleCli {
 
       _              <- ~Layer.save(io, layer, layout)
       schema         <- defaultSchema
-      _              <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _              <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                            false)
+
       _              <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
@@ -159,7 +162,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Io.silent(config), layout)))
+                      Io.silent(config), layout, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -177,7 +180,10 @@ object ModuleCli {
 
       _        <- ~Layer.save(io, layer, layout)
       schema   <- defaultSchema
-      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+      
+      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                      false)
+
     } yield io.await()
   }
 
@@ -187,7 +193,7 @@ object ModuleCli {
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Io.silent(config), layout)))
+                         _.compilerRefs(Io.silent(config), layout, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
@@ -243,7 +249,10 @@ object ModuleCli {
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
       _           <- ~Layer.save(io, layer, layout)
       schema      <- defaultSchema
-      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                         false)
+
     } yield io.await()
   }
 }
@@ -303,7 +312,10 @@ object BinaryCli {
 
       _           <- ~Layer.save(io, layer, layout)
       schema      <- defaultSchema
-      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                         false)
+
     } yield io.await()
   }
 
@@ -325,7 +337,10 @@ object BinaryCli {
       
       _         <- ~Layer.save(io, layer, layout)
       schema    <- defaultSchema
-      _         <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _         <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                       false)
+
     } yield io.await()
   }
 }
@@ -385,7 +400,10 @@ object ParamCli {
 
       _        <- ~Layer.save(io, layer, layout)
       schema   <- defaultSchema
-      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                      false)
+
     } yield io.await()
   }
 
@@ -404,7 +422,10 @@ object ParamCli {
 
       _       <- ~Layer.save(io, layer, layout)
       schema  <- defaultSchema
-      _       <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _       <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                     false)
+
     } yield io.await()
   }
 }

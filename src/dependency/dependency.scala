@@ -88,8 +88,10 @@ object DependencyCli {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.after.to[List]))
       cli       <- cli.hint(ForceArg)
+      cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
       io        <- invoc.io()
+      https     <- ~invoc(HttpsArg).isSuccess
       linkArg   <- invoc(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
@@ -101,7 +103,10 @@ object DependencyCli {
 
       _         <- ~Layer.save(io, layer, layout)
       optSchema <- ~layer.mainSchema.toOption
-      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout))
+
+      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout,
+                       https))
+
     } yield io.await()
   }
 
@@ -109,7 +114,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules)
@@ -128,7 +133,7 @@ object DependencyCli {
       _                <- ~Layer.save(io, layer, layout)
 
       _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout,
-                              cli.globalLayout))
+                              cli.globalLayout, false))
 
     } yield io.await()
   }
@@ -213,7 +218,7 @@ object EnvCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
@@ -271,7 +276,7 @@ object PermissionCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(ClassArg, Permission.Classes)
@@ -435,7 +440,7 @@ object PropertyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(PropArg)

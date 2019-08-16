@@ -41,7 +41,7 @@ object ImportCli {
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
 
       cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(Io.silent(config),
-                           layout)).getOrElse(Nil))
+                           layout, false)).getOrElse(Nil))
       
       invoc         <- cli.read()
       io            <- invoc.io()
@@ -76,13 +76,15 @@ object ImportCli {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(HttpsArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
-      rows      <- ~schema.imports.to[List].map { i => (i, i.resolve(io, schema, layout)) }
+      https     <- ~invoc(HttpsArg).isSuccess
+      rows      <- ~schema.imports.to[List].map { i => (i, i.resolve(io, schema, layout, https)) }
       
       table     <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)

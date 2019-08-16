@@ -105,7 +105,7 @@ object SchemaCli {
       newName  <- invoc(SchemaNameArg)
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
-      force    <- ~invoc(ForceArg).toOption.isDefined
+      force    <- ~invoc(ForceArg).isSuccess
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
       layer    <- ~(if(layer.main == schema.id) layer.copy(main = newName) else layer)
