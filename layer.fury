@@ -610,7 +610,7 @@ schemas	default	id	default
 		repos	platform	id	platform
 				repo	git@github.com:propensive/platform.git
 				track	master
-				commit	0ae0aa52cd6cdd967cd8f6fd2ca5e5db5ca5c8f0
+				commit	06b50283068dd5f1ee38c774f53b75297176efbb
 				local	None
 		imports	platform:default	repo	platform
 				schema	default

@@ -2,7 +2,7 @@ VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git 
 BLOOPVERSION=1.3.2
 FURYSTABLE=0.6.1
 FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
-INDEPS=launcher ng.py ng
+BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 NATIVEJARS=dist/bundle/lib/fury-frontend.jar $(NAILGUNJARPATH) bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
@@ -53,10 +53,7 @@ bootstrap/scala:
 bootstrap/bin:
 	mkdir -p $@
 
-pre-compile: bootstrap/bin dist/bundle/bin/launcher bootstrap/scala $(NAILGUNJARPATH)
-
-dist/bundle/bin/launcher: dist/bundle/bin/coursier dist/bundle/bin/.dir
-	$< bootstrap --quiet -r bintray:scalacenter/releases -f --deterministic --output $@ ch.epfl.scala:bloop-launcher_2.12:$(BLOOPVERSION)
+pre-compile: bootstrap/bin bootstrap/scala $(NAILGUNJARPATH)
 
 # Libraries
 
@@ -80,7 +77,7 @@ dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% co
 	mkdir -p ${@D}
 	touch ${@D}/.dir
 
-dist/bundle/bin/fury: dist/bundle/bin/.dir
+dist/bundle/bin/fury: dist/bundle/bin/.dir $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
 	cp etc/fury $@
 	chmod +x $@
 
@@ -123,7 +120,7 @@ clean-ci:
 clean: clean-dist
 	rm -rf bootstrap dist opt
 
-download: dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/bin/launcher dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
+download: dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
 
 install: dist/install.sh
 	dist/install.sh
