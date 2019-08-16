@@ -608,7 +608,7 @@ schemas	default	id	default
 				description	
 				compiler	None
 		repos	platform	id	platform
-				repo	git@github.com:propensive/platform.git
+				repo	gh:propensive/platform
 				track	master
 				commit	06b50283068dd5f1ee38c774f53b75297176efbb
 				local	None
