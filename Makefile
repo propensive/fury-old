@@ -30,7 +30,6 @@ opt/fury-$(FURYSTABLE).tar.gz: opt
 
 $(FURYLOCAL): opt/fury-$(FURYSTABLE).tar.gz
 	sh opt/fury-$(FURYSTABLE).tar.gz opt/fury-$(FURYSTABLE)
-	$(FURYLOCAL) permission grant -P 729
 
 dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	cat etc/install.sh $< > dist/install.sh
@@ -68,6 +67,7 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/bin .version src/**/*.scala
+	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
 	$(FURYLOCAL) standalone build save --https --output linear --project fury --module frontend --dir $<
 	jar -uf $@ .version
 
