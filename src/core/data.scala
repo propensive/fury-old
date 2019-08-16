@@ -520,7 +520,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
   
   def checkoutAll(io: Io, layout: Layout, https: Boolean): Unit =
-    checkouts.foreach(_.get(io, layout, https).unit)
+    checkouts.traverse(_.get(io, layout, https)).map{ _ => ()}.get
 
   def deepDependencies(targetId: TargetId): Set[TargetId] =
     Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
@@ -1115,7 +1115,7 @@ case class Repo(ref: String) {
   def fetch(io: Io, layout: Layout, https: Boolean): Try[Path] =
     if(!(path(layout) / ".done").exists) {
       if(path(layout).exists()) {
-        io.println(msg"Found incomplete clone of $ref")
+        io.println(msg"Found incomplete clone of $ref at ${path(layout)}")
         path(layout).delete()
       }
 
