@@ -17,7 +17,7 @@
 
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import Args._
 
@@ -34,7 +34,7 @@ object RepoCli {
   
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield Context(cli, layout, config, layer)
 
@@ -96,7 +96,7 @@ object RepoCli {
 
                    } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
-      _         <- ~layout.shell.git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
+      _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
                        repo.commit.id)
 
       newRepo   <- ~repo.copy(local = Some(absPath))
@@ -155,7 +155,7 @@ object RepoCli {
       remoteOpt      <- ~cli.peek(UrlArg)
       repoOpt        <- ~remoteOpt.map(Repo.fromString(_))
       
-      versions       <- repoOpt.map { repo => layout.shell.git.lsRemote(repo.url) }.to[List].sequence.map(
+      versions       <- repoOpt.map { repo => Shell(layout.env).git.lsRemote(repo.url) }.to[List].sequence.map(
                             _.flatten).recover { case e => Nil }
 
       cli            <- cli.hint(VersionArg, versions)
@@ -198,7 +198,7 @@ object RepoCli {
       schema      <- layer.schemas.findBy(schemaArg)
       cli         <- cli.hint(RepoArg, schema.repos)
       optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
-      versions    <- optRepo.to[List].map(_.repo.path(layout)).map(layout.shell.git.showRefs(_)).sequence
+      versions    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
       cli         <- cli.hint(VersionArg, versions.flatten)
       invoc       <- cli.read()
       io          <- invoc.io()

@@ -17,7 +17,7 @@
 
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
 import mercator._
@@ -44,7 +44,7 @@ object ModuleCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
@@ -120,7 +120,7 @@ object ModuleCli {
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      optCompilerRef <- compilerId.map(ModuleRef.parse(project, _, true)).to[List].sequence.map(_.headOption)
+      optCompilerRef <- compilerId.map(ModuleRef.parse(project.id, _, true)).to[List].sequence.map(_.headOption)
 
       module         <- ~Module(moduleId, compiler = optCompilerRef.orElse(project.compiler).getOrElse(
                             ModuleRef.JavaRef))
@@ -219,7 +219,7 @@ object ModuleCli {
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      compilerRef <- compilerId.map(ModuleRef.parse(project, _, true)).to[List].sequence.map(_.headOption)
+      compilerRef <- compilerId.map(ModuleRef.parse(project.id, _, true)).to[List].sequence.map(_.headOption)
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption

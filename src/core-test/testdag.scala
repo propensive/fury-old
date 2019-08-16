@@ -17,12 +17,11 @@
 
 package fury
 
-import fury.core._, fury.io._
+import fury.io._, fury.external._
 
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
 
-import fury.core.DirectedGraph
 import probably._
 import fury.core._
 

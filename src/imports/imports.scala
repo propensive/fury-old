@@ -17,7 +17,7 @@
 
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import Args._
 
@@ -30,7 +30,7 @@ object ImportCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield Context(cli, layout, config, layer)
 
@@ -83,7 +83,7 @@ object ImportCli {
       invoc     <- cli.read()
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
-      rows      <- ~schema.imports.to[List].map { i => (i, i.resolve(io, schema, layout)) }
+      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout)) }
       
       table     <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)

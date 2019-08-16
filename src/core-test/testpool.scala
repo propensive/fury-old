@@ -19,7 +19,7 @@ package fury
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import fury.core.Pool
+import fury.external._
 import probably._
 
 object PoolTest extends TestApp {

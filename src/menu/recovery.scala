@@ -17,7 +17,7 @@
 
 package fury
 
-import fury.strings._, fury.core._, fury.io._
+import fury.strings._, fury.core._, fury.io._, fury.model._
 
 import exoskeleton._
 import guillotine._
@@ -33,12 +33,12 @@ object Recovery {
       err match {
         case EarlyCompletions() =>
           Done
-        case ProjectConflict(ps, h1, h2) =>
+        case ProjectConflict(ps/*, h1, h2*/) =>
           val projectIds = ps.toSeq.sortBy(_.key).map { x => msg"$x" }
           val message = msg"Your dependency tree contains references to two or more conflicting projects: "
           val beginning = projectIds.tail.foldLeft(message + projectIds.head)(_ + ", " + _)
-          val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
-          cli.abort(beginning + ending)
+          //val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
+          cli.abort(beginning)//+ ending)
         case e: SchemaDifferences =>
           cli.abort(
               msg"""You are attempting to make this change to all schemas, however the value you are

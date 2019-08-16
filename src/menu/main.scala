@@ -17,7 +17,7 @@
 
 package fury
 
-import fury.core._, fury.strings._
+import fury.core._, fury.strings._, fury.model._
 
 import com.facebook.nailgun.NGContext
 import exoskeleton._
@@ -54,7 +54,7 @@ object Main {
 
     val layer = for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
+      config <- ~cli.config
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield layer
 

@@ -15,7 +15,7 @@
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
 
-package fury.core
+package fury.external
 
 import scala.collection.immutable.Stream
 

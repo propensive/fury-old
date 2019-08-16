@@ -15,7 +15,7 @@
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
 
-package fury.core
+package fury.external
 import scala.annotation.tailrec
 
 case class DirectedGraph[T](connections: Map[T, Set[T]]) {
