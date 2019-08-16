@@ -99,16 +99,9 @@ object Diff extends Diff_1 {
 
   implicit val intDiff: Diff[Int]             = (l, r) => stringDiff.diff(l.toString, r.toString)
   implicit val booleanDiff: Diff[Boolean]     = (l, r) => stringDiff.diff(l.toString, r.toString)
-  implicit val parameterDiff: Diff[Parameter] = (l, r) => stringDiff.diff(l.name, r.name)
 
   implicit val stringDiff: Diff[String] = (l, r) =>
     if(l == r) Nil else List(Difference(msg"value", msg"", msg"$l", msg"$r"))
-
-  implicit val moduleRefDiff: Diff[ModuleRef] =
-    (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))
-
-  implicit val sourceDiff: Diff[Source] =
-    (l, r) => if(l == r) Nil else List(Difference(msg"source", msg"", msg"$l", msg"$r"))
 }
 
 trait Diff_1 { implicit def gen[T]: Diff[T] = macro Magnolia.gen[T] }

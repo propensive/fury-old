@@ -1144,6 +1144,9 @@ object ModuleRef {
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
   val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
 
+  implicit val diff: Diff[ModuleRef] =
+    (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))
+
   implicit val msgShow: MsgShow[ModuleRef] = ref =>
     UserMsg { theme =>
       msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}".string(theme)
@@ -1563,6 +1566,9 @@ object Source {
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
   implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.description)
 
+  implicit val sourceDiff: Diff[Source] =
+    (l, r) => if(l == r) Nil else List(Difference(msg"source", msg"", msg"$l", msg"$r"))
+
   implicit val msgShow: MsgShow[Source] = v => UserMsg { theme =>
     v match {
       case ExternalSource(repoId, path) =>
@@ -1625,7 +1631,8 @@ case class RepoId(key: String) extends Key(msg"repository")
 
 object Parameter {
   implicit val stringShow: StringShow[Parameter] = _.name
-  implicit val msgShow: MsgShow[Parameter]       = v => UserMsg(_.param(v.name))
+  implicit val msgShow: MsgShow[Parameter] = v => UserMsg(_.param(v.name))
+  implicit val diff: Diff[Parameter] = (l, r) => Diff.stringDiff.diff(l.name, r.name)
 }
 
 case class Parameter(name: String) { def parameter = str"-$name" }

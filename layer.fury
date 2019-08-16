@@ -43,8 +43,8 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/jsongen	projectId	fury
-								moduleId	jsongen
+							fury/external	projectId	fury
+								moduleId	external
 								intransitive	false
 								hidden	false
 							fury/ogdl	projectId	fury
@@ -77,10 +77,6 @@ schemas	default	id	default
 								group	ch.epfl.scala
 								artifact	bsp4j
 								version	2.0.0-M4
-							io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
-								group	io.get-coursier
-								artifact	coursier_2.12
-								version	1.1.0-M14-4
 							org.openjdk.jmh:jmh-core:1.21	binRepo	central
 								group	org.openjdk.jmh
 								artifact	jmh-core
@@ -122,6 +118,42 @@ schemas	default	id	default
 						params	
 						sources	src/dependency	src/dependency
 						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					external	id	external
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/io	projectId	fury
+								moduleId	io
+								intransitive	false
+								hidden	false
+							fury/jsongen	projectId	fury
+								moduleId	jsongen
+								intransitive	false
+								hidden	false
+							guillotine/core	projectId	guillotine
+								moduleId	core
+								intransitive	false
+								hidden	false
+							magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/external	src/external
+						binaries	io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
+								group	io.get-coursier
+								artifact	coursier_2.12
+								version	1.1.0-M14-4
 						resources	
 						bloopSpec	None
 						environment	
@@ -500,7 +532,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-				main	Some	menu
+				main	Some	external
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
