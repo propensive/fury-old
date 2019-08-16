@@ -463,7 +463,7 @@ object Compilation {
       
       handle.broken.future.andThen {
         case Success(_) =>
-          log.println(s"Connection for ${dir.value} has been closed.")
+          log.println(s"Connection for ${dir.value} has been closed")
           log.flush()
           bspConn.future.cancel(true)
         case Failure(e) =>
@@ -478,19 +478,36 @@ object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
-  def mkCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Try[Compilation] = for {
-    hierarchy   <- schema.hierarchy(io, layout.base, layout)
+  def mkCompilation(io: Io,
+                    schema: Schema,
+                    ref: ModuleRef,
+                    layout: Layout,
+                    globalLayout: GlobalLayout,
+                    https: Boolean)
+                   : Try[Compilation] = for {
+
+    hierarchy   <- schema.hierarchy(io, layout.base, layout, https)
     universe    <- hierarchy.universe
     policy      <- Policy.read(io, globalLayout)
     compilation <- universe.compilation(io, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
+    
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout).recover { case x: Throwable =>
                      () //io.println(str"$schema --- ${x.getMessage}")
                    }
+
   } yield compilation
 
-  def asyncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Future[Try[Compilation]] = {
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout))
+  def asyncCompilation(io: Io,
+                       schema: Schema,
+                       ref: ModuleRef,
+                       layout: Layout,
+                       globalLayout: GlobalLayout,
+                       https: Boolean)
+                      : Future[Try[Compilation]] = {
+
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout, https))
+
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
       case None         => fn
@@ -499,8 +516,13 @@ object Compilation {
     compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(io: Io, schema: Schema, ref: ModuleRef, layout: Layout, globalLayout: GlobalLayout): Try[Compilation] =
-    Await.result(asyncCompilation(io, schema, ref, layout, globalLayout), Duration.Inf)
+  def syncCompilation(io: Io,
+                      schema: Schema,
+                      ref: ModuleRef,
+                      layout: Layout,
+                      globalLayout: GlobalLayout,
+                      https: Boolean): Try[Compilation] =
+    Await.result(asyncCompilation(io, schema, ref, layout, globalLayout, https), Duration.Inf)
 }
 
 object LineNo { implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString)) }
@@ -654,7 +676,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
-  def checkoutAll(io: Io, layout: Layout): Unit = checkouts.foreach(_.get(io, layout).unit)
+  
+  def checkoutAll(io: Io, layout: Layout, https: Boolean): Unit =
+    checkouts.foreach(_.get(io, layout, https).unit)
 
   def deepDependencies(targetId: TargetId): Set[TargetId] =
     Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
@@ -1024,29 +1048,29 @@ case class Schema(id: SchemaId,
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
   def duplicate(id: String) = copy(id = SchemaId(id))
 
-  def compilerRefs(io: Io, layout: Layout): List[ModuleRef] =
-    allProjects(io, layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
+  def compilerRefs(io: Io, layout: Layout, https: Boolean): List[ModuleRef] =
+    allProjects(io, layout, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def importCandidates(io: Io, layout: Layout): List[String] =
-    repos.to[List].flatMap(_.importCandidates(io, this, layout).toOption.to[List].flatten)
+  def importCandidates(io: Io, layout: Layout, https: Boolean): List[String] =
+    repos.to[List].flatMap(_.importCandidates(io, this, layout, https).toOption.to[List].flatten)
 
-  def hierarchy(io: Io, dir: Path, layout: Layout): Try[Hierarchy] = for {
+  def hierarchy(io: Io, dir: Path, layout: Layout, https: Boolean): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
       repo         <- repos.findBy(ref.repo)
-      repoDir      <- repo.fullCheckout.get(io, layout)
+      repoDir      <- repo.fullCheckout.get(io, layout, https)
       nestedLayout <- ~Layout(layout.home, repoDir, layout.env, repoDir)
       layer        <- Layer.read(io, nestedLayout.furyConfig, nestedLayout)
       resolved     <- layer.schemas.findBy(ref.schema)
-      tree         <- resolved.hierarchy(io, repoDir, layout)
+      tree         <- resolved.hierarchy(io, repoDir, layout, https)
     } yield tree }.sequence
   } yield Hierarchy(this, dir, imps)
 
-  def importedSchemas(io: Io, layout: Layout): Try[List[Schema]] =
-    imports.to[List].map(_.resolve(io, this, layout)).sequence
+  def importedSchemas(io: Io, layout: Layout, https: Boolean): Try[List[Schema]] =
+    imports.to[List].map(_.resolve(io, this, layout, https)).sequence
 
-  def allProjects(io: Io, layout: Layout): Try[List[Project]] =
-    importedSchemas(io, layout)
-      .flatMap(_.map(_.allProjects(io, layout)).sequence.map(_.flatten))
+  def allProjects(io: Io, layout: Layout, https: Boolean): Try[List[Project]] =
+    importedSchemas(io, layout, https)
+      .flatMap(_.map(_.allProjects(io, layout, https)).sequence.map(_.flatten))
       .map(_ ++ projects.to[List])
 
   def unused(projectId: ProjectId): Try[ProjectId] = projects.find(_.id == projectId) match {
@@ -1236,19 +1260,22 @@ object Repo {
     }
   }
 
-  def fromString(str: String): Repo = Repo(str match {
+  def fromString(str: String, https: Boolean): String = str match {
     case "." => ""
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      str"git@github.com:$group/$project.git"
+      if(https) str"https://github.com/$group/$project.git"
+      else str"git@github.com:$group/$project.git"
     case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      str"git@gitlab.com:$group/$project.git"
+      if(https) str"https://gitlab.com/$group/$project.git"
+      else str"git@gitlab.com:$group/$project.git"
     case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      if(https) str"https://bitbucket.com/$group/$project.git"
       str"git@bitbucket.com:$group/$project.git"
     case ExistingLocalFileAsAbspath(abspath) =>
       abspath
     case other =>
       other
-  })
+  }
 }
 
 case class Checkout(repoId: RepoId,
@@ -1261,8 +1288,8 @@ case class Checkout(repoId: RepoId,
   def hash: Digest = this.digest[Md5]
   def path(layout: Layout): Path = layout.srcsDir / hash.encoded
 
-  def get(io: Io, layout: Layout): Try[Path] = for {
-    repoDir    <- repo.fetch(io, layout)
+  def get(io: Io, layout: Layout, https: Boolean): Try[Path] = for {
+    repoDir    <- repo.fetch(io, layout, https)
     workingDir <- checkout(io, layout)
   } yield workingDir
 
@@ -1271,12 +1298,12 @@ case class Checkout(repoId: RepoId,
       if(!(path(layout) / ".done").exists) {
         if(path(layout).exists()) {
           val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
-          io.println(s"Found incomplete checkout of $sourceText.")
+          io.println(msg"Found incomplete checkout of $sourceText")
           path(layout).delete()
         }
 
         io.println(msg"Checking out ${if(sources.isEmpty) msg"all sources from repository ${repoId}"
-        else sources.map(_.value).mkString("[", ", ", "]")}.")
+        else sources.map(_.value).mkString("[", ", ", "]")}")
         path(layout).mkdir()
         layout.shell.git
           .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
@@ -1292,8 +1319,8 @@ object SourceRepo {
 }
 
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
-  def listFiles(io: Io, layout: Layout): Try[List[Path]] = for {
-    dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
+  def listFiles(io: Io, layout: Layout, https: Boolean): Try[List[Path]] = for {
+    dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout, https))
     commit <- ~layout.shell.git.getTag(dir, track.id).toOption.orElse(layout.shell.git.getBranchHead(dir,
                   track.id).toOption).getOrElse(track.id)
     files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(layout.shell.git.lsTree(dir,
@@ -1302,20 +1329,20 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
-  def importCandidates(io: Io, schema: Schema, layout: Layout): Try[List[String]] = for {
-    repoDir     <- repo.fetch(io, layout)
+  def importCandidates(io: Io, schema: Schema, layout: Layout, https: Boolean): Try[List[String]] = for {
+    repoDir     <- repo.fetch(io, layout, https)
     layerString <- layout.shell.git.showFile(repoDir, "layer.fury")
     layer       <- Layer.read(io, layerString, layout)
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
-  def current(io: Io, layout: Layout): Try[RefSpec] = for {
-    dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout))
+  def current(io: Io, layout: Layout, https: Boolean): Try[RefSpec] = for {
+    dir    <- local.map(Success(_)).getOrElse(repo.fetch(io, layout, https))
     commit <- layout.shell.git.getCommit(dir)
   } yield RefSpec(commit)
 
-  def sourceCandidates(io: Io, layout: Layout)(pred: String => Boolean): Try[Set[Source]] =
-    listFiles(io, layout).map(_.filter { f => pred(f.filename) }.map { p =>
+  def sourceCandidates(io: Io, layout: Layout, https: Boolean)(pred: String => Boolean): Try[Set[Source]] =
+    listFiles(io, layout, https).map(_.filter { f => pred(f.filename) }.map { p =>
         ExternalSource(id, p.parent): Source }.to[Set])
 }
 
@@ -1327,41 +1354,41 @@ object BinRepoId {
   final val Central: BinRepoId = BinRepoId("central")
 }
 
-case class Repo(url: String) {
-  def hash: Digest               = url.digest[Md5]
+case class Repo(ref: String) {
+  def hash: Digest = ref.digest[Md5]
   def path(layout: Layout): Path = layout.reposDir / hash.encoded
 
   def update(layout: Layout): Try[UserMsg] = for {
     oldCommit <- layout.shell.git.getCommit(path(layout))
     _         <- layout.shell.git.fetch(path(layout), None)
     newCommit <- layout.shell.git.getCommit(path(layout))
-    msg <- ~(if(oldCommit != newCommit) msg"Repository ${url} updated to new commit $newCommit"
-              else msg"Repository ${url} is unchanged")
+    msg <- ~(if(oldCommit != newCommit) msg"Repository ${ref} updated to new commit $newCommit"
+              else msg"Repository ${ref} is unchanged")
   } yield msg
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[String] =
     for(commit <- layout.shell.git.getCommitFromTag(path(layout), tag.id)) yield commit
 
-  def fetch(io: Io, layout: Layout): Try[Path] =
+  def fetch(io: Io, layout: Layout, https: Boolean): Try[Path] =
     if(!(path(layout) / ".done").exists) {
       if(path(layout).exists()) {
-        io.println(s"Found incomplete clone of $url.")
+        io.println(msg"Found incomplete clone of $ref")
         path(layout).delete()
       }
 
-      io.println(s"Cloning Git repository $url.")
+      io.println(s"Cloning Git repository $ref")
       path(layout).mkdir()
-      layout.shell.git.cloneBare(url, path(layout)).map(path(layout).waive)
+      layout.shell.git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
     } else Success(path(layout))
 
-  def simplified: String = url match {
+  def simplified: String = ref match {
     case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => str"gh:$group/$project"
     case r"git@bitbucket.com:$group@(.*)/$project@(.*)\.git" => str"bb:$group/$project"
     case r"git@gitlab.com:$group@(.*)/$project@(.*)\.git"    => str"gl:$group/$project"
     case other                                               => other
   }
 
-  def projectName: Try[RepoId] = url match {
+  def projectName: Try[RepoId] = ref match {
     case r".*/$project@([^\/]*).git" => Success(RepoId(project))
     case value                       => Failure(InvalidValue(value))
   }
@@ -1385,9 +1412,9 @@ object SchemaRef {
 
 case class SchemaRef(repo: RepoId, schema: SchemaId) {
 
-  def resolve(io: Io, base: Schema, layout: Layout): Try[Schema] = for {
+  def resolve(io: Io, base: Schema, layout: Layout, https: Boolean): Try[Schema] = for {
     repo     <- base.repos.findBy(repo)
-    dir      <- repo.fullCheckout.get(io, layout)
+    dir      <- repo.fullCheckout.get(io, layout, https)
     layer    <- Layer.read(io, Layout(layout.home, dir, layout.env, dir).furyConfig, layout)
     resolved <- layer.schemas.findBy(schema)
   } yield resolved

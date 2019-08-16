@@ -81,12 +81,14 @@ object RepoCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(DirArg)
       cli       <- cli.hint(RepoArg, schema.repos)
+      cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
       io        <- invoc.io()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       dir       <- invoc(DirArg)
-      bareRepo  <- repo.repo.fetch(io, layout)
+      https     <- ~invoc(HttpsArg).isSuccess
+      bareRepo  <- repo.repo.fetch(io, layout, https)
       absPath   <- { for {
                      absPath <- dir.absolutePath()
                      _       <- Try(absPath.mkdir())
@@ -150,13 +152,15 @@ object RepoCli {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli            <- cli.hint(UrlArg)
       cli            <- cli.hint(DirArg)
-      projectNameOpt <- ~cli.peek(UrlArg).map(Repo.fromString).flatMap(_.projectName.toOption)
+      cli            <- cli.hint(HttpsArg)
+      projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)
       cli            <- cli.hint(RepoNameArg, projectNameOpt)
       remoteOpt      <- ~cli.peek(UrlArg)
-      repoOpt        <- ~remoteOpt.map(Repo.fromString(_))
+      repoOpt        <- ~remoteOpt.map(Repo(_))
       
-      versions       <- repoOpt.map { repo => layout.shell.git.lsRemote(repo.url) }.to[List].sequence.map(
-                            _.flatten).recover { case e => Nil }
+      versions       <- repoOpt.map { repo =>
+                          layout.shell.git.lsRemote(Repo.fromString(repo.ref, true))
+                        }.to[List].sequence.map(_.flatten).recover { case e => Nil }
 
       cli            <- cli.hint(VersionArg, versions)
       invoc          <- cli.read()
@@ -166,6 +170,7 @@ object RepoCli {
       schema         <- layer.schemas.findBy(schemaArg)
       remote         <- ~invoc(UrlArg).toOption
       dir            <- ~invoc(DirArg).toOption
+      https          <- ~invoc(HttpsArg).isSuccess
       version        <- ~invoc(VersionArg).toOption.getOrElse(RefSpec.master)
 
       suggested      <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
@@ -174,7 +179,7 @@ object RepoCli {
 
       urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
       repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
-      _              <- repo.fetch(io, layout)
+      _              <- repo.fetch(io, layout, https)
 
       commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
                             exoskeleton.InvalidArgValue("version", version.id))
@@ -210,9 +215,9 @@ object RepoCli {
       dir         <- ~invoc(DirArg).toOption
       version     <- ~invoc(VersionArg).toOption
       remoteArg   <- ~invoc(UrlArg).toOption
-      remote      <- ~remoteArg.map(Repo.fromString(_))
+      remote      <- ~remoteArg.map(Repo(_))
       nameArg     <- ~invoc(RepoNameArg).toOption
-      force       <- ~invoc(ForceArg).toOption.isDefined
+      force       <- ~invoc(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version

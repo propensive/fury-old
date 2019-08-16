@@ -100,7 +100,7 @@ object SourceCli {
       _           <- ~Layer.save(io, layer, layout)
 
       _           <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
-                         cli.globalLayout))
+                         cli.globalLayout, false))
 
     } yield io.await()
   }
@@ -111,7 +111,7 @@ object SourceCli {
       repos      <- defaultSchema.map(_.repos)
 
       extSrcs    <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sourceCandidates(Io.silent(config), layout) { n =>
+                     repos.map(_.sourceCandidates(Io.silent(config), layout, false) { n =>
                        n.endsWith(".scala") || n.endsWith(".java")
                      })
                    }.sequence.map(_.flatten)
@@ -136,7 +136,7 @@ object SourceCli {
       _          <- ~Layer.save(io, layer, layout)
 
       _          <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
-                        cli.globalLayout))
+                        cli.globalLayout, false))
 
     } yield io.await()
   }

@@ -48,7 +48,7 @@ object ProjectCli {
       io        <- invoc.io()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
-      force     <- ~invoc(ForceArg).toOption.isDefined
+      force     <- ~invoc(ForceArg).isSuccess
       schemaId  <- ~optSchemaId.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
       _         <- schema(projectId)
@@ -81,7 +81,7 @@ object ProjectCli {
       dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
-                            Io.silent(config), layout))
+                            Io.silent(config), layout, false))
 
       invoc          <- cli.read()
       io             <- invoc.io()
@@ -112,7 +112,7 @@ object ProjectCli {
       io        <- invoc.io()
       projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
-      force     <- ~invoc(ForceArg).toOption.isDefined
+      force     <- ~invoc(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(_.modify(_)((_:
                        SortedSet[Project]).filterNot(_.id == project.id)))
@@ -132,7 +132,7 @@ object ProjectCli {
       cli            <- cli.hint(DescriptionArg)
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
-                            _.compilerRefs(Io.silent(config), layout)))
+                            _.compilerRefs(Io.silent(config), layout, false)))
       
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
@@ -143,7 +143,7 @@ object ProjectCli {
       projectId      <- projectId.ascribe(UnspecifiedProject())
       schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       project        <- schema.projects.findBy(projectId)
-      force          <- ~invoc(ForceArg).toOption.isDefined
+      force          <- ~invoc(ForceArg).isSuccess
       focus          <- ~Lenses.focus(optSchemaId, force)
       licenseArg     <- ~invoc(LicenseArg).toOption
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
