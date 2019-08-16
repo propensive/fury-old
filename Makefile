@@ -80,7 +80,7 @@ dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% co
 	mkdir -p ${@D}
 	touch ${@D}/.dir
 
-dist/bundle/bin/fury: $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
+dist/bundle/bin/fury: dist/bundle/bin/.dir
 	cp etc/fury $@
 	chmod +x $@
 
