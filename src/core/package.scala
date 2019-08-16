@@ -41,7 +41,6 @@ object `package` {
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
 
-  implicit val diff: Diff[Path]                 = (l, r) => Diff.stringDiff.diff(l.value, r.value)
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
   implicit class Unitize[T](t: T) { def unit: Unit = ()         }

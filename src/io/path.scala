@@ -34,6 +34,7 @@ import java.io.{File => JavaFile}
 object Path {
 
   implicit val stringShow: StringShow[Path] = _.value
+  implicit val diff: Diff[Path] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
 
   def apply(jpath: JavaPath): Path = Path(jpath.toString)
   def apply(file: JavaFile): Path = Path(file.getAbsolutePath)

@@ -47,6 +47,10 @@ schemas	default	id	default
 								moduleId	external
 								intransitive	false
 								hidden	false
+							fury/model	projectId	fury
+								moduleId	model
+								intransitive	false
+								hidden	false
 							fury/ogdl	projectId	fury
 								moduleId	ogdl
 								intransitive	false
@@ -284,6 +288,24 @@ schemas	default	id	default
 						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
 								target	modifyThread
 								action	None
+					model	id	model
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					module	id	module
 						kind	Library
 						main	None
@@ -427,7 +449,10 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	
+						after	magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
 						params	
 						sources	src/strings	src/strings
 						binaries	
@@ -532,7 +557,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-				main	Some	external
+				main	Some	model
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
