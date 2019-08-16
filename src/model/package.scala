@@ -15,45 +15,10 @@
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
 
-package fury.core
+package fury
 
-import fury.io._, fury.strings._, fury.model._
+import fury.strings._, fury.io._
 
-import scala.collection.mutable.{HashMap => MutableMap}
-import scala.concurrent._
-import coursier.{Module => CModule, _}
-
-object Coursier {
-  implicit val ec: ExecutionContext = ExecutionContext.global
-  private val cache: MutableMap[Binary, Future[List[Path]]] = MutableMap()
-
-  private val scalaCore = Set(
-    Organization("org.scala-lang") -> ModuleName("scala-library"),
-    Organization("org.scala-lang") -> ModuleName("scala-compiler"),
-    Organization("org.scala-lang") -> ModuleName("scala-reflect"),
-    Organization("org.scala-lang") -> ModuleName("scala-xml")
-  )
-
-  def fetch(io: Io, binary: Binary): Future[List[Path]] = {
-    def resolveRepository(repoId: String): Future[Repository] =
-      coursier.internal.SharedRepositoryParser.repository(repoId)
-        .map(Future.successful(_)).left
-        .map(Future.failed[Repository](UnknownBinaryRepository(binary.binRepo)).waive).merge
-
-    def resolve(repo: Repository): Future[List[Path]] = {
-      io.println(msg"Resolving $binary")
-      
-      val dependency = Dependency(
-        module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
-        version = binary.version,
-        exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
-      )
-      
-      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).future
-      
-      request.map(_.map(Path(_)).to[List])
-    }
-
-    cache.getOrElseUpdate(binary, resolveRepository(binary.binRepo.id).flatMap(resolve))
-  }
+package object model {
+  
 }

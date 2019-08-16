@@ -17,7 +17,7 @@
 
 package fury.core
 
-import fury.strings._, fury.io._
+import fury.strings._, fury.io._, fury.model._
 
 import annotation.tailrec
 import optometry.Lens

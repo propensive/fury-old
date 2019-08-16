@@ -17,7 +17,7 @@
 
 package fury.core
 
-import fury.strings._, fury.jsongen._, fury.io.Path
+import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI

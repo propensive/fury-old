@@ -17,7 +17,7 @@
 
 package fury.core
 
-import fury._, io._, strings._
+import fury._, io._, strings._, model._
 
 import gastronomy._
 import guillotine._

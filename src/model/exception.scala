@@ -15,7 +15,7 @@
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
 
-package fury.core
+package fury.model
 
 import fury.strings._, fury.io._
 
@@ -36,7 +36,7 @@ case class GraalVMError(message: String) extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
 case class InvalidKind(expected: Kind) extends FuryException
 case class UnspecifiedRepo() extends FuryException
-case class ProjectConflict(ids: Set[ProjectId], h1: Hierarchy, h2: Hierarchy) extends FuryException
+case class ProjectConflict(ids: Set[ProjectId]/*, h1: Hierarchy, h2: Hierarchy*/) extends FuryException
 case class SchemaDifferences() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
 case class LauncherFailure(msg: String) extends FuryException

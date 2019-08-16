@@ -17,6 +17,8 @@
 
 package fury.core
 
+import fury.model._
+
 import optometry._
 import scala.collection.immutable.SortedSet
 

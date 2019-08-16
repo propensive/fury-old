@@ -55,10 +55,6 @@ schemas	default	id	default
 								moduleId	ogdl
 								intransitive	false
 								hidden	false
-							gastronomy/core	projectId	gastronomy
-								moduleId	core
-								intransitive	false
-								hidden	false
 							guillotine/core	projectId	guillotine
 								moduleId	core
 								intransitive	false
@@ -297,9 +293,24 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	
+						after	fury/io	projectId	fury
+								moduleId	io
+								intransitive	false
+								hidden	false
+							fury/strings	projectId	fury
+								moduleId	strings
+								intransitive	false
+								hidden	false
+							gastronomy/core	projectId	gastronomy
+								moduleId	core
+								intransitive	false
+								hidden	false
+							kaleidoscope/core	projectId	kaleidoscope
+								moduleId	core
+								intransitive	false
+								hidden	false
 						params	
-						sources	
+						sources	src/model	src/model
 						binaries	
 						resources	
 						bloopSpec	None
