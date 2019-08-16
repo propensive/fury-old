@@ -23,6 +23,8 @@ import gastronomy._
 
 import scala.util._
 
+import language.higherKinds
+
 object Kind {
   implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
   implicit val stringShow: StringShow[Kind] = _.name
@@ -116,3 +118,248 @@ object Permission {
 case class Permission(className: String, target: String, action: Option[String]) {
   def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
 }
+
+object ManifestEntry {
+  implicit val stringShow: StringShow[ManifestEntry] = _.key
+  implicit val msgShow: MsgShow[ManifestEntry] = v => UserMsg { t => v.key }
+  implicit val diff: Diff[ManifestEntry] = (l, r) => Diff.stringDiff.diff(l.pairString, r.pairString)
+}
+
+case class ManifestEntry(key: String, value: String) { def pairString: String = str"$key=$value" }
+
+object PermissionHash {
+  implicit val stringShow: StringShow[PermissionHash] = _.key
+  implicit val msgShow: MsgShow[PermissionHash] = _.key
+}
+case class PermissionHash(key: String) extends Key(msg"permission")
+
+object ScopeId {
+  implicit val stringShow: StringShow[ScopeId] = _.id
+
+  case object Project extends ScopeId("project")
+  case object Directory extends ScopeId("directory")
+  //case object Layer extends ScopeId("layer")
+
+  val All = List(Project, Directory)//, Layer)
+
+  def unapply(id: String): Option[ScopeId] = All.find(_.id == id)
+}
+
+sealed abstract class ScopeId(val id: String) extends scala.Product with scala.Serializable
+
+object Grant {
+  implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
+  implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
+}
+
+case class Grant(scope: Scope, permission: Permission)
+
+object PermissionEntry {
+  implicit val msgShow: MsgShow[PermissionEntry] = pe => msg"${pe.hash.key} ${pe.permission}"
+  implicit val stringShow: StringShow[PermissionEntry] = pe => pe.hash.key
+}
+
+case class PermissionEntry(permission: Permission, hash: PermissionHash)
+
+object EnvVar {
+  implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
+  implicit val stringShow: StringShow[EnvVar] = e => str"${e.key}=${e.value}"
+  implicit def diff: Diff[EnvVar] = Diff.gen[EnvVar]
+
+  def parse(str: String): Option[EnvVar] = str.split("=", 2) match {
+    case Array(key, value) => Some(EnvVar(key, value))
+    case Array(key)        => Some(EnvVar(key, ""))
+    case _                 => None
+  }
+}
+
+case class EnvVar(key: String, value: String)
+
+object JavaProperty {
+  implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.key}=${e.value}"
+  implicit val stringShow: StringShow[JavaProperty] = e => str"${e.key}=${e.value}"
+  implicit def diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
+
+  def parse(str: String): Option[JavaProperty] = str.split("=", 2) match {
+    case Array(key, value) => Some(JavaProperty(key, value))
+    case Array(key)        => Some(JavaProperty(key, ""))
+    case _                 => None
+  }
+}
+case class JavaProperty(key: String, value: String)
+
+sealed trait Scope extends scala.Product with scala.Serializable
+case class DirectoryScope(dir: String) extends Scope
+case class ProjectScope(name: ProjectId) extends Scope
+//case class LayerScope(layerHash: String) extends Scope
+
+object BloopSpec {
+  implicit val msgShow: MsgShow[BloopSpec]       = v => msg"${v.org}:${v.name}"
+  implicit val stringShow: StringShow[BloopSpec] = bs => str"${bs.org}:${bs.name}"
+  implicit def diff: Diff[BloopSpec]             = Diff.gen[BloopSpec]
+
+  def parse(str: String): Try[BloopSpec] = str match {
+    case r"$org@([a-z][a-z0-9_\-\.]*):$id@([a-z][a-z0-9_\-\.]*):$version@([0-9a-z][A-Za-z0-9_\-\.]*)" =>
+      Success(BloopSpec(org, id, version))
+    case _ =>
+      Failure(InvalidValue(str))
+  }
+}
+
+case class BloopSpec(org: String, name: String, version: String)
+
+object LineNo { implicit val msgShow: MsgShow[LineNo] = v => UserMsg(_.lineNo(v.line.toString)) }
+case class LineNo(line: Int) extends AnyVal
+
+object AliasCmd {
+  implicit val msgShow: MsgShow[AliasCmd] = v => UserMsg(_.module(v.key))
+  implicit val stringShow: StringShow[AliasCmd] = _.key
+}
+
+case class AliasCmd(key: String)
+
+object Alias {
+  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.cmd.key))
+  implicit val stringShow: StringShow[Alias] = _.cmd.key
+}
+
+case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], module: ModuleRef)
+
+object ModuleRef {
+  implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
+  implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
+  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
+
+  implicit val diff: Diff[ModuleRef] =
+    (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))
+
+  implicit val msgShow: MsgShow[ModuleRef] = ref =>
+    UserMsg { theme =>
+      msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}".string(theme)
+    }
+
+  def parseFull(string: String, intransitive: Boolean): Try[ModuleRef] = string match {
+    case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
+      Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
+    case _ =>
+      Failure(ItemNotFound(ModuleId(string)))
+  }
+
+  def parse(projectId: ProjectId, string: String, intransitive: Boolean): Try[ModuleRef] =
+    string match {
+      case r"$projectId@([a-z](-?[a-z0-9]+)*)\/$moduleId@([a-z](-?[a-z0-9]+)*)" =>
+        Success(ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive))
+      case r"[a-z](-?[a-z0-9]+)*" =>
+        Success(ModuleRef(projectId, ModuleId(string), intransitive))
+      case _ =>
+        Failure(ItemNotFound(ModuleId(string)))
+    }
+}
+
+case class ModuleRef(projectId: ProjectId,
+                     moduleId: ModuleId,
+                     intransitive: Boolean = false,
+                     hidden: Boolean = false) {
+
+  override def equals(that: Any): Boolean = that match {
+    case ModuleRef(p, m, _, _) => projectId == p && moduleId == m
+    case _                     => false
+  }
+
+  def hide = copy(hidden = true)
+  override def hashCode: Int = projectId.hashCode + moduleId.hashCode
+  override def toString: String = str"$projectId/$moduleId"
+}
+
+object SchemaId {
+  implicit val msgShow: MsgShow[SchemaId]       = v => UserMsg(_.schema(v.key))
+  implicit val stringShow: StringShow[SchemaId] = _.key
+  implicit val diff: Diff[SchemaId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  final val default = SchemaId("default")
+
+  def parse(name: String): Try[SchemaId] = name match {
+    case r"[a-z](-?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
+    case _                         => Failure(InvalidValue(name))
+  }
+}
+
+case class SchemaId(key: String) extends Key(msg"schema")
+
+object RepoId {
+  implicit val msgShow: MsgShow[RepoId]       = r => UserMsg(_.repo(r.key))
+  implicit val stringShow: StringShow[RepoId] = _.key
+}
+
+case class RepoId(key: String) extends Key(msg"repository")
+
+object Parameter {
+  implicit val stringShow: StringShow[Parameter] = _.name
+  implicit val msgShow: MsgShow[Parameter] = v => UserMsg(_.param(v.name))
+  implicit val diff: Diff[Parameter] = (l, r) => Diff.stringDiff.diff(l.name, r.name)
+}
+
+case class Parameter(name: String) { def parameter = str"-$name" }
+
+object License {
+  implicit val msgShow: MsgShow[License]       = v => UserMsg(_.license(v.id.key))
+  implicit val stringShow: StringShow[License] = _.id.key
+  val unknown = LicenseId("unknown")
+
+  val standardLicenses = List(
+      License(LicenseId("afl-3.0"), "Academic Free License v3.0"),
+      License(LicenseId("apache-2.0"), "Apache license 2.0"),
+      License(LicenseId("artistic-2.0"), "Artistic license 2.0"),
+      License(LicenseId("bsd-2-clause"), "BSD 2-clause \"Simplified\" license"),
+      License(LicenseId("bsd-3-clause"), "BSD 3-clause \"New\" or \"Revised\" license"),
+      License(LicenseId("bsl-1.0"), "Boost Software License 1.0"),
+      License(LicenseId("bsd-3-clause-clear"), "BSD 3-clause Clear license"),
+      License(LicenseId("cc"), "Creative Commons license family"),
+      License(LicenseId("cc0-1.0"), "Creative Commons Zero v1.0 Universal"),
+      License(LicenseId("cc-by-4.0"), "Creative Commons Attribution 4.0"),
+      License(LicenseId("cc-by-sa-4.0"), "Creative Commons Attribution Share Alike 4.0"),
+      License(LicenseId("wtfpl"), "Do What The F*ck You Want To Public License"),
+      License(LicenseId("ecl-2.0"), "Educational Community License v2.0"),
+      License(LicenseId("epl-1.0"), "Eclipse Public License 1.0"),
+      License(LicenseId("epl-1.1"), "European Union Public License 1.1"),
+      License(LicenseId("agpl-3.0"), "GNU Affero General Public License v3.0"),
+      License(LicenseId("gpl"), "GNU General Public License family"),
+      License(LicenseId("gpl-2.0"), "GNU General Public License v2.0"),
+      License(LicenseId("gpl-3.0"), "GNU General Public License v3.0"),
+      License(LicenseId("lgpl"), "GNU Lesser General Public License family"),
+      License(LicenseId("lgpl-2.1"), "GNU Lesser General Public License v2.1"),
+      License(LicenseId("lgpl-3.0"), "GNU Lesser General Public License v3.0"),
+      License(LicenseId("isc"), "ISC"),
+      License(LicenseId("lppl-1.3c"), "LaTeX Project Public License v1.3c"),
+      License(LicenseId("ms-pl"), "Microsoft Public License"),
+      License(LicenseId("mit"), "MIT"),
+      License(LicenseId("mpl-2.0"), "Mozilla Public License 2.0"),
+      License(LicenseId("osl-3.0"), "Open Software License 3.0"),
+      License(LicenseId("postgresql"), "PostgreSQL License"),
+      License(LicenseId("ofl-1.1"), "SIL Open Font License 1.1"),
+      License(LicenseId("ncsa"), "University of Illinois/NCSA Open Source License"),
+      License(LicenseId("unlicense"), "The Unlicense"),
+      License(LicenseId("zlib"), "zLib License")
+  )
+}
+
+object LicenseId {
+  implicit val msgShow: MsgShow[LicenseId]       = v => UserMsg(_.license(v.key))
+  implicit val stringShow: StringShow[LicenseId] = _.key
+}
+
+case class LicenseId(key: String) extends Key(msg"license")
+
+case class License(id: LicenseId, name: String)
+
+object RefSpec {
+  implicit val msgShow: MsgShow[RefSpec]       = v => UserMsg(_.version(v.id))
+  implicit val stringShow: StringShow[RefSpec] = _.id
+  val master: RefSpec = RefSpec("master")
+}
+case class RefSpec(id: String)
+
+object Commit {
+  implicit val stringShow: StringShow[Commit] = _.id
+  implicit val msgShow: MsgShow[Commit]       = r => UserMsg(_.version(r.id.take(7)))
+}
+case class Commit(id: String)

@@ -38,9 +38,6 @@ object `package` {
   implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
     Ordering.String.on(implicitly[StringShow[T]].show(_))
 
-  implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
-    ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
-
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
   implicit class Unitize[T](t: T) { def unit: Unit = ()         }

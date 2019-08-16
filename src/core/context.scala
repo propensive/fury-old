@@ -17,6 +17,8 @@
 
 package fury.core
 
+import fury.model._
+
 import guillotine._
 
 class MenuContext(val cli: Cli[CliParam[_]],

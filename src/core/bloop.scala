@@ -17,7 +17,7 @@
 
 package fury.core
 
-import fury.jsongen._, fury.io._, fury.strings._
+import fury.jsongen._, fury.io._, fury.strings._, fury.model._
 
 import java.net._
 

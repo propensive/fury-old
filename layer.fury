@@ -305,11 +305,15 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
+							guillotine/core	projectId	guillotine
+								moduleId	core
+								intransitive	false
+								hidden	false
 							kaleidoscope/core	projectId	kaleidoscope
 								moduleId	core
 								intransitive	false
 								hidden	false
-						params	
+						params	feature	feature
 						sources	src/model	src/model
 						binaries	
 						resources	
