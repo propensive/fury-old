@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.5. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -65,7 +65,7 @@ object Binary {
 
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
-  def paths(io: Io): Future[List[Path]] = Coursier.fetch(io, this)
+  def paths(io: Io): Try[List[Path]] = Coursier.fetch(io, this)
 }
 
 object Policy {
@@ -752,9 +752,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module <- entity.project(ref.moduleId)
       compiler <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                  else makeTarget(io, module.compiler, layout).map(Some(_))
-      binaries <- ~Await.result(
-                     module.allBinaries.map(_.paths(io)).sequence.map(_.flatten),
-                     duration.Duration.Inf)
+      binaries <- module.allBinaries.map(_.paths(io)).sequence.map(_.flatten)
       checkouts <- checkout(ref, layout)
     } yield
       Target(

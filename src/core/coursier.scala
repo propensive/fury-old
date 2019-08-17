@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.5. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -18,13 +18,13 @@ package fury.core
 
 import fury.io._, fury.strings._, fury.model._
 
-import scala.collection.mutable.{HashMap => MutableMap}
-import scala.concurrent._
 import coursier.{Module => CModule, _}
 
+import scala.collection.mutable.{HashMap => MutableMap}
+import scala.util._
+
 object Coursier {
-  implicit val ec: ExecutionContext = ExecutionContext.global
-  private val cache: MutableMap[Binary, Future[List[Path]]] = MutableMap()
+  private val cache: MutableMap[Binary, List[Path]] = MutableMap()
 
   private val scalaCore = Set(
     Organization("org.scala-lang") -> ModuleName("scala-library"),
@@ -33,13 +33,8 @@ object Coursier {
     Organization("org.scala-lang") -> ModuleName("scala-xml")
   )
 
-  def fetch(io: Io, binary: Binary): Future[List[Path]] = {
-    def resolveRepository(repoId: String): Future[Repository] =
-      coursier.internal.SharedRepositoryParser.repository(repoId)
-        .map(Future.successful(_)).left
-        .map(Future.failed[Repository](UnknownBinaryRepository(binary.binRepo)).waive).merge
-
-    def resolve(repo: Repository): Future[List[Path]] = {
+  def fetch(io: Io, binary: Binary): Try[List[Path]] = {
+    def resolve(repo: Repository): List[Path] = {
       io.println(msg"Resolving $binary")
       
       val dependency = Dependency(
@@ -48,11 +43,18 @@ object Coursier {
         exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
       )
       
-      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).future
+      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
       
-      request.map(_.map(Path(_)).to[List])
+      request.map(Path(_)).to[List]
     }
 
-    cache.getOrElseUpdate(binary, resolveRepository(binary.binRepo.id).flatMap(resolve))
+    cache.get(binary) match {
+      case Some(bin) => Success(bin)
+      case None =>
+        coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id).map(resolve) match {
+          case Left(reason) => Failure(DownloadFailure(reason))
+          case Right(files)  => Success(cache.getOrElseUpdate(binary, files))
+        }
+    }
   }
 }

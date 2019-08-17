@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.5. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -40,6 +40,7 @@ case class SchemaDifferences() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class CompilationFailure() extends FuryException
+case class DownloadFailure(detail: String) extends FuryException
 
 object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
