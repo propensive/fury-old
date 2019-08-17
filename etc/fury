@@ -1,15 +1,16 @@
 #!/bin/bash
 
 if [ "$(uname -s)" = 'Linux' ]; then
-FURYHOME="$(dirname "$(readlink -f "$0")")/.."
+  FURYHOME="$(dirname "$(readlink -f "$0")")/.."
 else
-FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
+  FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
 fi
 
 PORT="8462"
 CLASSPATH="$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
+QUIET='0'
 
 trap cleanup INT
 
@@ -23,6 +24,12 @@ nailgun() {
 	"${FURYHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
   else
 	"${FURYHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+  fi
+}
+
+message() {
+  if [ "$QUIET" = "0" ]; then
+    printf "$1"
   fi
 }
 
@@ -52,20 +59,20 @@ coursier() {
 
 killFury() {
   case "$1" in
-    "--force")
-      nuke &
+    "--force"|"-F")
+      forceKill &
       ;;
     *)
-      nailgun ng-stop > /dev/null && printf 'Fury daemon has shut down\n'
+      nailgun ng-stop 2> /dev/null && message 'Fury daemon has shut down\n'
       ;;
   esac
 }
 
-nuke() {
-bash <<END
-  printf 'Killing everything that looks like fury or bloop...\n'
-  pkill --signal SIGKILL -f '(fury)|(bloop)'
-  pgrep -f '(fury)|(bloop)' && printf 'Processes with these PIDs have survived...\n' || printf 'Done! \n'
+forceKill() {
+  bash <<END
+    printf 'Killing everything that looks like fury or bloop...'
+    pkill --signal SIGKILL -f '(fury)|(bloop)'
+    pgrep -f '(fury)|(bloop)' && printf '\nProcesses with these PIDs have survived.\n' || printf 'done\n'
 END
 }
 
@@ -74,28 +81,28 @@ stopFury() {
 }
 
 isRunning() {
-  (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>&1) > /dev/null 2>&1  || (printf "Starting Fury daemon...\n" && nailgun "${FURY_MAIN}" about > /dev/null 2>&1)
+  (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>&1) > /dev/null 2>&1  || (message 'Starting Fury daemon...\n' && nailgun "${FURY_MAIN}" about > /dev/null 2>&1)
 }
 
 fury() {
-	(isRunning || (startFury > /dev/null)) && nailgun "${FURY_MAIN}" "$@"
+  (isRunning || (startFury > /dev/null)) && nailgun "${FURY_MAIN}" "$@"
 }
 
 startFury() {
-  isRunning && printf "Fury daemon is running\n" && exit 0
+  isRunning && message "Fury daemon is running\n" && exit 0
 
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
   nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
 
-  printf 'Fury daemon is starting...'
+  message 'Fury daemon is starting...'
   for I in $(seq 1 25); do
-    isRunning && printf "\nFury daemon is running\n" && exit 0
+    isRunning && message "\nFury daemon is running\n" && exit 0
 
-    printf '.'
+    message '.'
     sleep 0.15
   done
-  printf '\n'
-  printf 'Starting Fury is taking longer than expected\n'
+  message '\n'
+  message 'Starting Fury is taking longer than expected to start\n'
 }
 
 restartFury() {
@@ -127,6 +134,7 @@ case "$1" in
     silently fury "$@" || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
+    QUIET=1
     silently fury "$@" || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   "--help")

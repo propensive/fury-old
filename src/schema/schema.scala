@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import Args._
 
@@ -33,7 +32,7 @@ object SchemaCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield SchemaCtx(cli, layout, config, layer)
 
@@ -106,7 +105,7 @@ object SchemaCli {
       newName  <- invoc(SchemaNameArg)
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
-      force    <- ~invoc(ForceArg).toOption.isDefined
+      force    <- ~invoc(ForceArg).isSuccess
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
       layer    <- ~(if(layer.main == schema.id) layer.copy(main = newName) else layer)

@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.strings._, fury.io._, fury.core._, fury.ogdl._
+import fury.strings._, fury.io._, fury.core._, fury.ogdl._, fury.model._, fury.external._
 
 import Args._
 
@@ -32,9 +31,7 @@ import language.higherKinds
 object ConfigCli {
   case class Context(cli: Cli[CliParam[_]], config: Config)
 
-  def context(cli: Cli[CliParam[_]]) =
-    for(config <- ~Config.read()(cli.env, cli.globalLayout).toOption.getOrElse(Config()))
-    yield new Context(cli, config)
+  def context(cli: Cli[CliParam[_]]): Try[Context] = Try(new Context(cli, cli.config))
 
   def set(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -53,7 +50,7 @@ object AliasCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
+      config <- ~cli.config
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield new MenuContext(cli, layout, config, layer)
 
@@ -121,7 +118,7 @@ object BuildCli {
 
   def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield new MenuContext(cli, layout, config, layer)
 
@@ -140,7 +137,7 @@ object BuildCli {
                                  |Fury build tool for Scala, version ${Version.current}.
                                  |This software is provided under the Apache 2.0 License.
                                  |Fury depends on Bloop, Coursier, Git and Nailgun.
-                                 |© Copyright 2018 Jon Pretty, Propensive Ltd.
+                                 |© Copyright 2018-19 Jon Pretty, Propensive Ltd.
                                  |
                                  |See the Fury website at https://fury.build/, or follow @propensive on Twitter
                                  |for more information.
@@ -166,6 +163,7 @@ object BuildCli {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
+      cli          <- cli.hint(HttpsArg)
       schemaArg    <- ~cli.peek(SchemaArg).orElse(optSchema).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
@@ -181,9 +179,13 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
+      https        <- ~invoc(HttpsArg).isSuccess
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
-      _            <- ~compilation.checkoutAll(io, layout)
+      
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                          https)
+
+      _            <- ~compilation.checkoutAll(io, layout, https)
       _            <- compilation.generateFiles(io, layout)
       debugStr     <- ~invoc(DebugArg).toOption
       multiplexer  <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
@@ -213,7 +215,7 @@ object BuildCli {
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
     msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
     invoc  <- cli.read()
@@ -225,6 +227,7 @@ object BuildCli {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas)
+      cli            <- cli.hint(HttpsArg)
       schemaArg      <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
       cli            <- cli.hint(ProjectArg, schema.projects)
@@ -233,16 +236,21 @@ object BuildCli {
       cli            <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(FatJarArg)
+      cli            <- cli.hint(ReporterArg, Reporter.all)
       invoc          <- cli.read()
       io             <- invoc.io()
       dir            <- invoc(DirArg)
+      https          <- ~invoc(HttpsArg).isSuccess
       project        <- optProject.ascribe(UnspecifiedProject())
       optModuleId    <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module         <- optModule.ascribe(UnspecifiedModule())
-      fatJar          = invoc(FatJarArg).toOption.isDefined
-      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
-      _              <- ~compilation.checkoutAll(io, layout)
+      fatJar          = invoc(FatJarArg).isSuccess
+      
+      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                            https)
+
+      _              <- ~compilation.checkoutAll(io, layout, https)
       _              <- compilation.generateFiles(io, layout)
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
       globalPolicy   <- Policy.read(io, cli.globalLayout)
@@ -269,6 +277,7 @@ object BuildCli {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
+      cli          <- cli.hint(HttpsArg)
       schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
@@ -279,11 +288,15 @@ object BuildCli {
       invoc        <- cli.read()
       io           <- invoc.io()
       dir          <- invoc(DirArg)
+      https        <- ~invoc(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+      
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                          https)
+      
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
       _            <- compilation.saveNative(io, module.ref(project), dir in layout.pwd, layout, main)
@@ -294,6 +307,7 @@ object BuildCli {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
+      cli          <- cli.hint(HttpsArg)
       schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
@@ -304,9 +318,13 @@ object BuildCli {
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
       invoc        <- cli.read()
       io           <- invoc.io()
+      https        <- ~invoc(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+      
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                          https)
+      
       classpath    <- ~compilation.classpath(module.ref(project), layout)
       _            <- ~io.println(classpath.map(_.value).join(":"))
     } yield io.await()
@@ -316,6 +334,7 @@ object BuildCli {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
+      cli          <- cli.hint(HttpsArg)
       schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
@@ -324,11 +343,14 @@ object BuildCli {
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       invoc        <- cli.read()
       io           <- invoc.io()
+      https        <- ~invoc(HttpsArg).isSuccess
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                          https)
       
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
                           Map())(config.theme).foreach(io.println(_))
@@ -350,16 +372,18 @@ object LayerCli {
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
-    config    <- Config.read()(cli.env, cli.globalLayout)
+    config    <- ~cli.config
     layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli       <- cli.hint(SchemaArg, layer.schemas)
+    cli       <- cli.hint(HttpsArg)
     schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
     schema    <- layer.schemas.findBy(schemaArg)
     cli       <- cli.hint(RawArg)
     invoc     <- cli.read()
     io        <- invoc.io()
     raw       <- ~invoc(RawArg).isSuccess
-    projects  <- schema.allProjects(io, layout)
+    https     <- ~invoc(HttpsArg).isSuccess
+    projects  <- schema.allProjects(io, layout, https)
     table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
     _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
     _         <- ~io.println(table.mkString("\n"))

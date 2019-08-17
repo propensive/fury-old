@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,26 +14,35 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
+package fury.model
 
-package fury.core
+import fury.strings._, fury.io._
 
-import fury.io._
+case class NotInitialized(dir: Path) extends FuryException
+case class ModuleAlreadyExists(module: ModuleId) extends FuryException
+case class ProjectAlreadyExists(project: ProjectId) extends FuryException
+case class MissingCommand() extends FuryException
+case class UnknownCommand(command: String) extends FuryException
+case class AlreadyInitialized() extends FuryException
+case class UnknownCompiler() extends FuryException
+case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
+case class InvalidValue(value: String) extends FuryException
+case class InitFailure() extends FuryException
+case class UnspecifiedProject() extends FuryException
+case class UnspecifiedModule() extends FuryException
+case class UnspecifiedMain(module: ModuleId) extends FuryException
+case class GraalVMError(message: String) extends FuryException
+case class BuildServerError(cause: Throwable) extends FuryException
+case class InvalidKind(expected: Kind) extends FuryException
+case class UnspecifiedRepo() extends FuryException
+case class ProjectConflict(ids: Set[ProjectId]/*, h1: Hierarchy, h2: Hierarchy*/) extends FuryException
+case class SchemaDifferences() extends FuryException
+case class NoPermissions(permissions: Set[Permission]) extends FuryException
+case class LauncherFailure(msg: String) extends FuryException
+case class CompilationFailure() extends FuryException
 
-import org.openjdk.jmh._
-import generators.bytecode._
-
-import scala.util._
-import java.io._
-
-object Jmh {
-  def instrument(bytecode: Path, sources: Path, resources: Path): Try[Unit] = {
-    val discard: OutputStream = _ => ()
-    val out = System.out
-    System.setOut(new PrintStream(discard))
-    val args = Array(bytecode.value, sources.value, resources.value, "reflection")
-    val result = Try(JmhBytecodeGenerator.main(args))
-    System.setOut(out)
-    
-    result
-  }
+object ItemNotFound {
+  def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
+
+case class ItemNotFound(item: UserMsg, kind: UserMsg) extends FuryException

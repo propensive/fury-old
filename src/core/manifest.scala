@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,13 +14,11 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury.core
 
 import fury.strings._
 import java.util.jar.{Attributes, Manifest => JavaManifest}
 import Attributes.Name._
-import scala.collection.immutable.SortedSet
 
 object Manifest {
   def apply(classpath: Set[String], mainClass: Option[String]): JavaManifest = {
@@ -28,7 +26,7 @@ object Manifest {
     val mainAttributes = result.getMainAttributes
     mainAttributes.put(MANIFEST_VERSION, "1.0")
     mainClass.foreach(mainAttributes.put(MAIN_CLASS, _))
-    mainAttributes.put(CLASS_PATH, classpath.to[SortedSet].join(" "))
+    mainAttributes.put(CLASS_PATH, classpath.join(" "))
     mainAttributes.putValue("Created-By", str"Fury ${Version.current}")
     
     result

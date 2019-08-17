@@ -43,16 +43,16 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/jsongen	projectId	fury
-								moduleId	jsongen
+							fury/external	projectId	fury
+								moduleId	external
+								intransitive	false
+								hidden	false
+							fury/model	projectId	fury
+								moduleId	model
 								intransitive	false
 								hidden	false
 							fury/ogdl	projectId	fury
 								moduleId	ogdl
-								intransitive	false
-								hidden	false
-							gastronomy/core	projectId	gastronomy
-								moduleId	core
 								intransitive	false
 								hidden	false
 							guillotine/core	projectId	guillotine
@@ -77,10 +77,6 @@ schemas	default	id	default
 								group	ch.epfl.scala
 								artifact	bsp4j
 								version	2.0.0-M4
-							io.get-coursier:coursier_2.12:2.0.0-RC3-2	binRepo	central
-								group	io.get-coursier
-								artifact	coursier_2.12
-								version	2.0.0-RC3-2
 							org.openjdk.jmh:jmh-core:1.21	binRepo	central
 								group	org.openjdk.jmh
 								artifact	jmh-core
@@ -127,6 +123,96 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+					external	id	external
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/io	projectId	fury
+								moduleId	io
+								intransitive	false
+								hidden	false
+							fury/jsongen	projectId	fury
+								moduleId	jsongen
+								intransitive	false
+								hidden	false
+							guillotine/core	projectId	guillotine
+								moduleId	core
+								intransitive	false
+								hidden	false
+							magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/external	src/external
+						binaries	io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
+								group	io.get-coursier
+								artifact	coursier_2.12
+								version	1.1.0-M14-4
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					frontend	id	frontend
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/build	projectId	fury
+								moduleId	build
+								intransitive	false
+								hidden	false
+							fury/dependency	projectId	fury
+								moduleId	dependency
+								intransitive	false
+								hidden	false
+							fury/imports	projectId	fury
+								moduleId	imports
+								intransitive	false
+								hidden	false
+							fury/module	projectId	fury
+								moduleId	module
+								intransitive	false
+								hidden	false
+							fury/project	projectId	fury
+								moduleId	project
+								intransitive	false
+								hidden	false
+							fury/repo	projectId	fury
+								moduleId	repo
+								intransitive	false
+								hidden	false
+							fury/schema	projectId	fury
+								moduleId	schema
+								intransitive	false
+								hidden	false
+							fury/source	projectId	fury
+								moduleId	source
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/frontend	src/frontend
+						binaries	com.facebook:nailgun-server:1.0.0	binRepo	central
+								group	com.facebook
+								artifact	nailgun-server
+								version	1.0.0
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
+								target	modifyThread
+								action	None
 					imports	id	imports
 						kind	Library
 						main	None
@@ -198,7 +284,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-					menu	id	menu
+					model	id	model
 						kind	Library
 						main	None
 						plugin	None
@@ -207,51 +293,34 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	fury/build	projectId	fury
-								moduleId	build
+						after	fury/io	projectId	fury
+								moduleId	io
 								intransitive	false
 								hidden	false
-							fury/dependency	projectId	fury
-								moduleId	dependency
+							fury/strings	projectId	fury
+								moduleId	strings
 								intransitive	false
 								hidden	false
-							fury/imports	projectId	fury
-								moduleId	imports
+							gastronomy/core	projectId	gastronomy
+								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/module	projectId	fury
-								moduleId	module
+							guillotine/core	projectId	guillotine
+								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/project	projectId	fury
-								moduleId	project
+							kaleidoscope/core	projectId	kaleidoscope
+								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/repo	projectId	fury
-								moduleId	repo
-								intransitive	false
-								hidden	false
-							fury/schema	projectId	fury
-								moduleId	schema
-								intransitive	false
-								hidden	false
-							fury/source	projectId	fury
-								moduleId	source
-								intransitive	false
-								hidden	false
-						params	
-						sources	src/menu	src/menu
-						binaries	com.facebook:nailgun-server:1.0.0	binRepo	central
-								group	com.facebook
-								artifact	nailgun-server
-								version	1.0.0
+						params	feature	feature
+						sources	src/model	src/model
+						binaries	
 						resources	
 						bloopSpec	None
 						environment	
 						properties	
-						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
-								target	modifyThread
-								action	None
+						policy	
 					module	id	module
 						kind	Library
 						main	None
@@ -395,7 +464,10 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	
+						after	magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
 						params	
 						sources	src/strings	src/strings
 						binaries	
@@ -500,7 +572,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-				main	Some	menu
+				main	Some	frontend
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -536,9 +608,9 @@ schemas	default	id	default
 				description	
 				compiler	None
 		repos	platform	id	platform
-				repo	git@github.com:propensive/platform.git
+				repo	gh:propensive/platform
 				track	master
-				commit	0ae0aa52cd6cdd967cd8f6fd2ca5e5db5ca5c8f0
+				commit	06b50283068dd5f1ee38c774f53b75297176efbb
 				local	None
 		imports	platform:default	repo	platform
 				schema	default

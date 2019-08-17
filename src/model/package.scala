@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,20 +14,20 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
+package fury
 
-package fury.core
-
-import fury.strings._, fury.ogdl._
-
-import guillotine._
+import fury.strings._, fury.io._
 
 import scala.util._
 
-import language.higherKinds
+import gastronomy._
 
-object Config {
-  def read()(implicit env: Environment, globalLayout: GlobalLayout): Try[Config] =
-    Success(Ogdl.read[Config](globalLayout.userConfig, identity(_)).toOption.getOrElse(Config()))
+package object model {
+  
+  implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
+    ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
+  
+  implicit class Ascribe[T](value: Option[T]) {
+    def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
+  }
 }
-
-case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5)
