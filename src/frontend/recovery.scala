@@ -70,6 +70,8 @@ You can grant these permissions with,
           cli.abort(msg"No earlier revision can be found")
         case LauncherFailure(msg) =>
           cli.abort(msg"Bloop did not start successfully: $msg")
+        case DownloadFailure(msg) =>
+          cli.abort(msg"Coursier could not complete a download: $msg")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
