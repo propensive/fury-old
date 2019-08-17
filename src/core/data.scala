@@ -1209,13 +1209,12 @@ case class Project(id: ProjectId,
   def compilerRefs: List[ModuleRef] =
     modules.to[List].collect { case m if m.kind == Compiler => m.ref(this) }
 
-  def unused(moduleId: ModuleId) =
-    modules.findBy(moduleId) match {
-      case Success(_) => Failure(ModuleAlreadyExists(moduleId))
-      case _          => Success(moduleId)
-    }
+  def unused(moduleId: ModuleId) = modules.findBy(moduleId) match {
+    case Success(_) => Failure(ModuleAlreadyExists(moduleId))
+    case _          => Success(moduleId)
+  }
 
-  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect{ case ExternalSource(repoId, _) => repoId }
+  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect { case ExternalSource(repoId, _) => repoId }
 }
 
 object Source {
