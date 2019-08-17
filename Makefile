@@ -97,7 +97,7 @@ fury-native: dist/bundle/lib/fury-frontend.jar
 	native-image -cp $(shell bash -c "ls $(NATIVEJARS) | paste -s -d: -") fury.Main
 
 test:
-	fury test
+	fury build compile --https --project fury --module test
 
 integration:
 	etc/integration
