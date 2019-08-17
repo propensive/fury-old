@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.core._, fury.strings._
+import fury.core._, fury.strings._, fury.model._
 
 import com.facebook.nailgun.NGContext
 import exoskeleton._
@@ -54,7 +53,7 @@ object Main {
 
     val layer = for {
       layout <- cli.layout
-      config <- Config.read()(cli.env, cli.globalLayout)
+      config <- ~cli.config
       layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     } yield layer
 

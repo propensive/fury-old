@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
 import Args._
@@ -44,7 +43,7 @@ object DependencyCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout       <- cli.layout
-      config       <- Config.read()(cli.env, cli.globalLayout)
+      config       <- ~cli.config
       layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
@@ -89,12 +88,14 @@ object DependencyCli {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.after.to[List]))
       cli       <- cli.hint(ForceArg)
+      cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
       io        <- invoc.io()
+      https     <- ~invoc(HttpsArg).isSuccess
       linkArg   <- invoc(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
-      moduleRef <- ModuleRef.parse(project, linkArg, false)
+      moduleRef <- ModuleRef.parse(project.id, linkArg, false)
       force     <- ~invoc(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id,
@@ -102,7 +103,10 @@ object DependencyCli {
 
       _         <- ~Layer.save(io, layer, layout)
       optSchema <- ~layer.mainSchema.toOption
-      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout))
+
+      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout,
+                       https))
+
     } yield io.await()
   }
 
@@ -110,7 +114,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules)
@@ -121,7 +125,7 @@ object DependencyCli {
       module           <- optModule.ascribe(UnspecifiedModule())
       intransitive     <- ~invoc(IntransitiveArg).isSuccess
       linkArg          <- invoc(LinkArg)
-      moduleRef        <- ModuleRef.parse(project, linkArg, intransitive)
+      moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive)
 
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,
                               module.id))(_(_) += moduleRef)
@@ -129,7 +133,7 @@ object DependencyCli {
       _                <- ~Layer.save(io, layer, layout)
 
       _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout,
-                              cli.globalLayout))
+                              cli.globalLayout, false))
 
     } yield io.await()
   }
@@ -152,7 +156,7 @@ object EnvCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
@@ -214,7 +218,7 @@ object EnvCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
@@ -249,7 +253,7 @@ object PermissionCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
@@ -272,7 +276,7 @@ object PermissionCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(ClassArg, Permission.Classes)
@@ -348,7 +352,7 @@ object PermissionCli {
       permHash <- invoc(PermissionArg).map(PermissionHash(_))
       entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
       policy   <- Policy.read(io, cli.globalLayout)
-      policy   <- ~policy.grant(Scope(scopeId, layout, layer, project), entry.permission)
+      policy   <- ~policy.grant(Scope(scopeId, layout, project.id), entry.permission)
       _        <- ~Policy.save(io, cli.globalLayout, policy)
     } yield io.await()
   }
@@ -373,7 +377,7 @@ object PropertyCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
@@ -436,7 +440,7 @@ object PropertyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(PropArg)

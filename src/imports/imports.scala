@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import Args._
 
@@ -30,7 +29,7 @@ object ImportCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield Context(cli, layout, config, layer)
 
@@ -42,7 +41,7 @@ object ImportCli {
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
 
       cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(Io.silent(config),
-                           layout)).getOrElse(Nil))
+                           layout, false)).getOrElse(Nil))
       
       invoc         <- cli.read()
       io            <- invoc.io()
@@ -77,13 +76,15 @@ object ImportCli {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(HttpsArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
-      rows      <- ~schema.imports.to[List].map { i => (i, i.resolve(io, schema, layout)) }
+      https     <- ~invoc(HttpsArg).isSuccess
+      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout, https)) }
       
       table     <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)

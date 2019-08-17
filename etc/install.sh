@@ -23,6 +23,7 @@ CONFIG="${HOME}/.furyrc"
 
 if [ -z "$1" ]
 then
+  BATCH="0"
   if [ $EUID == 0 ]
   then
     DESTINATION="/opt/fury-${FURY_VERSION}"
@@ -37,6 +38,7 @@ then
   fi
 else
   DESTINATION="$1"
+  BATCH="1"
 fi
 
 question() {
@@ -66,11 +68,12 @@ restartFury() {
 
 # Remove an existing installation, if there is one.
 prepare() {
-  if [ -z "$1" ]
+  if [ "$BATCH" -eq "0" ]
   then
     question "Where should Fury be installed? [${DESTINATION}]"
     read ANSWER
   else
+    message "Installing Fury to ${DESTINATION}"
     ANSWER=""
   fi
 
@@ -78,7 +81,7 @@ prepare() {
 
   if [ -d "${DESTINATION}" ]
   then
-    if [ -z "$1" ]
+    if [ "$BATCH" -eq "0" ]
     then
       question "Target directory ${DESTINATION} already exists. Overwrite? (Y/n)"
       read ANSWER
@@ -149,13 +152,18 @@ updateFish() {
 }
 
 updateShells() {
-  message "Updating shell configuration"
-  mkdir -p "${CONFIG}"
-  cp "${DESTINATION}/etc/aliases" "${CONFIG}/aliases"
+  if [ "$BATCH" -eq "0" ]
+  then
+    message "Updating shell configuration"
+    mkdir -p "${CONFIG}"
+    cp "${DESTINATION}/etc/aliases" "${CONFIG}/aliases"
 
-  updateShell bash
-  updateShell zsh
-  updateFish
+    updateShell bash
+    updateShell zsh
+    updateFish
+  else
+    message "Not updating shell configurations for batch-mode installation"
+  fi
 }
 
 untarPayload() {

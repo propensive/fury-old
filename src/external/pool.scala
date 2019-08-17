@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,48 +14,55 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
+package fury.external
 
-package fury.core
+import scala.collection.mutable._
+import scala.concurrent._, duration._
+import scala.util._
+import scala.annotation._
 
-import scala.collection.immutable.Stream
+abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
 
-/** a streaming multiplexer optimized for concurrent writes */
-final class Multiplexer[K, V](keys: List[K]) {
-  private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
-  private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
-  private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
+  def create(key: K): T
+  def destroy(value: T): Unit
+  def isBad(value: T): Boolean
 
-  private[this] def finished: Boolean = closed.forall(identity)
+  case class Entry(key: K, value: T)
 
-  def stream(interval: Int, tick: Option[V] = None): Stream[V] = {
-    def stream(lastSnapshot: List[List[V]]): Stream[V] = {
-      val t0       = System.currentTimeMillis
-      val snapshot = state.to[List]
-      // FIXME: This could be written more efficiently with a builder
-      val changes = snapshot.zip(lastSnapshot).flatMap {
-        case (current, last) =>
-          current.take(current.length - last.length).reverse
-      }
-      if(finished && changes.isEmpty) {
-        tick.to[Stream]
-      } else {
-        val time = System.currentTimeMillis - t0
-        if(time < interval) Thread.sleep(interval - time)
-        changes.to[Stream] #::: tick.to[Stream] #::: stream(snapshot)
-      }
+  private[this] val pool: Map[K, T] = scala.collection.concurrent.TrieMap()
+  
+  def size: Int = pool.size
+
+  @tailrec
+  private[this] def createOrRecycle(key: K): T = {
+    val result = pool.get(key) match {
+      case None =>
+        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+          pool(key) = value
+          Some(value)
+        }.toOption.getOrElse(None)
+      case Some(value) =>
+        pool -= key
+        if(isBad(value)) {
+          destroy(value)
+          None
+        }
+        else Some(value)
     }
-    stream(state.to[List])
+    if(result.isEmpty) createOrRecycle(key) else result.get
   }
 
-  /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def update(key: K, value: V): Unit = state(refs(key)) = value :: state(refs(key))
+  def borrow[S](key: K)(action: T => S): S = {
+    val value: T = synchronized {
+      pool.get(key).filter(!isBad(_)).fold(createOrRecycle(key)) { value =>
+        pool -= key
+        value
+      }
+    }
 
-  /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def close(key: K): Unit = closed(refs(key)) = true
+    val result: S = action(value)
+    synchronized { pool(key) = value }
 
-  def closeAll(): Unit = keys.foreach { k =>
-    closed(refs(k)) = true
+    result
   }
 }

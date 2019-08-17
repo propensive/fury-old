@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,16 +14,25 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
+package fury.external
 
-package fury.core
+import fury.io._
 
-import fury.io._, fury.strings._
+import org.openjdk.jmh._
+import generators.bytecode._
 
-object Install {
-  private val zshrc = List("autoload -Uz compinit", "fpath=($FURYHOME/completion/zsh $fpath)")
-  private val bashrc = List()
-  private val fishrc = List()
-  def alias(name: String, dir: Path, module: ModuleRef): String = str"alias $name='fury --layer=$dir '"
+import scala.util._
+import java.io._
+
+object Jmh {
+  def instrument(bytecode: Path, sources: Path, resources: Path): Try[Unit] = {
+    val discard: OutputStream = _ => ()
+    val out = System.out
+    System.setOut(new PrintStream(discard))
+    val args = Array(bytecode.value, sources.value, resources.value, "reflection")
+    val result = Try(JmhBytecodeGenerator.main(args))
+    System.setOut(out)
+    
+    result
+  }
 }
-
-case class Installation(name: String, dir: Path, module: ModuleRef)

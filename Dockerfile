@@ -31,8 +31,9 @@ COPY etc /build/etc
 
 # Build a local version of Fury
 COPY .version /build/.version
+COPY layer.fury /build/layer.fury
 COPY src /build/src
-RUN (cd /build && make -j10 dist/install.sh)
+RUN (cd /build && make clean && make dist/install.sh || cat /build/.fury/logs/*)
 
 # Clean up build
 RUN mv /build/dist/install.sh /install.sh
