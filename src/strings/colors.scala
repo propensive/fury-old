@@ -81,7 +81,7 @@ object Theme {
           projectDark = Rgb(30, 100, 90),
           module = Rgb(40, 200, 255),
           moduleDark = Rgb(20, 100, 127),
-          path = Rgb(200, 150, 100),
+          path = Rgb(200, 120, 80),
           repo = Rgb(175, 125, 0),
           param = Rgb(200, 0, 150),
           url = Rgb(255, 160, 0),
