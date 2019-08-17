@@ -43,16 +43,16 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/external	projectId	fury
-								moduleId	external
-								intransitive	false
-								hidden	false
 							fury/model	projectId	fury
 								moduleId	model
 								intransitive	false
 								hidden	false
 							fury/ogdl	projectId	fury
 								moduleId	ogdl
+								intransitive	false
+								hidden	false
+							fury/utils	projectId	fury
+								moduleId	utils
 								intransitive	false
 								hidden	false
 							guillotine/core	projectId	guillotine
@@ -118,42 +118,6 @@ schemas	default	id	default
 						params	
 						sources	src/dependency	src/dependency
 						binaries	
-						resources	
-						bloopSpec	None
-						environment	
-						properties	
-						policy	
-					external	id	external
-						kind	Library
-						main	None
-						plugin	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	true
-							hidden	false
-						after	fury/io	projectId	fury
-								moduleId	io
-								intransitive	false
-								hidden	false
-							fury/jsongen	projectId	fury
-								moduleId	jsongen
-								intransitive	false
-								hidden	false
-							guillotine/core	projectId	guillotine
-								moduleId	core
-								intransitive	false
-								hidden	false
-							magnolia/core	projectId	magnolia
-								moduleId	core
-								intransitive	false
-								hidden	false
-						params	
-						sources	src/external	src/external
-						binaries	io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
-								group	io.get-coursier
-								artifact	coursier_2.12
-								version	1.1.0-M14-4
 						resources	
 						bloopSpec	None
 						environment	
@@ -567,6 +531,42 @@ schemas	default	id	default
 						params	
 						sources	src/strings-test	src/strings-test
 						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					utils	id	utils
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/io	projectId	fury
+								moduleId	io
+								intransitive	false
+								hidden	false
+							fury/jsongen	projectId	fury
+								moduleId	jsongen
+								intransitive	false
+								hidden	false
+							guillotine/core	projectId	guillotine
+								moduleId	core
+								intransitive	false
+								hidden	false
+							magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/utils	src/utils
+						binaries	io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
+								group	io.get-coursier
+								artifact	coursier_2.12
+								version	1.1.0-M14-4
 						resources	
 						bloopSpec	None
 						environment	

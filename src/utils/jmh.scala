@@ -14,20 +14,24 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.utils
 
-import fury.strings._
-import java.util.jar.{Attributes, Manifest => JavaManifest}
-import Attributes.Name._
+import fury.io._
 
-object Manifest {
-  def apply(classpath: Set[String], mainClass: Option[String]): JavaManifest = {
-    val result = new JavaManifest
-    val mainAttributes = result.getMainAttributes
-    mainAttributes.put(MANIFEST_VERSION, "1.0")
-    mainClass.foreach(mainAttributes.put(MAIN_CLASS, _))
-    mainAttributes.put(CLASS_PATH, classpath.join(" "))
-    mainAttributes.putValue("Created-By", str"Fury ${Version.current}")
+import org.openjdk.jmh._
+import generators.bytecode._
+
+import scala.util._
+import java.io._
+
+object Jmh {
+  def instrument(bytecode: Path, sources: Path, resources: Path): Try[Unit] = {
+    val discard: OutputStream = _ => ()
+    val out = System.out
+    System.setOut(new PrintStream(discard))
+    val args = Array(bytecode.value, sources.value, resources.value, "reflection")
+    val result = Try(JmhBytecodeGenerator.main(args))
+    System.setOut(out)
     
     result
   }

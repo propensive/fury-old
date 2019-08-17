@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.io._, fury.external._
+import fury.io._, fury.utils._
 
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
