@@ -43,7 +43,7 @@ case class Shell(environment: Environment) {
              (output: String => Unit)
              : Running = {
     layout.sharedDir.mkdir()
-    
+
     implicit val defaultEnvironment: Environment =
       Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
 
@@ -59,7 +59,7 @@ case class Shell(environment: Environment) {
     val classpathStr = classpath.mkString(":")
     
     val cmd =
-      if(securePolicy) sh"java $propArgs -cp $classpathStr $main"
+      if(securePolicy) sh"java $propArgs -cp $classpathStr $main $args"
       else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main $args"
 
     cmd.async(output(_), output(_))
