@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury._, io._, strings._, ogdl._, model._, external._
+import fury._, io._, strings._, ogdl._, model._, utils._
 import Graph.{CompilerDiagnostic, DiagnosticMessage, OtherMessage}
 import exoskeleton._
 import gastronomy._

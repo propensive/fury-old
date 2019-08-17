@@ -14,7 +14,7 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.utils
 
 import fury.strings._
 import java.util.jar.{Attributes, Manifest => JavaManifest}

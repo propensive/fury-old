@@ -14,7 +14,7 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.external
+package fury.utils
 
 import scala.collection.mutable._
 import scala.concurrent._, duration._

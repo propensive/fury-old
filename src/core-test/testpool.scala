@@ -18,7 +18,7 @@ package fury
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import fury.external._
+import fury.utils._
 import probably._
 
 object PoolTest extends TestApp {
