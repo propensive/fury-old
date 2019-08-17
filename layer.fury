@@ -562,7 +562,7 @@ schemas	default	id	default
 								intransitive	false
 								hidden	false
 						params	
-						sources	src/external	src/external
+						sources	src/utils	src/utils
 						binaries	io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
 								group	io.get-coursier
 								artifact	coursier_2.12
