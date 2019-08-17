@@ -308,11 +308,11 @@ object Compilation {
       
       handle.broken.future.andThen {
         case Success(_) =>
-          log.println(s"Connection for ${dir.value} has been closed")
+          log.println(msg"Connection for $dir has been closed")
           log.flush()
           bspConn.future.cancel(true)
         case Failure(e) =>
-          log.println(s"Connection for ${dir.value} is broken! Cause: ${e.getMessage}")
+          log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
           e.printStackTrace(log)
           log.flush()
           bspConn.future.cancel(true)
@@ -609,7 +609,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                    : Future[CompileResult] = {
     
     val targetIdentifiers = deepDependencies(target.id).map { dep =>
-      new BuildTargetIdentifier(s"file://${layout.workDir(dep).value}?id=${dep.key}")
+      new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
 
     def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
@@ -618,7 +618,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     Future(blocking {
       Compilation.bspPool.borrow(layout.furyDir) { conn =>
         val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-          val uri: String = s"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+          val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
 
           val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
           val scalacOptionsParams = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
@@ -966,7 +966,7 @@ object Layer {
                 schemas = ogdl.schemas.map { schema =>
                   schema.set(
                       repos = schema.repos.map { repo =>
-                        io.println(s"Checking commit hash for ${repo.repo()}")
+                        io.println(msg"Checking commit hash for ${repo.repo()}")
                         val commit =
                           Shell(layout.env).git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
                         repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
@@ -1055,8 +1055,17 @@ case class Checkout(repoId: RepoId,
           path(layout).delete()
         }
 
-        io.println(msg"Checking out ${if(sources.isEmpty) msg"all sources from repository ${repoId}"
-        else sources.map(_.value).mkString("[", ", ", "]")}")
+        val sourceDesc: UserMsg = sources match {
+          case List() =>
+            UserMsg { theme => theme.path("*") }
+          case head :: Nil =>
+            msg"$head"
+          case head :: tail =>
+            val init = tail.foldLeft(msg"${'{'}$head") { case (str, next) => msg"$str${','} $next" }
+            msg"$init${'}'}"
+        }
+
+        io.println(msg"Checking out $sourceDesc from repository $repoId")
         path(layout).mkdir()
         Shell(layout.env).git
           .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
@@ -1107,8 +1116,8 @@ case class Repo(ref: String) {
     oldCommit <- Shell(layout.env).git.getCommit(path(layout))
     _         <- Shell(layout.env).git.fetch(path(layout), None)
     newCommit <- Shell(layout.env).git.getCommit(path(layout))
-    msg <- ~(if(oldCommit != newCommit) msg"Repository ${ref} updated to new commit $newCommit"
-              else msg"Repository ${ref} is unchanged")
+    msg <- ~(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
+              else msg"Repository $this is unchanged")
   } yield msg
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[String] =
@@ -1117,11 +1126,11 @@ case class Repo(ref: String) {
   def fetch(io: Io, layout: Layout, https: Boolean): Try[Path] =
     if(!(path(layout) / ".done").exists) {
       if(path(layout).exists()) {
-        io.println(msg"Found incomplete clone of $ref at ${path(layout)}")
+        io.println(msg"Found incomplete clone of $this at ${path(layout)}")
         path(layout).delete()
       }
 
-      io.println(msg"Cloning Git repository $ref")
+      io.println(msg"Cloning repository at $this")
       path(layout).mkdir()
       Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
     } else Success(path(layout))
