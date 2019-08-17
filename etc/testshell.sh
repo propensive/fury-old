@@ -41,9 +41,10 @@ cat <<EOF >"$NEW_HOME/commands"
 source ${NEW_RC}
 git config --global user.email "$NEW_USER@$NEW_USER"
 git config --global user.name "$NEW_USER"
-fury start 
-fury about 
-fury stop
+ls -R ~/.fury
+~/.fury/bin/fury start 
+~/.fury/bin/fury about 
+~/.fury/bin/fury stop
 EOF
 chown -R "$NEW_USER" "$NEW_HOME"
 chmod +x "$NEW_HOME/commands"

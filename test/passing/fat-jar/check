@@ -25,6 +25,6 @@ Hello World
 Manifest-Version: 1.0
 Class-Path: scala-library-2.12.8.jar scala-compiler-2.12.8.jar scala-x
  ml_2.12-1.0.6.jar scala-reflect-2.12.8.jar
-Created-By: Fury 0.5.0
+Created-By: Fury 0.6.3
 Main-Class: HelloWorld
 

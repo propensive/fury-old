@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import Args._
 
@@ -34,7 +33,7 @@ object RepoCli {
   
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- Config.read()(cli.env, cli.globalLayout)
+    config <- ~cli.config
     layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
   } yield Context(cli, layout, config, layer)
 
@@ -81,12 +80,14 @@ object RepoCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(DirArg)
       cli       <- cli.hint(RepoArg, schema.repos)
+      cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
       io        <- invoc.io()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       dir       <- invoc(DirArg)
-      bareRepo  <- repo.repo.fetch(io, layout)
+      https     <- ~invoc(HttpsArg).isSuccess
+      bareRepo  <- repo.repo.fetch(io, layout, https)
       absPath   <- { for {
                      absPath <- dir.absolutePath()
                      _       <- Try(absPath.mkdir())
@@ -96,7 +97,7 @@ object RepoCli {
 
                    } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
-      _         <- ~layout.shell.git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
+      _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
                        repo.commit.id)
 
       newRepo   <- ~repo.copy(local = Some(absPath))
@@ -150,13 +151,15 @@ object RepoCli {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli            <- cli.hint(UrlArg)
       cli            <- cli.hint(DirArg)
-      projectNameOpt <- ~cli.peek(UrlArg).map(Repo.fromString).flatMap(_.projectName.toOption)
+      cli            <- cli.hint(HttpsArg)
+      projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)
       cli            <- cli.hint(RepoNameArg, projectNameOpt)
       remoteOpt      <- ~cli.peek(UrlArg)
-      repoOpt        <- ~remoteOpt.map(Repo.fromString(_))
+      repoOpt        <- ~remoteOpt.map(Repo(_))
       
-      versions       <- repoOpt.map { repo => layout.shell.git.lsRemote(repo.url) }.to[List].sequence.map(
-                            _.flatten).recover { case e => Nil }
+      versions       <- repoOpt.map { repo =>
+                          Shell(layout.env).git.lsRemote(Repo.fromString(repo.ref, true))
+                        }.to[List].sequence.map(_.flatten).recover { case e => Nil }
 
       cli            <- cli.hint(VersionArg, versions)
       invoc          <- cli.read()
@@ -166,6 +169,7 @@ object RepoCli {
       schema         <- layer.schemas.findBy(schemaArg)
       remote         <- ~invoc(UrlArg).toOption
       dir            <- ~invoc(DirArg).toOption
+      https          <- ~invoc(HttpsArg).isSuccess
       version        <- ~invoc(VersionArg).toOption.getOrElse(RefSpec.master)
 
       suggested      <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
@@ -174,7 +178,7 @@ object RepoCli {
 
       urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
       repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
-      _              <- repo.fetch(io, layout)
+      _              <- repo.fetch(io, layout, https)
 
       commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
                             exoskeleton.InvalidArgValue("version", version.id))
@@ -198,7 +202,7 @@ object RepoCli {
       schema      <- layer.schemas.findBy(schemaArg)
       cli         <- cli.hint(RepoArg, schema.repos)
       optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
-      versions    <- optRepo.to[List].map(_.repo.path(layout)).map(layout.shell.git.showRefs(_)).sequence
+      versions    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
       cli         <- cli.hint(VersionArg, versions.flatten)
       invoc       <- cli.read()
       io          <- invoc.io()
@@ -210,9 +214,9 @@ object RepoCli {
       dir         <- ~invoc(DirArg).toOption
       version     <- ~invoc(VersionArg).toOption
       remoteArg   <- ~invoc(UrlArg).toOption
-      remote      <- ~remoteArg.map(Repo.fromString(_))
+      remote      <- ~remoteArg.map(Repo(_))
       nameArg     <- ~invoc(RepoNameArg).toOption
-      force       <- ~invoc(ForceArg).toOption.isDefined
+      force       <- ~invoc(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version

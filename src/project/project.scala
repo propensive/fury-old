@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
 import optometry._
@@ -32,7 +31,7 @@ object ProjectCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     optSchemaArg <- ~cli.peek(SchemaArg)
@@ -48,7 +47,7 @@ object ProjectCli {
       io        <- invoc.io()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
-      force     <- ~invoc(ForceArg).toOption.isDefined
+      force     <- ~invoc(ForceArg).isSuccess
       schemaId  <- ~optSchemaId.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
       _         <- schema(projectId)
@@ -81,7 +80,7 @@ object ProjectCli {
       dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
-                            Io.silent(config), layout))
+                            Io.silent(config), layout, false))
 
       invoc          <- cli.read()
       io             <- invoc.io()
@@ -112,7 +111,7 @@ object ProjectCli {
       io        <- invoc.io()
       projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
-      force     <- ~invoc(ForceArg).toOption.isDefined
+      force     <- ~invoc(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(_.modify(_)((_:
                        SortedSet[Project]).filterNot(_.id == project.id)))
@@ -132,7 +131,7 @@ object ProjectCli {
       cli            <- cli.hint(DescriptionArg)
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
-                            _.compilerRefs(Io.silent(config), layout)))
+                            _.compilerRefs(Io.silent(config), layout, false)))
       
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
@@ -143,7 +142,7 @@ object ProjectCli {
       projectId      <- projectId.ascribe(UnspecifiedProject())
       schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       project        <- schema.projects.findBy(projectId)
-      force          <- ~invoc(ForceArg).toOption.isDefined
+      force          <- ~invoc(ForceArg).isSuccess
       focus          <- ~Lenses.focus(optSchemaId, force)
       licenseArg     <- ~invoc(LicenseArg).toOption
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg

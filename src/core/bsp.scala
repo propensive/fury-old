@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury.core
 
-import fury.strings._, fury.jsongen._, fury.io.Path
+import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
@@ -76,17 +75,20 @@ object Bsp {
   def startServer(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       layout  <- cli.layout
-      running <- ~run(System.in, System.out, layout)
+      cli     <- cli.hint(Args.HttpsArg)
+      invoc   <- cli.read()
+      https   <- ~invoc(Args.HttpsArg).isSuccess
+      running <- ~run(System.in, System.out, layout, https)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout): Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean): Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel)
+    val server = new FuryBuildServer(layout, cancel, https)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -104,7 +106,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
 
   private val config = Config()
@@ -114,7 +116,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator) extends BuildServer wi
     for {
       layer          <- Layer.read(io, layout.furyConfig, layout)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(io, layout.pwd, layout)
+      hierarchy      <- schema.hierarchy(io, layout.pwd, layout, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>

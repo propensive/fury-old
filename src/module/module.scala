@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury
 
-import fury.strings._, fury.io._, fury.core._
+import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
 import mercator._
@@ -44,7 +43,7 @@ object ModuleCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- Config.read()(cli.env, cli.globalLayout)
+    config       <- ~cli.config
     layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
@@ -100,7 +99,7 @@ object ModuleCli {
       cli            <- cli.hint(ModuleNameArg)
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Io.silent(config), layout)))
+                            _.compilerRefs(Io.silent(config), layout, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -120,7 +119,7 @@ object ModuleCli {
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      optCompilerRef <- compilerId.map(ModuleRef.parse(project, _, true)).to[List].sequence.map(_.headOption)
+      optCompilerRef <- compilerId.map(ModuleRef.parse(project.id, _, true)).to[List].sequence.map(_.headOption)
 
       module         <- ~Module(moduleId, compiler = optCompilerRef.orElse(project.compiler).getOrElse(
                             ModuleRef.JavaRef))
@@ -149,7 +148,10 @@ object ModuleCli {
 
       _              <- ~Layer.save(io, layer, layout)
       schema         <- defaultSchema
-      _              <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _              <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                            false)
+
       _              <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
@@ -160,7 +162,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Io.silent(config), layout)))
+                      Io.silent(config), layout, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -178,7 +180,10 @@ object ModuleCli {
 
       _        <- ~Layer.save(io, layer, layout)
       schema   <- defaultSchema
-      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+      
+      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                      false)
+
     } yield io.await()
   }
 
@@ -188,7 +193,7 @@ object ModuleCli {
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Io.silent(config), layout)))
+                         _.compilerRefs(Io.silent(config), layout, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
@@ -219,7 +224,7 @@ object ModuleCli {
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      compilerRef <- compilerId.map(ModuleRef.parse(project, _, true)).to[List].sequence.map(_.headOption)
+      compilerRef <- compilerId.map(ModuleRef.parse(project.id, _, true)).to[List].sequence.map(_.headOption)
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption
@@ -244,7 +249,10 @@ object ModuleCli {
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
       _           <- ~Layer.save(io, layer, layout)
       schema      <- defaultSchema
-      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                         false)
+
     } yield io.await()
   }
 }
@@ -304,7 +312,10 @@ object BinaryCli {
 
       _           <- ~Layer.save(io, layer, layout)
       schema      <- defaultSchema
-      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                         false)
+
     } yield io.await()
   }
 
@@ -326,7 +337,10 @@ object BinaryCli {
       
       _         <- ~Layer.save(io, layer, layout)
       schema    <- defaultSchema
-      _         <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _         <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                       false)
+
     } yield io.await()
   }
 }
@@ -386,7 +400,10 @@ object ParamCli {
 
       _        <- ~Layer.save(io, layer, layout)
       schema   <- defaultSchema
-      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                      false)
+
     } yield io.await()
   }
 
@@ -405,7 +422,10 @@ object ParamCli {
 
       _       <- ~Layer.save(io, layer, layout)
       schema  <- defaultSchema
-      _       <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout)
+
+      _       <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+                     false)
+
     } yield io.await()
   }
 }

@@ -13,6 +13,7 @@ bootstrap/
 **/.#*
 test/tmp/
 log
+opt/
 project
 target
 lib

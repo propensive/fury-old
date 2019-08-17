@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.5.0. Copyright 2018-19 Jon Pretty, Propensive Ltd.                                        ║
+   ║ Fury, version 0.6.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -14,10 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-
 package fury.core
 
-import fury.strings._, fury.io._
+import fury.strings._, fury.io._, fury.model._
 
 import exoskeleton.Param.{Extractor => TExtractor}
 import exoskeleton._
@@ -59,6 +58,7 @@ object Args {
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
+  val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
   val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external schema to import")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
