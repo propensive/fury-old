@@ -139,7 +139,7 @@ object RepoCli {
       _         <- ~Layer.save(io, newLayer, layout)
 
       _         <- ~newRepos.foreach { case (newRepo, _) =>
-                     io.println(s"Repo [${newRepo.id.key}] checked out to commit [${newRepo.commit.id}]")
+                     io.println(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
                    }
 
     } yield io.await()
