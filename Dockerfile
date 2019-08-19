@@ -5,10 +5,6 @@ RUN (apt-get -qq update > /dev/null && apt-get -qq install make > /dev/null)
 # Set up Git credentials
 RUN (git config --global user.email 'fury@propensive.com' && git config --global user.name 'Fury Test')
 
-# Install Scala 2.12.8
-RUN mkdir /opt/scala-2.12.8 && \
-	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C /opt/scala-2.12.8 --strip 1
-
 # Install GraalVM
 ENV GRAAL_VERSION "1.0.0-rc11"
 RUN sh -c "cd /opt &&  curl -s -L https://github.com/oracle/graal/releases/download/vm-1.0.0-rc11/graalvm-ce-${GRAAL_VERSION}-linux-amd64.tar.gz | tar zxf -"
