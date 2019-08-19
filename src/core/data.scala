@@ -1111,15 +1111,15 @@ case class Repo(ref: String) {
   def path(layout: Layout): Path = layout.reposDir / hash.encoded
 
   def update(layout: Layout): Try[UserMsg] = for {
-    oldCommit <- Shell(layout.env).git.getCommit(path(layout))
+    oldCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
     _         <- Shell(layout.env).git.fetch(path(layout), None)
-    newCommit <- Shell(layout.env).git.getCommit(path(layout))
+    newCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
     msg <- ~(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
               else msg"Repository $this is unchanged")
   } yield msg
 
-  def getCommitFromTag(layout: Layout, tag: RefSpec): Try[String] =
-    for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield commit
+  def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
+    for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
 
   def fetch(io: Io, layout: Layout, https: Boolean): Try[Path] =
     if(!(path(layout) / ".done").exists) {

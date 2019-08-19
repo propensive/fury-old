@@ -128,7 +128,7 @@ object RepoCli {
       lens      <- ~Lenses.layer.repos(schema.id)
 
       newRepos  <- repos.map { repo => for {
-                      commit  <- repo.repo.getCommitFromTag(layout, repo.track).map(Commit(_))
+                      commit  <- repo.repo.getCommitFromTag(layout, repo.track)
                       newRepo = repo.copy(commit = commit)
                    } yield (newRepo, repo) }.sequence
 
@@ -184,7 +184,7 @@ object RepoCli {
                             exoskeleton.InvalidArgValue("version", version.id))
 
       nameArg        <- invoc(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
-      sourceRepo     <- ~SourceRepo(nameArg, repo, version, Commit(commit), dir)
+      sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
       _              <- ~Layer.save(io, layer, layout)
