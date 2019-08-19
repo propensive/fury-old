@@ -525,8 +525,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def deepDependencies(targetId: TargetId): Set[TargetId] =
     Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
 
-  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] =
+  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] = synchronized {
     Bloop.clean(layout).flatMap(Bloop.generateFiles(io, this, layout).waive)
+  }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
     Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
