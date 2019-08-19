@@ -4,6 +4,7 @@ Set current module to compiler
 Set current project to example
 Setting default compiler for project example to scala/compiler
 Set current module to app
+Resolving org.scala-lang:scala-compiler:2.12.8
 Starting compilation of module example/app
 Successfully compiled module example/app
 Test:something

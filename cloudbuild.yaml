@@ -6,7 +6,7 @@ steps:
 
 - name: 'gcr.io/cloud-builders/docker'
   args: ['run', '-u', 'bash_user', '-w', '/home/bash_user', '-t', 'fury/ci', '/integration']
-  timeout: 600s
+  timeout: 900s
   id: 'integration'
 
 - name: 'gcr.io/cloud-builders/docker'
@@ -17,4 +17,4 @@ steps:
 options:
   machineType: 'N1_HIGHCPU_8'
 
-timeout: 1000s
+timeout: 1300s

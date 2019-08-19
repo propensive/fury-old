@@ -4,6 +4,7 @@ Set current module to compiler
 Set current project to bar
 Setting default compiler for project bar to scala/compiler
 Set current module to app
+Resolving org.scala-lang:scala-compiler:2.12.8
 Starting compilation of module bar/app
 Successfully compiled module bar/app
 Hello World

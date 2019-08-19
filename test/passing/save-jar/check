@@ -5,6 +5,7 @@ Set current project to foo
 Setting default compiler for project foo to scala/compiler
 Set current module to lib
 Set current module to app
+Resolving org.scala-lang:scala-compiler:2.12.8
 Starting compilation of module foo/lib
 Successfully compiled module foo/lib
 Starting compilation of module foo/app
