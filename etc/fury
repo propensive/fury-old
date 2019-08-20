@@ -141,7 +141,7 @@ case "$1" in
     silently fury "help"
     ;;
   *)
-    silently fury "$@"
+    silently startFuryStandalone "$@"
     res=$?
     cleanup
     exit $res
