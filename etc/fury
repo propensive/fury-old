@@ -34,23 +34,8 @@ message() {
 }
 
 silently() {
-  #See https://unix.stackexchange.com/a/181938
-  #See https://stackoverflow.com/q/3838322
-  #See https://www.gnu.org/software/bash/manual/html_node/Command-Grouping.html
-
-  if [ "$DEBUG" = "1" ]; then
-    TMPFILE=$(mktemp "/tmp/fury.err.XXXXXX")
-    exec 3>"$TMPFILE"
-    exec 4<"$TMPFILE"
-    rm "$TMPFILE"
-    ( $@; ) 2>&3
-    EXITCODE=$?
-    [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
-    exit $EXITCODE
-  else
-    $@;
-    exit $?
-  fi
+  $@;
+  exit $?
 }
 
 coursier() {
