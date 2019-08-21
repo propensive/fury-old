@@ -332,7 +332,7 @@ object Compilation {
                     wait: Boolean = true)
                    : Try[Compilation] = {
     io.println(str"mkCompilation wait=${wait.toString}")
-    for {
+    val x = for {
 
       hierarchy <- schema.hierarchy(io, layout.base, layout, https)
       universe <- hierarchy.universe
@@ -343,6 +343,8 @@ object Compilation {
       _ <- compilation.bspUpdate(io, compilation.targets(ref).id, layout, wait)
 
     } yield compilation
+    io.println(str"mkCompilation wait=${wait.toString} finished")
+    x
   }
 
   def asyncCompilation(io: Io,
@@ -361,6 +363,7 @@ object Compilation {
       case None         => fn
     }
 
+    io.println(str"async compilation finished")
     compilationCache(layout.furyDir)
   }
 
@@ -519,7 +522,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout, wait: Boolean): Try[Unit] = {
     io.println(str"bspUpdate wait=${wait.toString}")
-    Compilation.bspPool.borrow(layout.base) { conn =>
+    val res = Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         Try{
           val foo = server.workspaceBuildTargets
@@ -529,6 +532,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         }
       }
     }
+    io.println(str"bspUpdate wait=${wait.toString} finished")
+    res
   }
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
