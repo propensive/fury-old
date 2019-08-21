@@ -16,11 +16,14 @@
 */
 package fury.core
 
-import fury.io._, fury.strings._, fury.model._
-
+import fury.io._
+import fury.strings._
+import fury.model._
 import coursier.{Module => CModule, _}
 
 import scala.collection.mutable.{HashMap => MutableMap}
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 import scala.util._
 
 object Coursier {
@@ -43,9 +46,15 @@ object Coursier {
         exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
       )
       
-      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
-      
-      request.map(Path(_)).to[List]
+      val foo = coursier.Fetch().addRepositories(repo).addDependencies(dependency)
+
+      val f = foo.future
+
+      val filez = Await.result(f, Duration("10 seconds"))
+
+      filez.foreach{ x => io.println(str"Downloaded ${x.toString}") }
+
+      filez.map(Path(_)).to[List]
     }
 
     cache.get(binary) match {
