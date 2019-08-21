@@ -1,0 +1,16 @@
+Created empty layer.fury
+Set current project to scala
+Set current project to hello-world
+The module has not been specified.
+1
+Set current module to app
+The module has not been specified.
+1
+Set current module to compiler
+0
+Starting compilation of module hello-world/app
+Successfully compiled module hello-world/app
+Hello World
+
+
+0
