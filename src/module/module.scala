@@ -95,6 +95,7 @@ object ModuleCli {
 
   def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
+    val defaultCompiler = ModuleRef.JavaRef
     for {
       cli            <- cli.hint(ModuleNameArg)
 
@@ -119,10 +120,10 @@ object ModuleCli {
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      optCompilerRef <- compilerId.map(ModuleRef.parse(project.id, _, true)).to[List].sequence.map(_.headOption)
+      compilerRef    <- compilerId.map(ModuleRef.parse(project.id, _, true))
+                            .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
 
-      module         <- ~Module(moduleId, compiler = optCompilerRef.orElse(project.compiler).getOrElse(
-                            ModuleRef.JavaRef))
+      module         = Module(moduleId, compiler = compilerRef)
 
       module         <- ~invoc(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
       
@@ -138,12 +139,10 @@ object ModuleCli {
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainModule(_, project.id)) {
                             (lens, ws) => lens(ws) = Some(module.id) }
 
-      layer          <- if(project.compiler.isEmpty) Lenses.updateSchemas(optSchemaId, layer, true)(
+      layer          <- if(project.compiler.isEmpty && compilerRef != defaultCompiler) Lenses.updateSchemas(optSchemaId, layer, true)(
                             Lenses.layer.compiler(_, project.id)) { (lens, ws) =>
-                          optCompilerRef.foreach { compiler =>
-                            io.println(msg"Setting default compiler for project ${project.id} to ${compiler}")
-                          }
-                          lens(ws) = optCompilerRef
+                            io.println(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
+                            lens(ws) = Some(compilerRef)
                         } else Try(layer)
 
       _              <- ~Layer.save(io, layer, layout)
