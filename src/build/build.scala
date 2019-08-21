@@ -186,7 +186,7 @@ object BuildCli {
                           https)
 
       _            <- ~compilation.checkoutAll(io, layout, https)
-      _            <- compilation.generateFiles(io, layout)
+      _            <- compilation.generateFiles(io, layout, "build-compile")
       debugStr     <- ~invoc(DebugArg).toOption
       multiplexer  <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
       globalPolicy <- Policy.read(io, cli.globalLayout)
@@ -251,7 +251,7 @@ object BuildCli {
                             https)
 
       _              <- ~compilation.checkoutAll(io, layout, https)
-      _              <- compilation.generateFiles(io, layout)
+      _              <- compilation.generateFiles(io, layout, "build-save")
       multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
       globalPolicy   <- Policy.read(io, cli.globalLayout)
 

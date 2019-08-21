@@ -243,18 +243,18 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
+    val launcher = new LauncherMain(
+      clientIn = bloopIn,
+      clientOut = bloopOut,
+      out = new PrintStream(bloopErr),
+      charset = StandardCharsets.UTF_8,
+      shell = bloop.launcher.core.Shell.default,
+      nailgunPort = None,
+      startedServer = Promise[Unit](),
+      generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
+    )
+
     val future = Future(blocking {
-      val launcher = new LauncherMain(
-        clientIn = bloopIn,
-        clientOut = bloopOut,
-        out = new PrintStream(bloopErr),
-        charset = StandardCharsets.UTF_8,
-        shell = bloop.launcher.core.Shell.default,
-        nailgunPort = None,
-        startedServer = Promise[Unit](),
-        generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
-      )
-      
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
         bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
@@ -328,18 +328,22 @@ object Compilation {
                     ref: ModuleRef,
                     layout: Layout,
                     globalLayout: GlobalLayout,
-                    https: Boolean)
-                   : Try[Compilation] = for {
+                    https: Boolean,
+                    wait: Boolean = true)
+                   : Try[Compilation] = {
+    io.println(str"mkCompilation wait=${wait.toString}")
+    for {
 
-    hierarchy   <- schema.hierarchy(io, layout.base, layout, https)
-    universe    <- hierarchy.universe
-    policy      <- Policy.read(io, globalLayout)
-    compilation <- universe.compilation(io, ref, policy, layout)
-    _           <- compilation.generateFiles(io, layout)
+      hierarchy <- schema.hierarchy(io, layout.base, layout, https)
+      universe <- hierarchy.universe
+      policy <- Policy.read(io, globalLayout)
+      compilation <- universe.compilation(io, ref, policy, layout)
+      _ <- compilation.generateFiles(io, layout, wait.toString)
 
-    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
+      _ <- compilation.bspUpdate(io, compilation.targets(ref).id, layout, wait)
 
-  } yield compilation
+    } yield compilation
+  }
 
   def asyncCompilation(io: Io,
                        schema: Schema,
@@ -347,7 +351,8 @@ object Compilation {
                        layout: Layout,
                        globalLayout: GlobalLayout,
                        https: Boolean)
-                      : Future[Try[Compilation]] = {
+  : Future[Try[Compilation]] = {
+    io.println(str"async compilation")
 
     def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout, https))
 
@@ -355,7 +360,7 @@ object Compilation {
       case Some(future) => future.transformWith(fn.waive)
       case None         => fn
     }
-    
+
     compilationCache(layout.furyDir)
   }
 
@@ -365,6 +370,7 @@ object Compilation {
                       layout: Layout,
                       globalLayout: GlobalLayout,
                       https: Boolean): Try[Compilation] = {
+    io.println(str"sync compilation")
     val compilation = mkCompilation(io, schema, ref, layout, globalLayout, https)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
@@ -511,12 +517,19 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
+  def bspUpdate(io: Io, targetId: TargetId, layout: Layout, wait: Boolean): Try[Unit] = {
+    io.println(str"bspUpdate wait=${wait.toString}")
     Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
-        Try(server.workspaceBuildTargets.get).map(_.getTargets.asScala.toString)
+        Try{
+          val foo = server.workspaceBuildTargets
+          io.println(str"Request sent")
+          /*if(wait)*/ foo.get.getTargets.asScala.toString
+          io.println(str"Response ${if(wait) "received" else "ignored"}")
+        }
       }
     }
+  }
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
   
@@ -526,7 +539,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def deepDependencies(targetId: TargetId): Set[TargetId] =
     Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
 
-  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] = synchronized {
+  def generateFiles(io: Io, layout: Layout, tag: String): Try[Iterable[Path]] = synchronized {
+    io.println(str"generate files wait=${tag}")
     Bloop.clean(layout).flatMap(Bloop.generateFiles(io, this, layout).waive)
   }
 
