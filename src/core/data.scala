@@ -336,7 +336,7 @@ object Compilation {
     policy      <- Policy.read(io, globalLayout)
     compilation <- universe.compilation(io, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
-    
+
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
 
   } yield compilation
@@ -364,8 +364,11 @@ object Compilation {
                       ref: ModuleRef,
                       layout: Layout,
                       globalLayout: GlobalLayout,
-                      https: Boolean): Try[Compilation] =
-    Await.result(asyncCompilation(io, schema, ref, layout, globalLayout, https), Duration.Inf)
+                      https: Boolean): Try[Compilation] = {
+    val compilation = mkCompilation(io, schema, ref, layout, globalLayout, https)
+    compilationCache(layout.furyDir) = Future.successful(compilation)
+    compilation
+  }
 }
 
 class BuildingClient(messageSink: PrintWriter) extends BuildClient {
