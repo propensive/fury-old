@@ -328,7 +328,8 @@ object Compilation {
                     ref: ModuleRef,
                     layout: Layout,
                     globalLayout: GlobalLayout,
-                    https: Boolean)
+                    https: Boolean,
+                    wait: Boolean)
                    : Try[Compilation] = for {
 
     hierarchy   <- schema.hierarchy(io, layout.base, layout, https)
@@ -337,7 +338,7 @@ object Compilation {
     compilation <- universe.compilation(io, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
 
-    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
+    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout, wait)
 
   } yield compilation
 
@@ -349,7 +350,7 @@ object Compilation {
                        https: Boolean)
                       : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout, https))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout, https, wait = false))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -365,7 +366,7 @@ object Compilation {
                       layout: Layout,
                       globalLayout: GlobalLayout,
                       https: Boolean): Try[Compilation] = {
-    val compilation = mkCompilation(io, schema, ref, layout, globalLayout, https)
+    val compilation = mkCompilation(io, schema, ref, layout, globalLayout, https, wait = true)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
@@ -511,10 +512,13 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
+  def bspUpdate(io: Io, targetId: TargetId, layout: Layout, wait: Boolean): Try[Unit] =
     Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
-        Try(server.workspaceBuildTargets.get)
+        Try{
+          val response = server.workspaceBuildTargets
+          if(wait) response.get
+        }
       }
     }
 
