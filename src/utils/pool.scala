@@ -37,10 +37,10 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   private[this] def createOrRecycle(key: K): T = {
     val result = pool.get(key) match {
       case None =>
-        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
+        Try(create(key)).map { value =>
           pool(key) = value
-          Some(value)
-        }.toOption.getOrElse(None)
+          value
+        }.toOption
       case Some(value) =>
         pool -= key
         if(isBad(value)) {
