@@ -243,18 +243,18 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
+    val launcher = new LauncherMain(
+      clientIn = bloopIn,
+      clientOut = bloopOut,
+      out = new PrintStream(bloopErr),
+      charset = StandardCharsets.UTF_8,
+      shell = bloop.launcher.core.Shell.default,
+      nailgunPort = None,
+      startedServer = Promise[Unit](),
+      generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
+    )
+
     val future = Future(blocking {
-      val launcher = new LauncherMain(
-        clientIn = bloopIn,
-        clientOut = bloopOut,
-        out = new PrintStream(bloopErr),
-        charset = StandardCharsets.UTF_8,
-        shell = bloop.launcher.core.Shell.default,
-        nailgunPort = None,
-        startedServer = Promise[Unit](),
-        generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
-      )
-      
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
         bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
@@ -514,7 +514,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
     Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
-        Try(server.workspaceBuildTargets.get).map(_.getTargets.asScala.toString)
+        Try(server.workspaceBuildTargets.get)
       }
     }
 
