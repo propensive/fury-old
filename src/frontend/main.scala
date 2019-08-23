@@ -39,7 +39,11 @@ object Main {
 
   private[this] def trackThread(action: => Int): Int =
     if(!terminating.get) {
-      running.synchronized(running += Thread.currentThread)
+      running.synchronized{
+        if(running.size > 0){
+          throw new Exception("Not so fast!")
+        } else running += Thread.currentThread
+      }
       try action
       finally {
         running.synchronized(running -= Thread.currentThread)
