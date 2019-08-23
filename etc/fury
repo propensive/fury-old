@@ -116,6 +116,7 @@ startFuryStandalone() {
 
 case "$1" in
   "start")
+    sleep 1
     silently startFury
     ;;
   "standalone")
@@ -141,6 +142,7 @@ case "$1" in
     silently fury "help"
     ;;
   *)
+    sleep 1
     silently fury "$@"
     res=$?
     cleanup
