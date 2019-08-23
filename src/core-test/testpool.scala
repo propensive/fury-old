@@ -16,36 +16,67 @@
 */
 package fury
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import fury.utils._
 import probably._
 
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration._
+import scala.util.Random
+
 object PoolTest extends TestApp {
-  
-  private val dummyPool: Pool[String, Symbol] = new Pool[String, Symbol](10L) {
-    override def create(key: String): Symbol = Symbol(key)
-    override def destroy(value: Symbol): Unit = ()
-    override def isBad(value: Symbol): Boolean = false
+
+  class Resource(val tag: String)
+
+  class DummyPool extends Pool[String, Resource](10L) {
+      override def create(key: String): Resource = new Resource(key)
+      override def destroy(value: Resource): Unit = ()
+      override def isBad(value: Resource): Boolean = false
   }
 
   override def tests(): Unit = {
     test("reuse existing entries") {
+      val dummyPool = new DummyPool
       dummyPool.borrow("a/b/c"){void}
       dummyPool.borrow("a/b/x"){void}
       dummyPool.borrow("a/b/c"){void}
       dummyPool.size
     }.assert(_ == 2)
 
+    test("support concurrent requests") {
+      val resourcesCreated = new AtomicInteger(0)
+      val dummyPool = new DummyPool{
+        override def create(key: String): Resource = {
+          resourcesCreated.incrementAndGet
+          super.create(key)
+        }
+      }
+      val keys = Stream.from(0).take(6).map(i => s"key $i")
+      val threadPool = Executors.newFixedThreadPool(20)
+      val ec = ExecutionContext.fromExecutor(threadPool)
+      val tasks = Future.traverse(1 to 20) { _ => Future {
+        Random.shuffle(keys).foreach{ key =>
+          dummyPool.borrow(key){_ => Thread.sleep(100)}
+        }
+      }(ec)}
+      Await.result(tasks, 1 minute)
+      threadPool.shutdown
+      resourcesCreated.get
+    }.assert(_ == 6)
+
     test("Return correct values") {
-      var result1: Symbol = null
-      var result2: Symbol = null
-      var result3: Symbol = null
+      val dummyPool = new DummyPool
+      var result1: Resource = null
+      var result2: Resource = null
+      var result3: Resource = null
       dummyPool.borrow("a/b/c"){result1 = _}
       dummyPool.borrow("a/b/x"){result2 = _}
       dummyPool.borrow("a/b/c"){result3 = _}
-      (result1, result2, result3)
-    }.assert(_ == (Symbol("a/b/c"), Symbol("a/b/x"), Symbol("a/b/c")))
+      (result1.tag, result2.tag, result3.tag)
+    }.assert(_ == ("a/b/c", "a/b/x", "a/b/c"))
   }
   
   private def void: Any => Unit = _ => ()
