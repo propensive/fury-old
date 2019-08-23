@@ -16,36 +16,57 @@
 */
 package fury
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.CountDownLatch
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import fury.utils._
 import probably._
+import scala.concurrent.Future
+import scala.util.Random
 
 object PoolTest extends TestApp {
-  
-  private val dummyPool: Pool[String, Symbol] = new Pool[String, Symbol](10L) {
-    override def create(key: String): Symbol = Symbol(key)
-    override def destroy(value: Symbol): Unit = ()
-    override def isBad(value: Symbol): Boolean = false
+
+  class Resource(val tag: String)
+
+  class DummyPool extends Pool[String, Resource](10L) {
+      override def create(key: String): Resource = new Resource(key)
+      override def destroy(value: Resource): Unit = ()
+      override def isBad(value: Resource): Boolean = false
   }
 
   override def tests(): Unit = {
     test("reuse existing entries") {
+      val dummyPool = new DummyPool
       dummyPool.borrow("a/b/c"){void}
       dummyPool.borrow("a/b/x"){void}
       dummyPool.borrow("a/b/c"){void}
       dummyPool.size
     }.assert(_ == 2)
 
+    test("support concurrent requests") {
+      val dummyPool = new DummyPool
+      val allFinished = new CountDownLatch(20)
+      val keys = ('k' to 'p').map(i => s"key $i")
+      (1 to 20).map { _ => Future {
+        Random.shuffle(keys).foreach{ key =>
+          dummyPool.borrow(key){_ => Thread.sleep(100)}
+        }
+        allFinished.countDown()
+      }}
+      allFinished.await()
+      dummyPool
+    }.assert(_.size == 6)
+
     test("Return correct values") {
-      var result1: Symbol = null
-      var result2: Symbol = null
-      var result3: Symbol = null
+      val dummyPool = new DummyPool
+      var result1: Resource = null
+      var result2: Resource = null
+      var result3: Resource = null
       dummyPool.borrow("a/b/c"){result1 = _}
       dummyPool.borrow("a/b/x"){result2 = _}
       dummyPool.borrow("a/b/c"){result3 = _}
-      (result1, result2, result3)
-    }.assert(_ == (Symbol("a/b/c"), Symbol("a/b/x"), Symbol("a/b/c")))
+      (result1.tag, result2.tag, result3.tag)
+    }.assert(_ == ("a/b/c", "a/b/x", "a/b/c"))
   }
   
   private def void: Any => Unit = _ => ()
