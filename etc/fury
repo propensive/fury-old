@@ -11,6 +11,8 @@ CLASSPATH="$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 QUIET='0'
+PIDFILE="$FURYHOME/ngserver.pid"
+NG_PID=""
 
 trap cleanup INT
 
@@ -80,33 +82,30 @@ stopFury() {
   nailgun "${FURY_MAIN}" "stop" && killFury
 }
 
-isRunning() {
-  (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>&1) > /dev/null 2>&1  || (message 'Starting Fury daemon...\n' && nailgun "${FURY_MAIN}" about > /dev/null 2>&1)
+ngServer() {
+  if [ -f "$PIDFILE" ]; then
+    NG_PID=$(< "$PIDFILE")
+  fi
+  if [ -z "$NG_PID" ] || [ ! -e "/proc/$NG_PID" ]; then
+    message 'Starting Nailgun server... '
+    SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
+    java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" &
+    NG_PID=$!
+    install -D <(echo $NG_PID) $PIDFILE
+    until (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>/dev/null); do
+      message '.'
+      sleep 0.15
+    done
+    message "Started Nailgun server at PID $NG_PID\n"
+  fi
 }
 
 fury() {
-  (isRunning || (startFury > /dev/null)) && nailgun "${FURY_MAIN}" "$@"
-}
-
-startFury() {
-  isRunning && message "Fury daemon is running\n" && exit 0
-
-  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  nohup java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null 2>&1 &
-
-  message 'Fury daemon is starting...'
-  for I in $(seq 1 25); do
-    isRunning && message "\nFury daemon is running\n" && exit 0
-
-    message '.'
-    sleep 0.15
-  done
-  message '\n'
-  message 'Starting Fury is taking longer than expected to start\n'
+  ngServer && nailgun "${FURY_MAIN}" "$@"
 }
 
 restartFury() {
-  stopFury && startFury
+  stopFury && ngServer
 }
 
 startFuryStandalone() {
@@ -116,7 +115,7 @@ startFuryStandalone() {
 
 case "$1" in
   "start")
-    silently startFury
+    silently ngServer
     ;;
   "standalone")
     startFuryStandalone "${@:2}"
