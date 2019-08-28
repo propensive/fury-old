@@ -16,11 +16,15 @@
 */
 package fury.utils
 
+import java.time.Instant
+
 import scala.collection.mutable._
 import scala.concurrent._
 import scala.util._
 
 abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext) {
+
+  val createdAt = Instant.now
 
   def create(key: K): T
   def destroy(value: T): Unit
@@ -29,6 +33,8 @@ abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext
   private[this] val pool: Map[K, Future[T]] = scala.collection.concurrent.TrieMap()
   
   def size: Int = pool.size
+
+  def keys: List[K] = pool.keySet.toList
 
   private[this] final def createOrRecycle(key: K): Future[T] = {
     val result = pool.get(key) match {

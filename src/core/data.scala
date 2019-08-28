@@ -511,12 +511,16 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
+  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] = {
+    io.println(str"Pool created at ${Compilation.bspPool.createdAt.toString}, contains ${Compilation.bspPool.size.toString} elements")
+    io.println(str"Pool contains ${Compilation.bspPool.keys.mkString(", ")}")
     Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         Try(server.workspaceBuildTargets.get)
       }
     }, Duration.Inf)
+  }
+
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
   
@@ -616,7 +620,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
     def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
       Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
-    
+      io.println(str"Pool created at ${Compilation.bspPool.createdAt.toString}, contains ${Compilation.bspPool.size.toString} elements")
+      io.println(str"Pool contains ${Compilation.bspPool.keys.mkString(", ")}")
       Compilation.bspPool.borrow(layout.base) { conn =>
         val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
