@@ -36,6 +36,8 @@ abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
   private[this] val pool: Map[K, T] = scala.collection.concurrent.TrieMap()
   
   def size: Int = pool.size
+  
+  def keys: List[K] = pool.keySet.toList
 
   @tailrec
   private[this] def createOrRecycle(key: K): T = {

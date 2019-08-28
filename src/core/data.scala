@@ -513,6 +513,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] = {
     io.println(str"Pool created at ${Compilation.bspPool.createdAt.toString}, contains ${Compilation.bspPool.size.toString} elements")
+    io.println(str"Pool contains ${Compilation.bspPool.keys.mkString(", ")}")
     Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         Try(server.workspaceBuildTargets.get)
@@ -621,6 +622,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
     
     Future(blocking {
+      io.println(str"Pool created at ${Compilation.bspPool.createdAt.toString}, contains ${Compilation.bspPool.size.toString} elements")
+      io.println(str"Pool contains ${Compilation.bspPool.keys.mkString(", ")}")
       Compilation.bspPool.borrow(layout.base) { conn =>
         val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
           val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
