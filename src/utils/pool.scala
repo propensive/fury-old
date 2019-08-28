@@ -16,12 +16,16 @@
 */
 package fury.utils
 
+import java.time.Instant
+
 import scala.collection.mutable._
 import scala.concurrent._, duration._
 import scala.util._
 import scala.annotation._
 
 abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
+  
+  val createdAt = Instant.now
 
   def create(key: K): T
   def destroy(value: T): Unit
