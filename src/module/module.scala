@@ -95,6 +95,7 @@ object ModuleCli {
 
   def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
+    val defaultCompiler = ModuleRef.JavaRef
     for {
       cli            <- cli.hint(ModuleNameArg)
 
@@ -119,10 +120,10 @@ object ModuleCli {
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      optCompilerRef <- compilerId.map(ModuleRef.parse(project.id, _, true)).to[List].sequence.map(_.headOption)
+      compilerRef    <- compilerId.map(resolveToModule(ctx, _))
+                            .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
 
-      module         <- ~Module(moduleId, compiler = optCompilerRef.orElse(project.compiler).getOrElse(
-                            ModuleRef.JavaRef))
+      module         = Module(moduleId, compiler = compilerRef)
 
       module         <- ~invoc(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
       
@@ -138,12 +139,10 @@ object ModuleCli {
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainModule(_, project.id)) {
                             (lens, ws) => lens(ws) = Some(module.id) }
 
-      layer          <- if(project.compiler.isEmpty) Lenses.updateSchemas(optSchemaId, layer, true)(
+      layer          <- if(project.compiler.isEmpty && compilerRef != defaultCompiler) Lenses.updateSchemas(optSchemaId, layer, true)(
                             Lenses.layer.compiler(_, project.id)) { (lens, ws) =>
-                          optCompilerRef.foreach { compiler =>
-                            io.println(msg"Setting default compiler for project ${project.id} to ${compiler}")
-                          }
-                          lens(ws) = optCompilerRef
+                            io.println(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
+                            lens(ws) = Some(compilerRef)
                         } else Try(layer)
 
       _              <- ~Layer.save(io, layer, layout)
@@ -155,6 +154,12 @@ object ModuleCli {
       _              <- ~io.println(msg"Set current module to ${module.id}")
     } yield io.await()
   }
+
+  private def resolveToModule(ctx: Context, reference: String): Try[ModuleRef] = for {
+    project  <- ctx.optProject.ascribe(UnspecifiedProject())
+    moduleRef      <- ModuleRef.parse(project.id, reference, true)
+    _        <- ctx.optSchema.filter(_.moduleRefs.contains(moduleRef)).ascribe(UnspecifiedModule())
+  } yield moduleRef
 
   def remove(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -224,7 +229,7 @@ object ModuleCli {
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      compilerRef <- compilerId.map(ModuleRef.parse(project.id, _, true)).to[List].sequence.map(_.headOption)
+      compilerRef <- compilerId.map(resolveToModule(ctx, _)).to[List].sequence.map(_.headOption)
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption
