@@ -49,7 +49,7 @@ object Graph {
   def live(changed: Boolean,
            io: Io,
            graph: Map[ModuleRef, Set[ModuleRef]],
-           stream: Stream[CompileEvent],
+           stream: Iterator[CompileEvent],
            state: Map[ModuleRef, CompilationInfo],
            streaming: Boolean)
           (implicit theme: Theme)
@@ -62,48 +62,49 @@ object Graph {
       updateValue(state, ref, f, CompilationInfo(Compiling(0), List()))
 
     io.print(Ansi.hideCursor())
+    if (stream.hasNext) {
+      stream.next match {
+        case Tick =>
+          val next: String = draw(graph, false, state).mkString("\n")
+          if (changed && !streaming) {
+            io.println(next)
+            io.println(Ansi.up(graph.size + 1)())
+          }
+          live(false, io, graph, stream, state, streaming)
 
-    stream match {
-      case Tick #:: tail =>
-        val next: String = draw(graph, false, state).mkString("\n")
-        if(changed && !streaming) {
-          io.println(next)
-          io.println(Ansi.up(graph.size + 1)())
-        }
-        live(false, io, graph, tail, state, streaming)
-
-      case CompilationProgress(ref, progress) #:: tail =>
-        live(true, io, graph, tail, updateState(ref, _.copy(state = Compiling(progress))), streaming)
-      case StartCompile(ref) #:: tail =>
-        live(true, io, graph, tail, updateState(ref, _.copy(state = Compiling(0))), streaming)
-      case DiagnosticMsg(ref, msg) #:: tail =>
-        live(false, io, graph, tail, updateState(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)),
+        case CompilationProgress(ref, progress) =>
+          live(true, io, graph, stream, updateState(ref, _.copy(state = Compiling(progress))), streaming)
+        case StartCompile(ref) =>
+          live(true, io, graph, stream, updateState(ref, _.copy(state = Compiling(0))), streaming)
+        case DiagnosticMsg(ref, msg) =>
+          live(false, io, graph, stream, updateState(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)),
             streaming)
-      case NoCompile(ref) #:: tail =>
-        val newState = if(state.contains(ref)) state else updateState(ref, _.copy(state = AlreadyCompiled))
-        live(true, io, graph, tail, newState, streaming)
-      case StopCompile(ref, success) #:: tail =>
-        val msgs = state(ref).messages
-        val newState = state.updated(ref, CompilationInfo(if(success) Successful(None) else Failed(""),msgs))
-        live(true, io, graph, tail, newState, streaming)
-      case StartStreaming #:: tail =>
-        io.println(Ansi.down(graph.size + 1)())
-        live(true, io, graph, tail, state, true)
-      case Print(line) #:: tail =>
-        io.println(line)
-        live(true, io, graph, tail, state, streaming)
-      case StopStreaming #:: tail =>
-        live(true, io, graph, tail, state, false)
-      case SkipCompile(ref) #:: tail =>
-        live(true, io, graph, tail, updateState(ref, _.copy(state = Skipped)), streaming)
-      case Stream.Empty =>
-        io.print(Ansi.showCursor())
-        val output = state.collect {
-          case (ref, CompilationInfo(Failed(_), out))     => out.map(_.msg)
-          case (ref, CompilationInfo(Successful(_), out)) => out.map(_.msg)
-        }.flatten
-        io.println(Ansi.down(graph.size + 1)())
-        output.foreach(io.println(_))
+        case NoCompile(ref) =>
+          val newState = if (state.contains(ref)) state else updateState(ref, _.copy(state = AlreadyCompiled))
+          live(true, io, graph, stream, newState, streaming)
+        case StopCompile(ref, success) =>
+          val msgs = state(ref).messages
+          val newState = state.updated(ref, CompilationInfo(if (success) Successful(None) else Failed(""), msgs))
+          live(true, io, graph, stream, newState, streaming)
+        case StartStreaming =>
+          io.println(Ansi.down(graph.size + 1)())
+          live(true, io, graph, stream, state, true)
+        case Print(line) =>
+          io.println(line)
+          live(true, io, graph, stream, state, streaming)
+        case StopStreaming =>
+          live(true, io, graph, stream, state, false)
+        case SkipCompile(ref) =>
+          live(true, io, graph, stream, updateState(ref, _.copy(state = Skipped)), streaming)
+      }
+    } else {
+      io.print(Ansi.showCursor())
+      val output = state.collect {
+        case (ref, CompilationInfo(Failed(_), out)) => out.map(_.msg)
+        case (ref, CompilationInfo(Successful(_), out)) => out.map(_.msg)
+      }.flatten
+      io.println(Ansi.down(graph.size + 1)())
+      output.foreach(io.println(_))
     }
   }
 
