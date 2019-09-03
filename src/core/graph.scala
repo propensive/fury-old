@@ -45,20 +45,20 @@ object Graph {
   def updateValue[A, B](map: Map[A, B], ref: A, f: B => B, default: B): Map[A, B] =
     map.updated(ref, f(map.getOrElse(ref, default)))
 
-  @tailrec
-  def live(changed: Boolean,
-           io: Io,
-           graph: Map[ModuleRef, Set[ModuleRef]],
-           stream: Iterator[CompileEvent],
-           state: Map[ModuleRef, CompilationInfo],
-           streaming: Boolean)
-          (implicit theme: Theme)
-          : Unit = {
+  private case class GraphState(changed: Boolean,
+                        io: Io,
+                        graph: Map[ModuleRef, Set[ModuleRef]],
+                        stream: Iterator[CompileEvent],
+                        state: Map[ModuleRef, CompilationInfo],
+                        streaming: Boolean)
 
+  @tailrec
+  private def live(graphState: GraphState)(implicit theme: Theme): Unit = {
+    import graphState._
     def updateState(
-        ref: ModuleRef,
-        f: CompilationInfo => CompilationInfo
-      ): Map[ModuleRef, CompilationInfo] =
+                     ref: ModuleRef,
+                     f: CompilationInfo => CompilationInfo
+                   ): Map[ModuleRef, CompilationInfo] =
       updateValue(state, ref, f, CompilationInfo(Compiling(0), List()))
 
     io.print(Ansi.hideCursor())
@@ -70,42 +70,53 @@ object Graph {
             io.println(next)
             io.println(Ansi.up(graph.size + 1)())
           }
-          live(false, io, graph, stream, state, streaming)
+          live(graphState.copy(changed = false))
 
         case CompilationProgress(ref, progress) =>
-          live(true, io, graph, stream, updateState(ref, _.copy(state = Compiling(progress))), streaming)
+          live(graphState.copy(changed = true, state = updateState(ref, _.copy(state = Compiling(progress)))))
         case StartCompile(ref) =>
-          live(true, io, graph, stream, updateState(ref, _.copy(state = Compiling(0))), streaming)
+          live(graphState.copy(changed = true, state = updateState(ref, _.copy(state = Compiling(0)))))
         case DiagnosticMsg(ref, msg) =>
-          live(false, io, graph, stream, updateState(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)),
-            streaming)
+          live(graphState.copy(changed = false, state = updateState(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg))))
         case NoCompile(ref) =>
           val newState = if (state.contains(ref)) state else updateState(ref, _.copy(state = AlreadyCompiled))
-          live(true, io, graph, stream, newState, streaming)
+          live(graphState.copy(changed = true, state = newState))
         case StopCompile(ref, success) =>
           val msgs = state(ref).messages
           val newState = state.updated(ref, CompilationInfo(if (success) Successful(None) else Failed(""), msgs))
-          live(true, io, graph, stream, newState, streaming)
+          live(graphState.copy(changed = true, state = newState))
         case StartStreaming =>
           io.println(Ansi.down(graph.size + 1)())
-          live(true, io, graph, stream, state, true)
+          live(graphState.copy(changed = true, streaming = true))
         case Print(line) =>
           io.println(line)
-          live(true, io, graph, stream, state, streaming)
+          live(graphState.copy(changed = true))
         case StopStreaming =>
-          live(true, io, graph, stream, state, false)
+          live(graphState.copy(changed = true, streaming = false))
         case SkipCompile(ref) =>
-          live(true, io, graph, stream, updateState(ref, _.copy(state = Skipped)), streaming)
+          live(graphState.copy(changed = true, state = updateState(ref, _.copy(state = Skipped))))
       }
     } else {
       io.print(Ansi.showCursor())
       val output = state.collect {
-        case (ref, CompilationInfo(Failed(_), out)) => out.map(_.msg)
-        case (ref, CompilationInfo(Successful(_), out)) => out.map(_.msg)
+        case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
+        case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
       io.println(Ansi.down(graph.size + 1)())
       output.foreach(io.println(_))
     }
+  }
+
+
+  def live(changed: Boolean,
+           io: Io,
+           graph: Map[ModuleRef, Set[ModuleRef]],
+           stream: Iterator[CompileEvent],
+           state: Map[ModuleRef, CompilationInfo],
+           streaming: Boolean)
+          (implicit theme: Theme)
+          : Unit = {
+    live(GraphState(changed, io, graph, stream, state, streaming))
   }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],
