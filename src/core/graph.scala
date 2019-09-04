@@ -51,8 +51,7 @@ object Graph {
 
     def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
       val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), messages = List.empty))
-      val foo = compilationLogs.updated(ref, f(previousState))
-      this.copy(compilationLogs = foo)
+      this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)))
     }
 
   }
@@ -63,39 +62,40 @@ object Graph {
 
     io.print(Ansi.hideCursor())
     if (stream.hasNext) {
-      stream.next match {
+      val newState = stream.next match {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
           if (changed && !streaming) {
             io.println(next)
             io.println(Ansi.up(graph.size + 1)())
           }
-          live(graphState.copy(changed = false))
+          graphState.copy(changed = false)
 
         case CompilationProgress(ref, progress) =>
-          live(graphState.updateCompilationLog(ref, _.copy(state = Compiling(progress))).copy(changed = true))
+          graphState.updateCompilationLog(ref, _.copy(state = Compiling(progress))).copy(changed = true)
         case StartCompile(ref) =>
-          live(graphState.updateCompilationLog(ref, _.copy(state = Compiling(0))).copy(changed = true))
+          graphState.updateCompilationLog(ref, _.copy(state = Compiling(0))).copy(changed = true)
         case DiagnosticMsg(ref, msg) =>
-          live(graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)).copy(changed = false))
+          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)).copy(changed = false)
         case NoCompile(ref) =>
           val newState = compilationLogs.getOrElse(ref, CompilationInfo(state = AlreadyCompiled, messages = List.empty))
-          live(graphState.updateCompilationLog(ref, _ => newState).copy(changed = true))
+          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
         case StopCompile(ref, success) =>
           val msgs = compilationLogs(ref).messages
           val newState = CompilationInfo(if (success) Successful(None) else Failed(""), msgs)
-          live(graphState.updateCompilationLog(ref, _ => newState).copy(changed = true))
+          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
         case StartStreaming =>
           io.println(Ansi.down(graph.size + 1)())
-          live(graphState.copy(changed = true, streaming = true))
+          graphState.copy(changed = true, streaming = true)
         case Print(line) =>
           io.println(line)
-          live(graphState.copy(changed = true))
+          graphState.copy(changed = true)
         case StopStreaming =>
-          live(graphState.copy(changed = true, streaming = false))
+          graphState.copy(changed = true, streaming = false)
         case SkipCompile(ref) =>
-          live(graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true))
+          graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true)
       }
+      live(newState)
     } else {
       io.print(Ansi.showCursor())
       val output = compilationLogs.collect {
