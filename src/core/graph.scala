@@ -42,69 +42,81 @@ object Graph {
   case class Failed(output: String)              extends CompileState
   case object Skipped                            extends CompileState
 
-  def updateValue[A, B](map: Map[A, B], ref: A, f: B => B, default: B): Map[A, B] =
-    map.updated(ref, f(map.getOrElse(ref, default)))
+  private case class GraphState(changed: Boolean,
+                        io: Io,
+                        graph: Map[ModuleRef, Set[ModuleRef]],
+                        stream: Iterator[CompileEvent],
+                        compilationLogs: Map[ModuleRef, CompilationInfo],
+                        streaming: Boolean){
+
+    def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
+      val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), messages = List.empty))
+      this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)))
+    }
+
+  }
 
   @tailrec
+  private def live(graphState: GraphState)(implicit theme: Theme): Unit = {
+    import graphState._
+
+    io.print(Ansi.hideCursor())
+    if (stream.hasNext) {
+      val newState = stream.next match {
+        case Tick =>
+          val next: String = draw(graph, false, compilationLogs).mkString("\n")
+          if (changed && !streaming) {
+            io.println(next)
+            io.println(Ansi.up(graph.size + 1)())
+          }
+          graphState.copy(changed = false)
+
+        case CompilationProgress(ref, progress) =>
+          graphState.updateCompilationLog(ref, _.copy(state = Compiling(progress))).copy(changed = true)
+        case StartCompile(ref) =>
+          graphState.updateCompilationLog(ref, _.copy(state = Compiling(0))).copy(changed = true)
+        case DiagnosticMsg(ref, msg) =>
+          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)).copy(changed = false)
+        case NoCompile(ref) =>
+          val newState = compilationLogs.getOrElse(ref, CompilationInfo(state = AlreadyCompiled, messages = List.empty))
+          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
+        case StopCompile(ref, success) =>
+          val msgs = compilationLogs(ref).messages
+          val newState = CompilationInfo(if (success) Successful(None) else Failed(""), msgs)
+          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
+        case StartStreaming =>
+          io.println(Ansi.down(graph.size + 1)())
+          graphState.copy(changed = true, streaming = true)
+        case Print(line) =>
+          io.println(line)
+          graphState.copy(changed = true)
+        case StopStreaming =>
+          graphState.copy(changed = true, streaming = false)
+        case SkipCompile(ref) =>
+          graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true)
+      }
+      live(newState)
+    } else {
+      io.print(Ansi.showCursor())
+      val output = compilationLogs.collect {
+        case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
+        case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
+      }.flatten
+      io.println(Ansi.down(graph.size + 1)())
+      output.foreach(io.println(_))
+    }
+  }
+
+
   def live(changed: Boolean,
            io: Io,
            graph: Map[ModuleRef, Set[ModuleRef]],
-           stream: Stream[CompileEvent],
-           state: Map[ModuleRef, CompilationInfo],
+           stream: Iterator[CompileEvent],
+           compilationLogs: Map[ModuleRef, CompilationInfo],
            streaming: Boolean)
           (implicit theme: Theme)
           : Unit = {
-
-    def updateState(
-        ref: ModuleRef,
-        f: CompilationInfo => CompilationInfo
-      ): Map[ModuleRef, CompilationInfo] =
-      updateValue(state, ref, f, CompilationInfo(Compiling(0), List()))
-
-    io.print(Ansi.hideCursor())
-
-    stream match {
-      case Tick #:: tail =>
-        val next: String = draw(graph, false, state).mkString("\n")
-        if(changed && !streaming) {
-          io.println(next)
-          io.println(Ansi.up(graph.size + 1)())
-        }
-        live(false, io, graph, tail, state, streaming)
-
-      case CompilationProgress(ref, progress) #:: tail =>
-        live(true, io, graph, tail, updateState(ref, _.copy(state = Compiling(progress))), streaming)
-      case StartCompile(ref) #:: tail =>
-        live(true, io, graph, tail, updateState(ref, _.copy(state = Compiling(0))), streaming)
-      case DiagnosticMsg(ref, msg) #:: tail =>
-        live(false, io, graph, tail, updateState(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)),
-            streaming)
-      case NoCompile(ref) #:: tail =>
-        val newState = if(state.contains(ref)) state else updateState(ref, _.copy(state = AlreadyCompiled))
-        live(true, io, graph, tail, newState, streaming)
-      case StopCompile(ref, success) #:: tail =>
-        val msgs = state(ref).messages
-        val newState = state.updated(ref, CompilationInfo(if(success) Successful(None) else Failed(""),msgs))
-        live(true, io, graph, tail, newState, streaming)
-      case StartStreaming #:: tail =>
-        io.println(Ansi.down(graph.size + 1)())
-        live(true, io, graph, tail, state, true)
-      case Print(line) #:: tail =>
-        io.println(line)
-        live(true, io, graph, tail, state, streaming)
-      case StopStreaming #:: tail =>
-        live(true, io, graph, tail, state, false)
-      case SkipCompile(ref) #:: tail =>
-        live(true, io, graph, tail, updateState(ref, _.copy(state = Skipped)), streaming)
-      case Stream.Empty =>
-        io.print(Ansi.showCursor())
-        val output = state.collect {
-          case (ref, CompilationInfo(Failed(_), out))     => out.map(_.msg)
-          case (ref, CompilationInfo(Successful(_), out)) => out.map(_.msg)
-        }.flatten
-        io.println(Ansi.down(graph.size + 1)())
-        output.foreach(io.println(_))
-    }
+    live(GraphState(changed, io, graph, stream, compilationLogs, streaming))
   }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],

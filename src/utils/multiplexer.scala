@@ -16,8 +16,6 @@
 */
 package fury.utils
 
-import scala.collection.immutable.Stream
-
 /** a streaming multiplexer optimized for concurrent writes */
 final class Multiplexer[K, V](keys: List[K]) {
   private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
@@ -26,8 +24,8 @@ final class Multiplexer[K, V](keys: List[K]) {
 
   private[this] def finished: Boolean = closed.forall(identity)
 
-  def stream(interval: Int, tick: Option[V] = None): Stream[V] = {
-    def stream(lastSnapshot: List[List[V]]): Stream[V] = {
+  def stream(interval: Int, tick: Option[V] = None): Iterator[V] = {
+    def stream(lastSnapshot: List[List[V]]): Iterator[V] = {
       val t0       = System.currentTimeMillis
       val snapshot = state.to[List]
       // FIXME: This could be written more efficiently with a builder
@@ -36,11 +34,11 @@ final class Multiplexer[K, V](keys: List[K]) {
           current.take(current.length - last.length).reverse
       }
       if(finished && changes.isEmpty) {
-        tick.to[Stream]
+        tick.to[Iterator]
       } else {
         val time = System.currentTimeMillis - t0
         if(time < interval) Thread.sleep(interval - time)
-        changes.to[Stream] #::: tick.to[Stream] #::: stream(snapshot)
+        changes.to[Iterator] ++ tick.to[Iterator] ++ stream(snapshot)
       }
     }
     stream(state.to[List])
