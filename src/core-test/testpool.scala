@@ -16,12 +16,12 @@
 */
 package fury
 
-import java.util.concurrent.CountDownLatch
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import fury.utils._
 import probably._
-import scala.concurrent.Future
+
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
 import scala.util.Random
 
 object PoolTest extends TestApp {
@@ -45,15 +45,14 @@ object PoolTest extends TestApp {
 
     test("support concurrent requests") {
       val dummyPool = new DummyPool
-      val allFinished = new CountDownLatch(20)
       val keys = ('k' to 'p').map(i => s"key $i")
-      (1 to 20).map { _ => Future {
+      val zzz = Future.traverse(1 to 20) { _ => Future {
         Random.shuffle(keys).foreach{ key =>
-          dummyPool.borrow(key){_ => Thread.sleep(100)}
+          dummyPool.borrow(key){_ => ()}
+          println(key)
         }
-        allFinished.countDown()
       }}
-      allFinished.await()
+      Await.result(zzz, 1 minute)
       dummyPool
     }.assert(_.size == 6)
 
