@@ -63,6 +63,7 @@ object LinearReporter extends Reporter("linear") {
       case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref")
       case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed")
       case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out)
+      case Print(line)                                 => io.println(line)
       case other                                       => ()
     }
 }

@@ -20,5 +20,5 @@ fury permission grant -P d42
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld { def main(args: Array[String]): Unit = args.foreach(println) }' > src/printargs.scala
-fury build compile --output linear -- arg1 arg2
+fury build compile --output linear -- arg1 arg2 | grep -vE '(compiler-bridge)|(completed in)'
 echo $?
