@@ -676,10 +676,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
         compileModule(io, target, layout, target.kind == Application, multiplexer).map {
           case CompileSuccess(classDirectories) if target.kind.needsExecution =>
+            multiplexer(target.ref) = StartStreaming
             if(target.kind == Benchmarks) {
               classDirectories.foreach { classDirectory =>
                 Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
-                multiplexer(target.ref) = StartStreaming
                 val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
 
                 Shell(layout.env).javac(
