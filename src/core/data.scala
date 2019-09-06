@@ -689,7 +689,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               }
             }
             
-            val out = new StringBuilder()
+            val out = new StringBuffer()
             
             val res = Shell(layout.env).runJava(
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
@@ -702,14 +702,12 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               args
             ) { ln =>
               if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
-              else out.synchronized {
-                out.append(ln)
-                out.append("\n")
-              }
+              else out.append(ln).append("\n")
             }.await() == 0
-          
-            if(!out.isEmpty){
-              multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(out.mkString))
+
+            val aggregated = out.toString
+            if(!aggregated.isEmpty){
+              multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(aggregated))
             }
             
             deepDependencies(target.id).foreach { targetId =>
