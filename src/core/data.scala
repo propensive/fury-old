@@ -702,7 +702,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               args
             ) { ln =>
               if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
-              else {
+              else out.synchronized {
                 out.append(ln)
                 out.append("\n")
               }
