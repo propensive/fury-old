@@ -18,7 +18,7 @@ package fury
 
 import probably.TestApp
 
-object Tests {
+object CoreTests {
   private val testSuites = List[TestApp](
       DirectedGraphTest,
       LayerRepositoryTest,

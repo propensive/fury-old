@@ -463,7 +463,7 @@ schemas	default	id	default
 						policy	
 					test-core	id	test-core
 						kind	Application
-						main	Some	fury.Tests
+						main	Some	fury.CoreTests
 						plugin	None
 						manifest	
 						compiler	projectId	scala
@@ -488,7 +488,7 @@ schemas	default	id	default
 						policy	
 					test-ogdl	id	test-ogdl
 						kind	Application
-						main	Some	fury.Tests
+						main	Some	fury.OgdlTests
 						plugin	None
 						manifest	
 						compiler	projectId	scala
