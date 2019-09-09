@@ -440,7 +440,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-					test	id	test
+					test-all	id	test-all
 						kind	Library
 						main	None
 						plugin	None
@@ -451,6 +451,14 @@ schemas	default	id	default
 							hidden	false
 						after	fury/test-core	projectId	fury
 								moduleId	test-core
+								intransitive	false
+								hidden	false
+							fury/test-ogdl	projectId	fury
+								moduleId	test-ogdl
+								intransitive	false
+								hidden	false
+							fury/test-strings	projectId	fury
+								moduleId	test-strings
 								intransitive	false
 								hidden	false
 						params	
@@ -474,8 +482,8 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/test-ogdl	projectId	fury
-								moduleId	test-ogdl
+							probably/cli	projectId	probably
+								moduleId	cli
 								intransitive	false
 								hidden	false
 						params	
@@ -499,8 +507,8 @@ schemas	default	id	default
 								moduleId	ogdl
 								intransitive	false
 								hidden	false
-							fury/test-strings	projectId	fury
-								moduleId	test-strings
+							probably/cli	projectId	probably
+								moduleId	cli
 								intransitive	false
 								hidden	false
 						params	
@@ -620,6 +628,6 @@ aliases	test	cmd	test
 		description	run the Fury tests
 		schema	None
 		module	projectId	fury
-			moduleId	test
+			moduleId	test-all
 			intransitive	false
 			hidden	false
