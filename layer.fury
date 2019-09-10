@@ -43,6 +43,10 @@ schemas	default	id	default
 								moduleId	core
 								intransitive	false
 								hidden	false
+							fury/launcher	projectId	fury
+								moduleId	launcher
+								intransitive	false
+								hidden	false
 							fury/model	projectId	fury
 								moduleId	model
 								intransitive	false
@@ -69,11 +73,7 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	ch.epfl.scala:bloop-launcher_2.12:1.3.2	binRepo	bintray:scalacenter/releases
-								group	ch.epfl.scala
-								artifact	bloop-launcher_2.12
-								version	1.3.2
-							ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
+						binaries	ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
 								group	ch.epfl.scala
 								artifact	bsp4j
 								version	2.0.0-M4
@@ -248,6 +248,34 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+					launcher	id	launcher
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/sockets	projectId	fury
+								moduleId	sockets
+								intransitive	false
+								hidden	false
+						params	
+						sources	bloop:launcher/src/main/scala	bloop:launcher/src/main/scala
+						binaries	com.zaxxer:nuprocess:1.2.4	binRepo	central
+								group	com.zaxxer
+								artifact	nuprocess
+								version	1.2.4
+							io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
+								group	io.get-coursier
+								artifact	coursier_2.12
+								version	1.1.0-M14-4
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
 					model	id	model
 						kind	Library
 						main	None
@@ -393,6 +421,31 @@ schemas	default	id	default
 						params	
 						sources	src/schema	src/schema
 						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					sockets	id	sockets
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	bloop:sockets/src/main/java	bloop:sockets/src/main/java
+						binaries	net.java.dev.jna:jna-platform:4.5.0	binRepo	central
+								group	net.java.dev.jna
+								artifact	jna-platform
+								version	4.5.0
+							net.java.dev.jna:jna:4.5.0	binRepo	central
+								group	net.java.dev.jna
+								artifact	jna
+								version	4.5.0
 						resources	
 						bloopSpec	None
 						environment	
@@ -580,7 +633,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-				main	Some	frontend
+				main	Some	core
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -615,7 +668,12 @@ schemas	default	id	default
 				license	unknown
 				description	
 				compiler	None
-		repos	platform	id	platform
+		repos	bloop	id	bloop
+				repo	gh:scalacenter/bloop
+				track	master
+				commit	239b0dd7bfd36eef9dd6c613675c721ab5d570c7
+				local	None
+			platform	id	platform
 				repo	gh:propensive/platform
 				track	master
 				commit	d1e7aae5000e1efe92b2bde48bdb82c6064c7e06
