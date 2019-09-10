@@ -17,53 +17,59 @@
 package fury.utils
 
 import scala.collection.mutable._
-import scala.concurrent._, duration._
+import scala.concurrent._
 import scala.util._
-import scala.annotation._
 
-abstract class Pool[K, T](timeout: Long)(implicit ec: ExecutionContext) {
+abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext) {
 
   def create(key: K): T
   def destroy(value: T): Unit
   def isBad(value: T): Boolean
 
-  case class Entry(key: K, value: T)
-
-  private[this] val pool: Map[K, T] = scala.collection.concurrent.TrieMap()
+  private[this] val pool: Map[K, Future[T]] = scala.collection.concurrent.TrieMap()
   
   def size: Int = pool.size
 
-  @tailrec
-  private[this] def createOrRecycle(key: K): T = {
+  private[this] final def createOrRecycle(key: K): Future[T] = {
     val result = pool.get(key) match {
       case None =>
-        Try(Await.result(Future(blocking(create(key))), timeout.milliseconds)).map { value =>
-          pool(key) = value
-          Some(value)
-        }.toOption.getOrElse(None)
+        val res = Future(blocking(create(key)))
+        pool(key) = res
+        res
       case Some(value) =>
-        pool -= key
-        if(isBad(value)) {
-          destroy(value)
-          None
+        value.filter{v =>
+          val bad = isBad(v)
+          if(bad) { destroy(v) }
+          !bad
+        }.andThen{
+          case Failure(e) => pool -= key
         }
-        else Some(value)
     }
-    if(result.isEmpty) createOrRecycle(key) else result.get
+    result.recoverWith{ case _ => createOrRecycle(key) }
   }
 
-  def borrow[S](key: K)(action: T => S): S = {
-    val result: S = synchronized {
-      val value: T = pool.get(key).filter(!isBad(_)).fold(createOrRecycle(key)) { value =>
-        pool -= key
-        value
+  def borrow[S](key: K)(action: T => S): Future[S] = {
+    val released = Promise[T]
+    val lock: AnyRef = pool.get(key).getOrElse(pool)
+    val claimed: Future[T] = lock.synchronized {
+      createOrRecycle(key).map { v =>
+        pool(key) = released.future
+        v
       }
-
-      val result: S = action(value)
-      pool(key) = value
-      result
     }
 
+    val result: Future[S] = claimed.map{ v =>
+      try{
+        action(v)
+      } finally {
+        if(isBad(v)){
+          released.failure(new Exception("Resource got stale"))
+        } else {
+          released.success(v)
+        }
+      }
+    }
     result
   }
+
 }
