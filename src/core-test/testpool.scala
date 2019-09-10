@@ -16,14 +16,13 @@
 */
 package fury
 
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import fury.utils._
 import probably._
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.util.Random
 
@@ -35,14 +34,18 @@ object PoolTest extends TestApp {
       override def create(key: String): Resource = new Resource(key)
       override def destroy(value: Resource): Unit = ()
       override def isBad(value: Resource): Boolean = false
+
+      def syncBorrow[S](key: String)(action: Resource => S): S = {
+        Await.result(borrow(key)(action), Duration.Inf)
+      }
   }
 
   override def tests(): Unit = {
     test("reuse existing entries") {
       val dummyPool = new DummyPool
-      dummyPool.borrow("a/b/c"){void}
-      dummyPool.borrow("a/b/x"){void}
-      dummyPool.borrow("a/b/c"){void}
+      dummyPool.syncBorrow("a/b/c")(void)
+      dummyPool.syncBorrow("a/b/x")(void)
+      dummyPool.syncBorrow("a/b/c")(void)
       dummyPool.size
     }.assert(_ == 2)
 
@@ -55,15 +58,10 @@ object PoolTest extends TestApp {
         }
       }
       val keys = Stream.from(0).take(6).map(i => s"key $i")
-      val threadPool = Executors.newFixedThreadPool(20)
-      val ec = ExecutionContext.fromExecutor(threadPool)
-      val tasks = Future.traverse(1 to 20) { _ => Future {
-        Random.shuffle(keys).foreach{ key =>
-          dummyPool.borrow(key){_ => Thread.sleep(100)}
-        }
-      }(ec)}
+      val tasks = Future.traverse(Random.shuffle((1 to 20).flatMap(_ => keys))){
+        key => dummyPool.borrow(key){ _ => Thread.sleep(100) }
+      }
       Await.result(tasks, 1 minute)
-      threadPool.shutdown
       resourcesCreated.get
     }.assert(_ == 6)
 
@@ -72,9 +70,9 @@ object PoolTest extends TestApp {
       var result1: Resource = null
       var result2: Resource = null
       var result3: Resource = null
-      dummyPool.borrow("a/b/c"){result1 = _}
-      dummyPool.borrow("a/b/x"){result2 = _}
-      dummyPool.borrow("a/b/c"){result3 = _}
+      dummyPool.syncBorrow("a/b/c"){ result1 = _ }
+      dummyPool.syncBorrow("a/b/x"){ result2 = _ }
+      dummyPool.syncBorrow("a/b/c"){ result3 = _ }
       (result1.tag, result2.tag, result3.tag)
     }.assert(_ == ("a/b/c", "a/b/x", "a/b/c"))
   }
