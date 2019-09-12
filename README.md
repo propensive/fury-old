@@ -10,3 +10,11 @@ Full information about Fury is available on the [Fury website](https://fury.buil
 ### Status
 Fury is under active development, but a binary release is not publicly
 available yet.
+
+### Installing latest version from source
+```
+git clone https://github.com/propensive/fury.git
+cd fury
+make
+make install
+```
