@@ -270,20 +270,18 @@ object PermissionCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+  } yield Context(cli, layout, config, layer, schema, optProject, optModule)
 
   def require(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
-      allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
-      allModules       = allSchemas.map(_.moduleRefs).flatten
+      cli             <- cli.hint(ScopeArg, ScopeId.All)
       cli             <- cli.hint(ClassArg, Permission.Classes)
       cli             <- cli.hint(PermissionTargetArg)
       cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
       invoc           <- cli.read()
       io              <- invoc.io()
+      scopeId         <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       classArg        <- invoc(ClassArg)
@@ -294,6 +292,9 @@ object PermissionCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
       _               <- ~Layer.save(io, layer, layout)
+      policy   <- Policy.read(io, cli.globalLayout)
+      policy   <- ~policy.grant(Scope(scopeId, layout, project.id), permission)
+      _        <- ~Policy.save(io, cli.globalLayout, policy)
     } yield {
       io.println(msg"${PermissionHash(permission.hash)}")
       io.await()
