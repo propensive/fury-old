@@ -91,7 +91,7 @@ ngServer() {
     SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
     java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" &
     NG_PID=$!
-    install -D <(echo $NG_PID) $PIDFILE
+    install -d <(echo $NG_PID) $PIDFILE
     until (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>/dev/null); do
       message '.'
       sleep 0.15
