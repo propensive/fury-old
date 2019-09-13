@@ -276,25 +276,26 @@ object PermissionCli {
     import ctx._
     for {
       cli             <- cli.hint(ScopeArg, ScopeId.All)
+      cli             <- cli.hint(NoGrantArg)
       cli             <- cli.hint(ClassArg, Permission.Classes)
       cli             <- cli.hint(PermissionTargetArg)
       cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
       invoc           <- cli.read()
       io              <- invoc.io()
-      scopeId         <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
+      scopeId         =  invoc(ScopeArg).getOrElse(ScopeId.Project)
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       classArg        <- invoc(ClassArg)
       targetArg       <- invoc(PermissionTargetArg)
-      actionArg       <- ~invoc(ActionArg).toOption
-      permission      <- ~Permission(classArg, targetArg, actionArg)
-      
+      actionArg       =  invoc(ActionArg).toOption
+      grant           =  invoc(NoGrantArg).isFailure
+      permission      =  Permission(classArg, targetArg, actionArg)
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
-      _               <- ~Layer.save(io, layer, layout)
-      policy   <- Policy.read(io, cli.globalLayout)
-      policy   <- ~policy.grant(Scope(scopeId, layout, project.id), permission)
-      _        <- ~Policy.save(io, cli.globalLayout, policy)
+      _               <- Layer.save(io, layer, layout)
+      policy          <- Policy.read(io, cli.globalLayout)
+      newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), permission) else policy
+      _               <- Policy.save(io, cli.globalLayout, newPolicy)
     } yield {
       io.println(msg"${PermissionHash(permission.hash)}")
       io.await()
@@ -318,7 +319,7 @@ object PermissionCli {
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
                       module.id))(_(_) -= entry.permission)
 
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- Layer.save(io, layer, layout)
     } yield io.await()
   }
   
@@ -355,8 +356,8 @@ object PermissionCli {
       permHash <- invoc(PermissionArg).map(PermissionHash(_))
       entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
       policy   <- Policy.read(io, cli.globalLayout)
-      policy   <- ~policy.grant(Scope(scopeId, layout, project.id), entry.permission)
-      _        <- ~Policy.save(io, cli.globalLayout, policy)
+      newPolicy = policy.grant(Scope(scopeId, layout, project.id), entry.permission)
+      _        <- Policy.save(io, cli.globalLayout, newPolicy)
     } yield io.await()
   }
 
@@ -391,13 +392,13 @@ object PropertyCli {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
 
-    optModule    <- Success { for {
+    optModule    =  { for {
                       project  <- optProject
                       moduleId <- optModuleId
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+  } yield Context(cli, layout, config, layer, schema, optProject, optModule)
 
   def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -435,7 +436,7 @@ object PropertyCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.properties(_, project.id,
                        module.id))(_(_) -= propArg)
 
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- Layer.save(io, layer, layout)
     } yield io.await()
   }
 
@@ -445,7 +446,6 @@ object PropertyCli {
       optSchema       <- ~layer.mainSchema.toOption
       importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
-      allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()
       io              <- invoc.io()
@@ -456,7 +456,7 @@ object PropertyCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.properties(_, project.id,
                              module.id))(_(_) += propArg)
 
-      _               <- ~Layer.save(io, layer, layout)
+      _               <- Layer.save(io, layer, layout)
     } yield io.await()
   }
 }
