@@ -647,6 +647,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
 
           val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+          params.setArguments(List("--pipeline").asJava)
           val scalacOptionsParams = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
 
           (for {
