@@ -1,1 +1,1 @@
-sets up a simple 'Hello World' application and runs it
+defines permissions without granting them, and references these permissions by hash prefixes

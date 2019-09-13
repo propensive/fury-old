@@ -305,21 +305,19 @@ object PermissionCli {
   def obviate(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli      <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
-      cli      <- cli.hint(ForceArg)
-      invoc    <- cli.read()
-      io       <- invoc.io()
-      permHash <- invoc(PermissionArg).map(PermissionHash(_))
-      project  <- optProject.ascribe(UnspecifiedProject())
-      module   <- optModule.ascribe(UnspecifiedModule())
-      entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
-      force    <- ~invoc(ForceArg).isSuccess
-      
-      layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
-                      module.id))(_(_) -= entry.permission)
-
-      _        <- Layer.save(io, layer, layout)
+      cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
+      cli           <- cli.hint(ForceArg)
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      permHash      <- invoc(PermissionArg).map(PermissionHash(_))
+      project       <- optProject.ascribe(UnspecifiedProject())
+      module        <- optModule.ascribe(UnspecifiedModule())
+      permission    <- module.permission(permHash).ascribe(ItemNotFound(permHash))
+      force         =  invoc(ForceArg).isSuccess
+      layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
+                      module.id))(_(_) -= permission)
+      _             <- Layer.save(io, layer, layout)
     } yield io.await()
   }
   
@@ -346,18 +344,18 @@ object PermissionCli {
   def grant(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
-      cli      <- cli.hint(ScopeArg, ScopeId.All)
-      cli      <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
-      invoc    <- cli.read()
-      io       <- invoc.io()
-      scopeId  <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
-      project  <- optProject.ascribe(UnspecifiedProject())
-      module   <- optModule.ascribe(UnspecifiedModule())
-      permHash <- invoc(PermissionArg).map(PermissionHash(_))
-      entry    <- module.policyEntries.find(_.hash == permHash).ascribe(ItemNotFound(permHash))
-      policy   <- Policy.read(io, cli.globalLayout)
-      newPolicy = policy.grant(Scope(scopeId, layout, project.id), entry.permission)
-      _        <- Policy.save(io, cli.globalLayout, newPolicy)
+      cli           <- cli.hint(ScopeArg, ScopeId.All)
+      cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      scopeId       <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
+      project       <- optProject.ascribe(UnspecifiedProject())
+      module        <- optModule.ascribe(UnspecifiedModule())
+      permHash      <- invoc(PermissionArg).map(PermissionHash(_))
+      permission    <- module.permission(permHash).ascribe(ItemNotFound(permHash))
+      policy        <- Policy.read(io, cli.globalLayout)
+      newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permission)
+      _             <- Policy.save(io, cli.globalLayout, newPolicy)
     } yield io.await()
   }
 
