@@ -56,7 +56,7 @@ object Bsp {
 
   private def whichFury(layout: Layout): Try[Path] = {
     implicit val env = layout.env
-    sh"command -v fury".exec[Try[String]].map(Path.apply)
+    sh"which fury".exec[Try[String]].map(Path.apply)
   }
 
   private def bspConfigJson(fury: Path): Json =
