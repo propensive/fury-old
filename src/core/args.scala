@@ -93,6 +93,7 @@ object Args {
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
   val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
+  val NoGrantArg = CliParam[String]('0', Symbol("no-grant"), "do not grant the permission automatically")
   val TagArg = CliParam[String]('t', 'tag, "git tag")
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
