@@ -406,6 +406,7 @@ object BuildCli {
                   layout: Layout,
                   globalPolicy: Policy,
                   compileArgs: List[String],
+                  pipelining: Boolean,
                   reporter: Reporter,
                   theme: Theme,
                   https: Boolean): Try[Future[CompileResult]] = {
