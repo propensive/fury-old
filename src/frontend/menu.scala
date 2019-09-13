@@ -87,7 +87,7 @@ object FuryMenu {
             Action('grant, msg"grant an application permissions on your system", PermissionCli.grant),
             Action('list, msg"list application permissions", PermissionCli.list),
             Action('obviate, msg"remove an application permission", PermissionCli.obviate),
-            Action('require, msg"add an application permission", PermissionCli.require),
+            Action('require, msg"add an application permission", PermissionCli.require)
         ),
         Menu('project, msg"manage projects", ProjectCli.context, 'list)(
             Action('add, msg"add a new project to the schema", ProjectCli.add),

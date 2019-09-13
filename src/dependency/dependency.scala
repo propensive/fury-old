@@ -293,9 +293,11 @@ object PermissionCli {
       
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
-
       _               <- ~Layer.save(io, layer, layout)
-    } yield io.await()
+    } yield {
+      io.println(msg"${PermissionHash(permission.hash)}")
+      io.await()
+    }
   }
 
   def obviate(ctx: Context): Try[ExitStatus] = {
