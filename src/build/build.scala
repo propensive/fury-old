@@ -137,7 +137,7 @@ object BuildCli {
                                  |Fury build tool for Scala, version ${Version.current}.
                                  |This software is provided under the Apache 2.0 License.
                                  |Fury depends on Bloop, Coursier, Git and Nailgun.
-                                 |© Copyright 2018-19 Jon Pretty, Propensive Ltd.
+                                 |© Copyright 2018-19 Jon Pretty, Propensive OÜ.
                                  |
                                  |See the Fury website at https://fury.build/, or follow @propensive on Twitter
                                  |for more information.
