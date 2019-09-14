@@ -82,22 +82,26 @@ stopFury() {
   nailgun "${FURY_MAIN}" "stop" && killFury
 }
 
+alive() {
+  bash -c "(exec 6<> /dev/tcp/127.0.0.1/${PORT} > /dev/null 2> /dev/null)"
+}
+
+startNailgun() {
+  message 'Resolving Scala compiler...'
+  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
+  message 'done\n'
+  message 'Starting Nailgun server...'
+  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+  NG_PID="$!"
+  until (alive); do
+    message '.'
+    sleep 0.1
+  done
+  message 'done\n'
+}
+
 ngServer() {
-  if [ -f "$PIDFILE" ]; then
-    NG_PID=$(< "$PIDFILE")
-  fi
-  if [ -z "$NG_PID" ] || [ ! -e "/proc/$NG_PID" ]; then
-    message 'Starting Nailgun server... '
-    SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-    java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" &
-    NG_PID=$!
-    install -D <(echo $NG_PID) $PIDFILE
-    until (cat < /dev/null > /dev/tcp/127.0.0.1/${PORT} > /dev/null 2>/dev/null); do
-      message '.'
-      sleep 0.15
-    done
-    message "Started Nailgun server at PID $NG_PID\n"
-  fi
+  alive || startNailgun
 }
 
 fury() {

@@ -171,7 +171,7 @@ untarPayload() {
   message "Installing Fury version ${FURY_VERSION}..."
 	MATCH=$(grep --text --line-number '^DATA:$' $0 | cut -d ':' -f 1)
 	START=$((MATCH + 1))
-	tail -n +${START} $0 | tar xCzf "${DESTINATION}" - --no-same-owner
+	tail -n +${START} $0 | tar xCzf "${DESTINATION}" - --no-same-owner 2> /dev/null
   message "Installed Fury ${FURY_VERSION}."
 }
 
