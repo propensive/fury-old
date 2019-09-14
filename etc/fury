@@ -82,6 +82,10 @@ stopFury() {
   nailgun "${FURY_MAIN}" "stop" && killFury
 }
 
+alive() {
+  (type nc > /dev/null && nc -zv "127.0.0.1" "${PORT}" > /dev/null 2> /dev/null) || (exec "6<>/dev/tcp/127.0.0.1/${PORT}" > /dev/null 2> /dev/null)
+}
+
 ngServer() {
   if [ -f "$PIDFILE" ]; then
     NG_PID=$(< "$PIDFILE")
@@ -92,7 +96,7 @@ ngServer() {
     java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" &
     NG_PID=$!
     echo $NG_PID > $PIDFILE
-    until (exec 6<>/dev/tcp/127.0.0.1/${PORT} > /dev/null 2> /dev/null); do
+    until (alive); do
       message '.'
       sleep 0.15
     done
