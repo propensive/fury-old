@@ -37,7 +37,7 @@ dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	chmod +x dist/install.sh
 
 dist/fury-$(VERSION).tar.gz: dist/bundle/lib/fury-frontend.jar dist/bundle/bin/fury dist/bundle/etc
-	tar czf $@ -C dist/bundle .
+	tar czf $@ -C dist/bundle . 2> /dev/null
 
 #TODO refactor etc structure (separate bundled scripts from development ones)
 dist/bundle/etc:
@@ -48,7 +48,7 @@ dist/bundle/etc:
 
 bootstrap/scala:
 	mkdir -p $@
-	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1
+	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1 2> /dev/null
 
 bootstrap/bin:
 	mkdir -p $@
