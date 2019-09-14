@@ -86,10 +86,6 @@ alive() {
   bash -c "(exec 6<> /dev/tcp/127.0.0.1/${PORT} > /dev/null 2> /dev/null)"
 }
 
-aliveNetcat() {
-  type nc > /dev/null && nc -zv "127.0.0.1" "${PORT}" > /dev/null 2> /dev/null
-}
-
 startNailgun() {
   message 'Resolving Scala compiler...'
   SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
@@ -97,7 +93,7 @@ startNailgun() {
   message 'Starting Nailgun server...'
   java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
   NG_PID="$!"
-  until (aliveNetcat); do
+  until (alive); do
     message '.'
     sleep 0.1
   done
@@ -105,7 +101,7 @@ startNailgun() {
 }
 
 ngServer() {
-  aliveNetcat || startNailgun
+  alive || startNailgun
 }
 
 fury() {
