@@ -1,12 +1,8 @@
 Created empty layer.fury
-Set current project to scala
+Cloning repository at gh:propensive/.scala
 Set current project to hello-world
-The module reference scala/compiler could not be resolved.
-1
+Setting default compiler for project hello-world to scala/compiler
 Set current module to app
-The module reference scala/compiler could not be resolved.
-1
-Set current module to compiler
 0
 0bc4b2076691e61eb8b1dfac91ad7c0648b21b5e4c097ea4de8e54e91e5ae9d2
 4d1a7232897567622a7ed04de5d3b90059ca81c6e46ccdf3f0116afd0fc79745
