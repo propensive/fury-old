@@ -51,7 +51,7 @@ object ModuleCli {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-  } yield new Context(cli, layout, config, layer, schema, optProject)
+  } yield Context(cli, layout, config, layer, schema, optProject)
 
   def select(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -120,9 +120,8 @@ object ModuleCli {
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      compilerRef    <- compilerId.map(resolveToModule(ctx, _))
+      compilerRef    <- compilerId.map(resolveToCompiler(io, ctx, _))
                             .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
-
       module         = Module(moduleId, compiler = compilerRef)
 
       module         <- ~invoc(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
@@ -155,10 +154,11 @@ object ModuleCli {
     } yield io.await()
   }
 
-  private def resolveToModule(ctx: Context, reference: String): Try[ModuleRef] = for {
+  private def resolveToCompiler(io: Io, ctx: Context, reference: String): Try[ModuleRef] = for {
     project  <- ctx.optProject.ascribe(UnspecifiedProject())
     moduleRef      <- ModuleRef.parse(project.id, reference, true)
-    _        <- ctx.optSchema.filter(_.moduleRefs.contains(moduleRef)).ascribe(UnspecifiedModule())
+    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(io, ctx.layout, https = true))
+    _      <-   if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
   def remove(ctx: Context): Try[ExitStatus] = {
@@ -229,7 +229,7 @@ object ModuleCli {
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      compilerRef <- compilerId.map(resolveToModule(ctx, _)).to[List].sequence.map(_.headOption)
+      compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(io, ctx, _)).map(_.headOption)
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption
