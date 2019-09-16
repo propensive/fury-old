@@ -161,7 +161,7 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
                          messageBuffer: CharArrayWriter) {
 
   def shutdown(): Unit = {
-    server.buildShutdown()
+    //server.buildShutdown()
     future.cancel(true)
   }
 
