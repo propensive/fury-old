@@ -928,10 +928,23 @@ case class Schema(id: SchemaId,
   def importedSchemas(io: Io, layout: Layout, https: Boolean): Try[List[Schema]] =
     imports.to[List].map(resolve(_, io, layout, https)).sequence
 
-  def allProjects(io: Io, layout: Layout, https: Boolean): Try[List[Project]] =
-    importedSchemas(io, layout, https)
-      .flatMap(_.map(_.allProjects(io, layout, https)).sequence.map(_.flatten))
-      .map(_ ++ projects.to[List])
+  def allProjects(io: Io, layout: Layout, https: Boolean): Try[List[Project]] = {
+    @tailrec
+    def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
+      treeNodes match{
+        case Nil => ~aggregated
+        case head :: tail =>
+          getChildren(head) match {
+            case Success(ch) => flatten(ch ::: tail)(head :: aggregated, getChildren)
+            case fail => fail
+          }
+      }
+    }
+
+    for {
+      allSchemas <- flatten(List(this))(Nil, _.importedSchemas(io, layout, https))
+    } yield allSchemas.flatMap(_.projects)
+  }
 
   def unused(projectId: ProjectId): Try[ProjectId] = projects.find(_.id == projectId) match {
     case None    => Success(projectId)
