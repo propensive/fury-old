@@ -83,7 +83,7 @@ stopFury() {
 }
 
 alive() {
-  bash -c "(exec 6<> /dev/tcp/127.0.0.1/${PORT} > /dev/null 2> /dev/null)"
+  bash -c "(exec 6<> /dev/tcp/127.0.0.1/${PORT})" > /dev/null 2> /dev/null
 }
 
 startNailgun() {
