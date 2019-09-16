@@ -44,6 +44,7 @@ import java.time.LocalDateTime
 import java.util.concurrent.{CompletableFuture, Executors}
 
 import language.higherKinds
+import scala.annotation.tailrec
 
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
@@ -528,8 +529,17 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def checkoutAll(io: Io, layout: Layout, https: Boolean): Unit =
     checkouts.traverse(_.get(io, layout, https)).map{ _ => ()}.get
 
-  def deepDependencies(targetId: TargetId): Set[TargetId] =
-    Set(targetId) ++ graph(targetId).to[Set].flatMap(deepDependencies(_))
+  def deepDependencies(targetId: TargetId): Set[TargetId] = {
+    @tailrec
+    def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
+      if(next.isEmpty) aggregated
+      else {
+        val node = next.head
+        flatten(aggregated + node, children, next - node ++ children(node))
+      }
+    }
+    flatten[TargetId](Set.empty, graph(_).to[Set], Set(targetId))
+  }
 
   def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] = synchronized {
     Bloop.clean(layout).flatMap(Bloop.generateFiles(io, this, layout).waive)
