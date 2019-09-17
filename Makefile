@@ -1,6 +1,6 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 BLOOPVERSION=1.3.2
-FURYSTABLE=0.6.6
+FURYSTABLE=0.6.7
 FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
