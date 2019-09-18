@@ -4,10 +4,13 @@ Set current module to compiler
 Set current project to library
 Setting default compiler for project library to scala/compiler
 Set current module to core
+Cloning repository at /home/bash_user/test/tmp/platform/library
+Checking out src/core from repository library
 Starting compilation of module library/core
 Successfully compiled module library/core
 0
 Created empty layer.fury
+Cloning repository at /home/bash_user/test/tmp/platform/platform
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
