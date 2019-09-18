@@ -761,39 +761,44 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def makeTarget(io: Io, ref: ModuleRef, layout: Layout): Try[Target] =
     for {
-      entity <- entity(ref.projectId)
-      module <- entity.project(ref.moduleId)
-      compiler <- if(module.compiler == ModuleRef.JavaRef) Success(None)
-                 else makeTarget(io, module.compiler, layout).map(Some(_))
-      binaries <- module.allBinaries.map(_.paths(io)).sequence.map(_.flatten)
-      checkouts <- checkout(ref, layout)
-    } yield
+      resolvedProject <- entity(ref.projectId)
+      module          <- resolvedProject.project(ref.moduleId)
+      compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
+                         else makeTarget(io, module.compiler, layout).map(Some(_))
+      binaries        <- module.allBinaries.map(_.paths(io)).sequence.map(_.flatten)
+      dependencies    <- module.after.traverse { dep => for{
+                           origin <- entity(dep.projectId)
+                         } yield TargetId(origin.schema.id, dep)}
+      checkouts       <- checkout(ref, layout)
+    } yield {
+      val sourcePaths = module.localSources.map(_ in resolvedProject.path).to[List] ++
+        module.sharedSources.map(_.path in layout.sharedDir).to[List] ++
+        checkouts.flatMap { c =>
+          c.local match {
+            case Some(p) => c.sources.map(_ in p)
+            case None    => c.sources.map(_ in c.path(layout))
+          }
+        }
       Target(
         ref,
-        entity.schema.id,
+        resolvedProject.schema.id,
         module.kind,
         module.main,
         module.plugin,
-        entity.schema.repos.map(_.repo).to[List],
+        resolvedProject.schema.repos.map(_.repo).to[List],
         checkouts.to[List],
         binaries.to[List],
-        module.after.map(TargetId(entity.schema.id, _)).to[List],
+        dependencies.to[List],
         compiler,
         module.bloopSpec,
         module.params.to[List],
         module.policy.to[List],
         ref.intransitive,
-        module.localSources.map(_ in entity.path).to[List] ++ module.sharedSources
-          .map(_.path in layout.sharedDir)
-          .to[List] ++ checkouts.flatMap { c =>
-          c.local match {
-            case Some(p) => c.sources.map(_ in p)
-            case None    => c.sources.map(_ in c.path(layout))
-          }
-        },
+        sourcePaths,
         module.environment.map { e => (e.key, e.value) }.toMap,
         module.properties.map { p => (p.key, p.value) }.toMap
       )
+    }
 
   def checkout(ref: ModuleRef, layout: Layout): Try[Set[Checkout]] =
     for {
