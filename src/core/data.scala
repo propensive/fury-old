@@ -761,29 +761,32 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def makeTarget(io: Io, ref: ModuleRef, layout: Layout): Try[Target] =
     for {
-      entity <- entity(ref.projectId)
-      module <- entity.project(ref.moduleId)
+      e <- entity(ref.projectId)
+      module <- e.project(ref.moduleId)
       compiler <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                  else makeTarget(io, module.compiler, layout).map(Some(_))
       binaries <- module.allBinaries.map(_.paths(io)).sequence.map(_.flatten)
+      dependencies <- module.after.traverse { a => for{
+        xx  <- entity(a.projectId)
+      } yield TargetId(xx.schema.id, a)}
       checkouts <- checkout(ref, layout)
-    } yield
+    } yield {
       Target(
         ref,
-        entity.schema.id,
+        e.schema.id,
         module.kind,
         module.main,
         module.plugin,
-        entity.schema.repos.map(_.repo).to[List],
+        e.schema.repos.map(_.repo).to[List],
         checkouts.to[List],
         binaries.to[List],
-        module.after.map(TargetId(entity.schema.id, _)).to[List],
+        dependencies.to[List],
         compiler,
         module.bloopSpec,
         module.params.to[List],
         module.policy.to[List],
         ref.intransitive,
-        module.localSources.map(_ in entity.path).to[List] ++ module.sharedSources
+        module.localSources.map(_ in e.path).to[List] ++ module.sharedSources
           .map(_.path in layout.sharedDir)
           .to[List] ++ checkouts.flatMap { c =>
           c.local match {
@@ -794,6 +797,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         module.environment.map { e => (e.key, e.value) }.toMap,
         module.properties.map { p => (p.key, p.value) }.toMap
       )
+    }
 
   def checkout(ref: ModuleRef, layout: Layout): Try[Set[Checkout]] =
     for {
@@ -836,15 +840,16 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def compilation(io: Io, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = for {
     target    <- makeTarget(io, ref, layout)
     entity    <- entity(ref.projectId)
-    graph     <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
-                   a.map { dependencyTarget =>
-                     (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
-                   }
-                 }.sequence.map(_.toMap.updated(target.id, target.dependencies ++
-                     target.compiler.map(_.id)))).flatten
-    targets   <- graph.keys.map { targetId =>
-                  makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
-                }.sequence.map(_.toMap)
+    foo <-    dependencies(io, ref, layout)
+    bar  <- foo.traverse(makeTarget(io, _, layout))
+    baz = bar.map{ dependencyTarget =>
+      (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
+    }
+    graph = baz.toMap.updated(target.id, target.dependencies ++ target.compiler.map(_.id))
+    zzz <- graph.keys.traverse { targetId =>
+      makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
+    }
+    targets  = zzz.toMap
     permissions = targets.flatMap(_._2.permissions)
     _         <- policy.checkAll(permissions)
     appModules = targets.filter(_._2.executed)
