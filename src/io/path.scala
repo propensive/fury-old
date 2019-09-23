@@ -26,7 +26,7 @@ import scala.util._
 
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardOpenOption, Path => JavaPath}
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
 import java.io.{File => JavaFile}
 
@@ -71,15 +71,14 @@ case class Path(value: String) {
   def /(child: String): Path = Path(s"$filename/$child")
   def in(root: Path): Path = Path(s"${root.value}/$value")
 
-  def fileCount(pred: String => Boolean): Int =
-    Option(javaFile.listFiles).map { files =>
-      val current = files.count { f => pred(f.getName) }
-      val descendants = files.filter(_.isDirectory).map(Path(_).fileCount(pred))sum
-
-      current + descendants
-    }.getOrElse(0)
-
-  def empty: Boolean = 0 == fileCount(_ => true)
+  def empty: Boolean = {
+    val filesStream = Files.walk(javaPath)
+      try {
+        filesStream.allMatch(p => Files.isDirectory(p))
+      } finally {
+        filesStream.close()
+      }
+  }
 
   def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
     if(!exists()) new java.io.FileOutputStream(javaFile).close()
@@ -90,25 +89,6 @@ case class Path(value: String) {
     mkdir()
     this
   }
-
-  def sizeString(count: Long): String = {
-    def findMagnitude(count: Long, suffixes: List[String]): String = suffixes match {
-      case Nil => count.toString
-      case last :: Nil => s"${count}$last"
-      case head :: tail => if(count < 1024) s"$count$head" else findMagnitude(count/1024, tail)
-    }
-
-    findMagnitude(count, List("B", "kiB", "MiB", "GiB", "TiB", "PiB"))
-  }
-
-  def describe(pred: String => Boolean): String =
-    s"${fileCount(pred)} source files, ${sizeString(fileSize(pred))}"
-
-  def fileSize(pred: String => Boolean): Long =
-    Option(javaFile.listFiles).map { files =>
-      val found = files.map { f => if(pred(f.getName)) f.length else 0 }.sum
-      found + files.filter(_.isDirectory).map { f => Path(f).fileSize(pred) }.sum
-    }.getOrElse(0)
 
   def moveTo(path: Path): Try[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this))(Files.move(javaPath, path.javaPath))
