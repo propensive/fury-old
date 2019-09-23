@@ -607,8 +607,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }).map(_.parameter)
 
   def jmhRuntimeClasspath(io: Io, ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
-    targets(ref).compiler.to[Set].flatMap { compilerTarget =>
-      classesDirs + layout.resourcesDir(compilerTarget.id)
+    classesDirs ++ targets(ref).compiler.to[Set].map { compilerTarget =>
+      layout.resourcesDir(compilerTarget.id)
     } ++ classpath(ref, layout)
 
   def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
