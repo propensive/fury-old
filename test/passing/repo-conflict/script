@@ -1,0 +1,74 @@
+mkdir app
+mkdir library
+mkdir platform1
+mkdir platform2
+
+cd library
+git init -q
+mkdir -p src/core
+echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
+git add .
+git commit -m 'version 1' -q
+
+cd ../platform1
+git init -q
+echo '.fury' > .gitignore
+fury layer init
+fury schema add -n platform1
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n library
+fury module add -n core -c scala/compiler
+fury repo add -n library -u $(realpath ../library) | sed 's/\/.*\/repo-conflict/repo-conflict/'
+fury source add -d library:src/core
+git add .
+git commit -m 'platform 1' -q
+fury build compile --output linear
+echo $?
+
+cd ../library
+echo 'object Constants { val x = 123 }' > src/core/constants.scala
+git add .
+git commit -m 'version 2' -q
+
+cd ../platform2
+git init -q
+echo '.fury' > .gitignore
+fury layer init
+fury schema add -n platform2
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n library
+fury module add -n core -c scala/compiler
+fury repo add -n library -u $(realpath ../library) | sed 's/\/.*\/repo-conflict/repo-conflict/'
+fury repo pull -r library | sed -e 's/\/.*\/repo-conflict/repo-conflict/' -e 's/commit.*/commit/'
+fury source add -d library:src/core
+git add .
+git commit -m 'platform 2' -q
+fury build compile --output linear
+echo $?
+
+cd ../app
+fury layer init
+fury repo add -n platform1 -u $(realpath ../platform1) | sed 's/\/.*\/repo-conflict/repo-conflict/'
+fury repo add -n platform2 -u $(realpath ../platform2) | sed 's/\/.*\/repo-conflict/repo-conflict/'
+fury import add -i platform1:platform1
+fury import add -i platform2:platform2
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury dependency add -l library/core
+mkdir -p src/app
+fury source add -d src/app
+echo 'object HelloWorld extends App{ val y = Constants.x; println(y) }' > src/app/HelloWorld.scala
+fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.time -A read
+fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
+fury permission require -C java.util.PropertyPermission -T test.property -A read
+fury build compile
+echo $?
+
