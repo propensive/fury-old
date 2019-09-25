@@ -38,9 +38,13 @@ trait JsonEncoder[-T] { def encode(value: T): Json }
 object Json extends Dynamic {
 
   def applyDynamicNamed(methodName: String)(elements: (String, Json)*): JsonObject =
-    JsonObject(elements)
+    JsonObject(elements.filterNot(_._2 == Undefined))
 
   implicit def encode[T: JsonEncoder](value: T): Json = implicitly[JsonEncoder[T]].encode(value)
+}
+
+case object Undefined extends Json {
+  def serialize: String = throw new IllegalStateException("Cannot serialize an undefined value to JSON")
 }
 
 case class JsonObject(elements: Iterable[(String, Json)]) extends Json {
