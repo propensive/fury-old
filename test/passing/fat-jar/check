@@ -13,7 +13,6 @@ cd701b6615442f102ea7c636cdc16e194369a1556e049a32126b045faee45762
 Starting compilation of module bar/app
 Successfully compiled module bar/app
 Hello World
-
 Saving JAR file out/bar-app.jar
 0
 bar-app.jar

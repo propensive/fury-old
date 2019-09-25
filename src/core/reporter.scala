@@ -45,7 +45,7 @@ object GraphReporter extends Reporter("graph") {
              startTime: Long)
             : Unit = {
     val modules = compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) }
-    Graph.live(changed = true, io, modules, multiplexer.stream(50, Some(Tick)), Map(), false)(theme)
+    Graph.live(io, modules, multiplexer.stream(50, Some(Tick)))(theme)
     val duration = System.currentTimeMillis - startTime
     io.println(msg"Total time: ${timeString(duration)}")
   }
