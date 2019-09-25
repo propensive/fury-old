@@ -714,8 +714,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               layout = layout,
               args
             ) { ln =>
-              if(target.kind == Benchmarks) multiplexer(target.ref) = Print(ln)
-              else out.append(ln).append("\n")
+              multiplexer(target.ref) = Print(ln)
             }.await() == 0
 
             val aggregated = out.toString
