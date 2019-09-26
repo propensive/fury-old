@@ -702,8 +702,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               }
             }
             
-            val out = new StringBuffer()
-            
             val res = Shell(layout.env).runJava(
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
@@ -717,11 +715,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               multiplexer(target.ref) = Print(ln)
             }.await() == 0
 
-            val aggregated = out.toString
-            if(!aggregated.isEmpty){
-              multiplexer(target.ref) = DiagnosticMsg(target.ref, OtherMessage(aggregated))
-            }
-            
             deepDependencies(target.id).foreach { targetId =>
               multiplexer(targetId.ref) = NoCompile(targetId.ref)
             }
