@@ -89,10 +89,10 @@ object ImportCli {
       table     <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema))
+      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true)
                        else io)
       
-      _         <- ~io.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
     } yield io.await()
   }
 }

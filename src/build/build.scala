@@ -63,7 +63,7 @@ object AliasCli {
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, true)))
+      _     <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, true), noTime = true))
       _     <- ~io.println(UserMsg { theme => table.mkString("\n") })
     } yield io.await()
   }
@@ -199,7 +199,7 @@ object BuildCli {
                       }
       
       _            <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation,
-                          config.theme, multiplexer, System.currentTimeMillis)
+                          config.theme, multiplexer)
       
     } yield io.await(Await.result(future, duration.Duration.Inf).isSuccessful)
   }
@@ -263,7 +263,7 @@ object BuildCli {
                         }
 
       _              <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation,
-                            config.theme, multiplexer, System.currentTimeMillis)
+                            config.theme, multiplexer)
 
       compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
 
@@ -326,7 +326,7 @@ object BuildCli {
                           https)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
-      _            <- ~io.println(classpath.map(_.value).join(":"))
+      _            <- ~io.println(classpath.map(_.value).join(":"), noTime = true)
     } yield io.await()
   }
 
@@ -353,7 +353,7 @@ object BuildCli {
                           https)
       
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
-                          Map())(config.theme).foreach(io.println(_))
+                          Map())(config.theme).foreach(io.println(_, noTime = true))
 
     } yield io.await()
   }
@@ -385,7 +385,7 @@ object LayerCli {
     https     <- ~invoc(HttpsArg).isSuccess
     projects  <- schema.allProjects(io, layout, https)
     table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
-    _         <- ~io.println(table.mkString("\n"))
+    _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
+    _         <- ~io.println(table.mkString("\n"), noTime = true)
   } yield io.await()
 }

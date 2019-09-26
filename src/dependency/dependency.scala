@@ -76,9 +76,9 @@ object DependencyCli {
       schema  <- defaultSchema
 
       _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module)))
+                     project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"), noTime = true)
     } yield io.await()
   }
 
@@ -187,9 +187,9 @@ object EnvCli {
       schema  <- defaultSchema
 
       _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module)))
+                     project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"), noTime = true)
     } yield io.await()
   }
 
@@ -335,9 +335,9 @@ object PermissionCli {
       schema  <- defaultSchema
 
       _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module)))
+                     project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"), noTime = true)
     } yield io.await()
   }
 
@@ -412,9 +412,9 @@ object PropertyCli {
       schema  <- defaultSchema
 
       _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module)))
+                     project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"))
+      _       <- ~io.println(table.mkString("\n"), noTime = true)
     } yield io.await()
   }
 

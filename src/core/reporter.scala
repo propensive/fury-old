@@ -19,7 +19,7 @@ package fury.core
 import fury.io._, fury.strings._, fury.model._, fury.utils._
 
 object Reporter {
-  val all: List[Reporter] = List(GraphReporter, LinearReporter, QuietReporter)
+  val all: List[Reporter] = List(GraphReporter, LinearReporter(false, "linear"), LinearReporter(true, "stable"), QuietReporter)
   final private val reporters: Map[String, Reporter] = all.map { r => r.name -> r }.toMap
   def unapply(string: String): Option[Reporter] = reporters.get(string)
   implicit val stringShow: StringShow[Reporter] = _.name
@@ -29,8 +29,7 @@ abstract class Reporter(val name: String) {
   def report(io: Io,
              compilation: Compilation,
              theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent],
-             startTime: Long)
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit
 }
 
@@ -41,29 +40,26 @@ object GraphReporter extends Reporter("graph") {
   def report(io: Io,
              compilation: Compilation,
              theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent],
-             startTime: Long)
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit = {
     val modules = compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) }
     Graph.live(io, modules, multiplexer.stream(50, Some(Tick)))(theme)
-    val duration = System.currentTimeMillis - startTime
-    io.println(msg"Total time: ${timeString(duration)}")
+    io.println(msg"Compilation completed")
   }
 }
 
-object LinearReporter extends Reporter("linear") {
+case class LinearReporter(noTime: Boolean = false, reporterName: String) extends Reporter(reporterName) {
   def report(io: Io,
              compilation: Compilation,
              theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent],
-             startTime: Long)
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit =
     multiplexer.stream(50, None).foreach {
-      case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref")
-      case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref")
-      case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed")
-      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out)
-      case Print(line)                                 => io.println(line)
+      case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref", noTime)
+      case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref", noTime)
+      case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed", noTime)
+      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out, noTime)
+      case Print(line)                                 => io.println(line, noTime)
       case other                                       => ()
     }
 }
@@ -73,8 +69,7 @@ object QuietReporter extends Reporter("quiet") {
   def report(io: Io,
              compilation: Compilation,
              theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent],
-             startTime: Long)
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit =
     multiplexer.stream(50, None).foreach { event => () }
 }
