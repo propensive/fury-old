@@ -143,7 +143,7 @@ object BuildCli {
                                  |for more information.
                                  |
                                  |For help on using Fury, run: fury help
-                                 |""".stripMargin)
+                                 |""".stripMargin, noTime = true)
     } yield io.await()
 
   def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {

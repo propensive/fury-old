@@ -109,8 +109,17 @@ object Io {
 }
 
 class Io(private[this] val output: java.io.PrintStream, config: Config) {
+
+  private[this] val startTime = System.currentTimeMillis
+  private[this] val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.00")
+
+  private def currentTime(): String =
+    formatter.format((System.currentTimeMillis - startTime)/1000.0).reverse.padTo(6, ' ').reverse
+
   def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
-  def println(msg: UserMsg): Unit = output.println(msg.string(config.theme))
+  
+  def println(msg: UserMsg, noTime: Boolean = false): Unit =
+    output.println((if(noTime) "" else s"${config.theme.time(currentTime())} ")+msg.string(config.theme))
 
   def await(success: Boolean = true): ExitStatus = {
     output.flush()
@@ -138,7 +147,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   def read(): Try[Invocation] = {
     val io: Io = new Io(output, config)
     if(completion) {
-      io.println(optCompletions.flatMap(_.output).mkString("\n"))
+      io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
       io.await()
       Failure(EarlyCompletions())
     } else Success(new Invocation())
@@ -189,7 +198,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
       val io = new Io(output, config)
-      io.println(optCompletions.flatMap(_.output).mkString("\n"))
+      io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
       io.await()
       Failure(EarlyCompletions())
     }.getOrElse {

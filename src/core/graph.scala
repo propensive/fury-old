@@ -69,8 +69,8 @@ object Graph {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
           if (changed && !streaming) {
-            io.println(next)
-            io.println(Ansi.up(graph.size + 1)())
+            io.println(next, noTime = true)
+            io.println(Ansi.up(graph.size + 1)(), noTime = true)
           }
           graphState.copy(changed = false)
 
@@ -88,7 +88,7 @@ object Graph {
           val newState = CompilationInfo(if (success) Successful(None) else Failed(""), msgs)
           graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
         case StartStreaming =>
-          io.println(Ansi.down(graph.size + 1)())
+          io.println(Ansi.down(graph.size + 1)(), noTime = true)
           graphState.copy(changed = true, streaming = true)
         case Print(line) =>
           graphState.addToBuffer(line).copy(changed = true)
@@ -104,9 +104,9 @@ object Graph {
         case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
-      io.println(Ansi.down(graph.size + 1)())
-      output.foreach(io.println(_))
-      graphState.outputBuffer.foreach(s => io.println(str"$s"))
+      io.println(Ansi.down(graph.size + 1)(), noTime = true)
+      output.foreach(io.println(_, noTime = true))
+      graphState.outputBuffer.foreach(s => io.println(str"$s", noTime = true))
     }
   }
 
