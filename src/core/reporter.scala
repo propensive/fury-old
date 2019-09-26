@@ -43,8 +43,9 @@ object GraphReporter extends Reporter("graph") {
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit = {
     val modules = compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) }
+    io.println(msg"Starting build")
     Graph.live(io, modules, multiplexer.stream(50, Some(Tick)))(theme)
-    io.println(msg"Compilation completed")
+    io.println(msg"Build completed")
   }
 }
 
@@ -59,7 +60,7 @@ case class LinearReporter(noTime: Boolean = false, reporterName: String) extends
       case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref", noTime)
       case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed", noTime)
       case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out, noTime)
-      case Print(line)                                 => io.println(line, noTime)
+      case Print(ref, line)                            => io.println(line, noTime)
       case other                                       => ()
     }
 }

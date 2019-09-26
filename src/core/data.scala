@@ -384,12 +384,12 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
-    multiplexer.foreach(_(targetId.ref) = Print(params.getMessage))
+    multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
     messageSink.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
   }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {
-    multiplexer.foreach(_(targetId.ref) = Print(params.getMessage))
+    multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
     messageSink.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
   }
 
@@ -712,7 +712,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               layout = layout,
               args
             ) { ln =>
-              multiplexer(target.ref) = Print(ln)
+              multiplexer(target.ref) = Print(target.ref, ln)
             }.await() == 0
 
             deepDependencies(target.id).foreach { targetId =>
@@ -1176,7 +1176,7 @@ case class CompilationProgress(ref: ModuleRef, progress: Double) extends Compile
 case class StopCompile(ref: ModuleRef, success: Boolean)         extends CompileEvent
 case class NoCompile(ref: ModuleRef)                             extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                           extends CompileEvent
-case class Print(line: String)                                   extends CompileEvent
+case class Print(ref: ModuleRef, line: String)                   extends CompileEvent
 object StartStreaming                                            extends CompileEvent
 object StopStreaming                                             extends CompileEvent
 case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent

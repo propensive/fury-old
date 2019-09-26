@@ -47,16 +47,12 @@ object Graph {
                         graph: Map[ModuleRef, Set[ModuleRef]],
                         stream: Iterator[CompileEvent],
                         compilationLogs: Map[ModuleRef, CompilationInfo],
-                        outputBuffer: Seq[String],
                         streaming: Boolean){
 
     def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
       val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), messages = List.empty))
       this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)))
     }
-
-    def addToBuffer(line: String): GraphState = this.copy(outputBuffer = outputBuffer :+ line)
-
   }
 
   @tailrec
@@ -90,8 +86,8 @@ object Graph {
         case StartStreaming =>
           io.println(Ansi.down(graph.size + 1)(), noTime = true)
           graphState.copy(changed = true, streaming = true)
-        case Print(line) =>
-          graphState.addToBuffer(line).copy(changed = true)
+        case Print(ref, line) =>
+          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ OtherMessage(line))).copy(changed = false)
         case StopStreaming =>
           graphState.copy(changed = true, streaming = false)
         case SkipCompile(ref) =>
@@ -104,9 +100,17 @@ object Graph {
         case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
+
       io.println(Ansi.down(graph.size + 1)(), noTime = true)
-      output.foreach(io.println(_, noTime = true))
-      graphState.outputBuffer.foreach(s => io.println(str"$s", noTime = true))
+      
+      compilationLogs.foreach { case (ref, info) =>
+        info match {
+          case CompilationInfo(Failed(_) | Successful(_), out) if !out.isEmpty =>
+            io.println(msg"Output from $ref:")
+            out.foreach { msg => io.println(msg.msg) }
+          case _ => ()
+        }
+      }
     }
   }
 
@@ -116,7 +120,7 @@ object Graph {
            stream: Iterator[CompileEvent])
           (implicit theme: Theme)
           : Unit = {
-    live(GraphState(changed = true, io, graph, stream, Map.empty, Seq.empty, streaming = false))
+    live(GraphState(changed = true, io, graph, stream, Map(), streaming = false))
   }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],
