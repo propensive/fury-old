@@ -25,7 +25,7 @@ fury repo add -n library -u $(realpath ../library) | sed 's/\/.*\/repo-conflict/
 fury source add -d library:src/core
 git add .
 git commit -m 'platform 1' -q
-fury build compile --output linear
+fury build compile --output stable
 echo $?
 
 cd ../library
@@ -49,7 +49,7 @@ fury repo pull -r library | sed -e 's/\/.*\/repo-conflict/repo-conflict/' -e 's/
 fury source add -d library:src/core
 git add .
 git commit -m 'platform 2' -q
-fury build compile --output linear
+fury build compile --output stable
 echo $?
 
 cd ../app

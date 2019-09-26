@@ -11,5 +11,5 @@ public class HelloWorld {
     }
 }
 EOF
-fury build compile --output linear
+fury build compile --output stable
 echo $?

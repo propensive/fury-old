@@ -23,5 +23,5 @@ fury permission require -C java.io.FilePermission -T '.content' -A write
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello World\n") }' > src/hw.scala
-fury build compile --output linear
+fury build compile --output stable
 echo $?
