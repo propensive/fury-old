@@ -1,0 +1,233 @@
+version	3
+schemas	default	id	default
+		projects	portable-scala-reflect	id	portable-scala-reflect
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	portable-scala-reflect/psr-java	projectId	portable-scala-reflect
+								moduleId	psr-java
+								intransitive	false
+								hidden	false
+						params	
+						sources	portable-scala-reflect:jvm/src/main/scala	portable-scala-reflect:jvm/src/main/scala
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					psr-java	id	psr-java
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	java
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	portable-scala-reflect:jvm/src/main/java	portable-scala-reflect:jvm/src/main/java
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+				main	Some	core
+				license	unknown
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			zio	id	zio
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	zio/stacktracer	projectId	zio
+								moduleId	stacktracer
+								intransitive	false
+								hidden	false
+						params	
+						sources	zio:core/jvm/src/main/java	zio:core/jvm/src/main/java
+							zio:core/jvm/src/main/scala	zio:core/jvm/src/main/scala
+							zio:core/jvm/src/main/scala-2.12	zio:core/jvm/src/main/scala-2.12
+							zio:core/shared/src/main/scala	zio:core/shared/src/main/scala
+							zio:core/shared/src/main/scala-2.12+	zio:core/shared/src/main/scala-2.12+
+						binaries	com.github.ghik:silencer-lib_2.12:1.4.2	binRepo	central
+								group	com.github.ghik
+								artifact	silencer-lib_2.12
+								version	1.4.2
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					core-java	id	core-java
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	java
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	zio/core	projectId	zio
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	zio:core/jvm/src/main/java	zio:core/jvm/src/main/java
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					core-tests	id	core-tests
+						kind	Application
+						main	Some	zio.blocking.BlockingSpec
+						plugin	None
+						manifest	
+						compiler	projectId	java
+							moduleId	compiler
+							intransitive	false
+							hidden	false
+						after	zio/core	projectId	zio
+								moduleId	core
+								intransitive	false
+								hidden	false
+							zio/test	projectId	zio
+								moduleId	test
+								intransitive	true
+								hidden	false
+						params	
+						sources	zio:core-tests/jvm/src/test	zio:core-tests/jvm/src/test
+							zio:core-tests/shared/src/test	zio:core-tests/shared/src/test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					stacktracer	id	stacktracer
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	zio:stacktracer/jvm/src/main/scala	zio:stacktracer/jvm/src/main/scala
+							zio:stacktracer/shared/src/main/scala	zio:stacktracer/shared/src/main/scala
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					streams	id	streams
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	zio/core-java	projectId	zio
+								moduleId	core-java
+								intransitive	false
+								hidden	false
+						params	
+						sources	zio:streams/jvm/src/main/scala	zio:streams/jvm/src/main/scala
+							zio:streams/shared/src/main/scala	zio:streams/shared/src/main/scala
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+					test	id	test
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	portable-scala-reflect/core	projectId	portable-scala-reflect
+								moduleId	core
+								intransitive	false
+								hidden	false
+							zio/streams	projectId	zio
+								moduleId	streams
+								intransitive	false
+								hidden	false
+						params	
+						sources	zio:test/jvm/src/main/scala	zio:test/jvm/src/main/scala
+							zio:test/jvm/src/test/scala	zio:test/jvm/src/test/scala
+							zio:test/shared/src/main/scala	zio:test/shared/src/main/scala
+							zio:test/shared/src/test/scala	zio:test/shared/src/test/scala
+						binaries	org.openjdk.jcstress:jcstress-core:0.4	binRepo	central
+								group	org.openjdk.jcstress
+								artifact	jcstress-core
+								version	0.4
+							org.specs2:specs2-core_2.12:4.7.1	binRepo	central
+								group	org.specs2
+								artifact	specs2-core_2.12
+								version	4.7.1
+							org.specs2:specs2-matcher-extra_2.12:4.7.1	binRepo	central
+								group	org.specs2
+								artifact	specs2-matcher-extra_2.12
+								version	4.7.1
+							org.specs2:specs2-scalacheck_2.12:4.7.1	binRepo	central
+								group	org.specs2
+								artifact	specs2-scalacheck_2.12
+								version	4.7.1
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+				main	Some	core-tests
+				license	unknown
+				description	
+				compiler	None
+		repos	portable-scala-reflect	id	portable-scala-reflect
+				repo	gh:portable-scala/portable-scala-reflect
+				track	master
+				commit	e6d9e9f5b3dbbcd957c90ac501671b3311c2f485
+				local	None
+			scala	id	scala
+				repo	gh:propensive/.scala
+				track	master
+				commit	b5a210a5e2b9ba713753850037c3f6136466ccfc
+				local	None
+			zio	id	zio
+				repo	gh:zio/zio
+				track	master
+				commit	800b610f5b4243694bf59fdd59c5032e0bac398e
+				local	None
+		imports	scala:scala-2.12.8	repo	scala
+				schema	scala-2.12.8
+		main	Some	zio
+main	default
+aliases	
