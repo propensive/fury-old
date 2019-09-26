@@ -58,9 +58,12 @@ case class LinearReporter(noTime: Boolean = false, reporterName: String) extends
     multiplexer.stream(50, None).foreach {
       case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref", noTime)
       case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref", noTime)
+      case StopRun(ref)                                => ()
       case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed", noTime)
       case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out, noTime)
-      case Print(ref, line)                            => io.println(line, noTime)
+      case Print(ref, line)                            => io.println(UserMsg { theme =>
+                                                            theme.gray(escritoire.Ansi.strip(line))
+                                                          }, noTime)
       case other                                       => ()
     }
 }

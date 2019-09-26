@@ -89,7 +89,7 @@ object Theme {
           schema = Rgb(240, 240, 80),
           license = Rgb(160, 160, 170),
           binary = Rgb(100, 200, 200),
-          gray = Rgb(80, 80, 80),
+          gray = Rgb(120, 120, 120),
           success = Rgb(40, 150, 40),
           ongoing = Rgb(150, 120, 0),
           failure = Rgb(200, 0, 0),

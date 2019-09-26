@@ -689,7 +689,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
         compileModule(io, target, layout, target.kind == Application, multiplexer).map {
           case CompileSuccess(classDirectories) if target.kind.needsExecution =>
-            //multiplexer(target.ref) = StartStreaming
             if(target.kind == Benchmarks) {
               classDirectories.foreach { classDirectory =>
                 Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
@@ -720,7 +719,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             }
             
             multiplexer.close(target.ref)
-            multiplexer(target.ref) = StopStreaming
+            multiplexer(target.ref) = StopRun(target.ref)
 
             if(res) CompileSuccess(classDirectories) else CompileFailure
           case compileResult =>
@@ -1177,8 +1176,7 @@ case class StopCompile(ref: ModuleRef, success: Boolean)         extends Compile
 case class NoCompile(ref: ModuleRef)                             extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                           extends CompileEvent
 case class Print(ref: ModuleRef, line: String)                   extends CompileEvent
-object StartStreaming                                            extends CompileEvent
-object StopStreaming                                             extends CompileEvent
+case class StopRun(ref: ModuleRef)                               extends CompileEvent
 case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent
 
 sealed trait CompileResult {
