@@ -18,7 +18,6 @@ Successfully compiled module library/core
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello fork!
-
 0
 Checking out src/core from repository library
 Starting compilation of module library/core
@@ -26,5 +25,4 @@ Successfully compiled module library/core
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello World!
-
 0
