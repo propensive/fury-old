@@ -1,8 +1,7 @@
 fury layer init
 
 fury project add -n hello-java
-fury module add -n app -t application -M HelloWorld -C scala-lang.org:scala-compiler:2.12.8
-fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury module add -n app -t application -M HelloWorld
 fury source add -d src
 mkdir -p src
 cat << EOF >  src/HelloWorld.java
@@ -12,6 +11,5 @@ public class HelloWorld {
     }
 }
 EOF
-#fury build classpath
 fury build compile --output linear
 echo $?
