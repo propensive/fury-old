@@ -54,18 +54,21 @@ case class LinearReporter(noTime: Boolean = false, reporterName: String) extends
              compilation: Compilation,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
-            : Unit =
-    multiplexer.stream(50, None).foreach {
-      case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref", noTime)
-      case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref", noTime)
-      case StopRun(ref)                                => ()
-      case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed", noTime)
-      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out, noTime)
-      case Print(ref, line)                            => io.println(UserMsg { theme =>
+            : Unit = {
+    val interleaver = new Interleaver(io, 3000L)
+    multiplexer.stream(50, Some(Tick)).foreach {
+      case StartCompile(ref)                           => interleaver.println(ref, msg"Starting compilation of module $ref", noTime)
+      case StopCompile(ref, true)                      => interleaver.println(ref, msg"Successfully compiled module $ref", noTime)
+      case StopRun(ref)                                => interleaver.terminate(ref)
+      case StopCompile(ref, false)                     => interleaver.println(ref, msg"Compilation of module $ref failed", noTime)
+      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => interleaver.println(ref, out, noTime)
+      case Print(ref, line)                            => interleaver.println(ref, UserMsg { theme =>
                                                             theme.gray(escritoire.Ansi.strip(line))
                                                           }, noTime)
+      case Tick                                        => interleaver.tick()
       case other                                       => ()
     }
+  }
 }
 
 object QuietReporter extends Reporter("quiet") {

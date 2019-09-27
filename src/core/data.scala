@@ -723,6 +723,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
             if(res) CompileSuccess(classDirectories) else CompileFailure
           case compileResult =>
+            multiplexer(target.ref) = StopRun(target.ref)
             compileResult
         }
       }
