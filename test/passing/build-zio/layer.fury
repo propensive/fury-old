@@ -222,7 +222,7 @@ schemas	default	id	default
 				commit	b5a210a5e2b9ba713753850037c3f6136466ccfc
 				local	None
 			zio	id	zio
-				repo	gh:zio/zio
+				repo	https://github.com/zio/zio.git
 				track	master
 				commit	800b610f5b4243694bf59fdd59c5032e0bac398e
 				local	None
