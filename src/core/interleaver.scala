@@ -21,9 +21,11 @@ import fury.io._, fury.strings._, fury.model._
 import annotation.tailrec
 
 object Interleaver {
-  case class MessageBuffer(first: Long, last: Long, messages: Vector[UserMsg], terminated: Boolean) {
-    def record(msg: UserMsg): MessageBuffer =
-      copy(last = System.currentTimeMillis, messages = messages :+ msg)
+  case class MessageBuffer(first: Long, last: Long, messages: Vector[(Long, UserMsg)], terminated: Boolean) {
+    def record(msg: UserMsg): MessageBuffer = {
+      val now = System.currentTimeMillis
+      copy(last = now, messages = messages :+ (now, msg))
+    }
 
     def terminate(): MessageBuffer = copy(terminated = true)
   }
@@ -56,11 +58,10 @@ class Interleaver(io: Io, lag: Long) {
   private[this] def flush(ref: ModuleRef): Unit = {
     val msgs = buffer(ref).messages
     if(!msgs.isEmpty) io.println(msg"Output for $ref:")
-    msgs.foreach { msg => io.println(UserMsg { theme => theme.gray(escritoire.Ansi.strip(msg.string(theme))) }) }
+    msgs.foreach { case (t, msg) => io.println(UserMsg { theme => theme.gray(escritoire.Ansi.strip(msg.string(theme))) }, time = t) }
     buffer = buffer - ref
   }
     
-
   private[this] def makeSwitch(): Unit = {
     // flush and remove all terminated output
     val terminated = buffer.collect { case (ref, MessageBuffer(_, _, _, true)) => ref }

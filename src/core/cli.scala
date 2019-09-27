@@ -113,13 +113,13 @@ class Io(private[this] val output: java.io.PrintStream, config: Config) {
   private[this] val startTime = System.currentTimeMillis
   private[this] val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.00")
 
-  private def currentTime(): String =
-    formatter.format((System.currentTimeMillis - startTime)/1000.0).reverse.padTo(6, ' ').reverse
+  private def currentTime(t: Long): String =
+    formatter.format(((if(t == -1) System.currentTimeMillis else t) - startTime)/1000.0).reverse.padTo(6, ' ').reverse
 
   def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
   
-  def println(msg: UserMsg, noTime: Boolean = false): Unit =
-    output.println((if(noTime) "" else s"${config.theme.time(currentTime())} ")+msg.string(config.theme))
+  def println(msg: UserMsg, noTime: Boolean = false, time: Long = -1): Unit =
+    output.println((if(noTime) "" else s"${config.theme.time(currentTime(time))} ")+msg.string(config.theme))
 
   def await(success: Boolean = true): ExitStatus = {
     output.flush()
