@@ -19,6 +19,7 @@ package fury
 import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
+import mercator._
 import Args._
 
 import scala.collection.immutable.SortedSet
@@ -294,7 +295,7 @@ object PermissionCli {
                              module.id))(_(_) += permission)
       _               <- Layer.save(io, layer, layout)
       policy          <- Policy.read(io, cli.globalLayout)
-      newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), permission) else policy
+      newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
       _               <- Policy.save(io, cli.globalLayout, newPolicy)
     } yield {
       io.println(msg"${PermissionHash(permission.hash)}")
@@ -310,13 +311,13 @@ object PermissionCli {
       cli           <- cli.hint(ForceArg)
       invoc         <- cli.read()
       io            <- invoc.io()
-      permHash      <- invoc(PermissionArg).map(PermissionHash(_))
+      permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
-      permission    <- module.permission(permHash).ascribe(ItemNotFound(permHash))
+      permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
       force         =  invoc(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
-                      module.id))(_(_) -= permission)
+                      module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
       _             <- Layer.save(io, layer, layout)
     } yield io.await()
   }
@@ -342,19 +343,21 @@ object PermissionCli {
   }
 
   def grant(ctx: Context): Try[ExitStatus] = {
-    import ctx._
+    import ctx._ 
+    
     for {
       cli           <- cli.hint(ScopeArg, ScopeId.All)
+      //TODO check if hints still work
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       invoc         <- cli.read()
       io            <- invoc.io()
       scopeId       <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
-      permHash      <- invoc(PermissionArg).map(PermissionHash(_))
-      permission    <- module.permission(permHash).ascribe(ItemNotFound(permHash))
+      permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
+      permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
       policy        <- Policy.read(io, cli.globalLayout)
-      newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permission)
+      newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
       _             <- Policy.save(io, cli.globalLayout, newPolicy)
     } yield io.await()
   }
