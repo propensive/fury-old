@@ -73,7 +73,7 @@ killFury() {
 forceKill() {
   bash <<END
     printf 'Killing everything that looks like fury or bloop...'
-    pkill --signal SIGKILL -f '(fury)|(bloop)'
+    pkill -9 -f '(fury)|(bloop)'
     pgrep -f '(fury)|(bloop)' && printf '\nProcesses with these PIDs have survived.\n' || printf 'done\n'
 END
 }
