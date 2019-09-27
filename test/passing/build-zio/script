@@ -1,4 +1,4 @@
 fury project select -p zio
 fury module select -m core-tests
-fury build compile --output quiet
+fury build compile --output quiet > /dev/null
 echo $?
