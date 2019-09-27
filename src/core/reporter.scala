@@ -19,7 +19,7 @@ package fury.core
 import fury.io._, fury.strings._, fury.model._, fury.utils._
 
 object Reporter {
-  val all: List[Reporter] = List(GraphReporter, LinearReporter(false, "linear"), LinearReporter(true, "stable"), QuietReporter)
+  val all: List[Reporter] = List(GraphReporter, LinearReporter, StableReporter, QuietReporter)
   final private val reporters: Map[String, Reporter] = all.map { r => r.name -> r }.toMap
   def unapply(string: String): Option[Reporter] = reporters.get(string)
   implicit val stringShow: StringShow[Reporter] = _.name
@@ -49,7 +49,7 @@ object GraphReporter extends Reporter("graph") {
   }
 }
 
-case class LinearReporter(noTime: Boolean = false, reporterName: String) extends Reporter(reporterName) {
+object StableReporter extends Reporter("stable") {
   def report(io: Io,
              compilation: Compilation,
              theme: Theme,
@@ -57,15 +57,32 @@ case class LinearReporter(noTime: Boolean = false, reporterName: String) extends
             : Unit = {
     val interleaver = new Interleaver(io, 3000L)
     multiplexer.stream(50, Some(Tick)).foreach {
-      case StartCompile(ref)                           => interleaver.println(ref, msg"Starting compilation of module $ref", noTime)
-      case StopCompile(ref, true)                      => interleaver.println(ref, msg"Successfully compiled module $ref", noTime)
+      case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref", true)
+      case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref", true)
+      case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed", true)
+      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out, true)
+      case Print(ref, line)                            => io.println(line, true)
+      case other                                       => ()
+    }
+  }
+}
+object LinearReporter extends Reporter("linear") {
+  def report(io: Io,
+             compilation: Compilation,
+             theme: Theme,
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])
+            : Unit = {
+    val interleaver = new Interleaver(io, 3000L)
+    multiplexer.stream(50, Some(Tick)).foreach {
+      case StartCompile(ref)                           => interleaver.println(ref, msg"Starting compilation of module $ref", false)
+      case StopCompile(ref, true)                      => interleaver.println(ref, msg"Successfully compiled module $ref", false)
       case StopRun(ref)                                => interleaver.terminate(ref)
       case StartRun(ref)                               => ()
-      case StopCompile(ref, false)                     => interleaver.println(ref, msg"Compilation of module $ref failed", noTime)
-      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => interleaver.println(ref, out, noTime)
+      case StopCompile(ref, false)                     => interleaver.println(ref, msg"Compilation of module $ref failed", false)
+      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => interleaver.println(ref, out, false)
       case Print(ref, line)                            => interleaver.println(ref, UserMsg { theme =>
                                                             theme.gray(escritoire.Ansi.strip(line))
-                                                          }, noTime)
+                                                          }, false)
       case Tick                                        => interleaver.tick()
       case other                                       => ()
     }
