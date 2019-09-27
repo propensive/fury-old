@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 FURY_VERSION=test
 
+set -e
+
 echo "     _____"
 echo "    / ___/__ __ ____ __ __"
 echo "   / __/ / // // ._// // /"
@@ -122,10 +124,54 @@ tryCompilingNailgun() {
   exit 0
 }
 
+findConfigFile() {
+  FILE=""
+  RCFILE=""
+  case $SH in
+    bash)
+      for FILE in ".bash_profile" ".bashrc" ".profile"
+      do
+        RCFILE="${HOME}/${FILE}"
+        if [ -e "${RCFILE}" ]; then
+          break
+        fi
+      done
+      if [ -z "${RCFILE}" ]; then
+        if [[ "${OSTYPE}" == *"darwin"* ]]; then
+          RCFILE="${HOME}/.bash_profile"
+        else
+          RCFILE="${HOME}/.bashrc"
+        fi
+      fi
+      echo "The configuration for ${SH} will be written to ${RCFILE}."
+      ;;
+    zsh)
+      for FILE in ".zprofile" ".zshrc"
+      do
+        RCFILE="${HOME}/${FILE}"
+        if [ -e "${RCFILE}" ]; then
+          break
+        fi
+      done
+      if [ -z "${RCFILE}" ]; then
+        if [[ "${OSTYPE}" == *"darwin"* ]]; then
+          RCFILE="${HOME}/.zprofile"
+        else
+          RCFILE="${HOME}/.zshrc"
+        fi
+      fi
+      echo "The configuration for ${SH} will be written to ${RCFILE}."
+      ;;
+    *)
+      echo "Could not recognize the shell: $SH"
+      ;;
+  esac
+}
+
 updateShell() {
-  SH="$1"
-  RCFILE="${HOME}/.${SH}rc"
-  if [ -e "${RCFILE}" ] || [ "${SHELL}" = "/bin/${SH}" ]
+  SH=$1
+  findConfigFile
+  if [ -e "${RCFILE}" ]
   then
     touch "${RCFILE}" && \
     message "Backing up ${RCFILE} as ${RCFILE}.bak" && \
@@ -136,18 +182,8 @@ updateShell() {
 }
 
 updateFish() {
-  if [ -d "${HOME}/.config/fish" ] || [ "${SHELL}" = "/usr/bin/fish" ]
-  then
-    RCFILE="${HOME}/.config/fish/config.fish"
-    if [ -e "${RCFILE}" ] || [ "${SHELL}" = "/usr/bin/fish" ]
-    then
-      touch "${RCFILE}" && \
-      message "Backing up ${RCFILE} as ${RCFILE}.bak" && \
-      sed -i.bak -e '/\# Added by Fury/d' "${RCFILE}" && \
-      echo "set -Ux FURYHOME ${DESTINATION}" >> "${RCFILE}" && \
-      echo "set -Ux fish_user_paths ${DESTINATION}/bin \$fish_user_paths" >> "${RCFILE}"
-    fi
-  fi
+  fish "set -Ux FURYHOME ${DESTINATION}"
+  fish "set -Ux fish_user_paths ${DESTINATION}/bin \$fish_user_paths"
   cp "${DESTINATION}/etc/fishrc" "${CONFIG}/fish"
 }
 
@@ -158,9 +194,9 @@ updateShells() {
     mkdir -p "${CONFIG}"
     cp "${DESTINATION}/etc/aliases" "${CONFIG}/aliases"
 
-    updateShell bash
-    updateShell zsh
-    updateFish
+    which bash && updateShell "bash" || true
+    which zsh && updateShell "zsh" || true
+    which fish && updateFish || true
   else
     message "Not updating shell configurations for batch-mode installation"
   fi
