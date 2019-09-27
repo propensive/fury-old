@@ -31,9 +31,9 @@ fury permission require -C java.util.PropertyPermission -T scala.version.number 
 fury permission require -C java.util.PropertyPermission -T scala.time -A read
 fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
 fury permission require -C java.util.PropertyPermission -T test.property -A read
-fury build compile --output stable
+fury build compile --output linear
 echo $?
 fury repo unfork -r library
-fury build compile --output stable
+fury build compile --output linear
 echo $?
 

@@ -49,7 +49,7 @@ if [ "$1" = "" ]; then
 
   
   fury start
-  fury config set --theme nocolor
+  fury config set --theme nocolor --timestamps off
 
   for ATEST in $(ls $ROOT/test/passing); do
     let ACOUNT="$ACOUNT+1"

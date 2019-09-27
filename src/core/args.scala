@@ -40,6 +40,11 @@ object Args {
   implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
   implicit private val scopeId: TExtractor[ScopeId] = _.headOption.flatMap(ScopeId.unapply(_))
 
+  implicit private val boolean: TExtractor[Boolean] = _.headOption map {
+    case "on" | "true" | "1" => true
+    case "off" | "false" | "0" => false
+  }
+
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
   val BinaryRepoArg = CliParam[BinRepoId]('r', 'repo, "Specify the repository from which to fetch binaries")
@@ -96,6 +101,7 @@ object Args {
   val NoGrantArg = CliParam[String]('0', Symbol("no-grant"), "do not grant the permission automatically")
   val TagArg = CliParam[String]('t', 'tag, "git tag")
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
+  val TimestampsArg = CliParam[Boolean]('S', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
   val CompareArg = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 

@@ -14,5 +14,5 @@ fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld { def main(args: Array[String]): Unit = args.foreach(println) }' > src/printargs.scala
-fury build compile --output stable -- arg1 arg2 | grep -vE '(compiler-bridge)|(completed in)'
+fury build compile --output linear -- arg1 arg2 | grep -vE '(compiler-bridge)|(completed in)'
 echo $?

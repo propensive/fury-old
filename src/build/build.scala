@@ -37,10 +37,13 @@ object ConfigCli {
     import ctx._
     for {
       cli      <- cli.hint(ThemeArg, Theme.all)
+      cli      <- cli.hint(TimestampsArg, List("on", "off"))
       invoc    <- cli.read()
       io       <- invoc.io()
       newTheme <- ~invoc(ThemeArg).toOption
+      timestamps <- ~invoc(TimestampsArg).toOption
       config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
+      config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
       _        <- ~Ogdl.write(config, cli.globalLayout.userConfig)
     } yield io.await()
   }

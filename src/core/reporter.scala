@@ -19,7 +19,7 @@ package fury.core
 import fury.io._, fury.strings._, fury.model._, fury.utils._
 
 object Reporter {
-  val all: List[Reporter] = List(GraphReporter, LinearReporter, StableReporter, QuietReporter)
+  val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, QuietReporter)
   final private val reporters: Map[String, Reporter] = all.map { r => r.name -> r }.toMap
   def unapply(string: String): Option[Reporter] = reporters.get(string)
   implicit val stringShow: StringShow[Reporter] = _.name
@@ -49,7 +49,7 @@ object GraphReporter extends Reporter("graph") {
   }
 }
 
-object StableReporter extends Reporter("stable") {
+object LinearReporter extends Reporter("linear") {
   def report(io: Io,
              compilation: Compilation,
              theme: Theme,
@@ -57,16 +57,16 @@ object StableReporter extends Reporter("stable") {
             : Unit = {
     val interleaver = new Interleaver(io, 3000L)
     multiplexer.stream(50, Some(Tick)).foreach {
-      case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref", true)
-      case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref", true)
-      case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed", true)
-      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out, true)
-      case Print(ref, line)                            => io.println(line, true)
+      case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref")
+      case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref")
+      case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed")
+      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out)
+      case Print(ref, line)                            => io.println(line)
       case other                                       => ()
     }
   }
 }
-object LinearReporter extends Reporter("linear") {
+object InterleavingReporter extends Reporter("interleaving") {
   def report(io: Io,
              compilation: Compilation,
              theme: Theme,
