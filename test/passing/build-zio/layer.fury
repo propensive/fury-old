@@ -212,12 +212,12 @@ schemas	default	id	default
 				description	
 				compiler	None
 		repos	portable-scala-reflect	id	portable-scala-reflect
-				repo	gh:portable-scala/portable-scala-reflect
+				repo	https://github.com/portable-scala/portable-scala-reflect.git
 				track	master
 				commit	e6d9e9f5b3dbbcd957c90ac501671b3311c2f485
 				local	None
 			scala	id	scala
-				repo	gh:propensive/.scala
+				repo	https://github.com/propensive/.scala.git
 				track	master
 				commit	b5a210a5e2b9ba713753850037c3f6136466ccfc
 				local	None
