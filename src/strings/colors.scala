@@ -94,7 +94,7 @@ object Theme {
           ongoing = Rgb(150, 120, 0),
           failure = Rgb(200, 0, 0),
           lineNo = Rgb(255, 255, 0),
-          time = Rgb(20, 20, 80))
+          time = Rgb(50, 50, 100))
 
   object Basic
       extends Theme(
