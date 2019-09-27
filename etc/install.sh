@@ -171,13 +171,12 @@ findConfigFile() {
 updateShell() {
   SH=$1
   findConfigFile
-  if [ -e "${RCFILE}" ]
-  then
+  if [ -e "${RCFILE}" ]; then
     touch "${RCFILE}" && \
     message "Backing up ${RCFILE} as ${RCFILE}.bak" && \
-    sed -i.bak -e '/\# Added by Fury/d' "${RCFILE}" && \
-    echo "export FURYHOME=${DESTINATION} && source ${CONFIG}/${SH} # Added by Fury" >> "${RCFILE}"
+    sed -i.bak -e '/\# Added by Fury/d' "${RCFILE}"
   fi
+  echo "export FURYHOME=${DESTINATION} && source ${CONFIG}/${SH} # Added by Fury" >> "${RCFILE}"
   cp "${DESTINATION}/etc/${SH}rc" "${CONFIG}/${SH}"
 }
 
