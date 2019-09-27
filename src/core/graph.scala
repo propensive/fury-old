@@ -41,22 +41,18 @@ object Graph {
   case class Successful(content: Option[String]) extends CompileState
   case class Failed(output: String)              extends CompileState
   case object Skipped                            extends CompileState
+  case object Executing                          extends CompileState
 
   private case class GraphState(changed: Boolean,
                         io: Io,
                         graph: Map[ModuleRef, Set[ModuleRef]],
                         stream: Iterator[CompileEvent],
-                        compilationLogs: Map[ModuleRef, CompilationInfo],
-                        outputBuffer: Seq[String],
-                        streaming: Boolean){
+                        compilationLogs: Map[ModuleRef, CompilationInfo]) {
 
     def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
       val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), messages = List.empty))
       this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)))
     }
-
-    def addToBuffer(line: String): GraphState = this.copy(outputBuffer = outputBuffer :+ line)
-
   }
 
   @tailrec
@@ -68,9 +64,9 @@ object Graph {
       val newState = stream.next match {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
-          if (changed && !streaming) {
-            io.println(next)
-            io.println(Ansi.up(graph.size + 1)())
+          if(changed || compilationLogs.exists(_._2.state == Executing)) {
+            io.println(next, noTime = true)
+            io.println(Ansi.up(graph.size + 1)(), noTime = true)
           }
           graphState.copy(changed = false)
 
@@ -87,13 +83,12 @@ object Graph {
           val msgs = compilationLogs(ref).messages
           val newState = CompilationInfo(if (success) Successful(None) else Failed(""), msgs)
           graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
-        case StartStreaming =>
-          io.println(Ansi.down(graph.size + 1)())
-          graphState.copy(changed = true, streaming = true)
-        case Print(line) =>
-          graphState.addToBuffer(line).copy(changed = true)
-        case StopStreaming =>
-          graphState.copy(changed = true, streaming = false)
+        case Print(ref, line) =>
+          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ OtherMessage(line))).copy(changed = false)
+        case StopRun(ref) =>
+          val newState = CompilationInfo(Successful(None), List())
+          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
+        case StartRun(ref) => graphState.updateCompilationLog(ref, _.copy(state = Executing)).copy(changed = true)
         case SkipCompile(ref) =>
           graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true)
       }
@@ -104,9 +99,17 @@ object Graph {
         case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
-      io.println(Ansi.down(graph.size + 1)())
-      output.foreach(io.println(_))
-      graphState.outputBuffer.foreach(s => io.println(str"$s"))
+
+      io.println(Ansi.down(graph.size + 1)(), noTime = true)
+      
+      compilationLogs.foreach { case (ref, info) =>
+        info match {
+          case CompilationInfo(Failed(_) | Successful(_), out) if !out.isEmpty =>
+            io.println(msg"Output from $ref:")
+            out.foreach { msg => io.println(UserMsg { theme => theme.gray(escritoire.Ansi.strip(msg.msg.string(theme))) }) }
+          case _ => ()
+        }
+      }
     }
   }
 
@@ -116,7 +119,7 @@ object Graph {
            stream: Iterator[CompileEvent])
           (implicit theme: Theme)
           : Unit = {
-    live(GraphState(changed = true, io, graph, stream, Map.empty, Seq.empty, streaming = false))
+    live(GraphState(changed = true, io, graph, stream, Map()))
   }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],
@@ -171,6 +174,9 @@ object Graph {
           case Some(CompilationInfo(Compiling(progress), msgs)) =>
             val p = (progress*10).toInt
             theme.ongoing("■"*p + " "*(10 - p))
+          case Some(CompilationInfo(Executing, msgs)) =>
+            val p = ((System.currentTimeMillis/50)%10).toInt
+            theme.active((" "*p)+"■"+(" "*(9 - p)))
           case Some(CompilationInfo(AlreadyCompiled, msgs)) =>
             theme.gray("■"*10)
           case _ => theme.bold(theme.failure("          "))
