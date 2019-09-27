@@ -89,7 +89,7 @@ object RepoCli {
       https     <- ~invoc(HttpsArg).isSuccess
       bareRepo  <- repo.repo.fetch(io, layout, https)
       absPath   <- { for {
-                     absPath <- ~(dir in layout.pwd)
+                     absPath <- ~(layout.pwd.resolve(dir))
                      _       <- Try(absPath.mkdir())
 
                      _       <- if(absPath.empty) Success(())

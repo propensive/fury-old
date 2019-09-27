@@ -90,6 +90,10 @@ case class Path(value: String) {
     this
   }
 
+  def resolve(rel: Path) = {
+    Path(javaPath.resolve(rel.javaPath))
+  }
+
   def moveTo(path: Path): Try[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this))(Files.move(javaPath, path.javaPath))
 
