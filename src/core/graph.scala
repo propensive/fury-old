@@ -41,6 +41,7 @@ object Graph {
   case class Successful(content: Option[String]) extends CompileState
   case class Failed(output: String)              extends CompileState
   case object Skipped                            extends CompileState
+  case object Executing                          extends CompileState
 
   private case class GraphState(changed: Boolean,
                         io: Io,
@@ -63,7 +64,7 @@ object Graph {
       val newState = stream.next match {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
-          if(changed) {
+          if(changed || compilationLogs.exists(_._2.state == Executing)) {
             io.println(next, noTime = true)
             io.println(Ansi.up(graph.size + 1)(), noTime = true)
           }
@@ -84,7 +85,10 @@ object Graph {
           graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
         case Print(ref, line) =>
           graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ OtherMessage(line))).copy(changed = false)
-        case StopRun(ref) => graphState
+        case StopRun(ref) =>
+          val newState = CompilationInfo(Successful(None), List())
+          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
+        case StartRun(ref) => graphState.updateCompilationLog(ref, _.copy(state = Executing)).copy(changed = true)
         case SkipCompile(ref) =>
           graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true)
       }
@@ -170,6 +174,9 @@ object Graph {
           case Some(CompilationInfo(Compiling(progress), msgs)) =>
             val p = (progress*10).toInt
             theme.ongoing("■"*p + " "*(10 - p))
+          case Some(CompilationInfo(Executing, msgs)) =>
+            val p = ((System.currentTimeMillis/50)%10).toInt
+            theme.active((" "*p)+"■"+(" "*(9 - p)))
           case Some(CompilationInfo(AlreadyCompiled, msgs)) =>
             theme.gray("■"*10)
           case _ => theme.bold(theme.failure("          "))

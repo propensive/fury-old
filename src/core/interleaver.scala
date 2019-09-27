@@ -63,7 +63,8 @@ class Interleaver(io: Io, lag: Long) {
 
   private[this] def makeSwitch(): Unit = {
     // flush and remove all terminated output
-    buffer.collect { case (ref, MessageBuffer(_, _, _, true)) => ref }.foreach { ref =>
+    val terminated = buffer.collect { case (ref, MessageBuffer(_, _, _, true)) => ref }
+    terminated.foreach { ref =>
       flush(ref)
     }
     best().foreach { newRef =>
@@ -74,7 +75,7 @@ class Interleaver(io: Io, lag: Long) {
 
   def best(): Option[ModuleRef] =
     if(buffer.isEmpty) None
-    else Some(buffer.to[List].maxBy { case (ref, MessageBuffer(first, last, msgs, _)) => -last }._1)
+    else Some(buffer.to[List].maxBy { case (ref, MessageBuffer(first, last, msgs, _)) => -first }._1)
 
   def println(ref: ModuleRef, msg: UserMsg, noTime: Boolean = false): Unit =
     if(isCurrent(ref)) io.println(msg, noTime)
@@ -85,6 +86,7 @@ class Interleaver(io: Io, lag: Long) {
 
   def tick(): Unit = if(switchable) makeSwitch()
 
-  def terminate(ref: ModuleRef): Unit = buffer =
-    buffer.updated(ref, buffer(ref).terminate)
+  def terminate(ref: ModuleRef): Unit = {
+    buffer = buffer.updated(ref, buffer(ref).terminate)
+  }
 }

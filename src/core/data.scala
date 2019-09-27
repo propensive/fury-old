@@ -494,7 +494,7 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
-    val targetId = getTargetId(report.getTarget.getUri)
+    val targetId: TargetId = getTargetId(report.getTarget.getUri)
     multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
       multiplexer.foreach(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
@@ -503,8 +503,13 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
     case TaskDataKind.COMPILE_REPORT =>
       val report = convertDataTo[CompileReport](params.getData)
-      val targetId = getTargetId(report.getTarget.getUri)
-      multiplexer.foreach(_(targetId.ref) = StopCompile(targetId.ref, params.getStatus == StatusCode.OK))
+      val targetId: TargetId = getTargetId(report.getTarget.getUri)
+      val ref = targetId.ref
+      multiplexer.foreach { mp =>
+        mp(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
+        if(!compilation.targets(ref).kind.needsExecution) mp(ref) = StopRun(ref)
+        else mp(ref) = StartRun(ref)
+      }
   }
 }
 
@@ -668,7 +673,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val target = targets(moduleRef)
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
-      io.println(str"Scheduling ${dependencyTarget}")
       if(futures.contains(dependencyTarget)) futures
       else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args)
     }
@@ -723,7 +727,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
             if(res) CompileSuccess(classDirectories) else CompileFailure
           case compileResult =>
-            multiplexer(target.ref) = StopRun(target.ref)
             compileResult
         }
       }
@@ -1177,6 +1180,7 @@ case class StopCompile(ref: ModuleRef, success: Boolean)         extends Compile
 case class NoCompile(ref: ModuleRef)                             extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                           extends CompileEvent
 case class Print(ref: ModuleRef, line: String)                   extends CompileEvent
+case class StartRun(ref: ModuleRef)                              extends CompileEvent
 case class StopRun(ref: ModuleRef)                               extends CompileEvent
 case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent
 

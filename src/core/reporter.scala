@@ -60,6 +60,7 @@ case class LinearReporter(noTime: Boolean = false, reporterName: String) extends
       case StartCompile(ref)                           => interleaver.println(ref, msg"Starting compilation of module $ref", noTime)
       case StopCompile(ref, true)                      => interleaver.println(ref, msg"Successfully compiled module $ref", noTime)
       case StopRun(ref)                                => interleaver.terminate(ref)
+      case StartRun(ref)                               => ()
       case StopCompile(ref, false)                     => interleaver.println(ref, msg"Compilation of module $ref failed", noTime)
       case DiagnosticMsg(ref, Graph.OtherMessage(out)) => interleaver.println(ref, out, noTime)
       case Print(ref, line)                            => interleaver.println(ref, UserMsg { theme =>
