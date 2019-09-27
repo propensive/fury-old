@@ -88,8 +88,11 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
       //case Grant(LayerScope(hash), _)    => hash == layer.hash
     })
 
-  def grant(scope: Scope, permission: Permission): Policy =
-    copy(policy = policy + Grant(scope, permission))
+  def grant(scope: Scope, permissions: List[Permission]): Policy =
+    copy(policy = policy ++ permissions.map(Grant(scope, _)))
+
+  def obviate(scope: Scope, permissions: List[Permission]): Policy =
+    copy(policy = policy.filterNot(permissions.contains))
   
   def checkAll(permissions: Iterable[Permission]): Try[Unit] = {
     val missing = permissions.to[Set] -- policy.map(_.permission)

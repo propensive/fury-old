@@ -44,6 +44,7 @@ object Args {
     case "on" | "true" | "1" => true
     case "off" | "false" | "0" => false
   }
+  implicit private val stringList: TExtractor[List[String]] = x => Some(x.to[List])
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
@@ -85,7 +86,7 @@ object Args {
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
   val ParamArg = CliParam[Parameter]('P', 'param, "compiler parameter")
-  val PermissionArg = CliParam[String]('P', 'permission, "permission entry")
+  val PermissionArg = CliParam[List[String]]('P', 'permission, "permission entries")
   val PropArg = CliParam[JavaProperty]('D', 'param, "Java -D property")
   val QuietArg = CliParam[Unit]('q', 'quiet, "show less output")
   val RepoArg = CliParam[RepoId]('r', 'repo, "specify a repository")
