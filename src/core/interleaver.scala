@@ -58,7 +58,7 @@ class Interleaver(io: Io, lag: Long) {
   private[this] def flush(ref: ModuleRef): Unit = {
     val msgs = buffer(ref).messages
     if(!msgs.isEmpty) io.println(msg"Output for $ref:")
-    msgs.foreach { case (t, msg) => io.println(UserMsg { theme => theme.gray(escritoire.Ansi.strip(msg.string(theme))) }, time = t) }
+    msgs.foreach { case (t, msg) => io.println(msg, time = t) }
     buffer = buffer - ref
   }
     

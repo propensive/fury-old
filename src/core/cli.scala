@@ -119,7 +119,9 @@ class Io(private[this] val output: java.io.PrintStream, config: Config) {
   def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
   
   def println(msg: UserMsg, noTime: Boolean = false, time: Long = -1): Unit =
-    output.println((if(noTime || !config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+msg.string(config.theme))
+    msg.string(config.theme).split("\n").foreach { line =>
+      output.println((if(noTime || !config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
+    }
 
   def await(success: Boolean = true): ExitStatus = {
     output.flush()
