@@ -68,7 +68,11 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
-case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5, timestamps: Boolean = true)
+case class Config(showContext: Boolean = true,
+                  theme: Theme = Theme.Basic,
+                  undoBuffer: Int = 5,
+                  timestamps: Boolean = true,
+                  pipelining: Boolean = true)
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key

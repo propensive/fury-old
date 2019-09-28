@@ -632,7 +632,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                     target: Target,
                     layout: Layout,
                     application: Boolean,
-                    multiplexer: Multiplexer[ModuleRef, CompileEvent])
+                    multiplexer: Multiplexer[ModuleRef, CompileEvent],
+                    pipelining: Boolean)
                    : Future[CompileResult] = {
     
     val targetIdentifiers = deepDependencies(target.id).map { dep =>
@@ -647,7 +648,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
 
           val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
-          params.setArguments(List("--pipeline").asJava)
+          if(pipelining) params.setArguments(List("--pipeline").asJava)
           val scalacOptionsParams = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
 
           (for {
@@ -674,13 +675,14 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
               layout: Layout,
               globalPolicy: Policy,
-              args: List[String])
+              args: List[String],
+              pipelining: Boolean)
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
     
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
-      else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args)
+      else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -697,7 +699,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        compileModule(io, target, layout, target.kind == Application, multiplexer).map {
+        compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
           case CompileSuccess(classDirectories) if target.kind.needsExecution =>
             if(target.kind == Benchmarks) {
               classDirectories.foreach { classDirectory =>
