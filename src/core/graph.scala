@@ -86,8 +86,7 @@ object Graph {
         case Print(ref, line) =>
           graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ OtherMessage(line))).copy(changed = false)
         case StopRun(ref) =>
-          val newState = CompilationInfo(Successful(None), List())
-          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
+          graphState.updateCompilationLog(ref, _.copy(state = Successful(None))).copy(changed = true)
         case StartRun(ref) => graphState.updateCompilationLog(ref, _.copy(state = Executing)).copy(changed = true)
         case SkipCompile(ref) =>
           graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true)
@@ -105,8 +104,15 @@ object Graph {
       compilationLogs.foreach { case (ref, info) =>
         info match {
           case CompilationInfo(Failed(_) | Successful(_), out) if !out.isEmpty =>
-            io.println(msg"Output from $ref:")
-            out.foreach { msg => io.println(UserMsg { theme => theme.gray(escritoire.Ansi.strip(msg.msg.string(theme))) }) }
+            io.println(UserMsg { theme =>
+              List(
+                msg"Output from ",
+                msg"${ref.projectId}",
+                msg"${'/'}",
+                msg"${ref.moduleId}"
+              ).map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
+            })
+            out.foreach { msg => io.println(msg.msg) }
           case _ => ()
         }
       }
