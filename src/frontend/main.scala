@@ -37,6 +37,8 @@ object Main {
   private[this] def busy(): Option[Int] =
     running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
+  def busyCount: Int = busy().getOrElse(0)
+
   private[this] def trackThread(action: => Int): Int =
     if(!terminating.get) {
       running.synchronized(running += Thread.currentThread)

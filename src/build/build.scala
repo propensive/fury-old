@@ -129,7 +129,7 @@ object BuildCli {
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
-  def status: String = {
+  def status(busyCount: Int): String = {
     val runtime = Runtime.getRuntime
     val df: DecimalFormat = new DecimalFormat("0.0")
     
@@ -143,10 +143,12 @@ object BuildCli {
     val max = magnitude(runtime.maxMemory)
 
     str"""    CPUs: ${runtime.availableProcessors}
-         |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max""".stripMargin
+         |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max
+         |     BSP: ${Compilation.bspPool.size} connections
+         |  Builds: ${busyCount} active""".stripMargin
   }
 
-  def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+  def about(busyCount: Int)(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
       io    <- invoc.io()
@@ -164,7 +166,7 @@ object BuildCli {
                                  |See the Fury website at https://fury.build/, or follow @propensive on Twitter
                                  |for more information.
                                  |
-                                 |$status
+                                 |${status(busyCount)}
                                  |
                                  |For help on using Fury, run: fury help
                                  |""".stripMargin, noTime = true)
