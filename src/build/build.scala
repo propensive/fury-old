@@ -26,6 +26,8 @@ import scala.concurrent._
 import scala.util._
 import scala.concurrent.ExecutionContext.Implicits.global
 
+import java.text.DecimalFormat
+
 import language.higherKinds
 
 object ConfigCli {
@@ -127,6 +129,23 @@ object BuildCli {
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
+  def status: String = {
+    val runtime = Runtime.getRuntime
+    val df: DecimalFormat = new DecimalFormat("0.0")
+    
+    def magnitude(value: Double, scale: List[String] = List("", "k", "M", "G", "T")): String =
+      if(value < 1024) s"${df.format(value)}${scale.head}"
+      else magnitude(value/1024, scale.tail)
+
+    val free = magnitude(runtime.freeMemory)
+    val total = magnitude(runtime.totalMemory)
+    val used = magnitude(runtime.totalMemory - runtime.freeMemory)
+    val max = magnitude(runtime.maxMemory)
+
+    str"""    CPUs: ${runtime.availableProcessors}
+         |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max""".stripMargin
+  }
+
   def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
@@ -144,6 +163,8 @@ object BuildCli {
                                  |
                                  |See the Fury website at https://fury.build/, or follow @propensive on Twitter
                                  |for more information.
+                                 |
+                                 |$status
                                  |
                                  |For help on using Fury, run: fury help
                                  |""".stripMargin, noTime = true)
