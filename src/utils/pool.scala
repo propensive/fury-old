@@ -51,6 +51,7 @@ abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext
   def borrow[S](key: K)(action: T => S): Future[S] = {
     val released = Promise[T]
     val lock: AnyRef = pool.get(key).getOrElse(pool)
+    
     val claimed: Future[T] = lock.synchronized {
       createOrRecycle(key).map { v =>
         pool(key) = released.future
@@ -58,18 +59,13 @@ abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext
       }
     }
 
-    val result: Future[S] = claimed.map{ v =>
-      try{
-        action(v)
-      } finally {
-        if(isBad(v)){
-          released.failure(new Exception("Resource got stale"))
-        } else {
-          released.success(v)
-        }
+    claimed.map { v =>
+      try action(v)
+      finally {
+        if(isBad(v)) released.failure(new Exception("Resource got stale"))
+        else released.success(v)
       }
     }
-    result
   }
 
 }
