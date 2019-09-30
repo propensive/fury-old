@@ -60,6 +60,7 @@ object Graph {
     import graphState._
 
     io.print(Ansi.hideCursor())
+    io.println("", noTime = true)
     if (stream.hasNext) {
       val newState = stream.next match {
         case Tick =>
