@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._
+import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._, fury.ogdl._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
@@ -112,9 +112,10 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
 
   private def structure: Try[Structure] =
     for {
-      layer          <- Layer.read(io, layout.furyConfig, layout)
+      focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
+      layer          <- ~Layer.read(io, focus.layerRef, layout, globalLayout)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(io, layout.pwd, layout, https)
+      hierarchy      <- schema.hierarchy(io, layout.pwd, layout, globalLayout, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>

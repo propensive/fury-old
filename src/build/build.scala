@@ -58,7 +58,7 @@ object AliasCli {
     for {
       layout <- cli.layout
       config <- ~cli.config
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout, cli.globalLayout)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
@@ -84,7 +84,7 @@ object AliasCli {
       aliasArg   <- invoc(AliasArg)
       aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
       layer      <- Lenses.updateSchemas(None, layer, true) { s => Lenses.layer.aliases } (_(_) --= aliasToDel)
-      _          <- ~Layer.save(io, layer, layout)
+      _          <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 
@@ -116,7 +116,7 @@ object AliasCli {
       description      <- invoc(DescriptionArg)
       alias            <- ~Alias(aliasArg, description, optSchemaArg, moduleRef)
       layer            <- Lenses.updateSchemas(None, layer, true) { s => Lenses.layer.aliases } (_(_) += alias)
-      _                <- ~Layer.save(io, layer, layout)
+      _                <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 }
@@ -126,7 +126,7 @@ object BuildCli {
   def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer  <- Layer.read(Io.silent(config), layout, cli.globalLayout)
   } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
@@ -174,7 +174,7 @@ object BuildCli {
                                  |""".stripMargin, noTime = true)
     } yield io.await()
 
-  def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  /*def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     import cli._
     for {
       layout          <- layout
@@ -183,7 +183,7 @@ object BuildCli {
       io              <- invoc.io()
       _               <- layerRepository.restorePrevious(io, layout)
     } yield Done
-  }
+  }*/
 
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
              (ctx: MenuContext)
@@ -251,7 +251,7 @@ object BuildCli {
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
+    layer  <- ~Layer.read(Io.silent(config), layout, cli.globalLayout).toOption
     msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
     invoc  <- cli.read()
     io     <- invoc.io()
@@ -441,15 +441,15 @@ object LayerCli {
     invoc  <- cli.read()
     io     <- invoc.io()
     layer  <- ~Layer()
-    _      <- layout.furyConfig.mkParents()
-    _      <- ~Layer.save(io, layer, layout)
-    _      <- ~io.println("Created empty layer.fury")
+    _      <- layout.focusFile.mkParents()
+    _      <- ~Layer.save(io, layer, layout, cli.globalLayout)
+    _      <- ~io.println("Created an empty layer")
   } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
     config    <- ~cli.config
-    layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer     <- Layer.read(Io.silent(config), layout, cli.globalLayout)
     cli       <- cli.hint(SchemaArg, layer.schemas)
     cli       <- cli.hint(HttpsArg)
     schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
@@ -459,7 +459,7 @@ object LayerCli {
     io        <- invoc.io()
     raw       <- ~invoc(RawArg).isSuccess
     https     <- ~invoc(HttpsArg).isSuccess
-    projects  <- schema.allProjects(io, layout, https)
+    projects  <- schema.allProjects(io, layout, cli.globalLayout, https)
     table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
     _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
     _         <- ~io.println(table.mkString("\n"), noTime = true)

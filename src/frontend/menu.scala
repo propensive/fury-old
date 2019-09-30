@@ -130,7 +130,7 @@ object FuryMenu {
                 msg"pull the latest version of the source repo from the remote",
                 RepoCli.pull)
         ),
-        Action('undo, msg"undo the previous modification", BuildCli.undo),
+        //Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('projects, msg"show all available projects", LayerCli.projects)

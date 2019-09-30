@@ -33,7 +33,7 @@ object SchemaCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer  <- Layer.read(Io.silent(config), layout, cli.globalLayout)
   } yield SchemaCtx(cli, layout, config, layer)
 
   def select(ctx: SchemaCtx): Try[ExitStatus] = {
@@ -46,7 +46,7 @@ object SchemaCli {
       _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
       layer    <- ~(lens(layer) = schemaId)
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 
@@ -109,7 +109,7 @@ object SchemaCli {
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
       layer    <- ~(if(layer.main == schema.id) layer.copy(main = newName) else layer)
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 
@@ -127,7 +127,7 @@ object SchemaCli {
       lens      <- ~Lenses.layer.schemas
       layer     <- ~lens.modify(layer)(_ + newSchema)
       layer     <- ~layer.copy(main = newSchema.id)
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 
@@ -141,7 +141,7 @@ object SchemaCli {
       schema   <- layer.schemas.findBy(schemaId)
       lens     <- ~Lenses.layer.schemas
       layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 }

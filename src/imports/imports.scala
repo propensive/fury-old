@@ -30,7 +30,7 @@ object ImportCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer  <- Layer.read(Io.silent(config), layout, cli.globalLayout)
   } yield Context(cli, layout, config, layer)
 
   def add(ctx: Context): Try[ExitStatus] = {
@@ -41,7 +41,7 @@ object ImportCli {
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
 
       cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(Io.silent(config),
-                           layout, false)).getOrElse(Nil))
+                           layout, cli.globalLayout, false)).getOrElse(Nil))
       
       invoc         <- cli.read()
       io            <- invoc.io()
@@ -50,7 +50,7 @@ object ImportCli {
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef))
       
-      _             <- ~Layer.save(io, layer, layout)
+      _             <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 
@@ -68,7 +68,7 @@ object ImportCli {
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }
 
@@ -84,7 +84,7 @@ object ImportCli {
       io        <- invoc.io()
       raw       <- ~invoc(RawArg).isSuccess
       https     <- ~invoc(HttpsArg).isSuccess
-      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout, https)) }
+      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout, cli.globalLayout, https)) }
       
       table     <- ~Tables(config).show(Tables(config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)

@@ -95,7 +95,8 @@ object Theme {
           failure = Rgb(200, 0, 0),
           lineNo = Rgb(255, 255, 0),
           time = Rgb(50, 50, 100),
-          active = Rgb(200, 0, 200))
+          active = Rgb(200, 0, 200),
+          layer = Rgb(255, 140, 0))
 
   object Basic
       extends Theme(
@@ -118,7 +119,8 @@ object Theme {
           failure = Ansi.red,
           lineNo = Ansi.brightYellow,
           time = Ansi.white,
-          active = Ansi.magenta)
+          active = Ansi.magenta,
+          layer = Ansi.brightRed)
 
   object NoColor extends Theme("nocolor") {
     override val reset: AnsiCode     = AnsiCode("")
@@ -152,7 +154,8 @@ case class Theme(
     failure: AnsiCode = AnsiCode(""),
     lineNo: AnsiCode = AnsiCode(""),
     time: AnsiCode = AnsiCode(""),
-    active: AnsiCode = AnsiCode("")) {
+    active: AnsiCode = AnsiCode(""),
+    layer: AnsiCode = AnsiCode("")) {
   val reset: AnsiCode     = AnsiCode("0m")
   val bold: AnsiCode      = AnsiCode("1m")
   val underline: AnsiCode = AnsiCode("4m")
