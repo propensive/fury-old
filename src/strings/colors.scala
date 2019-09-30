@@ -43,6 +43,8 @@ object Ansi {
   val hideCursor = AnsiCode("?25l")
   val showCursor = AnsiCode("?25h")
 
+  val clear = AnsiCode("2J")
+
   def up(n: Int): AnsiCode    = AnsiCode(s"${n}A")
   def down(n: Int): AnsiCode  = AnsiCode(s"${n}B")
   def right(n: Int): AnsiCode = AnsiCode(s"${n}C")

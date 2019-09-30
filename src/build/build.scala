@@ -16,16 +16,12 @@
 */
 package fury
 
-import fury.strings._, fury.io._, fury.core._, fury.ogdl._, fury.model._, fury.utils._
-
+import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.utils._
 import Args._
-
-import guillotine._
 
 import scala.concurrent._
 import scala.util._
 import scala.concurrent.ExecutionContext.Implicits.global
-
 import java.text.DecimalFormat
 
 import language.higherKinds
@@ -272,7 +268,7 @@ object BuildCli {
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module         <- optModule.ascribe(UnspecifiedModule())
       fatJar          = invoc(FatJarArg).isSuccess
-      
+
       compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
                             https)
 
@@ -327,6 +323,42 @@ object BuildCli {
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
       _            <- compilation.saveNative(io, module.ref(project), dir in layout.pwd, layout, main)
     } yield io.await()
+  }
+
+  def watch(ctx: MenuContext): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli            <- cli.hint(SchemaArg, layer.schemas)
+      cli            <- cli.hint(HttpsArg)
+      schemaArg      <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema         <- layer.schemas.findBy(schemaArg)
+      cli            <- cli.hint(ProjectArg, schema.projects)
+      optProjectId   <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+      cli            <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli            <- cli.hint(ReporterArg, Reporter.all)
+      invoc          <- cli.read()
+      io             <- invoc.io()
+      https          <- ~invoc(HttpsArg).isSuccess
+      project        <- optProject.ascribe(UnspecifiedProject())
+      optModuleId    <- ~invoc(ModuleArg).toOption.orElse(project.main)
+      optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
+      module         <- optModule.ascribe(UnspecifiedModule())
+
+      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+        https)
+
+      _              <- ~compilation.checkoutAll(io, layout, https)
+      _              <- compilation.generateFiles(io, layout)      
+      globalPolicy   <- Policy.read(io, cli.globalLayout)      
+    } yield {
+      val compileArgs = invoc.suffix
+      val reporter = invoc(ReporterArg).toOption.getOrElse(GraphReporter)
+      RebuildService.repeatBuild(
+        io, compilation, project, module, layout, globalPolicy, reporter, config.theme, compileArgs
+      )
+      io.await()
+    }
   }
 
   def classpath(ctx: MenuContext): Try[ExitStatus] = {

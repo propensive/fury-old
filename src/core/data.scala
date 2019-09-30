@@ -203,7 +203,7 @@ object BspConnectionManager {
       err.close()
     }
   }
-
+  
   object HandleHandler {
     private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
 

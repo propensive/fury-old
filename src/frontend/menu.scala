@@ -41,7 +41,8 @@ object FuryMenu {
             Action('compile, msg"compile a module", BuildCli.compile(None, None)),
             Action('describe, msg"describe the build for a module", BuildCli.describe),
             Action('save, msg"save a JAR file", BuildCli.save),
-            Action('native, msg"build a native executable using GraalVM", BuildCli.native)
+            Action('native, msg"build a native executable using GraalVM", BuildCli.native),
+            Action('watch, msg"watch the sources and rebuild on every change", BuildCli.watch)
         ),
         Menu('clean, msg"clean fury workspace", CleanCli.context, 'all)(
             Action('all, msg"clean all", CleanCli.cleanAll),
