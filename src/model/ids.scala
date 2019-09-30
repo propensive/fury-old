@@ -68,6 +68,26 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
+case class ImportPath(path: String) {
+  def parts: List[ImportId] = path.split("/").to[List].tail.map(ImportId(_))
+  def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
+}
+
+case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))
+
+object LayerRef {
+  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key))
+  implicit val stringShow: StringShow[LayerRef] = _.key
+  implicit def diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  
+  def parse(value: String): Try[LayerRef] = value match {
+    case r"[A-Za-z0-9\+\_]{44}" => Success(LayerRef(value))
+    case _ => Failure(InvalidValue(value))
+  }
+}
+
+case class LayerRef(key: String) extends Key(msg"layer")
+
 case class Config(showContext: Boolean = true, theme: Theme = Theme.Basic, undoBuffer: Int = 5, timestamps: Boolean = true)
 
 object TargetId {
@@ -261,13 +281,26 @@ object SchemaRef {
 
   def unapply(value: String): Option[SchemaRef] = value match {
     case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(SchemaRef(RepoId(repo), SchemaId(schema)))
+      Some(SchemaRef(ImportId(repo), RepoId(repo), SchemaId(schema)))
     case _ =>
       None
   }
 }
 
-case class SchemaRef(repo: RepoId, schema: SchemaId)
+case class SchemaRef(id: ImportId, repo: RepoId, schema: SchemaId)
+
+object ImportId {
+  implicit val msgShow: MsgShow[ImportId]       = m => UserMsg(_.layer(m.key))
+  implicit val stringShow: StringShow[ImportId] = _.key
+  implicit def diff: Diff[ImportId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+
+  def parse(name: String): Try[ImportId] = name match {
+    case r"[a-z](-?[a-z0-9]+)*" => Success(ImportId(name))
+    case _                      => Failure(InvalidValue(name))
+  }
+}
+
+case class ImportId(key: String) extends Key("import")
 
 object ModuleRef {
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"

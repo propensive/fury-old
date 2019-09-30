@@ -66,8 +66,6 @@ You can grant these permissions with,
 
   fury permission grant -P <permission hash>
 """)
-        case NoPreviousRevision =>
-          cli.abort(msg"No earlier revision can be found")
         case LauncherFailure(msg) =>
           cli.abort(msg"Bloop did not start successfully: $msg")
         case DownloadFailure(msg) =>

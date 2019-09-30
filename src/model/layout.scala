@@ -46,6 +46,7 @@ case class GlobalLayout(home: Path) {
   private[this] val userDir = (home / ".furyrc").extant()
   lazy val userConfig: Path = userDir / "config.fury"
   lazy val aliasesPath: Path = userDir / "aliases"
+  lazy val layersPath: Path = (userDir / "layers").extant()
   lazy val policyFile: Path = userDir / "policy.fury"
 }
 
@@ -71,7 +72,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
-  lazy val furyConfig: Path = base / "layer.fury"
+  lazy val focusFile: Path = base / ".focus.fury"
   
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()

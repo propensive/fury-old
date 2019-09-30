@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._
+import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._, fury.ogdl._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
@@ -78,17 +78,17 @@ object Bsp {
       cli     <- cli.hint(Args.HttpsArg)
       invoc   <- cli.read()
       https   <- ~invoc(Args.HttpsArg).isSuccess
-      running <- ~run(System.in, System.out, layout, https)
+      running <- ~run(System.in, System.out, layout, https, cli.globalLayout)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean): Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean, globalLayout: GlobalLayout): Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel, https)
+    val server = new FuryBuildServer(layout, cancel, https, globalLayout)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -106,7 +106,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, globalLayout: GlobalLayout) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
 
   private val config = Config()
@@ -114,9 +114,10 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
 
   private def structure: Try[Structure] =
     for {
-      layer          <- Layer.read(io, layout.furyConfig, layout)
+      focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
+      layer          <- ~Layer.read(io, focus.layerRef, layout, globalLayout)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(io, layout.pwd, layout, https)
+      hierarchy      <- schema.hierarchy(io, layout.pwd, layout, globalLayout, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
