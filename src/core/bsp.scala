@@ -113,7 +113,7 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
   private val config = Config()
   private val io     = new Io(System.err, config)
 
-  private def structure: Try[Structure] = synchronized {
+  private def structure: Try[Structure] = {
     for {
       layer <- Layer.read(io, layout.furyConfig, layout)
       schema <- layer.mainSchema
@@ -207,7 +207,11 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
       struct  <- structure
       targets  = sourcesParams.getTargets.asScala
       items   <- targets.traverse { t =>
-                   struct.moduleRef(t).map { ref => targetSourcesItem(t, struct.targets(ref)) }
+                   struct.moduleRef(t).map { ref =>
+                     val x = targetSourcesItem(t, struct.targets(ref))
+                     io.println(str"${x.toString}")
+                     x
+                   }
                  }
     } yield new SourcesResult(items.asJava)
 
@@ -236,22 +240,10 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
     future
   }
 
-  private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
-    for {
-      //FIXME remove duplication with structure
-      layer          <- Layer.read(io, layout.furyConfig, layout)
-      schema         <- layer.mainSchema
-      module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(io, schema, module, layout, globalLayout, https = true)
-    } yield compilation
-  }
-
   override def buildTargetDependencySources(dependencySourcesParams: DependencySourcesParams)
                                            : CompletableFuture[DependencySourcesResult] = {
 
     io.println("**> buildTargetDependencySources")
-    dependencySourcesParams.getTargets.asScala.foreach(s => io.println(str"${s.toString}"))
-
 
     val requests = dependencySourcesParams.getTargets.asScala.traverse{ bspBuildTargetId =>
       for{
@@ -271,9 +263,21 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
       setupError => failWith(setupError),
       responses => reduce(responses.toList){results =>
         val items = results.map(_.getItems.asScala).flatten
+        io.println(str"${items.toString}")
+        items.foreach(x => io.println(str"${x.toString}"))
         new DependencySourcesResult(items.asJava)
       }
     )
+  }
+
+  private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
+    for {
+      //FIXME remove duplication with structure
+      layer          <- Layer.read(io, layout.furyConfig, layout)
+      schema         <- layer.mainSchema
+      module <- structure.moduleRef(bti)
+      compilation    <- Compilation.syncCompilation(io, schema, module, layout, globalLayout, https = true)
+    } yield compilation
   }
 
   private def failWith[T](error: Throwable): CompletableFuture[T] = {
