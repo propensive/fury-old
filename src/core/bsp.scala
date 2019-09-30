@@ -35,8 +35,8 @@ import org.eclipse.lsp4j.jsonrpc.Launcher
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
-
 import language.higherKinds
+import scala.concurrent.Promise
 
 object Bsp {
 
@@ -78,17 +78,17 @@ object Bsp {
       cli     <- cli.hint(Args.HttpsArg)
       invoc   <- cli.read()
       https   <- ~invoc(Args.HttpsArg).isSuccess
-      running <- ~run(System.in, System.out, layout, https)
+      running <- ~run(System.in, System.out, layout, cli.globalLayout, https)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean): Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel, https)
+    val server = new FuryBuildServer(layout, globalLayout, cancel, https)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -106,35 +106,36 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
 
   private val config = Config()
   private val io     = new Io(System.err, config)
 
-  private def structure: Try[Structure] =
+  private def structure: Try[Structure] = synchronized {
     for {
-      layer          <- Layer.read(io, layout.furyConfig, layout)
-      schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(io, layout.pwd, layout, https)
-      universe       <- hierarchy.universe
-      projects       <- layer.projects
-      graph          <- projects.flatMap(_.moduleRefs).map { ref =>
-                          for {
-                            ds   <- universe.dependencies(ref, layout)
-                            arts <- (ds + ref).map { d => universe.makeTarget(io, d, layout) }.sequence
-                          } yield arts.map { a =>
-                            (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
-                                .map(_.ref.hide): Option[ModuleRef]))
-                          }
-                        }.sequence.map(_.flatten.toMap)
-      allModuleRefs  = graph.keys
-      modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
-      targets       <- graph.keys.map { key =>
-                         universe.makeTarget(io, key, layout).map(key -> _)
-                       }.sequence.map(_.toMap)
-      checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
+      layer <- Layer.read(io, layout.furyConfig, layout)
+      schema <- layer.mainSchema
+      hierarchy <- schema.hierarchy(io, layout.pwd, layout, https)
+      universe <- hierarchy.universe
+      projects <- layer.projects
+      graph <- projects.flatMap(_.moduleRefs).map { ref =>
+        for {
+          ds <- universe.dependencies(ref, layout)
+          arts <- (ds + ref).map { d => universe.makeTarget(io, d, layout) }.sequence
+        } yield arts.map { a =>
+          (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
+            .map(_.ref.hide): Option[ModuleRef]))
+        }
+      }.sequence.map(_.flatten.toMap)
+      allModuleRefs = graph.keys
+      modules <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
+      targets <- graph.keys.map { key =>
+        universe.makeTarget(io, key, layout).map(key -> _)
+      }.sequence.map(_.toMap)
+      checkouts <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
+  }
 
   override def buildInitialize(initializeBuildParams: InitializeBuildParams)
                               : CompletableFuture[InitializeBuildResult] = {
@@ -234,20 +235,48 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
     future
   }
 
+  private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
+    for {
+      //FIXME remove duplication with structure
+      layer          <- Layer.read(io, layout.furyConfig, layout)
+      schema         <- layer.mainSchema
+      module <- structure.moduleRef(bti)
+      compilation    <- Compilation.syncCompilation(io, schema, module, layout, globalLayout, https = true)
+    } yield compilation
+  }
+
   override def buildTargetDependencySources(dependencySourcesParams: DependencySourcesParams)
                                            : CompletableFuture[DependencySourcesResult] = {
 
     io.println("**> buildTargetDependencySources")
+    dependencySourcesParams.getTargets.asScala.foreach(s => io.println(str"${s.toString}"))
 
-    val result = Try(new DependencySourcesResult(List.empty.asJava))
-    val future = new CompletableFuture[DependencySourcesResult]()
-    
-    result match {
-      case Success(value)     => future.complete(value)
-      case Failure(exception) => future.completeExceptionally(exception)
-    }
-    
-    future
+    import scala.concurrent._
+    import scala.concurrent.duration._
+    val zzz = dependencySourcesParams.getTargets.asScala.traverse{ bti =>
+      for{
+      struct <- structure
+      compilation <- getCompilation(struct, bti)
+      mr <- struct.moduleRef(bti)
+      target = struct.targets(mr)
+      zz = Compilation.bspPool.borrow(layout.base) { conn =>
+        conn.provision(compilation, target.id, layout, None) { server =>
+          val dsp = new DependencySourcesParams(List(bti).asJava)
+          server.buildTargetDependencySources(dsp)
+        }
+      }
+    } yield {
+      Await.result(zz, Duration.Inf)
+    } }
+
+    zzz.map{ futures =>
+      CompletableFuture.allOf(futures: _*).thenCompose(_ => {
+        val ff = futures.map(_.get().getItems.asScala).flatten.asJava
+        io.println(str"${ff.toString}")
+        CompletableFuture.completedFuture(new DependencySourcesResult(ff))
+    })
+    }.get
+
   }
 
   override def buildTargetResources(resourcesParams: ResourcesParams): CompletableFuture[ResourcesResult] = {
