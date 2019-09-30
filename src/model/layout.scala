@@ -51,6 +51,7 @@ case class Installation(env: Environment) {
   
   lazy val userConfig: Path = configDir / "config.fury"
   lazy val aliasesPath: Path = configDir / "aliases"
+  lazy val layersPath: Path = (configDir / "layers").extant()
   lazy val policyFile: Path = configDir / "policy.fury"
 }
 
@@ -78,7 +79,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
-  lazy val furyConfig: Path = base / "layer.fury"
+  lazy val focusFile: Path = base / ".focus.fury"
   
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()

@@ -44,7 +44,7 @@ object Path {
     case _ => None
   }
 
-  def getTempDir(prefix: String): Try[Path] = Try(Path(Files.createTempDirectory(prefix).toString))
+  def mkTempDir(prefix: String): Try[Path] = Try(Path(Files.createTempDirectory(prefix).toString))
 
   // Rewritten from https://stackoverflow.com/a/10068306
   private class CopyFileVisitor(sourcePath: JavaPath, targetPath: JavaPath)
@@ -155,6 +155,8 @@ case class Path(value: String) {
   def parent = Path(javaPath.getParent.toString)
   def rename(fn: String => String): Path = parent / fn(name)
 
+  def mkTempFile(): Try[Path] = Try(Path(Files.createTempFile(javaPath, null, ".tmp").toString))
+  
   def mkParents(): Try[Path] =
     Outcome.rescue[java.io.IOException](FileWriteError(parent)) {
       java.nio.file.Files.createDirectories(parent.javaPath)

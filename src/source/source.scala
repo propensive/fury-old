@@ -41,7 +41,7 @@ object SourceCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer        <- Layer.read(Io.silent(config), layout, cli.globalLayout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -96,7 +96,7 @@ object SourceCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id,
                          module.id))(_(_) --= sourceToDel)
       
-      _           <- ~Layer.save(io, layer, layout)
+      _           <- ~Layer.save(io, layer, layout, cli.globalLayout)
 
       _           <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
                          cli.installation, false))
@@ -132,7 +132,7 @@ object SourceCli {
       layer      <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, 
                         module.id))(_(_) ++= source)
       
-      _          <- ~Layer.save(io, layer, layout)
+      _          <- ~Layer.save(io, layer, layout, cli.globalLayout)
 
       _          <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
                         cli.installation, false))
