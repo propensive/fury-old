@@ -23,6 +23,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, StandardOpenOption}
 import java.util.concurrent.{CompletableFuture, Future}
+import java.util.{List => JList}
 
 import ch.epfl.scala.bsp4j
 import ch.epfl.scala.bsp4j._
@@ -251,32 +252,48 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
     io.println("**> buildTargetDependencySources")
     dependencySourcesParams.getTargets.asScala.foreach(s => io.println(str"${s.toString}"))
 
-    import scala.concurrent._
-    import scala.concurrent.duration._
-    val zzz = dependencySourcesParams.getTargets.asScala.traverse{ bti =>
+
+    val requests = dependencySourcesParams.getTargets.asScala.traverse{ bspBuildTargetId =>
       for{
-      struct <- structure
-      compilation <- getCompilation(struct, bti)
-      mr <- struct.moduleRef(bti)
-      target = struct.targets(mr)
-      zz = Compilation.bspPool.borrow(layout.base) { conn =>
-        conn.provision(compilation, target.id, layout, None) { server =>
-          val dsp = new DependencySourcesParams(List(bti).asJava)
-          server.buildTargetDependencySources(dsp)
+        struct <- structure
+        compilation <- getCompilation(struct, bspBuildTargetId)
+        moduleRef <- struct.moduleRef(bspBuildTargetId)
+        target = struct.targets(moduleRef)
+      } yield {
+        request(compilation, target.id, layout) { server =>
+          val params = new DependencySourcesParams(List(bspBuildTargetId).asJava)
+          server.buildTargetDependencySources(params)
         }
       }
-    } yield {
-      Await.result(zz, Duration.Inf)
-    } }
+    }
 
-    zzz.map{ futures =>
-      CompletableFuture.allOf(futures: _*).thenCompose(_ => {
-        val ff = futures.map(_.get().getItems.asScala).flatten.asJava
-        io.println(str"${ff.toString}")
-        CompletableFuture.completedFuture(new DependencySourcesResult(ff))
+    requests.fold(
+      setupError => failWith(setupError),
+      responses => reduce(responses.toList){results =>
+        val items = results.map(_.getItems.asScala).flatten
+        new DependencySourcesResult(items.asJava)
+      }
+    )
+  }
+
+  private def failWith[T](error: Throwable): CompletableFuture[T] = {
+    val f = new CompletableFuture[T]()
+    f.completeExceptionally(error)
+    f
+  }
+
+  private def request[T](compilation: Compilation, targetId: TargetId, layout: Layout)(action: FuryBspServer => T): T = {
+    import scala.concurrent._
+    import scala.concurrent.duration._
+    Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
+      conn.provision(compilation, targetId, layout, None)(action)
+    }, Duration.Inf)
+  }
+
+  private def reduce[T, U](futures: List[CompletableFuture[T]])(collect: List[T] => U): CompletableFuture[U] = {
+    CompletableFuture.allOf(futures: _*).thenCompose(_ => {
+      CompletableFuture.completedFuture(collect(futures.map(_.get())))
     })
-    }.get
-
   }
 
   override def buildTargetResources(resourcesParams: ResourcesParams): CompletableFuture[ResourcesResult] = {
