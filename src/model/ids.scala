@@ -81,8 +81,8 @@ object LayerRef {
   implicit def diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 
   def parse(value: String): Try[LayerRef] = value match {
-    case r"[A-Za-z0-9\+\_]{44}" => Success(LayerRef(value))
-    case _ => Failure(InvalidValue(value))
+    case r"[a-f0-9]{64}" => Success(LayerRef(value))
+    case _               => Failure(InvalidValue(value))
   }
 }
 
