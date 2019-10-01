@@ -1056,7 +1056,7 @@ object Layer {
     tmpFile  <- globalLayout.layersPath.mkTempFile()
     content  <- ~Ogdl.serialize(Ogdl(layer))
     _        <- tmpFile.writeSync(content)
-    layerRef <- ~LayerRef(content.digest[Sha256].encoded)
+    layerRef <- ~LayerRef(content.digest[Sha256].encoded[Hex])
     _        <- tmpFile.moveTo(globalLayout.layersPath / layerRef.key)
     focusStr <- ~Ogdl.serialize(Ogdl(Focus(layerRef)))
     _        <- layout.focusFile.writeSync(focusStr)
