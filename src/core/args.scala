@@ -65,7 +65,7 @@ object Args {
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
-  val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external schema to import")
+  val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external layer and schema to import")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
       "specify if this dependency should not be included transitively")
