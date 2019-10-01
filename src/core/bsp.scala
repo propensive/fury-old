@@ -321,12 +321,12 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
         moduleRef <- struct.moduleRef(bspBuildTargetId)
         target = struct.targets(moduleRef)
       } yield {
-        request(compilation, target.id, layout) { server =>
-          val identifier = new BuildTargetIdentifier(str"file://${layout.workDir(target.id).value}?id=${target.id.key}")
-          val params = new CompileParams(List(identifier).asJava)
-          io.println(str"Compiling... ${params.toString}")
-          server.buildTargetCompile(params)
-        }
+        implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
+        val foo = new CompletableFuture[CompileResult]()
+        val zz = compilation.compileModule(io, target, layout, false, None)
+        zz.foreach(foo.complete)
+        zz.recover{case t: Throwable => foo.completeExceptionally(t)}
+        foo
       }
     }
 
@@ -334,12 +334,14 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
       setupError => failWith(setupError),
       responses => reduce(responses.toList){results =>
         results.foreach(x => io.println(str"Compiled! ${x.toString}"))
-        val failures = results.filterNot(_.getStatusCode == StatusCode.OK)
-        if(failures.isEmpty) {
+        val failures = results.filterNot(_.isSuccessful)
+        val res = if(failures.isEmpty) {
           new ch.epfl.scala.bsp4j.CompileResult(StatusCode.OK)
         } else {
           new ch.epfl.scala.bsp4j.CompileResult(StatusCode.ERROR)
         }
+        res.setOriginId(compileParams.getOriginId)
+        res
       }
     )
   }

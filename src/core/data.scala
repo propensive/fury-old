@@ -634,7 +634,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                     target: Target,
                     layout: Layout,
                     application: Boolean,
-                    multiplexer: Multiplexer[ModuleRef, CompileEvent],
+                    multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]],
                     pipelining: Boolean)
                    : Future[CompileResult] = {
     
@@ -646,7 +646,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
     
       Compilation.bspPool.borrow(layout.base) { conn =>
-        val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+        val result: Try[CompileResult] = conn.provision(this, target.id, layout, multiplexer) { server =>
           val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
 
           val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
@@ -701,7 +701,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
+        compileModule(io, target, layout, target.kind == Application, Some(multiplexer), pipelining).map {
           case CompileSuccess(classDirectories) if target.kind.needsExecution =>
             if(target.kind == Benchmarks) {
               classDirectories.foreach { classDirectory =>
