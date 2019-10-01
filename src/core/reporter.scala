@@ -44,6 +44,7 @@ object GraphReporter extends Reporter("graph") {
             : Unit = {
     val modules = compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) }
     io.println(msg"Starting build")
+    io.println("", noTime = true)
     Graph.live(io, modules, multiplexer.stream(50, Some(Tick)))(theme)
     io.println(msg"Build completed")
   }

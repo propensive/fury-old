@@ -277,20 +277,20 @@ case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], m
 
 object SchemaRef {
   implicit val msgShow: MsgShow[SchemaRef] = v =>
-    UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
+    UserMsg { theme => msg"${v.layerRef}${':'}${v.schema}".string(theme) }
 
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
+  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.layerRef}:${sr.schema}"
   implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
 
   def unapply(value: String): Option[SchemaRef] = value match {
-    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(SchemaRef(ImportId(repo), RepoId(repo), SchemaId(schema)))
+    case r"$layer@([a-fA-F0-9]{64}):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
+      Some(SchemaRef(ImportId(""), LayerRef(layer), SchemaId(schema)))
     case _ =>
       None
   }
 }
 
-case class SchemaRef(id: ImportId, repo: RepoId, schema: SchemaId)
+case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId)
 
 object ImportId {
   implicit val msgShow: MsgShow[ImportId]       = m => UserMsg(_.layer(m.key))
