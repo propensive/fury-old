@@ -242,6 +242,9 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
 
   override def buildTargetDependencySources(dependencySourcesParams: DependencySourcesParams)
                                            : CompletableFuture[DependencySourcesResult] = {
+    // FIXME Looks like this request is not supported by Bloop ;-(
+    // https://scalacenter.github.io/bloop/docs/ides/intellij
+
 
     io.println("**> buildTargetDependencySources")
 
@@ -253,7 +256,8 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
         target = struct.targets(moduleRef)
       } yield {
         request(compilation, target.id, layout) { server =>
-          val params = new DependencySourcesParams(List(bspBuildTargetId).asJava)
+          val identifier = new BuildTargetIdentifier(str"file://${layout.workDir(target.id).value}?id=${target.id.key}")
+          val params = new DependencySourcesParams(List(identifier).asJava)
           server.buildTargetDependencySources(params)
         }
       }
@@ -308,12 +312,36 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
   }
 
   override def buildTargetCompile(compileParams: CompileParams): CompletableFuture[bsp4j.CompileResult] = {
-    // TODO MVP
-    val future = new CompletableFuture[bsp4j.CompileResult]()
-    val result = new bsp4j.CompileResult(StatusCode.CANCELLED)
-    future.complete(result)
+    io.println("**> buildTargetCompile")
 
-    future
+    val requests = compileParams.getTargets.asScala.traverse{ bspBuildTargetId =>
+      for{
+        struct <- structure
+        compilation <- getCompilation(struct, bspBuildTargetId)
+        moduleRef <- struct.moduleRef(bspBuildTargetId)
+        target = struct.targets(moduleRef)
+      } yield {
+        request(compilation, target.id, layout) { server =>
+          val identifier = new BuildTargetIdentifier(str"file://${layout.workDir(target.id).value}?id=${target.id.key}")
+          val params = new CompileParams(List(identifier).asJava)
+          io.println(str"Compiling... ${params.toString}")
+          server.buildTargetCompile(params)
+        }
+      }
+    }
+
+    requests.fold(
+      setupError => failWith(setupError),
+      responses => reduce(responses.toList){results =>
+        results.foreach(x => io.println(str"Compiled! ${x.toString}"))
+        val failures = results.filterNot(_.getStatusCode == StatusCode.OK)
+        if(failures.isEmpty) {
+          new ch.epfl.scala.bsp4j.CompileResult(StatusCode.OK)
+        } else {
+          new ch.epfl.scala.bsp4j.CompileResult(StatusCode.ERROR)
+        }
+      }
+    )
   }
 
   override def buildTargetTest(testParams: TestParams): CompletableFuture[TestResult] = {
