@@ -317,11 +317,7 @@ object PermissionCli {
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
       force         =  invoc(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
-<<<<<<< HEAD
-                      module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
-=======
-                      module.id))(_(_) -= permission)
->>>>>>> Store layers centrally
+                           module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
       _             <- Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }

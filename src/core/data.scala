@@ -341,7 +341,7 @@ object Compilation {
                     https: Boolean)
                    : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(io, layout.base, layout, globalLayout, https)
+    hierarchy   <- schema.hierarchy(io, layout, globalLayout, https)
     universe    <- hierarchy.universe
     policy      <- Policy.read(io, globalLayout)
     compilation <- universe.compilation(io, ref, policy, layout)
@@ -737,7 +737,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
 case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
 
-case class Entity(project: Project, schema: Schema, path: Path) {
+case class Entity(project: Project, schema: Schema) {
   def spec: ProjectSpec = {
     val repoIds = project.allRepoIds
     ProjectSpec(project, schema.repos.to[List].filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
@@ -765,7 +765,9 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
                          } yield TargetId(origin.schema.id, dep)}
       checkouts       <- checkout(ref, layout)
     } yield {
-      val sourcePaths = module.localSources.map(_ in resolvedProject.path).to[List] ++
+      // FIXME: This assumes published layers will not have local sources
+      // Previously this was (_ in resolvedProject.path)
+      val sourcePaths = module.localSources.map(_ in layout.base).to[List] ++
         module.sharedSources.map(_.path in layout.sharedDir).to[List] ++
         checkouts.flatMap { c =>
           c.local match {
@@ -860,7 +862,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         targets ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), this)
 }
 
-case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
+case class Hierarchy(schema: Schema, inherited: Set[Hierarchy]) {
   lazy val universe: Try[Universe] = {
     val localProjectIds = schema.projects.map(_.id)
     
@@ -882,7 +884,7 @@ case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
     val empty: Try[Universe] = Success(Universe())
     
     for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
-      val schemaEntities = schema.projects.map { project => project.id -> Entity(project, schema, dir) }
+      val schemaEntities = schema.projects.map { project => project.id -> Entity(project, schema) }
       allInherited ++ Universe(schemaEntities.toMap)
     }
   }
@@ -913,17 +915,13 @@ case class Schema(id: SchemaId,
   def importCandidates(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): List[String] =
     repos.to[List].flatMap(_.importCandidates(io, this, layout, globalLayout, https).toOption.to[List].flatten)
 
-  def hierarchy(io: Io, dir: Path, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Hierarchy] = for {
+  def hierarchy(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
-      repo         <- repos.findBy(ref.repo)
-      repoDir      <- repo.fullCheckout.get(io, layout, https)
-      nestedLayout <- ~Layout(layout.home, repoDir, layout.env, repoDir)
-      focus        <- Ogdl.read[Focus](nestedLayout.focusFile, identity(_))
-      layer        <- ~Layer.read(io, focus.layerRef, layout, globalLayout)
+      layer        <- ~Layer.read(io, ref.layerRef, layout, globalLayout)
       resolved     <- layer.schemas.findBy(ref.schema)
-      tree         <- resolved.hierarchy(io, repoDir, layout, globalLayout, https)
+      tree         <- resolved.hierarchy(io, layout, globalLayout, https)
     } yield tree }.sequence
-  } yield Hierarchy(this, dir, imps)
+  } yield Hierarchy(this, imps)
 
   def importedSchemas(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[Schema]] =
     imports.to[List].map(resolve(_, io, layout, globalLayout, https)).sequence
@@ -952,10 +950,7 @@ case class Schema(id: SchemaId,
   }
   
   def resolve(ref: SchemaRef, io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Schema] = for {
-    repo     <- repos.findBy(ref.repo)
-    dir      <- repo.fullCheckout.get(io, layout, https)
-    focus    <- Ogdl.read[Focus](Layout(layout.home, dir, layout.env, dir).focusFile, identity(_))
-    layer    <- ~Layer.read(io, focus.layerRef, layout, globalLayout)
+    layer    <- ~Layer.read(io, ref.layerRef, layout, globalLayout)
     resolved <- layer.schemas.findBy(ref.schema)
   } yield resolved
 }
@@ -1047,7 +1042,7 @@ object Layer {
                 schemas = ogdl.schemas.map { schema =>
                   schema.set(
                       imports = schema.imports.map { imp =>
-                        imp.set(id = imp.repo)
+                        imp.set(id = Ogdl(s"unknown-${Counter.next()}"))
                       }
                   )
                 },
@@ -1057,6 +1052,14 @@ object Layer {
 
       case CurrentVersion => ogdl
     }
+}
+
+object Counter {
+  private var count: Int = 0
+  def next(): Int = {
+    count += 1
+    count
+  }
 }
 
 object Repo {
