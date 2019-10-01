@@ -498,9 +498,11 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId: TargetId = getTargetId(report.getTarget.getUri)
-    multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
-    compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      multiplexer.foreach(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
+    multiplexer.foreach { mp =>
+      mp(targetId.ref) = StartCompile(targetId.ref)
+      compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
+        mp(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
+      }
     }
   }
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
