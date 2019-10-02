@@ -557,6 +557,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
   } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
 
+  def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
+
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
     if(target.kind == Plugin) {

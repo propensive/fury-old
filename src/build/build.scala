@@ -207,10 +207,31 @@ object BuildCli {
       module       <- optModule.ascribe(UnspecifiedModule())
       globalPolicy <- Policy.read(io, cli.globalLayout)
       reporter     =  invoc(ReporterArg).toOption.getOrElse(GraphReporter)
-      (_, future)  <- compileOnce(io, schema, module.ref(project), layout, cli.globalLayout,
-                          globalPolicy, invoc.suffix, reporter, config.theme, https)
+      watch        =  invoc(WatchArg).isSuccess
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout, https)
+      watcher      =  new SourceWatcher(compilation.allSources)
+      //_            =  watcher.directories.map(_.toString).foreach(s => io.println(str"$s"))
+      _            =  if(watch) watcher.start()
+      future       <- new Repeater[Try[Future[CompileResult]]] {
+        var cnt: Int = 0
+        override def repeatCondition(): Boolean = watcher.hasChanges
+
+        override def stopCondition(): Boolean = !watch
+
+        override def action(): Try[Future[CompileResult]] = {
+          //io.println(str"Rebuild $cnt")
+          cnt = cnt + 1
+          watcher.clear()
+          compileOnce(io, compilation, schema, module.ref(project), layout,
+            globalPolicy, invoc.suffix, reporter, config.theme, https)
+        }
+      }.start()
       
-    } yield io.await(Await.result(future, duration.Duration.Inf).isSuccessful)
+    } yield {
+      val result = Await.result(future, duration.Duration.Inf)
+      watcher.stop
+      io.await(result.isSuccessful)
+    }
   }
 
   def getPrompt(layer: Layer, theme: Theme): Try[String] = for {
@@ -257,13 +278,40 @@ object BuildCli {
       fatJar         =  invoc(FatJarArg).isSuccess
       globalPolicy   <- Policy.read(io, cli.globalLayout)
       reporter       <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter)
-      (compilation, future)       <- compileOnce(io, schema, module.ref(project), layout, cli.globalLayout,
-        globalPolicy, invoc.suffix, reporter, config.theme, https)
-      compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
-      _              <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
-                            dir in layout.pwd, layout, fatJar)
+      watch          =  invoc(WatchArg).isSuccess
+      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout, https)
+      watcher        =  new SourceWatcher(compilation.allSources)
+      _              =  if(watch) watcher.start()
+      future         <- new Repeater[Try[Future[CompileResult]]] {
+        var cnt: Int = 0
+        override def repeatCondition(): Boolean = watcher.hasChanges
 
-    } yield io.await()
+        override def stopCondition(): Boolean = !watch
+
+        override def action(): Try[Future[CompileResult]] = {
+          //io.println(str"Rebuild $cnt")
+          cnt = cnt + 1
+          watcher.clear()
+          for{
+            task <- compileOnce(io, compilation, schema, module.ref(project), layout,
+              globalPolicy, invoc.suffix, reporter, config.theme, https)
+          } yield {
+            task.transform{ completed =>
+              for{
+                compileResult  <- completed
+                compileSuccess <- compileResult.asTry
+                _              <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
+                  dir in layout.pwd, layout, fatJar)
+              } yield compileSuccess
+            }
+          }
+        }
+      }.start()
+    } yield {
+      val result = Await.result(future, duration.Duration.Inf)
+      watcher.stop
+      io.await(result.isSuccessful)
+    }
   }
 
   def native(ctx: MenuContext) = {
@@ -352,17 +400,16 @@ object BuildCli {
   }
 
   private[this] def compileOnce(io: Io,
+                  compilation: Compilation,
                   schema: Schema,
                   moduleRef: ModuleRef,
                   layout: Layout,
-                  globalLayout: GlobalLayout,
                   globalPolicy: Policy,
                   compileArgs: List[String],
                   reporter: Reporter,
                   theme: Theme,
-                  https: Boolean): Try[(Compilation, Future[CompileResult])] = {
+                  https: Boolean): Try[Future[CompileResult]] = {
     for {
-      compilation  <- Compilation.syncCompilation(io, schema, moduleRef, layout, globalLayout, https)
       _            <- compilation.checkoutAll(io, layout, https)
       _            <- compilation.generateFiles(io, layout)
     } yield {
@@ -374,7 +421,7 @@ object BuildCli {
           compRes
       }
       reporter.report(io, compilation, theme, multiplexer)
-      compilation -> future
+      future
     }
   }
 
