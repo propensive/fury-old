@@ -323,7 +323,7 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
       } yield {
         implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
         val foo = new CompletableFuture[CompileResult]()
-        val zz = compilation.compileModule(io, target, layout, false, None)
+        val zz = compilation.compileModule(io, target, layout, application = false, multiplexer = None, pipelining = false)
         zz.foreach(foo.complete)
         zz.recover{case t: Throwable => foo.completeExceptionally(t)}
         foo
