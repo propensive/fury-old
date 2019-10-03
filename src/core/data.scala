@@ -826,12 +826,17 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ++(that: Universe): Universe =
     Universe(entities ++ that.entities)
 
-  private[fury] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
+  private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
+    resolveTransitiveDependencies(forbidden = Set.empty, ref, layout)
+
+  private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
     for {
-      entity <- entity(ref.projectId)
-      module <- entity.project(ref.moduleId)
-      deps    = module.after ++ module.compilerDependencies
-      tDeps  <- deps.map(dependencies(io, _, layout)).sequence
+      entity   <- entity(ref.projectId)
+      module   <- entity.project(ref.moduleId)
+      deps     =  module.after ++ module.compilerDependencies
+      repeated =  deps.intersect(forbidden)
+      _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
+      tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _, layout).filter(!_.contains(ref))).sequence
     } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
@@ -844,7 +849,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def compilation(io: Io, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = for {
     target    <- makeTarget(io, ref, layout)
     entity    <- entity(ref.projectId)
-    graph     <- dependencies(io, ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
+    graph     <- dependencies(ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
                    a.map { dependencyTarget =>
                      (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
                    }
