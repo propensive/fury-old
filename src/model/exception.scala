@@ -42,6 +42,7 @@ case class NoPermissions(permissions: Set[Permission]) extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class CompilationFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
+case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
 
 object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)

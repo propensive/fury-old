@@ -121,7 +121,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
                           for {
-                            ds   <- universe.dependencies(io, ref, layout)
+                            ds   <- universe.dependencies(ref, layout)
                             arts <- (ds + ref).map { d => universe.makeTarget(io, d, layout) }.sequence
                           } yield arts.map { a =>
                             (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
