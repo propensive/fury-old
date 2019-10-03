@@ -16,17 +16,16 @@
 */
 package fury
 
-import fury.strings._, fury.io._, fury.core._, fury.ogdl._, fury.model._, fury.utils._
+import fury.strings._, fury.core._, fury.ogdl._, fury.model._
 
 import Args._
 
-import guillotine._
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
 import scala.util._
-import scala.concurrent.ExecutionContext.Implicits.global
-
 import java.text.DecimalFormat
+
+import fury.utils.Multiplexer
 
 import language.higherKinds
 
@@ -201,33 +200,38 @@ object BuildCli {
       cli          <- cli.hint(DebugArg, optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
       invoc        <- cli.read()
       io           <- invoc.io()
-      t0           <- Success(System.currentTimeMillis)
       project      <- optProject.ascribe(UnspecifiedProject())
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       https        <- ~invoc(HttpsArg).isSuccess
       module       <- optModule.ascribe(UnspecifiedModule())
-      
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
-                          https)
-
-      _            <- ~compilation.checkoutAll(io, layout, https)
-      _            <- compilation.generateFiles(io, layout)
-      debugStr     <- ~invoc(DebugArg).toOption
-      multiplexer  <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
       globalPolicy <- Policy.read(io, cli.globalLayout)
+      reporter     =  invoc(ReporterArg).toOption.getOrElse(GraphReporter)
+      watch        =  invoc(WatchArg).isSuccess
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout, https)
+      watcher      =  new SourceWatcher(compilation.allSources)
+      //_            =  watcher.directories.map(_.toString).foreach(s => io.println(str"$s"))
+      _            =  if(watch) watcher.start()
+      future       <- new Repeater[Try[Future[CompileResult]]] {
+        var cnt: Int = 0
+        override def repeatCondition(): Boolean = watcher.hasChanges
+
+        override def stopCondition(): Boolean = !watch
+
+        override def action(): Try[Future[CompileResult]] = {
+          //io.println(str"Rebuild $cnt")
+          cnt = cnt + 1
+          watcher.clear()
+          compileOnce(io, compilation, schema, module.ref(project), layout,
+            globalPolicy, invoc.suffix, reporter, config.theme, https)
+        }
+      }.start()
       
-      future       <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
-                          globalPolicy, invoc.suffix).apply(TargetId(schema.id, module.ref(project))).andThen {
-                          case compRes =>
-                        multiplexer.closeAll()
-                        compRes
-                      }
-      
-      _            <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation,
-                          config.theme, multiplexer)
-      
-    } yield io.await(Await.result(future, duration.Duration.Inf).isSuccessful)
+    } yield {
+      val result = Await.result(future, duration.Duration.Inf)
+      watcher.stop
+      io.await(result.isSuccessful)
+    }
   }
 
   def getPrompt(layer: Layer, theme: Theme): Try[String] = for {
@@ -271,32 +275,43 @@ object BuildCli {
       optModuleId    <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module         <- optModule.ascribe(UnspecifiedModule())
-      fatJar          = invoc(FatJarArg).isSuccess
-      
-      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
-                            https)
-
-      _              <- ~compilation.checkoutAll(io, layout, https)
-      _              <- compilation.generateFiles(io, layout)
-      multiplexer    <- ~(new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List]))
+      fatJar         =  invoc(FatJarArg).isSuccess
       globalPolicy   <- Policy.read(io, cli.globalLayout)
+      reporter       <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter)
+      watch          =  invoc(WatchArg).isSuccess
+      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout, https)
+      watcher        =  new SourceWatcher(compilation.allSources)
+      _              =  if(watch) watcher.start()
+      future         <- new Repeater[Try[Future[CompileResult]]] {
+        var cnt: Int = 0
+        override def repeatCondition(): Boolean = watcher.hasChanges
 
-      future         <- ~compilation.compile(io, module.ref(project), multiplexer, Map(), layout,
-                            globalPolicy, invoc.suffix).apply(TargetId(schema.id,
-                            module.ref(project))).andThen { case compRes =>
-                          multiplexer.closeAll()
-                          compRes
-                        }
+        override def stopCondition(): Boolean = !watch
 
-      _              <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter).report(io, compilation,
-                            config.theme, multiplexer)
-
-      compileSuccess <- Await.result(future, duration.Duration.Inf).asTry
-
-      _              <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
-                            dir in layout.pwd, layout, fatJar)
-
-    } yield io.await()
+        override def action(): Try[Future[CompileResult]] = {
+          //io.println(str"Rebuild $cnt")
+          cnt = cnt + 1
+          watcher.clear()
+          for{
+            task <- compileOnce(io, compilation, schema, module.ref(project), layout,
+              globalPolicy, invoc.suffix, reporter, config.theme, https)
+          } yield {
+            task.transform{ completed =>
+              for{
+                compileResult  <- completed
+                compileSuccess <- compileResult.asTry
+                _              <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
+                  dir in layout.pwd, layout, fatJar)
+              } yield compileSuccess
+            }
+          }
+        }
+      }.start()
+    } yield {
+      val result = Await.result(future, duration.Duration.Inf)
+      watcher.stop
+      io.await(result.isSuccessful)
+    }
   }
 
   def native(ctx: MenuContext) = {
@@ -383,6 +398,33 @@ object BuildCli {
 
     } yield io.await()
   }
+
+  private[this] def compileOnce(io: Io,
+                  compilation: Compilation,
+                  schema: Schema,
+                  moduleRef: ModuleRef,
+                  layout: Layout,
+                  globalPolicy: Policy,
+                  compileArgs: List[String],
+                  reporter: Reporter,
+                  theme: Theme,
+                  https: Boolean): Try[Future[CompileResult]] = {
+    for {
+      _            <- compilation.checkoutAll(io, layout, https)
+      _            <- compilation.generateFiles(io, layout)
+    } yield {
+      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
+      val future = compilation.compile(io, moduleRef, multiplexer, Map(), layout,
+        globalPolicy, compileArgs).apply(TargetId(schema.id, moduleRef)).andThen {
+        case compRes =>
+          multiplexer.closeAll()
+          compRes
+      }
+      reporter.report(io, compilation, theme, multiplexer)
+      future
+    }
+  }
+
 }
 
 object LayerCli {

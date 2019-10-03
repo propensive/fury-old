@@ -16,7 +16,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/build	src/build
-						binaries	
+						binaries	io.methvin:directory-watcher-better-files_2.12:0.9.6	binRepo	central
+								group	io.methvin
+								artifact	directory-watcher-better-files_2.12
+								version	0.9.6
 						resources	
 						bloopSpec	None
 						environment	

@@ -535,8 +535,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
   
-  def checkoutAll(io: Io, layout: Layout, https: Boolean): Unit =
-    checkouts.traverse(_.get(io, layout, https)).map{ _ => ()}.get
+  def checkoutAll(io: Io, layout: Layout, https: Boolean): Try[Unit] =
+    checkouts.traverse(_.get(io, layout, https)).map{ _ => ()}
 
   def deepDependencies(targetId: TargetId): Set[TargetId] = {
     @tailrec
@@ -557,6 +557,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
     Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
   } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
+
+  def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
