@@ -72,7 +72,7 @@ case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
                   undoBuffer: Int = 5,
                   timestamps: Boolean = true,
-                  pipelining: Boolean = true)
+                  pipelining: Boolean = false)
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
