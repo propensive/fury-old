@@ -143,7 +143,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
       //FIXME remove duplication with structure
-      layer          <- Layer.read(io, layout.furyConfig, layout)
+      layer          <- Layer.read(io, layout, globalLayout)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
       compilation    <- Compilation.syncCompilation(io, schema, module, layout, installation, https = true)
