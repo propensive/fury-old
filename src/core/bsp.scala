@@ -22,7 +22,7 @@ import java.io.{InputStream, OutputStream}
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, StandardOpenOption}
-import java.util.concurrent.{CompletableFuture, Future}
+import java.util.concurrent.{CompletableFuture}
 
 import ch.epfl.scala.bsp4j
 import ch.epfl.scala.bsp4j._
@@ -34,8 +34,8 @@ import org.eclipse.lsp4j.jsonrpc.Launcher
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
-
 import language.higherKinds
 
 object Bsp {
@@ -78,17 +78,19 @@ object Bsp {
       cli     <- cli.hint(Args.HttpsArg)
       invoc   <- cli.read()
       https   <- ~invoc(Args.HttpsArg).isSuccess
-      running <- ~run(System.in, System.out, layout, https)
+      running <- ~run(System.in, System.out, layout, cli.globalLayout, https)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean): Future[Void] = {
+  def run(
+           in: InputStream, out: OutputStream, layout: Layout, globalLayout: GlobalLayout, https: Boolean
+         ): java.util.concurrent.Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel, https)
+    val server = new FuryBuildServer(layout, globalLayout, cancel, https)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -106,7 +108,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
 
   private val config = Config()
@@ -257,6 +259,16 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
     future
   }
 
+  private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
+    for {
+      //FIXME remove duplication with structure
+      layer          <- Layer.read(io, layout.furyConfig, layout)
+      schema         <- layer.mainSchema
+      module <- structure.moduleRef(bti)
+      compilation    <- Compilation.syncCompilation(io, schema, module, layout, globalLayout, https = true)
+    } yield compilation
+  }
+
   override def buildTargetCompile(compileParams: CompileParams): CompletableFuture[bsp4j.CompileResult] = {
     // TODO MVP
     val future = new CompletableFuture[bsp4j.CompileResult]()
@@ -289,37 +301,32 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
     future
   }
 
-  private def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure): Try[ScalacOptionsItem] =
-    struct.moduleRef(target).map { ref =>
-      val art = struct.targets(ref)
-      val params = art.params.map(_.parameter)
-      val paths = art.binaries.map(_.javaPath.toUri.toString)
-      val classesDir = layout.classesDir.javaPath.toAbsolutePath.toUri.toString
-      
-      new ScalacOptionsItem(target, params.asJava, paths.asJava, classesDir)
-    }
+  private def scalacOptions(bspTargetId: BuildTargetIdentifier, struct: Structure): Try[CompletableFuture[ScalacOptionsResult]] = for {
+      struct      <- structure
+      compilation <- getCompilation(struct, bspTargetId)
+      moduleRef   <- struct.moduleRef(bspTargetId)
+  } yield {
+      implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
+      io.println(str"Getting scalac options ${moduleRef.toString} --- ${bspTargetId.toString}")
+      val target = struct.targets(moduleRef)
+      val scalacOptions = compilation.getScalacOptions(target, layout)
+      toCompletableFuture(scalacOptions)
+  }
 
-  override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams)
-                                       : CompletableFuture[ScalacOptionsResult] = {
-
+  override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams): CompletableFuture[ScalacOptionsResult] = {
     io.println("**> buildTargetScalacOptions")
-
     val result = for {
-      struct  <- structure
-      targets  = scalacOptionsParams.getTargets.asScala
-      items   <- targets.traverse { target =>
-                   struct.moduleRef(target).flatMap { ref => scalacOptionsItem(target, struct) }
-                 }
-    } yield new ScalacOptionsResult(items.asJava)
-
-    val future = new CompletableFuture[ScalacOptionsResult]()
-    
-    result match {
-      case Success(value)     => future.complete(value)
-      case Failure(exception) => future.completeExceptionally(exception)
+      struct        <- structure
+      targets       =  scalacOptionsParams.getTargets.asScala
+      singleResults <- targets.traverse(scalacOptions(_, struct))
+    } yield {
+      sequence(singleResults.toList){ rs =>
+        val items = rs.flatMap(_.getItems.asScala)
+        io.println(str"scalac options: ${items.toString}")
+        new ScalacOptionsResult(items.asJava)
+      }
     }
-
-    future
+    get(result)
   }
 
   override def buildTargetScalaTestClasses(scalaTestClassesParams: ScalaTestClassesParams)
@@ -414,6 +421,26 @@ object FuryBuildServer {
       case Benchmarks        => BuildTargetTag.BENCHMARK
       case Compiler | Plugin => BuildTargetTag.LIBRARY // mark these NO_IDE?
     }
+
+  private def toCompletableFuture[T](f: Future[T])(implicit ec: ExecutionContext): CompletableFuture[T] = {
+    val result = new CompletableFuture[T]()
+    f.foreach(result.complete)
+    f.failed.foreach(result.completeExceptionally)
+    result
+  }
+
+  private def get[T](t: Try[CompletableFuture[T]]): CompletableFuture[T] = {
+    t.recover[CompletableFuture[T]]{ case e =>
+      val future = new CompletableFuture[T]()
+      future.completeExceptionally(e)
+      future
+    }.get
+  }
+
+  private def sequence[T, U](futures: List[CompletableFuture[T]])(collect: List[T] => U): CompletableFuture[U] = {
+    CompletableFuture.allOf(futures: _*).thenApply((v: Void) => collect(futures.map(_.get)))
+  }
+
 }
 
 case class BspTarget(id: BuildTargetIdentifier) extends Key(msg"BuildTargetIdentifier") {
