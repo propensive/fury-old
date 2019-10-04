@@ -24,7 +24,7 @@ import kaleidoscope._
 import mercator._
 
 import org.eclipse.lsp4j.jsonrpc.Launcher
-import ch.epfl.scala.bsp4j.{CompileResult => _, _}
+import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import com.google.gson.{Gson, JsonElement}
 
 import scala.collection.immutable.{SortedSet, TreeSet}
@@ -626,48 +626,48 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
-  private[this] case object CompilationFailed extends Exception
-
   def compileModule(io: Io,
                     target: Target,
                     layout: Layout,
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
                     pipelining: Boolean)
-                   : Future[CompileResult] = {
-    
-    val targetIdentifiers = deepDependencies(target.id).map { dep =>
+                   : Future[BspCompileResult] = {
+
+    val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+    val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+    if(pipelining) params.setArguments(List("--pipeline").asJava)
+
+    Compilation.bspPool.borrow(layout.base) { conn =>
+      val result: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+        wrapServerErrors(server.buildTargetCompile(params))
+      }
+      conn.writeTrace(layout)
+      conn.writeMessages(layout)
+      result.get
+    }
+  }
+
+  def getScalacOptions(target: Target, layout: Layout)
+  : Future[ScalacOptionsResult] = {
+    val bspTargetIds = deepDependencies(target.id).map { dep =>
       new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
+    val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.toList.asJava)
 
-    def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
-      Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
-    
-      Compilation.bspPool.borrow(layout.base) { conn =>
-        val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-          val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
-
-          val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
-          if(pipelining) params.setArguments(List("--pipeline").asJava)
-          val scalacOptionsParams = new ScalacOptionsParams(targetIdentifiers.toList.asJava)
-
-          (for {
-            compileResult     <- wrapServerErrors(server.buildTargetCompile(params))
-            statusCode         = compileResult.getStatusCode
-            _                 <- if(statusCode == StatusCode.OK) ~() else Failure(CompilationFailed)
-            scalacOptions     <- wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
-            outputDirectories  = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
-                                   Path(new URI(x.getClassDirectory))
-                                 }
-          } yield CompileSuccess(outputDirectories)).recover { case CompilationFailed => CompileFailure }
-        }
-
-        conn.writeTrace(layout)
-        conn.writeMessages(layout)
-        
-        result.get
+    Compilation.bspPool.borrow(layout.base) { conn =>
+      val scalacOptions: Try[ScalacOptionsResult] = conn.provision(this, target.id, layout, None) { server =>
+        wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
       }
+      conn.writeTrace(layout)
+      conn.writeMessages(layout)
+      scalacOptions.get
+    }
   }
+
+  private def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
+    Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
+
 
   def compile(io: Io,
               moduleRef: ModuleRef,
@@ -699,7 +699,19 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
+        val compileResult: Future[CompileResult] = for{
+          bspCompileResult <- compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining)
+          scalacOptions <- getScalacOptions(target, layout)
+        } yield {
+          if(bspCompileResult.getStatusCode == StatusCode.OK) {
+            val outputDirectories  = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
+              Path(new URI(x.getClassDirectory))
+            }
+            CompileSuccess(outputDirectories)
+          } else CompileFailure
+        }
+
+        compileResult.map {
           case CompileSuccess(classDirectories) if target.kind.needsExecution =>
             if(target.kind == Benchmarks) {
               classDirectories.foreach { classDirectory =>
@@ -734,8 +746,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             multiplexer(target.ref) = StopRun(target.ref)
 
             if(res) CompileSuccess(classDirectories) else CompileFailure
-          case compileResult =>
-            compileResult
+          case otherResult =>
+            otherResult
         }
       }
     }
