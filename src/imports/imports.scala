@@ -37,6 +37,7 @@ object ImportCli {
     import ctx._
     for {
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli           <- cli.hint(ImportNameArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
 
@@ -46,9 +47,10 @@ object ImportCli {
       invoc         <- cli.read()
       io            <- invoc.io()
       schemaRef     <- invoc(ImportArg)
+      nameArg       <- invoc(ImportNameArg)
       
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
-                           schemaRef))
+                           schemaRef.copy(id = nameArg)))
       
       _             <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()

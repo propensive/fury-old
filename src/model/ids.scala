@@ -68,12 +68,34 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
+object ImportPath {
+  implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
+  implicit val stringShow: StringShow[ImportPath] = _.path
+  val Root: ImportPath = ImportPath(".")
+
+  // FIXME: Actually parse it and check that it's valid
+  def parse(str: String): Option[ImportPath] =
+    Some(ImportPath(str))
+}
+
 case class ImportPath(path: String) {
   def parts: List[ImportId] = path.split("/").to[List].tail.map(ImportId(_))
   def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
+  def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("./", "/", ""))
+  def isEmpty: Boolean = parts.length == 0
+  def head: ImportId = parts.head
 }
 
 case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))
+
+object IpfsRef {
+  def parse(str: String): Option[IpfsRef] = str match {
+    case r"fury:\/\/$hash@(.{44})" => Some(IpfsRef(hash))
+    case _ => None
+  }
+}
+
+case class IpfsRef(key: String) extends Key(msg"ipfs ref")
 
 object LayerRef {
   implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key))

@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.io._, fury.model._
+import fury.strings._, fury.core._, fury.ogdl._, fury.io._, fury.model._
 
 import exoskeleton._
 import guillotine._
@@ -82,6 +82,8 @@ You can grant these permissions with,
           cli.abort(msg"The configuration file could not be read.")
         case e: InvalidValue =>
           cli.abort(msg"'${e.value}' is not a valid value.")
+        case OgdlException(error) =>
+          cli.abort(msg"Failed to read OGDL file: $error.")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case e: UnspecifiedProject =>

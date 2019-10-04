@@ -23,6 +23,8 @@ import guillotine._
 
 import scala.util._
 
+import language.higherKinds
+
 case class EarlyCompletions() extends FuryException
 
 sealed class ExitStatus(val code: Int)
