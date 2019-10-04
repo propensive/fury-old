@@ -33,10 +33,13 @@ object Args {
   implicit private val binRepoId: TExtractor[BinRepoId] = _.headOption.map(BinRepoId(_))
   implicit private val moduleId: TExtractor[ModuleId] = _.headOption.flatMap(ModuleId.parse(_).toOption)
   implicit private val projectId: TExtractor[ProjectId] = _.headOption.flatMap(ProjectId.parse(_).toOption)
+  implicit private val importId: TExtractor[ImportId] = _.headOption.flatMap(ImportId.parse(_).toOption)
   implicit private val path: TExtractor[Path] = _.headOption.flatMap(Path.unapply(_))
   implicit private val kindKey: TExtractor[Kind] = _.headOption.flatMap(Kind.unapply(_))
   implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
   implicit private val theme: TExtractor[Theme] = _.headOption.flatMap(Theme.unapply(_))
+  implicit private val ipfsRef: TExtractor[IpfsRef] = _.headOption.flatMap(IpfsRef.parse(_))
+  implicit private val importPath: TExtractor[ImportPath] = _.headOption.flatMap(ImportPath.parse(_))
   implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
   implicit private val scopeId: TExtractor[ScopeId] = _.headOption.flatMap(ScopeId.unapply(_))
 
@@ -52,6 +55,7 @@ object Args {
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[String]('b', 'binary, "specify a binary dependency")
+  val CloneRefArg = CliParam[IpfsRef]('l', 'layer, "layer reference")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[String]('C', 'class, "specify a class name")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
@@ -71,6 +75,7 @@ object Args {
       "specify if this dependency should not be included transitively")
 
   val KeyArg = CliParam[String]('k', 'key, "GPG key")
+  val LayerArg = CliParam[ImportPath]('l', 'layer, "specify the layer")
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg = CliParam[String]('M', 'main, "specify a main class")
@@ -78,6 +83,7 @@ object Args {
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val SchemaNameArg = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
+  val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
 

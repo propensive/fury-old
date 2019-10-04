@@ -139,6 +139,7 @@ case class Tables(config: Config) {
 
   def imports(current: Option[SchemaId]): Tabulation[(SchemaRef, Try[Schema])] = Tabulation(
     Heading("", s => Some(s._1.schema.key) == current),
+    Heading("ID", _._1.id),
     Heading("REF", _._1.layerRef.key),
     Heading("SCHEMA", _._1.schema),
     Heading("PROJECTS", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),

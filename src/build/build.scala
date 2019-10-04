@@ -456,4 +456,16 @@ object LayerCli {
     _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
     _         <- ~io.println(table.mkString("\n"), noTime = true)
   } yield io.await()
+
+  def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    layout    <- cli.layout
+    config    <- ~cli.config
+    cli       <- cli.hint(LayerArg, List[ImportPath]())
+    invoc     <- cli.read()
+    io        <- invoc.io()
+    newPath   <- invoc(LayerArg)
+    focus     <- Layer.readFocus(io, layout)
+    newFocus  <- ~focus.copy(path = newPath)
+    _         <- Layer.saveFocus(io, newFocus, layout)
+  } yield io.await()
 }
