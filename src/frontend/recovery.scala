@@ -140,7 +140,7 @@ You can grant these permissions with,
             case e: FileWriteError   => unloggable
             case e: FileNotFound     => unloggable
             case e: EarlyCompletions => cli.abort("")
-          }.toOption.get
+          }.toOption.getOrElse(unloggable)
       }
   }
 
