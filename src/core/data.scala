@@ -598,10 +598,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       _                 = io.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
-                          else Success()
+                          else Success(())
       _                <- Shell(layout.env).jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
                               manifest)
-      _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success()
+      _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
     } yield ()
   }
 
@@ -917,7 +917,7 @@ case class Schema(id: SchemaId,
 
   def hierarchy(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
-      layer        <- ~Layer.read(io, ref.layerRef, layout, globalLayout)
+      layer        <- Layer.read(io, ref.layerRef, layout, globalLayout)
       resolved     <- layer.schemas.findBy(ref.schema)
       tree         <- resolved.hierarchy(io, layout, globalLayout, https)
     } yield tree }.sequence
@@ -950,7 +950,7 @@ case class Schema(id: SchemaId,
   }
   
   def resolve(ref: SchemaRef, io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Schema] = for {
-    layer    <- ~Layer.read(io, ref.layerRef, layout, globalLayout)
+    layer    <- Layer.read(io, ref.layerRef, layout, globalLayout)
     resolved <- layer.schemas.findBy(ref.schema)
   } yield resolved
 }
@@ -969,28 +969,70 @@ case class Layer(version: Int = Layer.CurrentVersion,
 object Layer {
   val CurrentVersion = 4
 
+  def loadFromIpfs(io: Io, layerRef: IpfsRef, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
+    tmpFile  <- globalLayout.layersPath.mkTempFile()
+    file     <- Shell(layout.env).ipfs.get(layerRef, tmpFile)
+    layer    <- Layer.read(io, file, layout)
+    layerRef <- ~digestLayer(layer)
+  } yield layerRef
+
   def read(io: Io, string: String, layout: Layout): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(io, layout.env, _)))
 
+  def read(io: Io, path: Path, layout: Layout): Try[Layer] =
+    Ogdl.read[Layer](path, upgrade(io, layout.env, _))
+
+  def readFocus(io: Io, layout: Layout): Try[Focus] =
+    Ogdl.read[Focus](layout.focusFile, identity(_))
+
   def read(io: Io, layout: Layout, globalLayout: GlobalLayout): Try[Layer] = for {
-    focus <- Ogdl.read[Focus](layout.focusFile, identity(_))
-    layer <- ~Layer.read(io, focus.layerRef, layout, globalLayout)
-  } yield layer
+    focus    <- readFocus(io, layout)
+    layer    <- read(io, focus.layerRef, layout, globalLayout)
+    newLayer <- resolveSchema(io, layout, globalLayout, layer, focus.path)
+  } yield newLayer
 
-  def read(io: Io, ref: LayerRef, layout: Layout, globalLayout: GlobalLayout): Layer = {
-    val file = globalLayout.layersPath / ref.key
-    Ogdl.read[Layer](file, upgrade(io, layout.env, _)).toOption.getOrElse(Layer())
-  }
+  def read(io: Io, ref: LayerRef, layout: Layout, globalLayout: GlobalLayout): Try[Layer] =
+    Ogdl.read[Layer](globalLayout.layersPath / ref.key, upgrade(io, layout.env, _))
 
-  def save(io: Io, layer: Layer, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
-    tmpFile  <- globalLayout.layersPath.mkTempFile()
-    content  <- ~Ogdl.serialize(Ogdl(layer))
-    _        <- tmpFile.writeSync(content)
-    layerRef <- ~LayerRef(content.digest[Sha256].encoded[Hex])
-    _        <- tmpFile.moveTo(globalLayout.layersPath / layerRef.key)
-    focusStr <- ~Ogdl.serialize(Ogdl(Focus(layerRef)))
-    _        <- layout.focusFile.writeSync(focusStr)
+  def resolveSchema(io: Io, layout: Layout, globalLayout: GlobalLayout, layer: Layer, path: ImportPath): Try[Layer] =
+    path.parts.foldLeft(Try(layer)) { case (current, importId) => for {
+      layer     <- current
+      schema    <- layer.mainSchema
+      schemaRef <- schema.imports.findBy(importId)
+      layer     <- read(io, schemaRef.layerRef, layout, globalLayout)
+    } yield layer.copy(main = schemaRef.schema) }
+
+  def digestLayer(layer: Layer): LayerRef =
+    LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
+
+  def save(io: Io, newLayer: Layer, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
+    focus        <- readFocus(io, layout)
+    currentLayer <- read(io, focus.layerRef, layout, globalLayout)
+    layerRef     <- saveSchema(io, layout, globalLayout, newLayer, focus.path, currentLayer)
+    _            <- saveFocus(io, focus.copy(layerRef = layerRef), layout)
   } yield layerRef
+
+  def saveSchema(io: Io, layout: Layout, globalLayout: GlobalLayout, newLayer: Layer, path: ImportPath, currentLayer: Layer): Try[LayerRef] =
+    if(path.isEmpty) saveLayer(newLayer, globalLayout)
+    else for {
+      schema    <- currentLayer.mainSchema
+      schemaRef <- schema.imports.findBy(path.head)
+      nextLayer <- read(io, schemaRef.layerRef, layout, globalLayout)
+      layerRef  <- saveSchema(io, layout, globalLayout, newLayer, path.tail, nextLayer)
+      newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef = layerRef))
+      newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) + newSchema)
+      newLayerRef <- saveLayer(newLayer, globalLayout)
+    } yield newLayerRef
+
+  def saveLayer(layer: Layer, globalLayout: GlobalLayout): Try[LayerRef] = for {
+    layerRef <- ~digestLayer(layer)
+    _        <- (globalLayout.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
+  } yield layerRef
+
+  def saveFocus(io: Io, focus: Focus, layout: Layout): Try[Unit] = for {
+    focusStr <- ~Ogdl.serialize(Ogdl(focus))
+    _        <- layout.focusFile.writeSync(focusStr)
+  } yield ()
 
   private def upgrade(io: Io, env: Environment, ogdl: Ogdl): Ogdl =
     Try(ogdl.version().toInt).getOrElse(1) match {
@@ -1157,7 +1199,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     repoDir     <- repo.fetch(io, layout, https)
     focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
     focus       <- ~Ogdl.read[Focus](focusString, identity(_))
-    layer       <- ~Layer.read(io, focus.layerRef, layout, globalLayout)
+    layer       <- Layer.read(io, focus.layerRef, layout, globalLayout)
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 

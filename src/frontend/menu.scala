@@ -133,7 +133,8 @@ object FuryMenu {
         //Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
-            Action('projects, msg"show all available projects", LayerCli.projects)
+            Action('projects, msg"show all available projects", LayerCli.projects),
+            Action('select, msg"select a layer", LayerCli.select)
         )
     ) ::: aliases: _*)
 

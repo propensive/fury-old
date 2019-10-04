@@ -113,7 +113,7 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
   private def structure: Try[Structure] =
     for {
       focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
-      layer          <- ~Layer.read(io, focus.layerRef, layout, globalLayout)
+      layer          <- Layer.read(io, focus.layerRef, layout, globalLayout)
       schema         <- layer.mainSchema
       hierarchy      <- schema.hierarchy(io, layout, globalLayout, https)
       universe       <- hierarchy.universe
