@@ -632,7 +632,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
                     pipelining: Boolean)
-                   : Future[(BspCompileResult, ScalacOptionsResult)] = {
+                   : Future[CompileResult] = {
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
@@ -642,7 +642,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.toList.asJava)
     Compilation.bspPool.borrow(layout.base) { conn =>
-      val result: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+      val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
         wrapServerErrors(server.buildTargetCompile(params))
       }
       val scalacOptions: Try[ScalacOptionsResult] = conn.provision(this, target.id, layout, None) { server =>
@@ -650,7 +650,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       }
       conn.writeTrace(layout)
       conn.writeMessages(layout)
-      (result.get, scalacOptions.get)
+      CompileResult(bspCompileResult.get, scalacOptions.get)
     }
   }
 
@@ -676,11 +676,11 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
     
-    val future = dependencyFutures.flatMap { inputs =>
-      if(inputs.exists(!_.isSuccessful)) {
+    val future = dependencyFutures.map(CompileResult.merge).flatMap { required =>
+      if(!required.isSuccessful) {
         multiplexer(target.ref) = SkipCompile(target.ref)
         multiplexer.close(target.ref)
-        Future.successful(CompileFailure)
+        Future.successful(required)
       } else {
         val noCompilation = target.sourcePaths.isEmpty
         
@@ -688,19 +688,9 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        val compileResult: Future[CompileResult] = for{
-          (bspCompileResult, scalacOptions) <- compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining)
-        } yield {
-          if(bspCompileResult.getStatusCode == StatusCode.OK) {
-            val outputDirectories  = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
-              Path(new URI(x.getClassDirectory))
-            }
-            CompileSuccess(outputDirectories)
-          } else CompileFailure
-        }
-
-        compileResult.map {
-          case CompileSuccess(classDirectories) if target.kind.needsExecution =>
+        compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
+          case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
+          val classDirectories = compileResult.classDirectories
             if(target.kind == Benchmarks) {
               classDirectories.foreach { classDirectory =>
                 Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
@@ -713,7 +703,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               }
             }
             
-            val res = Shell(layout.env).runJava(
+            val runSuccess = Shell(layout.env).runJava(
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
               securePolicy = target.kind == Application,
@@ -733,7 +723,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             multiplexer.close(target.ref)
             multiplexer(target.ref) = StopRun(target.ref)
 
-            if(res) CompileSuccess(classDirectories) else CompileFailure
+            if(runSuccess) compileResult else compileResult.failed
           case otherResult =>
             otherResult
         }
@@ -1197,19 +1187,42 @@ case class StartRun(ref: ModuleRef)                              extends Compile
 case class StopRun(ref: ModuleRef)                               extends CompileEvent
 case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent
 
-sealed trait CompileResult {
-  def isSuccessful: Boolean
-  def asTry: Try[CompileSuccess]
+case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: ScalacOptionsResult) {
+  def isSuccessful: Boolean = bspCompileResult.getStatusCode == StatusCode.OK
+  def classDirectories: Set[Path] = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
+    Path(new URI(x.getClassDirectory))
+  }
+  def asTry: Try[CompileResult] = if(isSuccessful) Success(this) else Failure(CompilationFailure())
+  def failed: CompileResult = {
+    val updatedResult = new BspCompileResult(StatusCode.ERROR)
+    updatedResult.setOriginId(bspCompileResult.getOriginId)
+    updatedResult.setDataKind(bspCompileResult.getDataKind)
+    updatedResult.setData(bspCompileResult.getData)
+    copy(bspCompileResult = updatedResult)
+  }
 }
 
-case class CompileSuccess(outputDirectories: Set[Path]) extends CompileResult {
-  override def isSuccessful: Boolean = true
-  override def asTry: Try[CompileSuccess] = Success(this)
-}
+object CompileResult {
+  def merge(results: List[CompileResult]): CompileResult = {
+    CompileResult(merge(results.map(_.bspCompileResult)), merge(results.map(_.scalacOptions)))
+  }
 
-case object CompileFailure extends CompileResult {
-  override def isSuccessful: Boolean = false
-  override def asTry: Try[CompileSuccess] = Failure(CompilationFailure())
+  private def merge(results: List[BspCompileResult]): BspCompileResult = {
+    val distinctStatuses = results.map(_.getStatusCode).toSet
+    val aggregatedStatus = List(StatusCode.CANCELLED, StatusCode.ERROR, StatusCode.OK).find(distinctStatuses.contains)
+    val mergedResult = new BspCompileResult(aggregatedStatus.getOrElse(StatusCode.OK))
+    results.headOption.foreach { res =>
+      //TODO think of a better way to merge those fields
+      mergedResult.setOriginId(res.getOriginId)
+      mergedResult.setDataKind(res.getDataKind)
+      mergedResult.setData(res.getData)
+    }
+    mergedResult
+  }
+
+  private def merge(results: List[ScalacOptionsResult]): ScalacOptionsResult = {
+    new ScalacOptionsResult(results.flatMap(_.getItems.asScala).asJava)
+  }
 }
 
 case class Target(ref: ModuleRef,
