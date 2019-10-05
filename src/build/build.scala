@@ -480,9 +480,12 @@ object LayerCli {
   def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
     config    <- ~cli.config
-    cli       <- cli.hint(LayerArg, List[ImportPath]())
+    baseLayer <- Layer.base(Io.silent(config), layout, cli.globalLayout)
+    schema    <- baseLayer.mainSchema
+    cli       <- cli.hint(LayerArg, schema.importTree(Io.silent(config), layout, cli.globalLayout, true).getOrElse(Nil))
     invoc     <- cli.read()
     io        <- invoc.io()
+    _         <- schema.importTree(io, layout, cli.globalLayout, true)
     newPath   <- invoc(LayerArg)
     focus     <- Layer.readFocus(io, layout)
     newFocus  <- ~focus.copy(path = newPath)
