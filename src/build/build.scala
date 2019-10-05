@@ -452,8 +452,8 @@ object LayerCli {
     io     <- invoc.io()
     layer  <- ~Layer()
     _      <- layout.focusFile.mkParents()
-    _      <- ~Layer.save(io, layer, layout, cli.globalLayout)
-    _      <- ~io.println("Created an empty layer")
+    _      <- Layer.create(io, layer, layout, cli.globalLayout)
+    _      <- ~io.println(str"Created an empty layer with focus at ${layout.focusFile.value}")
   } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {

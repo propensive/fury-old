@@ -1070,6 +1070,11 @@ object Layer {
   def digestLayer(layer: Layer): LayerRef =
     LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
 
+  def create(io: Io, newLayer: Layer, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
+    layerRef     <- saveLayer(newLayer, globalLayout)
+    _            <- saveFocus(io, Focus(layerRef), layout)
+  } yield layerRef
+
   def save(io: Io, newLayer: Layer, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
     focus        <- readFocus(io, layout)
     currentLayer <- read(io, focus.layerRef, layout, globalLayout)
@@ -1077,7 +1082,7 @@ object Layer {
     _            <- saveFocus(io, focus.copy(layerRef = layerRef), layout)
   } yield layerRef
 
-  def saveSchema(io: Io, layout: Layout, globalLayout: GlobalLayout, newLayer: Layer, path: ImportPath, currentLayer: Layer): Try[LayerRef] =
+  private def saveSchema(io: Io, layout: Layout, globalLayout: GlobalLayout, newLayer: Layer, path: ImportPath, currentLayer: Layer): Try[LayerRef] =
     if(path.isEmpty) saveLayer(newLayer, globalLayout)
     else for {
       schema    <- currentLayer.mainSchema
@@ -1089,7 +1094,7 @@ object Layer {
       newLayerRef <- saveLayer(newLayer, globalLayout)
     } yield newLayerRef
 
-  def saveLayer(layer: Layer, globalLayout: GlobalLayout): Try[LayerRef] = for {
+  private def saveLayer(layer: Layer, globalLayout: GlobalLayout): Try[LayerRef] = for {
     layerRef <- ~digestLayer(layer)
     _        <- (globalLayout.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
   } yield layerRef
