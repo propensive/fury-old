@@ -90,6 +90,8 @@ You can grant these permissions with,
           cli.abort(msg"The repository has not been specified.")
         case e: UnspecifiedModule =>
           cli.abort(msg"The module has not been specified.")
+        case e: UnspecifiedLayer =>
+          cli.abort(msg"The layer has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>
           cli.abort(msg"The module reference $moduleRef could not be resolved.")
         case UnspecifiedMain(moduleId: ModuleId) =>

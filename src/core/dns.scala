@@ -18,16 +18,21 @@ package fury.core
 
 import fury.io._, fury.strings._, fury.model._
 
+import scala.util.Try
+import scala.collection.JavaConverters._
+
 import java.util.Hashtable
 import javax.naming.directory._
 
 object Dns {
-  case class TxtRecord(content: List[String])
-  
-  def lookup(domain: String): Option[String] = {
+  def lookup(io: Io, domain: String): Try[List[String]] = {
     val env = new Hashtable[String, String]()
     env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory")
     val dirContext = new InitialDirContext(env)
-    Option(dirContext.getAttributes(domain, Array("TXT")).get("TXT")).map(_.toString)
+    
+    for {
+      atts <- Try(dirContext.getAttributes(domain, Array("TXT")))
+      txts <- Try(Option(atts.get("TXT")).get)
+    } yield txts.getAll.asScala.to[List].map(_.toString)
   }
 }

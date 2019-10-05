@@ -490,15 +490,23 @@ object LayerCli {
       cli           <- cli.hint(ImportNameArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+     
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, layout, cli.globalLayout).getOrElse(Nil))
+      layerImport   <- ~cli.peek(ImportArg)
+      followable    <- ~layerImport.flatMap(Layer.follow(_, cli.config))
+      layerRef      <- ~followable.flatMap(Layer.resolve(Io.silent(cli.config), _, layout, cli.globalLayout).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(Io.silent(cli.config), _, layout, cli.globalLayout).toOption)
+      cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
 
-      cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(Io.silent(cli.config),
-                           layout, cli.globalLayout, false)).getOrElse(Nil))
-      
       invoc         <- cli.read()
       io            <- invoc.io()
-      schemaRef     <- invoc(ImportArg)
+      layerRef      <- ~followable.flatMap(Layer.resolve(io, _, layout, cli.globalLayout).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(io, _, layout, cli.globalLayout).toOption)
+      layerImport   <- invoc(ImportArg)
       nameArg       <- invoc(ImportNameArg)
-      
+      schemaId      <- invoc(ImportSchemaArg)
+      layerRef      <- layerRef.ascribe(UnspecifiedLayer())
+      schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId, followable)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))
       
@@ -513,14 +521,14 @@ object LayerCli {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg)
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-      cli       <- cli.hint(ImportArg, dSchema.map(_.imports).getOrElse(Nil))
+      cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
       invoc     <- cli.read()
       io        <- invoc.io()
       schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
-      importArg <- invoc(ImportArg)
+      importArg <- invoc(ImportIdArg)
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
-      layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
+      layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
       _         <- ~Layer.save(io, layer, layout, cli.globalLayout)
     } yield io.await()
   }

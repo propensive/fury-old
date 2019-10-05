@@ -983,8 +983,36 @@ object Layer {
     tmpFile  <- globalLayout.layersPath.mkTempFile()
     file     <- Shell(layout.env).ipfs.get(layerRef, tmpFile)
     layer    <- Layer.read(io, file, layout)
-    layerRef <- ~digestLayer(layer)
+    layerRef <- saveLayer(layer, globalLayout)
   } yield layerRef
+
+  def loadCatalog(io: Io, catalogRef: IpfsRef, layout: Layout, globalLayout: GlobalLayout): Try[Catalog] = for {
+    tmpFile  <- globalLayout.layersPath.mkTempFile()
+    file     <- Shell(layout.env).ipfs.get(catalogRef, tmpFile)
+    catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
+  } yield catalog
+
+  def lookup(io: Io, domain: String, layout: Layout, globalLayout: GlobalLayout): Try[List[Artifact]] = for {
+    records   <- Dns.lookup(io, domain)
+    records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
+    catalogs  <- records.map { loadCatalog(io, _, layout, globalLayout) }.sequence
+    artifacts <- ~catalogs.flatMap(_.artifacts)
+  } yield artifacts
+ 
+  def follow(importLayer: ImportLayer, config: Config): Option[Followable] = importLayer match {
+    case IpfsImport(hash) => None
+    case RefImport(followable) => Some(followable)
+    case DefaultImport(path) => Some(Followable(config.service, path))
+  }
+
+  def resolve(io: Io, followable: Followable, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
+    artifacts <- lookup(io, followable.domain, layout, globalLayout)
+    ref       <- Try(artifacts.find(_.path == followable.path).get)
+    layerRef  <- loadFromIpfs(io, ref.ref, layout, globalLayout)
+  } yield layerRef
+
+  def pathCompletions(io: Io, domain: String, layout: Layout, globalLayout: GlobalLayout): Try[List[String]] =
+    lookup(io, domain, layout, globalLayout).map(_.map(_.path))
 
   def read(io: Io, string: String, layout: Layout): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(io, layout.env, _)))
