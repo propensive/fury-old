@@ -60,7 +60,7 @@ object Binary {
     }
 
   private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()
-  
+
   val Jmh = Binary(BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
 }
 
@@ -76,7 +76,7 @@ object Policy {
 
   def save(io: Io, layout: GlobalLayout, policy: Policy): Try[Unit] =
     layout.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
-  
+
   private def upgrade(io: Io, layout: GlobalLayout, ogdl: Ogdl): Ogdl = ogdl
 }
 
@@ -93,7 +93,7 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
 
   def obviate(scope: Scope, permissions: List[Permission]): Policy =
     copy(policy = policy.filterNot(permissions.contains))
-  
+
   def checkAll(permissions: Iterable[Permission]): Try[Unit] = {
     val missing = permissions.to[Set] -- policy.map(_.permission)
     if(missing.isEmpty) Success(()) else Failure(NoPermissions(missing))
@@ -149,7 +149,7 @@ case class Module(id: ModuleId,
     val allMatches = policy.filter(_.hash.startsWith(hashPrefix.key))
     if (allMatches.size == 1) Some(allMatches.head) else None
   }
-  
+
   def policyEntries: Set[PermissionEntry] = {
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
@@ -294,7 +294,7 @@ object Compilation {
       val handle = BspConnectionManager.bloopLauncher
       BspConnectionManager.HandleHandler.handle(handle, log)
       val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
-      
+
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
         .setRemoteInterface(classOf[FuryBspServer])
@@ -303,18 +303,18 @@ object Compilation {
         .setOutput(handle.in)
         .setLocalService(client)
         .create()
-      
+
       val future = launcher.startListening()
       val server = launcher.getRemoteProxy
       val capabilities = new BuildClientCapabilities(List("scala").asJava)
-      
+
       val initializeParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
           capabilities)
-      
+
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
       val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
-      
+
       handle.broken.future.andThen {
         case Success(_) =>
           log.println(msg"Connection for $dir has been closed")
@@ -364,7 +364,7 @@ object Compilation {
       case Some(future) => future.transformWith(fn.waive)
       case None         => fn
     }
-    
+
     compilationCache(layout.furyDir)
   }
 
@@ -533,7 +533,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }, Duration.Inf)
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
-  
+
   def checkoutAll(io: Io, layout: Layout, https: Boolean): Try[Unit] =
     checkouts.traverse(_.get(io, layout, https)).map{ _ => ()}
 
@@ -611,10 +611,18 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
-  def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] =
-    (targets(ref).params ++ allDependencies.filter(_.kind == Plugin).map { pluginTarget =>
+  def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] = {
+    def pluginParam(pluginTarget: Target): Parameter =
       Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
-    }).map(_.parameter)
+
+    val allPlugins = allDependencies
+      .filter(_.kind == Plugin)
+      .filterNot(_.ref == ref)
+
+    val params = targets(ref).params ++ allPlugins.map(pluginParam)
+
+    params.map(_.parameter)
+  }
 
   def jmhRuntimeClasspath(io: Io, ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
     classesDirs ++ targets(ref).compiler.to[Set].map { compilerTarget =>
@@ -668,14 +676,14 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
               pipelining: Boolean)
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
-    
+
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
       else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
-    
+
     val future = dependencyFutures.map(CompileResult.merge).flatMap { required =>
       if(!required.isSuccessful) {
         multiplexer(target.ref) = SkipCompile(target.ref)
@@ -683,7 +691,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         Future.successful(required)
       } else {
         val noCompilation = target.sourcePaths.isEmpty
-        
+
         if(noCompilation) deepDependencies(target.id).foreach { targetId =>
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
@@ -702,7 +710,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                   javaSources.map(_.value).to[List])
               }
             }
-            
+
             val runSuccess = Shell(layout.env).runJava(
               jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
               if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
@@ -719,7 +727,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
             deepDependencies(target.id).foreach { targetId =>
               multiplexer(targetId.ref) = NoCompile(targetId.ref)
             }
-            
+
             multiplexer.close(target.ref)
             multiplexer(target.ref) = StopRun(target.ref)
 
@@ -729,7 +737,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         }
       }
     }
-  
+
     newFutures.updated(target.id, future)
   }
 }
@@ -748,7 +756,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   //projects: Map[ProjectId, Project] = Map(),
   //schemas: Map[ProjectId, Schema] = Map(),
   //dirs: Map[ProjectId, Path] = Map()) {
-  
+
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
@@ -862,16 +870,16 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
   lazy val universe: Try[Universe] = {
     val localProjectIds = schema.projects.map(_.id)
-    
+
     def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
       projects             <- universe
       nextProjects         <- hierarchy.universe
       potentialConflictIds  = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
-      
+
       conflictIds           = potentialConflictIds.filter { id =>
                                 projects.entity(id).map(_.spec) != nextProjects.entity(id).map(_.spec)
                               }
-      
+
       allProjects          <- conflictIds match {
                                 case x if x.isEmpty => Success(projects ++ nextProjects)
                                 case _ => Failure(ProjectConflict(conflictIds/*, h1 = this, h2 = hierarchy*/))
@@ -879,7 +887,7 @@ case class Hierarchy(schema: Schema, dir: Path, inherited: Set[Hierarchy]) {
     } yield allProjects
 
     val empty: Try[Universe] = Success(Universe())
-    
+
     for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
       val schemaEntities = schema.projects.map { project => project.id -> Entity(project, schema, dir) }
       allInherited ++ Universe(schemaEntities.toMap)
@@ -948,7 +956,7 @@ case class Schema(id: SchemaId,
     case None    => Success(projectId)
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
-  
+
   def resolve(ref: SchemaRef, io: Io, layout: Layout, https: Boolean): Try[Schema] = for {
     repo     <- repos.findBy(ref.repo)
     dir      <- repo.fullCheckout.get(io, layout, https)
@@ -1262,7 +1270,7 @@ case class Project(id: ProjectId,
                    license: LicenseId = License.unknown,
                    description: String = "",
                    compiler: Option[ModuleRef] = None) {
-  
+
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
   def mainModule: Try[Option[Module]] = main.map(modules.findBy(_)).to[List].sequence.map(_.headOption)
