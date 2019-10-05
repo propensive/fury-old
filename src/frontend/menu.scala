@@ -66,11 +66,6 @@ object FuryMenu {
             Action('list, msg"list environment variable", EnvCli.list)
         ),
         Action('help, msg"help on using Fury", help),
-        Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
-            Action('add, msg"add an imported schema", ImportCli.add),
-            Action('remove, msg"remove a previously imported schema", ImportCli.remove),
-            Action('list, msg"list imported schemas", ImportCli.list)
-        ),
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
             Action('remove, msg"remove a module from the project", ModuleCli.remove),
@@ -132,9 +127,12 @@ object FuryMenu {
         ),
         //Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
+            Action('import, msg"import an external layer", LayerCli.addImport),
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
+            Action('list, msg"list imported layers", LayerCli.list),
             Action('projects, msg"show all available projects", LayerCli.projects),
-            Action('select, msg"select a layer", LayerCli.select)
+            Action('unimport, msg"remove a previously imported layer", LayerCli.unimport),
+            Action('select, msg"select a layer", LayerCli.select),
         )
     ) ::: aliases: _*)
 
