@@ -491,4 +491,72 @@ object LayerCli {
     newFocus  <- ~focus.copy(path = newPath)
     _         <- Layer.saveFocus(io, newFocus, layout)
   } yield io.await()
+  
+  def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+    for {
+      layout        <- cli.layout
+      layer         <- Layer.read(Io.silent(cli.config), layout, cli.globalLayout)
+      cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli           <- cli.hint(ImportNameArg)
+      schemaArg     <- ~cli.peek(SchemaArg)
+      defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+
+      cli           <- cli.hint(ImportArg, defaultSchema.map(_.importCandidates(Io.silent(cli.config),
+                           layout, cli.globalLayout, false)).getOrElse(Nil))
+      
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      schemaRef     <- invoc(ImportArg)
+      nameArg       <- invoc(ImportNameArg)
+      
+      layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
+                           schemaRef.copy(id = nameArg)))
+      
+      _             <- ~Layer.save(io, layer, layout, cli.globalLayout)
+    } yield io.await()
+  }
+
+  def unimport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+    for {
+      layout    <- cli.layout
+      layer     <- Layer.read(Io.silent(cli.config), layout, cli.globalLayout)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      schemaArg <- ~cli.peek(SchemaArg)
+      dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+      cli       <- cli.hint(ImportArg, dSchema.map(_.imports).getOrElse(Nil))
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      importArg <- invoc(ImportArg)
+      schema    <- layer.schemas.findBy(schemaId)
+      lens      <- ~Lenses.layer.imports(schema.id)
+      layer     <- ~lens.modify(layer)(_.filterNot(_ == importArg))
+      _         <- ~Layer.save(io, layer, layout, cli.globalLayout)
+    } yield io.await()
+  }
+
+  def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+    for {
+      layout    <- cli.layout
+      layer     <- Layer.read(Io.silent(cli.config), layout, cli.globalLayout)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(HttpsArg)
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
+      cli       <- cli.hint(RawArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      raw       <- ~invoc(RawArg).isSuccess
+      https     <- ~invoc(HttpsArg).isSuccess
+      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout, cli.globalLayout, https)) }
+      
+      table     <- ~Tables(cli.config).show(Tables(cli.config).imports(Some(layer.main)), cli.cols, rows,
+                       raw)(_._1.schema.key)
+      
+      _         <- ~(if(!raw) io.println(Tables(cli.config).contextString(layout.base, layer.showSchema, schema), noTime = true)
+                       else io)
+      
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
+    } yield io.await()
+  }
 }
