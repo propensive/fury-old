@@ -84,6 +84,9 @@ case class ImportPath(path: String) {
   def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("./", "/", ""))
   def isEmpty: Boolean = parts.length == 0
   def head: ImportId = parts.head
+  
+  def prefix(importId: ImportId): ImportPath =
+    ImportPath((importId :: parts).map(_.key).mkString("./", "/", ""))
 }
 
 case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))

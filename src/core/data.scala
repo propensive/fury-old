@@ -923,8 +923,18 @@ case class Schema(id: SchemaId,
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 
+  def resolvedImports(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Map[ImportId, Schema]] =
+    imports.to[List].map { sr => resolve(sr, io, layout, globalLayout, https).map(sr.id -> _) }.sequence.map(_.toMap)
+
   def importedSchemas(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[Schema]] =
-    imports.to[List].map(resolve(_, io, layout, globalLayout, https)).sequence
+    resolvedImports(io, layout, globalLayout, https).map(_.values.to[List])
+  
+  def importTree(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[ImportPath]] = for {
+    imports    <- resolvedImports(io, layout, globalLayout, https)
+    importList <- imports.to[List].map { case (id, schema) =>
+                    schema.importTree(io, layout, globalLayout, https).map { is => is.map(_.prefix(id)) }
+                  }.sequence.map(_.flatten)
+  } yield (ImportPath.Root :: importList)
 
   def allProjects(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[Project]] = {
     @tailrec
@@ -984,6 +994,11 @@ object Layer {
 
   def readFocus(io: Io, layout: Layout): Try[Focus] =
     Ogdl.read[Focus](layout.focusFile, identity(_))
+
+  def base(io: Io, layout: Layout, globalLayout: GlobalLayout): Try[Layer] = for {
+    focus    <- readFocus(io, layout)
+    layer    <- read(io, focus.layerRef, layout, globalLayout)
+  } yield layer
 
   def read(io: Io, layout: Layout, globalLayout: GlobalLayout): Try[Layer] = for {
     focus    <- readFocus(io, layout)
