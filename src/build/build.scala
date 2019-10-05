@@ -448,11 +448,13 @@ object BuildCli {
 object LayerCli {
   def init(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.newLayout
+    cli    <- cli.hint(ForceArg)
     invoc  <- cli.read()
     io     <- invoc.io()
-    layer  <- ~Layer()
+    force  =  invoc(ForceArg).isSuccess
+    _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
     _      <- layout.focusFile.mkParents()
-    _      <- Layer.create(io, layer, layout, cli.globalLayout)
+    _      <- Layer.create(io, Layer(), layout, cli.globalLayout)
     _      <- ~io.println(str"Created an empty layer with focus at ${layout.focusFile.value}")
   } yield io.await()
 
