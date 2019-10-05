@@ -20,12 +20,9 @@ import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._, fury.ogdl._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
-import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, StandardOpenOption}
-import java.util.concurrent.{CompletableFuture, Future}
+import java.util.concurrent.CompletableFuture
 
-import ch.epfl.scala.bsp4j
-import ch.epfl.scala.bsp4j._
+import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import FuryBuildServer._
 import gastronomy.{Bytes, Digest, Md5}
 import guillotine._
@@ -34,8 +31,9 @@ import org.eclipse.lsp4j.jsonrpc.Launcher
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
-
 import language.higherKinds
 
 object Bsp {
@@ -85,8 +83,7 @@ object Bsp {
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean, globalLayout: GlobalLayout): Future[Void] = {
-
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean, globalLayout: GlobalLayout): java.util.concurrent.Future[Void] = {
     val cancel = new Cancelator()
     val server = new FuryBuildServer(layout, cancel, https, globalLayout)
 
@@ -122,7 +119,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, global
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
                           for {
-                            ds   <- universe.dependencies(io, ref, layout)
+                            ds   <- universe.dependencies(ref, layout)
                             arts <- (ds + ref).map { d => universe.makeTarget(io, d, layout) }.sequence
                           } yield arts.map { a =>
                             (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
@@ -136,6 +133,16 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, global
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
+
+  private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
+    for {
+      //FIXME remove duplication with structure
+      layer          <- Layer.read(io, layout, globalLayout)
+      schema         <- layer.mainSchema
+      module <- structure.moduleRef(bti)
+      compilation    <- Compilation.syncCompilation(io, schema, module, layout, globalLayout, https = true)
+    } yield compilation
+  }
 
   override def buildInitialize(initializeBuildParams: InitializeBuildParams)
                               : CompletableFuture[InitializeBuildResult] = {
@@ -258,13 +265,30 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, global
     future
   }
 
-  override def buildTargetCompile(compileParams: CompileParams): CompletableFuture[bsp4j.CompileResult] = {
-    // TODO MVP
-    val future = new CompletableFuture[bsp4j.CompileResult]()
-    val result = new bsp4j.CompileResult(StatusCode.CANCELLED)
-    future.complete(result)
-
-    future
+  override def buildTargetCompile(compileParams: CompileParams): CompletableFuture[BspCompileResult] = {
+    implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
+    io.println(str"**> buildTargetCompile --- ${compileParams.getTargets.size} targets")
+    val bspTargets = compileParams.getTargets.asScala
+    val allResults = bspTargets.traverse { bspTargetId =>
+      for{
+        globalPolicy <- Policy.read(io, globalLayout)
+        struct <- structure
+        compilation <- getCompilation(struct, bspTargetId)
+        moduleRef <- struct.moduleRef(bspTargetId)
+      } yield {
+        val dummy = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
+        val compilationTasks = compilation.compile(io, moduleRef, dummy, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
+        aggregatedTask.andThen{case _ => dummy.closeAll()}
+        val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
+        synchronousResult
+      }
+    }
+    get(allResults.map{ s =>
+      toCompletableFuture(Future.successful {
+        CompileResult.merge(s.toList).bspCompileResult
+      })
+    })
   }
 
   override def buildTargetTest(testParams: TestParams): CompletableFuture[TestResult] = {
@@ -415,6 +439,22 @@ object FuryBuildServer {
       case Benchmarks        => BuildTargetTag.BENCHMARK
       case Compiler | Plugin => BuildTargetTag.LIBRARY // mark these NO_IDE?
     }
+
+  private def toCompletableFuture[T](f: Future[T])(implicit ec: ExecutionContext): CompletableFuture[T] = {
+    val result = new CompletableFuture[T]()
+    f.foreach(result.complete)
+    f.failed.foreach(result.completeExceptionally)
+    result
+  }
+
+  private def get[T](t: Try[CompletableFuture[T]]): CompletableFuture[T] = {
+    t.recover[CompletableFuture[T]]{ case e =>
+      val future = new CompletableFuture[T]()
+      future.completeExceptionally(e)
+      future
+    }.get
+  }
+
 }
 
 case class BspTarget(id: BuildTargetIdentifier) extends Key(msg"BuildTargetIdentifier") {

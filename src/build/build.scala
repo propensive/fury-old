@@ -39,12 +39,15 @@ object ConfigCli {
     for {
       cli      <- cli.hint(ThemeArg, Theme.all)
       cli      <- cli.hint(TimestampsArg, List("on", "off"))
+      cli      <- cli.hint(PipeliningArg, List("on", "off"))
       invoc    <- cli.read()
       io       <- invoc.io()
       newTheme <- ~invoc(ThemeArg).toOption
       timestamps <- ~invoc(TimestampsArg).toOption
+      pipelining <- ~invoc(PipeliningArg).toOption
       config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
       config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
+      config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
       _        <- ~Ogdl.write(config, cli.globalLayout.userConfig)
     } yield io.await()
   }
@@ -131,7 +134,7 @@ object BuildCli {
   def status(busyCount: Int): String = {
     val runtime = Runtime.getRuntime
     val df: DecimalFormat = new DecimalFormat("0.0")
-    
+
     def magnitude(value: Double, scale: List[String] = List("", "k", "M", "G", "T")): String =
       if(value < 1024) s"${df.format(value)}${scale.head}"
       else magnitude(value/1024, scale.tail)
@@ -192,6 +195,7 @@ object BuildCli {
       schemaArg    <- ~cli.peek(SchemaArg).orElse(optSchema).getOrElse(layer.main)
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
+      cli          <- cli.hint(PipeliningArg, List("on", "off"))
       optProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -205,6 +209,7 @@ object BuildCli {
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       https        <- ~invoc(HttpsArg).isSuccess
       module       <- optModule.ascribe(UnspecifiedModule())
+      pipelining   <- ~invoc(PipeliningArg).toOption
       globalPolicy <- Policy.read(io, cli.globalLayout)
       reporter     =  invoc(ReporterArg).toOption.getOrElse(GraphReporter)
       watch        =  invoc(WatchArg).isSuccess
@@ -223,7 +228,7 @@ object BuildCli {
           cnt = cnt + 1
           watcher.clear()
           compileOnce(io, compilation, schema, module.ref(project), layout,
-            globalPolicy, invoc.suffix, reporter, config.theme, https)
+            globalPolicy, invoc.suffix, pipelining.getOrElse(config.pipelining),reporter, config.theme, https)
         }
       }.start()
       
@@ -262,6 +267,7 @@ object BuildCli {
       schema         <- layer.schemas.findBy(schemaArg)
       cli            <- cli.hint(ProjectArg, schema.projects)
       optProjectId   <- ~cli.peek(ProjectArg).orElse(schema.main)
+      cli            <- cli.hint(PipeliningArg, List("on", "off"))
       optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli            <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli            <- cli.hint(DirArg)
@@ -275,6 +281,7 @@ object BuildCli {
       optModuleId    <- ~invoc(ModuleArg).toOption.orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module         <- optModule.ascribe(UnspecifiedModule())
+      pipelining     <- ~invoc(PipeliningArg).toOption
       fatJar         =  invoc(FatJarArg).isSuccess
       globalPolicy   <- Policy.read(io, cli.globalLayout)
       reporter       <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter)
@@ -294,13 +301,13 @@ object BuildCli {
           watcher.clear()
           for{
             task <- compileOnce(io, compilation, schema, module.ref(project), layout,
-              globalPolicy, invoc.suffix, reporter, config.theme, https)
+              globalPolicy, invoc.suffix, pipelining.getOrElse(config.pipelining), reporter, config.theme, https)
           } yield {
             task.transform{ completed =>
               for{
                 compileResult  <- completed
                 compileSuccess <- compileResult.asTry
-                _              <- compilation.saveJars(io, module.ref(project), compileSuccess.outputDirectories,
+                _              <- compilation.saveJars(io, module.ref(project), compileSuccess.classDirectories,
                   dir in layout.pwd, layout, fatJar)
               } yield compileSuccess
             }
@@ -406,6 +413,7 @@ object BuildCli {
                   layout: Layout,
                   globalPolicy: Policy,
                   compileArgs: List[String],
+                  pipelining: Boolean,
                   reporter: Reporter,
                   theme: Theme,
                   https: Boolean): Try[Future[CompileResult]] = {
@@ -415,7 +423,7 @@ object BuildCli {
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
       val future = compilation.compile(io, moduleRef, multiplexer, Map(), layout,
-        globalPolicy, compileArgs).apply(TargetId(schema.id, moduleRef)).andThen {
+        globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes
@@ -430,12 +438,14 @@ object BuildCli {
 object LayerCli {
   def init(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.newLayout
+    cli    <- cli.hint(ForceArg)
     invoc  <- cli.read()
     io     <- invoc.io()
-    layer  <- ~Layer()
+    force  =  invoc(ForceArg).isSuccess
+    _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
     _      <- layout.focusFile.mkParents()
-    _      <- ~Layer.save(io, layer, layout, cli.globalLayout)
-    _      <- ~io.println("Created an empty layer")
+    _      <- Layer.create(io, Layer(), layout, cli.globalLayout)
+    _      <- ~io.println(str"Created an empty layer with focus at ${layout.focusFile.value}")
   } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {

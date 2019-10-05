@@ -116,6 +116,8 @@ You can grant these permissions with,
           cli.abort(msg"The project '${e.project}' already exists.")
         case e: AlreadyInitialized =>
           cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
+        case CyclesInDependencies(refs) =>
+          cli.abort(msg"There are dependency cycles containing : [${refs.mkString}]")
         case e =>
           val errorString =
             s"$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
@@ -136,7 +138,7 @@ You can grant these permissions with,
             case e: FileWriteError   => unloggable
             case e: FileNotFound     => unloggable
             case e: EarlyCompletions => cli.abort("")
-          }.toOption.get
+          }.toOption.getOrElse(unloggable)
       }
   }
 
