@@ -23,7 +23,7 @@ import exoskeleton._
 
 object Args {
   implicit private val schemaId: TExtractor[SchemaId] = _.headOption.flatMap(SchemaId.parse(_).toOption)
-  implicit private val schemaRef: TExtractor[SchemaRef] = _.headOption.flatMap(SchemaRef.unapply(_))
+  implicit private val importLayer: TExtractor[ImportLayer] = _.headOption.flatMap(ImportLayer.parse(_))
   implicit private val aliasCmd: TExtractor[AliasCmd] = _.headOption.map(AliasCmd(_))
   implicit private val parameter: TExtractor[Parameter] = _.headOption.map(Parameter(_))
   implicit private val envVar: TExtractor[EnvVar] = _.headOption.flatMap(EnvVar.parse(_))
@@ -69,7 +69,9 @@ object Args {
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
-  val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external layer and schema to import")
+  val ImportArg = CliParam[ImportLayer]('l', Symbol("layer"), "specify an external layer to import")
+  val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
+  val ImportSchemaArg = CliParam[SchemaId]('i', Symbol("import"), "specify the external schema to import")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
       "specify if this dependency should not be included transitively")

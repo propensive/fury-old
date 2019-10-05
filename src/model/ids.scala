@@ -25,6 +25,8 @@ import scala.util._
 
 import language.higherKinds
 
+import scala.collection.immutable.SortedSet
+
 object Kind {
   implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
   implicit val stringShow: StringShow[Kind] = _.name
@@ -100,6 +102,14 @@ object IpfsRef {
 
 case class IpfsRef(key: String) extends Key(msg"ipfs ref")
 
+case class Catalog(artifacts: SortedSet[Artifact])
+
+object Artifact {
+  implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
+}
+
+case class Artifact(path: String, ref: IpfsRef)
+
 object LayerRef {
   implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key))
   implicit val stringShow: StringShow[LayerRef] = _.key
@@ -117,7 +127,9 @@ case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
                   undoBuffer: Int = 5,
                   timestamps: Boolean = true,
-                  pipelining: Boolean = false)
+                  pipelining: Boolean = false,
+                  service: String = "furore.dev")
+
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
   
@@ -315,7 +327,39 @@ object SchemaRef {
   }
 }
 
-case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId)
+case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId, follow: Option[Followable] = None)
+
+object ImportLayer {
+  def parse(str: String): Option[ImportLayer] = str match {
+    case r"fury:\/\/$hash@(.{44})" => Some(IpfsImport(IpfsRef(hash)))
+    case r"$domain@(([a-z][a-z0-9\-]*\.)+([a-z][a-z0-9\-]*))\/$path@([a-z0-9\/]*)" => Some(RefImport(Followable(domain, path)))
+    case r"$path@([a-z0-9\/]*)" => Some(DefaultImport(path))
+    case _ => None
+  }
+}
+
+sealed trait ImportLayer
+case class IpfsImport(hash: IpfsRef) extends ImportLayer
+case class RefImport(followable: Followable) extends ImportLayer
+case class DefaultImport(path: String) extends ImportLayer
+
+object Followable {
+  implicit val msgShow: MsgShow[Followable] = fl => UserMsg { theme =>
+    msg"theme.layer(fury://${fl.domain}/${fl.path})".string(theme)
+  }
+
+  implicit val stringShow: StringShow[Followable] = fl => str"fury://${fl.domain}/${fl.path}"
+  implicit def diff: Diff[Followable] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+  
+  def parse(str: String): Option[Followable] = str match {
+    case r"fury:\/\/$domain@([a-z][a-z0-9\-\.]*[a-z0-9])\/$path@([a-z0-9\-\/]*)" =>
+      Some(Followable(domain, path))
+    case _ =>
+      None
+  }
+}
+
+case class Followable(domain: String, path: String)
 
 object ImportId {
   implicit val msgShow: MsgShow[ImportId]       = m => UserMsg(_.layer(m.key))
