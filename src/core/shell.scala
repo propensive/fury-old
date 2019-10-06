@@ -96,8 +96,9 @@ case class Shell(environment: Environment) {
       _   <- if(!sources.isEmpty) sh"git -C ${dir.value} config core.sparseCheckout true".exec[Try[String]]
              else Success(())
       _   <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
+      _   <- sh"git -C ${from.value} fetch".exec[Try[String]]
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Try[String]]
-      str <- sh"git -C ${dir.value} fetch origin $refSpec".exec[Try[String]]
+      str <- sh"git -C ${dir.value} fetch origin".exec[Try[String]]
       _   <- sh"git -C ${dir.value} checkout $commit".exec[Try[String]]
       _   <- ~(dir / ".done").touch()
     } yield str
