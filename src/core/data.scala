@@ -988,11 +988,10 @@ object Layer {
   } yield layerRef
 
   def share(io: Io, layer: Layer, env: Environment, globalLayout: GlobalLayout): Try[IpfsRef] = for {
-    tmpFile  <- globalLayout.layersPath.mkTempFile()
     layerRef <- ~digestLayer(layer)
-    _        <- (globalLayout.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
-    ref      <- Shell(env).ipfs.add(tmpFile)
-    _        <- tmpFile.delete()
+    file     <- ~(globalLayout.layersPath / layerRef.key)
+    _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
+    ref      <- Shell(env).ipfs.add(file)
   } yield ref
 
 
