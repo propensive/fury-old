@@ -427,8 +427,8 @@ object SchemaId {
   final val default = SchemaId("default")
 
   def parse(name: String): Try[SchemaId] = name match {
-    case r"[a-z](-?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
-    case _                         => Failure(InvalidValue(name))
+    case r"[a-z]([-\.]?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
+    case _                             => Failure(InvalidValue(name))
   }
 }
 
