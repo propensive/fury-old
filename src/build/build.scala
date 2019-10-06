@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.ogdl._, fury.model._
+import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._
 
 import Args._
 
@@ -482,6 +482,30 @@ object LayerCli {
     _         <- Layer.saveFocus(io, newFocus, layout)
   } yield io.await()
   
+  def clone(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    cli           <- cli.hint(DirArg)
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.globalLayout).getOrElse(Nil))
+    invoc         <- cli.read()
+    io            <- invoc.io()
+    layerImport   <- invoc(ImportArg)
+    followable    <- Try(Layer.follow(layerImport, cli.config).get)
+    layerRef      <- Layer.resolve(io, followable, cli.env, cli.globalLayout)
+    dir           <- invoc(DirArg)
+    pwd           <- cli.pwd
+    dir           <- ~Path(pwd).resolve(dir)
+    _             <- ~dir.mkdir()
+    _             <- Layer.saveFocus(io, Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
+  } yield io.await()
+
+  def share(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    layout        <- cli.layout
+    layer         <- Layer.read(Io.silent(cli.config), layout, cli.globalLayout)
+    invoc         <- cli.read()
+    io            <- invoc.io()
+    ref           <- Layer.share(io, layer, cli.env, cli.globalLayout)
+    _             <- ~io.println(str"fury://${ref.key}")
+  } yield io.await()
+
   def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout        <- cli.layout
@@ -491,16 +515,16 @@ object LayerCli {
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
-      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, layout, cli.globalLayout).getOrElse(Nil))
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.globalLayout).getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
       followable    <- ~layerImport.flatMap(Layer.follow(_, cli.config))
-      layerRef      <- ~followable.flatMap(Layer.resolve(Io.silent(cli.config), _, layout, cli.globalLayout).toOption)
+      layerRef      <- ~followable.flatMap(Layer.resolve(Io.silent(cli.config), _, cli.env, cli.globalLayout).toOption)
       maybeLayer    <- ~layerRef.flatMap(Layer.read(Io.silent(cli.config), _, layout, cli.globalLayout).toOption)
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
 
       invoc         <- cli.read()
       io            <- invoc.io()
-      layerRef      <- ~followable.flatMap(Layer.resolve(io, _, layout, cli.globalLayout).toOption)
+      layerRef      <- ~followable.flatMap(Layer.resolve(io, _, cli.env, cli.globalLayout).toOption)
       maybeLayer    <- ~layerRef.flatMap(Layer.read(io, _, layout, cli.globalLayout).toOption)
       layerImport   <- invoc(ImportArg)
       nameArg       <- invoc(ImportNameArg)

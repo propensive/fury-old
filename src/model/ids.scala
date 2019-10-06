@@ -95,7 +95,7 @@ case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))
 
 object IpfsRef {
   def parse(str: String): Option[IpfsRef] = str match {
-    case r"fury:\/\/$hash@(.{44})" => Some(IpfsRef(hash))
+    case r"fury:\/\/$hash@(.{46})" => Some(IpfsRef(hash))
     case _ => None
   }
 }
@@ -331,7 +331,7 @@ case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId, follow:
 
 object ImportLayer {
   def parse(str: String): Option[ImportLayer] = str match {
-    case r"fury:\/\/$hash@(.{44})" => Some(IpfsImport(IpfsRef(hash)))
+    case r"fury:\/\/$hash@(.{46})" => Some(IpfsImport(IpfsRef(hash)))
     case r"$domain@(([a-z][a-z0-9\-]*\.)+([a-z][a-z0-9\-]*))\/$path@([a-z0-9\/]*)" => Some(RefImport(Followable(domain, path)))
     case r"$path@([a-z0-9\/]*)" => Some(DefaultImport(path))
     case _ => None
