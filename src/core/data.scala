@@ -1044,23 +1044,33 @@ case class Layer(version: Int = Layer.CurrentVersion,
 object Layer {
   val CurrentVersion = 4
 
-  def loadFromIpfs(io: Io, layerRef: IpfsRef, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
+  def loadFromIpfs(io: Io, layerRef: IpfsRef, env: Environment, globalLayout: GlobalLayout): Try[LayerRef] = for {
     tmpFile  <- globalLayout.layersPath.mkTempFile()
-    file     <- Shell(layout.env).ipfs.get(layerRef, tmpFile)
-    layer    <- Layer.read(io, file, layout)
+    file     <- Shell(env).ipfs.get(layerRef, tmpFile)
+    layer    <- Layer.read(io, file, env)
     layerRef <- saveLayer(layer, globalLayout)
+    _        <- tmpFile.delete()
   } yield layerRef
 
-  def loadCatalog(io: Io, catalogRef: IpfsRef, layout: Layout, globalLayout: GlobalLayout): Try[Catalog] = for {
+  def share(io: Io, layer: Layer, env: Environment, globalLayout: GlobalLayout): Try[IpfsRef] = for {
     tmpFile  <- globalLayout.layersPath.mkTempFile()
-    file     <- Shell(layout.env).ipfs.get(catalogRef, tmpFile)
+    layerRef <- ~digestLayer(layer)
+    _        <- (globalLayout.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
+    ref      <- Shell(env).ipfs.add(tmpFile)
+    _        <- tmpFile.delete()
+  } yield ref
+
+
+  def loadCatalog(io: Io, catalogRef: IpfsRef, env: Environment, globalLayout: GlobalLayout): Try[Catalog] = for {
+    tmpFile  <- globalLayout.layersPath.mkTempFile()
+    file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
     catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
   } yield catalog
 
-  def lookup(io: Io, domain: String, layout: Layout, globalLayout: GlobalLayout): Try[List[Artifact]] = for {
+  def lookup(io: Io, domain: String, env: Environment, globalLayout: GlobalLayout): Try[List[Artifact]] = for {
     records   <- Dns.lookup(io, domain)
     records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
-    catalogs  <- records.map { loadCatalog(io, _, layout, globalLayout) }.sequence
+    catalogs  <- records.map { loadCatalog(io, _, env, globalLayout) }.sequence
     artifacts <- ~catalogs.flatMap(_.artifacts)
   } yield artifacts
  
@@ -1070,20 +1080,20 @@ object Layer {
     case DefaultImport(path) => Some(Followable(config.service, path))
   }
 
-  def resolve(io: Io, followable: Followable, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
-    artifacts <- lookup(io, followable.domain, layout, globalLayout)
+  def resolve(io: Io, followable: Followable, env: Environment, globalLayout: GlobalLayout): Try[LayerRef] = for {
+    artifacts <- lookup(io, followable.domain, env, globalLayout)
     ref       <- Try(artifacts.find(_.path == followable.path).get)
-    layerRef  <- loadFromIpfs(io, ref.ref, layout, globalLayout)
+    layerRef  <- loadFromIpfs(io, ref.ref, env, globalLayout)
   } yield layerRef
 
-  def pathCompletions(io: Io, domain: String, layout: Layout, globalLayout: GlobalLayout): Try[List[String]] =
-    lookup(io, domain, layout, globalLayout).map(_.map(_.path))
+  def pathCompletions(io: Io, domain: String, env: Environment, globalLayout: GlobalLayout): Try[List[String]] =
+    lookup(io, domain, env, globalLayout).map(_.map(_.path))
 
-  def read(io: Io, string: String, layout: Layout): Try[Layer] =
-    Success(Ogdl.read[Layer](string, upgrade(io, layout.env, _)))
+  def read(io: Io, string: String, env: Environment): Try[Layer] =
+    Success(Ogdl.read[Layer](string, upgrade(io, env, _)))
 
-  def read(io: Io, path: Path, layout: Layout): Try[Layer] =
-    Ogdl.read[Layer](path, upgrade(io, layout.env, _))
+  def read(io: Io, path: Path, env: Environment): Try[Layer] =
+    Ogdl.read[Layer](path, upgrade(io, env, _))
 
   def readFocus(io: Io, layout: Layout): Try[Focus] =
     Ogdl.read[Focus](layout.focusFile, identity(_))
@@ -1142,9 +1152,12 @@ object Layer {
     _        <- (globalLayout.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
   } yield layerRef
 
-  def saveFocus(io: Io, focus: Focus, layout: Layout): Try[Unit] = for {
+  def saveFocus(io: Io, focus: Focus, layout: Layout): Try[Unit] =
+    saveFocus(io, focus, layout.focusFile)
+
+  def saveFocus(io: Io, focus: Focus, path: Path): Try[Unit] = for {
     focusStr <- ~Ogdl.serialize(Ogdl(focus))
-    _        <- layout.focusFile.writeSync(focusStr)
+    _        <- path.writeSync(focusStr)
   } yield ()
 
   private def upgrade(io: Io, env: Environment, ogdl: Ogdl): Ogdl =

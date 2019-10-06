@@ -127,12 +127,14 @@ object FuryMenu {
         ),
         //Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
+            Action('clone, msg"clone an external layer", LayerCli.clone),
             Action('import, msg"import an external layer", LayerCli.addImport),
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('list, msg"list imported layers", LayerCli.list),
             Action('projects, msg"show all available projects", LayerCli.projects),
             Action('unimport, msg"remove a previously imported layer", LayerCli.unimport),
             Action('select, msg"select a layer", LayerCli.select),
+            Action('share, msg"share this layer", LayerCli.share),
         )
     ) ::: aliases: _*)
 

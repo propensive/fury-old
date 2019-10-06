@@ -161,7 +161,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).toOption
 
-  private def pwd = env.workDir.ascribe(FileNotFound(Path("/")))
+  def pwd = env.workDir.ascribe(FileNotFound(Path("/")))
 
   lazy val newLayout: Try[Layout] = pwd.map { pwd =>
     Layout(Path(env.variables("HOME")), Path(pwd), env, Path(pwd))
