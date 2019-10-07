@@ -153,7 +153,8 @@ object ProjectCli {
       nameArg        <- ~invoc(ProjectNameArg).toOption
       newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
-      newSchema      <- ~(if(Some(projectId) == schema.main) schema.copy(main = Some(projectId)) else schema)
+      newSchema      <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      newSchema      <- ~(if(Some(project.id) == newSchema.main) newSchema.copy(main = newId) else newSchema)
       lens           <- ~Lenses.layer.schemas
       layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
       layer          <- ~lens.modify(layer)(_ + newSchema)
