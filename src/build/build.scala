@@ -40,12 +40,15 @@ object ConfigCli {
       cli      <- cli.hint(ThemeArg, Theme.all)
       cli      <- cli.hint(TimestampsArg, List("on", "off"))
       cli      <- cli.hint(PipeliningArg, List("on", "off"))
+      cli      <- cli.hint(ServiceArg, List("furore.dev"))
       invoc    <- cli.read()
       io       <- invoc.io()
       newTheme <- ~invoc(ThemeArg).toOption
       timestamps <- ~invoc(TimestampsArg).toOption
       pipelining <- ~invoc(PipeliningArg).toOption
+      service    <- ~invoc(ServiceArg).toOption
       config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
+      config   <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
       config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
       config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
       _        <- ~Ogdl.write(config, cli.installation.userConfig)
