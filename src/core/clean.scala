@@ -14,17 +14,33 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury
+package fury.core
 
-import probably.TestApp
+import fury.model._
 
-object Tests {
-  private val testSuites = List[TestApp](
-      DirectedGraphTest,
-      LayerRepositoryTest,
-      TablesTest,    
-      PoolTest
-  )
+import scala.util._
 
-  def main(args: Array[String]): Unit = testSuites.foreach(_.execute())
+object CleanCli {
+  case class Context(cli: Cli[CliParam[_]], layout: Layout)
+  def context(cli: Cli[CliParam[_]]) = cli.layout.map(Context(cli, _))
+  
+  def cleanAll(ctx: Context): Try[ExitStatus] =
+    for {
+      _ <- cleanBloop(ctx)
+      _ <- cleanClasses(ctx)
+      _ <- cleanLogs(ctx)
+      _ <- cleanRepos(ctx)
+      _ <- cleanSources(ctx)
+    } yield Done
+
+  def cleanBloop(ctx: Context): Try[ExitStatus] =
+    for {
+      _ <- ctx.layout.bloopDir.delete()
+      _ <- ctx.layout.analysisDir.delete()
+    } yield Done
+
+  def cleanClasses(ctx: Context): Try[ExitStatus] = ctx.layout.classesDir.delete().map(Done.waive)
+  def cleanLogs(ctx: Context): Try[ExitStatus] = ctx.layout.logsDir.delete().map(Done.waive)
+  def cleanRepos(ctx: Context): Try[ExitStatus] = ctx.layout.reposDir.delete().map(Done.waive)
+  def cleanSources(ctx: Context): Try[ExitStatus] = ctx.layout.srcsDir.delete().map(Done.waive)
 }
