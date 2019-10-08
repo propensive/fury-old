@@ -14,85 +14,51 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury
+package fury.core
 
-import fury.core._, fury.strings._, fury.model._
-
-import com.facebook.nailgun.NGContext
-import exoskeleton._
-import guillotine._
-import scala.collection.JavaConverters._
-import scala.collection.mutable.HashSet
-
-import annotation.tailrec
 import java.util.concurrent.atomic.AtomicBoolean
-import scala.concurrent._, duration._
 
-import scala.util._
+import scala.annotation.tailrec
+import scala.collection.mutable.HashSet
+import scala.util.Try
 
-object Main {
+object Lifecycle {
+  private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
+  private[this] val running: HashSet[Thread]   = new HashSet()
+  private[this] def busy(): Option[Int] =
+    running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
-  def invoke(cli: Cli[CliParam[_]]): ExitStatus = {
+  def busyCount: Int = busy().getOrElse(0)
 
-    val layer = for {
-      layout <- cli.layout
-      config <- ~cli.config
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
-    } yield layer
-
-    val actions = layer.toOption
-      .to[List]
-      .flatMap { ws =>
-        ws.aliases
+  def trackThread(action: => Int): Int =
+    if(!terminating.get) {
+      running.synchronized(running += Thread.currentThread)
+      try action
+      finally {
+        running.synchronized(running -= Thread.currentThread)
       }
-      .map { alias =>
-        def action(cli: Cli[CliParam[_]]) =
-          AliasCli.context(cli).flatMap(BuildCli.compile(alias.schema, Some(alias.module)))
-        Action(
-            Symbol(alias.cmd.key),
-            msg"${alias.description}",
-            (cli: Cli[CliParam[_]]) => action(cli))
-      }
-
-    Recovery.recover(cli)(FuryMenu.menu(actions)(cli, cli))
+    } else {
+      println("New tasks cannot be started while Fury is shutting down.")
+      1
+    }
+  
+  def halt(): Unit = {
+    System.exit(busyCount)
   }
 
-  def main(args: Array[String]): Unit = run(
-      System.in,
-      System.out,
-      System.err,
-      args,
-      System.exit(_),
-      Environment(System.getenv.asScala.toMap, Option(System.getenv("PWD")))
-  )
-
-  def nailMain(ctx: NGContext): Unit = run(
-      ctx.in,
-      ctx.out,
-      ctx.err,
-      ctx.getArgs,
-      ctx.exit(_),
-      Environment(ctx.getEnv.stringPropertyNames.asScala.map { k =>
-        (k, ctx.getEnv.getProperty(k))
-      }.toMap, Option(ctx.getWorkingDirectory))
-  )
-
-  def run(
-      in: java.io.InputStream,
-      out: java.io.PrintStream,
-      err: java.io.PrintStream,
-      args: Seq[String],
-      exit: Int => Unit,
-      env: Environment
-    ) =
-    exit {
-      Lifecycle.trackThread {
-        val cli = Cli(out, ParamMap(args: _*), None, Nil, env)
-        val end = invoke(cli).code
-        out.flush()
-        err.flush()
-        end
-      }
+  @tailrec
+  def shutdown(previous: Int = -1): Try[ExitStatus] = {
+    terminating.set(true)
+    busy() match {
+      case None => util.Success(Done)
+      case Some(count) =>
+        if(previous != count) {
+          val plural = if(count > 1) "s" else ""
+          println(s"Waiting for $count active task$plural to complete...")
+        }
+        Thread.sleep(10)
+        shutdown(count)
     }
-
+  }
+  
 }
