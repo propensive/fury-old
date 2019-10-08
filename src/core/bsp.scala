@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import FuryBuildServer._
+import fury.utils.Multiplexer
 import gastronomy.{Bytes, Digest, Md5}
 import guillotine._
 import mercator._
@@ -106,6 +107,8 @@ object Bsp {
 
 class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
+  
+  private[this] var client: BuildClient = _
 
   private val config = Config()
   private val io     = new Io(System.err, config)
@@ -143,6 +146,13 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
       compilation    <- Compilation.syncCompilation(io, schema, module, layout, globalLayout, https = true)
     } yield compilation
   }
+  
+  private[this] var reporter: Reporter = _
+
+  override def onConnectWithClient(buildClient: BuildClient): Unit = {
+    client = buildClient
+    reporter = new BspReporter(client)
+  }
 
   override def buildInitialize(initializeBuildParams: InitializeBuildParams)
                               : CompletableFuture[InitializeBuildResult] = {
@@ -166,13 +176,11 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
 
     val result = new InitializeBuildResult("Fury", Version.current, Bsp.bspVersion, capabilities)
     val future = new CompletableFuture[InitializeBuildResult]()
-    future.complete(result)
-    
+    future.complete(result)    
     future
   }
 
   override def onBuildInitialized(): Unit = {
-    // TODO
   }
 
   override def onBuildExit(): Unit = {
@@ -276,10 +284,11 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
-        val dummy = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-        val compilationTasks = compilation.compile(io, moduleRef, dummy, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
+        val compilationTasks = compilation.compile(io, moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
-        aggregatedTask.andThen{case _ => dummy.closeAll()}
+        aggregatedTask.andThen{case _ => multiplexer.closeAll()}
+        reporter.report(io, compilation, config.theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
         synchronousResult
       }
@@ -453,6 +462,24 @@ object FuryBuildServer {
       future.completeExceptionally(e)
       future
     }.get
+  }
+  
+  private class BspReporter(client: BuildClient) extends  Reporter("bsp") {
+    import MessageType._
+    private def info(message: UserMsg)(implicit theme: Theme) =
+      client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
+    
+    override def report(io: Io, compilation: Compilation, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
+      implicit val t = theme
+      multiplexer.stream(50, Some(Tick)).foreach {
+        case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")
+        case StopCompile(ref, true)                      => info(msg"Successfully compiled module $ref")
+        case StopCompile(ref, false)                     => info(msg"Compilation of module $ref failed")
+        case DiagnosticMsg(ref, Graph.OtherMessage(out)) => info(out)
+        case Print(ref, line)                            => info(str"$line")
+        case other                                       => ()
+      }
+    }
   }
 
 }
