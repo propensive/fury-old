@@ -177,13 +177,14 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
 
   override def onBuildExit(): Unit = {
     io.println("**> buildExit")
-    cancel.cancel() // YOLO?
+    cancel.cancel()
+    Lifecycle.halt()
   }
 
   override def buildShutdown(): CompletableFuture[AnyRef] = {
     io.println("**> buildShutdown")
     val result = new CompletableFuture[AnyRef]()
-    result.complete("just exit already")
+    Lifecycle.shutdown().fold(result.completeExceptionally, result.complete)
     result
   }
 
@@ -260,8 +261,7 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
 
   override def buildTargetResources(resourcesParams: ResourcesParams): CompletableFuture[ResourcesResult] = {
     val future = new CompletableFuture[ResourcesResult]()
-    future.completeExceptionally(new NotImplementedError("method not implemented"))
-    
+    future.complete(new ResourcesResult(Nil.asJava))
     future
   }
 

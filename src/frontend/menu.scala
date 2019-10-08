@@ -24,7 +24,7 @@ object FuryMenu {
 
   def menu(aliases: List[Action[Cli[CliParam[_]]]]): Menu[Cli[CliParam[_]], _] =
     Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)(List(
-        Action('about, msg"about Fury", BuildCli.about(Main.busyCount)),
+        Action('about, msg"about Fury", BuildCli.about(Lifecycle.busyCount)),
         Menu('alias, msg"view and edit command aliases", AliasCli.context, 'list)(
             Action('add, msg"add a command alias to the layer", AliasCli.add),
             Action('remove, msg"remove a command alias from the layer", AliasCli.remove),
@@ -108,7 +108,7 @@ object FuryMenu {
             Action('remove, msg"remove a source directory from the module", SourceCli.remove),
             Action('list, msg"list sources for the module", SourceCli.list)
         ),
-        Action('stop, msg"gracefully shut down the Fury server", Main.shutdown()),
+        Action('stop, msg"gracefully shut down the Fury server", ((_: Cli[CliParam[_]]) => Lifecycle.shutdown())),
         Action('kill, msg"kill the Fury server", BuildCli.notImplemented),
         Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
             Action('add, msg"add a schema to the layer", SchemaCli.add),
