@@ -576,7 +576,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def saveNative(io: Io, ref: ModuleRef, dest: Path, layout: Layout, main: String): Try[Unit] =
     for {
       dest <- dest.directory
-      cp   = runtimeClasspath(io, ref, layout).to[List].map(_.value)
+      cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main)
     } yield ()
 
@@ -624,12 +624,12 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     params.map(_.parameter)
   }
 
-  def jmhRuntimeClasspath(io: Io, ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
+  def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
     classesDirs ++ targets(ref).compiler.to[Set].map { compilerTarget =>
       layout.resourcesDir(compilerTarget.id)
     } ++ classpath(ref, layout)
 
-  def runtimeClasspath(io: Io, ref: ModuleRef, layout: Layout): Set[Path] =
+  def runtimeClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
     targets(ref).compiler.to[Set].flatMap { compilerTarget =>
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
@@ -695,42 +695,11 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         if(noCompilation) deepDependencies(target.id).foreach { targetId =>
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
-
+        
         compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
           case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
-          val classDirectories = compileResult.classDirectories
-            if(target.kind == Benchmarks) {
-              classDirectories.foreach { classDirectory =>
-                Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
-                val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
-
-                Shell(layout.env).javac(
-                  classpath(target.ref, layout).to[List].map(_.value),
-                  classDirectory.value,
-                  javaSources.map(_.value).to[List])
-              }
-            }
-
-            val runSuccess = Shell(layout.env).runJava(
-              jmhRuntimeClasspath(io, target.ref, classDirectories, layout).to[List].map(_.value),
-              if(target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
-              securePolicy = target.kind == Application,
-              env = target.environment,
-              properties = target.properties,
-              policy = globalPolicy.forContext(layout, target.ref.projectId),
-              layout = layout,
-              args
-            ) { ln =>
-              multiplexer(target.ref) = Print(target.ref, ln)
-            }.await() == 0
-
-            deepDependencies(target.id).foreach { targetId =>
-              multiplexer(targetId.ref) = NoCompile(targetId.ref)
-            }
-
-            multiplexer.close(target.ref)
-            multiplexer(target.ref) = StopRun(target.ref)
-
+            val classDirectories = compileResult.classDirectories
+            val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0
             if(runSuccess) compileResult else compileResult.failed
           case otherResult =>
             otherResult
@@ -740,6 +709,43 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
     newFutures.updated(target.id, future)
   }
+
+  private def run(target: Target, classDirectories: Set[Path], multiplexer: Multiplexer[ModuleRef, CompileEvent],
+                  layout: Layout, globalPolicy: Policy, args: List[String]): Int = {
+    if (target.kind == Benchmarks) {
+      classDirectories.foreach { classDirectory =>
+        Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
+        val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+
+        Shell(layout.env).javac(
+          classpath(target.ref, layout).to[List].map(_.value),
+          classDirectory.value,
+          javaSources.map(_.value).to[List])
+      }
+    }
+    val exitCode = Shell(layout.env).runJava(
+      jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
+      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
+      securePolicy = target.kind == Application,
+      env = target.environment,
+      properties = target.properties,
+      policy = globalPolicy.forContext(layout, target.ref.projectId),
+      layout = layout,
+      args
+    ) { ln =>
+      multiplexer(target.ref) = Print(target.ref, ln)
+    }.await()
+
+    deepDependencies(target.id).foreach { targetId =>
+      multiplexer(targetId.ref) = NoCompile(targetId.ref)
+    }
+
+    multiplexer.close(target.ref)
+    multiplexer(target.ref) = StopRun(target.ref)
+
+    exitCode
+  }
+
 }
 
 case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
