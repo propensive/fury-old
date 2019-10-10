@@ -60,7 +60,7 @@ object LinearReporter extends Reporter("linear") {
       case StartCompile(ref)                           => io.println(msg"Starting compilation of module $ref")
       case StopCompile(ref, true)                      => io.println(msg"Successfully compiled module $ref")
       case StopCompile(ref, false)                     => io.println(msg"Compilation of module $ref failed")
-      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => io.println(out)
+      case DiagnosticMsg(ref, message)                 => io.println(message.msg)
       case Print(ref, line)                            => io.println(line)
       case other                                       => ()
     }
@@ -79,7 +79,7 @@ object InterleavingReporter extends Reporter("interleaving") {
       case StopRun(ref)                                => interleaver.terminate(ref)
       case StartRun(ref)                               => ()
       case StopCompile(ref, false)                     => interleaver.println(ref, msg"Compilation of module $ref failed", false)
-      case DiagnosticMsg(ref, Graph.OtherMessage(out)) => interleaver.println(ref, out, false)
+      case DiagnosticMsg(ref, message)                 => interleaver.println(ref, message.msg, false)
       case Print(ref, line)                            => interleaver.println(ref, UserMsg { theme =>
                                                             theme.gray(escritoire.Ansi.strip(line))
                                                           }, false)

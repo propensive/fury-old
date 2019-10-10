@@ -475,7 +475,7 @@ object FuryBuildServer {
         case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")
         case StopCompile(ref, true)                      => info(msg"Successfully compiled module $ref")
         case StopCompile(ref, false)                     => info(msg"Compilation of module $ref failed")
-        case DiagnosticMsg(ref, Graph.OtherMessage(out)) => info(out)
+        case DiagnosticMsg(ref, message)                 => info(message.msg)
         case Print(ref, line)                            => info(str"$line")
         case other                                       => ()
       }
