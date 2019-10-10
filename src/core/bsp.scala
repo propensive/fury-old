@@ -277,7 +277,6 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
 
   override def buildTargetCompile(compileParams: CompileParams): CompletableFuture[BspCompileResult] = {
     implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
-    io.println(str"**> buildTargetCompile --- ${compileParams.getTargets.size} targets")
     val bspTargets = compileParams.getTargets.asScala
     val allResults = bspTargets.traverse { bspTargetId =>
       for{
@@ -318,14 +317,14 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
 
   override def buildTargetCleanCache(cleanCacheParams: CleanCacheParams)
                                     : CompletableFuture[CleanCacheResult] = {
-    // TODO fury supports cleaning
+    //TODO Support cleaning a single module?
+    val done = List(layout.bloopDir, layout.analysisDir, layout.classesDir).traverse(_.delete()).isSuccess
     val future = new CompletableFuture[CleanCacheResult]()
-    future.completeExceptionally(new NotImplementedError("method not implemented"))
-    
+    future.complete(new CleanCacheResult("", done))
     future
   }
 
-  private def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure): Try[ScalacOptionsItem] =
+  private[this] def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure): Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
       val art = struct.targets(ref)
       val params = art.params.map(_.parameter)
