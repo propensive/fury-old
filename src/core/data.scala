@@ -159,7 +159,7 @@ case class Module(id: ModuleId,
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
 case class BspConnection(future: java.util.concurrent.Future[Void],
-                         client: BuildingClient,
+                         client: FuryBuildClient,
                          server: FuryBspServer,
                          traceBuffer: CharArrayWriter,
                          messageBuffer: CharArrayWriter) {
@@ -282,6 +282,9 @@ object BspConnectionManager {
 object Compilation {
   private val compilationThreadPool = Executors.newCachedThreadPool()
 
+  //FIXME
+  var receiverClient: Option[BuildClient] = None
+
   val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
@@ -293,8 +296,9 @@ object Compilation {
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
       val handle = BspConnectionManager.bloopLauncher
       BspConnectionManager.HandleHandler.handle(handle, log)
-      val client = new BuildingClient(messageSink = new PrintWriter(bspMessageBuffer))
-
+      val client = receiverClient.fold[FuryBuildClient](new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))){
+        rec => new ForwardingClient(rec)
+      }
       val launcher = new Launcher.Builder[FuryBspServer]()
         .traceMessages(log)
         .setRemoteInterface(classOf[FuryBspServer])
@@ -380,11 +384,15 @@ object Compilation {
   }
 }
 
-class BuildingClient(messageSink: PrintWriter) extends BuildClient {
+sealed abstract class FuryBuildClient extends BuildClient {
   var compilation: Compilation = _
   var targetId: TargetId = _
   var layout: Layout = _
+  //TODO move to DisplayingClient
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
+}
+
+class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
     multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
@@ -513,6 +521,38 @@ class BuildingClient(messageSink: PrintWriter) extends BuildClient {
         if(!compilation.targets(ref).kind.needsExecution) mp(ref) = StopRun(ref)
         else mp(ref) = StartRun(ref)
       }
+  }
+}
+
+class ForwardingClient(receiver: BuildClient) extends FuryBuildClient {
+
+  //TODO check if messages have to be transformed, e. g. the target IDs
+  override def onBuildShowMessage(showMessageParams: ShowMessageParams): Unit = {
+    receiver.onBuildShowMessage(showMessageParams)
+  }
+
+  override def onBuildLogMessage(logMessageParams: LogMessageParams): Unit = {
+    receiver.onBuildLogMessage(logMessageParams)
+  }
+
+  override def onBuildTaskStart(taskStartParams: TaskStartParams): Unit = {
+    receiver.onBuildTaskStart(taskStartParams)
+  }
+
+  override def onBuildTaskProgress(taskProgressParams: TaskProgressParams): Unit = {
+    receiver.onBuildTaskProgress(taskProgressParams)
+  }
+
+  override def onBuildTaskFinish(taskFinishParams: TaskFinishParams): Unit = {
+    receiver.onBuildTaskFinish(taskFinishParams)
+  }
+
+  override def onBuildPublishDiagnostics(publishDiagnosticsParams: PublishDiagnosticsParams): Unit = {
+    receiver.onBuildPublishDiagnostics(publishDiagnosticsParams)
+  }
+
+  override def onBuildTargetDidChange(didChangeBuildTarget: DidChangeBuildTarget): Unit = {
+    receiver.onBuildTargetDidChange(didChangeBuildTarget)
   }
 }
 
@@ -695,7 +735,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         if(noCompilation) deepDependencies(target.id).foreach { targetId =>
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
-        
+
         compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
           case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
             val classDirectories = compileResult.classDirectories
