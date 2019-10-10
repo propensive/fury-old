@@ -71,7 +71,10 @@ killFury() {
 }
 
 forceKill() {
+  BLPORT="8212" 
   bash <<END
+    printf "Killing processes that listen on ports $PORT and $BLPORT\n"
+    lsof -i :"$PORT" -i :"$BLPORT" -t | xargs kill
     printf 'Killing everything that looks like fury or bloop...'
     pkill -9 -f '(fury)|(bloop)'
     pgrep -f '(fury)|(bloop)' && printf '\nProcesses with these PIDs have survived.\n' || printf 'done\n'
