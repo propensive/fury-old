@@ -296,7 +296,9 @@ object Compilation {
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
       val handle = BspConnectionManager.bloopLauncher
       BspConnectionManager.HandleHandler.handle(handle, log)
-      val client = receiverClient.fold[FuryBuildClient](new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))){
+      val client = receiverClient.fold[FuryBuildClient](
+        new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
+      ){
         rec => new ForwardingClient(rec)
       }
       val launcher = new Launcher.Builder[FuryBspServer]()
@@ -476,7 +478,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
 
   override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {}
 
-  def convertDataTo[A: ClassTag](data: Object): A = {
+  private[this] def convertDataTo[A: ClassTag](data: Object): A = {
     val gson = new Gson()
     val json = data.asInstanceOf[JsonElement]
     val report =
@@ -485,7 +487,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
   }
 
   // FIXME: We should implement this using a regular expression
-  def getTargetId(bspUri: String): TargetId = {
+  private[this] def getTargetId(bspUri: String): TargetId = {
     val uriQuery = new java.net.URI(bspUri).getRawQuery
       .split("&")
       .map(_.split("=", 2))
