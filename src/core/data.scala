@@ -257,16 +257,15 @@ object BspConnectionManager {
       clientOut = bloopOut,
       out = new PrintStream(bloopErr),
       charset = StandardCharsets.UTF_8,
-      shell = bloop.launcher.core.Shell.default,
-      nailgunPort = None,
-      startedServer = Promise[Unit](),
-      generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
+      shell = bloop.bloopgun.core.Shell.default,
+      userNailgunHost = None,
+      userNailgunPort = None,
+      startedServer = Promise[Unit]()
     )
 
     val future = Future(blocking {
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
-        bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
         skipBspConnection = false,
         serverJvmOptions = Nil
       )

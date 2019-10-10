@@ -72,10 +72,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	ch.epfl.scala:bloop-launcher_2.12:1.3.2	binRepo	bintray:scalacenter/releases
+						binaries	ch.epfl.scala:bloop-launcher_2.12:1.3.4	binRepo	bintray:scalacenter/releases
 								group	ch.epfl.scala
 								artifact	bloop-launcher_2.12
-								version	1.3.2
+								version	1.3.4
 							ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
 								group	ch.epfl.scala
 								artifact	bsp4j
