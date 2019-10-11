@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import _root_.io.methvin.better.files.RecursiveFileMonitor
 import better.files.File
 import fury.io.Path
+import fury.utils.Threads
 
 import scala.concurrent.ExecutionContext
 
@@ -80,6 +81,6 @@ class SourceWatcher(sources: Set[Path]){
 }
 
 object SourceWatcher{
-  val executor = java.util.concurrent.Executors.newCachedThreadPool()
+  val executor = java.util.concurrent.Executors.newCachedThreadPool(Threads.factory("file-watcher", daemon = true))
   val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
 }

@@ -218,7 +218,7 @@ object BspConnectionManager {
     private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
 
     private val ec: ExecutionContext =
-      ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(), throw _)
+      ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(Threads.factory("handle-handler", daemon = true)), throw _)
 
     def handle(handle: Handle, sink: PrintWriter): Unit = handles(handle) = sink
 
@@ -290,7 +290,7 @@ object BspConnectionManager {
 }
 
 object Compilation {
-  private val compilationThreadPool = Executors.newCachedThreadPool()
+  private val compilationThreadPool = Executors.newCachedThreadPool(Threads.factory("bsp-launcher", daemon = true))
 
   //FIXME
   var receiverClient: Option[BuildClient] = None
