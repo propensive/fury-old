@@ -636,7 +636,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-				main	Some	core
+				main	Some	frontend
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -679,7 +679,7 @@ schemas	default	id	default
 			platform	id	platform
 				repo	gh:propensive/platform
 				track	master
-				commit	d1e7aae5000e1efe92b2bde48bdb82c6064c7e06
+				commit	0629f77d077873ff07f8b61dadb7cf26449179fe
 				local	None
 		imports	platform:default	repo	platform
 				schema	default
