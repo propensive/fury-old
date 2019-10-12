@@ -182,7 +182,7 @@ updateShell() {
 
 updateFish() {
   fish "set -Ux FURYHOME ${DESTINATION}"
-  fish "set -Ux fish_user_paths ${DESTINATION}/bin \$fish_user_paths"
+  fish "if not contains ${DESTINATION}/bin $fish_user_paths; set -Ux fish_user_paths ${DESTINATION}/bin \$fish_user_paths; end"
   cp "${DESTINATION}/etc/fishrc" "${CONFIG}/fish"
 }
 
