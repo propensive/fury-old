@@ -164,7 +164,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   }
 
   lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), Path(pwd), env) }
-  lazy val globalLayout: GlobalLayout = GlobalLayout(Path(env.variables("HOME")))
+  lazy val globalLayout: GlobalLayout = GlobalLayout(env)
   
   def next: Option[String] = args.prefix.headOption.map(_.value)
   def completion: Boolean = command.isDefined

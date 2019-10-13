@@ -42,17 +42,24 @@ object Layout {
   }
 }
 
-case class GlobalLayout(home: Path) {
-  private[this] val userDir = (home / ".furyrc").extant()
-  lazy val userConfig: Path = userDir / "config.fury"
-  lazy val aliasesPath: Path = userDir / "aliases"
-  lazy val policyFile: Path = userDir / "policy.fury"
+case class GlobalLayout(env: Environment) {
+
+  lazy val home: Path = Path(env.variables("HOME"))
+  
+  private[this] val configDir: Path =
+    env.variables.get("XDG_CONFIG_HOME").map(Path(_)).getOrElse(home / ".config") / "fury"
+  
+  lazy val userConfig: Path = configDir / "config.fury"
+  lazy val aliasesPath: Path = configDir / "aliases"
+  lazy val policyFile: Path = configDir / "policy.fury"
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   private[this] val nowString: String = Layout.dateFormat.format(new Date())
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
-  private[this] val userDir = (home / ".furyrc").extant()
+  
+  private[this] val cacheDir =
+    env.variables.get("XDG_CACHE_HOME").map(Path(_)).getOrElse(home / ".cache") / "fury"
   
   lazy val furyDir: Path = (base / ".fury").extant()
   lazy val bspDir: Path = (base / ".bsp").extant()
@@ -62,8 +69,8 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
-  lazy val reposDir: Path = (userDir / "repos").extant()
-  lazy val srcsDir: Path = (userDir / "sources").extant()
+  lazy val reposDir: Path = (cacheDir / "repos").extant()
+  lazy val srcsDir: Path = (cacheDir / "sources").extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val workDir: Path = (furyDir / "work").extant()
   lazy val policyDir: Path = (furyDir / "policy").extant()
