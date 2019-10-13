@@ -30,12 +30,14 @@ trait Repeater[Res]{
   def stopCondition(): Boolean
   def action(): Res
 
-  def delayMillis: Long = 1000
+  def delayMillis: Long = 100
 
   def start(): Res = {
     val retries = Iterator.iterate(action()) { prev =>
-      Thread.sleep(delayMillis)
-      if(repeatCondition() && !stopCondition()) action() else prev
+      try Thread.sleep(delayMillis) catch {
+        case e: InterruptedException => ()
+      }
+      if(!Thread.currentThread.isInterrupted && repeatCondition() && !stopCondition()) action() else prev
     }
     retries.dropWhile(_ => !stopCondition()).next()
   }

@@ -19,6 +19,7 @@ trap cleanup INT
 cleanup() {
   printf "\e[0m"
   printf "\e[?25h"
+  silently fury "$$" interrupt
 }
 
 nailgun() {
@@ -82,7 +83,7 @@ END
 }
 
 stopFury() {
-  nailgun "${FURY_MAIN}" "stop" && killFury
+  nailgun "${FURY_MAIN}" "$$" "stop" && killFury
 }
 
 alive() {
@@ -105,7 +106,7 @@ ngServer() {
 }
 
 fury() {
-  ngServer && nailgun "${FURY_MAIN}" "$@"
+  ngServer && nailgun "${FURY_MAIN}" "$$" "$@"
 }
 
 restartFury() {
@@ -113,7 +114,7 @@ restartFury() {
 }
 
 startFuryStandalone() {
-  java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$@"
+  java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$$" "$@"
 }
 
 case "$1" in
