@@ -66,6 +66,7 @@ object Args {
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
   val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external schema to import")
+  val IsolatedArg = CliParam[Boolean]('I', Symbol("isolated"), "build the module isolated (on, off)")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
       "specify if this dependency should not be included transitively")

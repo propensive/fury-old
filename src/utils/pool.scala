@@ -37,15 +37,15 @@ abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext
         pool(key) = res
         res
       case Some(value) =>
-        value.filter{v =>
+        value.filter {v =>
           val bad = isBad(v)
           if(bad) { destroy(v) }
           !bad
-        }.andThen{
+        }.andThen {
           case Failure(e) => pool -= key
         }
     }
-    result.recoverWith{ case _ => createOrRecycle(key) }
+    result.recoverWith { case _ => createOrRecycle(key) }
   }
 
   def borrow[S](key: K)(action: T => S): Future[S] = {

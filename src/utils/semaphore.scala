@@ -28,18 +28,20 @@ class Isolator()(implicit ec: ExecutionContext) { isolator =>
     private[this] val promise: Promise[Unit] = Promise[Unit]()
     
     val future: Future[T] = promise.future.map { unit =>
-      try action() finally { isolator.synchronized {
+      try blocking(action()) finally { isolator.synchronized {
         isolationQueue = isolationQueue.filter(_ != task)
         queue = queue.filter(_ != task)
         processQueues()
       } }
     }
-    
-    def start(): Unit = if(!promise.isCompleted) promise.complete(Success(()))
+   
+    def active: Boolean = promise.isCompleted
+    def start(): Unit = if(!active) promise.complete(Success(()))
   }
 
   private[this] def processQueues(): Unit =
-    if(isolationQueue.isEmpty) queue.foreach(_.start()) else if(queue.isEmpty) isolationQueue.head.start()
+    if(isolationQueue.isEmpty) queue.foreach(_.start())
+    else if(!queue.exists(_.active)) isolationQueue.head.start()
 
   def run[T](block: => T, isolated: Boolean = false): Future[T] = {
     val task = Task(() => block)

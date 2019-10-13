@@ -136,7 +136,8 @@ case class Module(id: ModuleId,
                   bloopSpec: Option[BloopSpec] = None,
                   environment: SortedSet[EnvVar] = TreeSet(),
                   properties: SortedSet[JavaProperty] = TreeSet(),
-                  policy: SortedSet[Permission] = TreeSet()) {
+                  policy: SortedSet[Permission] = TreeSet(),
+                  isolated: Boolean = false) {
 
   def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
@@ -294,6 +295,8 @@ object Compilation {
 
   //FIXME
   var receiverClient: Option[BuildClient] = None
+
+  val isolator: Isolator = new Isolator()
 
   val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
 
@@ -763,7 +766,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   }
 
   private def run(target: Target, classDirectories: Set[Path], multiplexer: Multiplexer[ModuleRef, CompileEvent],
-                  layout: Layout, globalPolicy: Policy, args: List[String]): Int = {
+                  layout: Layout, globalPolicy: Policy, args: List[String]): Int = Await.result(Compilation.isolator.run({
     if (target.kind == Benchmarks) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
@@ -796,7 +799,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     multiplexer(target.ref) = StopRun(target.ref)
 
     exitCode
-  }
+  }, target.isolated), duration.Duration.Inf)
 
 }
 
@@ -855,7 +858,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         ref.intransitive,
         sourcePaths,
         module.environment.map { e => (e.key, e.value) }.toMap,
-        module.properties.map { p => (p.key, p.value) }.toMap
+        module.properties.map { p => (p.key, p.value) }.toMap,
+        module.isolated || module.kind == Benchmarks
       )
     }
 
@@ -1307,7 +1311,8 @@ case class Target(ref: ModuleRef,
                   intransitive: Boolean,
                   sourcePaths: List[Path],
                   environment: Map[String, String],
-                  properties: Map[String, String]) {
+                  properties: Map[String, String],
+                  isolated: Boolean) {
 
   def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
   def executed = kind == Application || kind == Benchmarks

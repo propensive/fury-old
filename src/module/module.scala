@@ -107,7 +107,7 @@ object ModuleCli {
 
       cli            <- optKind match {
                           case Some(Application) =>
-                            for (cli <- cli.hint(MainArg)) yield cli
+                            for (cli <- cli.hint(MainArg); cli <- cli.hint(IsolatedArg)) yield cli
                           case Some(Plugin) =>
                             for(cli <- cli.hint(MainArg); cli <- cli.hint(PluginArg)) yield cli
                           case None | Some(Benchmarks | Library | Compiler) =>
@@ -127,6 +127,9 @@ object ModuleCli {
       module         <- ~invoc(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
       
       module         <- ~invoc(MainArg).toOption.map { m => module.copy(main = if(m == "") None else Some(m))
+                            }.getOrElse(module)
+
+      module         <- ~invoc(IsolatedArg).toOption.map { i => module.copy(isolated = i)
                             }.getOrElse(module)
 
       module         <- ~invoc(PluginArg).toOption.map { p => module.copy(plugin = if(p == "") None else
@@ -214,7 +217,7 @@ object ModuleCli {
       
       cli         <- optKind match {
                        case Some(Application) =>
-                         for (cli <- cli.hint(MainArg)) yield cli
+                         for (cli <- cli.hint(MainArg); cli <- cli.hint(IsolatedArg)) yield cli
                        case Some(Plugin) =>
                          for (cli <- cli.hint(MainArg); cli <- cli.hint(PluginArg)) yield cli
                        case Some(Compiler) =>
@@ -231,6 +234,7 @@ object ModuleCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(io, ctx, _)).map(_.headOption)
       mainClass   <- ~invoc(MainArg).toOption
+      isolated    <- ~invoc(IsolatedArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption
       name        <- nameArg.to[List].map(project.unused(_)).sequence.map(_.headOption)
@@ -247,6 +251,9 @@ object ModuleCli {
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).main)) =
                          mainClass.map(Some(_))
+
+      layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).isolated)) =
+                         isolated
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).plugin)) =
                          pluginName.map(Some(_))
