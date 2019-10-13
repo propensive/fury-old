@@ -7,7 +7,7 @@ else
 fi
 
 PORT="8462"
-CLASSPATH="$FURYHOME/lib/*"
+CLASSPATH="$(cat $FURYHOME/classpath):$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 QUIET='0'
@@ -90,11 +90,8 @@ alive() {
 }
 
 startNailgun() {
-  message 'Resolving Scala compiler...'
-  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0)
-  message 'done\n'
-  message 'Starting Nailgun server...'
-  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+  message 'Starting Fury daemon...'
+  java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
   NG_PID="$!"
   until (alive); do
     message '.'
@@ -116,8 +113,7 @@ restartFury() {
 }
 
 startFuryStandalone() {
-  SCALA=$(coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8)
-  java -Dfury.home="${FURYHOME}" -cp "$SCALA:$CLASSPATH" "$FURY_MAIN" "$@"
+  java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$@"
 }
 
 case "$1" in

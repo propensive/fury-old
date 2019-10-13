@@ -168,6 +168,10 @@ findConfigFile() {
   esac
 }
 
+resolveScala() {
+  ${DESTINATION}/bin/coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0 > ${DESTINATION}/classpath
+}
+
 updateShell() {
   SH=$1
   findConfigFile
@@ -222,7 +226,7 @@ completion() {
   echo ""
 }
 
-prepare && checkJava && untarPayload && updateShells && restartFury && completion
+prepare && checkJava && untarPayload && resolveScala && updateShells && restartFury && completion
 
 exit 0
 
