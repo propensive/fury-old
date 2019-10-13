@@ -23,28 +23,46 @@ import scala.collection.mutable.HashSet
 import scala.util.Try
 
 object Lifecycle {
+
+  case class Session(pid: Int, thread: Thread) {
+    val started: Long = System.currentTimeMillis
+  }
+
   private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
-  private[this] val running: HashSet[Thread]   = new HashSet()
+  private[this] val running: HashSet[Session]   = new HashSet()
   private[this] def busy(): Option[Int] =
     running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
   def busyCount: Int = busy().getOrElse(0)
 
-  def trackThread(action: => Int): Int =
+  def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
+
+  def trackThread(pid: Int)(action: => Int): Int =
     if(!terminating.get) {
-      running.synchronized(running += Thread.currentThread)
-      try action
-      finally {
-        running.synchronized(running -= Thread.currentThread)
+      running.find(_.pid == pid) match {
+        case None =>
+          val session = Session(pid, Thread.currentThread)
+          running.synchronized(running += session)
+          try action
+          finally { running.synchronized(running -= session) }
+        case Some(session) =>
+          session.thread.interrupt()
+          running.synchronized { running -= session }
+          0
       }
     } else {
-      println("New tasks cannot be started while Fury is shutting down.")
-      1
+      running.find(_.pid == pid) match {
+        case None =>
+          println("New tasks cannot be started while Fury is shutting down.")
+          1
+        case Some(session) =>
+          session.thread.interrupt()
+          running.synchronized { running -= session }
+          0
+      }
     }
   
-  def halt(): Unit = {
-    System.exit(busyCount)
-  }
+  def halt(): Unit = System.exit(busyCount)
 
   @tailrec
   def shutdown(previous: Int = -1): Try[ExitStatus] = {

@@ -53,7 +53,8 @@ object Cli {
       ParamMap(cli.args.suffix.map(_.value).tail: _*),
       cli.args(Args.ParamNoArg).toOption,
       cli.optCompletions,
-      cli.env
+      cli.env,
+      cli.pid
     )
 
     menu(newCli, newCli)
@@ -133,7 +134,8 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
                                        args: ParamMap,
                                        command: Option[Int],
                                        optCompletions: List[Cli.OptCompletion[_]],
-                                       env: Environment) {
+                                       env: Environment,
+                                       pid: Int) {
 
   class Invocation private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)

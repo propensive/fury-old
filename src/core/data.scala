@@ -240,7 +240,6 @@ object BspConnectionManager {
         Thread.sleep(100)
       }
     } (ec)
-
   }
 
   import bloop.launcher.LauncherMain

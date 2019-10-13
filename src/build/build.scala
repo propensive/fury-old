@@ -131,7 +131,7 @@ object BuildCli {
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
-  def status(busyCount: Int): String = {
+  def status: String = {
     val runtime = Runtime.getRuntime
     val df: DecimalFormat = new DecimalFormat("0.0")
 
@@ -146,11 +146,17 @@ object BuildCli {
 
     str"""    CPUs: ${runtime.availableProcessors}
          |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max
-         |     BSP: ${Compilation.bspPool.size} connections
-         |  Builds: ${busyCount} active""".stripMargin
+         |     BSP: ${Compilation.bspPool.size} connections""".stripMargin
   }
 
-  def about(busyCount: Int)(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+  private val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.00")
+  def since(start: Long): String = str"${formatter.format((System.currentTimeMillis - start)/1000.0)}s"
+
+  def builds: String = Lifecycle.sessions.map { session =>
+    str"[${session.pid}] started ${since(session.started)} ago"
+  }.mkString("\n")
+
+  def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
       io    <- invoc.io()
@@ -168,7 +174,9 @@ object BuildCli {
                                  |See the Fury website at https://fury.build/, or follow @propensive on Twitter
                                  |for more information.
                                  |
-                                 |${status(busyCount)}
+                                 |${status}
+                                 |
+                                 |${builds}
                                  |
                                  |For help on using Fury, run: fury help
                                  |""".stripMargin, noTime = true)
@@ -299,11 +307,11 @@ object BuildCli {
           //io.println(str"Rebuild $cnt")
           cnt = cnt + 1
           watcher.clear()
-          for{
+          for {
             task <- compileOnce(io, compilation, schema, module.ref(project), layout,
               globalPolicy, invoc.suffix, pipelining.getOrElse(config.pipelining), reporter, config.theme, https)
           } yield {
-            task.transform{ completed =>
+            task.transform { completed =>
               for{
                 compileResult  <- completed
                 compileSuccess <- compileResult.asTry
