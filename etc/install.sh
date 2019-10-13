@@ -21,7 +21,14 @@ GREEN="$(printf '\e[32m')"
 YELLOW="$(printf '\e[33m')"
 RESET="$(printf '\e[0m')"
 
-CONFIG="${HOME}/.furyrc"
+if [ -z "${XDG_CONFIG_HOME}" ]
+then
+  CONFIG="${HOME}/.config/fury"
+else
+  CONFIG="${XDG_CONFIG_HOME}/fury"
+fi
+
+mkdir -p "${CONFIG}"
 
 if [ -z "$1" ]
 then

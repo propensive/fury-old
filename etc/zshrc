@@ -1,4 +1,12 @@
 export PATH=$FURYHOME/bin:$PATH
 export fpath=($FURYHOME/etc/completion/zsh $fpath)
 autoload -U +X compinit && compinit
-source $HOME/.furyrc/aliases
+
+if [ -z "${XDG_CONFIG_HOME}" ]
+then
+  CONFIG="${HOME}/.config/fury"
+else
+  CONFIG="${XDG_CONFIG_HOME}/fury"
+fi
+
+source ${CONFIG}/aliases
