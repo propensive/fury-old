@@ -356,7 +356,7 @@ object Compilation {
                     https: Boolean)
                    : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(io, layout, globalLayout, globalLayout, https)
+    hierarchy   <- schema.hierarchy(io, layout, globalLayout, https)
     universe    <- hierarchy.universe
     policy      <- Policy.read(io, installation)
     compilation <- universe.compilation(io, ref, policy, layout)

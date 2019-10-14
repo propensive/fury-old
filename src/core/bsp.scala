@@ -84,10 +84,10 @@ object Bsp {
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean, installation: Installation): Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean, installation: Installation): java.util.concurrent.Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel, https, globalLayout)
+    val server = new FuryBuildServer(layout, cancel, https, installation)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -118,9 +118,9 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private def structure: Try[Structure] =
     for {
       focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
-      layer          <- Layer.read(io, focus.layerRef, layout, globalLayout)
+      layer          <- Layer.read(io, focus.layerRef, layout, installation)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(io, layout, globalLayout, https)
+      hierarchy      <- schema.hierarchy(io, layout, installation, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
@@ -143,7 +143,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
       //FIXME remove duplication with structure
-      layer          <- Layer.read(io, layout, globalLayout)
+      layer          <- Layer.read(io, layout, installation)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
       compilation    <- Compilation.syncCompilation(io, schema, module, layout, installation, https = true)
