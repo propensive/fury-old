@@ -21,17 +21,15 @@ import scala.util._
 
 class Isolator()(implicit ec: ExecutionContext) { isolator =>
 
-  private[this] var isolationQueue: Vector[Task[_]] = Vector()
   private[this] var queue: Vector[Task[_]] = Vector()
 
-  case class Task[T](action: () => T) { task =>
+  case class Task[T](action: () => T, isolated: Boolean) { task =>
     private[this] val promise: Promise[Unit] = Promise[Unit]()
     
     val future: Future[T] = promise.future.map { unit =>
       try blocking(action()) finally { isolator.synchronized {
-        isolationQueue = isolationQueue.filter(_ != task)
         queue = queue.filter(_ != task)
-        processQueues()
+        processQueue()
       } }
     }
    
@@ -39,18 +37,18 @@ class Isolator()(implicit ec: ExecutionContext) { isolator =>
     def start(): Unit = if(!active) promise.complete(Success(()))
   }
 
-  private[this] def processQueues(): Unit =
-    if(isolationQueue.isEmpty) queue.foreach(_.start())
-    else if(!queue.exists(_.active)) isolationQueue.head.start()
+  private[this] def processQueue(): Unit =
+    if(queue.headOption.exists(_.isolated)) queue.head.start()
+    else queue.takeWhile(!_.isolated).foreach(_.start())
 
-  def run[T](block: => T, isolated: Boolean = false): Future[T] = {
-    val task = Task(() => block)
+  def run[T](isolated: Boolean = false)(block: => T): Future[T] = {
+    val task = Task(() => block, isolated)
     isolator.synchronized {
-      if(isolated) isolationQueue = isolationQueue :+ task
-      else queue = queue :+ task
-      processQueues()
+      queue = queue :+ task
+      processQueue()
     }
 
     task.future
   }
 }
+

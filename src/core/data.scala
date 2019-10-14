@@ -689,13 +689,13 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
-  def compileModule(io: Io,
-                    target: Target,
-                    layout: Layout,
-                    application: Boolean,
-                    multiplexer: Multiplexer[ModuleRef, CompileEvent],
-                    pipelining: Boolean)
-                   : Future[CompileResult] = {
+  def compileSubgraph(io: Io,
+                      target: Target,
+                      layout: Layout,
+                      application: Boolean,
+                      multiplexer: Multiplexer[ModuleRef, CompileEvent],
+                      pipelining: Boolean)
+                     : Future[CompileResult] = {
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
@@ -704,7 +704,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.toList.asJava)
-    Compilation.bspPool.borrow(layout.base) { conn =>
+    
+    Compilation.isolator.run() { Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
       val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
         wrapServerErrors(server.buildTargetCompile(params))
       }
@@ -714,12 +715,11 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       conn.writeTrace(layout)
       conn.writeMessages(layout)
       CompileResult(bspCompileResult.get, scalacOptions.get)
-    }
+    }, Duration.Inf) }
   }
 
   private[this] def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
     Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
-
 
   def compile(io: Io,
               moduleRef: ModuleRef,
@@ -739,7 +739,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
 
-    val future = dependencyFutures.map(CompileResult.merge).flatMap { required =>
+    val future: Future[CompileResult] = dependencyFutures.map(CompileResult.merge).flatMap { required =>
       if(!required.isSuccessful) {
         multiplexer(target.ref) = SkipCompile(target.ref)
         multiplexer.close(target.ref)
@@ -751,11 +751,11 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
+        compileSubgraph(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
           case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
             val classDirectories = compileResult.classDirectories
-            val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0
-            if(runSuccess) compileResult else compileResult.failed
+            val result = Await.result(runModule(target, classDirectories, multiplexer, layout, globalPolicy, args), Duration.Inf)
+            if(result == 0) compileResult else compileResult.failed
           case otherResult =>
             otherResult
         }
@@ -765,42 +765,50 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     newFutures.updated(target.id, future)
   }
 
-  private def run(target: Target, classDirectories: Set[Path], multiplexer: Multiplexer[ModuleRef, CompileEvent],
-                  layout: Layout, globalPolicy: Policy, args: List[String]): Int = Await.result(Compilation.isolator.run({
-    if (target.kind == Benchmarks) {
-      classDirectories.foreach { classDirectory =>
-        Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
-        val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+  private def runModule(target: Target,
+                        classDirectories: Set[Path],
+                        multiplexer: Multiplexer[ModuleRef, CompileEvent],
+                        layout: Layout,
+                        globalPolicy: Policy,
+                        args: List[String]): Future[Int] = {
+    multiplexer(target.ref) = WaitingForIsolation(target.ref)
+    Compilation.isolator.run(isolated = target.isolated) {
+      
+      if (target.kind == Benchmarks) {
+        classDirectories.foreach { classDirectory =>
+          Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
+          val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
 
-        Shell(layout.env).javac(
-          classpath(target.ref, layout).to[List].map(_.value),
-          classDirectory.value,
-          javaSources.map(_.value).to[List])
+          Shell(layout.env).javac(
+            classpath(target.ref, layout).to[List].map(_.value),
+            classDirectory.value,
+            javaSources.map(_.value).to[List])
+        }
       }
+
+      val exitCode = Shell(layout.env).runJava(
+        jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
+        if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
+        securePolicy = target.kind == Application,
+        env = target.environment,
+        properties = target.properties,
+        policy = globalPolicy.forContext(layout, target.ref.projectId),
+        layout = layout,
+        args
+      ) { ln =>
+        multiplexer(target.ref) = Print(target.ref, ln)
+      }.await()
+
+      deepDependencies(target.id).foreach { targetId =>
+        multiplexer(targetId.ref) = NoCompile(targetId.ref)
+      }
+
+      multiplexer.close(target.ref)
+      multiplexer(target.ref) = StopRun(target.ref)
+
+      exitCode
     }
-    val exitCode = Shell(layout.env).runJava(
-      jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
-      securePolicy = target.kind == Application,
-      env = target.environment,
-      properties = target.properties,
-      policy = globalPolicy.forContext(layout, target.ref.projectId),
-      layout = layout,
-      args
-    ) { ln =>
-      multiplexer(target.ref) = Print(target.ref, ln)
-    }.await()
-
-    deepDependencies(target.id).foreach { targetId =>
-      multiplexer(targetId.ref) = NoCompile(targetId.ref)
-    }
-
-    multiplexer.close(target.ref)
-    multiplexer(target.ref) = StopRun(target.ref)
-
-    exitCode
-  }, target.isolated), duration.Duration.Inf)
-
+  }
 }
 
 case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
@@ -1252,6 +1260,7 @@ case class CompilationProgress(ref: ModuleRef, progress: Double) extends Compile
 case class StopCompile(ref: ModuleRef, success: Boolean)         extends CompileEvent
 case class NoCompile(ref: ModuleRef)                             extends CompileEvent
 case class SkipCompile(ref: ModuleRef)                           extends CompileEvent
+case class WaitingForIsolation(ref: ModuleRef)                   extends CompileEvent
 case class Print(ref: ModuleRef, line: String)                   extends CompileEvent
 case class StartRun(ref: ModuleRef)                              extends CompileEvent
 case class StopRun(ref: ModuleRef)                               extends CompileEvent

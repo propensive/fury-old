@@ -42,6 +42,7 @@ object Graph {
   case class Failed(output: String)              extends CompileState
   case object Skipped                            extends CompileState
   case object Executing                          extends CompileState
+  case object Waiting                            extends CompileState
 
   private case class GraphState(changed: Boolean,
                         io: Io,
@@ -87,7 +88,10 @@ object Graph {
           graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ OtherMessage(line))).copy(changed = false)
         case StopRun(ref) =>
           graphState.updateCompilationLog(ref, _.copy(state = Successful(None))).copy(changed = true)
-        case StartRun(ref) => graphState.updateCompilationLog(ref, _.copy(state = Executing)).copy(changed = true)
+        case WaitingForIsolation(ref) =>
+          graphState.updateCompilationLog(ref, _.copy(state = Waiting)).copy(changed = true)
+        case StartRun(ref) =>
+          graphState.updateCompilationLog(ref, _.copy(state = Executing)).copy(changed = true)
         case SkipCompile(ref) =>
           graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true)
       }
@@ -183,6 +187,9 @@ object Graph {
           case Some(CompilationInfo(Executing, msgs)) =>
             val p = ((System.currentTimeMillis/50)%10).toInt
             theme.active((" "*p)+"■"+(" "*(9 - p)))
+          case Some(CompilationInfo(Waiting, msgs)) =>
+            val p = ((System.currentTimeMillis/50)%10).toInt
+            theme.waiting((" "*p)+"■"+(" "*(9 - p)))
           case Some(CompilationInfo(AlreadyCompiled, msgs)) =>
             theme.gray("■"*10)
           case _ => theme.bold(theme.failure("          "))
