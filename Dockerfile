@@ -7,9 +7,12 @@ RUN (git config --global user.email 'fury@propensive.com' && git config --global
 
 # Install GraalVM
 ENV GRAAL_VERSION "1.0.0-rc11"
-RUN sh -c "cd /opt &&  curl -s -L https://github.com/oracle/graal/releases/download/vm-1.0.0-rc11/graalvm-ce-${GRAAL_VERSION}-linux-amd64.tar.gz | tar zxf -"
+RUN sh -c "cd /opt && curl -s -L https://github.com/oracle/graal/releases/download/vm-1.0.0-rc11/graalvm-ce-${GRAAL_VERSION}-linux-amd64.tar.gz | tar zxf -"
 ENV GRAAL_HOME "/opt/graalvm-ce-${GRAAL_VERSION}"
 RUN apt-get -qq install gcc libz-dev > /dev/null
+
+# Install IPFS
+RUN sh -c "cd /opt && curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_linux-amd64.tar.gz | tar zxf - go-ipfs/ipfs"
 
 # Set up mirror for Maven Central
 RUN mkdir -p /root/.config/coursier/
@@ -20,7 +23,7 @@ COPY etc/ci-mirror.properties /home/bash_user/.config/coursier/mirror.properties
 # Set up build directory
 RUN mkdir -p /build /build/bootstrap
 RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
-ENV PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:/root/.bloop:${PATH}"
+ENV PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:/root/.bloop:/opt/go-ipfs:${PATH}"
 
 COPY Makefile /build/Makefile
 COPY etc /build/etc
@@ -51,6 +54,8 @@ RUN /testshell.sh fish
 RUN apt-get -qq install gcc > /dev/null
 RUN su -l bash_user -s /bin/bash -c /install.sh
 RUN su -l bash_user -s /bin/bash -c "source ~/.bashrc && fury start && fury about"
+
+RUN su -l bash_user -s /bin/bash -c "/opt/go-ipfs/ipfs init"
 
 COPY etc/integration /integration
 COPY test /home/bash_user/test
