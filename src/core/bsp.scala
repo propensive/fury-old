@@ -77,17 +77,17 @@ object Bsp {
       cli     <- cli.hint(Args.HttpsArg)
       invoc   <- cli.read()
       https   <- ~invoc(Args.HttpsArg).isSuccess
-      running <- ~run(System.in, System.out, layout, cli.globalLayout, https)
+      running <- ~run(System.in, System.out, layout, cli.installation, https)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, globalLayout: GlobalLayout, https: Boolean): java.util.concurrent.Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, installation: Installation, https: Boolean): java.util.concurrent.Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, globalLayout, cancel, https)
+    val server = new FuryBuildServer(layout, installation, cancel, https)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -107,7 +107,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, installation: Installation, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _
@@ -145,7 +145,7 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
       layer          <- Layer.read(io, layout.furyConfig, layout)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(io, schema, module, layout, globalLayout, https = true)
+      compilation    <- Compilation.syncCompilation(io, schema, module, layout, installation, https = true)
     } yield compilation
   }
   
@@ -280,7 +280,7 @@ class FuryBuildServer(layout: Layout, globalLayout: GlobalLayout, cancel: Cancel
     val bspTargets = compileParams.getTargets.asScala
     val allResults = bspTargets.traverse { bspTargetId =>
       for{
-        globalPolicy <- Policy.read(io, globalLayout)
+        globalPolicy <- Policy.read(io, installation)
         struct <- structure
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)

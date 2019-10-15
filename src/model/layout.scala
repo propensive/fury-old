@@ -42,7 +42,7 @@ object Layout {
   }
 }
 
-case class GlobalLayout(env: Environment) {
+case class Installation(env: Environment) {
 
   lazy val home: Path = Path(env.variables("HOME"))
   
