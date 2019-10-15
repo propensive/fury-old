@@ -266,7 +266,11 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	bloop:launcher/src/main/scala	bloop:launcher/src/main/scala
-						binaries	com.zaxxer:nuprocess:1.2.4	binRepo	central
+						binaries	ch.epfl.scala:bloopgun_2.12:1.3.4	binRepo	central
+								group	ch.epfl.scala
+								artifact	bloopgun_2.12
+								version	1.3.4
+							com.zaxxer:nuprocess:1.2.4	binRepo	central
 								group	com.zaxxer
 								artifact	nuprocess
 								version	1.2.4
@@ -274,6 +278,10 @@ schemas	default	id	default
 								group	io.get-coursier
 								artifact	coursier_2.12
 								version	1.1.0-M14-4
+							me.vican.jorge:snailgun-core_2.12:0.3.1	binRepo	central
+								group	me.vican.jorge
+								artifact	snailgun-core_2.12
+								version	0.3.1
 						resources	
 						bloopSpec	None
 						environment	
@@ -674,7 +682,7 @@ schemas	default	id	default
 		repos	bloop	id	bloop
 				repo	gh:scalacenter/bloop
 				track	master
-				commit	239b0dd7bfd36eef9dd6c613675c721ab5d570c7
+				commit	b4f820c659928a59fe863f6ae41718db747e3fc0
 				local	None
 			platform	id	platform
 				repo	gh:propensive/platform
