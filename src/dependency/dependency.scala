@@ -105,7 +105,7 @@ object DependencyCli {
       _         <- ~Layer.save(io, layer, layout)
       optSchema <- ~layer.mainSchema.toOption
 
-      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.globalLayout,
+      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.installation,
                        https))
 
     } yield io.await()
@@ -134,7 +134,7 @@ object DependencyCli {
       _                <- ~Layer.save(io, layer, layout)
 
       _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout,
-                              cli.globalLayout, false))
+                              cli.installation, false))
 
     } yield io.await()
   }
@@ -294,9 +294,9 @@ object PermissionCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
       _               <- Layer.save(io, layer, layout)
-      policy          <- Policy.read(io, cli.globalLayout)
+      policy          <- Policy.read(io, cli.installation)
       newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
-      _               <- Policy.save(io, cli.globalLayout, newPolicy)
+      _               <- Policy.save(io, cli.installation, newPolicy)
     } yield {
       io.println(msg"${PermissionHash(permission.hash)}")
       io.await()
@@ -356,9 +356,9 @@ object PermissionCli {
       module        <- optModule.ascribe(UnspecifiedModule())
       permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
-      policy        <- Policy.read(io, cli.globalLayout)
+      policy        <- Policy.read(io, cli.installation)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
-      _             <- Policy.save(io, cli.globalLayout, newPolicy)
+      _             <- Policy.save(io, cli.installation, newPolicy)
     } yield io.await()
   }
 

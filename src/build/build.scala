@@ -48,7 +48,7 @@ object ConfigCli {
       config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
       config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
       config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
-      _        <- ~Ogdl.write(config, cli.globalLayout.userConfig)
+      _        <- ~Ogdl.write(config, cli.installation.userConfig)
     } yield io.await()
   }
 }
@@ -218,10 +218,10 @@ object BuildCli {
       https        <- ~invoc(HttpsArg).isSuccess
       module       <- optModule.ascribe(UnspecifiedModule())
       pipelining   <- ~invoc(PipeliningArg).toOption
-      globalPolicy <- Policy.read(io, cli.globalLayout)
+      globalPolicy <- Policy.read(io, cli.installation)
       reporter     =  invoc(ReporterArg).toOption.getOrElse(GraphReporter)
       watch        =  invoc(WatchArg).isSuccess
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout, https)
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.installation, https)
       watcher      =  new SourceWatcher(compilation.allSources)
       //_            =  watcher.directories.map(_.toString).foreach(s => io.println(str"$s"))
       _            =  if(watch) watcher.start()
@@ -291,10 +291,10 @@ object BuildCli {
       module         <- optModule.ascribe(UnspecifiedModule())
       pipelining     <- ~invoc(PipeliningArg).toOption
       fatJar         =  invoc(FatJarArg).isSuccess
-      globalPolicy   <- Policy.read(io, cli.globalLayout)
+      globalPolicy   <- Policy.read(io, cli.installation)
       reporter       <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  invoc(WatchArg).isSuccess
-      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout, https)
+      compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.installation, https)
       watcher        =  new SourceWatcher(compilation.allSources)
       _              =  if(watch) watcher.start()
       future         <- new Repeater[Try[Future[CompileResult]]] {
@@ -350,7 +350,7 @@ object BuildCli {
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
       
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.installation,
                           https)
       
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
@@ -378,7 +378,7 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
       
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.installation,
                           https)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
@@ -405,7 +405,7 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
 
-      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.globalLayout,
+      compilation  <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.installation,
                           https)
       
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,

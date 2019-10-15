@@ -70,14 +70,14 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
 }
 
 object Policy {
-  def read(io: Io, layout: GlobalLayout): Try[Policy] =
-    Success(Ogdl.read[Policy](layout.policyFile,
-        upgrade(io, layout, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant])))
+  def read(io: Io, installation: Installation): Try[Policy] =
+    Success(Ogdl.read[Policy](installation.policyFile,
+        upgrade(io, installation, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant])))
 
-  def save(io: Io, layout: GlobalLayout, policy: Policy): Try[Unit] =
-    layout.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
+  def save(io: Io, installation: Installation, policy: Policy): Try[Unit] =
+    installation.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
 
-  private def upgrade(io: Io, layout: GlobalLayout, ogdl: Ogdl): Ogdl = ogdl
+  private def upgrade(io: Io, installation: Installation, ogdl: Ogdl): Ogdl = ogdl
 }
 
 case class Policy(policy: SortedSet[Grant] = TreeSet()) {
@@ -351,13 +351,13 @@ object Compilation {
                     schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
-                    globalLayout: GlobalLayout,
+                    installation: Installation,
                     https: Boolean)
                    : Try[Compilation] = for {
 
     hierarchy   <- schema.hierarchy(io, layout.base, layout, https)
     universe    <- hierarchy.universe
-    policy      <- Policy.read(io, globalLayout)
+    policy      <- Policy.read(io, installation)
     compilation <- universe.compilation(io, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
 
@@ -369,11 +369,11 @@ object Compilation {
                        schema: Schema,
                        ref: ModuleRef,
                        layout: Layout,
-                       globalLayout: GlobalLayout,
+                       installation: Installation,
                        https: Boolean)
                       : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, globalLayout, https))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(io, schema, ref, layout, installation, https))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -387,9 +387,9 @@ object Compilation {
                       schema: Schema,
                       ref: ModuleRef,
                       layout: Layout,
-                      globalLayout: GlobalLayout,
+                      installation: Installation,
                       https: Boolean): Try[Compilation] = {
-    val compilation = mkCompilation(io, schema, ref, layout, globalLayout, https)
+    val compilation = mkCompilation(io, schema, ref, layout, installation, https)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }

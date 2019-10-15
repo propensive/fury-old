@@ -99,7 +99,7 @@ object SourceCli {
       _           <- ~Layer.save(io, layer, layout)
 
       _           <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
-                         cli.globalLayout, false))
+                         cli.installation, false))
 
     } yield io.await()
   }
@@ -135,7 +135,7 @@ object SourceCli {
       _          <- ~Layer.save(io, layer, layout)
 
       _          <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
-                        cli.globalLayout, false))
+                        cli.installation, false))
 
     } yield io.await()
   }
