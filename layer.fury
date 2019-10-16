@@ -25,6 +25,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					core	id	core
 						kind	Library
 						main	None
@@ -80,22 +81,6 @@ schemas	default	id	default
 								group	ch.epfl.scala
 								artifact	bsp4j
 								version	2.0.0-M4
-							org.openjdk.jmh:jmh-core:1.21	binRepo	central
-								group	org.openjdk.jmh
-								artifact	jmh-core
-								version	1.21
-							org.openjdk.jmh:jmh-generator-asm:1.21	binRepo	central
-								group	org.openjdk.jmh
-								artifact	jmh-generator-asm
-								version	1.21
-							org.openjdk.jmh:jmh-generator-bytecode:1.21	binRepo	central
-								group	org.openjdk.jmh
-								artifact	jmh-generator-bytecode
-								version	1.21
-							org.openjdk.jmh:jmh-generator-reflection:1.21	binRepo	central
-								group	org.openjdk.jmh
-								artifact	jmh-generator-reflection
-								version	1.21
 							org.scala-sbt.ipcsocket:ipcsocket:1.0.0	binRepo	central
 								group	org.scala-sbt.ipcsocket
 								artifact	ipcsocket
@@ -105,6 +90,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					dependency	id	dependency
 						kind	Library
 						main	None
@@ -126,6 +112,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					frontend	id	frontend
 						kind	Library
 						main	None
@@ -180,6 +167,7 @@ schemas	default	id	default
 						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
 								target	modifyThread
 								action	None
+						isolated	false
 					imports	id	imports
 						kind	Library
 						main	None
@@ -201,6 +189,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					io	id	io
 						kind	Library
 						main	None
@@ -230,6 +219,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					jsongen	id	jsongen
 						kind	Library
 						main	None
@@ -251,6 +241,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					launcher	id	launcher
 						kind	Library
 						main	None
@@ -279,6 +270,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					model	id	model
 						kind	Library
 						main	None
@@ -316,6 +308,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					module	id	module
 						kind	Library
 						main	None
@@ -337,6 +330,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					ogdl	id	ogdl
 						kind	Library
 						main	None
@@ -366,6 +360,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					project	id	project
 						kind	Library
 						main	None
@@ -387,6 +382,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					repo	id	repo
 						kind	Library
 						main	None
@@ -408,6 +404,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					schema	id	schema
 						kind	Library
 						main	None
@@ -429,6 +426,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					sockets	id	sockets
 						kind	Library
 						main	None
@@ -454,6 +452,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					source	id	source
 						kind	Library
 						main	None
@@ -475,6 +474,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					strings	id	strings
 						kind	Library
 						main	None
@@ -496,6 +496,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					test-all	id	test-all
 						kind	Library
 						main	None
@@ -525,6 +526,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					test-core	id	test-core
 						kind	Application
 						main	Some	fury.Tests
@@ -550,6 +552,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					test-ogdl	id	test-ogdl
 						kind	Application
 						main	Some	fury.Tests
@@ -575,6 +578,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					test-strings	id	test-strings
 						kind	Application
 						main	Some	fury.StringsTests
@@ -600,6 +604,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 					utils	id	utils
 						kind	Library
 						main	None
@@ -631,12 +636,33 @@ schemas	default	id	default
 								group	io.get-coursier
 								artifact	coursier_2.12
 								version	1.1.0-M14-4
+							org.kamranzafar:jtar:2.3	binRepo	central
+								group	org.kamranzafar
+								artifact	jtar
+								version	2.3
+							org.openjdk.jmh:jmh-core:1.21	binRepo	central
+								group	org.openjdk.jmh
+								artifact	jmh-core
+								version	1.21
+							org.openjdk.jmh:jmh-generator-asm:1.21	binRepo	central
+								group	org.openjdk.jmh
+								artifact	jmh-generator-asm
+								version	1.21
+							org.openjdk.jmh:jmh-generator-bytecode:1.21	binRepo	central
+								group	org.openjdk.jmh
+								artifact	jmh-generator-bytecode
+								version	1.21
+							org.openjdk.jmh:jmh-generator-reflection:1.21	binRepo	central
+								group	org.openjdk.jmh
+								artifact	jmh-generator-reflection
+								version	1.21
 						resources	
 						bloopSpec	None
 						environment	
 						properties	
 						policy	
-				main	Some	frontend
+						isolated	false
+				main	Some	core
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -667,6 +693,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						isolated	false
 				main	Some	compiler
 				license	unknown
 				description	
