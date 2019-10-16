@@ -25,4 +25,3 @@ object Install {
   def alias(name: String, dir: Path, module: ModuleRef): String = str"alias $name='fury --layer=$dir '"
 }
 
-case class Installation(name: String, dir: Path, module: ModuleRef)
