@@ -16,7 +16,8 @@
 */
 package fury.utils
 
-import scala.collection.mutable._
+import scala.collection.mutable.Map
+import scala.collection.Set
 import scala.concurrent._
 import scala.util._
 
@@ -28,7 +29,7 @@ abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext
 
   private[this] val pool: Map[K, Future[T]] = scala.collection.concurrent.TrieMap()
   
-  def size: Int = pool.size
+  def keySet: Set[K] = pool.keySet
 
   private[this] final def createOrRecycle(key: K): Future[T] = {
     val result = pool.get(key) match {
