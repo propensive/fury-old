@@ -44,19 +44,19 @@ object TarGz {
     }
   }
 
-  def store(files: List[Path], destination: Path, layout: Layout): Try[Unit] = Try {
+  def store(files: Map[Path, Path], destination: Path): Try[Unit] = Try {
     val fos  = new FileOutputStream(destination.javaFile)
     val gzos = new GZIPOutputStream(fos)
     val out  = new TarOutputStream(gzos)
-    files.foreach { path =>
-      out.putNextEntry(new TarEntry(path.javaFile, path.relativizeTo(layout.pwd).value))
+    files.foreach { case (name, path) =>
+      out.putNextEntry(new TarEntry(path.javaFile, name.value))
       val in = new BufferedInputStream(new FileInputStream(path.javaFile))
       transfer(in, out)
     }
     out.close()
   }
 
-  def extract(file: Path, destination: Path, layout: Layout): Try[Unit] = Try {
+  def extract(file: Path, destination: Path): Try[Unit] = Try {
     val fis  = new FileInputStream(file.javaFile)
     val gzis = new GZIPInputStream(fis)
     val in   = new TarInputStream(gzis)

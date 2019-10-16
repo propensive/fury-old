@@ -111,7 +111,7 @@ object Artifact {
 case class Artifact(path: String, ref: IpfsRef)
 
 object LayerRef {
-  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key))
+  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.take(8).toLowerCase))
   implicit val stringShow: StringShow[LayerRef] = _.key
   implicit def diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   

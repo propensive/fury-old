@@ -46,7 +46,7 @@ case class Installation(env: Environment) {
 
   lazy val home: Path = Path(env.variables("HOME"))
   
-  private[this] val configDir: Path =
+  val configDir: Path =
     env.variables.get("XDG_CONFIG_HOME").map(Path(_)).getOrElse(home / ".config") / "fury"
   
   lazy val userConfig: Path = configDir / "config.fury"
@@ -71,6 +71,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
   lazy val reposDir: Path = (cacheDir / "repos").extant()
+  lazy val basesDir: Path = (furyDir / "bases").extant()
   lazy val srcsDir: Path = (cacheDir / "sources").extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val workDir: Path = (furyDir / "work").extant()

@@ -1052,6 +1052,17 @@ object Layer {
     _        <- tmpFile.delete()
   } yield layerRef
 
+  def loadFile(io: Io, file: Path, layout: Layout, env: Environment, globalLayout: GlobalLayout): Try[LayerRef] = for {
+    tmpDir <- Path.mkTempDir()
+    _      <- TarGz.extract(file, tmpDir)
+    layers <- (tmpDir / "layers").children.map(read(io, _, env)).sequence
+    _      <- layers.map(Layer.saveLayer(_, globalLayout)).sequence
+    bases  <- ~(tmpDir / "bases").childPaths
+    _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
+    focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
+    _      <- tmpDir.delete()
+  } yield focus.layerRef
+
   def share(io: Io, layer: Layer, env: Environment, globalLayout: GlobalLayout): Try[IpfsRef] = for {
     layerRef <- ~digestLayer(layer)
     file     <- ~(globalLayout.layersPath / layerRef.key)
@@ -1096,6 +1107,21 @@ object Layer {
 
   def readFocus(io: Io, layout: Layout): Try[Focus] =
     Ogdl.read[Focus](layout.focusFile, identity(_))
+
+  private def collectLayerRefs(io: Io, ref: SchemaRef, layout: Layout, globalLayout: GlobalLayout): Try[Set[LayerRef]] = for {
+    layer   <- read(io, ref.layerRef, layout, globalLayout)
+    schema  <- layer.schemas.findBy(ref.schema)
+    imports <- schema.imports.map(collectLayerRefs(io, _, layout, globalLayout)).sequence.map(_.flatten)
+  } yield imports + ref.layerRef
+
+  def export(io: Io, layer: Layer, layout: Layout, globalLayout: GlobalLayout, path: Path): Try[Path] = for {
+    layerRef  <- ~digestLayer(layer)
+    schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
+    layerRefs <- collectLayerRefs(io, schemaRef, layout, globalLayout)
+    filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), globalLayout.layersPath / ref.key) }.toMap
+    // include bases
+    _         <- TarGz.store(filesMap.updated(Path(".focus.fury"), layout.focusFile), path)
+  } yield path
 
   def base(io: Io, layout: Layout, globalLayout: GlobalLayout): Try[Layer] = for {
     focus    <- readFocus(io, layout)

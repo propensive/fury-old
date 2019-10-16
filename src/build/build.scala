@@ -519,6 +519,17 @@ object LayerCli {
     _             <- ~io.println(str"fury://${ref.key}")
   } yield io.await()
 
+  def export(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    layout        <- cli.layout
+    cli           <- cli.hint(FileArg)
+    layer         <- Layer.read(Io.silent(cli.config), layout, cli.globalLayout)
+    invoc         <- cli.read()
+    io            <- invoc.io()
+    destination   <- invoc(FileArg)
+    _             <- Layer.export(io, layer, layout, cli.globalLayout, destination)
+    _             <- ~io.println(msg"Saved layer file ${destination}")
+  } yield io.await()
+
   def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout        <- cli.layout
