@@ -46,7 +46,7 @@ object PoolTest extends TestApp {
       dummyPool.syncBorrow("a/b/c")(void)
       dummyPool.syncBorrow("a/b/x")(void)
       dummyPool.syncBorrow("a/b/c")(void)
-      dummyPool.size
+      dummyPool.keySet.size
     }.assert(_ == 2)
 
     test("support concurrent requests") {
