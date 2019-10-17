@@ -45,6 +45,7 @@ import java.util.concurrent.{CompletableFuture, Executors, ExecutionException}
 
 import language.higherKinds
 import scala.annotation.tailrec
+import scala.util.control.NonFatal
 
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
@@ -165,7 +166,14 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
                          messageBuffer: CharArrayWriter) {
 
   def shutdown(): Unit = {
-    server.buildShutdown()
+    writeTrace(client.layout)
+    writeMessages(client.layout)
+    try {
+      server.buildShutdown().get()
+      server.onBuildExit()
+    } catch {
+      case NonFatal(e) => ()
+    }
     future.cancel(true)
   }
 
@@ -192,8 +200,14 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
       }
   }
 
-  def writeTrace(layout: Layout): Try[Unit] = layout.traceLogfile.appendSync(traceBuffer.toString)
-  def writeMessages(layout: Layout): Try[Unit] = layout.messagesLogfile.appendSync(messageBuffer.toString)
+  def writeTrace(layout: Layout): Try[Unit] = for {
+    _ <- layout.traceLogfile.appendSync(traceBuffer.toString)
+  } yield traceBuffer.reset()
+
+  def writeMessages(layout: Layout): Try[Unit] = for {
+    _ <- layout.messagesLogfile.appendSync(messageBuffer.toString)
+  } yield messageBuffer.reset()
+  
 }
 
 object BspConnectionManager {
