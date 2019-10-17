@@ -45,7 +45,7 @@ object DependencyCli {
     for {
       layout       <- cli.layout
       config       <- ~cli.config
-      layer        <- Layer.read(Io.silent(config), layout, cli.globalLayout)
+      layer        <- Layer.read(Io.silent(config), layout, cli.installation)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
       schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -102,7 +102,7 @@ object DependencyCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id,
                        module.id))(_(_) -= moduleRef)
 
-      _         <- ~Layer.save(io, layer, layout, cli.globalLayout)
+      _         <- ~Layer.save(io, layer, layout, cli.installation)
       optSchema <- ~layer.mainSchema.toOption
 
       _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.installation,
@@ -115,7 +115,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.globalLayout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules)
@@ -131,7 +131,7 @@ object DependencyCli {
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,
                               module.id))(_(_) += moduleRef)
 
-      _                <- ~Layer.save(io, layer, layout, cli.globalLayout)
+      _                <- ~Layer.save(io, layer, layout, cli.installation)
 
       _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout,
                               cli.installation, false))
@@ -158,7 +158,7 @@ object EnvCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.globalLayout)
+    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -210,7 +210,7 @@ object EnvCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.environment(_, project.id,
                        module.id))(_(_) -= envArg)
 
-      _         <- ~Layer.save(io, layer, layout, cli.globalLayout)
+      _         <- ~Layer.save(io, layer, layout, cli.installation)
       optSchema <- ~layer.mainSchema.toOption
     } yield io.await()
   }
@@ -219,7 +219,7 @@ object EnvCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.globalLayout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
@@ -232,7 +232,7 @@ object EnvCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.environment(_, project.id,
                              module.id))(_(_) += envArg)
 
-      _               <- ~Layer.save(io, layer, layout, cli.globalLayout)
+      _               <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 }
@@ -255,7 +255,7 @@ object PermissionCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.globalLayout)
+    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -293,7 +293,7 @@ object PermissionCli {
       permission      =  Permission(classArg, targetArg, actionArg)
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
-      _               <- Layer.save(io, layer, layout)
+      _               <- Layer.save(io, layer, layout, cli.installation)
       policy          <- Policy.read(io, cli.installation)
       newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
       _               <- Policy.save(io, cli.installation, newPolicy)
@@ -318,7 +318,7 @@ object PermissionCli {
       force         =  invoc(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
                            module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
-      _             <- Layer.save(io, layer, layout, cli.globalLayout)
+      _             <- Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
   
@@ -383,7 +383,7 @@ object PropertyCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.globalLayout)
+    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -437,7 +437,7 @@ object PropertyCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.properties(_, project.id,
                        module.id))(_(_) -= propArg)
 
-      _         <- Layer.save(io, layer, layout, cli.globalLayout)
+      _         <- Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 
@@ -445,7 +445,7 @@ object PropertyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.globalLayout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()
@@ -457,7 +457,7 @@ object PropertyCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.properties(_, project.id,
                              module.id))(_(_) += propArg)
 
-      _               <- Layer.save(io, layer, layout, cli.globalLayout)
+      _               <- Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 }

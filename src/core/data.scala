@@ -356,7 +356,7 @@ object Compilation {
                     https: Boolean)
                    : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(io, layout, globalLayout, https)
+    hierarchy   <- schema.hierarchy(io, layout, installation, https)
     universe    <- hierarchy.universe
     policy      <- Policy.read(io, installation)
     compilation <- universe.compilation(io, ref, policy, layout)
@@ -974,34 +974,34 @@ case class Schema(id: SchemaId,
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
   def duplicate(id: String) = copy(id = SchemaId(id))
 
-  def compilerRefs(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): List[ModuleRef] =
-    allProjects(io, layout, globalLayout, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
+  def compilerRefs(io: Io, layout: Layout, installation: Installation, https: Boolean): List[ModuleRef] =
+    allProjects(io, layout, installation, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def importCandidates(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): List[String] =
-    repos.to[List].flatMap(_.importCandidates(io, this, layout, globalLayout, https).toOption.to[List].flatten)
+  def importCandidates(io: Io, layout: Layout, installation: Installation, https: Boolean): List[String] =
+    repos.to[List].flatMap(_.importCandidates(io, this, layout, installation, https).toOption.to[List].flatten)
 
-  def hierarchy(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Hierarchy] = for {
+  def hierarchy(io: Io, layout: Layout, installation: Installation, https: Boolean): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
-      layer        <- Layer.read(io, ref.layerRef, layout, globalLayout)
+      layer        <- Layer.read(io, ref.layerRef, layout, installation)
       resolved     <- layer.schemas.findBy(ref.schema)
-      tree         <- resolved.hierarchy(io, layout, globalLayout, https)
+      tree         <- resolved.hierarchy(io, layout, installation, https)
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 
-  def resolvedImports(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Map[ImportId, Schema]] =
-    imports.to[List].map { sr => resolve(sr, io, layout, globalLayout, https).map(sr.id -> _) }.sequence.map(_.toMap)
+  def resolvedImports(io: Io, layout: Layout, installation: Installation, https: Boolean): Try[Map[ImportId, Schema]] =
+    imports.to[List].map { sr => resolve(sr, io, layout, installation, https).map(sr.id -> _) }.sequence.map(_.toMap)
 
-  def importedSchemas(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[Schema]] =
-    resolvedImports(io, layout, globalLayout, https).map(_.values.to[List])
+  def importedSchemas(io: Io, layout: Layout, installation: Installation, https: Boolean): Try[List[Schema]] =
+    resolvedImports(io, layout, installation, https).map(_.values.to[List])
   
-  def importTree(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[ImportPath]] = for {
-    imports    <- resolvedImports(io, layout, globalLayout, https)
+  def importTree(io: Io, layout: Layout, installation: Installation, https: Boolean): Try[List[ImportPath]] = for {
+    imports    <- resolvedImports(io, layout, installation, https)
     importList <- imports.to[List].map { case (id, schema) =>
-                    schema.importTree(io, layout, globalLayout, https).map { is => is.map(_.prefix(id)) }
+                    schema.importTree(io, layout, installation, https).map { is => is.map(_.prefix(id)) }
                   }.sequence.map(_.flatten)
   } yield (ImportPath.Root :: importList)
 
-  def allProjects(io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[Project]] = {
+  def allProjects(io: Io, layout: Layout, installation: Installation, https: Boolean): Try[List[Project]] = {
     @tailrec
     def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
       treeNodes match{
@@ -1015,7 +1015,7 @@ case class Schema(id: SchemaId,
     }
 
     for {
-      allSchemas <- flatten(List(this))(Nil, _.importedSchemas(io, layout, globalLayout, https))
+      allSchemas <- flatten(List(this))(Nil, _.importedSchemas(io, layout, installation, https))
     } yield allSchemas.flatMap(_.projects)
   }
 
@@ -1024,8 +1024,8 @@ case class Schema(id: SchemaId,
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
   
-  def resolve(ref: SchemaRef, io: Io, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[Schema] = for {
-    layer    <- Layer.read(io, ref.layerRef, layout, globalLayout)
+  def resolve(ref: SchemaRef, io: Io, layout: Layout, installation: Installation, https: Boolean): Try[Schema] = for {
+    layer    <- Layer.read(io, ref.layerRef, layout, installation)
     resolved <- layer.schemas.findBy(ref.schema)
   } yield resolved
 }
@@ -1044,43 +1044,43 @@ case class Layer(version: Int = Layer.CurrentVersion,
 object Layer {
   val CurrentVersion = 4
 
-  def loadFromIpfs(io: Io, layerRef: IpfsRef, env: Environment, globalLayout: GlobalLayout): Try[LayerRef] = for {
-    tmpFile  <- globalLayout.layersPath.mkTempFile()
+  def loadFromIpfs(io: Io, layerRef: IpfsRef, env: Environment, installation: Installation): Try[LayerRef] = for {
+    tmpFile  <- installation.layersPath.mkTempFile()
     file     <- Shell(env).ipfs.get(layerRef, tmpFile)
     layer    <- Layer.read(io, file, env)
-    layerRef <- saveLayer(layer, globalLayout)
+    layerRef <- saveLayer(layer, installation)
     _        <- tmpFile.delete()
   } yield layerRef
 
-  def loadFile(io: Io, file: Path, layout: Layout, env: Environment, globalLayout: GlobalLayout): Try[LayerRef] = for {
+  def loadFile(io: Io, file: Path, layout: Layout, env: Environment, installation: Installation): Try[LayerRef] = for {
     tmpDir <- Path.mkTempDir()
     _      <- TarGz.extract(file, tmpDir)
     layers <- (tmpDir / "layers").children.map(read(io, _, env)).sequence
-    _      <- layers.map(Layer.saveLayer(_, globalLayout)).sequence
+    _      <- layers.map(Layer.saveLayer(_, installation)).sequence
     bases  <- ~(tmpDir / "bases").childPaths
     _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
     focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
     _      <- tmpDir.delete()
   } yield focus.layerRef
 
-  def share(io: Io, layer: Layer, env: Environment, globalLayout: GlobalLayout): Try[IpfsRef] = for {
+  def share(io: Io, layer: Layer, env: Environment, installation: Installation): Try[IpfsRef] = for {
     layerRef <- ~digestLayer(layer)
-    file     <- ~(globalLayout.layersPath / layerRef.key)
+    file     <- ~(installation.layersPath / layerRef.key)
     _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
     ref      <- Shell(env).ipfs.add(file)
   } yield ref
 
 
-  def loadCatalog(io: Io, catalogRef: IpfsRef, env: Environment, globalLayout: GlobalLayout): Try[Catalog] = for {
-    tmpFile  <- globalLayout.layersPath.mkTempFile()
+  def loadCatalog(io: Io, catalogRef: IpfsRef, env: Environment, installation: Installation): Try[Catalog] = for {
+    tmpFile  <- installation.layersPath.mkTempFile()
     file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
     catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
   } yield catalog
 
-  def lookup(io: Io, domain: String, env: Environment, globalLayout: GlobalLayout): Try[List[Artifact]] = for {
+  def lookup(io: Io, domain: String, env: Environment, installation: Installation): Try[List[Artifact]] = for {
     records   <- Dns.lookup(io, domain)
     records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
-    catalogs  <- records.map { loadCatalog(io, _, env, globalLayout) }.sequence
+    catalogs  <- records.map { loadCatalog(io, _, env, installation) }.sequence
     artifacts <- ~catalogs.flatMap(_.artifacts)
   } yield artifacts
  
@@ -1090,14 +1090,14 @@ object Layer {
     case DefaultImport(path) => Some(Followable(config.service, path))
   }
 
-  def resolve(io: Io, followable: Followable, env: Environment, globalLayout: GlobalLayout): Try[LayerRef] = for {
-    artifacts <- lookup(io, followable.domain, env, globalLayout)
+  def resolve(io: Io, followable: Followable, env: Environment, installation: Installation): Try[LayerRef] = for {
+    artifacts <- lookup(io, followable.domain, env, installation)
     ref       <- Try(artifacts.find(_.path == followable.path).get)
-    layerRef  <- loadFromIpfs(io, ref.ref, env, globalLayout)
+    layerRef  <- loadFromIpfs(io, ref.ref, env, installation)
   } yield layerRef
 
-  def pathCompletions(io: Io, domain: String, env: Environment, globalLayout: GlobalLayout): Try[List[String]] =
-    lookup(io, domain, env, globalLayout).map(_.map(_.path))
+  def pathCompletions(io: Io, domain: String, env: Environment, installation: Installation): Try[List[String]] =
+    lookup(io, domain, env, installation).map(_.map(_.path))
 
   def read(io: Io, string: String, env: Environment): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(io, env, _)))
@@ -1108,73 +1108,73 @@ object Layer {
   def readFocus(io: Io, layout: Layout): Try[Focus] =
     Ogdl.read[Focus](layout.focusFile, identity(_))
 
-  private def collectLayerRefs(io: Io, ref: SchemaRef, layout: Layout, globalLayout: GlobalLayout): Try[Set[LayerRef]] = for {
-    layer   <- read(io, ref.layerRef, layout, globalLayout)
+  private def collectLayerRefs(io: Io, ref: SchemaRef, layout: Layout, installation: Installation): Try[Set[LayerRef]] = for {
+    layer   <- read(io, ref.layerRef, layout, installation)
     schema  <- layer.schemas.findBy(ref.schema)
-    imports <- schema.imports.map(collectLayerRefs(io, _, layout, globalLayout)).sequence.map(_.flatten)
+    imports <- schema.imports.map(collectLayerRefs(io, _, layout, installation)).sequence.map(_.flatten)
   } yield imports + ref.layerRef
 
-  def export(io: Io, layer: Layer, layout: Layout, globalLayout: GlobalLayout, path: Path): Try[Path] = for {
+  def export(io: Io, layer: Layer, layout: Layout, installation: Installation, path: Path): Try[Path] = for {
     layerRef  <- ~digestLayer(layer)
     schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
-    layerRefs <- collectLayerRefs(io, schemaRef, layout, globalLayout)
-    filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), globalLayout.layersPath / ref.key) }.toMap
+    layerRefs <- collectLayerRefs(io, schemaRef, layout, installation)
+    filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), installation.layersPath / ref.key) }.toMap
     // include bases
     _         <- TarGz.store(filesMap.updated(Path(".focus.fury"), layout.focusFile), path)
   } yield path
 
-  def base(io: Io, layout: Layout, globalLayout: GlobalLayout): Try[Layer] = for {
+  def base(io: Io, layout: Layout, installation: Installation): Try[Layer] = for {
     focus    <- readFocus(io, layout)
-    layer    <- read(io, focus.layerRef, layout, globalLayout)
+    layer    <- read(io, focus.layerRef, layout, installation)
   } yield layer
 
-  def read(io: Io, layout: Layout, globalLayout: GlobalLayout): Try[Layer] = for {
+  def read(io: Io, layout: Layout, installation: Installation): Try[Layer] = for {
     focus    <- readFocus(io, layout)
-    layer    <- read(io, focus.layerRef, layout, globalLayout)
-    newLayer <- resolveSchema(io, layout, globalLayout, layer, focus.path)
+    layer    <- read(io, focus.layerRef, layout, installation)
+    newLayer <- resolveSchema(io, layout, installation, layer, focus.path)
   } yield newLayer
 
-  def read(io: Io, ref: LayerRef, layout: Layout, globalLayout: GlobalLayout): Try[Layer] =
-    Ogdl.read[Layer](globalLayout.layersPath / ref.key, upgrade(io, layout.env, _))
+  def read(io: Io, ref: LayerRef, layout: Layout, installation: Installation): Try[Layer] =
+    Ogdl.read[Layer](installation.layersPath / ref.key, upgrade(io, layout.env, _))
 
-  def resolveSchema(io: Io, layout: Layout, globalLayout: GlobalLayout, layer: Layer, path: ImportPath): Try[Layer] =
+  def resolveSchema(io: Io, layout: Layout, installation: Installation, layer: Layer, path: ImportPath): Try[Layer] =
     path.parts.foldLeft(Try(layer)) { case (current, importId) => for {
       layer     <- current
       schema    <- layer.mainSchema
       schemaRef <- schema.imports.findBy(importId)
-      layer     <- read(io, schemaRef.layerRef, layout, globalLayout)
+      layer     <- read(io, schemaRef.layerRef, layout, installation)
     } yield layer.copy(main = schemaRef.schema) }
 
   def digestLayer(layer: Layer): LayerRef =
     LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
 
-  def create(io: Io, newLayer: Layer, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
-    layerRef     <- saveLayer(newLayer, globalLayout)
+  def create(io: Io, newLayer: Layer, layout: Layout, installation: Installation): Try[LayerRef] = for {
+    layerRef     <- saveLayer(newLayer, installation)
     _            <- saveFocus(io, Focus(layerRef), layout)
   } yield layerRef
 
-  def save(io: Io, newLayer: Layer, layout: Layout, globalLayout: GlobalLayout): Try[LayerRef] = for {
+  def save(io: Io, newLayer: Layer, layout: Layout, installation: Installation): Try[LayerRef] = for {
     focus        <- readFocus(io, layout)
-    currentLayer <- read(io, focus.layerRef, layout, globalLayout)
-    layerRef     <- saveSchema(io, layout, globalLayout, newLayer, focus.path, currentLayer)
+    currentLayer <- read(io, focus.layerRef, layout, installation)
+    layerRef     <- saveSchema(io, layout, installation, newLayer, focus.path, currentLayer)
     _            <- saveFocus(io, focus.copy(layerRef = layerRef), layout)
   } yield layerRef
 
-  private def saveSchema(io: Io, layout: Layout, globalLayout: GlobalLayout, newLayer: Layer, path: ImportPath, currentLayer: Layer): Try[LayerRef] =
-    if(path.isEmpty) saveLayer(newLayer, globalLayout)
+  private def saveSchema(io: Io, layout: Layout, installation: Installation, newLayer: Layer, path: ImportPath, currentLayer: Layer): Try[LayerRef] =
+    if(path.isEmpty) saveLayer(newLayer, installation)
     else for {
       schema    <- currentLayer.mainSchema
       schemaRef <- schema.imports.findBy(path.head)
-      nextLayer <- read(io, schemaRef.layerRef, layout, globalLayout)
-      layerRef  <- saveSchema(io, layout, globalLayout, newLayer, path.tail, nextLayer)
+      nextLayer <- read(io, schemaRef.layerRef, layout, installation)
+      layerRef  <- saveSchema(io, layout, installation, newLayer, path.tail, nextLayer)
       newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef = layerRef))
       newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) + newSchema)
-      newLayerRef <- saveLayer(newLayer, globalLayout)
+      newLayerRef <- saveLayer(newLayer, installation)
     } yield newLayerRef
 
-  private def saveLayer(layer: Layer, globalLayout: GlobalLayout): Try[LayerRef] = for {
+  private def saveLayer(layer: Layer, installation: Installation): Try[LayerRef] = for {
     layerRef <- ~digestLayer(layer)
-    _        <- (globalLayout.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
+    _        <- (installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
   } yield layerRef
 
   def saveFocus(io: Io, focus: Focus, layout: Layout): Try[Unit] =
@@ -1346,11 +1346,11 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
-  def importCandidates(io: Io, schema: Schema, layout: Layout, globalLayout: GlobalLayout, https: Boolean): Try[List[String]] = for {
+  def importCandidates(io: Io, schema: Schema, layout: Layout, installation: Installation, https: Boolean): Try[List[String]] = for {
     repoDir     <- repo.fetch(io, layout, https)
     focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
     focus       <- ~Ogdl.read[Focus](focusString, identity(_))
-    layer       <- Layer.read(io, focus.layerRef, layout, globalLayout)
+    layer       <- Layer.read(io, focus.layerRef, layout, installation)
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
