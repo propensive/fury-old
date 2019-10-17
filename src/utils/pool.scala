@@ -63,7 +63,10 @@ abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext
     claimed.map { v =>
       try action(v)
       finally {
-        if(isBad(v)) released.failure(new Exception("Resource got stale"))
+        if(isBad(v)) {
+          destroy(v)
+          released.failure(new Exception("Resource got stale"))
+        }
         else released.success(v)
       }
     }
