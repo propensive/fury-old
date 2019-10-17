@@ -147,7 +147,7 @@ object BuildCli {
     (str"""    CPUs: ${runtime.availableProcessors}
          |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max
          |     BSP: ${Compilation.bspPool.keySet.size} connections""" + "\n" +
-      Compilation.bspPool.keySet.map{ path => str"            ${path}" }.mkString("\n")
+      Compilation.bspPool.keySet.map{ path => str"            ${Compilation.bspPool.pool(path).isCompleted.toString} ${path}" }.mkString("\n")
       ).stripMargin
   }
 

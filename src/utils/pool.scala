@@ -21,13 +21,13 @@ import scala.collection.Set
 import scala.concurrent._
 import scala.util._
 
-abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext) {
+abstract class Pool[K, T <: AnyRef](val timeout: Long)(implicit ec: ExecutionContext) {
 
   def create(key: K): T
   def destroy(value: T): Unit
   def isBad(value: T): Boolean
 
-  private[this] val pool: Map[K, Future[T]] = scala.collection.concurrent.TrieMap()
+  val pool: Map[K, Future[T]] = scala.collection.concurrent.TrieMap()
   
   def keySet: Set[K] = pool.keySet
 
@@ -66,8 +66,7 @@ abstract class Pool[K, T <: AnyRef](timeout: Long)(implicit ec: ExecutionContext
         if(isBad(v)) {
           destroy(v)
           released.failure(new Exception("Resource got stale"))
-        }
-        else released.success(v)
+        } else released.success(v)
       }
     }
   }

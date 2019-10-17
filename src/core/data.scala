@@ -159,21 +159,28 @@ case class Module(id: ModuleId,
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-case class BspConnection(future: java.util.concurrent.Future[Void],
+class BspConnection(val future: java.util.concurrent.Future[Void],
                          client: FuryBuildClient,
                          server: FuryBspServer,
                          traceBuffer: CharArrayWriter,
                          messageBuffer: CharArrayWriter) {
 
+  //TODO wrap into a trait
+  var lastUsed: Long = System.currentTimeMillis
+  var lastUser: String = "none"
+
   def shutdown(): Unit = {
     writeTrace(client.layout)
     writeMessages(client.layout)
+    client.multiplexer.foreach(_(client.targetId.ref) = Print(client.targetId.ref, s"Shutting down connection, last used: ${System.currentTimeMillis() - lastUsed} ms ago by ${lastUser}"))
     try {
       server.buildShutdown().get()
       server.onBuildExit()
     } catch {
-      case NonFatal(e) => ()
+      case NonFatal(e) =>
+        client.multiplexer.foreach(_(client.targetId.ref) = Print(client.targetId.ref, s"Connection broke: ${e.getMessage}, last used: ${System.currentTimeMillis() - lastUsed} ms ago by ${lastUser}"))
     }
+    client.onBeingUsed = { user: String => throw new Exception("Attempt to use a connection that has been shut down")}
     future.cancel(true)
   }
 
@@ -188,6 +195,12 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
     client.targetId = targetId
     client.layout = layout
     client.multiplexer = currentMultiplexer
+    client.onBeingUsed = { user: String =>
+      val curr = System.currentTimeMillis
+      //currentMultiplexer.foreach(_(targetId.ref) = Print(targetId.ref, s"Last used: ${curr - lastUsed} ms ago by ${lastUser}"))
+      lastUsed = curr
+      lastUser = user
+    }
     action(server)
   } catch {
     case exception: ExecutionException =>
@@ -207,7 +220,7 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
   def writeMessages(layout: Layout): Try[Unit] = for {
     _ <- layout.messagesLogfile.appendSync(messageBuffer.toString)
   } yield messageBuffer.reset()
-  
+
 }
 
 object BspConnectionManager {
@@ -308,10 +321,31 @@ object Compilation {
   //FIXME
   var receiverClient: Option[BuildClient] = None
 
-  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
+  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](10000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
+
+    def isIdle(value: BspConnection): Boolean = {
+      value.lastUsed + timeout < System.currentTimeMillis()
+    }
+
+    private val pec: ExecutionContext =
+      ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(Threads.factory("pool-cleaner", daemon = true)), throw _)
+
+    Future {
+      while (true) {
+        pool.keySet.foreach { key =>
+          pool(key).foreach{ conn =>
+            if(isIdle(conn)) {
+              destroy(conn)
+              pool -= key
+            }
+          }
+        }
+        Thread.sleep(100)
+      }
+    }(pec)
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
@@ -342,7 +376,7 @@ object Compilation {
 
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
 
       handle.broken.future.andThen {
         case Success(_) =>
@@ -413,6 +447,7 @@ sealed abstract class FuryBuildClient extends BuildClient {
   var compilation: Compilation = _
   var targetId: TargetId = _
   var layout: Layout = _
+  var onBeingUsed: String => Unit = _
   //TODO move to DisplayingClient
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 }
@@ -420,16 +455,19 @@ sealed abstract class FuryBuildClient extends BuildClient {
 class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
+    onBeingUsed("onBuildShowMessage")
     multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
     messageSink.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
   }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {
+    onBeingUsed("onBuildLogMessage")
     multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
     messageSink.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
   }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
+    onBeingUsed("onBuildPublishDiagnostics")
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     val repos = compilation.checkouts.map { checkout => (checkout.path(layout).value, checkout.repoId)}.toMap
@@ -499,7 +537,9 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
     }
   }
 
-  override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {}
+  override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {
+    onBeingUsed("onBuildTargetDidChange")
+  }
 
   private[this] def convertDataTo[A: ClassTag](data: Object): A = {
     val gson = new Gson()
@@ -521,6 +561,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
+    onBeingUsed("onBuildTaskProgress")
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
     multiplexer.foreach {
@@ -529,6 +570,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
+    onBeingUsed("onBuildTaskStart")
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId: TargetId = getTargetId(report.getTarget.getUri)
     multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
@@ -536,16 +578,20 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
       multiplexer.foreach(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
     }
   }
-  override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
-    case TaskDataKind.COMPILE_REPORT =>
-      val report = convertDataTo[CompileReport](params.getData)
-      val targetId: TargetId = getTargetId(report.getTarget.getUri)
-      val ref = targetId.ref
-      multiplexer.foreach { mp =>
-        mp(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
-        if(!compilation.targets(ref).kind.needsExecution) mp(ref) = StopRun(ref)
-        else mp(ref) = StartRun(ref)
-      }
+
+  override def onBuildTaskFinish(params: TaskFinishParams): Unit = {
+    onBeingUsed("onBuildTaskFinish")
+    params.getDataKind match {
+      case TaskDataKind.COMPILE_REPORT =>
+        val report = convertDataTo[CompileReport](params.getData)
+        val targetId: TargetId = getTargetId(report.getTarget.getUri)
+        val ref = targetId.ref
+        multiplexer.foreach { mp =>
+          mp(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
+          if(!compilation.targets(ref).kind.needsExecution) mp(ref) = StopRun(ref)
+          else mp(ref) = StartRun(ref)
+        }
+    }
   }
 }
 
@@ -553,30 +599,37 @@ class ForwardingClient(receiver: BuildClient) extends FuryBuildClient {
 
   //TODO check if messages have to be transformed, e. g. the target IDs
   override def onBuildShowMessage(showMessageParams: ShowMessageParams): Unit = {
+    onBeingUsed("forwarding client")
     receiver.onBuildShowMessage(showMessageParams)
   }
 
   override def onBuildLogMessage(logMessageParams: LogMessageParams): Unit = {
+    onBeingUsed("forwarding client")
     receiver.onBuildLogMessage(logMessageParams)
   }
 
   override def onBuildTaskStart(taskStartParams: TaskStartParams): Unit = {
+    onBeingUsed("forwarding client")
     receiver.onBuildTaskStart(taskStartParams)
   }
 
   override def onBuildTaskProgress(taskProgressParams: TaskProgressParams): Unit = {
+    onBeingUsed("forwarding client")
     receiver.onBuildTaskProgress(taskProgressParams)
   }
 
   override def onBuildTaskFinish(taskFinishParams: TaskFinishParams): Unit = {
+    onBeingUsed("forwarding client")
     receiver.onBuildTaskFinish(taskFinishParams)
   }
 
   override def onBuildPublishDiagnostics(publishDiagnosticsParams: PublishDiagnosticsParams): Unit = {
+    onBeingUsed("forwarding client")
     receiver.onBuildPublishDiagnostics(publishDiagnosticsParams)
   }
 
   override def onBuildTargetDidChange(didChangeBuildTarget: DidChangeBuildTarget): Unit = {
+    onBeingUsed("forwarding client")
     receiver.onBuildTargetDidChange(didChangeBuildTarget)
   }
 }
