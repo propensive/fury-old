@@ -1,4 +1,5 @@
 fury project select -p zio
-fury module select -m core-tests
-fury build compile --output quiet > /dev/null
+fury build compile -m test --output linear | sort
+echo $?
+fury build compile -m core-tests --output quiet
 echo $?
