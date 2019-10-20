@@ -28,6 +28,7 @@ case class UnknownCompiler() extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class InitFailure() extends FuryException
+case class ImportOnlyFileOrRef() extends FuryException
 case class UnspecifiedProject() extends FuryException
 case class UnspecifiedLayer() extends FuryException
 case class UnspecifiedModule() extends FuryException

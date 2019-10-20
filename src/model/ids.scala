@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.strings._
+import fury.strings._, fury.io._
 
 import kaleidoscope._
 import gastronomy._
@@ -333,7 +333,7 @@ object ImportLayer {
   def parse(str: String): Option[ImportLayer] = str match {
     case r"fury:\/\/$hash@(.{46})" => Some(IpfsImport(IpfsRef(hash)))
     case r"$domain@(([a-z][a-z0-9\-]*\.)+([a-z][a-z0-9\-]*))\/$path@([a-z0-9\/]*)" => Some(RefImport(Followable(domain, path)))
-    case r"$path@([a-z0-9\/]*)" => Some(DefaultImport(path))
+    case r"""$path@([^*?:;,&|"\%<>]*)""" => Some(DefaultImport(path))
     case _ => None
   }
 }

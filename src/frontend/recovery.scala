@@ -46,6 +46,8 @@ one schema, please specify the schema with --schema/-s, or if you are sure you
 want to make this change to all schemas, please add the --force/-F argument.""")
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
+        case ImportOnlyFileOrRef() =>
+          cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path) =>
           cli.abort(msg"Couldn't write to file $path.")
         case FileNotFound(path) =>

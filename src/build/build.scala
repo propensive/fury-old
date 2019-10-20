@@ -536,13 +536,27 @@ object LayerCli {
       layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli           <- cli.hint(ImportNameArg)
+      cli           <- cli.hint(FileArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
       cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
-      followable    <- ~layerImport.flatMap(Layer.follow(_, cli.config))
-      layerRef      <- ~followable.flatMap(Layer.resolve(Io.silent(cli.config), _, cli.env, cli.installation).toOption)
+      fileImport    <- ~cli.peek(FileArg)
+      followable    <- ~((layerImport, fileImport) match {
+                         case (Some(imp), None) => Layer.follow(imp, cli.config)
+                         case _ => None
+                       })
+      layerRef      <- ~((layerImport, fileImport) match {
+                         case (Some(imp), None) => for {
+                           followable <- Layer.follow(imp, cli.config)
+                           layerRef <- Layer.resolve(Io.silent(cli.config), followable, cli.env, cli.installation).toOption
+                         } yield layerRef
+                         case (None, Some(path)) =>
+                           Layer.loadFile(Io.silent(cli.config), path in layout.pwd, layout, cli.env, cli.installation).toOption
+                         case _ =>
+                           None
+                       })
       maybeLayer    <- ~layerRef.flatMap(Layer.read(Io.silent(cli.config), _, layout, cli.installation).toOption)
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
 
