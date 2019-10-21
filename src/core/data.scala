@@ -41,7 +41,7 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
-import java.util.concurrent.{CompletableFuture, Executors}
+import java.util.concurrent.{CompletableFuture, Executors, ExecutionException, TimeUnit}
 
 import language.higherKinds
 import scala.annotation.tailrec
@@ -174,7 +174,7 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
     writeMessages(client.layout)
     client.multiplexer.foreach(_(client.targetId.ref) = Print(client.targetId.ref, s"Shutting down connection, last used: ${System.currentTimeMillis() - lastUsed} ms ago by ${lastUser}"))
     try {
-      server.buildShutdown().get()
+      server.buildShutdown().get(5, TimeUnit.SECONDS)
       server.onBuildExit()
     } catch {
       case NonFatal(e) =>
@@ -242,16 +242,19 @@ object BspConnectionManager {
     Future {
       while(true) {
         handles.foreach {
-          case (handle, sink) if !handle.broken.isCompleted =>
-            try {
-              val line = handle.errReader.readLine()
-              if(line != null) sink.println(line)
-            } catch {
-              case e: IOException =>
-                sink.println("Broken handle!")
-                e.printStackTrace(sink)
-                handles -= handle
-                handle.broken.failure(e)
+          case (handle, sink) =>
+            if (handle.broken.isCompleted) {
+              handles -= handle
+            } else {
+              try {
+                val line = handle.errReader.readLine()
+                if (line != null) sink.println(line)
+              } catch {
+                case e: IOException =>
+                  sink.println("Broken handle!")
+                  e.printStackTrace(sink)
+                  handle.broken.failure(e)
+              }
             }
         }
         Thread.sleep(100)
