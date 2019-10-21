@@ -171,9 +171,13 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
       server.buildShutdown().get(5, TimeUnit.SECONDS)
       server.onBuildExit()
     } catch {
-      case NonFatal(e) => ()
+      case NonFatal(e) =>
+        messageBuffer.append(e.getMessage).append("\n")
+        e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
     }
     future.cancel(true)
+    writeTrace(client.layout)
+    writeMessages(client.layout)
   }
 
   def provision[T](currentCompilation: Compilation,
