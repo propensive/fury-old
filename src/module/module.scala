@@ -51,7 +51,7 @@ object ModuleCli {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
   } yield Context(cli, layout, config, layer, schema, optProject)
 
   def select(ctx: Context): Try[ExitStatus] = {
