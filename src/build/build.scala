@@ -155,7 +155,7 @@ object BuildCli {
   def since(start: Long): String = str"${formatter.format((System.currentTimeMillis - start)/1000.0)}s"
 
   def builds: String = Lifecycle.sessions.map { session =>
-    str"[${session.pid}] started ${since(session.started)} ago"
+    str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
   }.mkString("\n")
 
   def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
