@@ -24,7 +24,8 @@ import scala.util.Try
 
 object Lifecycle {
 
-  case class Session(pid: Int, thread: Thread) {
+  case class Session(cli: Cli[CliParam[_]], thread: Thread) {
+    val pid = cli.pid
     val started: Long = System.currentTimeMillis
   }
 
@@ -37,31 +38,24 @@ object Lifecycle {
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
 
-  def trackThread(pid: Int)(action: => Int): Int =
-    if(!terminating.get) {
-      running.find(_.pid == pid) match {
-        case None =>
-          val session = Session(pid, Thread.currentThread)
-          running.synchronized(running += session)
-          try action
-          finally { running.synchronized(running -= session) }
-        case Some(session) =>
-          session.thread.interrupt()
-          running.synchronized { running -= session }
-          0
-      }
-    } else {
-      running.find(_.pid == pid) match {
-        case None =>
-          println("New tasks cannot be started while Fury is shutting down.")
-          1
-        case Some(session) =>
-          session.thread.interrupt()
-          running.synchronized { running -= session }
-          0
-      }
+  def trackThread(cli: Cli[CliParam[_]])(action: => Int): Int = {
+    val alreadyLaunched = running.find(_.pid == cli.pid)
+    alreadyLaunched match {
+      case Some(session) =>
+        session.thread.interrupt()
+        running.synchronized { running -= session }
+        0
+      case None if terminating.get =>
+        println("New tasks cannot be started while Fury is shutting down.")
+        1
+      case _ =>
+        val session = Session(cli, Thread.currentThread)
+        running.synchronized(running += session)
+        try action
+        finally { running.synchronized(running -= session) }
     }
-  
+  }
+
   def halt(): Unit = System.exit(busyCount)
 
   @tailrec
