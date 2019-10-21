@@ -22,7 +22,7 @@ final class Multiplexer[K, V](keys: List[K]) {
   private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
   private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
 
-  private[this] def finished: Boolean = closed.forall(identity)
+  def finished: Boolean = closed.forall(identity)
 
   def stream(interval: Int, tick: Option[V] = None): Iterator[V] = {
     def stream(lastSnapshot: List[List[V]]): Iterator[V] = {

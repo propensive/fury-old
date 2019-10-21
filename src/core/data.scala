@@ -166,8 +166,12 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
                          messageBuffer: CharArrayWriter) {
 
   def shutdown(): Unit = {
+<<<<<<< Updated upstream
     writeTrace(client.layout)
     writeMessages(client.layout)
+=======
+    messageBuffer.append(s"Closing connection: ${this.toString}").append("\n")
+>>>>>>> Stashed changes
     try {
       server.buildShutdown().get()
       server.onBuildExit()
@@ -188,6 +192,7 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
     client.targetId = targetId
     client.layout = layout
     client.multiplexer = currentMultiplexer
+    client.connection = this
     action(server)
   } catch {
     case exception: ExecutionException =>
@@ -311,7 +316,10 @@ object Compilation {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
-    def isIdle(value: BspConnection): Boolean = false
+    def isIdle(value: BspConnection): Boolean = value.client match {
+      case dc: DisplayingClient => dc.multiplexer.forall(_.finished)
+      case c => false
+    }
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
@@ -413,6 +421,7 @@ sealed abstract class FuryBuildClient extends BuildClient {
   var compilation: Compilation = _
   var targetId: TargetId = _
   var layout: Layout = _
+  var connection: BspConnection = _
   //TODO move to DisplayingClient
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 }
