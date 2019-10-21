@@ -23,7 +23,7 @@ import gastronomy._
 import kaleidoscope._
 import mercator._
 
-import org.eclipse.lsp4j.jsonrpc.{Launcher, JsonRpcException}
+import org.eclipse.lsp4j.jsonrpc.Launcher
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import com.google.gson.{Gson, JsonElement}
 
@@ -41,7 +41,7 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
-import java.util.concurrent.{CompletableFuture, Executors, ExecutionException}
+import java.util.concurrent.{CompletableFuture, Executors}
 
 import language.higherKinds
 import scala.annotation.tailrec
@@ -187,10 +187,9 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
   def provision[T](currentCompilation: Compilation,
                    targetId: TargetId,
                    layout: Layout,
-                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]],
-                   tries: Int = 0)
+                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]])
                   (action: FuryBspServer => T)
-                  : T = try {
+                  : T = {
     client.compilation = currentCompilation
     client.targetId = targetId
     client.layout = layout
@@ -202,15 +201,6 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
       lastUser = user
     }
     action(server)
-  } catch {
-    case exception: ExecutionException =>
-      Option(exception.getCause) match {
-        case Some(exception: JsonRpcException) =>
-          if(tries < 3) provision(currentCompilation, targetId, layout, currentMultiplexer, tries + 1)(action)
-          else throw BspException()
-        case _ =>
-          throw exception
-      }
   }
 
   def writeTrace(layout: Layout): Try[Unit] = for {
