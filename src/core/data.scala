@@ -231,8 +231,7 @@ object BspConnectionManager {
   object HandleHandler {
     private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
 
-    private val ec: ExecutionContext =
-      ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(Threads.factory("handle-handler", daemon = true)), throw _)
+    private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
 
     def handle(handle: Handle, sink: PrintWriter): Unit = handles(handle) = sink
 
@@ -308,10 +307,11 @@ object Compilation {
   //FIXME
   var receiverClient: Option[BuildClient] = None
 
-  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
+  val bspPool: Pool[Path, BspConnection] = new SelfCleaningPool[Path, BspConnection](10000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
+    def isIdle(value: BspConnection): Boolean = false
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()

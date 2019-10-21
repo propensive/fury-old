@@ -30,7 +30,7 @@ object PoolTest extends TestApp {
 
   class Resource(val tag: String)
 
-  class DummyPool extends Pool[String, Resource](10L) {
+  class DummyPool extends Pool[String, Resource]() {
       override def create(key: String): Resource = new Resource(key)
       override def destroy(value: Resource): Unit = ()
       override def isBad(value: Resource): Boolean = false
