@@ -39,6 +39,7 @@ import scala.reflect.{ClassTag, classTag}
 
 import java.io._
 import java.net.URI
+import java.nio.channels.{Channels, Pipe}
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.{CompletableFuture, Executors, TimeUnit}
@@ -279,17 +280,17 @@ object BspConnectionManager {
 
   def bloopLauncher: Handle = {
 
-    val bloopIn = new PipedInputStream
-    val in = new PipedOutputStream
-    in.connect(bloopIn)
+    val toBloop = Pipe.open()
+    val bloopIn = Channels.newInputStream(toBloop.source())
+    val in = Channels.newOutputStream(toBloop.sink())
 
-    val bloopOut = new PipedOutputStream
-    val out = new PipedInputStream
-    out.connect(bloopOut)
+    val fromBloop = Pipe.open()
+    val bloopOut = Channels.newOutputStream(fromBloop.sink())
+    val out = Channels.newInputStream(fromBloop.source())
 
-    val bloopErr = new PipedOutputStream
-    val err = new PipedInputStream
-    err.connect(bloopErr)
+    val fromBloopErr = Pipe.open()
+    val bloopErr = Channels.newOutputStream(fromBloopErr.sink())
+    val err = Channels.newInputStream(fromBloopErr.source())
 
     val launcher = new LauncherMain(
       clientIn = bloopIn,
