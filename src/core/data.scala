@@ -710,10 +710,12 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
-    val bspTargetIds = deepDependencies(target.id).map { dep =>
+    val furyTargetIds = deepDependencies(target.id).toList
+    val bspTargetIds = furyTargetIds.map { dep =>
       new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
-    val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.toList.asJava)
+    val bspToFury = (bspTargetIds zip furyTargetIds).toMap
+    val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
     Compilation.bspPool.borrow(layout.base) { conn =>
       val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
         wrapServerErrors(server.buildTargetCompile(params))
@@ -723,6 +725,16 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       }
       conn.writeTrace(layout)
       conn.writeMessages(layout)
+      scalacOptions.get.getItems.asScala.foreach { case soi =>
+          val bti = soi.getTarget
+          val classDir = soi.getClassDirectory
+          val targetId = bspToFury(bti)
+          val permanentClassesDir = layout.classesDir(targetId)
+          val temporaryClassesDir = Path(new URI(classDir))
+          temporaryClassesDir.copyTo(permanentClassesDir)
+          //TODO the method setClassDirectory modifies a mutable structure. Consider refactoring
+          soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
+      }
       CompileResult(bspCompileResult.get, scalacOptions.get)
     }
   }
