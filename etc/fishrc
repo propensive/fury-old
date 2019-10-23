@@ -1,5 +1,5 @@
 if not contains $FURYHOME/bin $fish_user_paths
-  set -Ux fish_user_paths $FURYHOME/bin \$fish_user_paths
+  set -Ux fish_user_paths $fish_user_paths\ $FURYHOME/bin
 end
 
 # FIXME: Need to include fish completions

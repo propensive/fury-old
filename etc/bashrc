@@ -1,4 +1,4 @@
-export PATH=$FURYHOME/bin:$PATH
+export PATH=$PATH:$FURYHOME/bin
 
 # FIXME: Need to include bash completions
 
