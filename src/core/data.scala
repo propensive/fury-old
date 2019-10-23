@@ -159,11 +159,13 @@ case class Module(id: ModuleId,
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-case class BspConnection(future: java.util.concurrent.Future[Void],
-                         client: FuryBuildClient,
+class BspConnection(val future: java.util.concurrent.Future[Void],
+                    val client: FuryBuildClient,
                          server: FuryBspServer,
                          traceBuffer: CharArrayWriter,
                          messageBuffer: CharArrayWriter) {
+
+  val createdAt: Long = System.currentTimeMillis
 
   def shutdown(): Unit = {
     messageBuffer.append(s"Closing connection: ${this.toString}").append("\n")
@@ -318,9 +320,11 @@ object Compilation {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
-    def isIdle(value: BspConnection): Boolean = value.client match {
-      case dc: DisplayingClient => dc.multiplexer.forall(_.finished)
-      case c => false
+    def isIdle(value: BspConnection): Boolean = {
+      (System.currentTimeMillis - value.createdAt > cleaningInterval) && (value.client match {
+        case dc: DisplayingClient => dc.multiplexer.forall(_.finished)
+        case c => false
+      })
     }
 
     def create(dir: Path): BspConnection = {
@@ -352,7 +356,7 @@ object Compilation {
 
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
 
       handle.broken.future.andThen {
         case Success(_) =>
