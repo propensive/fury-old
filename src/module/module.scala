@@ -51,7 +51,6 @@ object ModuleCli {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
   } yield Context(cli, layout, config, layer, schema, optProject)
 
   def select(ctx: Context): Try[ExitStatus] = {
@@ -269,7 +268,8 @@ object BinaryCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     ctx         <- ModuleCli.context(cli)
-    optModuleId <- ~ctx.cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
+    cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
+    optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
 
     optModule   <- Success { for {
                       project  <- ctx.optProject
@@ -357,7 +357,8 @@ object ParamCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       ctx         <- ModuleCli.context(cli)
-      optModuleId <- ~ctx.cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
+      cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
+      optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
 
       optModule   <- Success { for {
                        project  <- ctx.optProject
