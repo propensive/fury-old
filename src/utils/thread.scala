@@ -3,6 +3,8 @@ package fury.utils
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{Executors, ThreadFactory}
 
+import scala.concurrent.ExecutionContext
+
 object Threads {
 
   private val baseFactory = Executors.defaultThreadFactory()
@@ -16,5 +18,8 @@ object Threads {
       thread
     }
   }
+
+  def singleThread(prefix: String, daemon: Boolean = false): ExecutionContext =
+    ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(Threads.factory(prefix, daemon)), throw _)
 
 }

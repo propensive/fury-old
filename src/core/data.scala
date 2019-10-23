@@ -41,7 +41,7 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
-import java.util.concurrent.{CompletableFuture, Executors, ExecutionException}
+import java.util.concurrent.{CompletableFuture, Executors, ExecutionException, TimeUnit}
 
 import language.higherKinds
 import scala.annotation.tailrec
@@ -159,22 +159,27 @@ case class Module(id: ModuleId,
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-case class BspConnection(future: java.util.concurrent.Future[Void],
-                         client: FuryBuildClient,
+class BspConnection(val future: java.util.concurrent.Future[Void],
+                    val client: FuryBuildClient,
                          server: FuryBspServer,
                          traceBuffer: CharArrayWriter,
                          messageBuffer: CharArrayWriter) {
 
+  val createdAt: Long = System.currentTimeMillis
+
   def shutdown(): Unit = {
-    writeTrace(client.layout)
-    writeMessages(client.layout)
+    messageBuffer.append(s"Closing connection: ${this.toString}").append("\n")
     try {
-      server.buildShutdown().get()
+      server.buildShutdown().get(5, TimeUnit.SECONDS)
       server.onBuildExit()
     } catch {
-      case NonFatal(e) => ()
+      case NonFatal(e) =>
+        messageBuffer.append(e.getMessage).append("\n")
+        e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
     }
     future.cancel(true)
+    writeTrace(client.layout)
+    writeMessages(client.layout)
   }
 
   def provision[T](currentCompilation: Compilation,
@@ -188,6 +193,7 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
     client.targetId = targetId
     client.layout = layout
     client.multiplexer = currentMultiplexer
+    client.connection = this
     action(server)
   } catch {
     case exception: ExecutionException =>
@@ -231,24 +237,26 @@ object BspConnectionManager {
   object HandleHandler {
     private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
 
-    private val ec: ExecutionContext =
-      ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(Threads.factory("handle-handler", daemon = true)), throw _)
+    private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
 
     def handle(handle: Handle, sink: PrintWriter): Unit = handles(handle) = sink
 
     Future {
       while(true) {
         handles.foreach {
-          case (handle, sink) if !handle.broken.isCompleted =>
-            try {
-              val line = handle.errReader.readLine()
-              if(line != null) sink.println(line)
-            } catch {
-              case e: IOException =>
-                sink.println("Broken handle!")
-                e.printStackTrace(sink)
-                handles -= handle
-                handle.broken.failure(e)
+          case (handle, sink) =>
+            if (handle.broken.isCompleted) {
+              handles -= handle
+            } else {
+              try {
+                val line = handle.errReader.readLine()
+                if (line != null) sink.println(line)
+              } catch {
+                case e: IOException =>
+                  sink.println("Broken handle!")
+                  e.printStackTrace(sink)
+                  handle.broken.failure(e)
+              }
             }
         }
         Thread.sleep(100)
@@ -308,10 +316,16 @@ object Compilation {
   //FIXME
   var receiverClient: Option[BuildClient] = None
 
-  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
+  val bspPool: Pool[Path, BspConnection] = new SelfCleaningPool[Path, BspConnection](10000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
+    def isIdle(value: BspConnection): Boolean = {
+      (System.currentTimeMillis - value.createdAt > cleaningInterval) && (value.client match {
+        case dc: DisplayingClient => dc.multiplexer.forall(_.finished)
+        case c => false
+      })
+    }
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
@@ -342,7 +356,7 @@ object Compilation {
 
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
 
       handle.broken.future.andThen {
         case Success(_) =>
@@ -413,6 +427,7 @@ sealed abstract class FuryBuildClient extends BuildClient {
   var compilation: Compilation = _
   var targetId: TargetId = _
   var layout: Layout = _
+  var connection: BspConnection = _
   //TODO move to DisplayingClient
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 }
