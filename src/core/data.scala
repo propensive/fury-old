@@ -227,7 +227,6 @@ object BspConnectionManager {
     lazy val errReader = new BufferedReader(new InputStreamReader(err))
 
     override def close(): Unit = {
-      broken.success(())
       in.close()
       out.close()
       err.close()
@@ -247,6 +246,7 @@ object BspConnectionManager {
           case (handle, sink) =>
             if (handle.broken.isCompleted) {
               handles -= handle
+              handle.close()
             } else {
               try {
                 val line = handle.errReader.readLine()
