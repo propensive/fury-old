@@ -240,14 +240,13 @@ object BspConnectionManager {
   }
 
   object HandleHandler {
-    //private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
-    private val fac = Threads.factory("handle-handler", daemon = true)
-    private val executor = Executors.newScheduledThreadPool(4, fac)
-    private val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
+    private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
+//    private val fac = Threads.factory("handle-handler", daemon = true)
+//    private val executor = Executors.newScheduledThreadPool(4, fac)
+//    private val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
     private val drain = new Drain(ec)
-
-    //TODO call handle.close()
-    def handle(handle: Handle, sink: PrintWriter): Unit = HandleHandler.synchronized{
+    
+    def handle(handle: Handle, sink: PrintWriter): Unit = {
       drain.register(Drainable(
         handle.err, sink, onError = { t: Throwable =>
           handle.broken.failure(t)

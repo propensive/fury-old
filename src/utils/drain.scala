@@ -29,6 +29,7 @@ class Drain(private val ec: ExecutionContext){
   private val selector = Selector.open()
   
   def register(drainable: Drainable)(implicit ec: ExecutionContext): SelectionKey = {
+    selector.wakeup()
     drainable.source.configureBlocking(false)
     drainable.source.register(selector, SelectionKey.OP_READ, drainable.sink)
   }
@@ -37,21 +38,24 @@ class Drain(private val ec: ExecutionContext){
   
   Future(blocking {
     while(true) {
-      selector.select()
-      selector.selectedKeys().asScala.foreach{ key =>
-        val drainable = key.attachment().asInstanceOf[Drainable]
-        try{
-          val bytesRead = key.channel().asInstanceOf[ReadableByteChannel].read(buffer)
-          if(bytesRead > 0){
-            buffer.flip()
-            drainable.sink.write(buffer.asCharBuffer.toString)
+      if(selector.keys().isEmpty) Thread.sleep(100)
+      else{
+        selector.select(1000)
+        selector.selectedKeys().asScala.foreach{ key =>
+          val drainable = key.attachment().asInstanceOf[Drainable]
+          try{
+            val bytesRead = key.channel().asInstanceOf[ReadableByteChannel].read(buffer)
+            if(bytesRead > 0){
+              buffer.flip()
+              drainable.sink.write(buffer.asCharBuffer.toString)
+            }
+          } catch {
+            case e: IOException => drainable.onError(e)
+          } finally {
+            buffer.clear()
           }
-        } catch {
-          case e: IOException => drainable.onError(e)
-        } finally {
-          buffer.clear()
-        }       
-      }      
+        }
+      }    
     }
   })(ec)
   
