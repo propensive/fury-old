@@ -93,16 +93,20 @@ sealed trait PoolCleaner[K, T <: AnyRef] { this: Pool[K, T] =>
   def clean()(implicit cleaner: ExecutionContext): Future[Unit] = {
     Future.traverse(keySet) { key =>
       val foo = get(key)
-      foo.synchronized{
+      val idleResource: Future[Option[T]] = foo.synchronized{
         foo.map { conn =>
           remove(key)
           if(isIdle(conn)) {
-            destroy(conn)
+            Some(conn)
             //add(key, Future.failed[T](new Exception("Resource has been destroyed")))
-          } else add(key, Future.successful(conn))
+          } else {
+            add(key, Future.successful(conn))
+            None
+          }
         }
       }
-    }.map(_ => ())
+      idleResource
+    }.map(_.flatten.foreach(destroy))
   }
 
   protected def keepCleaning()(implicit cleaner: ExecutionContext): Future[Unit] = {

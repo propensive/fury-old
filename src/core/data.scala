@@ -600,6 +600,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] = Try {
     io.println(str"BSP update for ${layout.pwd.value}")
     Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
+      io.println(str"Got connection for BSP update for ${layout.pwd.value}")
       conn.provision(this, targetId, layout, None) { server =>
         server.workspaceBuildTargets.get()
       }
