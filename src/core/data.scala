@@ -39,7 +39,7 @@ import scala.reflect.{ClassTag, classTag}
 
 import java.io._
 import java.net.URI
-import java.nio.channels.{Channels, Pipe}
+import java.nio.channels.{Channels, Pipe, ReadableByteChannel, SelectableChannel}
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.{CompletableFuture, Executors, TimeUnit}
@@ -227,12 +227,10 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
 object BspConnectionManager {
   case class Handle(in: OutputStream,
                     out: InputStream,
-                    err: InputStream,
+                    err: SelectableChannel with ReadableByteChannel,
                     broken: Promise[Unit],
                     launcher: Future[Unit])
             extends AutoCloseable {
-
-    lazy val errReader = new BufferedReader(new InputStreamReader(err))
 
     override def close(): Unit = {
       in.close()
@@ -242,34 +240,21 @@ object BspConnectionManager {
   }
 
   object HandleHandler {
-    private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
+    //private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
+    private val fac = Threads.factory("handle-handler", daemon = true)
+    private val executor = Executors.newScheduledThreadPool(4, fac)
+    private val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
+    private val drain = new Drain(ec)
 
-    private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
-
-    def handle(handle: Handle, sink: PrintWriter): Unit = handles(handle) = sink
-
-    Future {
-      while(true) {
-        handles.foreach {
-          case (handle, sink) =>
-            if (handle.broken.isCompleted) {
-              handles -= handle
-              handle.close()
-            } else {
-              try {
-                val line = handle.errReader.readLine()
-                if (line != null) sink.println(line)
-              } catch {
-                case e: IOException =>
-                  sink.println("Broken handle!")
-                  e.printStackTrace(sink)
-                  handle.broken.failure(e)
-              }
-            }
+    //TODO call handle.close()
+    def handle(handle: Handle, sink: PrintWriter): Unit = HandleHandler.synchronized{
+      drain.register(Drainable(
+        handle.err, sink, onError = { t: Throwable =>
+          handle.broken.failure(t)
+          handle.close()
         }
-        Thread.sleep(100)
-      }
-    } (ec)
+      ))
+    }
   }
 
   import bloop.launcher.LauncherMain
@@ -290,7 +275,7 @@ object BspConnectionManager {
 
     val fromBloopErr = Pipe.open()
     val bloopErr = Channels.newOutputStream(fromBloopErr.sink())
-    val err = Channels.newInputStream(fromBloopErr.source())
+    val err = fromBloopErr.source()
 
     val launcher = new LauncherMain(
       clientIn = bloopIn,
