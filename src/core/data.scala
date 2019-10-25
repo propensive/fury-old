@@ -597,12 +597,15 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
+  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] = Try {
+    io.println(str"BSP update for ${layout.pwd.value}")
     Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
-        Try(server.workspaceBuildTargets.get)
+        server.workspaceBuildTargets.get()
       }
     }, Duration.Inf)
+    io.println(str"Finished BSP update for ${layout.pwd.value}")
+  }
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
