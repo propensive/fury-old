@@ -309,11 +309,15 @@ object BinaryCli {
       binaryArg   <- invoc(BinaryArg)
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      binaryToDel <- ~module.binaries.find(_.spec == binaryArg)
+      binaryToDel <- Binary.filterByPartialId(module.binaries, binaryArg) match {
+                       case bin :: Nil => Success(bin)
+                       case Nil        => Failure(UnspecifiedBinary(module.binaries.map(_.spec).toList))
+                       case bins       => Failure(UnspecifiedBinary(bins.map(_.spec)))
+                     }
       force       <- ~invoc(ForceArg).isSuccess
       
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id,
-                         module.id))(_(_) --= binaryToDel)
+                         module.id))(_(_) -= binaryToDel)
 
       _           <- ~Layer.save(io, layer, layout)
       schema      <- defaultSchema
