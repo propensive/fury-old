@@ -24,8 +24,7 @@ import scala.collection.mutable.{HashMap => MutableMap}
 import scala.util._
 
 object Coursier {
-  private val cache: MutableMap[Binary, List[Path]] = MutableMap()
-
+  
   private val scalaCore = Set(
     Organization("org.scala-lang") -> ModuleName("scala-library"),
     Organization("org.scala-lang") -> ModuleName("scala-compiler"),
@@ -33,28 +32,31 @@ object Coursier {
     Organization("org.scala-lang") -> ModuleName("scala-xml")
   )
 
-  def fetch(io: Io, binary: Binary): Try[List[Path]] = {
-    def resolve(repo: Repository): List[Path] = {
-      io.println(msg"Resolving $binary")
+  private def mkRequest(binary: Binary): Try[List[String]] = Try {
+    coursier.Fetch().addRepositories(binary.repo).addDependencies(binary.dependency).run()
+  }.recoverWith {
+    case ex: java.net.UnknownHostException => Failure(DnsResolutionFailure())
+    case ex: java.net.SocketException      => Failure(OfflineException())
+  }
+  
+  def fetch(io: Io, binary: Binary, layout: Layout): Try[List[Path]] = {
+    val dir = layout.binariesDir / binary.group / binary.artifact / binary.version
+    if(dir.exists) Success(dir.children)
+    else {
+      val tmpDir = layout.binariesDir / java.util.UUID.randomUUID().toString
       
-      val dependency = Dependency(
-        module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
-        version = binary.version,
-        exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
-      )
-      
-      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
-      
-      request.map(Path(_)).to[List]
-    }
+      val paths = for {
+        _     <- tmpDir.mkDir()
+        lines <- mkRequest()
+        paths <- ~lines.map(Path(_)).to[List]
+        _     <- paths.map { file => file.hardLink(tmpDir / file.name) }.sequence
+        _     <- dir.mkParents()
+        _     <- tmpDir.moveTo(dir)
+      } yield paths
 
-    cache.get(binary) match {
-      case Some(bin) => Success(bin)
-      case None =>
-        coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id).map(resolve) match {
-          case Left(reason) => Failure(DownloadFailure(reason))
-          case Right(files)  => Success(cache.getOrElseUpdate(binary, files))
-        }
+      paths.recoverWith { _ => tmpDir.delete() }
+
+      paths
     }
   }
 }
