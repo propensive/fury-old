@@ -74,6 +74,10 @@ You can grant these permissions with,
           cli.abort(msg"Bloop did not start successfully: $msg")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
+        case DnsResolutionFailure() =>
+          cli.abort(msg"Coursier could not download a file because DNS resolution failed.")
+        case OfflineException() =>
+          cli.abort(msg"Coursier could not download a file because you appear to be offline.")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>

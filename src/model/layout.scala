@@ -66,6 +66,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val historyDir: Path = (furyDir / "history").extant()
   lazy val bloopDir: Path = (base / ".bloop").extant()
   lazy val classesDir: Path = (furyDir / "classes").extant()
+  lazy val binariesDir: Path = (furyDir / "binaries").extant()
   lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
@@ -79,7 +80,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
   lazy val furyConfig: Path = base / "layer.fury"
-  
+ 
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
   def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()
