@@ -379,12 +379,12 @@ object Compilation {
         case Success(_) =>
           log.println(msg"Connection for $dir has been closed")
           log.flush()
-          bspConn.future.cancel(true)
+          bspConn.shutdown()
         case Failure(e) =>
           log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
           e.printStackTrace(log)
           log.flush()
-          bspConn.future.cancel(true)
+          bspConn.shutdown()
       }
       bspConn
     }
