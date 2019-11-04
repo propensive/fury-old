@@ -61,7 +61,7 @@ abstract class Pool[K, T <: AnyRef](private implicit val ec: ExecutionContext) {
 
   def borrow[S](key: K)(action: T => S): Future[S] = {
     val released = Promise[T]
-    val lock: AnyRef = pool.get(key).getOrElse(pool)
+    val lock: AnyRef = pool
     
     val claimed: Future[T] = lock.synchronized {
       createOrRecycle(key).map { v =>
