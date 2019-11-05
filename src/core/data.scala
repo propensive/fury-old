@@ -285,7 +285,7 @@ object BspConnectionManager {
   import bloop.launcher.LauncherStatus._
   import bloop.bloopgun.BloopgunCli
 
-  private val bloopVersion = "1.3.4"
+  private val bloopVersion = "1.3.5"
 
   def bloopLauncher: Handle = {
 
