@@ -21,10 +21,11 @@ final class Multiplexer[K, V](keys: List[K]) {
   private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
   private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
   private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
+  private[this] var closeAction: Option[() => Unit] = None
 
   def finished: Boolean = closed.forall(identity)
 
-  def stream(interval: Int, tick: Option[V] = None): Iterator[V] = {
+  def stream(interval: Int, tick: V): Iterator[V] = {
     def stream(lastSnapshot: List[List[V]]): Iterator[V] = {
       val t0       = System.currentTimeMillis
       val snapshot = state.to[List]
@@ -33,16 +34,20 @@ final class Multiplexer[K, V](keys: List[K]) {
         case (current, last) =>
           current.take(current.length - last.length).reverse
       }
-      if(finished && changes.isEmpty) {
-        tick.to[Iterator]
-      } else {
+      if(finished && changes.isEmpty) Iterator(tick)
+      else {
         val time = System.currentTimeMillis - t0
         if(time < interval) Thread.sleep(interval - time)
-        changes.to[Iterator] ++ tick.to[Iterator] ++ stream(snapshot)
+        changes.to[Iterator] ++ Iterator(tick) ++ stream(snapshot)
       }
     }
-    stream(state.to[List])
+    stream(state.to[List]) ++ Iterator {
+      closeAction.foreach(_())
+      tick
+    }
   }
+
+  def onClose(block: => Unit) = closeAction = Some(() => block)
 
   /** This method should only ever be called from one thread for any given reference, to
     *  guarantee safe concurrent access. */

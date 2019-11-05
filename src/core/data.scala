@@ -175,35 +175,12 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
     } catch {
       case NonFatal(e) =>
         messageBuffer.append(e.getMessage).append("\n")
+        messageBuffer.append("This is the error from shutdown()")
         e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
     }
     future.cancel(true)
     writeTrace(client.layout)
     writeMessages(client.layout)
-  }
-
-  def provision[T](currentCompilation: Compilation,
-                   targetId: TargetId,
-                   layout: Layout,
-                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]],
-                   tries: Int = 0)
-                  (action: FuryBspServer => T)
-                  : T = try {
-    client.compilation = currentCompilation
-    client.targetId = targetId
-    client.layout = layout
-    client.multiplexer = currentMultiplexer
-    client.connection = this
-    action(server)
-  } catch {
-    case exception: ExecutionException =>
-      Option(exception.getCause) match {
-        case Some(exception: JsonRpcException) =>
-          if(tries < 3) provision(currentCompilation, targetId, layout, currentMultiplexer, tries + 1)(action)
-          else throw BspException()
-        case _ =>
-          throw exception
-      }
   }
 
   def writeTrace(layout: Layout): Try[Unit] = for {
@@ -311,67 +288,7 @@ object BspConnectionManager {
 }
 
 object Compilation {
-  private val compilationThreadPool = Executors.newCachedThreadPool(Threads.factory("bsp-launcher", daemon = true))
-
-  //FIXME
-  var receiverClient: Option[BuildClient] = None
-
-  val bspPool: Pool[Path, BspConnection] = new SelfCleaningPool[Path, BspConnection](10000L) {
-
-    def destroy(value: BspConnection): Unit = value.shutdown()
-    def isBad(value: BspConnection): Boolean = value.future.isDone
-    def isIdle(value: BspConnection): Boolean = {
-      (System.currentTimeMillis - value.createdAt > cleaningInterval) && (value.client match {
-        case dc: DisplayingClient => dc.multiplexer.forall(_.finished)
-        case c => false
-      })
-    }
-
-    def create(dir: Path): BspConnection = {
-      val bspMessageBuffer = new CharArrayWriter()
-      val bspTraceBuffer = new CharArrayWriter()
-      val log = new java.io.PrintWriter(bspTraceBuffer, true)
-      val handle = BspConnectionManager.bloopLauncher
-      BspConnectionManager.HandleHandler.handle(handle, log)
-      val client = receiverClient.fold[FuryBuildClient](
-        new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
-      ){
-        rec => new ForwardingClient(rec)
-      }
-      val launcher = new Launcher.Builder[FuryBspServer]()
-        .traceMessages(log)
-        .setRemoteInterface(classOf[FuryBspServer])
-        .setExecutorService(compilationThreadPool)
-        .setInput(handle.out)
-        .setOutput(handle.in)
-        .setLocalService(client)
-        .create()
-
-      val future = launcher.startListening()
-      val server = launcher.getRemoteProxy
-      val capabilities = new BuildClientCapabilities(List("scala").asJava)
-
-      val initializeParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
-          capabilities)
-
-      server.buildInitialize(initializeParams).get
-      server.onBuildInitialized()
-      val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
-
-      handle.broken.future.andThen {
-        case Success(_) =>
-          log.println(msg"Connection for $dir has been closed")
-          log.flush()
-          bspConn.future.cancel(true)
-        case Failure(e) =>
-          log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
-          e.printStackTrace(log)
-          log.flush()
-          bspConn.future.cancel(true)
-      }
-      bspConn
-    }
-  }
+  val compilationThreadPool = Executors.newCachedThreadPool(Threads.factory("bsp-launcher", daemon = true))
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
@@ -382,14 +299,19 @@ object Compilation {
                     installation: Installation,
                     https: Boolean)
                    : Try[Compilation] = for {
-
+    _           <- ~io.println("Generating hierarchy")
     hierarchy   <- schema.hierarchy(io, layout.base, layout, https)
+    _           <- ~io.println("Constructing universe")
     universe    <- hierarchy.universe
+    _           <- ~io.println("Reading policy file")
     policy      <- Policy.read(io, installation)
+    _           <- ~io.println("Creating compilation")
     compilation <- universe.compilation(io, ref, policy, layout)
+    _           <- ~io.println("Generating files")
     _           <- compilation.generateFiles(io, layout)
-
-    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
+    _           <- ~io.println("Generated files")
+    //_           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
+    _           <- ~io.println("Done BSP update")
 
   } yield compilation
 
@@ -418,21 +340,13 @@ object Compilation {
                       installation: Installation,
                       https: Boolean): Try[Compilation] = {
     val compilation = mkCompilation(io, schema, ref, layout, installation, https)
+    io.println(msg"Generated compilation")
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
 }
 
-sealed abstract class FuryBuildClient extends BuildClient {
-  var compilation: Compilation = _
-  var targetId: TargetId = _
-  var layout: Layout = _
-  var connection: BspConnection = _
-  //TODO move to DisplayingClient
-  var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
-}
-
-class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
+case class FuryBuildClient(compilation: Compilation, targetId: TargetId, layout: Layout, multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]], messageSink: PrintWriter) extends BuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
     multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
@@ -564,36 +478,8 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
   }
 }
 
-class ForwardingClient(receiver: BuildClient) extends FuryBuildClient {
-
-  //TODO check if messages have to be transformed, e. g. the target IDs
-  override def onBuildShowMessage(showMessageParams: ShowMessageParams): Unit = {
-    receiver.onBuildShowMessage(showMessageParams)
-  }
-
-  override def onBuildLogMessage(logMessageParams: LogMessageParams): Unit = {
-    receiver.onBuildLogMessage(logMessageParams)
-  }
-
-  override def onBuildTaskStart(taskStartParams: TaskStartParams): Unit = {
-    receiver.onBuildTaskStart(taskStartParams)
-  }
-
-  override def onBuildTaskProgress(taskProgressParams: TaskProgressParams): Unit = {
-    receiver.onBuildTaskProgress(taskProgressParams)
-  }
-
-  override def onBuildTaskFinish(taskFinishParams: TaskFinishParams): Unit = {
-    receiver.onBuildTaskFinish(taskFinishParams)
-  }
-
-  override def onBuildPublishDiagnostics(publishDiagnosticsParams: PublishDiagnosticsParams): Unit = {
-    receiver.onBuildPublishDiagnostics(publishDiagnosticsParams)
-  }
-
-  override def onBuildTargetDidChange(didChangeBuildTarget: DidChangeBuildTarget): Unit = {
-    receiver.onBuildTargetDidChange(didChangeBuildTarget)
-  }
+object LauncherPool {
+  
 }
 
 case class Compilation(graph: Map[TargetId, List[TargetId]],
@@ -602,15 +488,60 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                        targets: Map[ModuleRef, Target],
                        universe: Universe) {
 
+  def borrow[T](io: Io, dir: Path, layout: Layout, targetId: TargetId, currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]])(fn: (FuryBspServer, BspConnection) => T): T = {
+    val bspMessageBuffer = new CharArrayWriter()
+    val bspTraceBuffer = new CharArrayWriter()
+    //val log = new java.io.PrintWriter(bspTraceBuffer, true)
+    val handle = BspConnectionManager.bloopLauncher
+    //BspConnectionManager.HandleHandler.handle(handle, log)
+    
+    val client = FuryBuildClient(this, targetId, layout, currentMultiplexer, new PrintWriter(bspMessageBuffer))
+    
+    io.println(msg"Constructing launcher...")
+    val launcher = new Launcher.Builder[FuryBspServer]()
+      //.traceMessages(log)
+      .setRemoteInterface(classOf[FuryBspServer])
+      .setExecutorService(Compilation.compilationThreadPool)
+      .setInput(handle.out)
+      .setOutput(handle.in)
+      .setLocalService(client)
+      .create()
+    io.println(msg"Start listening")
+    val future = launcher.startListening()
+    io.println(msg"Getting server")
+    val server = launcher.getRemoteProxy
+    
+    val capabilities = new BuildClientCapabilities(List("scala").asJava)
+
+    val initializeParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
+        capabilities)
+
+    io.println(msg"Initializing server")
+    server.buildInitialize(initializeParams).get
+    io.println(msg"Initialized")
+    server.onBuildInitialized()
+    val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+
+    handle.broken.future.andThen {
+      case Success(_) =>
+        //log.println(msg"Connection for $dir has been closed")
+        //log.flush()
+        bspConn.future.cancel(true)
+      case Failure(e) =>
+        //log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
+        //e.printStackTrace(log)
+        //log.flush()
+        bspConn.future.cancel(true)
+    }
+    val result = fn(server, bspConn)
+    currentMultiplexer.map(_.onClose(bspConn.shutdown()))
+    result
+  }
+
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
-
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
-    Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
-      conn.provision(this, targetId, layout, None) { server =>
-        Try(server.workspaceBuildTargets.get)
-      }
-    }, Duration.Inf)
+  private[this] val classpathCache: HashMap[ModuleRef, Set[Path]] = HashMap()
+  private[this] val paramsCache: HashMap[ModuleRef, List[String]] = HashMap()
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
@@ -633,11 +564,11 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     Bloop.clean(layout).flatMap(Bloop.generateFiles(io, this, layout).waive)
   }
 
-  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
+  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = classpathCache.getOrElseUpdate(ref, allDependencies.flatMap { target =>
     Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
-  } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
+  } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries)
 
-  def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
+  def allSources: Set[Path] = targets.values.to[Set].flatMap { x: Target => x.sourcePaths.to[Set] }
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
@@ -691,18 +622,16 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
-  def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] = {
+  def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] = paramsCache.getOrElseUpdate(ref, {
     def pluginParam(pluginTarget: Target): Parameter =
       Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
 
-    val allPlugins = allDependencies
-      .filter(_.kind == Plugin)
-      .filterNot(_.ref == ref)
+    val allPlugins = allDependencies.filter { d => d.kind == Plugin && d.ref != ref }
 
     val params = targets(ref).params ++ allPlugins.map(pluginParam)
 
     params.map(_.parameter)
-  }
+  })
 
   def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
     classesDirs ++ targets(ref).compiler.to[Set].map { compilerTarget =>
@@ -720,7 +649,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
                     pipelining: Boolean)
-                   : Future[CompileResult] = {
+                   : CompileResult = {
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
@@ -731,13 +660,10 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
-    Compilation.bspPool.borrow(layout.base) { conn =>
-      val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-        wrapServerErrors(server.buildTargetCompile(params))
-      }
-      val scalacOptions: Try[ScalacOptionsResult] = conn.provision(this, target.id, layout, None) { server =>
-        wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
-      }
+    io.println(msg"Borrowing a new connection from the pool")
+    borrow(io, layout.base, layout, target.id, Some(multiplexer)) { (server, conn) =>
+      val bspCompileResult: Try[BspCompileResult] = wrapServerErrors(server.buildTargetCompile(params))
+      val scalacOptions: Try[ScalacOptionsResult] = wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
       conn.writeTrace(layout)
       conn.writeMessages(layout)
       scalacOptions.get.getItems.asScala.foreach { case soi =>
@@ -769,12 +695,15 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
              : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
+    io.println("Creating futures")
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
       else compile(io, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
     }
+    io.println("Created futures")
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
+    io.println("Sequenced futures")
 
     val future = dependencyFutures.map(CompileResult.merge).flatMap { required =>
       if(!required.isSuccessful) {
@@ -788,7 +717,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining).map {
+        Future(compileModule(io, target, layout, target.kind == Application, multiplexer, pipelining)).map {
           case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
             val classDirectories = compileResult.classDirectories
             val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0

@@ -98,7 +98,7 @@ object Bsp {
 
     val client = launcher.getRemoteProxy
     server.onConnectWithClient(client)
-    Compilation.receiverClient = Some(client)
+    //Compilation.receiverClient = Some(client)
 
     val listening = launcher.startListening()
     cancel.cancel = () => listening.cancel(true) // YOLO
@@ -472,7 +472,7 @@ object FuryBuildServer {
     
     override def report(io: Io, compilation: Compilation, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
       implicit val t = theme
-      multiplexer.stream(50, Some(Tick)).foreach {
+      multiplexer.stream(50, Tick).foreach {
         case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")
         case StopCompile(ref, true)                      => info(msg"Successfully compiled module $ref")
         case StopCompile(ref, false)                     => info(msg"Compilation of module $ref failed")

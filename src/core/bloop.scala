@@ -37,17 +37,23 @@ object Bloop {
     new CollOps(compilation.targets.values.map { target =>
       for {
         path       <- layout.bloopConfig(target.id).mkParents()
+        //_          <- ~io.println(msg"Configuring ${target.ref}")
         jsonString <- makeConfig(io, target, compilation, layout)
+        //_          <- ~io.println(msg"Writing ${target.ref}")
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
   private def makeConfig(io: Io, target: Target, compilation: Compilation, layout: Layout): Try[String] = for {
+    //_         <- ~io.println("Writing plugin")
     _         <- ~compilation.writePlugin(target.ref, layout)
+    //_         <- ~io.println("Getting classpath")
     classpath <- ~compilation.classpath(target.ref, layout)
+    //_         <- ~io.println("Getting compiler classpath")
     compilerClasspath <- ~target.compiler.map(_.ref).map(compilation.classpath(_, layout)).getOrElse(classpath)
-    bloopSpec = target.compiler
-      .map(_.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")))
+    //_         <- ~io.println("Getting Bloop spec")
+    bloopSpec = target.compiler.map(_.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")))
+    //_         <- ~io.println("Generating params")
     params <- ~compilation.allParams(io, target.ref, layout)
   } yield Json(
     version = "1.0.0",
@@ -59,7 +65,7 @@ object Bloop {
       classpath = (classpath ++ compilerClasspath).map(_.value),
       out = str"${layout.outputDir(target.id).value}",
       classesDir = str"${layout.classesDir(target.id).value}",
-      scala = bloopSpec.fold[Json](Undefined){ spec =>
+      scala = bloopSpec.fold[Json](Undefined) { spec =>
         Json(
           organization = spec.org,
           name = spec.name,

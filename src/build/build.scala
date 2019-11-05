@@ -145,9 +145,7 @@ object BuildCli {
     val max = magnitude(runtime.maxMemory)
 
     (str"""    CPUs: ${runtime.availableProcessors}
-         |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max
-         |     BSP: ${Compilation.bspPool.keySet.size} connections""" + "\n" +
-      Compilation.bspPool.keySet.map{ path => str"            ${path}" }.mkString("\n")
+          |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max"""
       ).stripMargin
   }
 
@@ -285,6 +283,7 @@ object BuildCli {
       cli            <- cli.hint(ReporterArg, Reporter.all)
       invoc          <- cli.read()
       io             <- invoc.io()
+      _              <- ~io.println(msg"Starting save operation")
       dir            <- invoc(DirArg)
       https          <- ~invoc(HttpsArg).isSuccess
       project        <- optProject.ascribe(UnspecifiedProject())
@@ -293,11 +292,15 @@ object BuildCli {
       module         <- optModule.ascribe(UnspecifiedModule())
       pipelining     <- ~invoc(PipeliningArg).toOption
       fatJar         =  invoc(FatJarArg).isSuccess
+      _              <- ~io.println(msg"Reading policy file")
       globalPolicy   <- Policy.read(io, cli.installation)
       reporter       <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  invoc(WatchArg).isSuccess
+      _              <- ~io.println(msg"Starting syncCompilation")
       compilation    <- Compilation.syncCompilation(io, schema, module.ref(project), layout, cli.installation, https)
+      _              <- ~io.println(msg"Started syncCompilation")
       watcher        =  new SourceWatcher(compilation.allSources)
+      _              <- ~io.println(msg"Starting watcher (maybe)")
       _              =  if(watch) watcher.start()
       future         <- new Repeater[Try[Future[CompileResult]]] {
         var cnt: Int = 0
@@ -309,6 +312,7 @@ object BuildCli {
           //io.println(str"Rebuild $cnt")
           cnt = cnt + 1
           watcher.clear()
+          io.println(msg"Starting repeater action")
           for {
             task <- compileOnce(io, compilation, schema, module.ref(project), layout,
               globalPolicy, invoc.suffix, pipelining.getOrElse(config.pipelining), reporter, config.theme, https)
@@ -428,13 +432,18 @@ object BuildCli {
                   theme: Theme,
                   https: Boolean): Try[Future[CompileResult]] = {
     for {
+      _            <- ~io.println(msg"Checking out all repositories")
       _            <- compilation.checkoutAll(io, layout, https)
-      _            <- compilation.generateFiles(io, layout)
+      _            <- ~io.println(msg"Checked out all repositories")
+      //_            <- compilation.generateFiles(io, layout)
+      //_            <- ~io.println(msg"Generated all files")
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
+      io.println(msg"Created multiplexer")
       val future = compilation.compile(io, moduleRef, multiplexer, Map(), layout,
         globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
         case compRes =>
+          io.println(msg"Closing multiplexer")
           multiplexer.closeAll()
           compRes
       }
