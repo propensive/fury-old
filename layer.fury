@@ -266,10 +266,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	bloop:launcher/src/main/scala	bloop:launcher/src/main/scala
-						binaries	ch.epfl.scala:bloopgun_2.12:1.3.4	binRepo	central
+						binaries	ch.epfl.scala:bloopgun_2.12:1.3.5	binRepo	central
 								group	ch.epfl.scala
 								artifact	bloopgun_2.12
-								version	1.3.4
+								version	1.3.5
 							com.zaxxer:nuprocess:1.2.4	binRepo	central
 								group	com.zaxxer
 								artifact	nuprocess
@@ -682,7 +682,7 @@ schemas	default	id	default
 		repos	bloop	id	bloop
 				repo	gh:scalacenter/bloop
 				track	master
-				commit	b4f820c659928a59fe863f6ae41718db747e3fc0
+				commit	de0a5c93cdfe701e942e8f7235dce4c41145e8de
 				local	None
 			platform	id	platform
 				repo	gh:propensive/platform
