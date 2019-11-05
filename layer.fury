@@ -635,10 +635,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/utils	src/utils
-						binaries	io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
+						binaries	io.get-coursier:coursier_2.12:2.0.0-RC4-1	binRepo	central
 								group	io.get-coursier
 								artifact	coursier_2.12
-								version	1.1.0-M14-4
+								version	2.0.0-RC4-1
 						resources	
 						bloopSpec	None
 						environment	
