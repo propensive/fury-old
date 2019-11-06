@@ -18,6 +18,7 @@ package fury.utils
 
 import java.io.{BufferedReader, IOException, PrintWriter}
 import java.nio.CharBuffer
+import org.eclipse.lsp4j.jsonrpc.JsonRpcException
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -48,7 +49,7 @@ class Drain(private val ec: ExecutionContext){
             handle.sink.write(buffer.toString)
           }
         } catch {
-          case e: IOException =>
+          case e @ (_ : JsonRpcException | _: IOException) =>
             handle.sink.println("Broken handle!")
             handles.synchronized { handles -= handle }
             e.printStackTrace(handle.sink)
