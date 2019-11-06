@@ -250,6 +250,11 @@ object BspConnectionManager {
 
     override val source: BufferedReader = new BufferedReader(new InputStreamReader(err))
 
+    override def onStop(): Unit = {
+      broken.success(())
+      close()
+    }
+
     override def onError(e: Throwable): Unit = {
       broken.failure(e)
       close()
