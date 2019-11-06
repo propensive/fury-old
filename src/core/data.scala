@@ -237,48 +237,33 @@ object BspConnectionManager {
   case class Handle(in: OutputStream,
                     out: InputStream,
                     err: InputStream,
+                    sink: PrintWriter,
                     broken: Promise[Unit],
                     launcher: Future[Unit])
-            extends AutoCloseable {
-
-    lazy val errReader = new BufferedReader(new InputStreamReader(err))
+            extends AutoCloseable with Drainable {
 
     override def close(): Unit = {
       in.close()
       out.close()
       err.close()
     }
+
+    override val source: BufferedReader = new BufferedReader(new InputStreamReader(err))
+
+    override def onError(e: Throwable): Unit = {
+      broken.failure(e)
+      close()
+    }
   }
 
   object HandleHandler {
-    private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
-
     private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
 
-    def handle(handle: Handle, sink: PrintWriter): Unit = handles(handle) = sink
+    private val drain = new Drain(ec)
 
-    Future {
-      while(true) {
-        handles.foreach {
-          case (handle, sink) =>
-            if (handle.broken.isCompleted) {
-              handles -= handle
-              handle.close()
-            } else {
-              try {
-                val line = handle.errReader.readLine()
-                if (line != null) sink.println(line)
-              } catch {
-                case e: IOException =>
-                  sink.println("Broken handle!")
-                  e.printStackTrace(sink)
-                  handle.broken.failure(e)
-              }
-            }
-        }
-        Thread.sleep(100)
-      }
-    } (ec)
+    def handle(handle: Handle): Unit = {
+      drain.register(handle)
+    }
   }
 
   import bloop.launcher.LauncherMain
@@ -287,7 +272,7 @@ object BspConnectionManager {
 
   private val bloopVersion = "1.3.5"
 
-  def bloopLauncher: Handle = {
+  def bloopLauncher(sink: PrintWriter): Handle = {
 
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
@@ -323,7 +308,7 @@ object BspConnectionManager {
       case failure       => throw new Exception(s"Launcher failed: $failure")
     }
 
-    Handle(in, out, err, Promise[Unit], future)
+    Handle(in, out, err, sink, Promise[Unit], future)
   }
 }
 
@@ -348,8 +333,8 @@ object Compilation {
       val bspMessageBuffer = new CharArrayWriter()
       val bspTraceBuffer = new CharArrayWriter()
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
-      val handle = BspConnectionManager.bloopLauncher
-      BspConnectionManager.HandleHandler.handle(handle, log)
+      val handle = BspConnectionManager.bloopLauncher(log)
+      BspConnectionManager.HandleHandler.handle(handle)
       val client = receiverClient.fold[FuryBuildClient](
         new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
       ){
