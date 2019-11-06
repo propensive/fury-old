@@ -1,4 +1,4 @@
-export PATH=$FURYHOME/bin:$PATH
+export PATH=$PATH:$FURYHOME/bin
 export fpath=($FURYHOME/etc/completion/zsh $fpath)
 autoload -U +X compinit && compinit
 

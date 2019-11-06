@@ -1,0 +1,35 @@
+fury layer init
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.time -A read
+fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
+fury permission require -C java.util.PropertyPermission -T test.property -A read
+fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
+fury source add -d src
+mkdir -p src
+echo 'object HelloWorld extends App { println("Hello world!") }' > src/hello.scala
+fury binary add -b com.spotify:logging:2.2.6
+fury binary add -b com.spotify:logging:2.2.0
+fury binary add -b org.libj:logging:0.4.2
+fury binary list --raw
+fury binary remove -b com.spotify:logging
+echo $?
+fury binary remove -b com.spotify:logging:2.2.0
+echo $?
+fury binary remove -b logging
+echo $?
+fury binary remove -b logging:0.4.2
+echo $?
+fury binary remove -b com.spotify:logging:2.2.3
+echo $?
+fury binary remove -b com.spotify:logging:2.2.6
+echo $?
+fury binary list --raw
+fury build compile --output linear -- arg1 arg2 | grep -vE '(compiler-bridge)|(completed in)'
+echo $?

@@ -42,10 +42,11 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
-import java.util.concurrent.{CompletableFuture, Executors, ExecutionException}
+import java.util.concurrent.{CompletableFuture, Executors, ExecutionException, TimeUnit}
 
 import language.higherKinds
 import scala.annotation.tailrec
+import scala.util.control.NonFatal
 
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
@@ -63,6 +64,23 @@ object Binary {
   private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()
 
   val Jmh = Binary(BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
+
+  /**
+    * Filters a set of Binaries by id, allowing full and partial matches:
+    *  - group:artifact:version
+    *  - artifact:version
+    *  - group:artifact
+    *  - artifact
+    */
+  def filterByPartialId(binaries: SortedSet[Binary], id: String): List[Binary] =
+    binaries.filter(bin => id match {
+      case r"([\.\-_a-zA-Z0-9]*)\:([\.\-_a-zA-Z0-9]*)\:([\.\-\+_a-zA-Z0-9]*)" =>
+        id == bin.spec
+      case r"([\.\-_a-zA-Z0-9]*)\:([\.\-\+_a-zA-Z0-9]*)" =>
+        id == str"${bin.group}:${bin.artifact}" || id == str"${bin.artifact}:${bin.version}"
+      case _ =>
+        id == bin.artifact
+    }).toList
 }
 
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
@@ -159,15 +177,27 @@ case class Module(id: ModuleId,
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-case class BspConnection(future: java.util.concurrent.Future[Void],
-                         client: FuryBuildClient,
+class BspConnection(val future: java.util.concurrent.Future[Void],
+                    val client: FuryBuildClient,
                          server: FuryBspServer,
                          traceBuffer: CharArrayWriter,
                          messageBuffer: CharArrayWriter) {
 
+  val createdAt: Long = System.currentTimeMillis
+
   def shutdown(): Unit = {
-    server.buildShutdown()
-    future.cancel(true)
+    messageBuffer.append(s"Closing connection: ${this.toString}").append("\n")
+    try {
+      server.buildShutdown().get(5, TimeUnit.SECONDS)
+      server.onBuildExit()
+    } catch {
+      case NonFatal(e) =>
+        messageBuffer.append(e.getMessage).append("\n")
+        e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
+    }
+    future.cancel(false)
+    writeTrace(client.layout)
+    writeMessages(client.layout)
   }
 
   def provision[T](currentCompilation: Compilation,
@@ -181,6 +211,7 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
     client.targetId = targetId
     client.layout = layout
     client.multiplexer = currentMultiplexer
+    client.connection = this
     action(server)
   } catch {
     case exception: ExecutionException =>
@@ -193,62 +224,61 @@ case class BspConnection(future: java.util.concurrent.Future[Void],
       }
   }
 
-  def writeTrace(layout: Layout): Try[Unit] = layout.traceLogfile.appendSync(traceBuffer.toString)
-  def writeMessages(layout: Layout): Try[Unit] = layout.messagesLogfile.appendSync(messageBuffer.toString)
+  def writeTrace(layout: Layout): Try[Unit] = for {
+    _ <- layout.traceLogfile.appendSync(traceBuffer.toString)
+  } yield traceBuffer.reset()
+
+  def writeMessages(layout: Layout): Try[Unit] = for {
+    _ <- layout.messagesLogfile.appendSync(messageBuffer.toString)
+  } yield messageBuffer.reset()
+  
 }
 
 object BspConnectionManager {
   case class Handle(in: OutputStream,
                     out: InputStream,
                     err: InputStream,
+                    sink: PrintWriter,
                     broken: Promise[Unit],
                     launcher: Future[Unit])
-            extends AutoCloseable {
-
-    lazy val errReader = new BufferedReader(new InputStreamReader(err))
+            extends AutoCloseable with Drainable {
 
     override def close(): Unit = {
-      broken.success(())
       in.close()
       out.close()
       err.close()
     }
+
+    override val source: BufferedReader = new BufferedReader(new InputStreamReader(err))
+
+    override def onStop(): Unit = {
+      broken.success(())
+      close()
+    }
+
+    override def onError(e: Throwable): Unit = {
+      broken.failure(e)
+      close()
+    }
   }
 
   object HandleHandler {
-    private val handles: scala.collection.mutable.Map[Handle, PrintWriter] = TrieMap()
+    private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
 
-    private val ec: ExecutionContext =
-      ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(Threads.factory("handle-handler", daemon = true)), throw _)
+    private val drain = new Drain(ec)
 
-    def handle(handle: Handle, sink: PrintWriter): Unit = handles(handle) = sink
-
-    Future {
-      while(true) {
-        handles.foreach {
-          case (handle, sink) if !handle.broken.isCompleted =>
-            try {
-              val line = handle.errReader.readLine()
-              if(line != null) sink.println(line)
-            } catch {
-              case e: IOException =>
-                sink.println("Broken handle!")
-                e.printStackTrace(sink)
-                handles -= handle
-                handle.broken.failure(e)
-            }
-        }
-        Thread.sleep(100)
-      }
-    } (ec)
+    def handle(handle: Handle): Unit = {
+      drain.register(handle)
+    }
   }
 
   import bloop.launcher.LauncherMain
   import bloop.launcher.LauncherStatus._
+  import bloop.bloopgun.BloopgunCli
 
-  private val bloopVersion = "1.3.4"
+  private val bloopVersion = "1.3.5"
 
-  def bloopLauncher: Handle = {
+  def bloopLauncher(sink: PrintWriter): Handle = {
 
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
@@ -267,16 +297,15 @@ object BspConnectionManager {
       clientOut = bloopOut,
       out = new PrintStream(bloopErr),
       charset = StandardCharsets.UTF_8,
-      shell = bloop.launcher.core.Shell.default,
-      nailgunPort = None,
-      startedServer = Promise[Unit](),
-      generateBloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL
+      shell = bloop.bloopgun.core.Shell.default,
+      userNailgunHost = None,
+      userNailgunPort = None,
+      startedServer = Promise[Unit]()
     )
 
     val future = Future(blocking {
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
-        bloopInstallerURL = bloop.launcher.core.Installer.defaultWebsiteURL(bloopVersion),
         skipBspConnection = false,
         serverJvmOptions = Nil
       )
@@ -285,7 +314,7 @@ object BspConnectionManager {
       case failure       => throw new Exception(s"Launcher failed: $failure")
     }
 
-    Handle(in, out, err, Promise[Unit], future)
+    Handle(in, out, err, sink, Promise[Unit], future)
   }
 }
 
@@ -295,17 +324,23 @@ object Compilation {
   //FIXME
   var receiverClient: Option[BuildClient] = None
 
-  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection](60000L) {
+  val bspPool: Pool[Path, BspConnection] = new SelfCleaningPool[Path, BspConnection](10000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
+    def isIdle(value: BspConnection): Boolean = {
+      (System.currentTimeMillis - value.createdAt > cleaningInterval) && (value.client match {
+        case dc: DisplayingClient => dc.multiplexer.forall(_.finished)
+        case c => false
+      })
+    }
 
     def create(dir: Path): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
       val bspTraceBuffer = new CharArrayWriter()
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
-      val handle = BspConnectionManager.bloopLauncher
-      BspConnectionManager.HandleHandler.handle(handle, log)
+      val handle = BspConnectionManager.bloopLauncher(log)
+      BspConnectionManager.HandleHandler.handle(handle)
       val client = receiverClient.fold[FuryBuildClient](
         new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
       ){
@@ -329,18 +364,18 @@ object Compilation {
 
       server.buildInitialize(initializeParams).get
       server.onBuildInitialized()
-      val bspConn = BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+      val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
 
       handle.broken.future.andThen {
         case Success(_) =>
           log.println(msg"Connection for $dir has been closed")
           log.flush()
-          bspConn.future.cancel(true)
+          bspConn.future.cancel(false)
         case Failure(e) =>
           log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
           e.printStackTrace(log)
           log.flush()
-          bspConn.future.cancel(true)
+          bspConn.future.cancel(false)
       }
       bspConn
     }
@@ -400,6 +435,7 @@ sealed abstract class FuryBuildClient extends BuildClient {
   var compilation: Compilation = _
   var targetId: TargetId = _
   var layout: Layout = _
+  var connection: BspConnection = _
   //TODO move to DisplayingClient
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 }
@@ -697,10 +733,12 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
-    val bspTargetIds = deepDependencies(target.id).map { dep =>
+    val furyTargetIds = deepDependencies(target.id).toList
+    val bspTargetIds = furyTargetIds.map { dep =>
       new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
-    val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.toList.asJava)
+    val bspToFury = (bspTargetIds zip furyTargetIds).toMap
+    val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
     Compilation.bspPool.borrow(layout.base) { conn =>
       val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
         wrapServerErrors(server.buildTargetCompile(params))
@@ -710,6 +748,16 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       }
       conn.writeTrace(layout)
       conn.writeMessages(layout)
+      scalacOptions.get.getItems.asScala.foreach { case soi =>
+          val bti = soi.getTarget
+          val classDir = soi.getClassDirectory
+          val targetId = bspToFury(bti)
+          val permanentClassesDir = layout.classesDir(targetId)
+          val temporaryClassesDir = Path(new URI(classDir))
+          temporaryClassesDir.copyTo(permanentClassesDir)
+          //TODO the method setClassDirectory modifies a mutable structure. Consider refactoring
+          soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
+      }
       CompileResult(bspCompileResult.get, scalacOptions.get)
     }
   }

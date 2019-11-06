@@ -124,6 +124,10 @@ You can grant these permissions with,
           cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
         case CyclesInDependencies(refs) =>
           cli.abort(msg"There are dependency cycles containing : [${refs.mkString}]")
+        case UnspecifiedBinary(Nil) =>
+          cli.abort(msg"Binary not found.")
+        case UnspecifiedBinary(possibleBinaries) =>
+          cli.abort(msg"Unable to identify target binary: ${"\n\t"}${possibleBinaries.mkString("\n\t")}")
         case e =>
           val errorString =
             s"$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"

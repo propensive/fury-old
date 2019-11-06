@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,43 +16,57 @@
 */
 package fury.utils
 
-/** a streaming multiplexer optimized for concurrent writes */
-final class Multiplexer[K, V](keys: List[K]) {
-  private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
-  private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
-  private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
+import java.io.{BufferedReader, IOException, PrintWriter}
+import java.nio.CharBuffer
+import org.eclipse.lsp4j.jsonrpc.JsonRpcException
 
-  def finished: Boolean = closed.forall(identity)
+import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.blocking
 
-  def stream(interval: Int, tick: Option[V] = None): Iterator[V] = {
-    def stream(lastSnapshot: List[List[V]]): Iterator[V] = {
-      val t0       = System.currentTimeMillis
-      val snapshot = state.to[List]
-      // FIXME: This could be written more efficiently with a builder
-      val changes = snapshot.zip(lastSnapshot).flatMap {
-        case (current, last) =>
-          current.take(current.length - last.length).reverse
-      }
-      if(finished && changes.isEmpty) {
-        tick.to[Iterator]
-      } else {
-        val time = System.currentTimeMillis - t0
-        if(time < interval) Thread.sleep(interval - time)
-        changes.to[Iterator] ++ tick.to[Iterator] ++ stream(snapshot)
-      }
+class Drain(private val ec: ExecutionContext){
+
+  private val handles: mutable.Set[Drainable] = mutable.HashSet()
+
+  def register(drainable: Drainable)(implicit ec: ExecutionContext): Unit = {
+    handles.synchronized {
+      handles += drainable
     }
-    stream(state.to[List])
   }
 
-  /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def update(key: K, value: V): Unit = state(refs(key)) = value :: state(refs(key))
+  private val buffer = CharBuffer.allocate(1024)
 
-  /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def close(key: K): Unit = closed(refs(key)) = true
+  Future(blocking {
+    while(true) {
+      handles.foreach { handle =>
+        try {
+          val bytesRead = handle.source.read(buffer)
+          if (bytesRead == -1){
+            handles.synchronized { handles -= handle }
+            handle.onStop()
+          } else if (bytesRead > 0){
+            buffer.flip()
+            handle.sink.write(buffer.toString)
+          }
+        } catch {
+          case e @ (_ : JsonRpcException | _: IOException) =>
+            handle.sink.println("Broken handle!")
+            handles.synchronized { handles -= handle }
+            e.printStackTrace(handle.sink)
+            handle.onError(e)
+        } finally {
+          buffer.clear()
+        }
+      }
+      Thread.sleep(100)
+    }
+  })(ec)
 
-  def closeAll(): Unit = keys.foreach { k =>
-    closed(refs(k)) = true
-  }
+}
+
+trait Drainable {
+  val source: BufferedReader
+  val sink: PrintWriter
+  def onError(e: Throwable): Unit
+  def onStop(): Unit
 }

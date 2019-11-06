@@ -86,8 +86,9 @@ object Main {
       env: Environment
     ) =
     exit {
-      Lifecycle.trackThread(args.head.toInt) {
-        val cli = Cli(out, ParamMap(args.tail: _*), None, Nil, env, args.head.toInt)
+      val pid = args.head.toInt
+      val cli = Cli(out, ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, pid)
+      Lifecycle.trackThread(cli) {
         val end = invoke(cli).code
         out.flush()
         err.flush()
