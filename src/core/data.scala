@@ -194,7 +194,7 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
         messageBuffer.append(e.getMessage).append("\n")
         e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
     }
-    future.cancel(true)
+    future.cancel(false)
     writeTrace(client.layout)
     writeMessages(client.layout)
   }
@@ -369,12 +369,12 @@ object Compilation {
         case Success(_) =>
           log.println(msg"Connection for $dir has been closed")
           log.flush()
-          bspConn.future.cancel(true)
+          bspConn.future.cancel(false)
         case Failure(e) =>
           log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
           e.printStackTrace(log)
           log.flush()
-          bspConn.future.cancel(true)
+          bspConn.future.cancel(false)
       }
       bspConn
     }
