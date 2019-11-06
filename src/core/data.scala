@@ -22,8 +22,7 @@ import exoskeleton._
 import gastronomy._
 import kaleidoscope._
 import mercator._
-
-import org.eclipse.lsp4j.jsonrpc.{Launcher, JsonRpcException}
+import org.eclipse.lsp4j.jsonrpc.{JsonRpcException, Launcher}
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import com.google.gson.{Gson, JsonElement}
 
@@ -41,7 +40,9 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
-import java.util.concurrent.{CompletableFuture, Executors, ExecutionException, TimeUnit}
+import java.util.concurrent.{CompletableFuture, ExecutionException, Executors, TimeUnit}
+
+import bloop.launcher.LauncherStatus
 
 import language.higherKinds
 import scala.annotation.tailrec
@@ -194,9 +195,10 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
         messageBuffer.append(e.getMessage).append("\n")
         e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
     }
-    future.cancel(false)
     writeTrace(client.layout)
     writeMessages(client.layout)
+    future.cancel(false)
+    future.get()
   }
 
   def provision[T](currentCompilation: Compilation,
@@ -239,10 +241,11 @@ object BspConnectionManager {
                     err: InputStream,
                     sink: PrintWriter,
                     broken: Promise[Unit],
-                    launcher: Future[Unit])
+                    launcher: Future[LauncherStatus])
             extends AutoCloseable with Drainable {
 
     override def close(): Unit = {
+      sink.println(s"Closing handle... Launcher status = ${launcher.value}")
       in.close()
       out.close()
       err.close()
@@ -252,7 +255,6 @@ object BspConnectionManager {
 
     override def onStop(): Unit = {
       broken.success(())
-      close()
     }
 
     override def onError(e: Throwable): Unit = {
@@ -308,10 +310,7 @@ object BspConnectionManager {
         skipBspConnection = false,
         serverJvmOptions = Nil
       )
-    }).map {
-      case SuccessfulRun => ()
-      case failure       => throw new Exception(s"Launcher failed: $failure")
-    }
+    })
 
     Handle(in, out, err, sink, Promise[Unit], future)
   }
