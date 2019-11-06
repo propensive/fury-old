@@ -68,8 +68,6 @@ You can grant these permissions with,
 """)
         case NoPreviousRevision =>
           cli.abort(msg"No earlier revision can be found")
-        case BspException() =>
-          cli.abort(msg"It was not possible to establish a BSP connection")
         case LauncherFailure(msg) =>
           cli.abort(msg"Bloop did not start successfully: $msg")
         case DownloadFailure(msg) =>

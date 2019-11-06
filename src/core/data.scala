@@ -202,25 +202,15 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
   def provision[T](currentCompilation: Compilation,
                    targetId: TargetId,
                    layout: Layout,
-                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]],
-                   tries: Int = 0)
+                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]])
                   (action: FuryBspServer => T)
-                  : T = try {
+                  : T = {
     client.compilation = currentCompilation
     client.targetId = targetId
     client.layout = layout
     client.multiplexer = currentMultiplexer
     client.connection = this
     action(server)
-  } catch {
-    case exception: ExecutionException =>
-      Option(exception.getCause) match {
-        case Some(exception: JsonRpcException) =>
-          if(tries < 3) provision(currentCompilation, targetId, layout, currentMultiplexer, tries + 1)(action)
-          else throw BspException()
-        case _ =>
-          throw exception
-      }
   }
 
   def writeTrace(layout: Layout): Try[Unit] = for {
@@ -230,7 +220,7 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
   def writeMessages(layout: Layout): Try[Unit] = for {
     _ <- layout.messagesLogfile.appendSync(messageBuffer.toString)
   } yield messageBuffer.reset()
-  
+
 }
 
 object BspConnectionManager {
