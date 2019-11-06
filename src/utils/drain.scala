@@ -40,17 +40,17 @@ class Drain(private val ec: ExecutionContext){
       handles.foreach { handle =>
         try {
           val bytesRead = handle.source.read(buffer)
-          //TODO close immediately if -1?
-          if (bytesRead > 0){
+          if (bytesRead == -1){
+            handles.synchronized { handles -= handle }
+            handle.onStop()
+          } else if (bytesRead > 0){
             buffer.flip()
             handle.sink.write(buffer.toString)
           }
         } catch {
           case e: IOException =>
             handle.sink.println("Broken handle!")
-            handles.synchronized {
-              handles -= handle
-            }
+            handles.synchronized { handles -= handle }
             e.printStackTrace(handle.sink)
             handle.onError(e)
         } finally {
@@ -67,4 +67,5 @@ trait Drainable {
   val source: BufferedReader
   val sink: PrintWriter
   def onError(e: Throwable): Unit
+  def onStop(): Unit
 }
