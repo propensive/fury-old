@@ -458,7 +458,7 @@ object LayerCli {
     _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
     _      <- layout.focusFile.mkParents()
     _      <- Layer.create(io, Layer(), layout, cli.installation)
-    _      <- ~io.println(str"Created an empty layer with focus at ${layout.focusFile.value}")
+    _      <- ~io.println(str"Initialized an empty layer")
   } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
@@ -538,7 +538,7 @@ object LayerCli {
     layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
     invoc         <- cli.read()
     io            <- invoc.io()
-    destination   <- invoc(FileArg)
+    destination   <- invoc(FileArg).map(pwd.resolve(_))
     _             <- Layer.export(io, layer, layout, cli.installation, destination)
     _             <- ~io.println(msg"Saved layer file ${destination}")
   } yield io.await()
