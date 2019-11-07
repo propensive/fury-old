@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -30,10 +30,17 @@ import scala.language.dynamics
 
 import scala.util.Try
 
+import java.util.NoSuchElementException
+
+case class OgdlException(error: String) extends FuryException
+
 final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
   def apply(): String                     = values.head._1
   def applyDynamic(key: String)(): String = selectDynamic(key).apply()
-  def selectDynamic(key: String): Ogdl    = values.find(_._1 == key).get._2
+  
+  def selectDynamic(key: String): Ogdl    = try values.find(_._1 == key).get._2 catch {
+    case e: NoSuchElementException => throw OgdlException(str"Element $key not found")
+  }
 
   // FIXME: Change the type of `set` to `"set"` when upgrading to Scala 2.13.x
   def applyDynamicNamed(set: String)(updates: (String, Ogdl)*): Ogdl =

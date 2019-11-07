@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -22,6 +22,8 @@ import exoskeleton._
 import guillotine._
 
 import scala.util._
+
+import language.higherKinds
 
 case class EarlyCompletions() extends FuryException
 
@@ -159,13 +161,13 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).toOption
 
-  private def pwd = env.workDir.ascribe(FileNotFound(Path("/")))
+  def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
 
   lazy val newLayout: Try[Layout] = pwd.map { pwd =>
-    Layout(Path(env.variables("HOME")), Path(pwd), env, Path(pwd))
+    Layout(Path(env.variables("HOME")), pwd, env, pwd)
   }
 
-  lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), Path(pwd), env) }
+  lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), pwd, env) }
   lazy val installation: Installation = Installation(env)
   
   def next: Option[String] = args.prefix.headOption.map(_.value)

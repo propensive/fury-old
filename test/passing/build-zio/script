@@ -1,5 +1,6 @@
+fury layer extract -f zio.fury
 fury project select -p zio
-fury build compile -m test --output linear | sort
+fury build compile -m test --https --output linear | sort
 echo $?
-fury build compile -m core-tests --output quiet
+fury build compile -m core-tests --https --output quiet
 echo $?

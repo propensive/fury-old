@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -23,7 +23,7 @@ import exoskeleton._
 
 object Args {
   implicit private val schemaId: TExtractor[SchemaId] = _.headOption.flatMap(SchemaId.parse(_).toOption)
-  implicit private val schemaRef: TExtractor[SchemaRef] = _.headOption.flatMap(SchemaRef.unapply(_))
+  implicit private val importLayer: TExtractor[ImportLayer] = _.headOption.flatMap(ImportLayer.parse(_))
   implicit private val aliasCmd: TExtractor[AliasCmd] = _.headOption.map(AliasCmd(_))
   implicit private val parameter: TExtractor[Parameter] = _.headOption.map(Parameter(_))
   implicit private val envVar: TExtractor[EnvVar] = _.headOption.flatMap(EnvVar.parse(_))
@@ -33,10 +33,13 @@ object Args {
   implicit private val binRepoId: TExtractor[BinRepoId] = _.headOption.map(BinRepoId(_))
   implicit private val moduleId: TExtractor[ModuleId] = _.headOption.flatMap(ModuleId.parse(_).toOption)
   implicit private val projectId: TExtractor[ProjectId] = _.headOption.flatMap(ProjectId.parse(_).toOption)
+  implicit private val importId: TExtractor[ImportId] = _.headOption.flatMap(ImportId.parse(_).toOption)
   implicit private val path: TExtractor[Path] = _.headOption.flatMap(Path.unapply(_))
   implicit private val kindKey: TExtractor[Kind] = _.headOption.flatMap(Kind.unapply(_))
   implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
   implicit private val theme: TExtractor[Theme] = _.headOption.flatMap(Theme.unapply(_))
+  implicit private val ipfsRef: TExtractor[IpfsRef] = _.headOption.flatMap(IpfsRef.parse(_))
+  implicit private val importPath: TExtractor[ImportPath] = _.headOption.flatMap(ImportPath.parse(_))
   implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
   implicit private val scopeId: TExtractor[ScopeId] = _.headOption.flatMap(ScopeId.unapply(_))
 
@@ -52,6 +55,7 @@ object Args {
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[String]('b', 'binary, "specify a binary dependency")
+  val CloneRefArg = CliParam[IpfsRef]('l', 'layer, "layer reference")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[String]('C', 'class, "specify a class name")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
@@ -65,12 +69,15 @@ object Args {
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
-  val ImportArg = CliParam[SchemaRef]('i', Symbol("import"), "specify an external schema to import")
+  val ImportArg = CliParam[ImportLayer]('l', Symbol("layer"), "specify an external layer to import")
+  val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
+  val ImportSchemaArg = CliParam[SchemaId]('i', Symbol("import"), "specify the external schema to import")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
       "specify if this dependency should not be included transitively")
 
   val KeyArg = CliParam[String]('k', 'key, "GPG key")
+  val LayerArg = CliParam[ImportPath]('l', 'layer, "specify the layer")
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg = CliParam[String]('M', 'main, "specify a main class")
@@ -79,6 +86,7 @@ object Args {
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val SchemaNameArg = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
+  val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
 
@@ -98,12 +106,13 @@ object Args {
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val SchemaArg = CliParam[SchemaId]('s', 'schema, "specify a schema")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
+  val ServiceArg = CliParam[String]('S', 'service, "specify the default remote layer service")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
   val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
   val NoGrantArg = CliParam[String]('0', Symbol("no-grant"), "do not grant the permission automatically")
   val TagArg = CliParam[String]('t', 'tag, "git tag")
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
-  val TimestampsArg = CliParam[Boolean]('S', 'timestamps, "show timestamps (on, off)")
+  val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
   val CompareArg = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 

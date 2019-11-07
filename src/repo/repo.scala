@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -34,7 +34,7 @@ object RepoCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer  <- Layer.read(Io.silent(config), layout, cli.installation)
   } yield Context(cli, layout, config, layer)
 
   def list(ctx: Context): Try[ExitStatus] = {
@@ -68,7 +68,7 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 
@@ -103,7 +103,7 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = Some(absPath))
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 
@@ -136,7 +136,7 @@ object RepoCli {
                      case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
                    }
 
-      _         <- ~Layer.save(io, newLayer, layout)
+      _         <- ~Layer.save(io, newLayer, layout, cli.installation)
 
       _         <- ~newRepos.foreach { case (newRepo, _) =>
                      io.println(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
@@ -187,7 +187,7 @@ object RepoCli {
       sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
-      _              <- ~Layer.save(io, layer, layout)
+      _              <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 
@@ -222,7 +222,7 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      _           <- ~Layer.save(io, layer, layout)
+      _           <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 
@@ -239,7 +239,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 }

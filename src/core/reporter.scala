@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -44,6 +44,7 @@ object GraphReporter extends Reporter("graph") {
             : Unit = {
     val modules = compilation.graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) }
     io.println(msg"Starting build")
+    io.println("", noTime = true)
     Graph.live(io, modules, multiplexer.stream(50, Some(Tick)))(theme)
     io.println(msg"Build completed")
   }

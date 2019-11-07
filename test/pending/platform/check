@@ -1,4 +1,4 @@
-Created empty layer.fury
+Initialized an empty layer
 Set current project to scala
 Set current module to compiler
 Set current project to library
@@ -9,7 +9,7 @@ Checking out src/core from repository library
 Starting compilation of module library/core
 Successfully compiled module library/core
 0
-Created empty layer.fury
+Initialized an empty layer
 Cloning repository at /home/bash_user/test/tmp/platform/platform
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler

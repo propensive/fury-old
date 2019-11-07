@@ -1,4 +1,4 @@
-fury layer init
+fury layer init | sed "s|$(pwd)/||"
 fury project add -n hello-world
 fury module add -n m1
 fury module add -n m2

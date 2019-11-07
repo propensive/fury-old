@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -51,7 +51,7 @@ case class DirectedGraph[T](connections: Map[T, Set[T]]) {
   }
 
   def allDescendants(start: T): Either[List[T], Set[T]] = {
-    
+
     @tailrec
     def allDescendantsHelper(stack: List[T], ans: Set[T]): Set[T] = stack match {
       case List()       => ans

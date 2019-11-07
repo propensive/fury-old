@@ -1,5 +1,5 @@
 fury config set --theme nocolor
-fury layer init
+fury layer init | sed "s|$(pwd)/||"
 fury layer share
 fury project add -n example
 fury module add -n core

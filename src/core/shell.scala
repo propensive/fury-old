@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -67,6 +67,17 @@ case class Shell(environment: Environment) {
 
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
+  
+  object ipfs {
+
+    def add(path: Path): Try[IpfsRef] =
+      sh"ipfs add ${path.value}".exec[Try[String]].flatMap { out =>
+        Try(IpfsRef(out.split(" ")(1)))
+      }
+
+    def get(ref: IpfsRef, path: Path): Try[Path] =
+      sh"ipfs get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
+  }
 
   object git {
     def cloneBare(url: String, dir: Path): Try[String] = {
@@ -85,8 +96,9 @@ case class Shell(environment: Environment) {
       _   <- if(!sources.isEmpty) sh"git -C ${dir.value} config core.sparseCheckout true".exec[Try[String]]
              else Success(())
       _   <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
+      _   <- sh"git -C ${from.value} fetch".exec[Try[String]]
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Try[String]]
-      str <- sh"git -C ${dir.value} fetch origin $refSpec".exec[Try[String]]
+      str <- sh"git -C ${dir.value} fetch origin".exec[Try[String]]
       _   <- sh"git -C ${dir.value} checkout $commit".exec[Try[String]]
       _   <- ~(dir / ".done").touch()
     } yield str

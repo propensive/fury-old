@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -44,7 +44,7 @@ object Path {
     case _ => None
   }
 
-  def getTempDir(prefix: String): Try[Path] = Try(Path(Files.createTempDirectory(prefix).toString))
+  def mkTempDir(): Try[Path] = Try(Path(Files.createTempDirectory("fury").toString))
 
   // Rewritten from https://stackoverflow.com/a/10068306
   private class CopyFileVisitor(sourcePath: JavaPath, targetPath: JavaPath)
@@ -147,6 +147,7 @@ case class Path(value: String) {
   }
 
   def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
+  def childPaths: List[Path] = children.map(this / _)
   def exists(): Boolean = Files.exists(javaPath)
   def ifExists(): Option[Path] = if(exists) Some(this) else None
   def absolutePath(): Try[Path] = Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
@@ -155,6 +156,8 @@ case class Path(value: String) {
   def parent = Path(javaPath.getParent.toString)
   def rename(fn: String => String): Path = parent / fn(name)
 
+  def mkTempFile(): Try[Path] = Try(Path(Files.createTempFile(javaPath, null, ".tmp").toString))
+  
   def mkParents(): Try[Path] =
     Outcome.rescue[java.io.IOException](FileWriteError(parent)) {
       java.nio.file.Files.createDirectories(parent.javaPath)

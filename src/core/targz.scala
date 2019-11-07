@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,41 +16,60 @@
 */
 package fury.core
 
-import fury.io._, fury.ogdl._, fury.model._
+import fury.io._, fury.model._
 
-import scala.util._
+import java.io._
+import annotation._
+import scala.util.Try
+import org.kamranzafar.jtar._
 
-import language.higherKinds
+import java.util.zip._
 
-final class LayerRepository(revisions: LayerRevisions, current: Path) {
+object TarGz {
 
-  def restorePrevious(io: Io, layout: Layout): Try[Unit] =
-    for {
-      previous <- revisions.previous(io, layout)
-      _        <- Ogdl.write(previous, current)
-      _        <- revisions.discardPrevious()
-    } yield Unit
-
-  def update(io: Io, layer: Layer, layout: Layout): Try[Unit] = currentLayer(io, layout) match {
-    case None => Ogdl.write(layer, current)
-    case Some(currentLayer) =>
-      for {
-        _ <- revisions.store(currentLayer)
-        _ <- Ogdl.write(layer, current)
-      } yield Unit
+  @tailrec
+  private def transfer(
+      in: InputStream,
+      out: OutputStream,
+      data: Array[Byte] = new Array(65536),
+      keepOpen: Boolean = false
+    ): Unit = {
+    val count = in.read(data)
+    if (count != -1) {
+      out.write(data, 0, count)
+      transfer(in, out, data, keepOpen)
+    } else {
+      out.flush()
+      if (!keepOpen) in.close()
+    }
   }
 
-  private def currentLayer(io: Io, layout: Layout): Option[Layer] =
-    if(current.exists) Layer.read(io, current, layout).toOption
-    else None
-}
+  def store(files: Map[Path, Path], destination: Path): Try[Unit] = Try {
+    val fos  = new FileOutputStream(destination.javaFile)
+    val gzos = new GZIPOutputStream(fos)
+    val out  = new TarOutputStream(gzos)
+    files.foreach { case (name, path) =>
+      out.putNextEntry(new TarEntry(path.javaFile, name.value))
+      val in = new BufferedInputStream(new FileInputStream(path.javaFile))
+      transfer(in, out)
+    }
+    out.close()
+  }
 
-object LayerRepository {
-  // TODO make configurable
-  private val retainedRevisions = 16
-
-  def apply(layout: Layout): LayerRepository = {
-    val revisions = new LayerRevisions(layout.historyDir, retainedRevisions)
-    new LayerRepository(revisions, layout.furyConfig)
+  def extract(file: Path, destination: Path): Try[Unit] = Try {
+    val fis  = new FileInputStream(file.javaFile)
+    val gzis = new GZIPInputStream(fis)
+    val in   = new TarInputStream(gzis)
+    Iterator.continually(in.getNextEntry).takeWhile(_ != null).foreach { entry =>
+      val path = Path(entry.getName) in destination
+      //println("Extracting to "+path)
+      path.mkParents()
+      val fos = new FileOutputStream(path.javaFile)
+      val out = new BufferedOutputStream(fos)
+      transfer(in, out, keepOpen = true)
+      out.close()
+    }
+    in.close()
   }
 }
+

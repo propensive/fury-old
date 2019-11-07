@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,10 +16,27 @@
 */
 package fury.core
 
-import fury.model._
+import fury.io._, fury.strings._, fury.model._
 
 import guillotine._
+import scala.util.Try
+import scala.collection.JavaConverters._
 
+import java.util.Hashtable
+import javax.naming.directory._
+
+object Dns {
+  def lookup(io: Io, domain: String): Try[List[String]] = {
+    val env = new Hashtable[String, String]()
+    env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory")
+    val dirContext = new InitialDirContext(env)
+    
+    for {
+      atts <- Try(dirContext.getAttributes(domain, Array("TXT")))
+      txts <- Try(Option(atts.get("TXT")).get)
+    } yield txts.getAll.asScala.to[List].map(_.toString)
+  }
+}
 class MenuContext(val cli: Cli[CliParam[_]],
                   val layout: Layout,
                   val config: Config,

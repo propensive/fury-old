@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.io._, fury.model._
+import fury.strings._, fury.core._, fury.ogdl._, fury.io._, fury.model._
 
 import exoskeleton._
 import guillotine._
@@ -46,6 +46,8 @@ one schema, please specify the schema with --schema/-s, or if you are sure you
 want to make this change to all schemas, please add the --force/-F argument.""")
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
+        case ImportOnlyFileOrRef() =>
+          cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path) =>
           cli.abort(msg"Couldn't write to file $path.")
         case FileNotFound(path) =>
@@ -66,8 +68,6 @@ You can grant these permissions with,
 
   fury permission grant -P <permission hash>
 """)
-        case NoPreviousRevision =>
-          cli.abort(msg"No earlier revision can be found")
         case BspException() =>
           cli.abort(msg"It was not possible to establish a BSP connection")
         case LauncherFailure(msg) =>
@@ -84,6 +84,8 @@ You can grant these permissions with,
           cli.abort(msg"The configuration file could not be read.")
         case e: InvalidValue =>
           cli.abort(msg"'${e.value}' is not a valid value.")
+        case OgdlException(error) =>
+          cli.abort(msg"Failed to read OGDL file: $error.")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case e: UnspecifiedProject =>
@@ -92,6 +94,8 @@ You can grant these permissions with,
           cli.abort(msg"The repository has not been specified.")
         case e: UnspecifiedModule =>
           cli.abort(msg"The module has not been specified.")
+        case e: UnspecifiedLayer =>
+          cli.abort(msg"The layer has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>
           cli.abort(msg"The module reference $moduleRef could not be resolved.")
         case UnspecifiedMain(moduleId: ModuleId) =>
@@ -144,7 +148,7 @@ You can grant these permissions with,
             case e: FileWriteError   => unloggable
             case e: FileNotFound     => unloggable
             case e: EarlyCompletions => cli.abort("")
-          }.toOption.get
+          }.toOption.getOrElse(unloggable)
       }
   }
 

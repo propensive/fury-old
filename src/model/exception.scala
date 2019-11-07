@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -28,7 +28,9 @@ case class UnknownCompiler() extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class InitFailure() extends FuryException
+case class ImportOnlyFileOrRef() extends FuryException
 case class UnspecifiedProject() extends FuryException
+case class UnspecifiedLayer() extends FuryException
 case class UnspecifiedModule() extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException

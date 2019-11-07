@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -139,7 +139,8 @@ case class Tables(config: Config) {
 
   def imports(current: Option[SchemaId]): Tabulation[(SchemaRef, Try[Schema])] = Tabulation(
     Heading("", s => Some(s._1.schema.key) == current),
-    Heading("REPO", _._1.repo),
+    Heading("ID", _._1.id),
+    Heading("REF", _._1.layerRef),
     Heading("SCHEMA", _._1.schema),
     Heading("PROJECTS", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),
     Heading("REPOS", s => s._2.toOption.map { s => bar(s.sourceRepoIds.size) }.getOrElse(msg"-")),

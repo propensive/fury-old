@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -37,7 +37,7 @@ object Main {
     val layer = for {
       layout <- cli.layout
       config <- ~cli.config
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout, cli.installation)
     } yield layer
 
     val actions = layer.toOption

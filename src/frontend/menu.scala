@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -66,11 +66,6 @@ object FuryMenu {
             Action('list, msg"list environment variable", EnvCli.list)
         ),
         Action('help, msg"help on using Fury", help),
-        Menu('import, msg"manage imported schemas", ImportCli.context, 'list)(
-            Action('add, msg"add an imported schema", ImportCli.add),
-            Action('remove, msg"remove a previously imported schema", ImportCli.remove),
-            Action('list, msg"list imported schemas", ImportCli.list)
-        ),
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
             Action('remove, msg"remove a module from the project", ModuleCli.remove),
@@ -130,10 +125,18 @@ object FuryMenu {
                 msg"pull the latest version of the source repo from the remote",
                 RepoCli.pull)
         ),
-        Action('undo, msg"undo the previous modification", BuildCli.undo),
+        //Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
+            Action('clone, msg"clone an external layer", LayerCli.clone),
+            Action('export, msg"export a layer to a file", LayerCli.export),
+            Action('extract, msg"extract a layer file", LayerCli.extract),
+            Action('import, msg"import an external layer", LayerCli.addImport),
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
-            Action('projects, msg"show all available projects", LayerCli.projects)
+            Action('list, msg"list imported layers", LayerCli.list),
+            Action('projects, msg"show all available projects", LayerCli.projects),
+            Action('unimport, msg"remove a previously imported layer", LayerCli.unimport),
+            Action('select, msg"select a layer", LayerCli.select),
+            Action('share, msg"share this layer", LayerCli.share),
         )
     ) ::: aliases: _*)
 

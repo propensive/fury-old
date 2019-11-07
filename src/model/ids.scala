@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.strings._
+import fury.strings._, fury.io._
 
 import kaleidoscope._
 import gastronomy._
@@ -24,6 +24,8 @@ import gastronomy._
 import scala.util._
 
 import language.higherKinds
+
+import scala.collection.immutable.SortedSet
 
 object Kind {
   implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
@@ -68,11 +70,65 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
+object ImportPath {
+  implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
+  implicit val stringShow: StringShow[ImportPath] = _.path
+  val Root: ImportPath = ImportPath(".")
+
+  // FIXME: Actually parse it and check that it's valid
+  def parse(str: String): Option[ImportPath] =
+    Some(ImportPath(str))
+}
+
+case class ImportPath(path: String) {
+  def parts: List[ImportId] = path.split("/").to[List].tail.map(ImportId(_))
+  def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
+  def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("./", "/", ""))
+  def isEmpty: Boolean = parts.length == 0
+  def head: ImportId = parts.head
+  
+  def prefix(importId: ImportId): ImportPath =
+    ImportPath((importId :: parts).map(_.key).mkString("./", "/", ""))
+}
+
+case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))
+
+object IpfsRef {
+  def parse(str: String): Option[IpfsRef] = str match {
+    case r"fury:\/\/$hash@(.{46})" => Some(IpfsRef(hash))
+    case _ => None
+  }
+}
+
+case class IpfsRef(key: String) extends Key(msg"ipfs ref")
+
+case class Catalog(artifacts: SortedSet[Artifact])
+
+object Artifact {
+  implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
+}
+
+case class Artifact(path: String, ref: IpfsRef)
+
+object LayerRef {
+  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.take(8).toLowerCase))
+  implicit val stringShow: StringShow[LayerRef] = _.key
+  implicit def diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  
+  def parse(value: String): Try[LayerRef] = value match {
+    case r"[a-f0-9]{64}" => Success(LayerRef(value))
+    case _               => Failure(InvalidValue(value))
+  }
+}
+
+case class LayerRef(key: String) extends Key(msg"layer")
+
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
                   undoBuffer: Int = 5,
                   timestamps: Boolean = true,
-                  pipelining: Boolean = false)
+                  pipelining: Boolean = false,
+                  service: String = "furore.dev")
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
@@ -258,20 +314,65 @@ case class Alias(cmd: AliasCmd, description: String, schema: Option[SchemaId], m
 
 object SchemaRef {
   implicit val msgShow: MsgShow[SchemaRef] = v =>
-    UserMsg { theme => msg"${v.repo}${theme.gray(":")}${v.schema}".string(theme) }
+    UserMsg { theme => msg"${v.layerRef}${':'}${v.schema}".string(theme) }
 
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.repo}:${sr.schema}"
+  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.layerRef}:${sr.schema}"
   implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
 
   def unapply(value: String): Option[SchemaRef] = value match {
-    case r"$repo@([a-z0-9\.\-]*[a-z0-9]):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Some(SchemaRef(RepoId(repo), SchemaId(schema)))
+    case r"$layer@([a-fA-F0-9]{64}):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
+      Some(SchemaRef(ImportId(""), LayerRef(layer), SchemaId(schema)))
     case _ =>
       None
   }
 }
 
-case class SchemaRef(repo: RepoId, schema: SchemaId)
+case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId, follow: Option[Followable] = None)
+
+object ImportLayer {
+  def parse(str: String): Option[ImportLayer] = str match {
+    case r"fury:\/\/$hash@(.{46})" => Some(IpfsImport(IpfsRef(hash)))
+    case r"$domain@(([a-z][a-z0-9\-]*\.)+([a-z][a-z0-9\-]*))\/$path@([a-z0-9\/]*)" => Some(RefImport(Followable(domain, path)))
+    case r"""$path@([^*?:;,&|"\%<>]*)""" => Some(DefaultImport(path))
+    case _ => None
+  }
+}
+
+sealed trait ImportLayer
+case class IpfsImport(hash: IpfsRef) extends ImportLayer
+case class RefImport(followable: Followable) extends ImportLayer
+case class DefaultImport(path: String) extends ImportLayer
+
+object Followable {
+  implicit val msgShow: MsgShow[Followable] = fl => UserMsg { theme =>
+    msg"theme.layer(fury://${fl.domain}/${fl.path})".string(theme)
+  }
+
+  implicit val stringShow: StringShow[Followable] = fl => str"fury://${fl.domain}/${fl.path}"
+  implicit def diff: Diff[Followable] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+  
+  def parse(str: String): Option[Followable] = str match {
+    case r"fury:\/\/$domain@([a-z][a-z0-9\-\.]*[a-z0-9])\/$path@([a-z0-9\-\/]*)" =>
+      Some(Followable(domain, path))
+    case _ =>
+      None
+  }
+}
+
+case class Followable(domain: String, path: String)
+
+object ImportId {
+  implicit val msgShow: MsgShow[ImportId]       = m => UserMsg(_.layer(m.key))
+  implicit val stringShow: StringShow[ImportId] = _.key
+  implicit def diff: Diff[ImportId]             = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+
+  def parse(name: String): Try[ImportId] = name match {
+    case r"[a-z](-?[a-z0-9]+)*" => Success(ImportId(name))
+    case _                      => Failure(InvalidValue(name))
+  }
+}
+
+case class ImportId(key: String) extends Key("import")
 
 object ModuleRef {
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
@@ -326,8 +427,8 @@ object SchemaId {
   final val default = SchemaId("default")
 
   def parse(name: String): Try[SchemaId] = name match {
-    case r"[a-z](-?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
-    case _                         => Failure(InvalidValue(name))
+    case r"[a-z]([-\.]?[a-zA-Z0-9]+)*" => Success(SchemaId(name))
+    case _                             => Failure(InvalidValue(name))
   }
 }
 

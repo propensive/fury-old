@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -36,7 +36,7 @@ object Layout {
     val fileSystem = getFileStore(here)
     val parents = Stream.iterate(here.toAbsolutePath)(_.getParent)
     val parentsWithinFs = parents.takeWhile(Option(_).exists(getFileStore(_) == fileSystem))
-    val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve("layer.fury")) }.map(Path(_))
+    val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve(".focus.fury")) }.map(Path(_))
     
     optParent.ascribe(UnspecifiedProject())
   }
@@ -46,11 +46,12 @@ case class Installation(env: Environment) {
 
   lazy val home: Path = Path(env.variables("HOME"))
   
-  private[this] val configDir: Path =
+  val configDir: Path =
     env.variables.get("XDG_CONFIG_HOME").map(Path(_)).getOrElse(home / ".config") / "fury"
   
   lazy val userConfig: Path = configDir / "config.fury"
   lazy val aliasesPath: Path = configDir / "aliases"
+  lazy val layersPath: Path = (configDir / "layers").extant()
   lazy val policyFile: Path = configDir / "policy.fury"
 }
 
@@ -70,6 +71,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
   lazy val reposDir: Path = (cacheDir / "repos").extant()
+  lazy val basesDir: Path = (furyDir / "bases").extant()
   lazy val srcsDir: Path = (cacheDir / "sources").extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val workDir: Path = (furyDir / "work").extant()
@@ -78,7 +80,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
-  lazy val furyConfig: Path = base / "layer.fury"
+  lazy val focusFile: Path = base / ".focus.fury"
   
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()

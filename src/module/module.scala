@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -44,7 +44,7 @@ object ModuleCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -67,7 +67,7 @@ object ModuleCli {
       force    <- ~invoc(ForceArg).isSuccess
       focus    <- ~Lenses.focus(optSchemaId, force)
       layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 
@@ -100,7 +100,7 @@ object ModuleCli {
       cli            <- cli.hint(ModuleNameArg)
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Io.silent(config), layout, true)))
+                            _.compilerRefs(Io.silent(config), layout, cli.installation, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -120,7 +120,7 @@ object ModuleCli {
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      compilerRef    <- compilerId.map(resolveToCompiler(io, ctx, _))
+      compilerRef    <- compilerId.map(resolveToCompiler(io, cli.installation, ctx, _))
                             .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
       module         = Module(moduleId, compiler = compilerRef)
 
@@ -144,7 +144,7 @@ object ModuleCli {
                             lens(ws) = Some(compilerRef)
                         } else Try(layer)
 
-      _              <- ~Layer.save(io, layer, layout)
+      _              <- ~Layer.save(io, layer, layout, cli.installation)
       schema         <- defaultSchema
 
       _              <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
@@ -154,10 +154,10 @@ object ModuleCli {
     } yield io.await()
   }
 
-  private def resolveToCompiler(io: Io, ctx: Context, reference: String): Try[ModuleRef] = for {
+  private def resolveToCompiler(io: Io, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
     project  <- ctx.optProject.ascribe(UnspecifiedProject())
     moduleRef      <- ModuleRef.parse(project.id, reference, true)
-    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(io, ctx.layout, https = true))
+    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(io, ctx.layout, installation, https = true))
     _      <-   if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
@@ -167,7 +167,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Io.silent(config), layout, true)))
+                      Io.silent(config), layout, cli.installation, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -183,7 +183,7 @@ object ModuleCli {
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainModule(_, project.id)) {
                       (lens, ws) => if(lens(ws) == Some(moduleId)) lens(ws) = None else ws }
 
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- ~Layer.save(io, layer, layout, cli.installation)
       schema   <- defaultSchema
       
       _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
@@ -198,7 +198,7 @@ object ModuleCli {
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Io.silent(config), layout, true)))
+                         _.compilerRefs(Io.silent(config), layout, cli.installation, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
@@ -229,7 +229,7 @@ object ModuleCli {
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(io, ctx, _)).map(_.headOption)
+      compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(io, cli.installation, ctx, _)).map(_.headOption)
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption
@@ -252,7 +252,7 @@ object ModuleCli {
                          pluginName.map(Some(_))
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
-      _           <- ~Layer.save(io, layer, layout)
+      _           <- ~Layer.save(io, layer, layout, cli.installation)
       schema      <- defaultSchema
 
       _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
@@ -319,7 +319,7 @@ object BinaryCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id,
                          module.id))(_(_) -= binaryToDel)
 
-      _           <- ~Layer.save(io, layer, layout)
+      _           <- ~Layer.save(io, layer, layout, cli.installation)
       schema      <- defaultSchema
 
       _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
@@ -344,7 +344,7 @@ object BinaryCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
                        module.id))(_(_) += binary)
       
-      _         <- ~Layer.save(io, layer, layout)
+      _         <- ~Layer.save(io, layer, layout, cli.installation)
       schema    <- defaultSchema
 
       _         <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
@@ -407,7 +407,7 @@ object ParamCli {
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id,
                       module.id))(_(_) -= paramArg)
 
-      _        <- ~Layer.save(io, layer, layout)
+      _        <- ~Layer.save(io, layer, layout, cli.installation)
       schema   <- defaultSchema
 
       _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
@@ -429,7 +429,7 @@ object ParamCli {
       layer   <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
                      _(_) += param)
 
-      _       <- ~Layer.save(io, layer, layout)
+      _       <- ~Layer.save(io, layer, layout, cli.installation)
       schema  <- defaultSchema
 
       _       <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,

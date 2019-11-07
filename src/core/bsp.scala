@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._
+import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._, fury.ogdl._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
@@ -77,17 +77,17 @@ object Bsp {
       cli     <- cli.hint(Args.HttpsArg)
       invoc   <- cli.read()
       https   <- ~invoc(Args.HttpsArg).isSuccess
-      running <- ~run(System.in, System.out, layout, cli.installation, https)
+      running <- ~run(System.in, System.out, layout, https, cli.installation)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, installation: Installation, https: Boolean): java.util.concurrent.Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean, installation: Installation): java.util.concurrent.Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, installation, cancel, https)
+    val server = new FuryBuildServer(layout, cancel, https, installation)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -107,7 +107,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, installation: Installation, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, installation: Installation) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _
@@ -117,9 +117,10 @@ class FuryBuildServer(layout: Layout, installation: Installation, cancel: Cancel
 
   private def structure: Try[Structure] =
     for {
-      layer          <- Layer.read(io, layout.furyConfig, layout)
+      focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
+      layer          <- Layer.read(io, focus.layerRef, layout, installation)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(io, layout.pwd, layout, https)
+      hierarchy      <- schema.hierarchy(io, layout, installation, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
@@ -142,7 +143,7 @@ class FuryBuildServer(layout: Layout, installation: Installation, cancel: Cancel
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
       //FIXME remove duplication with structure
-      layer          <- Layer.read(io, layout.furyConfig, layout)
+      layer          <- Layer.read(io, layout, installation)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
       compilation    <- Compilation.syncCompilation(io, schema, module, layout, installation, https = true)

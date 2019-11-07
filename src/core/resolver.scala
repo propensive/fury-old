@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -25,6 +25,7 @@ object Resolver {
   implicit val projectResolver: Resolver[Project, ProjectId]    = _ == _.id
   implicit val schemaResolver: Resolver[Schema, SchemaId]       = _ == _.id
   implicit val sourceRepoResolver: Resolver[SourceRepo, RepoId] = _ == _.id
+  implicit val importResolver: Resolver[SchemaRef, ImportId]    = _ == _.id
 }
 
 trait Resolver[-T, I] { def matchOn(id: I, value: T): Boolean }

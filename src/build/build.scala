@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.6.7. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.3. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.ogdl._, fury.model._
+import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._
 
 import Args._
 
@@ -40,12 +40,15 @@ object ConfigCli {
       cli      <- cli.hint(ThemeArg, Theme.all)
       cli      <- cli.hint(TimestampsArg, List("on", "off"))
       cli      <- cli.hint(PipeliningArg, List("on", "off"))
+      cli      <- cli.hint(ServiceArg, List("furore.dev"))
       invoc    <- cli.read()
       io       <- invoc.io()
       newTheme <- ~invoc(ThemeArg).toOption
       timestamps <- ~invoc(TimestampsArg).toOption
       pipelining <- ~invoc(PipeliningArg).toOption
+      service    <- ~invoc(ServiceArg).toOption
       config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
+      config   <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
       config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
       config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
       _        <- ~Ogdl.write(config, cli.installation.userConfig)
@@ -58,7 +61,7 @@ object AliasCli {
     for {
       layout <- cli.layout
       config <- ~cli.config
-      layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+      layer  <- Layer.read(Io.silent(config), layout, cli.installation)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
@@ -84,7 +87,7 @@ object AliasCli {
       aliasArg   <- invoc(AliasArg)
       aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
       layer      <- Lenses.updateSchemas(None, layer, true) { s => Lenses.layer.aliases } (_(_) --= aliasToDel)
-      _          <- ~Layer.save(io, layer, layout)
+      _          <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 
@@ -116,7 +119,7 @@ object AliasCli {
       description      <- invoc(DescriptionArg)
       alias            <- ~Alias(aliasArg, description, optSchemaArg, moduleRef)
       layer            <- Lenses.updateSchemas(None, layer, true) { s => Lenses.layer.aliases } (_(_) += alias)
-      _                <- ~Layer.save(io, layer, layout)
+      _                <- ~Layer.save(io, layer, layout, cli.installation)
     } yield io.await()
   }
 }
@@ -126,7 +129,7 @@ object BuildCli {
   def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer  <- Layer.read(Io.silent(config), layout, cli.installation)
   } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
@@ -184,7 +187,7 @@ object BuildCli {
                                  |""".stripMargin, noTime = true)
     } yield io.await()
 
-  def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  /*def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     import cli._
     for {
       layout          <- layout
@@ -193,7 +196,7 @@ object BuildCli {
       io              <- invoc.io()
       _               <- layerRepository.restorePrevious(io, layout)
     } yield Done
-  }
+  }*/
 
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
              (ctx: MenuContext)
@@ -261,7 +264,7 @@ object BuildCli {
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- ~Layer.read(Io.silent(config), layout.furyConfig, layout).toOption
+    layer  <- ~Layer.read(Io.silent(config), layout, cli.installation).toOption
     msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
     invoc  <- cli.read()
     io     <- invoc.io()
@@ -448,18 +451,20 @@ object BuildCli {
 object LayerCli {
   def init(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.newLayout
+    cli    <- cli.hint(ForceArg)
     invoc  <- cli.read()
     io     <- invoc.io()
-    layer  <- ~Layer()
-    _      <- layout.furyConfig.mkParents()
-    _      <- ~Layer.save(io, layer, layout)
-    _      <- ~io.println("Created empty layer.fury")
+    force  =  invoc(ForceArg).isSuccess
+    _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
+    _      <- layout.focusFile.mkParents()
+    _      <- Layer.create(io, Layer(), layout, cli.installation)
+    _      <- ~io.println(str"Initialized an empty layer")
   } yield io.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
     config    <- ~cli.config
-    layer     <- Layer.read(Io.silent(config), layout.furyConfig, layout)
+    layer     <- Layer.read(Io.silent(config), layout, cli.installation)
     cli       <- cli.hint(SchemaArg, layer.schemas)
     cli       <- cli.hint(HttpsArg)
     schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
@@ -469,9 +474,162 @@ object LayerCli {
     io        <- invoc.io()
     raw       <- ~invoc(RawArg).isSuccess
     https     <- ~invoc(HttpsArg).isSuccess
-    projects  <- schema.allProjects(io, layout, https)
+    projects  <- schema.allProjects(io, layout, cli.installation, https)
     table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
     _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
     _         <- ~io.println(table.mkString("\n"), noTime = true)
   } yield io.await()
+
+  def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    layout    <- cli.layout
+    config    <- ~cli.config
+    baseLayer <- Layer.base(Io.silent(config), layout, cli.installation)
+    schema    <- baseLayer.mainSchema
+    cli       <- cli.hint(LayerArg, schema.importTree(Io.silent(config), layout, cli.installation, true).getOrElse(Nil))
+    invoc     <- cli.read()
+    io        <- invoc.io()
+    _         <- schema.importTree(io, layout, cli.installation, true)
+    newPath   <- invoc(LayerArg)
+    focus     <- Layer.readFocus(io, layout)
+    newFocus  <- ~focus.copy(path = newPath)
+    _         <- Layer.saveFocus(io, newFocus, layout)
+  } yield io.await()
+ 
+  def extract(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    cli      <- cli.hint(DirArg)
+    cli      <- cli.hint(FileArg)
+    invoc    <- cli.read()
+    io       <- invoc.io()
+    pwd      <- cli.pwd
+    file     <- invoc(FileArg).map(pwd.resolve(_))
+    dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
+    layout   <- cli.newLayout.map(_.copy(base = dir))
+    layerRef <- Layer.loadFile(io, file, layout, cli.env, cli.installation)
+    _        <- Layer.saveFocus(io, Focus(layerRef), layout)
+  } yield io.await()
+
+  def clone(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    cli           <- cli.hint(DirArg)
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
+    invoc         <- cli.read()
+    io            <- invoc.io()
+    layerImport   <- invoc(ImportArg)
+    followable    <- Try(Layer.follow(layerImport, cli.config).get)
+    layerRef      <- Layer.resolve(io, followable, cli.env, cli.installation)
+    dir           <- invoc(DirArg)
+    pwd           <- cli.pwd
+    dir           <- ~pwd.resolve(dir)
+    _             <- ~dir.mkdir()
+    _             <- Layer.saveFocus(io, Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
+  } yield io.await()
+
+  def share(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    layout        <- cli.layout
+    layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+    invoc         <- cli.read()
+    io            <- invoc.io()
+    ref           <- Layer.share(io, layer, cli.env, cli.installation)
+    _             <- ~io.println(str"fury://${ref.key}")
+  } yield io.await()
+
+  def export(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    layout        <- cli.layout
+    cli           <- cli.hint(FileArg)
+    layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+    invoc         <- cli.read()
+    io            <- invoc.io()
+    pwd           <- cli.pwd
+    destination   <- invoc(FileArg).map(pwd.resolve(_))
+    _             <- Layer.export(io, layer, layout, cli.installation, destination)
+    _             <- ~io.println(msg"Saved layer file ${destination}")
+  } yield io.await()
+
+  def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+    for {
+      layout        <- cli.layout
+      layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+      cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli           <- cli.hint(ImportNameArg)
+      cli           <- cli.hint(FileArg)
+      schemaArg     <- ~cli.peek(SchemaArg)
+      defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+     
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
+      layerImport   <- ~cli.peek(ImportArg)
+      fileImport    <- ~cli.peek(FileArg)
+      followable    <- ~((layerImport, fileImport) match {
+                         case (Some(imp), None) => Layer.follow(imp, cli.config)
+                         case _ => None
+                       })
+      layerRef      <- ~((layerImport, fileImport) match {
+                         case (Some(imp), None) => for {
+                           followable <- Layer.follow(imp, cli.config)
+                           layerRef <- Layer.resolve(Io.silent(cli.config), followable, cli.env, cli.installation).toOption
+                         } yield layerRef
+                         case (None, Some(path)) =>
+                           Layer.loadFile(Io.silent(cli.config), path in layout.pwd, layout, cli.env, cli.installation).toOption
+                         case _ =>
+                           None
+                       })
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(Io.silent(cli.config), _, layout, cli.installation).toOption)
+      cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
+
+      invoc         <- cli.read()
+      io            <- invoc.io()
+      layerRef      <- ~followable.flatMap(Layer.resolve(io, _, cli.env, cli.installation).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(io, _, layout, cli.installation).toOption)
+      nameArg       <- invoc(ImportNameArg)
+      schemaId      <- invoc(ImportSchemaArg)
+      layerRef      <- layerRef.ascribe(UnspecifiedLayer())
+      schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId, followable)
+      layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
+                           schemaRef.copy(id = nameArg)))
+      
+      _             <- ~Layer.save(io, layer, layout, cli.installation)
+    } yield io.await()
+  }
+
+  def unimport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+    for {
+      layout    <- cli.layout
+      layer     <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      schemaArg <- ~cli.peek(SchemaArg)
+      dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+      cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      importArg <- invoc(ImportIdArg)
+      schema    <- layer.schemas.findBy(schemaId)
+      lens      <- ~Lenses.layer.imports(schema.id)
+      layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
+      _         <- ~Layer.save(io, layer, layout, cli.installation)
+    } yield io.await()
+  }
+
+  def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+    for {
+      layout    <- cli.layout
+      layer     <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(HttpsArg)
+      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaArg)
+      cli       <- cli.hint(RawArg)
+      invoc     <- cli.read()
+      io        <- invoc.io()
+      raw       <- ~invoc(RawArg).isSuccess
+      https     <- ~invoc(HttpsArg).isSuccess
+      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout, cli.installation, https)) }
+      
+      table     <- ~Tables(cli.config).show(Tables(cli.config).imports(Some(layer.main)), cli.cols, rows,
+                       raw)(_._1.schema.key)
+      
+      _         <- ~(if(!raw) io.println(Tables(cli.config).contextString(layout.base, layer.showSchema, schema), noTime = true)
+                       else io)
+      
+      _         <- ~io.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
+    } yield io.await()
+  }
 }
