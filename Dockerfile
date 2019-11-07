@@ -34,7 +34,7 @@ RUN mkdir -p "${COURSIER_CACHE}"
 
 # Build a local version of Fury
 COPY .version /build/.version
-COPY layer.fury /build/layer.fury
+COPY build.fury /build/build.fury
 COPY src /build/src
 RUN (cd /build && make clean && make dist/install.sh || cat /build/.fury/logs/*)
 
