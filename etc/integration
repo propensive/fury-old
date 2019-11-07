@@ -31,7 +31,7 @@ runtest() {
   cd "$TMPDIR"
   source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m,"
   echo "----------------------------------------------------------------------------------------------------"
-  diff --color check output
+  diff -u --color check output
   SUCCESS=$?
   [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
       echo "----------------------------------------------------------------------------------------------------"
