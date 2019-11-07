@@ -1,0 +1,23 @@
+Resolving com.github.ghik:silencer-lib_2.12:1.4.2
+Resolving org.openjdk.jcstress:jcstress-core:0.4
+Resolving org.scala-lang:scala-compiler:2.12.8
+Resolving org.specs2:specs2-core_2.12:4.7.1
+Resolving org.specs2:specs2-matcher-extra_2.12:4.7.1
+Resolving org.specs2:specs2-scalacheck_2.12:4.7.1
+Starting compilation of module portable-scala-reflect/core
+Starting compilation of module portable-scala-reflect/psr-java
+Starting compilation of module zio/core
+Starting compilation of module zio/core-java
+Starting compilation of module zio/stacktracer
+Starting compilation of module zio/streams
+Starting compilation of module zio/test
+Successfully compiled module portable-scala-reflect/core
+Successfully compiled module portable-scala-reflect/psr-java
+Successfully compiled module zio/core
+Successfully compiled module zio/core-java
+Successfully compiled module zio/stacktracer
+Successfully compiled module zio/streams
+Successfully compiled module zio/test
+there were two feature warnings; re-run with -feature for details
+0
+0

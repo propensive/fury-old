@@ -1,3 +1,4 @@
+fury layer extract -f zio.fury
 fury project select -p zio
 fury build compile -m test --output linear | sort
 echo $?
