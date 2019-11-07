@@ -42,7 +42,6 @@ class Drain(private val ec: ExecutionContext){
         try {
           val bytesRead = handle.source.read(buffer)
           if (bytesRead == -1){
-            handles.synchronized { handles -= handle }
             handle.onStop()
           } else if (bytesRead > 0){
             buffer.flip()
