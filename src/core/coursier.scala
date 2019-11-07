@@ -19,12 +19,14 @@ package fury.core
 import fury.io._, fury.strings._, fury.model._
 
 import coursier.{Module => CModule, _}
+import coursier.cache._
+import coursier.cache.loggers._
 
 import scala.collection.mutable.{HashMap => MutableMap}
 import scala.util._
 
 object Coursier {
-  private val cache: MutableMap[Binary, List[Path]] = MutableMap()
+  //private val cache: MutableMap[Binary, List[Path]] = MutableMap()
 
   private val scalaCore = Set(
     Organization("org.scala-lang") -> ModuleName("scala-library"),
@@ -32,6 +34,10 @@ object Coursier {
     Organization("org.scala-lang") -> ModuleName("scala-reflect"),
     Organization("org.scala-lang") -> ModuleName("scala-xml")
   )
+
+  private val customCache = FileCache()
+    .withLocation("/tmp/coursier-cache")
+    .withLogger(RefreshLogger.create(System.out))
 
   def fetch(io: Io, binary: Binary): Try[List[Path]] = {
     def resolve(repo: Repository): List[Path] = {
@@ -43,18 +49,16 @@ object Coursier {
         exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
       )
       
-      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
+      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency)
+        .withCache(customCache)
+        .run()
       
       request.map(Path(_)).to[List]
     }
 
-    cache.get(binary) match {
-      case Some(bin) => Success(bin)
-      case None =>
-        coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id).map(resolve) match {
-          case Left(reason) => Failure(DownloadFailure(reason))
-          case Right(files)  => Success(cache.getOrElseUpdate(binary, files))
-        }
+    coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id).map(resolve) match {
+      case Left(reason) => Failure(DownloadFailure(reason))
+      case Right(files)  => Success(files)
     }
   }
 }
