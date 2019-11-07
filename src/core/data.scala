@@ -175,10 +175,10 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
     } catch {
       case NonFatal(e) =>
         messageBuffer.append(e.getMessage).append("\n")
-        messageBuffer.append("This is the error from shutdown()")
         e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
     }
     future.cancel(true)
+    future.get
     writeTrace(client.layout)
     writeMessages(client.layout)
   }
@@ -491,15 +491,15 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   def borrow[T](io: Io, dir: Path, layout: Layout, targetId: TargetId, currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]])(fn: (FuryBspServer, BspConnection) => T): T = {
     val bspMessageBuffer = new CharArrayWriter()
     val bspTraceBuffer = new CharArrayWriter()
-    //val log = new java.io.PrintWriter(bspTraceBuffer, true)
+    val log = new java.io.PrintWriter(bspTraceBuffer, true)
     val handle = BspConnectionManager.bloopLauncher
-    //BspConnectionManager.HandleHandler.handle(handle, log)
+    BspConnectionManager.HandleHandler.handle(handle, log)
     
     val client = FuryBuildClient(this, targetId, layout, currentMultiplexer, new PrintWriter(bspMessageBuffer))
     
     io.println(msg"Constructing launcher...")
     val launcher = new Launcher.Builder[FuryBspServer]()
-      //.traceMessages(log)
+      .traceMessages(log)
       .setRemoteInterface(classOf[FuryBspServer])
       .setExecutorService(Compilation.compilationThreadPool)
       .setInput(handle.out)
@@ -524,14 +524,16 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
     handle.broken.future.andThen {
       case Success(_) =>
-        //log.println(msg"Connection for $dir has been closed")
-        //log.flush()
+        log.println(msg"Connection for $dir has been closed")
+        log.flush()
         bspConn.future.cancel(true)
+        bspConn.future.get
       case Failure(e) =>
-        //log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
-        //e.printStackTrace(log)
-        //log.flush()
+        log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
+        e.printStackTrace(log)
+        log.flush()
         bspConn.future.cancel(true)
+        bspConn.future.get
     }
     val result = fn(server, bspConn)
     currentMultiplexer.map(_.onClose(bspConn.shutdown()))
