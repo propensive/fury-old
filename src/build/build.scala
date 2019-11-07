@@ -578,7 +578,6 @@ object LayerCli {
       io            <- invoc.io()
       layerRef      <- ~followable.flatMap(Layer.resolve(io, _, cli.env, cli.installation).toOption)
       maybeLayer    <- ~layerRef.flatMap(Layer.read(io, _, layout, cli.installation).toOption)
-      layerImport   <- invoc(ImportArg)
       nameArg       <- invoc(ImportNameArg)
       schemaId      <- invoc(ImportSchemaArg)
       layerRef      <- layerRef.ascribe(UnspecifiedLayer())
