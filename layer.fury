@@ -25,7 +25,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					core	id	core
 						kind	Library
 						main	None
@@ -45,10 +44,6 @@ schemas	default	id	default
 								hidden	false
 							exoskeleton/core	projectId	exoskeleton
 								moduleId	core
-								intransitive	false
-								hidden	false
-							fury/launcher	projectId	fury
-								moduleId	launcher
 								intransitive	false
 								hidden	false
 							fury/model	projectId	fury
@@ -77,10 +72,18 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
+						binaries	ch.epfl.scala:bloop-launcher_2.12:1.3.4	binRepo	central
+								group	ch.epfl.scala
+								artifact	bloop-launcher_2.12
+								version	1.3.4
+							ch.epfl.scala:bsp4j:2.0.0-M4	binRepo	central
 								group	ch.epfl.scala
 								artifact	bsp4j
 								version	2.0.0-M4
+							ch.epfl.scala:sockets:1.3.4	binRepo	central
+								group	ch.epfl.scala
+								artifact	sockets
+								version	1.3.4
 							org.scala-sbt.ipcsocket:ipcsocket:1.0.0	binRepo	central
 								group	org.scala-sbt.ipcsocket
 								artifact	ipcsocket
@@ -90,7 +93,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					dependency	id	dependency
 						kind	Library
 						main	None
@@ -112,7 +114,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					frontend	id	frontend
 						kind	Library
 						main	None
@@ -167,7 +168,6 @@ schemas	default	id	default
 						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
 								target	modifyThread
 								action	None
-						isolated	false
 					imports	id	imports
 						kind	Library
 						main	None
@@ -189,7 +189,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					io	id	io
 						kind	Library
 						main	None
@@ -219,7 +218,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					jsongen	id	jsongen
 						kind	Library
 						main	None
@@ -241,44 +239,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
-					launcher	id	launcher
-						kind	Library
-						main	None
-						plugin	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	true
-							hidden	false
-						after	fury/sockets	projectId	fury
-								moduleId	sockets
-								intransitive	false
-								hidden	false
-						params	
-						sources	bloop:launcher/src/main/scala	bloop:launcher/src/main/scala
-						binaries	ch.epfl.scala:bloopgun_2.12:1.3.5	binRepo	central
-								group	ch.epfl.scala
-								artifact	bloopgun_2.12
-								version	1.3.5
-							com.zaxxer:nuprocess:1.2.4	binRepo	central
-								group	com.zaxxer
-								artifact	nuprocess
-								version	1.2.4
-							io.get-coursier:coursier_2.12:1.1.0-M14-4	binRepo	central
-								group	io.get-coursier
-								artifact	coursier_2.12
-								version	1.1.0-M14-4
-							me.vican.jorge:snailgun-core_2.12:0.3.1	binRepo	central
-								group	me.vican.jorge
-								artifact	snailgun-core_2.12
-								version	0.3.1
-						resources	
-						bloopSpec	None
-						environment	
-						properties	
-						policy	
-						isolated	false
 					model	id	model
 						kind	Library
 						main	None
@@ -316,7 +276,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					module	id	module
 						kind	Library
 						main	None
@@ -338,7 +297,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					ogdl	id	ogdl
 						kind	Library
 						main	None
@@ -368,7 +326,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					project	id	project
 						kind	Library
 						main	None
@@ -390,7 +347,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					repo	id	repo
 						kind	Library
 						main	None
@@ -412,7 +368,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					schema	id	schema
 						kind	Library
 						main	None
@@ -434,33 +389,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
-					sockets	id	sockets
-						kind	Library
-						main	None
-						plugin	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	true
-							hidden	false
-						after	
-						params	
-						sources	bloop:sockets/src/main/java	bloop:sockets/src/main/java
-						binaries	net.java.dev.jna:jna-platform:4.5.0	binRepo	central
-								group	net.java.dev.jna
-								artifact	jna-platform
-								version	4.5.0
-							net.java.dev.jna:jna:4.5.0	binRepo	central
-								group	net.java.dev.jna
-								artifact	jna
-								version	4.5.0
-						resources	
-						bloopSpec	None
-						environment	
-						properties	
-						policy	
-						isolated	false
 					source	id	source
 						kind	Library
 						main	None
@@ -482,7 +410,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					strings	id	strings
 						kind	Library
 						main	None
@@ -504,7 +431,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					test-all	id	test-all
 						kind	Library
 						main	None
@@ -534,7 +460,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					test-core	id	test-core
 						kind	Application
 						main	Some	fury.Tests
@@ -560,7 +485,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					test-ogdl	id	test-ogdl
 						kind	Application
 						main	Some	fury.Tests
@@ -586,7 +510,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					test-strings	id	test-strings
 						kind	Application
 						main	Some	fury.StringsTests
@@ -612,7 +535,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 					utils	id	utils
 						kind	Library
 						main	None
@@ -669,7 +591,6 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -701,17 +622,11 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
-						isolated	false
 				main	Some	compiler
 				license	unknown
 				description	
 				compiler	None
-		repos	bloop	id	bloop
-				repo	gh:scalacenter/bloop
-				track	master
-				commit	de0a5c93cdfe701e942e8f7235dce4c41145e8de
-				local	None
-			platform	id	platform
+		repos	platform	id	platform
 				repo	gh:propensive/platform
 				track	master
 				commit	0629f77d077873ff07f8b61dadb7cf26449179fe
