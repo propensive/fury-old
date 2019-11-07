@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -494,7 +494,20 @@ object LayerCli {
     newFocus  <- ~focus.copy(path = newPath)
     _         <- Layer.saveFocus(io, newFocus, layout)
   } yield io.await()
-  
+ 
+  def extract(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    cli      <- cli.hint(DirArg)
+    cli      <- cli.hint(FileArg)
+    invoc    <- cli.read()
+    io       <- invoc.io()
+    pwd      <- cli.pwd
+    file     <- invoc(FileArg).map(pwd.resolve(_))
+    dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
+    layout   <- cli.newLayout.map(_.copy(base = dir))
+    layerRef <- Layer.loadFile(io, file, layout, cli.env, cli.installation)
+    _        <- Layer.saveFocus(io, Focus(layerRef), layout)
+  } yield io.await()
+
   def clone(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
@@ -505,7 +518,7 @@ object LayerCli {
     layerRef      <- Layer.resolve(io, followable, cli.env, cli.installation)
     dir           <- invoc(DirArg)
     pwd           <- cli.pwd
-    dir           <- ~Path(pwd).resolve(dir)
+    dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
     _             <- Layer.saveFocus(io, Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
   } yield io.await()

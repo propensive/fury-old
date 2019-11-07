@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.0. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -129,6 +129,7 @@ object FuryMenu {
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
             Action('clone, msg"clone an external layer", LayerCli.clone),
             Action('export, msg"export a layer to a file", LayerCli.export),
+            Action('extract, msg"extract a layer file", LayerCli.extract),
             Action('import, msg"import an external layer", LayerCli.addImport),
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('list, msg"list imported layers", LayerCli.list),
