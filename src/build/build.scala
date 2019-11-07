@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.2. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -538,6 +538,7 @@ object LayerCli {
     layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
     invoc         <- cli.read()
     io            <- invoc.io()
+    pwd           <- cli.pwd
     destination   <- invoc(FileArg).map(pwd.resolve(_))
     _             <- Layer.export(io, layer, layout, cli.installation, destination)
     _             <- ~io.println(msg"Saved layer file ${destination}")

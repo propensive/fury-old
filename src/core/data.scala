@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.1. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.2. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -1103,7 +1103,7 @@ object Layer {
   def loadFile(io: Io, file: Path, layout: Layout, env: Environment, installation: Installation): Try[LayerRef] = for {
     tmpDir <- Path.mkTempDir()
     _      <- TarGz.extract(file, tmpDir)
-    layers <- (tmpDir / "layers").children.map(read(io, _, env)).sequence
+    layers <- (tmpDir / "layers").childPaths.map(read(io, _, env)).sequence
     _      <- layers.map(Layer.saveLayer(_, installation)).sequence
     bases  <- ~(tmpDir / "bases").childPaths
     _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
