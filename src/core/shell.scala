@@ -57,7 +57,7 @@ case class Shell(environment: Environment) {
     val propArgs = allProperties.map { case (k, v) => if(v.isEmpty) str"-D$k" else str"-D$k=$v" }.to[List]
 
     val classpathStr = classpath.mkString(":")
-    
+
     val cmd =
       if(securePolicy) sh"java $propArgs -cp $classpathStr $main $args"
       else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main $args"
@@ -67,7 +67,7 @@ case class Shell(environment: Environment) {
 
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
-  
+
   object ipfs {
 
     def add(path: Path): Try[IpfsRef] =
@@ -116,20 +116,22 @@ case class Shell(environment: Environment) {
 
     def lsRemote(url: String): Try[List[String]] = {
       implicit val defaultEnvironment: Environment = sshBatchEnv
-      
+
       Cached.lsRemote.getOrElseUpdate(url, sh"git ls-remote --tags --heads $url".exec[Try[String]].map(_.split(
           "\n").to[List].map(_.split("/").last)))
     }
 
     def lsRemoteRefSpec(url: String, refSpec: String): Try[String] = {
       implicit val defaultEnvironment: Environment = sshBatchEnv
-      
+
       Cached.lsRemoteRefSpec.getOrElseUpdate((url, refSpec), sh"git ls-remote $url $refSpec".exec[
           Try[String]].map(_.take(40)))
     }
 
-    def fetch(dir: Path, refspec: Option[RefSpec]): Try[String] =
-      sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
+    def fetch(dir: Path, refspec: Option[RefSpec], repo: Option[SourceRepo]): Try[String] =
+      sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Try[String]] recoverWith {
+        case _ => Failure(FetchRepoFailed(repo))
+      }
 
     def showFile(dir: Path, file: String): Try[String] =
       sh"git -C ${dir.value} show HEAD:$file".exec[Try[String]]
@@ -137,7 +139,10 @@ case class Shell(environment: Environment) {
     def getCommitFromTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} rev-parse $tag".exec[Try[String]]
 
-    def getCommit(dir: Path): Try[String] = sh"git -C ${dir.value} rev-parse --short HEAD".exec[Try[String]]
+    def getCommit(dir: Path, repo: Option[SourceRepo]): Try[String] =
+      sh"git -C ${dir.value} rev-parse --short HEAD".exec[Try[String]] recoverWith {
+        case _ => Failure(CommitNotFound(repo))
+      }
 
     def getBranchHead(dir: Path, branch: String): Try[String] =
       sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]]

@@ -338,7 +338,7 @@ case class Schema(id: SchemaId,
 
   def importedSchemas(log: Log, layout: Layout, https: Boolean): Try[List[Schema]] =
     resolvedImports(log, layout, https).map(_.values.to[List])
-  
+
   def importTree(log: Log, layout: Layout, https: Boolean): Try[List[ImportPath]] = for {
     imports    <- resolvedImports(log, layout, https)
     importList <- imports.to[List].map { case (id, schema) =>
@@ -368,7 +368,7 @@ case class Schema(id: SchemaId,
     case None    => Success(projectId)
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
-  
+
   def resolve(ref: SchemaRef, log: Log, layout: Layout, https: Boolean): Try[Schema] = for {
     layer    <- Layer.read(log, ref.layerRef, layout)
     resolved <- layer.schemas.findBy(ref.schema)
@@ -426,7 +426,7 @@ object Layer {
     catalogs  <- records.map { loadCatalog(log, _, env) }.sequence
     artifacts <- ~catalogs.flatMap(_.artifacts)
   } yield artifacts
- 
+
   def follow(importLayer: ImportLayer): Option[Followable] = importLayer match {
     case IpfsImport(hash) => None
     case RefImport(followable) => Some(followable)
@@ -699,7 +699,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def current(log: Log, layout: Layout, https: Boolean): Try[RefSpec] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(log, layout, https))
-    commit <- Shell(layout.env).git.getCommit(dir)
+    commit <- Shell(layout.env).git.getCommit(dir, None)
   } yield RefSpec(commit)
 
   def sourceCandidates(log: Log, layout: Layout, https: Boolean)(pred: String => Boolean): Try[Set[Source]] =
@@ -711,13 +711,19 @@ case class Repo(ref: String) {
   def hash: Digest               = ref.digest[Md5]
   def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
-  def update(layout: Layout): Try[UserMsg] = for {
-    oldCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
-    _         <- Shell(layout.env).git.fetch(path(layout), None)
-    newCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
-    msg <- ~(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
-              else msg"Repository $this is unchanged")
-  } yield msg
+  /**
+    * Added SourceRepo argument so we have the repository information to add to the exception.
+    * If no exception is triggered then returns None
+    */
+  def update(layout: Layout, sr: SourceRepo): Try[(UserMsg, Option[SourceRepo])] = {
+    for {
+      oldCommit <- Shell(layout.env).git.getCommit(path(layout), Some(sr)).map(Commit(_))
+      _         <- Shell(layout.env).git.fetch(path(layout), None, Some(sr))
+      newCommit <- Shell(layout.env).git.getCommit(path(layout), Some(sr)).map(Commit(_))
+      msg <- ~(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
+                  else msg"Repository $this is unchanged")
+    } yield (msg, None)
+  }
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
     for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)

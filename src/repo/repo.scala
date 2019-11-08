@@ -30,7 +30,7 @@ import Lenses._
 object RepoCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer)
-  
+
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
     layer  <- Layer.read(Log.silent, layout)
@@ -117,16 +117,22 @@ object RepoCli {
       invoc     <- cli.read()
       log       <- invoc.logger()
       all       <- ~invoc(AllArg).toOption
-      
+
       optRepos  <- invoc(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                        schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
       repos     <- optRepos.map(schema.repo(_, layout)).sequence
+
       log       <- invoc.logger()
-      msgs      <- repos.map(_.repo.update(layout).map(log.info(_))).sequence
+      // Step the retrieve last commits and fetch repos, and handle exceptions if some error occur.
+      failedRepos      <- repos.map(r => r.repo.update(layout, r)
+                            .map{ pair: (UserMsg, Option[SourceRepo]) =>
+                              pair._2
+                            }.recoverWith(handlePullErrors(log))).sequence
+
       lens      <- ~Lenses.layer.repos(schema.id)
 
-      newRepos  <- repos.map { repo => for {
+      newRepos  <- (repos -- failedRepos.flatten).map { repo => for {
                       commit  <- repo.repo.getCommitFromTag(layout, repo.track)
                       newRepo = repo.copy(commit = commit)
                    } yield (newRepo, repo) }.sequence
@@ -144,6 +150,30 @@ object RepoCli {
     } yield log.await()
   }
 
+  /**
+    * Function to handle errors that occur while trying to retrieve commits and fetch repositories
+    * @param log Logger use to print error messages
+    * @return   SourceRepos of the repositories that have failed.
+    */
+  private def handlePullErrors(log: Log): PartialFunction[Throwable, Try[Option[SourceRepo]]] = (x:Throwable) => x match {
+    case CommitNotFound(Some(repo)) => // TODO better messages?
+      val info = repo.repo.projectName.recover(recoverInvalidValue).get.key
+      log.info(msg"Commit not found for $info.")
+      Success(Some(repo))
+    case FetchRepoFailed(Some(repo)) => // TODO better messages?
+      val info = repo.repo.projectName.recover(recoverInvalidValue).get.key
+      log.info(msg"Error while fetching repository $info.")
+      Success(Some(repo))
+  }
+
+  /**
+    * Function to handle InvalidValue exceptions when retrieving the name of the repository
+    * @return A RepoId with the repository name
+    */
+  private def recoverInvalidValue: PartialFunction[Throwable, RepoId] =  (x:Throwable) => x match {
+    case ex: InvalidValue => RepoId(ex.value)
+  }
+
   def add(ctx: Context): Try[ExitStatus] = {
     import ctx._
     for {
@@ -155,7 +185,7 @@ object RepoCli {
       cli            <- cli.hint(RepoNameArg, projectNameOpt)
       remoteOpt      <- ~cli.peek(UrlArg)
       repoOpt        <- ~remoteOpt.map(Repo(_))
-      
+
       versions       <- repoOpt.map { repo =>
                           Shell(layout.env).git.lsRemote(Repo.fromString(repo.ref, true))
                         }.to[List].sequence.map(_.flatten).recover { case e => Nil }

@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.strings._, fury.io._
+import fury.strings._, fury.io._, fury.core._
 
 case class NotInitialized(dir: Path) extends FuryException
 case class ModuleAlreadyExists(module: ModuleId) extends FuryException
@@ -50,6 +50,8 @@ case class CompilationFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
 case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
 case class BspException() extends FuryException
+case class CommitNotFound(repo: Option[SourceRepo]) extends FuryException
+case class FetchRepoFailed(repo: Option[SourceRepo]) extends FuryException
 
 object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
