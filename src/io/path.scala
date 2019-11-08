@@ -26,7 +26,7 @@ import scala.util._
 
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, Path => JavaPath}
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
 import java.io.{File => JavaFile}
 
@@ -95,7 +95,7 @@ case class Path(value: String) {
   }
 
   def moveTo(path: Path): Try[Unit] =
-    Outcome.rescue[java.io.IOException](FileWriteError(this))(Files.move(javaPath, path.javaPath))
+    Outcome.rescue[java.io.IOException](FileWriteError(this))(Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING))
 
   def relativeSubdirsContaining(pred: String => Boolean): Set[Path] =
     findSubdirsContaining(pred).map { p => Path(p.value.drop(value.length + 1)) }
