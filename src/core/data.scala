@@ -269,28 +269,6 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
   } yield module
-
-  def compilation(io: Io, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = for {
-    target    <- makeTarget(io, ref, layout)
-    entity    <- entity(ref.projectId)
-    graph     <- dependencies(ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
-                   a.map { dependencyTarget =>
-                     (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
-                   }
-                 }.sequence.map(_.toMap.updated(target.id, target.dependencies ++
-                     target.compiler.map(_.id)))).flatten
-    targets   <- graph.keys.map { targetId =>
-                  makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
-                }.sequence.map(_.toMap)
-    permissions = targets.flatMap(_._2.permissions)
-    _         <- policy.checkAll(permissions)
-    appModules = targets.filter(_._2.executed)
-    subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] +
-                     TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
-    checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
-  } yield
-    Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-        targets ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), this)
 }
 
 case class Hierarchy(schema: Schema, inherited: Set[Hierarchy]) {

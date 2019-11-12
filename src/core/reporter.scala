@@ -27,7 +27,7 @@ object Reporter {
 
 abstract class Reporter(val name: String) {
   def report(io: Io,
-             compilation: Compilation,
+             compilation: TargetGraph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit
@@ -38,7 +38,7 @@ object GraphReporter extends Reporter("graph") {
   private def timeString(t: Long): String = if(t >= 10000) s"${t / 1000}s" else s"${t}ms"
 
   def report(io: Io,
-             compilation: Compilation,
+             compilation: TargetGraph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit = {
@@ -52,7 +52,7 @@ object GraphReporter extends Reporter("graph") {
 
 object LinearReporter extends Reporter("linear") {
   def report(io: Io,
-             compilation: Compilation,
+             compilation: TargetGraph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit = {
@@ -69,7 +69,7 @@ object LinearReporter extends Reporter("linear") {
 }
 object InterleavingReporter extends Reporter("interleaving") {
   def report(io: Io,
-             compilation: Compilation,
+             compilation: TargetGraph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit = {
@@ -93,9 +93,13 @@ object InterleavingReporter extends Reporter("interleaving") {
 object QuietReporter extends Reporter("quiet") {
 
   def report(io: Io,
-             compilation: Compilation,
+             compilation: TargetGraph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit =
     multiplexer.stream(50, None).foreach { event => () }
+}
+
+trait TargetGraph {
+  val graph: Map[TargetId, List[TargetId]]
 }
