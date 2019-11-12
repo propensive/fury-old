@@ -187,17 +187,6 @@ object BuildCli {
                                  |""".stripMargin, noTime = true)
     } yield io.await()
 
-  /*def undo(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
-    import cli._
-    for {
-      layout          <- layout
-      layerRepository  = LayerRepository(layout)
-      invoc           <- cli.read()
-      io              <- invoc.io()
-      _               <- layerRepository.restorePrevious(io, layout)
-    } yield Done
-  }*/
-
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
              (ctx: MenuContext)
              : Try[ExitStatus] = {
