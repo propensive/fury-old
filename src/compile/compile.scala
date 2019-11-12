@@ -262,12 +262,37 @@ object Compilation {
     hierarchy   <- schema.hierarchy(io, layout, installation, https)
     universe    <- hierarchy.universe
     policy      <- Policy.read(io, installation)
-    compilation <- universe.compilation(io, ref, policy, layout)
+    compilation <- fromUniverse(io, universe, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
 
     _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
 
   } yield compilation
+
+  private def fromUniverse(io: Io, universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = {
+    import universe._
+    for {
+      target    <- makeTarget(io, ref, layout)
+      entity    <- entity(ref.projectId)
+      graph     <- dependencies(ref, layout).map(_.map(makeTarget(io, _, layout)).map { a =>
+        a.map { dependencyTarget =>
+          (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
+        }
+      }.sequence.map(_.toMap.updated(target.id, target.dependencies ++
+        target.compiler.map(_.id)))).flatten
+      targets   <- graph.keys.map { targetId =>
+        makeTarget(io, targetId.ref, layout).map(targetId.ref -> _)
+      }.sequence.map(_.toMap)
+      permissions = targets.flatMap(_._2.permissions)
+      _         <- policy.checkAll(permissions)
+      appModules = targets.filter(_._2.executed)
+      subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] +
+        TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
+      checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
+    } yield
+      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
+        targets ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), universe)
+  }
 
   def asyncCompilation(io: Io,
                        schema: Schema,

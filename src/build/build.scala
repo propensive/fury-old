@@ -430,7 +430,7 @@ object BuildCli {
           multiplexer.closeAll()
           compRes
       }
-      reporter.report(io, compilation, theme, multiplexer)
+      reporter.report(io, compilation.graph, theme, multiplexer)
       future
     }
   }

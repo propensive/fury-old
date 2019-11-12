@@ -290,7 +290,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
         val compilationTasks = compilation.compile(io, moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
-        reporter.report(io, compilation, config.theme, multiplexer)
+        reporter.report(io, compilation.graph, config.theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
         synchronousResult
       }
@@ -471,7 +471,7 @@ object FuryBuildServer {
     private def info(message: UserMsg)(implicit theme: Theme) =
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
-    override def report(io: Io, compilation: Compilation, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
+    override def report(io: Io, graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
       implicit val t = theme
       multiplexer.stream(50, Some(Tick)).foreach {
         case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")
