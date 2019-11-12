@@ -1,11 +1,9 @@
 #!/bin/bash
 
-if [ -z "$FURYHOME" ]; then
-  if [ "$(uname -s)" = 'Linux' ]; then
-    FURYHOME="$(dirname "$(readlink -f "$0")")/.."
-  else
-    FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
-  fi
+if [ "$(uname -s)" = 'Linux' ]; then
+  FURYHOME="$(dirname "$(readlink -f "$0")")/.."
+else
+  FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
 fi
 
 
