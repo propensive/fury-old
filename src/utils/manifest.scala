@@ -26,7 +26,7 @@ object Manifest {
     val mainAttributes = result.getMainAttributes
     mainAttributes.put(MANIFEST_VERSION, "1.0")
     mainClass.foreach(mainAttributes.put(MAIN_CLASS, _))
-    mainAttributes.put(CLASS_PATH, classpath.join(" "))
+    mainAttributes.put(CLASS_PATH, classpath.to[List].sorted.join(" "))
     mainAttributes.putValue("Created-By", str"Fury ${Version.current}")
     
     result
