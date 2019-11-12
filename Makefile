@@ -1,6 +1,6 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 BLOOPVERSION=1.3.5
-FURYSTABLE=0.7.3
+FURYSTABLE=0.7.4
 FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -64,9 +64,6 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/bin .version src/**/*.scala
-	rm -f ~/.config/fury/layers/D2C9CF6A232DEFF07116A15501BB8DB0100F1C3D7BEB6B7ADEB780084B51F149
-	rm -f ~/.config/fury/layers/29B89F711E5D63E22B8D798F55C6FF01A4E1638C12C4F1DD631DEE4CBC48EF2B
-	rm -f ~/.config/fury/layers/0A24A1586682A39838622B66BACF81A3B51A7F3448371AB31B54B75DA12DCD28
 	$(FURYLOCAL) standalone layer extract -f build.fury
 	$(FURYLOCAL) standalone permission grant --module frontend --project fury -P 729
 	$(FURYLOCAL) standalone build save --https --output linear --project fury --module frontend --dir $<
