@@ -32,6 +32,7 @@ runtest() {
   source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m,"
   echo "----------------------------------------------------------------------------------------------------"
   diff -u --color check output
+  find "$TMPDIR/.fury/logs" -name '*.log' | grep -v '.bsp' | xargs cat
   SUCCESS=$?
   [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
       echo "----------------------------------------------------------------------------------------------------"
