@@ -103,11 +103,17 @@ test:
 integration:
 	etc/integration
 
+community:
+	etc/community
+
 test-isolated: ci
 	@docker run -w /build -t $(DOCKER_TAG) make test
 
 integration-isolated: ci
 	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /integration'
+
+community-isolated: ci
+	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /community'
 
 docker-console: ci
 	@docker run -u bash_user -w /home/bash_user -ti $(DOCKER_TAG) /bin/bash
@@ -129,4 +135,4 @@ install: dist/install.sh
 revise:
 	etc/revise
 
-.PHONY: all publish pre-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration download install revise
+.PHONY: all publish pre-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration community-isolated community download install revise
