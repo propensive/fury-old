@@ -797,6 +797,10 @@ object CompileResult {
   }
 }
 
+object Target {
+  type Graph = Map[TargetId, List[TargetId]]
+}
+
 case class Target(ref: ModuleRef,
                   schemaId: SchemaId,
                   kind: Kind,

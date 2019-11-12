@@ -501,7 +501,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
                        subgraphs: Map[TargetId, List[TargetId]],
                        checkouts: Set[Checkout],
                        targets: Map[ModuleRef, Target],
-                       universe: Universe) extends TargetGraph {
+                       universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
