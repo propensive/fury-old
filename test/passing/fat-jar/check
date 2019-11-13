@@ -18,8 +18,8 @@ Saving JAR file out/bar-app.jar
 bar-app.jar
 scala/math/Ordering$OptionOrdering.class
 scala/Option$.class
-scala/Option.class
 scala/Option$WithFilter.class
+scala/Option.class
 scala/tools/nsc/doc/base/comment/ColumnOption$.class
 scala/tools/nsc/doc/base/comment/ColumnOption.class
 HelloWorld$.class
