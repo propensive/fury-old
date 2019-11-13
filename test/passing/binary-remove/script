@@ -31,5 +31,5 @@ echo $?
 fury binary remove -b com.spotify:logging:2.2.6
 echo $?
 fury binary list --raw
-fury build compile --output linear -- arg1 arg2 | grep -vE '(compiler-bridge)|(completed in)'
+fury build compile --output quiet -- arg1 arg2 | grep -vE '(compiler-bridge)|(completed in)'
 echo $?
