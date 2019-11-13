@@ -36,7 +36,7 @@ dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	LC_ALL=C sed -i.bak "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh && rm dist/install.sh.bak
 	chmod +x dist/install.sh
 
-dist/fury-$(VERSION).tar.gz: dist/bundle/lib/fury-frontend.jar dist/bundle/bin/fury dist/bundle/etc
+dist/fury-$(VERSION).tar.gz: dist/bundle/lib/fury-frontend.jar dist/bundle/bin/fury dist/bundle/etc dist/bundle/bin/upgrade
 	tar czf $@ -C dist/bundle . 2> /dev/null
 
 #TODO refactor etc structure (separate bundled scripts from development ones)
@@ -80,6 +80,10 @@ dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% co
 
 dist/bundle/bin/fury: dist/bundle/bin/.dir $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
 	cp etc/fury $@
+	chmod +x $@
+
+dist/bundle/bin/upgrade: dist/bundle/bin/.dir
+	cp etc/upgrade $@
 	chmod +x $@
 
 dist/bundle/bin/coursier: dist/bundle/bin/.dir

@@ -25,6 +25,7 @@ case class MissingCommand() extends FuryException
 case class UnknownCommand(command: String) extends FuryException
 case class AlreadyInitialized() extends FuryException
 case class UnknownCompiler() extends FuryException
+case class NoLatestVersion() extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class InitFailure() extends FuryException

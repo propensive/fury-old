@@ -12,8 +12,9 @@ CLASSPATH="$(cat $FURYHOME/classpath):$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 QUIET='0'
-PIDFILE="$FURYHOME/ngserver.pid"
-NG_PID=""
+UPGRADEDIR="$FURYHOME/upgrade"
+SCALA_VERSION="2.12.8"
+NAILGUN_VERSION="1.0.0"
 
 trap cleanup INT
 
@@ -92,14 +93,20 @@ alive() {
 }
 
 startNailgun() {
-  message 'Starting Fury daemon...'
-  java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
-  NG_PID="$!"
-  until (alive); do
-    message '.'
-    sleep 0.1
-  done
-  message 'done\n'
+  if [ -d "${UPGRADEDIR}" ]; then
+    message 'Upgrading to latest version of Fury'
+    source "${UPGRADEDIR}/bin/upgrade"
+    rm -rf "${UPGRADEDIR}"
+    ${FURYHOME}/bin/fury "$@"
+  else
+    message 'Starting Fury daemon...'
+    java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+    until (alive); do
+      message '.'
+      sleep 0.1
+    done
+    message 'done\n'
+  fi
 }
 
 ngServer() {
@@ -130,6 +137,9 @@ case "$1" in
     ;;
   "stop")
     silently stopFury
+    ;;
+  "upgrade")
+    silently fury "$@" && silently restartFury
     ;;
   "restart")
     silently restartFury

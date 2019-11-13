@@ -53,6 +53,7 @@ case class Installation(env: Environment) {
   lazy val aliasesPath: Path = configDir / "aliases"
   lazy val layersPath: Path = (configDir / "layers").extant()
   lazy val policyFile: Path = configDir / "policy.fury"
+  lazy val upgradeDir: Path = (configDir / "upgrade").extant()
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
