@@ -58,6 +58,7 @@ RUN su -l bash_user -s /bin/bash -c "source ~/.bashrc && fury start && fury abou
 RUN su -l bash_user -s /bin/bash -c "/opt/go-ipfs/ipfs init"
 
 COPY etc/integration /integration
+COPY etc/community /community
 COPY test /home/bash_user/test
 RUN chown -R bash_user:bash_user /home/bash_user/test
 
