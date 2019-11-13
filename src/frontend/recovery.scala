@@ -138,10 +138,10 @@ You can grant these permissions with,
           val result = for {
             layout <- cli.layout
             invoc  <- cli.read()
-            io     <- invoc.logger()
+            log    <- invoc.logger()
             _      <- ~layout.errorLogfile.mkParents
             _      <- ~layout.errorLogfile.writeSync(errorString)
-            _      <- ~io.await()
+            _      <- ~log.await()
           } yield
             cli.abort(msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}")
 

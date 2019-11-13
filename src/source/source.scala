@@ -64,7 +64,7 @@ object SourceCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.logger()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -72,11 +72,11 @@ object SourceCli {
       table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"), noTime = true)
+    } yield log.await()
   }
 
   def remove(ctx: Context): Try[ExitStatus] = {
@@ -85,7 +85,7 @@ object SourceCli {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
       cli         <- cli.hint(ForceArg)
       invoc       <- cli.read()
-      io          <- invoc.logger()
+      log         <- invoc.logger()
       sourceArg   <- invoc(SourceArg)
       source      <- ~Source.unapply(sourceArg)
       project     <- optProject.ascribe(UnspecifiedProject())
@@ -96,12 +96,12 @@ object SourceCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id,
                          module.id))(_(_) --= sourceToDel)
       
-      _           <- ~Layer.save(io, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout, cli.installation)
 
-      _           <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
+      _           <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, module.ref(project), layout,
                          cli.installation, false))
 
-    } yield io.await()
+    } yield log.await()
   }
 
   def add(ctx: Context): Try[ExitStatus] = {
@@ -123,7 +123,7 @@ object SourceCli {
 
       cli        <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
       invoc      <- cli.read()
-      io         <- invoc.logger()
+      log        <- invoc.logger()
       project    <- optProject.ascribe(UnspecifiedProject())
       module     <- optModule.ascribe(UnspecifiedModule())
       sourceArg  <- invoc(SourceArg)
@@ -132,11 +132,11 @@ object SourceCli {
       layer      <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, 
                         module.id))(_(_) ++= source)
       
-      _          <- ~Layer.save(io, layer, layout, cli.installation)
+      _          <- ~Layer.save(log, layer, layout, cli.installation)
 
-      _          <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
+      _          <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, module.ref(project), layout,
                         cli.installation, false))
 
-    } yield io.await()
+    } yield log.await()
   }
 }

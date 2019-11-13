@@ -68,7 +68,7 @@ object DependencyCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.logger()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -76,11 +76,11 @@ object DependencyCli {
       table   <- ~Tables(config).show(Tables(config).dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"), noTime = true)
+    } yield log.await()
   }
 
   def remove(ctx: Context): Try[ExitStatus] = {
@@ -91,7 +91,7 @@ object DependencyCli {
       cli       <- cli.hint(ForceArg)
       cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
-      io        <- invoc.logger()
+      log       <- invoc.logger()
       https     <- ~invoc(HttpsArg).isSuccess
       linkArg   <- invoc(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
@@ -102,13 +102,13 @@ object DependencyCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id,
                        module.id))(_(_) -= moduleRef)
 
-      _         <- ~Layer.save(io, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout, cli.installation)
       optSchema <- ~layer.mainSchema.toOption
 
-      _         <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout, cli.installation,
+      _         <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, moduleRef, layout, cli.installation,
                        https))
 
-    } yield io.await()
+    } yield log.await()
   }
 
   def add(ctx: Context): Try[ExitStatus] = {
@@ -121,7 +121,7 @@ object DependencyCli {
       cli              <- cli.hint(LinkArg, allModules)
       cli              <- cli.hint(IntransitiveArg)
       invoc            <- cli.read()
-      io               <- invoc.logger()
+      log              <- invoc.logger()
       project          <- optProject.ascribe(UnspecifiedProject())
       module           <- optModule.ascribe(UnspecifiedModule())
       intransitive     <- ~invoc(IntransitiveArg).isSuccess
@@ -131,12 +131,12 @@ object DependencyCli {
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,
                               module.id))(_(_) += moduleRef)
 
-      _                <- ~Layer.save(io, layer, layout, cli.installation)
+      _                <- ~Layer.save(log, layer, layout, cli.installation)
 
-      _                <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, moduleRef, layout,
+      _                <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, moduleRef, layout,
                               cli.installation, false))
 
-    } yield io.await()
+    } yield log.await()
   }
 }
 
@@ -179,7 +179,7 @@ object EnvCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.logger()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -187,11 +187,11 @@ object EnvCli {
       table   <- ~Tables(config).show(Tables(config).envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"), noTime = true)
+    } yield log.await()
   }
 
   def remove(ctx: Context): Try[ExitStatus] = {
@@ -201,7 +201,7 @@ object EnvCli {
       cli       <- cli.hint(EnvArg, optModule.to[List].flatMap(_.environment.to[List]))
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.logger()
+      log       <- invoc.logger()
       envArg    <- invoc(EnvArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
@@ -210,9 +210,9 @@ object EnvCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.environment(_, project.id,
                        module.id))(_(_) -= envArg)
 
-      _         <- ~Layer.save(io, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout, cli.installation)
       optSchema <- ~layer.mainSchema.toOption
-    } yield io.await()
+    } yield log.await()
   }
 
   def add(ctx: Context): Try[ExitStatus] = {
@@ -224,7 +224,7 @@ object EnvCli {
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
       invoc           <- cli.read()
-      io              <- invoc.logger()
+      log             <- invoc.logger()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       envArg          <- invoc(EnvArg)
@@ -232,8 +232,8 @@ object EnvCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.environment(_, project.id,
                              module.id))(_(_) += envArg)
 
-      _               <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _               <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 }
 
@@ -282,7 +282,7 @@ object PermissionCli {
       cli             <- cli.hint(PermissionTargetArg)
       cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
       invoc           <- cli.read()
-      io              <- invoc.logger()
+      log             <- invoc.logger()
       scopeId         =  invoc(ScopeArg).getOrElse(ScopeId.Project)
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
@@ -293,13 +293,13 @@ object PermissionCli {
       permission      =  Permission(classArg, targetArg, actionArg)
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
-      _               <- Layer.save(io, layer, layout, cli.installation)
-      policy          <- Policy.read(io, cli.installation)
+      _               <- Layer.save(log, layer, layout, cli.installation)
+      policy          <- Policy.read(log, cli.installation)
       newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
-      _               <- Policy.save(io, cli.installation, newPolicy)
+      _               <- Policy.save(log, cli.installation, newPolicy)
     } yield {
-      io.println(msg"${PermissionHash(permission.hash)}")
-      io.await()
+      log.println(msg"${PermissionHash(permission.hash)}")
+      log.await()
     }
   }
 
@@ -310,7 +310,7 @@ object PermissionCli {
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       cli           <- cli.hint(ForceArg)
       invoc         <- cli.read()
-      io            <- invoc.logger()
+      log           <- invoc.logger()
       permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
@@ -318,8 +318,8 @@ object PermissionCli {
       force         =  invoc(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
                            module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
-      _             <- Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _             <- Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
   
   def list(ctx: Context): Try[ExitStatus] = {
@@ -327,7 +327,7 @@ object PermissionCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.logger()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -335,11 +335,11 @@ object PermissionCli {
       table   <- ~Tables(config).show(Tables(config).permissions, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"), noTime = true)
+    } yield log.await()
   }
 
   def grant(ctx: Context): Try[ExitStatus] = {
@@ -350,16 +350,16 @@ object PermissionCli {
       //TODO check if hints still work
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       invoc         <- cli.read()
-      io            <- invoc.logger()
+      log           <- invoc.logger()
       scopeId       <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
       permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
-      policy        <- Policy.read(io, cli.installation)
+      policy        <- Policy.read(log, cli.installation)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
-      _             <- Policy.save(io, cli.installation, newPolicy)
-    } yield io.await()
+      _             <- Policy.save(log, cli.installation, newPolicy)
+    } yield log.await()
   }
 
 }
@@ -406,7 +406,7 @@ object PropertyCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.logger()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -414,11 +414,11 @@ object PropertyCli {
       table   <- ~Tables(config).show(Tables(config).props, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"), noTime = true)
+    } yield log.await()
   }
 
   def remove(ctx: Context): Try[ExitStatus] = {
@@ -428,7 +428,7 @@ object PropertyCli {
       cli       <- cli.hint(PropArg, optModule.to[List].flatMap(_.properties.to[List]))
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.logger()
+      log       <- invoc.logger()
       propArg   <- invoc(PropArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
@@ -437,8 +437,8 @@ object PropertyCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.properties(_, project.id,
                        module.id))(_(_) -= propArg)
 
-      _         <- Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _         <- Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 
   def add(ctx: Context): Try[ExitStatus] = {
@@ -449,7 +449,7 @@ object PropertyCli {
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()
-      io              <- invoc.logger()
+      log             <- invoc.logger()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       propArg         <- invoc(PropArg)
@@ -457,7 +457,7 @@ object PropertyCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.properties(_, project.id,
                              module.id))(_(_) += propArg)
 
-      _               <- Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _               <- Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 }

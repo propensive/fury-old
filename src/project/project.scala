@@ -44,7 +44,7 @@ object ProjectCli {
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.logger()
+      log       <- invoc.logger()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
       force     <- ~invoc(ForceArg).isSuccess
@@ -53,8 +53,9 @@ object ProjectCli {
       _         <- schema(projectId)
       focus     <- ~Lenses.focus(optSchemaId, force)
       layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
-      _         <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _         <- ~Layer.save(log, layer, layout, cli.installation)
+
+    } yield log.await()
   }
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
@@ -62,14 +63,14 @@ object ProjectCli {
     for {
       cli    <- cli.hint(RawArg)
       invoc  <- cli.read()
-      io     <- invoc.logger()
+      log    <- invoc.logger()
       raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
-      _      <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
-      _      <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _      <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
+      _      <- ~log.println(table.mkString("\n"), noTime = true)
+    } yield log.await()
   }
 
   def add(ctx: MenuContext): Try[ExitStatus] = {
@@ -83,7 +84,7 @@ object ProjectCli {
                             Log.silent(config), layout, cli.installation, false))
 
       invoc          <- cli.read()
-      io             <- invoc.logger()
+      log            <- invoc.logger()
       compilerId     <- ~invoc(DefaultCompilerArg).toOption
       optCompilerRef <- compilerId.map(ModuleRef.parseFull(_, true)).to[List].sequence.map(_.headOption)
       projectId      <- invoc(ProjectNameArg)
@@ -96,9 +97,9 @@ object ProjectCli {
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(_(_) =
                             Some(project.id))
 
-      _              <- ~Layer.save(io, layer, layout, cli.installation)
-      _              <- ~io.println(msg"Set current project to ${project.id}")
-    } yield io.await()
+      _              <- ~Layer.save(log, layer, layout, cli.installation)
+      _              <- ~log.println(msg"Set current project to ${project.id}")
+    } yield log.await()
   }
 
   def remove(ctx: MenuContext): Try[ExitStatus] = {
@@ -108,7 +109,7 @@ object ProjectCli {
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.logger()
+      log       <- invoc.logger()
       projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
       force     <- ~invoc(ForceArg).isSuccess
@@ -119,8 +120,8 @@ object ProjectCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                        if(lens(ws) == Some(projectId))(lens(ws) = None) else ws }
 
-      _         <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _         <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 
   def update(ctx: MenuContext): Try[ExitStatus] = {
@@ -138,7 +139,7 @@ object ProjectCli {
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
       cli            <- cli.hint(ProjectNameArg, projectId)
       invoc          <- cli.read()
-      io             <- invoc.logger()
+      log            <- invoc.logger()
       projectId      <- projectId.ascribe(UnspecifiedProject())
       schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       project        <- schema.projects.findBy(projectId)
@@ -158,7 +159,7 @@ object ProjectCli {
       lens           <- ~Lenses.layer.schemas
       layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
       layer          <- ~lens.modify(layer)(_ + newSchema)
-      _              <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _              <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 }

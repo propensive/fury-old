@@ -143,13 +143,13 @@ object FuryMenu {
   def help(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
-      io    <- invoc.logger()
-      _     <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
+      log   <- invoc.logger()
+      _     <- ~log.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
                            |${menu(Nil).reference(Theme.NoColor).join("\n")}
                            |
                            |More help is available on the Fury website: https://fury.build/
                            |""".stripMargin)
-    } yield io.await()
+    } yield log.await()
 }
