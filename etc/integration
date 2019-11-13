@@ -44,7 +44,6 @@ runtest() {
 
 if [ "$1" = "" ]; then
 
-  
   fury start
   fury config set --theme nocolor --timestamps off
 
