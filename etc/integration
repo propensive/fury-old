@@ -28,7 +28,7 @@ runtest() {
   echo "----------------------------------------------------------------------------------------------------" >> "capture.log"
   diff -u --color check output >> "capture.log"
   SUCCESS=$?
-  find ".fury/logs" -name '*.log' | grep -v '.bsp' | xargs cat
+  find . -name '*.log' | grep -v '.bsp' | xargs cat
   [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}: $(cat $DIR/$TEST/description)" && rm -f "../$TEST.log" || (
       cat "capture.log"
       rm "capture.log"
