@@ -38,14 +38,14 @@ object Lifecycle {
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
 
-  def trackThread(cli: Cli[CliParam[_]])(action: => Int): Int = {
+  def trackThread(cli: Cli[CliParam[_]], whitelisted: Boolean)(action: => Int): Int = {
     val alreadyLaunched = running.find(_.pid == cli.pid)
     alreadyLaunched match {
       case Some(session) =>
         session.thread.interrupt()
         running.synchronized { running -= session }
         0
-      case None if terminating.get =>
+      case None if terminating.get && !whitelisted =>
         println("New tasks cannot be started while Fury is shutting down.")
         1
       case _ =>
@@ -64,7 +64,7 @@ object Lifecycle {
     busy() match {
       case None => util.Success(Done)
       case Some(count) =>
-        if(previous != count) {
+        if(previous > count) {
           val plural = if(count > 1) "s" else ""
           println(s"Waiting for $count active task$plural to complete...")
         }
