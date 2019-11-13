@@ -27,12 +27,11 @@ object SourceCli {
 
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
-                     override val config: Config,
                      override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project],
                      optModule: Option[Module])
-             extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -40,8 +39,7 @@ object SourceCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -57,7 +55,7 @@ object SourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+  } yield new Context(cli, layout, layer, schema, optProject, optModule)
 
   def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -69,10 +67,10 @@ object SourceCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.sources.to[List]
-      table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
+      table   <- ~Tables().show(Tables().sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -96,10 +94,10 @@ object SourceCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id,
                          module.id))(_(_) --= sourceToDel)
       
-      _           <- ~Layer.save(log, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout)
 
       _           <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, module.ref(project), layout,
-                         cli.installation, false))
+                         false))
 
     } yield log.await()
   }
@@ -110,7 +108,7 @@ object SourceCli {
       repos      <- defaultSchema.map(_.repos)
 
       extSrcs    <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sourceCandidates(Log.silent(config), layout, false) { n =>
+                     repos.map(_.sourceCandidates(Log.silent, layout, false) { n =>
                        n.endsWith(".scala") || n.endsWith(".java")
                      })
                    }.sequence.map(_.flatten)
@@ -132,10 +130,10 @@ object SourceCli {
       layer      <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, 
                         module.id))(_(_) ++= source)
       
-      _          <- ~Layer.save(log, layer, layout, cli.installation)
+      _          <- ~Layer.save(log, layer, layout)
 
       _          <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, module.ref(project), layout,
-                        cli.installation, false))
+                        false))
 
     } yield log.await()
   }

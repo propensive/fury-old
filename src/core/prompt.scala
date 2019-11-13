@@ -39,7 +39,9 @@ object Prompt {
         theme.module)}$moduleId${escape(theme.gray)}]${escape(Ansi.reset)}".string(theme)
   }
 
-  def empty(config: Config)(implicit theme: Theme) =
+  def empty(implicit theme: Theme) = {
+    val config = Installation.config()
     msg" ${escape(config.theme.gray)}[${escape(config.theme.schema)}+${escape(config.theme.gray)}]${escape(
         Ansi.reset)}".string(theme)
+  }
 }

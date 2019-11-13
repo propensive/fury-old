@@ -108,10 +108,12 @@ trait Descriptor[T] {
 }
 
 object Log {
-  def silent(config: Config): Log = new Log(new java.io.PrintStream(int => ()), config)
+  def silent: Log = new Log(new java.io.PrintStream(int => ()))
 }
 
-class Log(private[this] val output: java.io.PrintStream, config: Config) {
+class Log(private[this] val output: java.io.PrintStream) {
+
+  private[this] val config: Config = Installation.config()
 
   private[this] val startTime = System.currentTimeMillis
   private[this] val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.000")
@@ -148,17 +150,14 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
 
   class Invocation private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
-    def logger(): Try[Log] = Success(new Log(output, config))
+    def logger(): Try[Log] = Success(new Log(output))
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
-  lazy val config: Config =
-    Ogdl.read[Config](installation.userConfig, identity(_)).toOption.getOrElse(Config())
-
   def read(): Try[Invocation] = {
-    val log: Log = new Log(output, config)
+    val log: Log = new Log(output)
     if(completion) {
       log.println(optCompletions.flatMap(_.output).mkString("\n"))
       log.await()
@@ -175,7 +174,6 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   }
 
   lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), pwd, env) }
-  lazy val installation: Installation = Installation(env)
   
   def next: Option[String] = args.prefix.headOption.map(_.value)
   def completion: Boolean = command.isDefined
@@ -199,7 +197,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   def hint(arg: CliParam[_]) = Success(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
 
   private[this] def write(msg: UserMsg): Unit = {
-    output.println(msg.string(config.theme))
+    output.println(msg.string(Installation.config().theme))
     output.flush()
   }
 
@@ -210,7 +208,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
         case act: Action[_]   => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val log = new Log(output, config)
+      val log = new Log(output)
       log.println(optCompletions.flatMap(_.output).mkString("\n"))
       log.await()
       Failure(EarlyCompletions())

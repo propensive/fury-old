@@ -41,6 +41,6 @@ object CleanCli {
 
   def cleanClasses(ctx: Context): Try[ExitStatus] = ctx.layout.classesDir.delete().map(Done.waive)
   def cleanLogs(ctx: Context): Try[ExitStatus] = ctx.layout.logsDir.delete().map(Done.waive)
-  def cleanRepos(ctx: Context): Try[ExitStatus] = ctx.layout.reposDir.delete().map(Done.waive)
-  def cleanSources(ctx: Context): Try[ExitStatus] = ctx.layout.srcsDir.delete().map(Done.waive)
+  def cleanRepos(ctx: Context): Try[ExitStatus] = Installation.reposDir.delete().map(Done.waive)
+  def cleanSources(ctx: Context): Try[ExitStatus] = Installation.srcsDir.delete().map(Done.waive)
 }
