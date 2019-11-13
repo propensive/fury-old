@@ -25,5 +25,5 @@ fury build save --dir out --output linear
 echo $?
 ls out
 jar tf out/foo-app.jar | sort
-unzip -qq out/foo-app.jar META-INF/MANIFEST.MF
+unzip -qq out/foo-app.jar META-INF/MANIFEST.MF | sort
 cat META-INF/MANIFEST.MF
