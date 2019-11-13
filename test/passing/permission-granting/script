@@ -15,5 +15,5 @@ fury permission grant -P d42 75e0a580cc1
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { println("All permissions in order!\n") }' > src/hw.scala
-fury build compile --output linear
+fury build run --output linear
 echo $?
