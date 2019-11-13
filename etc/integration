@@ -24,13 +24,10 @@ runtest() {
   mkdir -p "test/tmp"
   cp -r "$DIR/$TEST" "$TMPDIR"
   cd "$TMPDIR"
-  echo "----------------------------------------------------------------------------------------------------" > "capture.log"
-  echo " ${BOLD}${TEST}${RESET}: $(cat $DIR/$TEST/description)" >> "capture.log"
-  echo "----------------------------------------------------------------------------------------------------" >> "capture.log"
-
   source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m," >> "capture.log"
   echo "----------------------------------------------------------------------------------------------------" >> "capture.log"
   diff -u --color check output >> "capture.log"
+  find "$TMPDIR/.fury/logs" -name '*.log' | grep -v '.bsp' | xargs cat
   SUCCESS=$?
   [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}: $(cat $DIR/$TEST/description)" && rm -f "../$TEST.log" || (
       cat "capture.log"

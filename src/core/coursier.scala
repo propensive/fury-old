@@ -39,9 +39,8 @@ object Coursier {
       
       val dependency = Dependency(
         module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
-        version = binary.version,
-        exclusions = if(binary.group == "org.scala-lang") Set.empty else scalaCore
-      )
+        version = binary.version
+      ).withExclusions(if(binary.group == "org.scala-lang") Set() else scalaCore)
       
       val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
       
