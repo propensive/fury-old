@@ -5,6 +5,11 @@ steps:
   id: 'build'
 
 - name: 'gcr.io/cloud-builders/docker'
+  args: ['run', '-w', '/build', '-t', 'fury/ci', 'make', 'test']
+  timeout: 300s
+  id: 'unittests'
+
+- name: 'gcr.io/cloud-builders/docker'
   args: ['run', '-u', 'bash_user', '-w', '/home/bash_user', '-t', 'fury/ci', '/integration']
   timeout: 300s
   id: 'integration'
@@ -13,11 +18,6 @@ steps:
   args: ['run', '-u', 'bash_user', '-w', '/home/bash_user', '-t', 'fury/ci', '/community']
   timeout: 600s
   id: 'community'
-
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['run', '-w', '/build', '-t', 'fury/ci', 'make', 'test']
-  timeout: 300s
-  id: 'unittests'
 
 options:
   machineType: 'N1_HIGHCPU_8'
