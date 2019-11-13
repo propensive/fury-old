@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.io._, fury.model._
+import fury.io._, fury.model._, fury.strings._
 
 import java.io._
 import annotation._
@@ -56,13 +56,12 @@ object TarGz {
     out.close()
   }
 
-  def extract(file: Path, destination: Path): Try[Unit] = Try {
+  def extract(log: Log, file: Path, destination: Path): Try[Unit] = Try {
     val fis  = new FileInputStream(file.javaFile)
     val gzis = new GZIPInputStream(fis)
     val in   = new TarInputStream(gzis)
-    Iterator.continually(in.getNextEntry).takeWhile(_ != null).foreach { entry =>
+    Iterator.continually(in.getNextEntry).takeWhile(_ != null).filter(!_.isDirectory).foreach { entry =>
       val path = Path(entry.getName) in destination
-      //println("Extracting to "+path)
       path.mkParents()
       val fos = new FileOutputStream(path.javaFile)
       val out = new BufferedOutputStream(fos)

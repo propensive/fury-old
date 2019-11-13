@@ -66,6 +66,7 @@ object FuryMenu {
             Action('list, msg"list environment variable", EnvCli.list)
         ),
         Action('help, msg"help on using Fury", help),
+        Action('kill, msg"kill the Fury server", BuildCli.notImplemented),
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
             Action('remove, msg"remove a module from the project", ModuleCli.remove),
@@ -104,7 +105,6 @@ object FuryMenu {
             Action('list, msg"list sources for the module", SourceCli.list)
         ),
         Action('stop, msg"gracefully shut down the Fury server", ((_: Cli[CliParam[_]]) => Lifecycle.shutdown())),
-        Action('kill, msg"kill the Fury server", BuildCli.notImplemented),
         Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
             Action('add, msg"add a schema to the layer", SchemaCli.add),
             Action('remove, msg"remove a schema from the layer", SchemaCli.remove),
@@ -125,6 +125,7 @@ object FuryMenu {
                 msg"pull the latest version of the source repo from the remote",
                 RepoCli.pull)
         ),
+        Action('upgrade, msg"upgrade to the latest version of Fury", BuildCli.upgrade),
         //Action('undo, msg"undo the previous modification", BuildCli.undo),
         Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
             Action('clone, msg"clone an external layer", LayerCli.clone),
