@@ -342,6 +342,13 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
+  def bspUpdate(log: Log, targetId: TargetId, layout: Layout): Try[Unit] =
+    Await.result(Compilation.bspPool.borrow(layout.baseDir) { conn =>
+      conn.provision(this, targetId, layout, None) { server =>
+        Try(server.workspaceBuildTargets.get)
+      }
+    }, Duration.Inf)
+
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def checkoutAll(log: Log, layout: Layout, https: Boolean): Try[Unit] =
@@ -461,14 +468,12 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
-
-    BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout) { conn =>
-      
-      val result: Try[CompileResult] = {
-        for {
-          res <- wrapServerErrors(conn.server.buildTargetCompile(params))
-          opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
-        } yield CompileResult(res, opts)
+    Compilation.bspPool.borrow(layout.baseDir) { conn =>
+      val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+        wrapServerErrors(server.buildTargetCompile(params))
+      }
+      val scalacOptions: Try[ScalacOptionsResult] = conn.provision(this, target.id, layout, None) { server =>
+        wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
       }
 
       //conn.writeTrace(layout)

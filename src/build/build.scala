@@ -73,8 +73,8 @@ object AliasCli {
       log   <- invoc.logger()
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
-      table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, true)))
+      table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
+      _     <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, true)))
       _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -255,9 +255,11 @@ object BuildCli {
     log           <- invoc.logger()
     records       <- Dns.lookup(Log.silent, Installation.config().service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
+    tmpFile       <- Installation.layersPath.mkTempFile()
     file          <- Shell(cli.env).ipfs.get(latestRef, tmpFile)
+    _             <- tmpFile.delete()
     _             <- TarGz.extract(log, file, Installation.upgradeDir)
-  } yield log.await() }
+  } yield log.await()
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
@@ -473,7 +475,7 @@ object LayerCli {
     https     <- ~invoc(HttpsArg).isSuccess
     projects  <- schema.allProjects(log, layout, https)
     table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+    _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema)))
     _         <- ~log.println(table.mkString("\n"))
   } yield log.await()
 
@@ -501,7 +503,7 @@ object LayerCli {
     pwd      <- cli.pwd
     file     <- invoc(FileArg).map(pwd.resolve(_))
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
-    layout   <- cli.newLayout.map(_.copy(base = dir))
+    layout   <- cli.newLayout.map(_.copy(baseDir = dir))
     layerRef <- Layer.loadFile(log, file, layout, cli.env)
     _        <- Layer.saveFocus(log, Focus(layerRef), layout)
   } yield log.await()
@@ -624,7 +626,7 @@ object LayerCli {
       table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema))
+      _         <- ~(if(!raw) log.println(Tables(cli.config).contextString(layout.baseDir, layer.showSchema, schema))
                        else log)
       
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })

@@ -75,7 +75,7 @@ object DependencyCli {
       table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -185,7 +185,7 @@ object EnvCli {
       table   <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -332,7 +332,7 @@ object PermissionCli {
       table   <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -410,7 +410,7 @@ object PropertyCli {
       table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))

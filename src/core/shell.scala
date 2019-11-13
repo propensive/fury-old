@@ -47,8 +47,8 @@ case class Shell(environment: Environment) {
     implicit val defaultEnvironment: Environment =
       Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
 
-    val policyFile = Installation.policyDir.extant() / UUID.randomUUID().toString
-    policy.save(policyFile).get
+    val policyFile = Installation.policyDir / UUID.randomUUID().toString
+    policy.save(policyFile)
 
     val allProperties: Map[String, String] =
       properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)

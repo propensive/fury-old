@@ -399,7 +399,7 @@ object Layer {
 
   def loadFile(log: Log, file: Path, layout: Layout, env: Environment): Try[LayerRef] = for {
     tmpDir <- Path.mkTempDir()
-    _      <- TarGz.extract(file, tmpDir)
+    _      <- TarGz.extract(log, file, tmpDir)
     _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
     bases  <- ~(tmpDir / "bases").childPaths
     _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence

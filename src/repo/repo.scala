@@ -48,8 +48,8 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       log       <- invoc.logger()
-      table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+      table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
+      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema)))
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
