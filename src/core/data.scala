@@ -76,7 +76,7 @@ object Binary {
 
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
-  def paths(io: Io): Try[List[Path]] = Coursier.fetch(io, this)
+  def paths(io: Io, layout: Layout): Try[List[Path]] = Coursier.fetch(io, this, layout)
 }
 
 object Policy {
@@ -190,7 +190,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module          <- resolvedProject.project(ref.moduleId)
       compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                          else makeTarget(io, module.compiler, layout).map(Some(_))
-      binaries        <- module.allBinaries.map(_.paths(io)).sequence.map(_.flatten)
+      binaries        <- module.allBinaries.map(_.paths(io, layout)).sequence.map(_.flatten)
       dependencies    <- module.after.traverse { dep => for{
                            origin <- entity(dep.projectId)
                          } yield TargetId(origin.schema.id, dep)}

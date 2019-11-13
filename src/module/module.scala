@@ -277,7 +277,7 @@ object BinaryCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield BinariesCtx(ctx, optModule)
+  } yield BinariesCtx(ctx.copy(cli = cli), optModule)
 
   def list(ctx: BinariesCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
@@ -370,7 +370,7 @@ object ParamCli {
                        module   <- project.modules.findBy(moduleId).toOption
                      } yield module }
 
-    } yield ParamCtx(ctx, optModule)
+    } yield ParamCtx(ctx.copy(cli = cli), optModule)
 
   def list(ctx: ParamCtx): Try[ExitStatus] = {
     import ctx._, moduleCtx._
