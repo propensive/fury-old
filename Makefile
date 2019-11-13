@@ -64,9 +64,9 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/bin .version src/**/*.scala
-	$(FURYLOCAL) standalone layer extract -f build.fury
-	$(FURYLOCAL) standalone permission grant --module frontend --project fury -P 729
-	$(FURYLOCAL) standalone build save --https --output linear --project fury --module frontend --dir $<
+	$(FURYLOCAL) layer extract -f build.fury
+	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
+	$(FURYLOCAL) build save --https --output linear --project fury --module frontend --dir $<
 	jar -uf $@ .version
 
 dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% compile
