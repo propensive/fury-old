@@ -90,6 +90,7 @@ case class Tables(config: Config) {
     Heading("BINS", m => bar(m.allBinaries.size)),
     Heading("COMPILER", _.compiler),
     Heading("TYPE", _.kind),
+    Heading("HIDDEN", _.hidden),
     Heading("PARAMS", m => bar(m.params.size))
   )
 

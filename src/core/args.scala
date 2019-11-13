@@ -69,6 +69,7 @@ object Args {
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
+  val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
   val ImportArg = CliParam[ImportLayer]('l', Symbol("layer"), "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
   val ImportSchemaArg = CliParam[SchemaId]('i', Symbol("import"), "specify the external schema to import")

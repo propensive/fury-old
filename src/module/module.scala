@@ -98,6 +98,7 @@ object ModuleCli {
     val defaultCompiler = ModuleRef.JavaRef
     for {
       cli            <- cli.hint(ModuleNameArg)
+      cli            <- cli.hint(HiddenArg, List("on", "off"))
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
                             _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
@@ -125,6 +126,7 @@ object ModuleCli {
       module         = Module(moduleId, compiler = compilerRef)
 
       module         <- ~invoc(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
+      module         <- ~invoc(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
       
       module         <- ~invoc(MainArg).toOption.map { m => module.copy(main = if(m == "") None else Some(m))
                             }.getOrElse(module)
@@ -196,6 +198,7 @@ object ModuleCli {
     import ctx._
     for {
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli         <- cli.hint(HiddenArg, List("on", "off"))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
                          _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
@@ -230,6 +233,7 @@ object ModuleCli {
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
       compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(log, cli.installation, ctx, _)).map(_.headOption)
+      hidden      <- ~invoc(HiddenArg).toOption
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption
@@ -241,6 +245,9 @@ object ModuleCli {
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).compiler)) =
                          compilerRef
+
+      layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).hidden)) =
+                         hidden
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).bloopSpec)) =
                          bloopSpec.map(Some(_))
