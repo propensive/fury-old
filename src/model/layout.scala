@@ -69,14 +69,14 @@ object Xdg {
 }
 
 object Installation {
-  val userConfig: Path = Xdg.config(Path("config.fury"))
-  val aliasesPath: Path = Xdg.config(Path("aliases"))
-  val layersPath: Path = Xdg.data(Path("layers"))
-  val policyFile: Path = Xdg.config(Path("policy.fury"))
-  val srcsDir: Path = Xdg.cache(Path("sources"))
-  val reposDir: Path = Xdg.cache(Path("repos"))
-  val binsDir: Path = Xdg.cache(Path("bins"))
-  val logsDir: Path = Xdg.cache(Path("logs"))
+  val userConfig: Path = Xdg.config(Path("fury/config.fury"))
+  val aliasesPath: Path = Xdg.config(Path("fury/aliases"))
+  val layersPath: Path = Xdg.data(Path("fury/layers"))
+  val policyFile: Path = Xdg.config(Path("fury/policy.fury"))
+  val srcsDir: Path = Xdg.cache(Path("fury/sources"))
+  val reposDir: Path = Xdg.cache(Path("fury/repos"))
+  val binsDir: Path = Xdg.cache(Path("fury/bins"))
+  val logsDir: Path = Xdg.cache(Path("fury/logs"))
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
