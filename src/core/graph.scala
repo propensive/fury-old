@@ -65,8 +65,8 @@ object Graph {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
           if(changed || compilationLogs.exists(_._2.state == Executing)) {
-            log.println(next, noTime = true)
-            log.println(Ansi.up(graph.size + 1)(), noTime = true)
+            log.info(next, noTime = true)
+            log.info(Ansi.up(graph.size + 1)(), noTime = true)
           }
           graphState.copy(changed = false)
 
@@ -99,12 +99,12 @@ object Graph {
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
 
-      log.println(Ansi.down(graph.size + 1)(), noTime = true)
+      log.info(Ansi.down(graph.size + 1)(), noTime = true)
       
       compilationLogs.foreach { case (ref, info) =>
         info match {
           case CompilationInfo(Failed(_) | Successful(_), out) if !out.isEmpty =>
-            log.println(UserMsg { theme =>
+            log.info(UserMsg { theme =>
               List(
                 msg"Output from ",
                 msg"${ref.projectId}",
@@ -112,7 +112,7 @@ object Graph {
                 msg"${ref.moduleId}"
               ).map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
-            out.foreach { msg => log.println(msg.msg) }
+            out.foreach { msg => log.info(msg.msg) }
           case _ => ()
         }
       }

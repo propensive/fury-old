@@ -572,7 +572,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       manifest          = Manifest(bins.map(_.name), module.main)
       dest             <- destination.directory
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _                 = log.println(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
+      _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
       else Success(())

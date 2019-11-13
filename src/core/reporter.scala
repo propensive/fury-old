@@ -43,10 +43,10 @@ object GraphReporter extends Reporter("graph") {
              multiplexer: Multiplexer[ModuleRef, CompileEvent])
             : Unit = {
     val modules = graph.map { case (k, v) => (k.ref, v.to[Set].map(_.ref)) }
-    log.println(msg"Starting build")
-    log.println("", noTime = true)
+    log.info(msg"Starting build")
+    log.info("", noTime = true)
     Graph.live(log, modules, multiplexer.stream(50, Some(Tick)))(theme)
-    log.println(msg"Build completed")
+    log.info(msg"Build completed")
   }
 }
 
@@ -58,11 +58,11 @@ object LinearReporter extends Reporter("linear") {
             : Unit = {
     val interleaver = new Interleaver(log, 3000L)
     multiplexer.stream(50, Some(Tick)).foreach {
-      case StartCompile(ref)                           => log.println(msg"Starting compilation of module $ref")
-      case StopCompile(ref, true)                      => log.println(msg"Successfully compiled module $ref")
-      case StopCompile(ref, false)                     => log.println(msg"Compilation of module $ref failed")
-      case DiagnosticMsg(ref, message)                 => log.println(message.msg)
-      case Print(ref, line)                            => log.println(line)
+      case StartCompile(ref)                           => log.info(msg"Starting compilation of module $ref")
+      case StopCompile(ref, true)                      => log.info(msg"Successfully compiled module $ref")
+      case StopCompile(ref, false)                     => log.info(msg"Compilation of module $ref failed")
+      case DiagnosticMsg(ref, message)                 => log.info(message.msg)
+      case Print(ref, line)                            => log.info(line)
       case other                                       => ()
     }
   }

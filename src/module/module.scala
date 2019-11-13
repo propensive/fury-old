@@ -86,10 +86,10 @@ object ModuleCli {
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project), noTime = true))
 
-      _       <- ~log.println(table.mkString("\n"), noTime = true)
+      _       <- ~log.info(table.mkString("\n"), noTime = true)
     } yield log.await()
   }
 
@@ -140,7 +140,7 @@ object ModuleCli {
 
       layer          <- if(project.compiler.isEmpty && compilerRef != defaultCompiler) Lenses.updateSchemas(optSchemaId, layer, true)(
                             Lenses.layer.compiler(_, project.id)) { (lens, ws) =>
-                            log.println(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
+                            log.info(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
                             lens(ws) = Some(compilerRef)
                         } else Try(layer)
 
@@ -150,7 +150,7 @@ object ModuleCli {
       _              <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                             false)
 
-      _              <- ~log.println(msg"Set current module to ${module.id}")
+      _              <- ~log.info(msg"Set current module to ${module.id}")
     } yield log.await()
   }
 
@@ -292,10 +292,10 @@ object BinaryCli {
       schema  <- defaultSchema
       table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~log.println(table.mkString("\n"), noTime = true)
+      _       <- ~log.info(table.mkString("\n"), noTime = true)
     } yield log.await()
   }
 
@@ -385,10 +385,10 @@ object ParamCli {
       table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~log.println(table.mkString("\n"), noTime = true)
+      _       <- ~log.info(table.mkString("\n"), noTime = true)
     } yield log.await()
   }
 

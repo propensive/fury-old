@@ -49,8 +49,8 @@ object RepoCli {
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       log       <- invoc.logger()
       table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
-      _         <- ~log.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
+      _         <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
+      _         <- ~log.info(UserMsg { theme => table.mkString("\n") }, noTime = true)
     } yield log.await()
   }
 
@@ -124,7 +124,7 @@ object RepoCli {
 
       repos     <- optRepos.map(schema.repo(_, layout)).sequence
       log       <- invoc.logger()
-      msgs      <- repos.map(_.repo.update(layout).map(log.println(_))).sequence
+      msgs      <- repos.map(_.repo.update(layout).map(log.info(_))).sequence
       lens      <- ~Lenses.layer.repos(schema.id)
 
       newRepos  <- repos.map { repo => for {
@@ -139,7 +139,7 @@ object RepoCli {
       _         <- ~Layer.save(log, newLayer, layout, cli.installation)
 
       _         <- ~newRepos.foreach { case (newRepo, _) =>
-                     log.println(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
+                     log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
                    }
 
     } yield log.await()

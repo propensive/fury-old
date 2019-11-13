@@ -144,7 +144,7 @@ object FuryMenu {
     for {
       invoc <- cli.read()
       log   <- invoc.logger()
-      _     <- ~log.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
+      _     <- ~log.info(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
                            |${menu(Nil).reference(Theme.NoColor).join("\n")}

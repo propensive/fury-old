@@ -73,8 +73,8 @@ object AliasCli {
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, true), noTime = true))
-      _     <- ~log.println(UserMsg { theme => table.mkString("\n") })
+      _     <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, true), noTime = true))
+      _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
 
@@ -165,7 +165,7 @@ object BuildCli {
     for {
       invoc <- cli.read()
       log   <- invoc.logger()
-      _     <- ~log.println(str"""|     _____ 
+      _     <- ~log.info(str"""|     _____ 
                                  |    / ___/__ __ ____ __ __
                                  |   / __/ / // // ._// // /
                                  |  /_/    \_._//_/  _\_. /
@@ -217,7 +217,7 @@ object BuildCli {
       watch        =  invoc(WatchArg).isSuccess
       compilation  <- Compilation.syncCompilation(log, schema, module.ref(project), layout, cli.installation, https)
       watcher      =  new SourceWatcher(compilation.allSources)
-      //_            =  watcher.directories.map(_.toString).foreach(s => log.println(str"$s"))
+      //_            =  watcher.directories.map(_.toString).foreach(s => log.info(str"$s"))
       _            =  if(watch) watcher.start()
       future       <- new Repeater[Try[Future[CompileResult]]] {
         var cnt: Int = 0
@@ -226,7 +226,7 @@ object BuildCli {
         override def stopCondition(): Boolean = !watch
 
         override def action(): Try[Future[CompileResult]] = {
-          //log.println(str"Rebuild $cnt")
+          //log.info(str"Rebuild $cnt")
           cnt = cnt + 1
           watcher.clear()
           compileOnce(log, compilation, schema, module.ref(project), layout,
@@ -257,7 +257,7 @@ object BuildCli {
     msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
     invoc  <- cli.read()
     log    <- invoc.logger()
-    _      <- ~log.println(msg)
+    _      <- ~log.info(msg)
   } yield log.await()
 
   def save(ctx: MenuContext): Try[ExitStatus] = {
@@ -298,7 +298,7 @@ object BuildCli {
         override def stopCondition(): Boolean = !watch
 
         override def action(): Try[Future[CompileResult]] = {
-          //log.println(str"Rebuild $cnt")
+          //log.info(str"Rebuild $cnt")
           cnt = cnt + 1
           watcher.clear()
           for {
@@ -376,7 +376,7 @@ object BuildCli {
                           https)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
-      _            <- ~log.println(classpath.map(_.value).join(":"), noTime = true)
+      _            <- ~log.info(classpath.map(_.value).join(":"), noTime = true)
     } yield log.await()
   }
 
@@ -403,7 +403,7 @@ object BuildCli {
                           https)
       
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
-                          Map())(config.theme).foreach(log.println(_, noTime = true))
+                          Map())(config.theme).foreach(log.info(_, noTime = true))
 
     } yield log.await()
   }
@@ -446,7 +446,7 @@ object LayerCli {
     _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
     _      <- layout.focusFile.mkParents()
     _      <- Layer.create(log, Layer(), layout, cli.installation)
-    _      <- ~log.println(str"Initialized an empty layer")
+    _      <- ~log.info(str"Initialized an empty layer")
   } yield log.await()
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
@@ -464,8 +464,8 @@ object LayerCli {
     https     <- ~invoc(HttpsArg).isSuccess
     projects  <- schema.allProjects(log, layout, cli.installation, https)
     table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
-    _         <- ~log.println(table.mkString("\n"), noTime = true)
+    _         <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
+    _         <- ~log.info(table.mkString("\n"), noTime = true)
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
@@ -517,7 +517,7 @@ object LayerCli {
     invoc         <- cli.read()
     log           <- invoc.logger()
     ref           <- Layer.share(log, layer, cli.env, cli.installation)
-    _             <- ~log.println(str"fury://${ref.key}")
+    _             <- ~log.info(str"fury://${ref.key}")
   } yield log.await()
 
   def export(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
@@ -529,7 +529,7 @@ object LayerCli {
     pwd           <- cli.pwd
     destination   <- invoc(FileArg).map(pwd.resolve(_))
     _             <- Layer.export(log, layer, layout, cli.installation, destination)
-    _             <- ~log.println(msg"Saved layer file ${destination}")
+    _             <- ~log.info(msg"Saved layer file ${destination}")
   } yield log.await()
 
   def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
@@ -614,10 +614,10 @@ object LayerCli {
       table     <- ~Tables(cli.config).show(Tables(cli.config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.println(Tables(cli.config).contextString(layout.base, layer.showSchema, schema), noTime = true)
+      _         <- ~(if(!raw) log.info(Tables(cli.config).contextString(layout.base, layer.showSchema, schema), noTime = true)
                        else log)
       
-      _         <- ~log.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
+      _         <- ~log.info(UserMsg { theme => table.mkString("\n") }, noTime = true)
     } yield log.await()
   }
 }

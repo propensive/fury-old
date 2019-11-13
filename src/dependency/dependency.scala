@@ -76,10 +76,10 @@ object DependencyCli {
       table   <- ~Tables(config).show(Tables(config).dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~log.println(table.mkString("\n"), noTime = true)
+      _       <- ~log.info(table.mkString("\n"), noTime = true)
     } yield log.await()
   }
 
@@ -187,10 +187,10 @@ object EnvCli {
       table   <- ~Tables(config).show(Tables(config).envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~log.println(table.mkString("\n"), noTime = true)
+      _       <- ~log.info(table.mkString("\n"), noTime = true)
     } yield log.await()
   }
 
@@ -298,7 +298,7 @@ object PermissionCli {
       newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
       _               <- Policy.save(log, cli.installation, newPolicy)
     } yield {
-      log.println(msg"${PermissionHash(permission.hash)}")
+      log.info(msg"${PermissionHash(permission.hash)}")
       log.await()
     }
   }
@@ -335,10 +335,10 @@ object PermissionCli {
       table   <- ~Tables(config).show(Tables(config).permissions, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~log.println(table.mkString("\n"), noTime = true)
+      _       <- ~log.info(table.mkString("\n"), noTime = true)
     } yield log.await()
   }
 
@@ -414,10 +414,10 @@ object PropertyCli {
       table   <- ~Tables(config).show(Tables(config).props, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
                      project, module), noTime = true))
 
-      _       <- ~log.println(table.mkString("\n"), noTime = true)
+      _       <- ~log.info(table.mkString("\n"), noTime = true)
     } yield log.await()
   }
 

@@ -531,7 +531,7 @@ object Layer {
   private def upgrade(log: Log, env: Environment, ogdl: Ogdl): Ogdl =
     Try(ogdl.version().toInt).getOrElse(1) match {
       case 1 =>
-        log.println("Migrating layer file from version 1")
+        log.info("Migrating layer file from version 1")
         upgrade(
             log,
             env,
@@ -539,7 +539,7 @@ object Layer {
                 schemas = ogdl.schemas.map { schema =>
                   schema.set(
                       repos = schema.repos.map { repo =>
-                        log.println(msg"Checking commit hash for ${repo.repo()}")
+                        log.info(msg"Checking commit hash for ${repo.repo()}")
                         val commit =
                           Shell(env).git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
                         repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
@@ -550,7 +550,7 @@ object Layer {
             )
         )
       case 2 =>
-        log.println("Migrating layer file from version 2")
+        log.info("Migrating layer file from version 2")
         upgrade(
             log,
             env,
@@ -570,7 +570,7 @@ object Layer {
             )
         )
       case 3 =>
-        log.println("Migrating layer file from version 2")
+        log.info("Migrating layer file from version 2")
         upgrade(
             log,
             env,
@@ -649,7 +649,7 @@ case class Checkout(repoId: RepoId,
       if(!(path(layout) / ".done").exists) {
         if(path(layout).exists()) {
           val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
-          log.println(msg"Found incomplete checkout of $sourceText")
+          log.info(msg"Found incomplete checkout of $sourceText")
           path(layout).delete()
         }
 
@@ -663,7 +663,7 @@ case class Checkout(repoId: RepoId,
             msg"$init${'}'}"
         }
 
-        log.println(msg"Checking out $sourceDesc from repository $repoId")
+        log.info(msg"Checking out $sourceDesc from repository $repoId")
         path(layout).mkdir()
         Shell(layout.env).git
           .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
@@ -725,11 +725,11 @@ case class Repo(ref: String) {
   def fetch(log: Log, layout: Layout, https: Boolean): Try[Path] =
     if(!(path(layout) / ".done").exists) {
       if(path(layout).exists()) {
-        log.println(msg"Found incomplete clone of $this at ${path(layout)}")
+        log.info(msg"Found incomplete clone of $this at ${path(layout)}")
         path(layout).delete()
       }
 
-      log.println(msg"Cloning repository at $this")
+      log.info(msg"Cloning repository at $this")
       path(layout).mkdir()
       Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
     } else Success(path(layout))

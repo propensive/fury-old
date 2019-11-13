@@ -187,13 +187,13 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   }
 
   override def onBuildExit(): Unit = {
-    log.println("**> buildExit")
+    log.info("**> buildExit")
     cancel.cancel()
     Lifecycle.halt()
   }
 
   override def buildShutdown(): CompletableFuture[AnyRef] = {
-    log.println("**> buildShutdown")
+    log.info("**> buildShutdown")
     val result = new CompletableFuture[AnyRef]()
     Lifecycle.shutdown().fold(result.completeExceptionally, result.complete)
     result
@@ -201,7 +201,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
 
   override def workspaceBuildTargets(): CompletableFuture[WorkspaceBuildTargetsResult] = {
 
-    log.println("**> workspaceBuildTargets")
+    log.info("**> workspaceBuildTargets")
 
     val result =
       for(struct <- structure)
@@ -219,7 +219,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
 
   override def buildTargetSources(sourcesParams: SourcesParams): CompletableFuture[SourcesResult] = {
 
-    log.println("**> buildTargetSources")
+    log.info("**> buildTargetSources")
 
     val sourceItems = for {
       struct  <- structure
@@ -257,7 +257,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   override def buildTargetDependencySources(dependencySourcesParams: DependencySourcesParams)
                                            : CompletableFuture[DependencySourcesResult] = {
 
-    log.println("**> buildTargetDependencySources")
+    log.info("**> buildTargetDependencySources")
 
     val result = Try(new DependencySourcesResult(List.empty.asJava))
     val future = new CompletableFuture[DependencySourcesResult]()
@@ -338,7 +338,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams)
                                        : CompletableFuture[ScalacOptionsResult] = {
 
-    log.println("**> buildTargetScalacOptions")
+    log.info("**> buildTargetScalacOptions")
 
     val result = for {
       struct  <- structure
