@@ -421,7 +421,6 @@ object BuildCli {
                   https: Boolean): Try[Future[CompileResult]] = {
     for {
       _            <- compilation.checkoutAll(io, layout, https)
-      _            <- compilation.generateFiles(io, layout)
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
       val future = compilation.compile(io, moduleRef, multiplexer, Map(), layout,
