@@ -118,7 +118,7 @@ object DependencyCli {
       importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
-      cli              <- cli.hint(LinkArg, allModules)
+      cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
       cli              <- cli.hint(IntransitiveArg)
       invoc            <- cli.read()
       log              <- invoc.logger()
