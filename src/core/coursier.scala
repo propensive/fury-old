@@ -51,7 +51,7 @@ object Coursier {
     }
   }
   
-  def fetch(io: Io, binary: Binary, layout: Layout): Try[List[Path]] = {
+  def fetch(io: Log, binary: Binary, layout: Layout): Try[List[Path]] = {
     val dir = layout.binariesDir / binary.group / binary.artifact / binary.version
     if(dir.exists) Success(dir.children.map(dir / _))
     else {

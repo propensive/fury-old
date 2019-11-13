@@ -44,7 +44,7 @@ object Graph {
   case object Executing                          extends CompileState
 
   private case class GraphState(changed: Boolean,
-                        io: Io,
+                        io: Log,
                         graph: Map[ModuleRef, Set[ModuleRef]],
                         stream: Iterator[CompileEvent],
                         compilationLogs: Map[ModuleRef, CompilationInfo]) {
@@ -120,7 +120,7 @@ object Graph {
   }
 
 
-  def live(io: Io,
+  def live(io: Log,
            graph: Map[ModuleRef, Set[ModuleRef]],
            stream: Iterator[CompileEvent])
           (implicit theme: Theme)

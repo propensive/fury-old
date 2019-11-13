@@ -33,7 +33,7 @@ object Bloop {
   def clean(layout: Layout): Try[Boolean] =
     layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
 
-  def generateFiles(io: Io, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
+  def generateFiles(io: Log, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
     new CollOps(compilation.targets.values.map { target =>
       for {
         path       <- layout.bloopConfig(target.id).mkParents()
@@ -42,7 +42,7 @@ object Bloop {
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(io: Io, target: Target, compilation: Compilation, layout: Layout): Try[String] = for {
+  private def makeConfig(io: Log, target: Target, compilation: Compilation, layout: Layout): Try[String] = for {
     _         <- ~compilation.writePlugin(target.ref, layout)
     classpath <- ~compilation.classpath(target.ref, layout)
     compilerClasspath <- ~target.compiler.map(_.ref).map(compilation.classpath(_, layout)).getOrElse(classpath)

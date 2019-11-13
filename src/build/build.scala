@@ -61,7 +61,7 @@ object AliasCli {
     for {
       layout <- cli.layout
       config <- ~cli.config
-      layer  <- Layer.read(Io.silent(config), layout, cli.installation)
+      layer  <- Layer.read(Log.silent(config), layout, cli.installation)
     } yield new MenuContext(cli, layout, config, layer)
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
@@ -129,7 +129,7 @@ object BuildCli {
   def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer  <- Layer.read(Log.silent(config), layout, cli.installation)
   } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
@@ -253,7 +253,7 @@ object BuildCli {
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- ~Layer.read(Io.silent(config), layout, cli.installation).toOption
+    layer  <- ~Layer.read(Log.silent(config), layout, cli.installation).toOption
     msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
     invoc  <- cli.read()
     io     <- invoc.io()
@@ -408,7 +408,7 @@ object BuildCli {
     } yield io.await()
   }
 
-  private[this] def compileOnce(io: Io,
+  private[this] def compileOnce(io: Log,
                   compilation: Compilation,
                   schema: Schema,
                   moduleRef: ModuleRef,
@@ -452,7 +452,7 @@ object LayerCli {
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
     config    <- ~cli.config
-    layer     <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer     <- Layer.read(Log.silent(config), layout, cli.installation)
     cli       <- cli.hint(SchemaArg, layer.schemas)
     cli       <- cli.hint(HttpsArg)
     schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
@@ -471,9 +471,9 @@ object LayerCli {
   def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
     config    <- ~cli.config
-    baseLayer <- Layer.base(Io.silent(config), layout, cli.installation)
+    baseLayer <- Layer.base(Log.silent(config), layout, cli.installation)
     schema    <- baseLayer.mainSchema
-    cli       <- cli.hint(LayerArg, schema.importTree(Io.silent(config), layout, cli.installation, true).getOrElse(Nil))
+    cli       <- cli.hint(LayerArg, schema.importTree(Log.silent(config), layout, cli.installation, true).getOrElse(Nil))
     invoc     <- cli.read()
     io        <- invoc.io()
     _         <- schema.importTree(io, layout, cli.installation, true)
@@ -498,7 +498,7 @@ object LayerCli {
 
   def clone(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
-    cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
     invoc         <- cli.read()
     io            <- invoc.io()
     layerImport   <- invoc(ImportArg)
@@ -513,7 +513,7 @@ object LayerCli {
 
   def share(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout        <- cli.layout
-    layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+    layer         <- Layer.read(Log.silent(cli.config), layout, cli.installation)
     invoc         <- cli.read()
     io            <- invoc.io()
     ref           <- Layer.share(io, layer, cli.env, cli.installation)
@@ -523,7 +523,7 @@ object LayerCli {
   def export(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(FileArg)
-    layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+    layer         <- Layer.read(Log.silent(cli.config), layout, cli.installation)
     invoc         <- cli.read()
     io            <- invoc.io()
     pwd           <- cli.pwd
@@ -535,14 +535,14 @@ object LayerCli {
   def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout        <- cli.layout
-      layer         <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+      layer         <- Layer.read(Log.silent(cli.config), layout, cli.installation)
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli           <- cli.hint(ImportNameArg)
       cli           <- cli.hint(FileArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
-      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Io.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
       fileImport    <- ~cli.peek(FileArg)
       followable    <- ~((layerImport, fileImport) match {
@@ -552,14 +552,14 @@ object LayerCli {
       layerRef      <- ~((layerImport, fileImport) match {
                          case (Some(imp), None) => for {
                            followable <- Layer.follow(imp, cli.config)
-                           layerRef <- Layer.resolve(Io.silent(cli.config), followable, cli.env, cli.installation).toOption
+                           layerRef <- Layer.resolve(Log.silent(cli.config), followable, cli.env, cli.installation).toOption
                          } yield layerRef
                          case (None, Some(path)) =>
-                           Layer.loadFile(Io.silent(cli.config), path in layout.pwd, layout, cli.env, cli.installation).toOption
+                           Layer.loadFile(Log.silent(cli.config), path in layout.pwd, layout, cli.env, cli.installation).toOption
                          case _ =>
                            None
                        })
-      maybeLayer    <- ~layerRef.flatMap(Layer.read(Io.silent(cli.config), _, layout, cli.installation).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(Log.silent(cli.config), _, layout, cli.installation).toOption)
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
 
       invoc         <- cli.read()
@@ -580,7 +580,7 @@ object LayerCli {
   def unimport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
-      layer     <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+      layer     <- Layer.read(Log.silent(cli.config), layout, cli.installation)
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg)
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -599,7 +599,7 @@ object LayerCli {
   def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
-      layer     <- Layer.read(Io.silent(cli.config), layout, cli.installation)
+      layer     <- Layer.read(Log.silent(cli.config), layout, cli.installation)
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(HttpsArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)

@@ -41,7 +41,7 @@ object SourceCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -110,7 +110,7 @@ object SourceCli {
       repos      <- defaultSchema.map(_.repos)
 
       extSrcs    <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sourceCandidates(Io.silent(config), layout, false) { n =>
+                     repos.map(_.sourceCandidates(Log.silent(config), layout, false) { n =>
                        n.endsWith(".scala") || n.endsWith(".java")
                      })
                    }.sequence.map(_.flatten)

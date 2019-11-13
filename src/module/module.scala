@@ -44,7 +44,7 @@ object ModuleCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -100,7 +100,7 @@ object ModuleCli {
       cli            <- cli.hint(ModuleNameArg)
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Io.silent(config), layout, cli.installation, true)))
+                            _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -154,7 +154,7 @@ object ModuleCli {
     } yield io.await()
   }
 
-  private def resolveToCompiler(io: Io, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
+  private def resolveToCompiler(io: Log, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
     project  <- ctx.optProject.ascribe(UnspecifiedProject())
     moduleRef      <- ModuleRef.parse(project.id, reference, true)
     availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(io, ctx.layout, installation, https = true))
@@ -167,7 +167,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Io.silent(config), layout, cli.installation, true)))
+                      Log.silent(config), layout, cli.installation, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -198,7 +198,7 @@ object ModuleCli {
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Io.silent(config), layout, cli.installation, true)))
+                         _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))

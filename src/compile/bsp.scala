@@ -113,7 +113,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private[this] var client: BuildClient = _
 
   private val config = Config()
-  private val io     = new Io(System.err, config)
+  private val io     = new Log(System.err, config)
 
   private def structure: Try[Structure] =
     for {
@@ -471,7 +471,7 @@ object FuryBuildServer {
     private def info(message: UserMsg)(implicit theme: Theme) =
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
-    override def report(io: Io, graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
+    override def report(io: Log, graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
       implicit val t = theme
       multiplexer.stream(50, Some(Tick)).foreach {
         case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")

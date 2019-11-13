@@ -34,7 +34,7 @@ object RepoCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer  <- Layer.read(Log.silent(config), layout, cli.installation)
   } yield Context(cli, layout, config, layer)
 
   def list(ctx: Context): Try[ExitStatus] = {

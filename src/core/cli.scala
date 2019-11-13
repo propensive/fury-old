@@ -107,11 +107,11 @@ trait Descriptor[T] {
   }
 }
 
-object Io {
-  def silent(config: Config): Io = new Io(new java.io.PrintStream(int => ()), config)
+object Log {
+  def silent(config: Config): Log = new Log(new java.io.PrintStream(int => ()), config)
 }
 
-class Io(private[this] val output: java.io.PrintStream, config: Config) {
+class Log(private[this] val output: java.io.PrintStream, config: Config) {
 
   private[this] val startTime = System.currentTimeMillis
   private[this] val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.000")
@@ -141,7 +141,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
 
   class Invocation private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
-    def io(): Try[Io] = Success(new Io(output, config))
+    def io(): Try[Log] = Success(new Log(output, config))
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
@@ -151,7 +151,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
     Ogdl.read[Config](installation.userConfig, identity(_)).toOption.getOrElse(Config())
 
   def read(): Try[Invocation] = {
-    val io: Io = new Io(output, config)
+    val io: Log = new Log(output, config)
     if(completion) {
       io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
       io.await()
@@ -203,7 +203,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
         case act: Action[_]   => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val io = new Io(output, config)
+      val io = new Log(output, config)
       io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
       io.await()
       Failure(EarlyCompletions())

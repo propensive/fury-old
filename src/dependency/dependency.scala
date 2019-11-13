@@ -45,7 +45,7 @@ object DependencyCli {
     for {
       layout       <- cli.layout
       config       <- ~cli.config
-      layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+      layer        <- Layer.read(Log.silent(config), layout, cli.installation)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
       schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -115,7 +115,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules)
@@ -158,7 +158,7 @@ object EnvCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -219,7 +219,7 @@ object EnvCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
@@ -255,7 +255,7 @@ object PermissionCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -383,7 +383,7 @@ object PropertyCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -445,7 +445,7 @@ object PropertyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Io.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, cli.installation, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()

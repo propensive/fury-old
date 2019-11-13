@@ -251,7 +251,7 @@ object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
-  def mkCompilation(io: Io,
+  def mkCompilation(io: Log,
                     schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
@@ -266,7 +266,7 @@ object Compilation {
     _           <- compilation.generateFiles(io, layout)
   } yield compilation
 
-  private def fromUniverse(io: Io, universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = {
+  private def fromUniverse(io: Log, universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = {
     import universe._
     for {
       target    <- makeTarget(io, ref, layout)
@@ -291,7 +291,7 @@ object Compilation {
         targets ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), universe)
   }
 
-  def asyncCompilation(io: Io,
+  def asyncCompilation(io: Log,
                        schema: Schema,
                        ref: ModuleRef,
                        layout: Layout,
@@ -309,7 +309,7 @@ object Compilation {
     compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(io: Io,
+  def syncCompilation(io: Log,
                       schema: Schema,
                       ref: ModuleRef,
                       layout: Layout,
@@ -503,7 +503,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(io: Io, targetId: TargetId, layout: Layout): Try[Unit] =
+  def bspUpdate(io: Log, targetId: TargetId, layout: Layout): Try[Unit] =
     Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         Try(server.workspaceBuildTargets.get)
@@ -512,7 +512,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
-  def checkoutAll(io: Io, layout: Layout, https: Boolean): Try[Unit] =
+  def checkoutAll(io: Log, layout: Layout, https: Boolean): Try[Unit] =
     checkouts.traverse(_.get(io, layout, https)).map{ _ => ()}
 
   def deepDependencies(targetId: TargetId): Set[TargetId] = {
@@ -527,7 +527,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     flatten[TargetId](Set.empty, graph(_).to[Set], Set(targetId))
   }
 
-  def generateFiles(io: Io, layout: Layout): Try[Iterable[Path]] = synchronized {
+  def generateFiles(io: Log, layout: Layout): Try[Iterable[Path]] = synchronized {
     Bloop.clean(layout).flatMap(Bloop.generateFiles(io, this, layout).waive)
   }
 
@@ -551,14 +551,14 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
   }
 
-  def saveNative(io: Io, ref: ModuleRef, dest: Path, layout: Layout, main: String): Try[Unit] =
+  def saveNative(io: Log, ref: ModuleRef, dest: Path, layout: Layout, main: String): Try[Unit] =
     for {
       dest <- dest.directory
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main)
     } yield ()
 
-  def saveJars(io: Io,
+  def saveJars(io: Log,
                ref: ModuleRef,
                srcs: Set[Path],
                destination: Path,
@@ -589,7 +589,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
-  def allParams(io: Io, ref: ModuleRef, layout: Layout): List[String] = {
+  def allParams(io: Log, ref: ModuleRef, layout: Layout): List[String] = {
     def pluginParam(pluginTarget: Target): Parameter =
       Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
 
@@ -612,7 +612,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
-  def compileModule(io: Io,
+  def compileModule(io: Log,
                     target: Target,
                     layout: Layout,
                     application: Boolean,
@@ -656,7 +656,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
 
 
-  def compile(io: Io,
+  def compile(io: Log,
               moduleRef: ModuleRef,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
