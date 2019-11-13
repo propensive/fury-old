@@ -24,7 +24,7 @@ fury repo add -n library -u $(realpath ../library)
 fury source add -d library:src/core
 git add .
 git commit -m 'platform' -q
-fury build compile --output linear
+fury build run --output linear
 echo $?
 
 cd ../app
@@ -44,5 +44,5 @@ fury dependency add -l library/core
 fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello World") }' > src/hw.scala
-fury build compile --output linear
+fury build run --output linear
 echo $?

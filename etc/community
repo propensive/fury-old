@@ -28,7 +28,7 @@ runtest() {
   mkdir -p "$TMPDIR"
   fury layer extract -f "test/community/$TEST.fury" $TMPDIR
   cd $TMPDIR
-  fury build compile --https --output quiet
+  fury build run --https --output quiet
   SUCCESS=$?
   echo "----------------------------------------------------------------------------------------------------"
   [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" || (

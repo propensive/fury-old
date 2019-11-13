@@ -264,9 +264,6 @@ object Compilation {
     policy      <- Policy.read(io, installation)
     compilation <- fromUniverse(io, universe, ref, policy, layout)
     _           <- compilation.generateFiles(io, layout)
-
-    _           <- compilation.bspUpdate(io, compilation.targets(ref).id, layout)
-
   } yield compilation
 
   private def fromUniverse(io: Io, universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = {
