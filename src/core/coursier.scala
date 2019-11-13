@@ -18,42 +18,56 @@ package fury.core
 
 import fury.io._, fury.strings._, fury.model._
 
+import mercator._
+
 import coursier.{Module => CModule, _}
 
 import scala.collection.mutable.{HashMap => MutableMap}
 import scala.util._
 
 object Coursier {
-  private val cache: MutableMap[Binary, List[Path]] = MutableMap()
+  
+  private val ScalaCore = Set("library", "compiler", "reflect", "xml").map { mod =>
+    Organization("org.scala-lang") -> ModuleName(s"scala-$mod")
+  }
 
-  private val scalaCore = Set(
-    Organization("org.scala-lang") -> ModuleName("scala-library"),
-    Organization("org.scala-lang") -> ModuleName("scala-compiler"),
-    Organization("org.scala-lang") -> ModuleName("scala-reflect"),
-    Organization("org.scala-lang") -> ModuleName("scala-xml")
-  )
+  private def mkRequest(binary: Binary): Try[List[Path]] = {
+    
+    val dependency = Dependency(
+      module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
+      version = binary.version
+    ).withExclusions(if(binary.group == "org.scala-lang") Set.empty else ScalaCore)
 
-  def fetch(io: Io, binary: Binary): Try[List[Path]] = {
-    def resolve(repo: Repository): List[Path] = {
-      io.println(msg"Resolving $binary")
-      
-      val dependency = Dependency(
-        module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
-        version = binary.version
-      ).withExclusions(if(binary.group == "org.scala-lang") Set() else scalaCore)
-      
-      val request = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
-      
-      request.map(Path(_)).to[List]
-    }
-
-    cache.get(binary) match {
-      case Some(bin) => Success(bin)
-      case None =>
-        coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id).map(resolve) match {
-          case Left(reason) => Failure(DownloadFailure(reason))
-          case Right(files)  => Success(cache.getOrElseUpdate(binary, files))
+    coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id) match {
+      case Left(err) => Failure(InvalidValue(binary.binRepo.id))
+      case Right(repo) =>
+        Try {
+          val out = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
+          out.map(Path(_)).to[List]
+        }.recoverWith {
+          case ex: java.net.UnknownHostException => Failure(DnsResolutionFailure())
+          case ex: java.net.SocketException      => Failure(OfflineException())
         }
+    }
+  }
+  
+  def fetch(io: Io, binary: Binary, layout: Layout): Try[List[Path]] = {
+    val dir = layout.binariesDir / binary.group / binary.artifact / binary.version
+    if(dir.exists) Success(dir.children.map(dir / _))
+    else {
+      val tmpDir = layout.binariesDir / java.util.UUID.randomUUID().toString
+      
+      val paths = for {
+        _     <- ~tmpDir.mkdir()
+        paths <- mkRequest(binary)
+        _     <- paths.map { file => file.hardLink(tmpDir / file.name) }.sequence
+        _     <- dir.mkParents()
+        _     <- tmpDir.moveTo(dir)
+      } yield paths
+
+      paths.recoverWith { case _ => tmpDir.delete() }
+
+      paths
     }
   }
 }

@@ -80,6 +80,10 @@ case class Path(value: String) {
       }
   }
 
+  def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
+    case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
+  }
+
   def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
     if(!exists()) new java.io.FileOutputStream(javaFile).close()
     else javaFile.setLastModified(System.currentTimeMillis())
