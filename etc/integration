@@ -25,9 +25,9 @@ runtest() {
   cp -r "$DIR/$TEST" "$TMPDIR"
   cd "$TMPDIR"
   source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m," >> "capture.log"
-  SUCCESS=$?
   echo "----------------------------------------------------------------------------------------------------" >> "capture.log"
   diff -u --color check output >> "capture.log"
+  SUCCESS=$?
   find ".fury/logs" -name '*.log' | grep -v '.bsp' | xargs cat
   [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}: $(cat $DIR/$TEST/description)" && rm -f "../$TEST.log" || (
       cat "capture.log"
