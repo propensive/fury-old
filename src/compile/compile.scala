@@ -40,6 +40,7 @@ import org.eclipse.lsp4j.jsonrpc.{JsonRpcException, Launcher}
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.concurrent.TrieMap
+import scala.collection.immutable.Queue
 import scala.collection.mutable.HashMap
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
@@ -328,17 +329,28 @@ sealed abstract class FuryBuildClient extends BuildClient {
   var connection: BspConnection = _
   //TODO move to DisplayingClient
   var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
+
+  private var eventQueue: Queue[(ModuleRef, CompileEvent)] = Queue.empty
+  private val eventLock = new Object()
+
+  def record(moduleRef: ModuleRef)(compileEvent: CompileEvent): Unit = eventLock.synchronized {
+    eventQueue = eventQueue.enqueue(moduleRef -> compileEvent)
+    multiplexer.foreach{ mp =>
+      eventQueue.foreach { case (moduleRef, compileEvent) => mp(moduleRef) = compileEvent }
+      eventQueue = Queue.empty
+    }
+  }
 }
 
 class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
-    multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+    record(targetId.ref)(Print(targetId.ref, params.getMessage))
     messageSink.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
   }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {
-    multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+    record(targetId.ref)(Print(targetId.ref, params.getMessage))
     messageSink.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
   }
 
@@ -385,8 +397,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
         case _ => msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("H")}${Ansi.Color.base01("]")}"
       }
 
-      multiplexer.foreach { mp =>
-        mp(targetId.ref) = DiagnosticMsg(
+        record(targetId.ref)(DiagnosticMsg(
           targetId.ref,
           CompilerDiagnostic(
             msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
@@ -407,8 +418,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
             lineNo,
             charNum
           )
-        )
-      }
+        ))
     }
   }
 
@@ -436,17 +446,15 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
-    multiplexer.foreach {
-      _(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
-    }
+    record(targetId.ref)(CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal))
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId: TargetId = getTargetId(report.getTarget.getUri)
-    multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
+    record(targetId.ref)(StartCompile(targetId.ref))
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      multiplexer.foreach(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
+      record(dependencyTargetId.ref)(NoCompile(dependencyTargetId.ref))
     }
   }
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
@@ -454,11 +462,9 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
       val report = convertDataTo[CompileReport](params.getData)
       val targetId: TargetId = getTargetId(report.getTarget.getUri)
       val ref = targetId.ref
-      multiplexer.foreach { mp =>
-        mp(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
-        if(!compilation.targets(ref).kind.needsExecution) mp(ref) = StopRun(ref)
-        else mp(ref) = StartRun(ref)
-      }
+      record(ref)(StopCompile(ref, params.getStatus == StatusCode.OK))
+      if(!compilation.targets(ref).kind.needsExecution) record(ref)(StopRun(ref))
+      else record(ref)(StartRun(ref))
   }
 }
 
