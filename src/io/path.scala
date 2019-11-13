@@ -40,7 +40,7 @@ object Path {
   def apply(uri: URI): Path = Path(Paths.get(uri))
 
   def unapply(str: String): Option[Path] = str match {
-    case r"""$dir@([^*?:;,&|"\%<>]*)""" => Some(Path(if(dir.endsWith("/")) dir.dropRight(1) else dir))
+    case r"""$dir@([^*?:;,&|"\%<>]*)""" => Some(Path(dir))
     case _ => None
   }
 
@@ -62,8 +62,24 @@ object Path {
   }
 }
 
-case class Path(value: String) {
-  def filename: String = value.replaceAll("/$", "")
+case class Path(input: String) {
+  val value: String = {
+    def canonicalize(str: List[String], drop: Int = 0): List[String] = str match {
+      case ".." :: tail => canonicalize(tail, drop + 1)
+      case head :: tail => if(drop > 0) canonicalize(tail, drop - 1) else head :: canonicalize(tail)
+      case Nil          => List.fill(drop)("..")
+    }
+    
+    canonicalize((input.split("/").to[List] match {
+      case "" :: xs => "" :: xs.filter { p => p != "." && p != "" }
+      case xs       => xs.filter { p => p != "." && p != "" }
+    }).reverse).reverse match {
+      case Nil => "."
+      case xs  => xs.mkString("/")
+    }
+  }
+
+  def filename: String = value
   lazy val javaPath: JavaPath = Paths.get(value)
   lazy val javaFile: JavaFile = javaPath.toFile
   def uriString: String = javaFile.toURI.toString
@@ -73,11 +89,8 @@ case class Path(value: String) {
 
   def empty: Boolean = {
     val filesStream = Files.walk(javaPath)
-      try {
-        filesStream.allMatch(p => Files.isDirectory(p))
-      } finally {
-        filesStream.close()
-      }
+    try filesStream.allMatch(p => Files.isDirectory(p))
+    finally filesStream.close()
   }
 
   def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {

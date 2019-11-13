@@ -1,12 +1,12 @@
 #!/bin/bash
 
 if [ "$(uname -s)" = 'Linux' ]; then
-  FURYHOME="$(dirname "$(readlink -f "$0")")/.."
+  FURYHOME="$(realpath $(dirname "$(readlink -f "$0")")/..)"
 else
-  FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
+  FURYHOME="$(realpath $(cd "$(dirname "$0")"/.. && pwd -P))"
 fi
 
-
+ARGS="$@"
 PORT="8462"
 CLASSPATH="$(cat $FURYHOME/classpath):$FURYHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
@@ -94,10 +94,8 @@ alive() {
 
 startNailgun() {
   if [ -d "${UPGRADEDIR}" ]; then
-    message 'Upgrading to latest version of Fury'
-    source "${UPGRADEDIR}/bin/upgrade"
-    rm -rf "${UPGRADEDIR}"
-    ${FURYHOME}/bin/fury "$@"
+    source "${UPGRADEDIR}/bin/upgrade" && ${FURYHOME}/bin/fury "$ARGS"
+    exit $?
   else
     message 'Starting Fury daemon...'
     java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
@@ -139,7 +137,8 @@ case "$1" in
     silently stopFury
     ;;
   "upgrade")
-    silently fury "$@" && silently restartFury
+    silently fury "$@"
+    silently killFury
     ;;
   "restart")
     silently restartFury

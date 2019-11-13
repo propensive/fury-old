@@ -11,6 +11,9 @@ export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
 
 all: dist/bundle/lib/fury-frontend.jar
 
+publish-ipfs: dist/fury-$(VERSION).tar.gz
+	@ipfs add dist/fury-$(VERSION).tar.gz
+
 publish: dist/install.sh
 	git tag "v$(VERSION)" -m "Version $(VERSION)"
 	gsutil -h "Cache-Control:public,max-age=60" cp $< gs://revivalist/downloads/fury.build/fury-$(VERSION).sh
@@ -37,6 +40,7 @@ dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	chmod +x dist/install.sh
 
 dist/fury-$(VERSION).tar.gz: dist/bundle/lib/fury-frontend.jar dist/bundle/bin/fury dist/bundle/etc dist/bundle/bin/upgrade
+	cp .version dist/bundle/
 	tar czf $@ -C dist/bundle . 2> /dev/null
 
 #TODO refactor etc structure (separate bundled scripts from development ones)

@@ -45,7 +45,9 @@ object Layout {
 case class Installation(env: Environment) {
 
   lazy val home: Path = Path(env.variables("HOME"))
-  
+
+  lazy val furyHome: Path = Path(env.variables("FURYHOME"))
+
   val configDir: Path =
     env.variables.get("XDG_CONFIG_HOME").map(Path(_)).getOrElse(home / ".config") / "fury"
   
@@ -53,7 +55,7 @@ case class Installation(env: Environment) {
   lazy val aliasesPath: Path = configDir / "aliases"
   lazy val layersPath: Path = (configDir / "layers").extant()
   lazy val policyFile: Path = configDir / "policy.fury"
-  lazy val upgradeDir: Path = (configDir / "upgrade").extant()
+  lazy val upgradeDir: Path = (furyHome / "upgrade").extant()
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
