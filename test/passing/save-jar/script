@@ -24,6 +24,6 @@ mkdir -p out
 fury build save --dir out --output linear
 echo $?
 ls out
-jar tf out/foo-app.jar | sort
-unzip -qq out/foo-app.jar META-INF/MANIFEST.MF
+jar tf out/foo-app.jar | sort --ignore-case
+unzip -qq out/foo-app.jar META-INF/MANIFEST.MF | sort --ignore-case
 cat META-INF/MANIFEST.MF

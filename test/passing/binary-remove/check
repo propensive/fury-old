@@ -28,5 +28,7 @@ Unable to identify target binary:
 1
 0
 
+Starting compilation of module hello-world/app
+Successfully compiled module hello-world/app
 Hello world!
 0
