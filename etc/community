@@ -9,8 +9,7 @@ BPASSED=0
 BFAILED=0
 
 runtest() {
-  DIR="$1"
-  TEST="$2"
+  TEST="$1"
   TMPDIR="test/tmp/${TEST}"
   BASE="$PWD"
   ESC=$(printf '\e')
@@ -20,21 +19,23 @@ runtest() {
   RESET=$(printf '\e[0m')
   BOLD=$(printf '\e[1m')
 
+  echo
+  echo "----------------------------------------------------------------------------------------------------"
+  echo " ${BOLD}${TEST}${RESET}"
+  echo "----------------------------------------------------------------------------------------------------"
+
   rm -fr "$TMPDIR"
-  mkdir -p "test/tmp"
-  cp -r "$DIR/$TEST" "$TMPDIR"
-  cd "$TMPDIR"
-  source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m," >> "capture.log"
-  echo "----------------------------------------------------------------------------------------------------" >> "capture.log"
-  diff -u --color check output >> "capture.log"
-  find ".fury/logs" -name '*.log' | grep -v '.bsp' | xargs cat
+  mkdir -p "$TMPDIR"
+  fury layer extract -f "test/community/$TEST.fury" $TMPDIR
+  cd $TMPDIR
+  fury build compile --https --output quiet
   SUCCESS=$?
-  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}: $(cat $DIR/$TEST/description)" && rm -f "../$TEST.log" || (
-      cat "capture.log"
-      rm "capture.log"
+  echo "----------------------------------------------------------------------------------------------------"
+  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" || (
       echo "----------------------------------------------------------------------------------------------------"
-      echo " [${RED}FAIL${RESET}] ${TEST}: $(cat $DIR/$TEST/description)" && mv output "../$TEST.log"
+      echo " [${RED}FAIL${RESET}] ${TEST}"
     )
+  echo "===================================================================================================="
   cd "$BASE"
   if [ $SUCCESS = 0 ]; then
     rm -fr "$TMPDIR"
@@ -48,14 +49,9 @@ if [ "$1" = "" ]; then
   fury start
   fury config set --theme nocolor --timestamps off
 
-  for ATEST in $(ls $ROOT/test/passing); do
+  for ATEST in $(ls $ROOT/test/community | sed 's/\.fury//g'); do
     let ACOUNT="$ACOUNT+1"
-    runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
-  done
-
-  for BTEST in $(ls $ROOT/test/pending); do
-    let BCOUNT="$BCOUNT+1"
-    runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
+    runtest "$ATEST" && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
   done
 
   echo ""

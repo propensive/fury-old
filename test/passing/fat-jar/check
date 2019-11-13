@@ -28,8 +28,8 @@ HelloWorld.class
 Hello World
 0
 Manifest-Version: 1.0
-Class-Path: scala-library-2.12.8.jar scala-compiler-2.12.8.jar scala-x
- ml_2.12-1.0.6.jar scala-reflect-2.12.8.jar
+Class-Path: scala-compiler-2.12.8.jar scala-library-2.12.8.jar scala-r
+ eflect-2.12.8.jar scala-xml_2.12-1.0.6.jar
 Created-By: Fury 0.7.5
 Main-Class: HelloWorld
 
