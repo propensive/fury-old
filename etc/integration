@@ -20,25 +20,21 @@ runtest() {
   RESET=$(printf '\e[0m')
   BOLD=$(printf '\e[1m')
 
-  echo
-  echo "----------------------------------------------------------------------------------------------------"
-  echo " ${BOLD}${TEST}${RESET}: $(cat $DIR/$TEST/description)"
-  echo "----------------------------------------------------------------------------------------------------"
-
   rm -fr "$TMPDIR"
   mkdir -p "test/tmp"
   cp -r "$DIR/$TEST" "$TMPDIR"
   cd "$TMPDIR"
-  source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m,"
-  echo "----------------------------------------------------------------------------------------------------"
-  diff -u --color check output
+  source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m," >> "capture.log"
+  echo "----------------------------------------------------------------------------------------------------" >> "capture.log"
+  diff -u --color check output >> "capture.log"
   find ".fury/logs" -name '*.log' | grep -v '.bsp' | xargs cat
   SUCCESS=$?
-  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}" && rm -f "../$TEST.log" || (
+  [ $SUCCESS = 0 ] && echo " [${GREEN}PASS${RESET}] ${TEST}: $(cat $DIR/$TEST/description)" && rm -f "../$TEST.log" || (
+      cat "capture.log"
+      rm "capture.log"
       echo "----------------------------------------------------------------------------------------------------"
-      echo " [${RED}FAIL${RESET}] ${TEST}" && mv output "../$TEST.log"
+      echo " [${RED}FAIL${RESET}] ${TEST}: $(cat $DIR/$TEST/description)" && mv output "../$TEST.log"
     )
-  echo "===================================================================================================="
   cd "$BASE"
   if [ $SUCCESS = 0 ]; then
     rm -fr "$TMPDIR"
