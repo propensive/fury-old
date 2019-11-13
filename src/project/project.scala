@@ -68,8 +68,8 @@ object ProjectCli {
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
-      _      <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
-      _      <- ~log.info(table.mkString("\n"), noTime = true)
+      _      <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _      <- ~log.println(table.mkString("\n"))
     } yield log.await()
   }
 

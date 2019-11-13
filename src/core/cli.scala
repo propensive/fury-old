@@ -121,14 +121,17 @@ class Log(private[this] val output: java.io.PrintStream, config: Config) {
 
   def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
 
-  def info(msg: UserMsg, noTime: Boolean = false, time: Long = -1): Unit =
+  def println(msg: UserMsg, time: Long = -1): Unit =
+    msg.string(config.theme).split("\n").foreach(output.println(_))
+
+  def info(msg: UserMsg, time: Long = -1): Unit =
     msg.string(config.theme).split("\n").foreach { line =>
-      output.println((if(noTime || !config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
+      output.println((if(!config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
     }
 
-  def debug(msg: UserMsg, noTime: Boolean = false, time: Long = -1): Unit = info(msg, noTime, time)
-  def warn(msg: UserMsg, noTime: Boolean = false, time: Long = -1): Unit = info(msg, noTime, time)
-  def error(msg: UserMsg, noTime: Boolean = false, time: Long = -1): Unit = info(msg, noTime, time)
+  def debug(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
+  def warn(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
+  def error(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
 
   def await(success: Boolean = true): ExitStatus = {
     output.flush()
@@ -157,7 +160,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   def read(): Try[Invocation] = {
     val log: Log = new Log(output, config)
     if(completion) {
-      log.info(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
+      log.println(optCompletions.flatMap(_.output).mkString("\n"))
       log.await()
       Failure(EarlyCompletions())
     } else Success(new Invocation())
@@ -208,7 +211,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
       val log = new Log(output, config)
-      log.info(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
+      log.println(optCompletions.flatMap(_.output).mkString("\n"))
       log.await()
       Failure(EarlyCompletions())
     }.getOrElse {

@@ -65,8 +65,8 @@ object Graph {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
           if(changed || compilationLogs.exists(_._2.state == Executing)) {
-            log.info(next, noTime = true)
-            log.info(Ansi.up(graph.size + 1)(), noTime = true)
+            log.println(next)
+            log.println(Ansi.up(graph.size + 1)())
           }
           graphState.copy(changed = false)
 
@@ -99,7 +99,7 @@ object Graph {
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
 
-      log.info(Ansi.down(graph.size + 1)(), noTime = true)
+      log.println(Ansi.down(graph.size + 1)())
       
       compilationLogs.foreach { case (ref, info) =>
         info match {

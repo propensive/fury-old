@@ -79,8 +79,9 @@ class Interleaver(log: Log, lag: Long) {
     else Some(buffer.to[List].maxBy { case (ref, MessageBuffer(first, last, msgs, _)) => -first }._1)
 
   def println(ref: ModuleRef, msg: UserMsg, noTime: Boolean = false): Unit =
-    if(isCurrent(ref)) log.info(msg, noTime)
-    else {
+    if(isCurrent(ref)) {
+      if(noTime) log.println(msg) else log.info(msg)
+    } else {
       record(ref, msg)
       tick()
     }

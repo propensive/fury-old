@@ -72,10 +72,10 @@ object SourceCli {
       table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       
-      _       <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module), noTime = true))
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project, module)))
 
-      _       <- ~log.info(table.mkString("\n"), noTime = true)
+      _       <- ~log.println(table.mkString("\n"))
     } yield log.await()
   }
 

@@ -73,7 +73,7 @@ object AliasCli {
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, true), noTime = true))
+      _     <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, true)))
       _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -165,7 +165,7 @@ object BuildCli {
     for {
       invoc <- cli.read()
       log   <- invoc.logger()
-      _     <- ~log.info(str"""|     _____ 
+      _     <- ~log.println(str"""|     _____ 
                                  |    / ___/__ __ ____ __ __
                                  |   / __/ / // // ._// // /
                                  |  /_/    \_._//_/  _\_. /
@@ -184,7 +184,7 @@ object BuildCli {
                                  |${builds}
                                  |
                                  |For help on using Fury, run: fury help
-                                 |""".stripMargin, noTime = true)
+                                 |""".stripMargin)
     } yield log.await()
 
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
@@ -376,7 +376,7 @@ object BuildCli {
                           https)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
-      _            <- ~log.info(classpath.map(_.value).join(":"), noTime = true)
+      _            <- ~log.println(classpath.map(_.value).join(":"))
     } yield log.await()
   }
 
@@ -403,7 +403,7 @@ object BuildCli {
                           https)
       
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
-                          Map())(config.theme).foreach(log.info(_, noTime = true))
+                          Map())(config.theme).foreach(log.println(_))
 
     } yield log.await()
   }
@@ -464,8 +464,8 @@ object LayerCli {
     https     <- ~invoc(HttpsArg).isSuccess
     projects  <- schema.allProjects(log, layout, cli.installation, https)
     table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.info(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
-    _         <- ~log.info(table.mkString("\n"), noTime = true)
+    _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+    _         <- ~log.println(table.mkString("\n"))
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
@@ -614,10 +614,10 @@ object LayerCli {
       table     <- ~Tables(cli.config).show(Tables(cli.config).imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.info(Tables(cli.config).contextString(layout.base, layer.showSchema, schema), noTime = true)
+      _         <- ~(if(!raw) log.println(Tables(cli.config).contextString(layout.base, layer.showSchema, schema))
                        else log)
       
-      _         <- ~log.info(UserMsg { theme => table.mkString("\n") }, noTime = true)
+      _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
 }
