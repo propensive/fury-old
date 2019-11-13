@@ -119,12 +119,10 @@ dist/bundle/bin/ng.py: dist/bundle/bin/.dir
 fury-native: dist/bundle/lib/fury-frontend.jar
 	native-image -cp $(shell bash -c "ls $(NATIVEJARS) | paste -s -d: -") fury.Main
 
-test: bootstrap/build.fury
-	fury layer extract -f $<
-	fury permission grant --project fury --module test-core -P 228 4a8 538 7f0 c0d c2e f90 00b
-	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
-	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-ogdl
-	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-core
+test:
+	mkdir tests
+	fury layer extract -f build.fury -d tests
+	cd tests && fury build run --https --output linear --project fury --module test-strings && fury build run --https --output linear --project fury --module test-ogdl && fury build run --https --output linear --project fury --module test-core
 
 integration:
 	etc/integration
