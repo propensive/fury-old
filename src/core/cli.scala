@@ -107,11 +107,11 @@ trait Descriptor[T] {
   }
 }
 
-object Io {
-  def silent(config: Config): Io = new Io(new java.io.PrintStream(int => ()), config)
+object Log {
+  def silent(config: Config): Log = new Log(new java.io.PrintStream(int => ()), config)
 }
 
-class Io(private[this] val output: java.io.PrintStream, config: Config) {
+class Log(private[this] val output: java.io.PrintStream, config: Config) {
 
   private[this] val startTime = System.currentTimeMillis
   private[this] val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.000")
@@ -120,11 +120,18 @@ class Io(private[this] val output: java.io.PrintStream, config: Config) {
     formatter.format(((if(t == -1) System.currentTimeMillis else t) - startTime)/1000.0).reverse.padTo(7, ' ').reverse
 
   def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
-  
-  def println(msg: UserMsg, noTime: Boolean = false, time: Long = -1): Unit =
+
+  def println(msg: UserMsg, time: Long = -1): Unit =
+    msg.string(config.theme).split("\n").foreach(output.println(_))
+
+  def info(msg: UserMsg, time: Long = -1): Unit =
     msg.string(config.theme).split("\n").foreach { line =>
-      output.println((if(noTime || !config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
+      output.println((if(!config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
     }
+
+  def debug(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
+  def warn(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
+  def error(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
 
   def await(success: Boolean = true): ExitStatus = {
     output.flush()
@@ -141,7 +148,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
 
   class Invocation private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
-    def io(): Try[Io] = Success(new Io(output, config))
+    def logger(): Try[Log] = Success(new Log(output, config))
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
@@ -151,10 +158,10 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
     Ogdl.read[Config](installation.userConfig, identity(_)).toOption.getOrElse(Config())
 
   def read(): Try[Invocation] = {
-    val io: Io = new Io(output, config)
+    val log: Log = new Log(output, config)
     if(completion) {
-      io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
-      io.await()
+      log.println(optCompletions.flatMap(_.output).mkString("\n"))
+      log.await()
       Failure(EarlyCompletions())
     } else Success(new Invocation())
   }
@@ -203,9 +210,9 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
         case act: Action[_]   => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val io = new Io(output, config)
-      io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
-      io.await()
+      val log = new Log(output, config)
+      log.println(optCompletions.flatMap(_.output).mkString("\n"))
+      log.await()
       Failure(EarlyCompletions())
     }.getOrElse {
       args.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }

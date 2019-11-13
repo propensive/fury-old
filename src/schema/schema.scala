@@ -33,7 +33,7 @@ object SchemaCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer  <- Layer.read(Log.silent(config), layout, cli.installation)
   } yield SchemaCtx(cli, layout, config, layer)
 
   def select(ctx: SchemaCtx): Try[ExitStatus] = {
@@ -41,13 +41,13 @@ object SchemaCli {
     for {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       invoc    <- cli.read()
-      io       <- invoc.io()
+      log      <- invoc.logger()
       schemaId <- invoc(SchemaArg)
       _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
       layer    <- ~(lens(layer) = schemaId)
-      _        <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _        <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 
   def list(ctx: SchemaCtx): Try[ExitStatus] = {
@@ -58,13 +58,13 @@ object SchemaCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      log       <- invoc.logger()
       raw       <- ~invoc(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
       table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
-      _         <- ~io.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
-    } yield io.await()
+      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
+    } yield log.await()
   }
 
   private[this] def diffTable(config: Config,
@@ -82,7 +82,7 @@ object SchemaCli {
       cli       <- ctx.cli.hint(CompareArg, ctx.layer.schemas.map(_.id))
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      log       <- invoc.logger()
       raw       <- ~invoc(RawArg).isSuccess
       schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
@@ -90,9 +90,9 @@ object SchemaCli {
       other     <- layer.schemas.findBy(otherArg)
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~diffTable(config, schema, other, rows, cli.cols, raw)
-      _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
-      _         <- ~io.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
-    } yield io.await()
+      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
+    } yield log.await()
   }
 
   def update(ctx: SchemaCtx): Try[ExitStatus] = {
@@ -101,7 +101,7 @@ object SchemaCli {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli      <- cli.hint(SchemaNameArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      log      <- invoc.logger()
       newName  <- invoc(SchemaNameArg)
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
@@ -109,8 +109,8 @@ object SchemaCli {
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
       layer    <- ~(if(layer.main == schema.id) layer.copy(main = newName) else layer)
-      _        <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _        <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 
   def add(ctx: SchemaCtx): Try[ExitStatus] = {
@@ -119,7 +119,7 @@ object SchemaCli {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(SchemaNameArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      log       <- invoc.logger()
       name      <- invoc(SchemaNameArg)
       schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
@@ -127,8 +127,8 @@ object SchemaCli {
       lens      <- ~Lenses.layer.schemas
       layer     <- ~lens.modify(layer)(_ + newSchema)
       layer     <- ~layer.copy(main = newSchema.id)
-      _         <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _         <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 
   def remove(ctx: SchemaCtx): Try[ExitStatus] = {
@@ -136,12 +136,12 @@ object SchemaCli {
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       invoc    <- cli.read()
-      io       <- invoc.io()
+      log      <- invoc.logger()
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
       lens     <- ~Lenses.layer.schemas
       layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
-      _        <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _        <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 }

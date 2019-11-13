@@ -44,7 +44,7 @@ object ModuleCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -59,7 +59,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      log      <- invoc.logger()
       project  <- optProject.ascribe(UnspecifiedProject())
       moduleId <- ~invoc(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
@@ -67,8 +67,8 @@ object ModuleCli {
       force    <- ~invoc(ForceArg).isSuccess
       focus    <- ~Lenses.focus(optSchemaId, force)
       layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
-      _        <- ~Layer.save(io, layer, layout, cli.installation)
-    } yield io.await()
+      _        <- ~Layer.save(log, layer, layout, cli.installation)
+    } yield log.await()
   }
 
   def list(ctx: Context): Try[ExitStatus] = {
@@ -77,7 +77,7 @@ object ModuleCli {
       project <- optProject.ascribe(UnspecifiedProject())
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
 
@@ -86,11 +86,11 @@ object ModuleCli {
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project), noTime = true))
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project)))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"))
+    } yield log.await()
   }
 
   def add(ctx: Context): Try[ExitStatus] = {
@@ -100,7 +100,7 @@ object ModuleCli {
       cli            <- cli.hint(ModuleNameArg)
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Io.silent(config), layout, cli.installation, true)))
+                            _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -115,12 +115,12 @@ object ModuleCli {
                         }
 
       invoc          <- cli.read()
-      io             <- invoc.io()
+      log            <- invoc.logger()
       project        <- optProject.ascribe(UnspecifiedProject())
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      compilerRef    <- compilerId.map(resolveToCompiler(io, cli.installation, ctx, _))
+      compilerRef    <- compilerId.map(resolveToCompiler(log, cli.installation, ctx, _))
                             .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
       module         = Module(moduleId, compiler = compilerRef)
 
@@ -140,24 +140,24 @@ object ModuleCli {
 
       layer          <- if(project.compiler.isEmpty && compilerRef != defaultCompiler) Lenses.updateSchemas(optSchemaId, layer, true)(
                             Lenses.layer.compiler(_, project.id)) { (lens, ws) =>
-                            io.println(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
+                            log.info(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
                             lens(ws) = Some(compilerRef)
                         } else Try(layer)
 
-      _              <- ~Layer.save(io, layer, layout, cli.installation)
+      _              <- ~Layer.save(log, layer, layout, cli.installation)
       schema         <- defaultSchema
 
-      _              <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
+      _              <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                             false)
 
-      _              <- ~io.println(msg"Set current module to ${module.id}")
-    } yield io.await()
+      _              <- ~log.info(msg"Set current module to ${module.id}")
+    } yield log.await()
   }
 
-  private def resolveToCompiler(io: Io, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
+  private def resolveToCompiler(log: Log, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
     project  <- ctx.optProject.ascribe(UnspecifiedProject())
     moduleRef      <- ModuleRef.parse(project.id, reference, true)
-    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(io, ctx.layout, installation, https = true))
+    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(log, ctx.layout, installation, https = true))
     _      <-   if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
@@ -167,11 +167,11 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Io.silent(config), layout, cli.installation, true)))
+                      Log.silent(config), layout, cli.installation, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      log      <- invoc.logger()
       force    <- ~invoc(ForceArg).isSuccess
       moduleId <- invoc(ModuleArg)
       project  <- optProject.ascribe(UnspecifiedProject())
@@ -183,13 +183,13 @@ object ModuleCli {
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainModule(_, project.id)) {
                       (lens, ws) => if(lens(ws) == Some(moduleId)) lens(ws) = None else ws }
 
-      _        <- ~Layer.save(io, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout, cli.installation)
       schema   <- defaultSchema
       
-      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
+      _        <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                       false)
 
-    } yield io.await()
+    } yield log.await()
   }
 
   def update(ctx: Context): Try[ExitStatus] = {
@@ -198,7 +198,7 @@ object ModuleCli {
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Io.silent(config), layout, cli.installation, true)))
+                         _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
@@ -225,11 +225,11 @@ object ModuleCli {
 
       cli         <- cli.hint(ForceArg)
       invoc       <- cli.read()
-      io          <- invoc.io()
+      log         <- invoc.logger()
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(io, cli.installation, ctx, _)).map(_.headOption)
+      compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(log, cli.installation, ctx, _)).map(_.headOption)
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
       nameArg     <- ~invoc(ModuleNameArg).toOption
@@ -252,13 +252,13 @@ object ModuleCli {
                          pluginName.map(Some(_))
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
-      _           <- ~Layer.save(io, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout, cli.installation)
       schema      <- defaultSchema
 
-      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
+      _           <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                          false)
 
-    } yield io.await()
+    } yield log.await()
   }
 }
 
@@ -284,7 +284,7 @@ object BinaryCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -292,11 +292,11 @@ object BinaryCli {
       schema  <- defaultSchema
       table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
 
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module), noTime = true))
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project, module)))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"))
+    } yield log.await()
   }
 
   def remove(ctx: BinariesCtx): Try[ExitStatus] = {
@@ -305,7 +305,7 @@ object BinaryCli {
       cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
       cli         <- cli.hint(ForceArg)
       invoc       <- cli.read()
-      io          <- invoc.io()
+      log         <- invoc.logger()
       binaryArg   <- invoc(BinaryArg)
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
@@ -319,13 +319,13 @@ object BinaryCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id,
                          module.id))(_(_) -= binaryToDel)
 
-      _           <- ~Layer.save(io, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout, cli.installation)
       schema      <- defaultSchema
 
-      _           <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
+      _           <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                          false)
 
-    } yield io.await()
+    } yield log.await()
   }
 
   def add(ctx: BinariesCtx): Try[ExitStatus] = {
@@ -334,7 +334,7 @@ object BinaryCli {
       cli       <- cli.hint(BinaryArg)
       cli       <- cli.hint(BinaryRepoArg, List(RepoId("central")))
       invoc     <- cli.read()
-      io        <- invoc.io()
+      log       <- invoc.logger()
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
       binaryArg <- invoc(BinaryArg)
@@ -344,13 +344,13 @@ object BinaryCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
                        module.id))(_(_) += binary)
       
-      _         <- ~Layer.save(io, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout, cli.installation)
       schema    <- defaultSchema
 
-      _         <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
+      _         <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                        false)
 
-    } yield io.await()
+    } yield log.await()
   }
 }
 
@@ -377,7 +377,7 @@ object ParamCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -385,11 +385,11 @@ object ParamCli {
       table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module), noTime = true))
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project, module)))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"))
+    } yield log.await()
   }
 
   def remove(ctx: ParamCtx): Try[ExitStatus] = {
@@ -398,7 +398,7 @@ object ParamCli {
       cli      <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      log      <- invoc.logger()
       paramArg <- invoc(ParamArg)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- optModule.ascribe(UnspecifiedModule())
@@ -407,13 +407,13 @@ object ParamCli {
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id,
                       module.id))(_(_) -= paramArg)
 
-      _        <- ~Layer.save(io, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout, cli.installation)
       schema   <- defaultSchema
 
-      _        <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
+      _        <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                       false)
 
-    } yield io.await()
+    } yield log.await()
   }
 
   def add(ctx: ParamCtx): Try[ExitStatus] = {
@@ -421,7 +421,7 @@ object ParamCli {
     for {
       cli     <- cli.hint(ParamArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      log     <- invoc.logger()
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       param   <- invoc(ParamArg)
@@ -429,12 +429,12 @@ object ParamCli {
       layer   <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
                      _(_) += param)
 
-      _       <- ~Layer.save(io, layer, layout, cli.installation)
+      _       <- ~Layer.save(log, layer, layout, cli.installation)
       schema  <- defaultSchema
 
-      _       <- ~Compilation.asyncCompilation(io, schema, module.ref(project), layout, cli.installation,
+      _       <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
                      false)
 
-    } yield io.await()
+    } yield log.await()
   }
 }

@@ -31,7 +31,7 @@ object Interleaver {
   }
 }
 
-class Interleaver(io: Io, lag: Long) {
+class Interleaver(log: Log, lag: Long) {
   
   import Interleaver._
 
@@ -57,8 +57,8 @@ class Interleaver(io: Io, lag: Long) {
 
   private[this] def flush(ref: ModuleRef): Unit = {
     val msgs = buffer(ref).messages
-    if(!msgs.isEmpty) io.println(msg"Output for $ref:")
-    msgs.foreach { case (t, msg) => io.println(msg, time = t) }
+    if(!msgs.isEmpty) log.info(msg"Output for $ref:")
+    msgs.foreach { case (t, msg) => log.info(msg, time = t) }
     buffer = buffer - ref
   }
     
@@ -79,8 +79,9 @@ class Interleaver(io: Io, lag: Long) {
     else Some(buffer.to[List].maxBy { case (ref, MessageBuffer(first, last, msgs, _)) => -first }._1)
 
   def println(ref: ModuleRef, msg: UserMsg, noTime: Boolean = false): Unit =
-    if(isCurrent(ref)) io.println(msg, noTime)
-    else {
+    if(isCurrent(ref)) {
+      if(noTime) log.println(msg) else log.info(msg)
+    } else {
       record(ref, msg)
       tick()
     }

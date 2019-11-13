@@ -113,20 +113,20 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private[this] var client: BuildClient = _
 
   private val config = Config()
-  private val io     = new Io(System.err, config)
+  private val log    = new Log(System.err, config)
 
   private def structure: Try[Structure] =
     for {
       focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
-      layer          <- Layer.read(io, focus.layerRef, layout, installation)
+      layer          <- Layer.read(log, focus.layerRef, layout, installation)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(io, layout, installation, https)
+      hierarchy      <- schema.hierarchy(log, layout, installation, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
                           for {
                             ds   <- universe.dependencies(ref, layout)
-                            arts <- (ds + ref).map { d => universe.makeTarget(io, d, layout) }.sequence
+                            arts <- (ds + ref).map { d => universe.makeTarget(log, d, layout) }.sequence
                           } yield arts.map { a =>
                             (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
                                 .map(_.ref.hide): Option[ModuleRef]))
@@ -135,7 +135,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
       targets       <- graph.keys.map { key =>
-                         universe.makeTarget(io, key, layout).map(key -> _)
+                         universe.makeTarget(log, key, layout).map(key -> _)
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
@@ -143,10 +143,10 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
       //FIXME remove duplication with structure
-      layer          <- Layer.read(io, layout, installation)
+      layer          <- Layer.read(log, layout, installation)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(io, schema, module, layout, installation, https = true)
+      compilation    <- Compilation.syncCompilation(log, schema, module, layout, installation, https = true)
     } yield compilation
   }
   
@@ -187,13 +187,13 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   }
 
   override def onBuildExit(): Unit = {
-    io.println("**> buildExit")
+    log.info("**> buildExit")
     cancel.cancel()
     Lifecycle.halt()
   }
 
   override def buildShutdown(): CompletableFuture[AnyRef] = {
-    io.println("**> buildShutdown")
+    log.info("**> buildShutdown")
     val result = new CompletableFuture[AnyRef]()
     Lifecycle.shutdown().fold(result.completeExceptionally, result.complete)
     result
@@ -201,7 +201,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
 
   override def workspaceBuildTargets(): CompletableFuture[WorkspaceBuildTargetsResult] = {
 
-    io.println("**> workspaceBuildTargets")
+    log.info("**> workspaceBuildTargets")
 
     val result =
       for(struct <- structure)
@@ -219,7 +219,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
 
   override def buildTargetSources(sourcesParams: SourcesParams): CompletableFuture[SourcesResult] = {
 
-    io.println("**> buildTargetSources")
+    log.info("**> buildTargetSources")
 
     val sourceItems = for {
       struct  <- structure
@@ -257,7 +257,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   override def buildTargetDependencySources(dependencySourcesParams: DependencySourcesParams)
                                            : CompletableFuture[DependencySourcesResult] = {
 
-    io.println("**> buildTargetDependencySources")
+    log.info("**> buildTargetDependencySources")
 
     val result = Try(new DependencySourcesResult(List.empty.asJava))
     val future = new CompletableFuture[DependencySourcesResult]()
@@ -281,16 +281,16 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
     val bspTargets = compileParams.getTargets.asScala
     val allResults = bspTargets.traverse { bspTargetId =>
       for{
-        globalPolicy <- Policy.read(io, installation)
+        globalPolicy <- Policy.read(log, installation)
         struct <- structure
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
         val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-        val compilationTasks = compilation.compile(io, moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val compilationTasks = compilation.compile(log, moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
-        reporter.report(io, compilation.graph, config.theme, multiplexer)
+        reporter.report(log, compilation.graph, config.theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
         synchronousResult
       }
@@ -338,7 +338,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams)
                                        : CompletableFuture[ScalacOptionsResult] = {
 
-    io.println("**> buildTargetScalacOptions")
+    log.info("**> buildTargetScalacOptions")
 
     val result = for {
       struct  <- structure
@@ -471,7 +471,7 @@ object FuryBuildServer {
     private def info(message: UserMsg)(implicit theme: Theme) =
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
-    override def report(io: Io, graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
+    override def report(io: Log, graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
       implicit val t = theme
       multiplexer.stream(50, Some(Tick)).foreach {
         case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")

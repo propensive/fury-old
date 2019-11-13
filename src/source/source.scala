@@ -41,7 +41,7 @@ object SourceCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Io.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -64,7 +64,7 @@ object SourceCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -72,11 +72,11 @@ object SourceCli {
       table   <- ~Tables(config).show(Tables(config).sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       
-      _       <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
-                     project, module), noTime = true))
+      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+                     project, module)))
 
-      _       <- ~io.println(table.mkString("\n"), noTime = true)
-    } yield io.await()
+      _       <- ~log.println(table.mkString("\n"))
+    } yield log.await()
   }
 
   def remove(ctx: Context): Try[ExitStatus] = {
@@ -85,7 +85,7 @@ object SourceCli {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
       cli         <- cli.hint(ForceArg)
       invoc       <- cli.read()
-      io          <- invoc.io()
+      log         <- invoc.logger()
       sourceArg   <- invoc(SourceArg)
       source      <- ~Source.unapply(sourceArg)
       project     <- optProject.ascribe(UnspecifiedProject())
@@ -96,12 +96,12 @@ object SourceCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id,
                          module.id))(_(_) --= sourceToDel)
       
-      _           <- ~Layer.save(io, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout, cli.installation)
 
-      _           <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
+      _           <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, module.ref(project), layout,
                          cli.installation, false))
 
-    } yield io.await()
+    } yield log.await()
   }
 
   def add(ctx: Context): Try[ExitStatus] = {
@@ -110,7 +110,7 @@ object SourceCli {
       repos      <- defaultSchema.map(_.repos)
 
       extSrcs    <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sourceCandidates(Io.silent(config), layout, false) { n =>
+                     repos.map(_.sourceCandidates(Log.silent(config), layout, false) { n =>
                        n.endsWith(".scala") || n.endsWith(".java")
                      })
                    }.sequence.map(_.flatten)
@@ -123,7 +123,7 @@ object SourceCli {
 
       cli        <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
       invoc      <- cli.read()
-      io         <- invoc.io()
+      log        <- invoc.logger()
       project    <- optProject.ascribe(UnspecifiedProject())
       module     <- optModule.ascribe(UnspecifiedModule())
       sourceArg  <- invoc(SourceArg)
@@ -132,11 +132,11 @@ object SourceCli {
       layer      <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, 
                         module.id))(_(_) ++= source)
       
-      _          <- ~Layer.save(io, layer, layout, cli.installation)
+      _          <- ~Layer.save(log, layer, layout, cli.installation)
 
-      _          <- ~optSchema.foreach(Compilation.asyncCompilation(io, _, module.ref(project), layout,
+      _          <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, module.ref(project), layout,
                         cli.installation, false))
 
-    } yield io.await()
+    } yield log.await()
   }
 }
