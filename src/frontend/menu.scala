@@ -36,9 +36,9 @@ object FuryMenu {
             Action('remove, msg"remove a binary dependency from the module", BinaryCli.remove),
             Action('list, msg"list binary dependencies for the module", BinaryCli.list)
         ),
-        Menu('build, msg"perform build actions", BuildCli.context, 'compile)(
+        Menu('build, msg"perform build actions", BuildCli.context, 'run)(
             Action('classpath, msg"show a classpath for a module", BuildCli.classpath),
-            Action('compile, msg"compile a module", BuildCli.compile(None, None)),
+            Action('run, msg"compile a module", BuildCli.compile(None, None)),
             Action('describe, msg"describe the build for a module", BuildCli.describe),
             Action('save, msg"save a JAR file", BuildCli.save),
             Action('native, msg"build a native executable using GraalVM", BuildCli.native)
