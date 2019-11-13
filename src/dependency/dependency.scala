@@ -68,7 +68,7 @@ object DependencyCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -91,7 +91,7 @@ object DependencyCli {
       cli       <- cli.hint(ForceArg)
       cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       https     <- ~invoc(HttpsArg).isSuccess
       linkArg   <- invoc(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
@@ -121,7 +121,7 @@ object DependencyCli {
       cli              <- cli.hint(LinkArg, allModules)
       cli              <- cli.hint(IntransitiveArg)
       invoc            <- cli.read()
-      io               <- invoc.io()
+      io               <- invoc.logger()
       project          <- optProject.ascribe(UnspecifiedProject())
       module           <- optModule.ascribe(UnspecifiedModule())
       intransitive     <- ~invoc(IntransitiveArg).isSuccess
@@ -179,7 +179,7 @@ object EnvCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -201,7 +201,7 @@ object EnvCli {
       cli       <- cli.hint(EnvArg, optModule.to[List].flatMap(_.environment.to[List]))
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       envArg    <- invoc(EnvArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
@@ -224,7 +224,7 @@ object EnvCli {
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
       invoc           <- cli.read()
-      io              <- invoc.io()
+      io              <- invoc.logger()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       envArg          <- invoc(EnvArg)
@@ -282,7 +282,7 @@ object PermissionCli {
       cli             <- cli.hint(PermissionTargetArg)
       cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
       invoc           <- cli.read()
-      io              <- invoc.io()
+      io              <- invoc.logger()
       scopeId         =  invoc(ScopeArg).getOrElse(ScopeId.Project)
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
@@ -310,7 +310,7 @@ object PermissionCli {
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       cli           <- cli.hint(ForceArg)
       invoc         <- cli.read()
-      io            <- invoc.io()
+      io            <- invoc.logger()
       permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
@@ -327,7 +327,7 @@ object PermissionCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -350,7 +350,7 @@ object PermissionCli {
       //TODO check if hints still work
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       invoc         <- cli.read()
-      io            <- invoc.io()
+      io            <- invoc.logger()
       scopeId       <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
@@ -406,7 +406,7 @@ object PropertyCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -428,7 +428,7 @@ object PropertyCli {
       cli       <- cli.hint(PropArg, optModule.to[List].flatMap(_.properties.to[List]))
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       propArg   <- invoc(PropArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
@@ -449,7 +449,7 @@ object PropertyCli {
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()
-      io              <- invoc.io()
+      io              <- invoc.logger()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       propArg         <- invoc(PropArg)

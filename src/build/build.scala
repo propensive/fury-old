@@ -42,7 +42,7 @@ object ConfigCli {
       cli      <- cli.hint(PipeliningArg, List("on", "off"))
       cli      <- cli.hint(ServiceArg, List("furore.dev"))
       invoc    <- cli.read()
-      io       <- invoc.io()
+      io       <- invoc.logger()
       newTheme <- ~invoc(ThemeArg).toOption
       timestamps <- ~invoc(TimestampsArg).toOption
       pipelining <- ~invoc(PipeliningArg).toOption
@@ -69,7 +69,7 @@ object AliasCli {
     for {
       cli   <- cli.hint(RawArg)
       invoc <- cli.read()
-      io    <- invoc.io()
+      io    <- invoc.logger()
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
@@ -83,7 +83,7 @@ object AliasCli {
     for {
       cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
       invoc      <- cli.read()
-      io         <- invoc.io()
+      io         <- invoc.logger()
       aliasArg   <- invoc(AliasArg)
       aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
       layer      <- Lenses.updateSchemas(None, layer, true) { s => Lenses.layer.aliases } (_(_) --= aliasToDel)
@@ -110,7 +110,7 @@ object AliasCli {
       
       cli              <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       invoc            <- cli.read()
-      io               <- invoc.io()
+      io               <- invoc.logger()
       moduleArg        <- invoc(ModuleArg)
       project          <- optProject.ascribe(UnspecifiedProject())
       module           <- project.modules.findBy(moduleArg)
@@ -164,7 +164,7 @@ object BuildCli {
   def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
-      io    <- invoc.io()
+      io    <- invoc.logger()
       _     <- ~io.println(str"""|     _____ 
                                  |    / ___/__ __ ____ __ __
                                  |   / __/ / // // ._// // /
@@ -205,7 +205,7 @@ object BuildCli {
       cli          <- cli.hint(ReporterArg, Reporter.all)
       cli          <- cli.hint(DebugArg, optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
       invoc        <- cli.read()
-      io           <- invoc.io()
+      io           <- invoc.logger()
       project      <- optProject.ascribe(UnspecifiedProject())
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
@@ -256,7 +256,7 @@ object BuildCli {
     layer  <- ~Layer.read(Log.silent(config), layout, cli.installation).toOption
     msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
     invoc  <- cli.read()
-    io     <- invoc.io()
+    io     <- invoc.logger()
     _      <- ~io.println(msg)
   } yield io.await()
 
@@ -276,7 +276,7 @@ object BuildCli {
       cli            <- cli.hint(FatJarArg)
       cli            <- cli.hint(ReporterArg, Reporter.all)
       invoc          <- cli.read()
-      io             <- invoc.io()
+      io             <- invoc.logger()
       dir            <- invoc(DirArg)
       https          <- ~invoc(HttpsArg).isSuccess
       project        <- optProject.ascribe(UnspecifiedProject())
@@ -336,7 +336,7 @@ object BuildCli {
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(DirArg)
       invoc        <- cli.read()
-      io           <- invoc.io()
+      io           <- invoc.logger()
       dir          <- invoc(DirArg)
       https        <- ~invoc(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
@@ -367,7 +367,7 @@ object BuildCli {
       optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
       invoc        <- cli.read()
-      io           <- invoc.io()
+      io           <- invoc.logger()
       https        <- ~invoc(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
@@ -392,7 +392,7 @@ object BuildCli {
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       invoc        <- cli.read()
-      io           <- invoc.io()
+      io           <- invoc.logger()
       https        <- ~invoc(HttpsArg).isSuccess
       optModuleId  <- ~invoc(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
@@ -441,7 +441,7 @@ object LayerCli {
     layout <- cli.newLayout
     cli    <- cli.hint(ForceArg)
     invoc  <- cli.read()
-    io     <- invoc.io()
+    io     <- invoc.logger()
     force  =  invoc(ForceArg).isSuccess
     _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
     _      <- layout.focusFile.mkParents()
@@ -459,7 +459,7 @@ object LayerCli {
     schema    <- layer.schemas.findBy(schemaArg)
     cli       <- cli.hint(RawArg)
     invoc     <- cli.read()
-    io        <- invoc.io()
+    io        <- invoc.logger()
     raw       <- ~invoc(RawArg).isSuccess
     https     <- ~invoc(HttpsArg).isSuccess
     projects  <- schema.allProjects(io, layout, cli.installation, https)
@@ -475,7 +475,7 @@ object LayerCli {
     schema    <- baseLayer.mainSchema
     cli       <- cli.hint(LayerArg, schema.importTree(Log.silent(config), layout, cli.installation, true).getOrElse(Nil))
     invoc     <- cli.read()
-    io        <- invoc.io()
+    io        <- invoc.logger()
     _         <- schema.importTree(io, layout, cli.installation, true)
     newPath   <- invoc(LayerArg)
     focus     <- Layer.readFocus(io, layout)
@@ -487,7 +487,7 @@ object LayerCli {
     cli      <- cli.hint(DirArg)
     cli      <- cli.hint(FileArg)
     invoc    <- cli.read()
-    io       <- invoc.io()
+    io       <- invoc.logger()
     pwd      <- cli.pwd
     file     <- invoc(FileArg).map(pwd.resolve(_))
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
@@ -500,7 +500,7 @@ object LayerCli {
     cli           <- cli.hint(DirArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent(cli.config), cli.config.service, cli.env, cli.installation).getOrElse(Nil))
     invoc         <- cli.read()
-    io            <- invoc.io()
+    io            <- invoc.logger()
     layerImport   <- invoc(ImportArg)
     followable    <- Try(Layer.follow(layerImport, cli.config).get)
     layerRef      <- Layer.resolve(io, followable, cli.env, cli.installation)
@@ -515,7 +515,7 @@ object LayerCli {
     layout        <- cli.layout
     layer         <- Layer.read(Log.silent(cli.config), layout, cli.installation)
     invoc         <- cli.read()
-    io            <- invoc.io()
+    io            <- invoc.logger()
     ref           <- Layer.share(io, layer, cli.env, cli.installation)
     _             <- ~io.println(str"fury://${ref.key}")
   } yield io.await()
@@ -525,7 +525,7 @@ object LayerCli {
     cli           <- cli.hint(FileArg)
     layer         <- Layer.read(Log.silent(cli.config), layout, cli.installation)
     invoc         <- cli.read()
-    io            <- invoc.io()
+    io            <- invoc.logger()
     pwd           <- cli.pwd
     destination   <- invoc(FileArg).map(pwd.resolve(_))
     _             <- Layer.export(io, layer, layout, cli.installation, destination)
@@ -563,7 +563,7 @@ object LayerCli {
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
 
       invoc         <- cli.read()
-      io            <- invoc.io()
+      io            <- invoc.logger()
       layerRef      <- ~followable.flatMap(Layer.resolve(io, _, cli.env, cli.installation).toOption)
       maybeLayer    <- ~layerRef.flatMap(Layer.read(io, _, layout, cli.installation).toOption)
       nameArg       <- invoc(ImportNameArg)
@@ -586,7 +586,7 @@ object LayerCli {
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       importArg <- invoc(ImportIdArg)
       schema    <- layer.schemas.findBy(schemaId)
@@ -606,7 +606,7 @@ object LayerCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       raw       <- ~invoc(RawArg).isSuccess
       https     <- ~invoc(HttpsArg).isSuccess
       rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, io, layout, cli.installation, https)) }

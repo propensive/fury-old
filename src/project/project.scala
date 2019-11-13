@@ -44,7 +44,7 @@ object ProjectCli {
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
       force     <- ~invoc(ForceArg).isSuccess
@@ -62,7 +62,7 @@ object ProjectCli {
     for {
       cli    <- cli.hint(RawArg)
       invoc  <- cli.read()
-      io     <- invoc.io()
+      io     <- invoc.logger()
       raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
@@ -83,7 +83,7 @@ object ProjectCli {
                             Log.silent(config), layout, cli.installation, false))
 
       invoc          <- cli.read()
-      io             <- invoc.io()
+      io             <- invoc.logger()
       compilerId     <- ~invoc(DefaultCompilerArg).toOption
       optCompilerRef <- compilerId.map(ModuleRef.parseFull(_, true)).to[List].sequence.map(_.headOption)
       projectId      <- invoc(ProjectNameArg)
@@ -108,7 +108,7 @@ object ProjectCli {
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
       force     <- ~invoc(ForceArg).isSuccess
@@ -138,7 +138,7 @@ object ProjectCli {
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
       cli            <- cli.hint(ProjectNameArg, projectId)
       invoc          <- cli.read()
-      io             <- invoc.io()
+      io             <- invoc.logger()
       projectId      <- projectId.ascribe(UnspecifiedProject())
       schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       project        <- schema.projects.findBy(projectId)

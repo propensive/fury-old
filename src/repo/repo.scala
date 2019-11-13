@@ -47,7 +47,7 @@ object RepoCli {
       schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(ctx.layer.main)
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
-      io        <- invoc.io()
+      io        <- invoc.logger()
       table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
       _         <- ~(if(!raw) io.println(Tables(config).contextString(layout.base, layer.showSchema, schema), noTime = true))
       _         <- ~io.println(UserMsg { theme => table.mkString("\n") }, noTime = true)
@@ -62,7 +62,7 @@ object RepoCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       newRepo   <- ~repo.copy(local = None)
@@ -82,7 +82,7 @@ object RepoCli {
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       dir       <- invoc(DirArg)
@@ -116,14 +116,14 @@ object RepoCli {
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(AllArg, List[String]())
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       all       <- ~invoc(AllArg).toOption
       
       optRepos  <- invoc(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                        schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
       repos     <- optRepos.map(schema.repo(_, layout)).sequence
-      io        <- invoc.io()
+      io        <- invoc.logger()
       msgs      <- repos.map(_.repo.update(layout).map(io.println(_))).sequence
       lens      <- ~Lenses.layer.repos(schema.id)
 
@@ -163,7 +163,7 @@ object RepoCli {
 
       cli            <- cli.hint(VersionArg, versions)
       invoc          <- cli.read()
-      io             <- invoc.io()
+      io             <- invoc.logger()
       optSchemaArg   <- ~invoc(SchemaArg).toOption
       schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
@@ -205,7 +205,7 @@ object RepoCli {
       versions    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
       cli         <- cli.hint(VersionArg, versions.flatten)
       invoc       <- cli.read()
-      io          <- invoc.io()
+      io          <- invoc.logger()
       optSchemaId <- ~invoc(SchemaArg).toOption
       schemaArg   <- ~optSchemaId.getOrElse(layer.main)
       schema      <- layer.schemas.findBy(schemaArg)
@@ -234,7 +234,7 @@ object RepoCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)

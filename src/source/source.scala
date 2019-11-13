@@ -64,7 +64,7 @@ object SourceCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -85,7 +85,7 @@ object SourceCli {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
       cli         <- cli.hint(ForceArg)
       invoc       <- cli.read()
-      io          <- invoc.io()
+      io          <- invoc.logger()
       sourceArg   <- invoc(SourceArg)
       source      <- ~Source.unapply(sourceArg)
       project     <- optProject.ascribe(UnspecifiedProject())
@@ -123,7 +123,7 @@ object SourceCli {
 
       cli        <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
       invoc      <- cli.read()
-      io         <- invoc.io()
+      io         <- invoc.logger()
       project    <- optProject.ascribe(UnspecifiedProject())
       module     <- optModule.ascribe(UnspecifiedModule())
       sourceArg  <- invoc(SourceArg)

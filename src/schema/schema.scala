@@ -41,7 +41,7 @@ object SchemaCli {
     for {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       invoc    <- cli.read()
-      io       <- invoc.io()
+      io       <- invoc.logger()
       schemaId <- invoc(SchemaArg)
       _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
@@ -58,7 +58,7 @@ object SchemaCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       raw       <- ~invoc(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
       table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
@@ -82,7 +82,7 @@ object SchemaCli {
       cli       <- ctx.cli.hint(CompareArg, ctx.layer.schemas.map(_.id))
       cli       <- cli.hint(RawArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       raw       <- ~invoc(RawArg).isSuccess
       schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
@@ -101,7 +101,7 @@ object SchemaCli {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli      <- cli.hint(SchemaNameArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      io       <- invoc.logger()
       newName  <- invoc(SchemaNameArg)
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
@@ -119,7 +119,7 @@ object SchemaCli {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(SchemaNameArg)
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       name      <- invoc(SchemaNameArg)
       schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
@@ -136,7 +136,7 @@ object SchemaCli {
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       invoc    <- cli.read()
-      io       <- invoc.io()
+      io       <- invoc.logger()
       schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
       lens     <- ~Lenses.layer.schemas

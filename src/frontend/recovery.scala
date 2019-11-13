@@ -138,7 +138,7 @@ You can grant these permissions with,
           val result = for {
             layout <- cli.layout
             invoc  <- cli.read()
-            io     <- invoc.io()
+            io     <- invoc.logger()
             _      <- ~layout.errorLogfile.mkParents
             _      <- ~layout.errorLogfile.writeSync(errorString)
             _      <- ~io.await()

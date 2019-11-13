@@ -143,7 +143,7 @@ object FuryMenu {
   def help(cli: Cli[CliParam[_]]): Try[ExitStatus] =
     for {
       invoc <- cli.read()
-      io    <- invoc.io()
+      io    <- invoc.logger()
       _     <- ~io.println(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:

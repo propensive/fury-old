@@ -141,7 +141,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
 
   class Invocation private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
-    def io(): Try[Log] = Success(new Log(output, config))
+    def logger(): Try[Log] = Success(new Log(output, config))
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 

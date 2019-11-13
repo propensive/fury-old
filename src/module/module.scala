@@ -59,7 +59,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      io       <- invoc.logger()
       project  <- optProject.ascribe(UnspecifiedProject())
       moduleId <- ~invoc(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
@@ -77,7 +77,7 @@ object ModuleCli {
       project <- optProject.ascribe(UnspecifiedProject())
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
 
@@ -115,7 +115,7 @@ object ModuleCli {
                         }
 
       invoc          <- cli.read()
-      io             <- invoc.io()
+      io             <- invoc.logger()
       project        <- optProject.ascribe(UnspecifiedProject())
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
@@ -171,7 +171,7 @@ object ModuleCli {
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      io       <- invoc.logger()
       force    <- ~invoc(ForceArg).isSuccess
       moduleId <- invoc(ModuleArg)
       project  <- optProject.ascribe(UnspecifiedProject())
@@ -225,7 +225,7 @@ object ModuleCli {
 
       cli         <- cli.hint(ForceArg)
       invoc       <- cli.read()
-      io          <- invoc.io()
+      io          <- invoc.logger()
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
@@ -284,7 +284,7 @@ object BinaryCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -305,7 +305,7 @@ object BinaryCli {
       cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
       cli         <- cli.hint(ForceArg)
       invoc       <- cli.read()
-      io          <- invoc.io()
+      io          <- invoc.logger()
       binaryArg   <- invoc(BinaryArg)
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
@@ -334,7 +334,7 @@ object BinaryCli {
       cli       <- cli.hint(BinaryArg)
       cli       <- cli.hint(BinaryRepoArg, List(RepoId("central")))
       invoc     <- cli.read()
-      io        <- invoc.io()
+      io        <- invoc.logger()
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
       binaryArg <- invoc(BinaryArg)
@@ -377,7 +377,7 @@ object ParamCli {
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -398,7 +398,7 @@ object ParamCli {
       cli      <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
-      io       <- invoc.io()
+      io       <- invoc.logger()
       paramArg <- invoc(ParamArg)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- optModule.ascribe(UnspecifiedModule())
@@ -421,7 +421,7 @@ object ParamCli {
     for {
       cli     <- cli.hint(ParamArg)
       invoc   <- cli.read()
-      io      <- invoc.io()
+      io      <- invoc.logger()
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       param   <- invoc(ParamArg)
