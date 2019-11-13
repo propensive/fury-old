@@ -86,7 +86,10 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
     client.compilation = currentCompilation
     client.targetId = targetId
     client.layout = layout
-    client.multiplexer = currentMultiplexer
+    if(client.isInstanceOf[DisplayingClient]){
+      //FIXME
+      client.asInstanceOf[DisplayingClient].multiplexer = currentMultiplexer
+    }
     client.connection = this
     action(server)
   } catch {
@@ -327,22 +330,31 @@ sealed abstract class FuryBuildClient extends BuildClient {
   var targetId: TargetId = _
   var layout: Layout = _
   var connection: BspConnection = _
-  //TODO move to DisplayingClient
-  var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
 
   private var eventQueue: Queue[(ModuleRef, CompileEvent)] = Queue.empty
   private val eventLock = new Object()
 
-  def record(moduleRef: ModuleRef)(compileEvent: CompileEvent): Unit = eventLock.synchronized {
+  protected def record(moduleRef: ModuleRef)(compileEvent: CompileEvent): Unit = eventLock.synchronized {
     eventQueue = eventQueue.enqueue(moduleRef -> compileEvent)
-    multiplexer.foreach{ mp =>
-      eventQueue.foreach { case (moduleRef, compileEvent) => mp(moduleRef) = compileEvent }
-      eventQueue = Queue.empty
-    }
   }
+
+  def replay(f: (ModuleRef, CompileEvent) => Unit): Unit = eventLock.synchronized {
+    eventQueue.foreach(f.tupled)
+    eventQueue = Queue.empty
+  }
+
 }
 
 class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
+
+  var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
+
+  override protected def record(moduleRef: ModuleRef)(compileEvent: CompileEvent): Unit = {
+    super.record(moduleRef)(compileEvent)
+    multiplexer.foreach{ mp =>
+      replay { case (moduleRef, compileEvent) => mp(moduleRef) = compileEvent }
+    }
+  }
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
     record(targetId.ref)(Print(targetId.ref, params.getMessage))
