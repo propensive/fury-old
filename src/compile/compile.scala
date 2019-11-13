@@ -149,13 +149,12 @@ object Compilation {
                     schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
-                    installation: Installation,
                     https: Boolean)
   : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(log, layout, installation, https)
+    hierarchy   <- schema.hierarchy(log, layout, https)
     universe    <- hierarchy.universe
-    policy      <- Policy.read(log, installation)
+    policy      <- Policy.read(log)
     compilation <- fromUniverse(log, universe, ref, policy, layout)
     _           <- compilation.generateFiles(log, layout)
   } yield compilation
@@ -189,11 +188,10 @@ object Compilation {
                        schema: Schema,
                        ref: ModuleRef,
                        layout: Layout,
-                       installation: Installation,
                        https: Boolean)
   : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(log, schema, ref, layout, installation, https))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(log, schema, ref, layout, https))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -207,9 +205,8 @@ object Compilation {
                       schema: Schema,
                       ref: ModuleRef,
                       layout: Layout,
-                      installation: Installation,
                       https: Boolean): Try[Compilation] = {
-    val compilation = mkCompilation(log, schema, ref, layout, installation, https)
+    val compilation = mkCompilation(log, schema, ref, layout, https)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
@@ -225,7 +222,7 @@ class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compila
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val repos = compilation.checkouts.map { checkout => (checkout.path(layout).value, checkout.repoId)}.toMap
+    val repos = compilation.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
@@ -249,7 +246,7 @@ class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compila
 
       val (repo, filePath) = repos.find { case (k, v) => fileName.startsWith(k) }.map {
         case (k, v) => (v, Path(fileName.drop(k.length + 1)))
-      }.getOrElse((RepoId("local"), Path(fileName.drop(layout.base.value.length + 1))))
+      }.getOrElse((RepoId("local"), Path(fileName.drop(layout.baseDir.value.length + 1))))
 
       import escritoire.Ansi
 
@@ -407,7 +404,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       manifest          = Manifest(bins.map(_.name), module.main)
       dest             <- destination.directory
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
+      _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
       else Success(())

@@ -29,13 +29,12 @@ import Lenses._
 
 object RepoCli {
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
+  case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer)
   
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- ~cli.config
-    layer  <- Layer.read(Log.silent(config), layout, cli.installation)
-  } yield Context(cli, layout, config, layer)
+    layer  <- Layer.read(Log.silent, layout)
+  } yield Context(cli, layout, layer)
 
   def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -48,8 +47,8 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       log       <- invoc.logger()
-      table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
+      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -68,7 +67,7 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -103,7 +102,7 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = Some(absPath))
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -136,7 +135,7 @@ object RepoCli {
                      case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
                    }
 
-      _         <- ~Layer.save(log, newLayer, layout, cli.installation)
+      _         <- ~Layer.save(log, newLayer, layout)
 
       _         <- ~newRepos.foreach { case (newRepo, _) =>
                      log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
@@ -187,7 +186,7 @@ object RepoCli {
       sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
-      _              <- ~Layer.save(log, layer, layout, cli.installation)
+      _              <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -222,7 +221,7 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      _           <- ~Layer.save(log, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -239,7 +238,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 }
