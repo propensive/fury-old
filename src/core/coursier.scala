@@ -35,9 +35,8 @@ object Coursier {
     
     val dependency = Dependency(
       module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
-      version = binary.version,
-      exclusions = if(binary.group == "org.scala-lang") Set.empty else ScalaCore
-    )
+      version = binary.version
+    ).withExclusions(if(binary.group == "org.scala-lang") Set.empty else ScalaCore)
 
     coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id) match {
       case Left(err) => Failure(InvalidValue(binary.binRepo.id))
