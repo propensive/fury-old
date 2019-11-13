@@ -408,7 +408,7 @@ object BuildCli {
     } yield io.await()
   }
 
-  private[this] def compileOnce(io: Log,
+  private[this] def compileOnce(log: Log,
                   compilation: Compilation,
                   schema: Schema,
                   moduleRef: ModuleRef,
@@ -420,16 +420,16 @@ object BuildCli {
                   theme: Theme,
                   https: Boolean): Try[Future[CompileResult]] = {
     for {
-      _            <- compilation.checkoutAll(io, layout, https)
+      _            <- compilation.checkoutAll(log, layout, https)
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-      val future = compilation.compile(io, moduleRef, multiplexer, Map(), layout,
+      val future = compilation.compile(log, moduleRef, multiplexer, Map(), layout,
         globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes
       }
-      reporter.report(io, compilation.graph, theme, multiplexer)
+      reporter.report(log, compilation.graph, theme, multiplexer)
       future
     }
   }

@@ -44,7 +44,7 @@ object Graph {
   case object Executing                          extends CompileState
 
   private case class GraphState(changed: Boolean,
-                        io: Log,
+                        log: Log,
                         graph: Map[ModuleRef, Set[ModuleRef]],
                         stream: Iterator[CompileEvent],
                         compilationLogs: Map[ModuleRef, CompilationInfo]) {
@@ -59,14 +59,14 @@ object Graph {
   private def live(graphState: GraphState)(implicit theme: Theme): Unit = {
     import graphState._
 
-    io.print(Ansi.hideCursor())
+    log.print(Ansi.hideCursor())
     if (stream.hasNext) {
       val newState = stream.next match {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
           if(changed || compilationLogs.exists(_._2.state == Executing)) {
-            io.println(next, noTime = true)
-            io.println(Ansi.up(graph.size + 1)(), noTime = true)
+            log.println(next, noTime = true)
+            log.println(Ansi.up(graph.size + 1)(), noTime = true)
           }
           graphState.copy(changed = false)
 
@@ -93,18 +93,18 @@ object Graph {
       }
       live(newState)
     } else {
-      io.print(Ansi.showCursor())
+      log.print(Ansi.showCursor())
       val output = compilationLogs.collect {
         case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
 
-      io.println(Ansi.down(graph.size + 1)(), noTime = true)
+      log.println(Ansi.down(graph.size + 1)(), noTime = true)
       
       compilationLogs.foreach { case (ref, info) =>
         info match {
           case CompilationInfo(Failed(_) | Successful(_), out) if !out.isEmpty =>
-            io.println(UserMsg { theme =>
+            log.println(UserMsg { theme =>
               List(
                 msg"Output from ",
                 msg"${ref.projectId}",
@@ -112,7 +112,7 @@ object Graph {
                 msg"${ref.moduleId}"
               ).map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
-            out.foreach { msg => io.println(msg.msg) }
+            out.foreach { msg => log.println(msg.msg) }
           case _ => ()
         }
       }
@@ -120,12 +120,12 @@ object Graph {
   }
 
 
-  def live(io: Log,
+  def live(log: Log,
            graph: Map[ModuleRef, Set[ModuleRef]],
            stream: Iterator[CompileEvent])
           (implicit theme: Theme)
           : Unit = {
-    live(GraphState(changed = true, io, graph, stream, Map()))
+    live(GraphState(changed = true, log, graph, stream, Map()))
   }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],

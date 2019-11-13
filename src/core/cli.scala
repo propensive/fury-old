@@ -151,10 +151,10 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
     Ogdl.read[Config](installation.userConfig, identity(_)).toOption.getOrElse(Config())
 
   def read(): Try[Invocation] = {
-    val io: Log = new Log(output, config)
+    val log: Log = new Log(output, config)
     if(completion) {
-      io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
-      io.await()
+      log.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
+      log.await()
       Failure(EarlyCompletions())
     } else Success(new Invocation())
   }
@@ -203,9 +203,9 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
         case act: Action[_]   => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val io = new Log(output, config)
-      io.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
-      io.await()
+      val log = new Log(output, config)
+      log.println(optCompletions.flatMap(_.output).mkString("\n"), noTime = true)
+      log.await()
       Failure(EarlyCompletions())
     }.getOrElse {
       args.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }

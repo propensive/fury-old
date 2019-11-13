@@ -154,10 +154,10 @@ object ModuleCli {
     } yield io.await()
   }
 
-  private def resolveToCompiler(io: Log, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
+  private def resolveToCompiler(log: Log, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
     project  <- ctx.optProject.ascribe(UnspecifiedProject())
     moduleRef      <- ModuleRef.parse(project.id, reference, true)
-    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(io, ctx.layout, installation, https = true))
+    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(log, ctx.layout, installation, https = true))
     _      <-   if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
