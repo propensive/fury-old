@@ -154,7 +154,7 @@ object Compilation {
 
     hierarchy   <- schema.hierarchy(log, layout, https)
     universe    <- hierarchy.universe
-    policy      <- ~Policy.read(log)
+    policy      <- Policy.read(log)
     compilation <- fromUniverse(log, universe, ref, policy, layout)
     _           <- compilation.generateFiles(log, layout)
   } yield compilation

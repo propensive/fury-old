@@ -32,8 +32,9 @@ object SchemaCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    layer  <- Layer.read(Log.silent, layout)
-  } yield SchemaCtx(cli, layout, layer)
+    config <- ~cli.config
+    layer  <- Layer.read(Log.silent(config), layout)
+  } yield SchemaCtx(cli, layout, config, layer)
 
   def select(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._

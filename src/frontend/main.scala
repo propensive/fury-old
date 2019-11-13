@@ -36,7 +36,8 @@ object Main {
 
     val layer = for {
       layout <- cli.layout
-      layer  <- Layer.read(Log.silent, layout)
+      config <- ~cli.config
+      layer  <- Layer.read(Log.silent(config), layout)
     } yield layer
 
     val actions = layer.toOption

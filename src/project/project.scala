@@ -31,7 +31,8 @@ object ProjectCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    config       <- ~cli.config
+    layer        <- Layer.read(Log.silent(config), layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     optSchemaArg <- ~cli.peek(SchemaArg)
   } yield new MenuContext(cli, layout, layer, optSchemaArg)
@@ -80,7 +81,7 @@ object ProjectCli {
       dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
-                            Log.silent, layout, false))
+                            Log.silent(config), layout, false))
 
       invoc          <- cli.read()
       log            <- invoc.logger()
@@ -131,7 +132,7 @@ object ProjectCli {
       cli            <- cli.hint(DescriptionArg)
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
-                            _.compilerRefs(Log.silent, layout, false)))
+                            _.compilerRefs(Log.silent(config), layout, false)))
       
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))

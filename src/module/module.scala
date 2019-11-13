@@ -42,7 +42,8 @@ object ModuleCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    config       <- ~cli.config
+    layer        <- Layer.read(Log.silent(config), layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -99,7 +100,7 @@ object ModuleCli {
       cli            <- cli.hint(HiddenArg, List("on", "off"))
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Log.silent, layout, true)))
+                            _.compilerRefs(Log.silent(config), layout, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -167,7 +168,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Log.silent, layout, true)))
+                      Log.silent(config), layout, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -199,7 +200,7 @@ object ModuleCli {
       cli         <- cli.hint(HiddenArg, List("on", "off"))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Log.silent, layout, true)))
+                         _.compilerRefs(Log.silent(config), layout, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))

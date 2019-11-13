@@ -282,7 +282,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
     val bspTargets = compileParams.getTargets.asScala
     val allResults = bspTargets.traverse { bspTargetId =>
       for{
-        globalPolicy <- ~Policy.read(log)
+        globalPolicy <- Policy.read(log)
         struct <- structure
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)

@@ -43,7 +43,8 @@ object DependencyCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout       <- cli.layout
-      layer        <- Layer.read(Log.silent, layout)
+      config       <- ~cli.config
+      layer        <- Layer.read(Log.silent(config), layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
       schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -113,7 +114,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
@@ -154,7 +155,8 @@ object EnvCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    config       <- ~cli.config
+    layer        <- Layer.read(Log.silent(config), layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -215,7 +217,7 @@ object EnvCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
@@ -249,7 +251,8 @@ object PermissionCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    config       <- ~cli.config
+    layer        <- Layer.read(Log.silent(config), layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -288,7 +291,7 @@ object PermissionCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
       _               <- Layer.save(log, layer, layout)
-      policy          <- ~Policy.read(log)
+      policy          <- Policy.read(log)
       newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
       _               <- Policy.save(log, newPolicy)
     } yield {
@@ -350,7 +353,7 @@ object PermissionCli {
       module        <- optModule.ascribe(UnspecifiedModule())
       permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
-      policy        <- ~Policy.read(log)
+      policy        <- Policy.read(log)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
       _             <- Policy.save(log, newPolicy)
     } yield log.await()
@@ -375,7 +378,8 @@ object PropertyCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    config       <- ~cli.config
+    layer        <- Layer.read(Log.silent(config), layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -437,7 +441,7 @@ object PropertyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()
