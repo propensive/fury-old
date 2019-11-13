@@ -259,6 +259,7 @@ object BuildCli {
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
     tmpFile       <- cli.installation.layersPath.mkTempFile()
     file          <- Shell(cli.env).ipfs.get(latestRef, tmpFile)
+    _             <- tmpFile.delete()
     _             <- TarGz.extract(log, file, cli.installation.upgradeDir)
   } yield log.await()
 
