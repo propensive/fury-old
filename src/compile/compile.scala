@@ -193,9 +193,6 @@ object BspConnectionManager {
 object Compilation {
   private val compilationThreadPool = Executors.newCachedThreadPool(Threads.factory("bsp-launcher", daemon = true))
 
-  //FIXME
-  var receiverClient: Option[BuildClient] = None
-
   val bspPool: Pool[Path, BspConnection] = new SelfCleaningPool[Path, BspConnection](10000L) {
 
     def destroy(value: BspConnection): Unit = value.shutdown()
@@ -213,7 +210,7 @@ object Compilation {
       val log = new java.io.PrintWriter(bspTraceBuffer, true)
       val handle = BspConnectionManager.bloopLauncher(log)
       BspConnectionManager.HandleHandler.handle(handle)
-      val client = receiverClient.fold[FuryBuildClient](
+      val client = Bsp.receiverClient.fold[FuryBuildClient](
         new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
       ){
         rec => new ForwardingClient(rec)

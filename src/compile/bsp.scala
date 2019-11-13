@@ -41,6 +41,11 @@ object Bsp {
 
   val bspVersion = "2.0.0-M4"
 
+  //FIXME it is assumed that the BSP server will only have one client ever
+  private var client: Option[BuildClient] = None
+
+  def receiverClient: Option[BuildClient] = client
+
   def createConfig(layout: Layout): Try[Unit] = {
     val bspDir    = layout.bspDir.extant()
     val bspConfig = bspDir / "fury.json"
@@ -96,12 +101,15 @@ object Bsp {
       .setOutput(out)
       .create()
 
-    val client = launcher.getRemoteProxy
-    server.onConnectWithClient(client)
-    Compilation.receiverClient = Some(client)
+    client = Some(launcher.getRemoteProxy)
+    server.onConnectWithClient(client.get)
 
     val listening = launcher.startListening()
-    cancel.cancel = () => listening.cancel(true) // YOLO
+    cancel.cancel = () => {
+      // YOLO
+      listening.cancel(true)
+      client = None
+    }
     listening
   }
 
