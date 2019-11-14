@@ -40,7 +40,7 @@ object Prompt {
   }
 
   def empty(implicit theme: Theme) = {
-    val config = Installation.config()
+    val config = ManagedConfig()
     msg" ${escape(config.theme.gray)}[${escape(config.theme.schema)}+${escape(config.theme.gray)}]${escape(
         Ansi.reset)}".string(theme)
   }

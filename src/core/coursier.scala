@@ -51,7 +51,7 @@ object Coursier {
     }
   }
   
-  def fetch(log: Log, binary: Binary): Try[List[Path]] = {
+  def fetch(binary: Binary)(implicit log: Log): Try[List[Path]] = {
     val dir = Installation.binsDir / binary.group / binary.artifact / binary.version
     if(dir.exists) Success(dir.children.map(dir / _))
     else {

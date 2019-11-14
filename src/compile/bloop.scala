@@ -34,32 +34,23 @@ object Bloop {
   def clean(layout: Layout): Try[Boolean] =
     layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
 
-  def generateFiles(log: Log, compilation: Compilation, layout: Layout): Try[Iterable[Path]] =
+  def generateFiles(compilation: Compilation, layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     new CollOps(compilation.targets.values.map { target =>
       for {
         path       <- layout.bloopConfig(target.id).mkParents()
-        jsonString <- makeConfig(log, target, compilation, layout)
+        jsonString <- makeConfig(target, compilation, layout)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(log: Log, target: Target, compilation: Compilation, layout: Layout): Try[String] = for {
+  private def makeConfig(target: Target, compilation: Compilation, layout: Layout)(implicit log: Log): Try[String] = for {
     _         <- ~compilation.writePlugin(target.ref, layout)
     classpath <- ~compilation.classpath(target.ref, layout)
     compilerClasspath <- ~target.compiler.map(_.ref).map(compilation.classpath(_, layout)).getOrElse(classpath)
     bloopSpec = target.compiler
-      .map(_.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")))
-    params <- ~compilation.allParams(log, target.ref, layout)
-    compilerOpt = (bloopSpec.map { spec =>
-                    Json.of(
-                      organization = spec.org,
-                      name = spec.name,
-                      version = spec.version,
-                      options = params,
-                      jars = compilerClasspath.map(_.value)
-                    )
-                  })
-  } yield Json.of(
+      .map(_.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")))
+    params <- ~compilation.allParams(target.ref, layout)
+  } yield Json(
     version = "1.0.0",
     project = Json.of(
       scala = compilerOpt,

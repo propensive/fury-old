@@ -44,10 +44,9 @@ object Graph {
   case object Executing                          extends CompileState
 
   private case class GraphState(changed: Boolean,
-                        log: Log,
                         graph: Map[ModuleRef, Set[ModuleRef]],
                         stream: Iterator[CompileEvent],
-                        compilationLogs: Map[ModuleRef, CompilationInfo]) {
+                        compilationLogs: Map[ModuleRef, CompilationInfo])(implicit log: Log) {
 
     def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
       val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), messages = List.empty))
@@ -56,7 +55,7 @@ object Graph {
   }
 
   @tailrec
-  private def live(graphState: GraphState)(implicit theme: Theme): Unit = {
+  private def live(graphState: GraphState)(implicit theme: Theme, log: Log): Unit = {
     import graphState._
 
     log.print(Ansi.hideCursor())
@@ -120,12 +119,11 @@ object Graph {
   }
 
 
-  def live(log: Log,
-           graph: Map[ModuleRef, Set[ModuleRef]],
+  def live(graph: Map[ModuleRef, Set[ModuleRef]],
            stream: Iterator[CompileEvent])
-          (implicit theme: Theme)
+          (implicit theme: Theme, log: Log)
           : Unit = {
-    live(GraphState(changed = true, log, graph, stream, Map()))
+    live(GraphState(changed = true, graph, stream, Map()))
   }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],

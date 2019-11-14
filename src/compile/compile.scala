@@ -145,33 +145,32 @@ object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
-  def mkCompilation(log: Log,
-                    schema: Schema,
+  def mkCompilation(schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
-                    https: Boolean)
+                    https: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(log, layout, https)
+    hierarchy   <- schema.hierarchy(layout, https)
     universe    <- hierarchy.universe
-    policy      <- Policy.read(log)
-    compilation <- fromUniverse(log, universe, ref, policy, layout)
-    _           <- compilation.generateFiles(log, layout)
+    policy      <- Policy.read()
+    compilation <- fromUniverse(universe, ref, policy, layout)
+    _           <- compilation.generateFiles(layout)
   } yield compilation
 
-  private def fromUniverse(log: Log, universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout): Try[Compilation] = {
+  private def fromUniverse(universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout)(implicit log: Log): Try[Compilation] = {
     import universe._
     for {
-      target    <- makeTarget(log, ref, layout)
+      target    <- makeTarget(ref, layout)
       entity    <- entity(ref.projectId)
-      graph     <- dependencies(ref, layout).map(_.map(makeTarget(log, _, layout)).map { a =>
+      graph     <- dependencies(ref, layout).map(_.map(makeTarget(_, layout)).map { a =>
         a.map { dependencyTarget =>
           (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
         }
       }.sequence.map(_.toMap.updated(target.id, target.dependencies ++
         target.compiler.map(_.id)))).flatten
       targets   <- graph.keys.map { targetId =>
-        makeTarget(log, targetId.ref, layout).map(targetId.ref -> _)
+        makeTarget(targetId.ref, layout).map(targetId.ref -> _)
       }.sequence.map(_.toMap)
       permissions = targets.flatMap(_._2.permissions)
       _         <- policy.checkAll(permissions)
@@ -184,14 +183,13 @@ object Compilation {
         targets ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), universe)
   }
 
-  def asyncCompilation(log: Log,
-                       schema: Schema,
+  def asyncCompilation(schema: Schema,
                        ref: ModuleRef,
                        layout: Layout,
-                       https: Boolean)
+                       https: Boolean)(implicit log: Log)
   : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(log, schema, ref, layout, https))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(schema, ref, layout, https))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -201,12 +199,11 @@ object Compilation {
     compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(log: Log,
-                      schema: Schema,
+  def syncCompilation(schema: Schema,
                       ref: ModuleRef,
                       layout: Layout,
-                      https: Boolean): Try[Compilation] = {
-    val compilation = mkCompilation(log, schema, ref, layout, https)
+                      https: Boolean)(implicit log: Log): Try[Compilation] = {
+    val compilation = mkCompilation(schema, ref, layout, https)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
@@ -342,7 +339,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(log: Log, targetId: TargetId, layout: Layout): Try[Unit] =
+  def bspUpdate(targetId: TargetId, layout: Layout)(implicit log: Log): Try[Unit] =
     Await.result(Compilation.bspPool.borrow(layout.baseDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         Try(server.workspaceBuildTargets.get)
@@ -351,8 +348,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
-  def checkoutAll(log: Log, layout: Layout, https: Boolean): Try[Unit] =
-    checkouts.traverse(_.get(log, layout, https)).map{ _ => ()}
+  def checkoutAll(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
+    checkouts.traverse(_.get(layout, https)).map{ _ => ()}
 
   def deepDependencies(targetId: TargetId): Set[TargetId] = {
     @tailrec
@@ -366,8 +363,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     flatten[TargetId](Set.empty, graph(_).to[Set], Set(targetId))
   }
 
-  def generateFiles(log: Log, layout: Layout): Try[Iterable[Path]] = synchronized {
-    Bloop.clean(layout).flatMap(Bloop.generateFiles(log, this, layout).waive)
+  def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
+    Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout).waive)
   }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
@@ -390,19 +387,18 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
   }
 
-  def saveNative(log: Log, ref: ModuleRef, dest: Path, layout: Layout, main: String): Try[Unit] =
+  def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: String)(implicit log: Log): Try[Unit] =
     for {
       dest <- dest.directory
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main)
     } yield ()
 
-  def saveJars(log: Log,
-               ref: ModuleRef,
+  def saveJars(ref: ModuleRef,
                srcs: Set[Path],
                destination: Path,
                layout: Layout,
-               fatJar: Boolean)
+               fatJar: Boolean)(implicit log: Log)
   : Try[Unit] = {
     val bins = allDependencies.flatMap(_.binaries)
     for {
@@ -428,7 +424,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
-  def allParams(log: Log, ref: ModuleRef, layout: Layout): List[String] = {
+  def allParams(ref: ModuleRef, layout: Layout)(implicit log: Log): List[String] = {
     def pluginParam(pluginTarget: Target): Parameter =
       Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
 
@@ -451,13 +447,12 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
-  def compileModule(log: Log,
-                    target: Target,
+  def compileModule(target: Target,
                     layout: Layout,
                     application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
-                    pipelining: Boolean)
-  : Future[CompileResult] = Future.fromTry {
+                    pipelining: Boolean)(implicit log: Log)
+  : Future[CompileResult] = {
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
@@ -498,20 +493,19 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
 
 
-  def compile(log: Log,
-              moduleRef: ModuleRef,
+  def compile(moduleRef: ModuleRef,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
-              pipelining: Boolean)
+              pipelining: Boolean)(implicit log: Log)
   : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
-      else compile(log, dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
+      else compile(dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -528,7 +522,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        compileModule(log, target, layout, target.kind == Application, multiplexer, pipelining).map {
+        compileModule(target, layout, target.kind == Application, multiplexer, pipelining).map {
           case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
             val classDirectories = compileResult.classDirectories
             val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0

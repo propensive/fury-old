@@ -32,45 +32,43 @@ import language.higherKinds
 object ConfigCli {
   case class Context(cli: Cli[CliParam[_]])
 
-  def context(cli: Cli[CliParam[_]]): Try[Context] = Try(new Context(cli))
+  def context(cli: Cli[CliParam[_]])(implicit log: Log): Try[Context] = Try(new Context(cli))
 
-  def set(ctx: Context): Try[ExitStatus] = {
+  def set(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli      <- cli.hint(ThemeArg, Theme.all)
-      cli      <- cli.hint(TimestampsArg, List("on", "off"))
-      cli      <- cli.hint(PipeliningArg, List("on", "off"))
-      cli      <- cli.hint(ServiceArg, List("furore.dev"))
-      invoc    <- cli.read()
-      log      <- invoc.logger()
-      newTheme <- ~invoc(ThemeArg).toOption
-      timestamps <- ~invoc(TimestampsArg).toOption
-      pipelining <- ~invoc(PipeliningArg).toOption
-      service    <- ~invoc(ServiceArg).toOption
-      config   <- ~Installation.config()
-      config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
-      config   <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
-      config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
-      config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
-      _        <- ~Ogdl.write(config, Installation.userConfig)
+      cli        <- cli.hint(ThemeArg, Theme.all)
+      cli        <- cli.hint(TimestampsArg, List("on", "off"))
+      cli        <- cli.hint(PipeliningArg, List("on", "off"))
+      cli        <- cli.hint(ServiceArg, List("furore.dev"))
+      call       <- cli.call()
+      newTheme   <- ~call(ThemeArg).toOption
+      timestamps <- ~call(TimestampsArg).toOption
+      pipelining <- ~call(PipeliningArg).toOption
+      service    <- ~call(ServiceArg).toOption
+      config     <- ~ManagedConfig()
+      config     <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
+      config     <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
+      config     <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
+      config     <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
+      _          <- ManagedConfig.write(config)
     } yield log.await()
   }
 }
 
 object AliasCli {
-  def context(cli: Cli[CliParam[_]]) =
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) =
     for {
       layout <- cli.layout
-      layer  <- Layer.read(Log.silent, layout)
+      layer  <- Layer.read(layout)
     } yield new MenuContext(cli, layout, layer)
 
-  def list(ctx: MenuContext): Try[ExitStatus] = {
+  def list(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli   <- cli.hint(RawArg)
-      invoc <- cli.read()
-      log   <- invoc.logger()
-      raw   <- ~invoc(RawArg).isSuccess
+      call  <- cli.call()
+      raw   <- ~call(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
       _     <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, true)))
@@ -78,20 +76,19 @@ object AliasCli {
     } yield log.await()
   }
 
-  def remove(ctx: MenuContext): Try[ExitStatus] = {
+  def remove(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
-      invoc      <- cli.read()
-      log        <- invoc.logger()
-      aliasArg   <- invoc(AliasArg)
+      call       <- cli.call()
+      aliasArg   <- call(AliasArg)
       aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
       layer      <- Lenses.updateSchemas(None, layer, true) { s => Lenses.layer.aliases } (_(_) --= aliasToDel)
-      _          <- ~Layer.save(log, layer, layout)
+      _          <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def add(ctx: MenuContext): Try[ExitStatus] = {
+  def add(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli              <- cli.hint(SchemaArg, layer.schemas)
@@ -109,29 +106,28 @@ object AliasCli {
                               optDefaultSchema.flatMap(_.projects.findBy(id).toOption) }.to[List].headOption
       
       cli              <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-      invoc            <- cli.read()
-      log              <- invoc.logger()
-      moduleArg        <- invoc(ModuleArg)
+      call             <- cli.call()
+      moduleArg        <- call(ModuleArg)
       project          <- optProject.ascribe(UnspecifiedProject())
       module           <- project.modules.findBy(moduleArg)
       moduleRef        <- ~module.ref(project)
-      aliasArg         <- invoc(AliasArg)
-      description      <- invoc(DescriptionArg)
+      aliasArg         <- call(AliasArg)
+      description      <- call(DescriptionArg)
       alias            <- ~Alias(aliasArg, description, optSchemaArg, moduleRef)
       layer            <- Lenses.updateSchemas(None, layer, true) { s => Lenses.layer.aliases } (_(_) += alias)
-      _                <- ~Layer.save(log, layer, layout)
+      _                <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 }
 
 object BuildCli {
 
-  def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
+  def context(cli: Cli[CliParam[_]])(implicit log: Log): Try[MenuContext] = for {
     layout <- cli.layout
-    layer  <- Layer.read(Log.silent, layout)
+    layer  <- Layer.read(layout)
   } yield new MenuContext(cli, layout, layer)
 
-  def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
+  def notImplemented(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = Success(Abort)
 
   def status: String = {
     val runtime = Runtime.getRuntime
@@ -158,10 +154,9 @@ object BuildCli {
     str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
   }.mkString("\n")
 
-  def about(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+  def about(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
     for {
-      invoc <- cli.read()
-      log   <- invoc.logger()
+      call  <- cli.call()
       _     <- ~log.println(str"""|     _____ 
                                  |    / ___/__ __ ____ __ __
                                  |   / __/ / // // ._// // /
@@ -185,7 +180,7 @@ object BuildCli {
     } yield log.await()
 
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
-             (ctx: MenuContext)
+             (ctx: MenuContext)(implicit log: Log)
              : Try[ExitStatus] = {
     import ctx._
     for {
@@ -201,18 +196,17 @@ object BuildCli {
       cli          <- cli.hint(WatchArg)
       cli          <- cli.hint(ReporterArg, Reporter.all)
       cli          <- cli.hint(DebugArg, optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
-      invoc        <- cli.read()
-      log          <- invoc.logger()
+      call         <- cli.call()
       project      <- optProject.ascribe(UnspecifiedProject())
-      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
+      optModuleId  <- ~call(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
-      https        <- ~invoc(HttpsArg).isSuccess
+      https        <- ~call(HttpsArg).isSuccess
       module       <- optModule.ascribe(UnspecifiedModule())
-      pipelining   <- ~invoc(PipeliningArg).toOption
-      globalPolicy <- Policy.read(log)
-      reporter     =  invoc(ReporterArg).toOption.getOrElse(GraphReporter)
-      watch        =  invoc(WatchArg).isSuccess
-      compilation  <- Compilation.syncCompilation(log, schema, module.ref(project), layout, https)
+      pipelining   <- ~call(PipeliningArg).toOption
+      globalPolicy <- Policy.read()
+      reporter     =  call(ReporterArg).toOption.getOrElse(GraphReporter)
+      watch        =  call(WatchArg).isSuccess
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
       watcher      =  new SourceWatcher(compilation.allSources)
       //_            =  watcher.directories.map(_.toString).foreach(s => log.info(str"$s"))
       _            =  if(watch) watcher.start()
@@ -226,8 +220,8 @@ object BuildCli {
           //log.info(str"Rebuild $cnt")
           cnt = cnt + 1
           watcher.clear()
-          compileOnce(log, compilation, schema, module.ref(project), layout,
-            globalPolicy, invoc.suffix, pipelining.getOrElse(Installation.config().pipelining),reporter, Installation.config().theme, https)
+          compileOnce(compilation, schema, module.ref(project), layout,
+            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
         }
       }.start()
       
@@ -238,7 +232,7 @@ object BuildCli {
     }
   }
 
-  def getPrompt(layer: Layer, theme: Theme): Try[String] = for {
+  def getPrompt(layer: Layer, theme: Theme)(implicit log: Log): Try[String] = for {
     schemaId     <- ~layer.main
     schema       <- layer.schemas.findBy(schemaId)
     optProjectId <- ~schema.main
@@ -247,26 +241,24 @@ object BuildCli {
     optModule    <- ~optModuleId.flatMap { mId => optProject.flatMap(_.modules.findBy(mId).toOption) }
   } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
-  def upgrade(cli: Cli[CliParam[_]]): Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
+  def upgrade(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
     layout        <- cli.layout
-    invoc         <- cli.read()
-    log           <- invoc.logger()
-    records       <- Dns.lookup(Log.silent, Installation.config().service)
+    call          <- cli.call()
+    records       <- Dns.lookup(ManagedConfig().service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
     file          <- Shell(cli.env).ipfs.get(latestRef, tmpFile)
-    _             <- TarGz.extract(log, file, Installation.upgradeDir)
+    _             <- TarGz.extract(file, Installation.upgradeDir)
   } yield log.await() }
 
-  def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def prompt(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout <- cli.layout
-    layer  <- ~Layer.read(Log.silent, layout).toOption
-    msg    <- layer.fold(Try(Prompt.empty(Installation.config().theme)))(getPrompt(_, Installation.config().theme))
-    invoc  <- cli.read()
-    log    <- invoc.logger()
+    layer  <- ~Layer.read(layout).toOption
+    msg    <- layer.fold(Try(Prompt.empty(ManagedConfig().theme)))(getPrompt(_, ManagedConfig().theme))
+    call   <- cli.call()
     _      <- ~log.info(msg)
   } yield log.await()
 
-  def save(ctx: MenuContext): Try[ExitStatus] = {
+  def save(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas)
@@ -281,20 +273,19 @@ object BuildCli {
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(FatJarArg)
       cli            <- cli.hint(ReporterArg, Reporter.all)
-      invoc          <- cli.read()
-      log            <- invoc.logger()
-      dir            <- invoc(DirArg)
-      https          <- ~invoc(HttpsArg).isSuccess
+      call           <- cli.call()
+      dir            <- call(DirArg)
+      https          <- ~call(HttpsArg).isSuccess
       project        <- optProject.ascribe(UnspecifiedProject())
-      optModuleId    <- ~invoc(ModuleArg).toOption.orElse(project.main)
+      optModuleId    <- ~call(ModuleArg).toOption.orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module         <- optModule.ascribe(UnspecifiedModule())
-      pipelining     <- ~invoc(PipeliningArg).toOption
-      fatJar         =  invoc(FatJarArg).isSuccess
-      globalPolicy   <- Policy.read(log)
-      reporter       <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter)
-      watch          =  invoc(WatchArg).isSuccess
-      compilation    <- Compilation.syncCompilation(log, schema, module.ref(project), layout, https)
+      pipelining     <- ~call(PipeliningArg).toOption
+      fatJar         =  call(FatJarArg).isSuccess
+      globalPolicy   <- Policy.read()
+      reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
+      watch          =  call(WatchArg).isSuccess
+      compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
       watcher        =  new SourceWatcher(compilation.allSources)
       _              =  if(watch) watcher.start()
       future         <- new Repeater[Try[Future[CompileResult]]] {
@@ -308,14 +299,14 @@ object BuildCli {
           cnt = cnt + 1
           watcher.clear()
           for {
-            task <- compileOnce(log, compilation, schema, module.ref(project), layout,
-              globalPolicy, invoc.suffix, pipelining.getOrElse(Installation.config().pipelining), reporter, Installation.config().theme, https)
+            task <- compileOnce(compilation, schema, module.ref(project), layout,
+              globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
           } yield {
             task.transform { completed =>
               for{
                 compileResult  <- completed
                 compileSuccess <- compileResult.asTry
-                _              <- compilation.saveJars(log, module.ref(project), compileSuccess.classDirectories,
+                _              <- compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
                   dir in layout.pwd, layout, fatJar)
               } yield compileSuccess
             }
@@ -329,7 +320,7 @@ object BuildCli {
     }
   }
 
-  def native(ctx: MenuContext) = {
+  def native(ctx: MenuContext)(implicit log: Log) = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -341,25 +332,24 @@ object BuildCli {
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(DirArg)
-      invoc        <- cli.read()
-      log          <- invoc.logger()
-      dir          <- invoc(DirArg)
-      https        <- ~invoc(HttpsArg).isSuccess
+      call         <- cli.call()
+      dir          <- call(DirArg)
+      https        <- ~call(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
-      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(project.main)
+      optModuleId  <- ~call(ModuleArg).toOption.orElse(project.main)
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
       
-      compilation  <- Compilation.syncCompilation(log, schema, module.ref(project), layout,
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                           https)
       
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
-      _            <- compilation.saveNative(log, module.ref(project), dir in layout.pwd, layout, main)
+      _            <- compilation.saveNative(module.ref(project), dir in layout.pwd, layout, main)
     } yield log.await()
   }
 
-  def classpath(ctx: MenuContext): Try[ExitStatus] = {
+  def classpath(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -372,13 +362,12 @@ object BuildCli {
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
-      invoc        <- cli.read()
-      log          <- invoc.logger()
-      https        <- ~invoc(HttpsArg).isSuccess
+      call         <- cli.call()
+      https        <- ~call(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
       
-      compilation  <- Compilation.syncCompilation(log, schema, module.ref(project), layout,
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                           https)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
@@ -386,7 +375,7 @@ object BuildCli {
     } yield log.await()
   }
 
-  def describe(ctx: MenuContext): Try[ExitStatus] = {
+  def describe(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -397,25 +386,23 @@ object BuildCli {
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-      invoc        <- cli.read()
-      log          <- invoc.logger()
-      https        <- ~invoc(HttpsArg).isSuccess
-      optModuleId  <- ~invoc(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
+      call         <- cli.call()
+      https        <- ~call(HttpsArg).isSuccess
+      optModuleId  <- ~call(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
 
-      compilation  <- Compilation.syncCompilation(log, schema, module.ref(project), layout,
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                           https)
       
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
-                          Map())(Installation.config().theme).foreach(log.println(_))
+                          Map())(ManagedConfig().theme).foreach(log.println(_))
 
     } yield log.await()
   }
 
-  private[this] def compileOnce(log: Log,
-                  compilation: Compilation,
+  private[this] def compileOnce(compilation: Compilation,
                   schema: Schema,
                   moduleRef: ModuleRef,
                   layout: Layout,
@@ -424,18 +411,18 @@ object BuildCli {
                   pipelining: Boolean,
                   reporter: Reporter,
                   theme: Theme,
-                  https: Boolean): Try[Future[CompileResult]] = {
+                  https: Boolean)(implicit log: Log): Try[Future[CompileResult]] = {
     for {
-      _            <- compilation.checkoutAll(log, layout, https)
+      _            <- compilation.checkoutAll(layout, https)
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-      val future = compilation.compile(log, moduleRef, multiplexer, Map(), layout,
+      val future = compilation.compile(moduleRef, multiplexer, Map(), layout,
         globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes
       }
-      reporter.report(log, compilation.graph, theme, multiplexer)
+      reporter.report(compilation.graph, theme, multiplexer)
       future
     }
   }
@@ -443,111 +430,103 @@ object BuildCli {
 }
 
 object LayerCli {
-  def init(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def init(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout <- cli.newLayout
     cli    <- cli.hint(ForceArg)
-    invoc  <- cli.read()
-    log    <- invoc.logger()
-    force  =  invoc(ForceArg).isSuccess
+    call   <- cli.call()
+    force  =  call(ForceArg).isSuccess
     _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
     _      <- layout.focusFile.mkParents()
-    _      <- Layer.create(log, Layer(), layout)
+    _      <- Layer.create(Layer(), layout)
     _      <- ~log.info(str"Initialized an empty layer")
   } yield log.await()
 
-  def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def projects(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout    <- cli.layout
-    layer     <- Layer.read(Log.silent, layout)
+    layer     <- Layer.read(layout)
     cli       <- cli.hint(SchemaArg, layer.schemas)
     cli       <- cli.hint(HttpsArg)
     schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
     schema    <- layer.schemas.findBy(schemaArg)
     cli       <- cli.hint(RawArg)
-    invoc     <- cli.read()
-    log       <- invoc.logger()
-    raw       <- ~invoc(RawArg).isSuccess
-    https     <- ~invoc(HttpsArg).isSuccess
-    projects  <- schema.allProjects(log, layout, https)
+    call      <- cli.call()
+    raw       <- ~call(RawArg).isSuccess
+    https     <- ~call(HttpsArg).isSuccess
+    projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
     _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
     _         <- ~log.println(table.mkString("\n"))
   } yield log.await()
 
-  def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def select(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout    <- cli.layout
-    baseLayer <- Layer.base(Log.silent, layout)
+    baseLayer <- Layer.base(layout)
     schema    <- baseLayer.mainSchema
-    cli       <- cli.hint(LayerArg, schema.importTree(Log.silent, layout, true).getOrElse(Nil))
-    invoc     <- cli.read()
-    log       <- invoc.logger()
-    _         <- schema.importTree(log, layout, true)
-    newPath   <- invoc(LayerArg)
-    focus     <- Layer.readFocus(log, layout)
-    newPath   <- ~focus.path.dereference(relPath)
+    cli       <- cli.hint(LayerArg, schema.importTree(layout, true).getOrElse(Nil))
+    call      <- cli.call()
+    _         <- schema.importTree(layout, true)
+    newPath   <- call(LayerArg)
+    focus     <- Layer.readFocus(layout)
     newFocus  <- ~focus.copy(path = newPath)
-    _         <- Layer.saveFocus(log, newFocus, layout)
+    _         <- Layer.saveFocus(newFocus, layout)
   } yield log.await()
  
-  def extract(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def extract(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     cli      <- cli.hint(DirArg)
     cli      <- cli.hint(FileArg)
-    invoc    <- cli.read()
-    log      <- invoc.logger()
+    call     <- cli.call()
     pwd      <- cli.pwd
-    file     <- invoc(FileArg).map(pwd.resolve(_))
+    file     <- call(FileArg).map(pwd.resolve(_))
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
     layout   <- cli.newLayout.map(_.copy(baseDir = dir))
-    layerRef <- Layer.loadFile(log, file, layout, cli.env)
-    _        <- Layer.saveFocus(log, Focus(layerRef), layout)
+    layerRef <- Layer.loadFile(file, layout, cli.env)
+    _        <- Layer.saveFocus(Focus(layerRef), layout)
   } yield log.await()
 
-  def clone(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def clone(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
-    cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent, Installation.config().service, cli.env).getOrElse(Nil))
-    invoc         <- cli.read()
-    log           <- invoc.logger()
-    layerImport   <- invoc(ImportArg)
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
+    call          <- cli.call()
+    layerImport   <- call(ImportArg)
     followable    <- Try(Layer.follow(layerImport).get)
-    layerRef      <- Layer.resolve(log, followable, cli.env)
-    dir           <- invoc(DirArg)
+    layerRef      <- Layer.resolve(followable, cli.env)
+    dir           <- call(DirArg)
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
-    _             <- Layer.saveFocus(log, Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
+    _             <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
   } yield log.await()
 
-  def share(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
-    layer         <- Layer.read(Log.silent, layout)
-    invoc         <- cli.read()
-    log           <- invoc.logger()
-    ref           <- Layer.share(log, layer, cli.env)
+    layer         <- Layer.read(layout)
+    call          <- cli.call()
+    ref           <- Layer.share(layer, cli.env)
     _             <- ~log.info(str"fury://${ref.key}")
   } yield log.await()
 
-  def export(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def export(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(FileArg)
-    layer         <- Layer.read(Log.silent, layout)
-    invoc         <- cli.read()
-    log           <- invoc.logger()
+    layer         <- Layer.read(layout)
+    call          <- cli.call()
     pwd           <- cli.pwd
-    destination   <- invoc(FileArg).map(pwd.resolve(_))
-    _             <- Layer.export(log, layer, layout, destination)
+    destination   <- call(FileArg).map(pwd.resolve(_))
+    _             <- Layer.export(layer, layout, destination)
     _             <- ~log.info(msg"Saved layer file ${destination}")
   } yield log.await()
 
-  def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  def addImport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = {
     for {
       layout        <- cli.layout
-      layer         <- Layer.read(Log.silent, layout)
+      layer         <- Layer.read(layout)
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli           <- cli.hint(ImportNameArg)
       cli           <- cli.hint(FileArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
-      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent, Installation.config().service, cli.env).getOrElse(Nil))
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
       fileImport    <- ~cli.peek(FileArg)
       followable    <- ~((layerImport, fileImport) match {
@@ -557,64 +536,61 @@ object LayerCli {
       layerRef      <- ~((layerImport, fileImport) match {
                          case (Some(imp), None) => for {
                            followable <- Layer.follow(imp)
-                           layerRef <- Layer.resolve(Log.silent, followable, cli.env).toOption
+                           layerRef <- Layer.resolve(followable, cli.env).toOption
                          } yield layerRef
                          case (None, Some(path)) =>
-                           Layer.loadFile(Log.silent, path in layout.pwd, layout, cli.env).toOption
+                           Layer.loadFile(path in layout.pwd, layout, cli.env).toOption
                          case _ =>
                            None
                        })
-      maybeLayer    <- ~layerRef.flatMap(Layer.read(Log.silent, _, layout).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
 
-      invoc         <- cli.read()
-      log           <- invoc.logger()
-      layerRef      <- ~followable.flatMap(Layer.resolve(log, _, cli.env).toOption)
-      maybeLayer    <- ~layerRef.flatMap(Layer.read(log, _, layout).toOption)
-      nameArg       <- invoc(ImportNameArg)
-      schemaId      <- invoc(ImportSchemaArg)
+      call          <- cli.call()
+      layerRef      <- ~followable.flatMap(Layer.resolve(_, cli.env).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
+      nameArg       <- call(ImportNameArg)
+      schemaId      <- call(ImportSchemaArg)
       layerRef      <- layerRef.ascribe(UnspecifiedLayer())
       schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId, followable)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))
       
-      _             <- ~Layer.save(log, layer, layout)
+      _             <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def unimport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  def unimport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
-      layer     <- Layer.read(Log.silent, layout)
+      layer     <- Layer.read(layout)
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg)
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
-      invoc     <- cli.read()
-      log       <- invoc.logger()
-      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
-      importArg <- invoc(ImportIdArg)
+      call      <- cli.call()
+      schemaId  <- ~call(SchemaArg).toOption.getOrElse(layer.main)
+      importArg <- call(ImportIdArg)
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
       layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
+  def list(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
-      layer     <- Layer.read(Log.silent, layout)
+      layer     <- Layer.read(layout)
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(HttpsArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
-      invoc     <- cli.read()
-      log       <- invoc.logger()
-      raw       <- ~invoc(RawArg).isSuccess
-      https     <- ~invoc(HttpsArg).isSuccess
-      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, log, layout, https)) }
+      call      <- cli.call()
+      raw       <- ~call(RawArg).isSuccess
+      https     <- ~call(HttpsArg).isSuccess
+      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, layout, https)) }
       
       table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)

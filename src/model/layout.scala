@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury._, io._, strings._, ogdl._
+import fury._, io._, strings._
 
 import gastronomy._
 import guillotine._
@@ -28,7 +28,8 @@ import scala.util.Try
 import language.higherKinds
 
 object Layout {
-  final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
+  final val dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
+  final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   
   def find(home: Path, pwd: Path, env: Environment): Try[Layout] = findBase(pwd).map(Layout(home, pwd, env, _))
 
@@ -69,6 +70,8 @@ object Xdg {
 }
 
 object Installation {
+  private[this] def date: String = Layout.dateFormat.format(new Date())
+  
   val userConfig: Path = Xdg.config(Path("fury/config.fury"))
   val aliasesPath: Path = Xdg.config(Path("fury/aliases"))
   val layersPath: Path = Xdg.data(Path("fury/layers"))
@@ -93,11 +96,11 @@ object Installation {
     result
   }
 
-  def config(): Config = Ogdl.read[Config](userConfig, identity(_)).toOption.getOrElse(Config())
+  def globalLogFile(): Path = logsDir.extant() / s"$date.log"
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
-  private[this] val nowString: String = Layout.dateFormat.format(new Date())
+  private[this] val nowString: String = Layout.dateTimeFormat.format(new Date())
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   
   lazy val furyDir: Path = (baseDir / ".fury").extant()

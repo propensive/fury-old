@@ -31,7 +31,7 @@ object Interleaver {
   }
 }
 
-class Interleaver(log: Log, lag: Long) {
+class Interleaver(lag: Long)(implicit log: Log) {
   
   import Interleaver._
 

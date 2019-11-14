@@ -22,6 +22,7 @@ import exoskeleton._
 import guillotine._
 
 import scala.util._
+import scala.collection.mutable.HashMap
 
 import language.higherKinds
 
@@ -51,7 +52,7 @@ object Cli {
 
   def asCompletion[H <: CliParam[_]](menu: => Menu[Cli[H], _])(cli: Cli[H]) = {
     val newCli = Cli[H](
-      cli.output,
+      cli.stdout,
       ParamMap(cli.args.suffix.map(_.value).tail: _*),
       cli.args(Args.ParamNoArg).toOption,
       cli.optCompletions,
@@ -108,12 +109,23 @@ trait Descriptor[T] {
 }
 
 object Log {
-  def silent: Log = new Log(new java.io.PrintStream(int => ()))
+  private val logFiles: HashMap[Path, java.io.PrintWriter] = HashMap()
+  def global: Log = {
+    val path = Installation.globalLogFile()
+    new Log(logFiles.getOrElseUpdate(path, new java.io.PrintWriter(path.javaFile)))
+  }
 }
 
-class Log(private[this] val output: java.io.PrintStream) {
 
-  private[this] val config: Config = Installation.config()
+
+class Log(private[this] val output: java.io.PrintWriter) {
+
+  private[this] var writers: List[java.io.PrintWriter] = List(output)
+  def writeAll(line: String): Unit = writers.foreach(_.print(line))
+
+  def attach(writer: java.io.PrintWriter): Unit = writers ::= writer
+
+  private[this] val config: Config = ManagedConfig()
 
   private[this] val startTime = System.currentTimeMillis
   private[this] val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.000")
@@ -121,14 +133,17 @@ class Log(private[this] val output: java.io.PrintStream) {
   private def currentTime(t: Long): String =
     formatter.format(((if(t == -1) System.currentTimeMillis else t) - startTime)/1000.0).reverse.padTo(7, ' ').reverse
 
-  def print(msg: UserMsg): Unit = output.print(msg.string(config.theme))
+  def print(msg: UserMsg): Unit = writeAll(msg.string(config.theme))
 
   def println(msg: UserMsg, time: Long = -1): Unit =
-    msg.string(config.theme).split("\n").foreach(output.println(_))
+    msg.string(config.theme).split("\n").foreach { line =>
+      writeAll(line)
+      writeAll("\n")
+    }
 
   def info(msg: UserMsg, time: Long = -1): Unit =
     msg.string(config.theme).split("\n").foreach { line =>
-      output.println((if(!config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
+      println((if(!config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
     }
 
   def debug(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
@@ -136,33 +151,34 @@ class Log(private[this] val output: java.io.PrintStream) {
   def error(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
 
   def await(success: Boolean = true): ExitStatus = {
-    output.flush()
+    writers.foreach(_.flush())
     if(success) Done else Abort
   }
 }
 
-case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
+case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
                                        args: ParamMap,
                                        command: Option[Int],
                                        optCompletions: List[Cli.OptCompletion[_]],
                                        env: Environment,
                                        pid: Int) {
 
-  class Invocation private[Cli] () {
+  class Call private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
-    def logger(): Try[Log] = Success(new Log(output))
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
-  def read(): Try[Invocation] = {
-    val log: Log = new Log(output)
+  def call()(implicit log: Log): Try[Call] = {
     if(completion) {
-      log.println(optCompletions.flatMap(_.output).mkString("\n"))
-      log.await()
+      stdout.println(optCompletions.flatMap(_.output).mkString("\n"))
+      stdout.flush()
       Failure(EarlyCompletions())
-    } else Success(new Invocation())
+    } else {
+      log.attach(stdout)
+      Success(new Call())
+    }
   }
 
   def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).toOption
@@ -197,8 +213,8 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   def hint(arg: CliParam[_]) = Success(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
 
   private[this] def write(msg: UserMsg): Unit = {
-    output.println(msg.string(Installation.config().theme))
-    output.flush()
+    stdout.println(msg.string(ManagedConfig().theme))
+    stdout.flush()
   }
 
   def completeCommand(cmd: MenuStructure[_]): Try[Nothing] =
@@ -208,9 +224,8 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
         case act: Action[_]   => Nil
         case menu: Menu[_, _] => menu.items.filter(_.show).to[List]
       }))
-      val log = new Log(output)
-      log.println(optCompletions.flatMap(_.output).mkString("\n"))
-      log.await()
+      stdout.println(optCompletions.flatMap(_.output).mkString("\n"))
+      stdout.flush()
       Failure(EarlyCompletions())
     }.getOrElse {
       args.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }

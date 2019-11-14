@@ -73,12 +73,12 @@ object Bsp {
         languages = List("java", "scala")
     )
 
-  def startServer(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+  def startServer(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
     for {
       layout  <- cli.layout
       cli     <- cli.hint(Args.HttpsArg)
-      invoc   <- cli.read()
-      https   <- ~invoc(Args.HttpsArg).isSuccess
+      call    <- cli.call()
+      https   <- ~call(Args.HttpsArg).isSuccess
       running <- ~run(System.in, System.out, layout, https)
     } yield {
       System.err.println("Started bsp process ...")
@@ -114,20 +114,20 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
   
   private[this] var client: BuildClient = _
 
-  private val log    = new Log(System.err)
+  private implicit val log    = new Log(new java.io.PrintWriter(System.err))
 
   private def structure: Try[Structure] =
     for {
       focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
-      layer          <- Layer.read(log, focus.layerRef, layout)
+      layer          <- Layer.read(focus.layerRef, layout)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(log, layout, https)
+      hierarchy      <- schema.hierarchy(layout, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
                           for {
                             ds   <- universe.dependencies(ref, layout)
-                            arts <- (ds + ref).map { d => universe.makeTarget(log, d, layout) }.sequence
+                            arts <- (ds + ref).map { d => universe.makeTarget(d, layout) }.sequence
                           } yield arts.map { a =>
                             (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
                                 .map(_.ref.hide): Option[ModuleRef]))
@@ -136,7 +136,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
       targets       <- graph.keys.map { key =>
-                         universe.makeTarget(log, key, layout).map(key -> _)
+                         universe.makeTarget(key, layout).map(key -> _)
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
@@ -144,10 +144,10 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
       //FIXME remove duplication with structure
-      layer          <- Layer.read(log, layout)
+      layer          <- Layer.read(layout)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(log, schema, module, layout, https = true)
+      compilation    <- Compilation.syncCompilation(schema, module, layout, https = true)
     } yield compilation
   }
   
@@ -282,16 +282,16 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
     val bspTargets = compileParams.getTargets.asScala
     val allResults = bspTargets.traverse { bspTargetId =>
       for{
-        globalPolicy <- Policy.read(log)
+        globalPolicy <- Policy.read()
         struct <- structure
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
         val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-        val compilationTasks = compilation.compile(log, moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val compilationTasks = compilation.compile(moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
-        reporter.report(log, compilation.graph, Installation.config().theme, multiplexer)
+        reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
         synchronousResult
       }
@@ -472,7 +472,7 @@ object FuryBuildServer {
     private def info(message: UserMsg)(implicit theme: Theme) =
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
-    override def report(io: Log, graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent]): Unit = {
+    override def report(graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log): Unit = {
       implicit val t = theme
       multiplexer.stream(50, Some(Tick)).foreach {
         case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")
