@@ -72,17 +72,18 @@ object Xdg {
 object Installation {
   private[this] def date: String = Layout.dateFormat.format(new Date())
   
-  val userConfig: Path = Xdg.config(Path("fury/config.fury"))
-  val aliasesPath: Path = Xdg.config(Path("fury/aliases"))
-  val layersPath: Path = Xdg.data(Path("fury/layers"))
-  val policyFile: Path = Xdg.config(Path("fury/policy.fury"))
-  val srcsDir: Path = Xdg.cache(Path("fury/sources"))
-  val reposDir: Path = Xdg.cache(Path("fury/repos"))
-  val binsDir: Path = Xdg.cache(Path("fury/bins"))
-  val logsDir: Path = Xdg.cache(Path("fury/logs"))
-  val upgradeDir: Path = Xdg.cache(Path("fury/upgrade"))
-  val policyDir: Path = Xdg.cache(Path("fury/policies"))
+  val aliasesPath: Path = Xdg.config(Path("fury/aliases")).extant()
+  val layersPath: Path = Xdg.data(Path("fury/layers")).extant()
+  val srcsDir: Path = Xdg.cache(Path("fury/sources")).extant()
+  val reposDir: Path = Xdg.cache(Path("fury/repos")).extant()
+  val binsDir: Path = Xdg.cache(Path("fury/bins")).extant()
+  val logsDir: Path = Xdg.cache(Path("fury/logs")).extant()
+  val policyDir: Path = Xdg.cache(Path("fury/policies")).extant()
 
+  val upgradeDir: Path = Xdg.cache(Path("fury/upgrade"))
+  val userConfig: Path = Xdg.config(Path("fury/config.fury"))
+  val policyFile: Path = Xdg.config(Path("fury/policy.fury"))
+  
   def tmpDir[T](fn: Path => T): T = tmpFile { path =>
     path.mkdir()
     fn(path)

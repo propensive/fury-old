@@ -140,9 +140,7 @@ You can grant these permissions with,
           val result = for {
             layout <- cli.layout
             log    <- ~Log.global(Some(cli.pid))
-            call   <- cli.call()(log)
-            _      <- ~layout.errorLogfile.mkParents
-            _      <- ~layout.errorLogfile.writeSync(errorString)
+            _      <- ~log.fail(errorString)
             _      <- ~log.await()
           } yield
             cli.abort(msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}")
