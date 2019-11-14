@@ -36,7 +36,7 @@ object LogStyle {
   
   def apply(printWriter: java.io.PrintWriter, session: Option[Int]): LogStyle = {
     val config = ManagedConfig()
-    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, true, false, true, config.theme)
+    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme)
   }
 }
 
