@@ -72,7 +72,6 @@ object Xdg {
 object Installation {
   private[this] def date: String = Layout.dateFormat.format(new Date())
   
-  val aliasesPath: Path = Xdg.config(Path("fury/aliases")).extant()
   val layersPath: Path = Xdg.data(Path("fury/layers")).extant()
   val srcsDir: Path = Xdg.cache(Path("fury/sources")).extant()
   val reposDir: Path = Xdg.cache(Path("fury/repos")).extant()
@@ -80,6 +79,7 @@ object Installation {
   val logsDir: Path = Xdg.cache(Path("fury/logs")).extant()
   val policyDir: Path = Xdg.cache(Path("fury/policies")).extant()
 
+  val aliasesFile: Path = Xdg.config(Path("fury/aliases"))
   val upgradeDir: Path = Xdg.cache(Path("fury/upgrade"))
   val userConfig: Path = Xdg.config(Path("fury/config.fury"))
   val policyFile: Path = Xdg.config(Path("fury/policy.fury"))
