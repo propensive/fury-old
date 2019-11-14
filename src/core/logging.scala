@@ -57,7 +57,7 @@ case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: 
 
   private[this] final val paddedSession: String =
     if(!showSession) ""
-    else msg"${theme.active(session.map(Integer.toHexString(_)).getOrElse("----").padTo(5, ' '))}".string(theme)
+    else msg"${theme.active(session.map(Integer.toHexString(_)).getOrElse("-  -").padTo(4, '0'))}".string(theme)+" "
   
   private[this] def optionalLogLevel(level: Int): String = if(!logLevel) "" else (level match {
     case Log.Note => noteString
@@ -91,7 +91,6 @@ object Log {
     val style = LogStyle(new PrintWriter(new FileWriter(path.javaFile, true)), session, Some(true), true, true, false, Theme.Full)
     new Log(logFiles.getOrElseUpdate(path, style))
   }
-  
 }
 
 class Log(private[this] val output: LogStyle) {
