@@ -88,7 +88,7 @@ object Log {
   
   def global(session: Option[Int]): Log = {
     val path = Installation.globalLogFile()
-    val style = LogStyle(new PrintWriter(new FileWriter(path.javaFile), true), session, Some(true), true, true, false, Theme.Full)
+    val style = LogStyle(new PrintWriter(new FileWriter(path.javaFile, true)), session, Some(true), true, true, false, Theme.Full)
     new Log(logFiles.getOrElseUpdate(path, style))
   }
   
