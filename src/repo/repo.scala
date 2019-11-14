@@ -47,8 +47,8 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
-      _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+      _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
 

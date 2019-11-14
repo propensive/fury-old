@@ -71,7 +71,7 @@ object AliasCli {
       raw   <- ~call(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, true)))
+      _     <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, true)))
       _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -157,7 +157,7 @@ object BuildCli {
   def about(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
     for {
       call  <- cli.call()
-      _     <- ~log.println(str"""|     _____ 
+      _     <- ~log.raw(str"""|     _____ 
                                  |    / ___/__ __ ____ __ __
                                  |   / __/ / // // ._// // /
                                  |  /_/    \_._//_/  _\_. /
@@ -371,7 +371,7 @@ object BuildCli {
                           https)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
-      _            <- ~log.println(classpath.map(_.value).join(":"))
+      _            <- ~log.raw(classpath.map(_.value).join(":"))
     } yield log.await()
   }
 
@@ -397,7 +397,7 @@ object BuildCli {
                           https)
       
       _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
-                          Map())(ManagedConfig().theme).foreach(log.println(_))
+                          Map())(ManagedConfig().theme).foreach(log.raw(_))
 
     } yield log.await()
   }
@@ -454,8 +454,8 @@ object LayerCli {
     https     <- ~call(HttpsArg).isSuccess
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
-    _         <- ~log.println(table.mkString("\n"))
+    _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+    _         <- ~log.raw(table.mkString("\n"))
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -595,10 +595,10 @@ object LayerCli {
       table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema))
+      _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema))
                        else log)
       
-      _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
 }

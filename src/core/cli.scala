@@ -108,54 +108,6 @@ trait Descriptor[T] {
   }
 }
 
-object Log {
-  private val logFiles: HashMap[Path, java.io.PrintWriter] = HashMap()
-  def global: Log = {
-    val path = Installation.globalLogFile()
-    new Log(logFiles.getOrElseUpdate(path, new java.io.PrintWriter(path.javaFile)))
-  }
-}
-
-
-
-class Log(private[this] val output: java.io.PrintWriter) {
-
-  private[this] var writers: List[java.io.PrintWriter] = List(output)
-  def writeAll(line: String): Unit = writers.foreach(_.print(line))
-
-  def attach(writer: java.io.PrintWriter): Unit = writers ::= writer
-
-  private[this] val config: Config = ManagedConfig()
-
-  private[this] val startTime = System.currentTimeMillis
-  private[this] val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.000")
-
-  private def currentTime(t: Long): String =
-    formatter.format(((if(t == -1) System.currentTimeMillis else t) - startTime)/1000.0).reverse.padTo(7, ' ').reverse
-
-  def print(msg: UserMsg): Unit = writeAll(msg.string(config.theme))
-
-  def println(msg: UserMsg, time: Long = -1): Unit =
-    msg.string(config.theme).split("\n").foreach { line =>
-      writeAll(line)
-      writeAll("\n")
-    }
-
-  def info(msg: UserMsg, time: Long = -1): Unit =
-    msg.string(config.theme).split("\n").foreach { line =>
-      println((if(!config.timestamps) "" else s"${config.theme.time(currentTime(time))} ")+line)
-    }
-
-  def debug(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
-  def warn(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
-  def error(msg: UserMsg, time: Long = -1): Unit = info(msg, time)
-
-  def await(success: Boolean = true): ExitStatus = {
-    writers.foreach(_.flush())
-    if(success) Done else Abort
-  }
-}
-
 case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
                                        args: ParamMap,
                                        command: Option[Int],
@@ -176,7 +128,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
-      log.attach(stdout)
+      log.attach(LogStyle(stdout, Some(pid)))
       Success(new Call())
     }
   }

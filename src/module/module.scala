@@ -82,10 +82,10 @@ object ModuleCli {
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project)))
 
-      _       <- ~log.println(table.mkString("\n"))
+      _       <- ~log.raw(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -291,10 +291,10 @@ object BinaryCli {
       schema  <- defaultSchema
       table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(identity)
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.println(table.mkString("\n"))
+      _       <- ~log.raw(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -381,10 +381,10 @@ object ParamCli {
       table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.println(table.mkString("\n"))
+      _       <- ~log.raw(table.mkString("\n"))
     } yield log.await()
   }
 

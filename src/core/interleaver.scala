@@ -80,7 +80,7 @@ class Interleaver(lag: Long)(implicit log: Log) {
 
   def println(ref: ModuleRef, msg: UserMsg, noTime: Boolean = false): Unit =
     if(isCurrent(ref)) {
-      if(noTime) log.println(msg) else log.info(msg)
+      log.info(msg)
     } else {
       record(ref, msg)
       tick()
