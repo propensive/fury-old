@@ -43,8 +43,7 @@ object DependencyCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout       <- cli.layout
-      config       <- ~cli.config
-      layer        <- Layer.read(Log.silent(config), layout)
+      layer        <- Layer.read(Log.silent, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
       schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -75,7 +74,7 @@ object DependencyCli {
       table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -114,7 +113,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
@@ -155,8 +154,7 @@ object EnvCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -185,7 +183,7 @@ object EnvCli {
       table   <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -217,7 +215,7 @@ object EnvCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
@@ -251,8 +249,7 @@ object PermissionCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -332,7 +329,7 @@ object PermissionCli {
       table   <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -378,8 +375,7 @@ object PropertyCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -410,7 +406,7 @@ object PropertyCli {
       table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -441,7 +437,7 @@ object PropertyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()

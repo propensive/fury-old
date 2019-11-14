@@ -31,8 +31,7 @@ object ProjectCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     optSchemaArg <- ~cli.peek(SchemaArg)
   } yield new MenuContext(cli, layout, layer, optSchemaArg)
@@ -67,8 +66,8 @@ object ProjectCli {
       raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
-      table  <- ~Tables(config).show(Tables(config).projects(schema.main), cli.cols, rows, raw)(_.id)
-      _      <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema)))
+      table  <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
+      _      <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
       _      <- ~log.println(table.mkString("\n"))
     } yield log.await()
   }
@@ -81,7 +80,7 @@ object ProjectCli {
       dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
-                            Log.silent(config), layout, false))
+                            Log.silent, layout, false))
 
       invoc          <- cli.read()
       log            <- invoc.logger()
@@ -132,7 +131,7 @@ object ProjectCli {
       cli            <- cli.hint(DescriptionArg)
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
-                            _.compilerRefs(Log.silent(config), layout, false)))
+                            _.compilerRefs(Log.silent, layout, false)))
       
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))

@@ -32,9 +32,8 @@ object SchemaCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- ~cli.config
-    layer  <- Layer.read(Log.silent(config), layout)
-  } yield SchemaCtx(cli, layout, config, layer)
+    layer  <- Layer.read(Log.silent, layout)
+  } yield SchemaCtx(cli, layout, layer)
 
   def select(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
@@ -61,8 +60,8 @@ object SchemaCli {
       log       <- invoc.logger()
       raw       <- ~invoc(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
-      table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema)))
+      table     <- ~Tables().show(Tables().schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
+      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -88,8 +87,8 @@ object SchemaCli {
       otherArg  <- invoc(CompareArg)
       other     <- layer.schemas.findBy(otherArg)
       rows      <- ~Diff.gen[Schema].diff(schema, other)
-      table     <- ~diffTable(config, schema, other, rows, cli.cols, raw)
-      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema)))
+      table     <- ~diffTable(schema, other, rows, cli.cols, raw)
+      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }

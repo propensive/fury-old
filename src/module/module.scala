@@ -42,8 +42,7 @@ object ModuleCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -85,7 +84,7 @@ object ModuleCli {
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -100,7 +99,7 @@ object ModuleCli {
       cli            <- cli.hint(HiddenArg, List("on", "off"))
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Log.silent(config), layout, true)))
+                            _.compilerRefs(Log.silent, layout, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -168,7 +167,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Log.silent(config), layout, true)))
+                      Log.silent, layout, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -200,7 +199,7 @@ object ModuleCli {
       cli         <- cli.hint(HiddenArg, List("on", "off"))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Log.silent(config), layout, true)))
+                         _.compilerRefs(Log.silent, layout, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
@@ -298,7 +297,7 @@ object BinaryCli {
       schema  <- defaultSchema
       table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(identity)
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -391,7 +390,7 @@ object ParamCli {
       table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))

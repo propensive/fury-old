@@ -61,9 +61,8 @@ object AliasCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout <- cli.layout
-      config <- ~cli.config
-      layer  <- Layer.read(Log.silent(config), layout)
-    } yield new MenuContext(cli, layout, config, layer)
+      layer  <- Layer.read(Log.silent, layout)
+    } yield new MenuContext(cli, layout, layer)
 
   def list(ctx: MenuContext): Try[ExitStatus] = {
     import ctx._
@@ -73,8 +72,8 @@ object AliasCli {
       log   <- invoc.logger()
       raw   <- ~invoc(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
-      table <- ~Tables(config).show(Tables(config).aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, true)))
+      table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
+      _     <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, true)))
       _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -129,9 +128,8 @@ object BuildCli {
 
   def context(cli: Cli[CliParam[_]]): Try[MenuContext] = for {
     layout <- cli.layout
-    config <- ~cli.config
-    layer  <- Layer.read(Log.silent(config), layout)
-  } yield new MenuContext(cli, layout, config, layer)
+    layer  <- Layer.read(Log.silent, layout)
+  } yield new MenuContext(cli, layout, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
@@ -261,9 +259,8 @@ object BuildCli {
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
-    config <- ~cli.config
-    layer  <- ~Layer.read(Log.silent(config), layout).toOption
-    msg    <- layer.fold(Try(Prompt.empty(config)(config.theme)))(getPrompt(_, config.theme))
+    layer  <- ~Layer.read(Log.silent, layout).toOption
+    msg    <- layer.fold(Try(Prompt.empty(Installation.config().theme)))(getPrompt(_, Installation.config().theme))
     invoc  <- cli.read()
     log    <- invoc.logger()
     _      <- ~log.info(msg)
@@ -460,8 +457,7 @@ object LayerCli {
 
   def projects(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
-    config    <- ~cli.config
-    layer     <- Layer.read(Log.silent(config), layout)
+    layer     <- Layer.read(Log.silent, layout)
     cli       <- cli.hint(SchemaArg, layer.schemas)
     cli       <- cli.hint(HttpsArg)
     schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
@@ -472,17 +468,16 @@ object LayerCli {
     raw       <- ~invoc(RawArg).isSuccess
     https     <- ~invoc(HttpsArg).isSuccess
     projects  <- schema.allProjects(log, layout, https)
-    table     <- ~Tables(config).show(Tables(config).projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema)))
+    table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
+    _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
     _         <- ~log.println(table.mkString("\n"))
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout    <- cli.layout
-    config    <- ~cli.config
-    baseLayer <- Layer.base(Log.silent(config), layout)
+    baseLayer <- Layer.base(Log.silent, layout)
     schema    <- baseLayer.mainSchema
-    cli       <- cli.hint(LayerArg, schema.importTree(Log.silent(config), layout, true).getOrElse(Nil))
+    cli       <- cli.hint(LayerArg, schema.importTree(Log.silent, layout, true).getOrElse(Nil))
     invoc     <- cli.read()
     log       <- invoc.logger()
     _         <- schema.importTree(log, layout, true)
@@ -508,11 +503,11 @@ object LayerCli {
 
   def clone(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
-    cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent(cli.config), cli.config.service, cli.env).getOrElse(Nil))
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent, Installation.config().service, cli.env).getOrElse(Nil))
     invoc         <- cli.read()
     log           <- invoc.logger()
     layerImport   <- invoc(ImportArg)
-    followable    <- Try(Layer.follow(layerImport, cli.config).get)
+    followable    <- Try(Layer.follow(layerImport).get)
     layerRef      <- Layer.resolve(log, followable, cli.env)
     dir           <- invoc(DirArg)
     pwd           <- cli.pwd
@@ -523,7 +518,7 @@ object LayerCli {
 
   def share(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout        <- cli.layout
-    layer         <- Layer.read(Log.silent(cli.config), layout)
+    layer         <- Layer.read(Log.silent, layout)
     invoc         <- cli.read()
     log           <- invoc.logger()
     ref           <- Layer.share(log, layer, cli.env)
@@ -533,7 +528,7 @@ object LayerCli {
   def export(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(FileArg)
-    layer         <- Layer.read(Log.silent(cli.config), layout)
+    layer         <- Layer.read(Log.silent, layout)
     invoc         <- cli.read()
     log           <- invoc.logger()
     pwd           <- cli.pwd
@@ -545,14 +540,14 @@ object LayerCli {
   def addImport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout        <- cli.layout
-      layer         <- Layer.read(Log.silent(cli.config), layout)
+      layer         <- Layer.read(Log.silent, layout)
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli           <- cli.hint(ImportNameArg)
       cli           <- cli.hint(FileArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
-      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent(cli.config), cli.config.service, cli.env).getOrElse(Nil))
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions(Log.silent, Installation.config().service, cli.env).getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
       fileImport    <- ~cli.peek(FileArg)
       followable    <- ~((layerImport, fileImport) match {
@@ -561,15 +556,15 @@ object LayerCli {
                        })
       layerRef      <- ~((layerImport, fileImport) match {
                          case (Some(imp), None) => for {
-                           followable <- Layer.follow(imp, cli.config)
-                           layerRef <- Layer.resolve(Log.silent(cli.config), followable, cli.env).toOption
+                           followable <- Layer.follow(imp)
+                           layerRef <- Layer.resolve(Log.silent, followable, cli.env).toOption
                          } yield layerRef
                          case (None, Some(path)) =>
-                           Layer.loadFile(Log.silent(cli.config), path in layout.pwd, layout, cli.env).toOption
+                           Layer.loadFile(Log.silent, path in layout.pwd, layout, cli.env).toOption
                          case _ =>
                            None
                        })
-      maybeLayer    <- ~layerRef.flatMap(Layer.read(Log.silent(cli.config), _, layout).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(Log.silent, _, layout).toOption)
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
 
       invoc         <- cli.read()
@@ -590,7 +585,7 @@ object LayerCli {
   def unimport(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
-      layer     <- Layer.read(Log.silent(cli.config), layout)
+      layer     <- Layer.read(Log.silent, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       schemaArg <- ~cli.peek(SchemaArg)
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -609,7 +604,7 @@ object LayerCli {
   def list(cli: Cli[CliParam[_]]): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
-      layer     <- Layer.read(Log.silent(cli.config), layout)
+      layer     <- Layer.read(Log.silent, layout)
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(HttpsArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
@@ -624,7 +619,7 @@ object LayerCli {
       table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.println(Tables(cli.config).contextString(layout.baseDir, layer.showSchema, schema))
+      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema))
                        else log)
       
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })

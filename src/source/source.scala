@@ -39,8 +39,7 @@ object SourceCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -71,7 +70,7 @@ object SourceCli {
       table   <- ~Tables().show(Tables().sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))

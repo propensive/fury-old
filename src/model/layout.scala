@@ -92,6 +92,8 @@ object Installation {
     file.delete()
     result
   }
+
+  def config(): Config = Ogdl.read[Config](userConfig, identity(_)).toOption.getOrElse(Config())
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {

@@ -156,9 +156,6 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
 
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
-  lazy val config: Config =
-    Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
-
   def read(): Try[Invocation] = {
     val log: Log = new Log(output)
     if(completion) {
