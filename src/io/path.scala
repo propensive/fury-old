@@ -97,7 +97,7 @@ case class Path(input: String) {
     case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
   }
 
-  def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this)) {
+  def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this, _)) {
     if(!exists()) new java.io.FileOutputStream(javaFile).close()
     else javaFile.setLastModified(System.currentTimeMillis())
   }
@@ -112,7 +112,7 @@ case class Path(input: String) {
   }
 
   def moveTo(path: Path): Try[Unit] =
-    Outcome.rescue[java.io.IOException](FileWriteError(this))(Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING))
+    Outcome.rescue[java.io.IOException](FileWriteError(this, _))(Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING))
 
   def relativeSubdirsContaining(pred: String => Boolean): Set[Path] =
     findSubdirsContaining(pred).map { p => Path(p.value.drop(value.length + 1)) }
@@ -138,25 +138,25 @@ case class Path(input: String) {
     def delete(file: JavaFile): Boolean =
       if(file.isDirectory) file.listFiles.forall(delete) && file.delete() else file.delete()
 
-    Outcome.rescue[java.io.IOException](FileWriteError(this))(delete(javaFile))
+    Outcome.rescue[java.io.IOException](FileWriteError(this, _))(delete(javaFile))
   }
 
   def writeSync(content: String): Try[Unit] = Try {
     val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
     writer.write(content)
     Success(writer.close())
-  }.transform(identity, _ => Failure(FileWriteError(this)))
+  }.transform(identity, e => Failure(FileWriteError(this, e)))
 
   def appendSync(content: String): Try[Unit] = Try {
     val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
     writer.append(content)
     Success(writer.close())
-  }.transform(identity, _ => Failure(FileWriteError(this)))
+  }.transform(identity, e => Failure(FileWriteError(this, e)))
 
-  def directory: Try[Path] = if(!exists()) {
+  def directory: Try[Path] = Outcome.rescue[Exception](FileWriteError(this, _)) {
     mkdir()
-    if(exists()) Success(this) else Failure(FileWriteError(this))
-  } else if(javaFile.isDirectory) Success(this) else Failure(FileWriteError(this))
+    this
+  }
 
   def copyTo(path: Path): Try[Path] = Try {
     Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
@@ -176,7 +176,7 @@ case class Path(input: String) {
   def mkTempFile(): Try[Path] = Try(Path(Files.createTempFile(javaPath, null, ".tmp").toString))
   
   def mkParents(): Try[Path] =
-    Outcome.rescue[java.io.IOException](FileWriteError(parent)) {
+    Outcome.rescue[java.io.IOException](FileWriteError(parent, _)) {
       java.nio.file.Files.createDirectories(parent.javaPath)
       this
     }
@@ -188,6 +188,6 @@ case class Path(input: String) {
 }
 
 case class FileNotFound(path: Path)      extends FuryException
-case class FileWriteError(path: Path)    extends FuryException
+case class FileWriteError(path: Path, e: Throwable) extends FuryException
 case class ConfigFormatError(path: Path) extends FuryException
 case class ZipfileEntry(name: String, inputStream: () => java.io.InputStream)

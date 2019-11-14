@@ -90,7 +90,7 @@ object Ogdl {
   }
 
   def write[T: OgdlWriter](value: T, path: Path): Try[Unit] =
-    Outcome.rescue[IOException](FileWriteError(path)) {
+    Outcome.rescue[IOException](FileWriteError(path, _)) {
       val bak = path.rename { f => s".$f.bak" }
       if(path.exists()) path.copyTo(bak)
       val sb = new StringBuilder()
