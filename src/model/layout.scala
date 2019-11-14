@@ -79,6 +79,19 @@ object Installation {
   val logsDir: Path = Xdg.cache(Path("fury/logs"))
   val upgradeDir: Path = Xdg.cache(Path("fury/upgrade"))
   val policyDir: Path = Xdg.cache(Path("fury/policies"))
+
+  def tmpDir[T](fn: Path => T): T = tmpFile { path =>
+    path.mkdir()
+    fn(path)
+  }
+
+  def tmpFile[T](fn: Path => T): T = {
+    val file = Xdg.runtimeDir / java.util.UUID.randomUUID().toString
+    file.mkParents()
+    val result = fn(file)
+    file.delete()
+    result
+  }
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {

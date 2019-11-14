@@ -255,11 +255,9 @@ object BuildCli {
     log           <- invoc.logger()
     records       <- Dns.lookup(Log.silent, Installation.config().service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
-    tmpFile       <- Installation.layersPath.mkTempFile()
     file          <- Shell(cli.env).ipfs.get(latestRef, tmpFile)
-    _             <- tmpFile.delete()
     _             <- TarGz.extract(log, file, Installation.upgradeDir)
-  } yield log.await()
+  } yield log.await() }
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout

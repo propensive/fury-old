@@ -389,37 +389,36 @@ case class Layer(version: Int = Layer.CurrentVersion,
 object Layer {
   val CurrentVersion = 4
 
-  def loadFromIpfs(log: Log, layerRef: IpfsRef, env: Environment): Try[LayerRef] = for {
-    tmpFile  <- Installation.layersPath.mkTempFile()
-    file     <- Shell(env).ipfs.get(layerRef, tmpFile)
-    layer    <- Layer.read(log, file, env)
-    layerRef <- saveLayer(layer)
-    _        <- tmpFile.delete()
-  } yield layerRef
+  def loadFromIpfs(log: Log, layerRef: IpfsRef, env: Environment): Try[LayerRef] =
+    Installation.tmpFile { tmpFile => for {
+      file     <- Shell(env).ipfs.get(layerRef, tmpFile)
+      layer    <- Layer.read(log, file, env)
+      layerRef <- saveLayer(layer)
+    } yield layerRef }
 
-  def loadFile(log: Log, file: Path, layout: Layout, env: Environment): Try[LayerRef] = for {
-    tmpDir <- Path.mkTempDir()
-    _      <- TarGz.extract(log, file, tmpDir)
-    _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
-    bases  <- ~(tmpDir / "bases").childPaths
-    _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
-    focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
-    _      <- tmpDir.delete()
-  } yield focus.layerRef
+  def loadFile(log: Log, file: Path, layout: Layout, env: Environment): Try[LayerRef] =
+    Installation.tmpDir { tmpDir => for {
+      _      <- TarGz.extract(log, file, tmpDir)
+      _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
+      bases  <- ~(tmpDir / "bases").childPaths
+      _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
+      focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
+    } yield focus.layerRef }
 
-  def share(log: Log, layer: Layer, env: Environment): Try[IpfsRef] = for {
-    layerRef <- ~digestLayer(layer)
-    file     <- ~(Installation.layersPath / layerRef.key)
-    _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
-    ref      <- Shell(env).ipfs.add(file)
-  } yield ref
+    def share(log: Log, layer: Layer, env: Environment): Try[IpfsRef] = for {
+      layerRef <- ~digestLayer(layer)
+      file     <- ~(Installation.layersPath / layerRef.key)
+      _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
+      ref      <- Shell(env).ipfs.add(file)
+    } yield ref
 
 
-  def loadCatalog(log: Log, catalogRef: IpfsRef, env: Environment): Try[Catalog] = for {
-    tmpFile  <- Installation.layersPath.mkTempFile()
-    file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
-    catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
-  } yield catalog
+  def loadCatalog(log: Log, catalogRef: IpfsRef, env: Environment): Try[Catalog] =
+    Installation.tmpFile { tmpFile => for {
+      file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
+      catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
+    } yield catalog
+  }
 
   def lookup(log: Log, domain: String, env: Environment): Try[List[Artifact]] = for {
     records   <- Dns.lookup(log, domain)
