@@ -143,7 +143,7 @@ You can grant these permissions with,
             _      <- ~log.fail(errorString)
             _      <- ~log.await()
           } yield
-            cli.abort(msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}")
+            cli.abort(msg"An unexpected error occurred which has been logged to ${Installation.globalLogFile()}")
 
           def unloggable = cli.abort("An unexpected error occurred which could not be logged to disk.\n\n"+
               errorString) 
