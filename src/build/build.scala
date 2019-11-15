@@ -455,7 +455,7 @@ object LayerCli {
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
     _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
-    _         <- ~log.raw(table.mkString("\n"))
+    _         <- ~log.info(table.mkString("\n"))
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
