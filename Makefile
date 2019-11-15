@@ -107,8 +107,8 @@ fury-native: dist/bundle/lib/fury-frontend.jar
 
 test:
 	mkdir tests
-	fury layer extract -f build.fury -d tests
-	cd tests && fury build run --https --output linear --project fury --module test-strings && fury build run --https --output linear --project fury --module test-ogdl && fury build run --https --output linear --project fury --module test-core
+	fury layer extract -f build.fury -d tests || find /build/.fury/logs -type f -exec cat {} \;
+	cd tests &&  fury build run --https --output linear --project fury --module test-strings && fury build run --https --output linear --project fury --module test-ogdl &&  fury build run --https --output linear --project fury --module test-core || find /build/.fury/logs -type f -exec cat {} \;
 
 integration:
 	etc/integration
