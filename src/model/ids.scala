@@ -81,7 +81,10 @@ object ImportPath {
 }
 
 case class ImportPath(path: String) {
-  def parts: List[ImportId] = path.split("/").to[List] match {
+
+  private[this] lazy val rawParts: List[String] = path.split("/").to[List]
+
+  def parts: List[ImportId] = rawParts match {
     case Nil => Nil
     case "" :: tail => tail.map(ImportId(_))
     case _ => Nil
@@ -98,7 +101,7 @@ case class ImportPath(path: String) {
   def dereference(relPath: ImportPath): ImportPath =
     if(relPath.path.startsWith("/")) relPath
     else {
-      relPath.path.split("/").to[List] match {
+      rawParts match {
         case ".." :: tail => ImportPath(path.split("/").to[List].dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
         case xs => ImportPath((path.split("/").to[List] ++ xs).mkString("/"))
       }
