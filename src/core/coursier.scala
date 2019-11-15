@@ -31,7 +31,7 @@ object Coursier {
     Organization("org.scala-lang") -> ModuleName(s"scala-$mod")
   }
 
-  private def mkRequest(binary: Binary): Try[List[Path]] = {
+  private def fetchBinaries(binary: Binary): Try[List[Path]] = {
     
     val dependency = Dependency(
       module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
@@ -54,24 +54,16 @@ object Coursier {
   def fetch(binary: Binary)(implicit log: Log): Try[List[Path]] = {
     val dir = Installation.binsDir / binary.group / binary.artifact / binary.version
     if(dir.exists) Success(dir.children.map(dir / _))
-    else {
-      val tmpDir = Installation.binsDir / java.util.UUID.randomUUID().toString
-      
-      val paths = for {
-        _     <- ~tmpDir.mkdir()
-        paths <- mkRequest(binary)
-        _     <- paths.map { file =>
-                   val dest = tmpDir / file.name
-                   dest.mkParents()
-                   file.hardLink(dest)
-                 }.sequence
-        _     <- dir.mkParents()
-        _     <- tmpDir.moveTo(dir)
-      } yield paths
-
-      paths.recoverWith { case _ => tmpDir.delete() }
-
-      paths
-    }
+    else Installation.tmpDir { tmpDir => for {
+      _     <- ~tmpDir.mkdir()
+      paths <- fetchBinaries(binary)
+      _     <- paths.map { file =>
+                 val dest = tmpDir / file.name
+                 dest.mkParents()
+                 file.hardLink(dest)
+               }.sequence
+      _     <- dir.mkParents()
+      _     <- tmpDir.foreach { f => f.moveTo(dir / f.name) }
+    } yield paths
   }
 }

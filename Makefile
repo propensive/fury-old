@@ -122,6 +122,7 @@ fury-native: dist/bundle/lib/fury-frontend.jar
 test:
 	mkdir tests
 	fury layer extract -f build.fury -d tests
+	fury permission grant --module test-core --project fury -P 4fb
 	cd tests && fury build run --https --output linear --project fury --module test-strings && fury build run --https --output linear --project fury --module test-ogdl && fury build run --https --output linear --project fury --module test-core
 
 integration:
