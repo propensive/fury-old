@@ -26,7 +26,6 @@ RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
 ENV PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:/root/.bloop:/opt/go-ipfs:${PATH}"
 
 COPY Makefile /build/Makefile
-COPY build.fury /build/build.fury
 COPY etc /build/etc
 
 ENV COURSIER_CACHE="/var/cache/coursier"
