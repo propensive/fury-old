@@ -29,6 +29,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					compile	id	compile
 						kind	Library
 						main	None
@@ -50,6 +51,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					core	id	core
 						kind	Library
 						main	None
@@ -138,6 +140,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					dependency	id	dependency
 						kind	Library
 						main	None
@@ -163,6 +166,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					frontend	id	frontend
 						kind	Library
 						main	None
@@ -213,6 +217,7 @@ schemas	default	id	default
 						policy	java.lang.RuntimePermission modifyThread -	className	java.lang.RuntimePermission
 								target	modifyThread
 								action	None
+						hidden	false
 					io	id	io
 						kind	Library
 						main	None
@@ -242,6 +247,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					jsongen	id	jsongen
 						kind	Library
 						main	None
@@ -263,6 +269,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					model	id	model
 						kind	Library
 						main	None
@@ -274,6 +281,10 @@ schemas	default	id	default
 							hidden	false
 						after	fury/io	projectId	fury
 								moduleId	io
+								intransitive	false
+								hidden	false
+							fury/ogdl	projectId	fury
+								moduleId	ogdl
 								intransitive	false
 								hidden	false
 							fury/strings	projectId	fury
@@ -300,6 +311,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					module	id	module
 						kind	Library
 						main	None
@@ -325,6 +337,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					ogdl	id	ogdl
 						kind	Library
 						main	None
@@ -354,6 +367,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					project	id	project
 						kind	Library
 						main	None
@@ -375,6 +389,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					repo	id	repo
 						kind	Library
 						main	None
@@ -396,6 +411,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					schema	id	schema
 						kind	Library
 						main	None
@@ -417,6 +433,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					source	id	source
 						kind	Library
 						main	None
@@ -442,6 +459,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					strings	id	strings
 						kind	Library
 						main	None
@@ -463,6 +481,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					test-all	id	test-all
 						kind	Library
 						main	None
@@ -492,6 +511,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					test-core	id	test-core
 						kind	Application
 						main	Some	fury.Tests
@@ -517,6 +537,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					test-ogdl	id	test-ogdl
 						kind	Application
 						main	Some	fury.Tests
@@ -542,6 +563,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					test-strings	id	test-strings
 						kind	Application
 						main	Some	fury.StringsTests
@@ -567,6 +589,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					utils	id	utils
 						kind	Library
 						main	None
@@ -603,6 +626,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
