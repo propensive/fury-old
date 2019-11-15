@@ -112,7 +112,10 @@ case class Path(input: String) {
   }
 
   def moveTo(path: Path): Try[Unit] =
-    Outcome.rescue[java.io.IOException](FileWriteError(this, _))(Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING))
+    Outcome.rescue[java.io.IOException](FileWriteError(this, _)){
+      path.parent.extant()
+      Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING)
+    }
 
   def relativeSubdirsContaining(pred: String => Boolean): Set[Path] =
     findSubdirsContaining(pred).map { p => Path(p.value.drop(value.length + 1)) }
