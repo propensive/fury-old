@@ -63,7 +63,7 @@ object Coursier {
                  file.hardLink(dest)
                }.sequence
       _     <- dir.mkParents()
-      _     <- tmpDir.foreach { f => f.moveTo(dir / f.name) }
-    } yield paths
+      _     <- Try(tmpDir.children.foreach { f => (tmpDir / f).moveTo(dir / f) })
+    } yield paths }
   }
 }
