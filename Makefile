@@ -1,6 +1,7 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 BLOOPVERSION=1.3.5
 FURYSTABLE=0.7.11
+SCALAVERSION=2.12.10
 FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -60,7 +61,7 @@ dist/bundle/etc:
 
 bootstrap/scala:
 	mkdir -p $@
-	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1 2> /dev/null
+	curl -s https://downloads.lightbend.com/scala/${SCALAVERSION}/scala-${SCALAVERSION}.tgz | tar xz -C $@ --strip 1 2> /dev/null
 
 bootstrap/bin:
 	mkdir -p $@

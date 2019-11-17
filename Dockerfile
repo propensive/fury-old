@@ -22,8 +22,8 @@ COPY etc/ci-mirror.properties /home/bash_user/.config/coursier/mirror.properties
 
 # Set up build directory
 RUN mkdir -p /build /build/bootstrap
-RUN ln -s /opt/scala-2.12.8 /build/bootstrap/scala
-ENV PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:/root/.bloop:/opt/go-ipfs:${PATH}"
+RUN ln -s /opt/scala-2.12.10 /build/bootstrap/scala
+ENV PATH="/opt/scala-2.12.10/bin:/usr/local/openjdk-8/bin:/root/.bloop:/opt/go-ipfs:${PATH}"
 
 COPY Makefile /build/Makefile
 COPY etc /build/etc

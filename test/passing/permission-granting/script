@@ -1,8 +1,8 @@
 fury layer init 
 fury project add -n scala
 fury module add -n compiler -t compiler
-fury module update -C scala-lang.org:scala-compiler:2.12.8
-fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury module update -C scala-lang.org:scala-compiler:2.12.10
+fury binary add -b org.scala-lang:scala-compiler:2.12.10
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury permission require -0 -C java.util.PropertyPermission -T scala.maven.version.number -A read

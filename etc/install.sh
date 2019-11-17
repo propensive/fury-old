@@ -176,7 +176,7 @@ findConfigFile() {
 }
 
 resolveScala() {
-  ${DESTINATION}/bin/coursier fetch --classpath org.scala-lang:scala-reflect:2.12.8 com.facebook:nailgun-server:1.0.0 > ${DESTINATION}/classpath
+  ${DESTINATION}/bin/coursier fetch --classpath org.scala-lang:scala-reflect:2.12.10 com.facebook:nailgun-server:1.0.0 > ${DESTINATION}/classpath
 }
 
 updateShell() {

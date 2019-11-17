@@ -9,12 +9,12 @@
 SHELL_NAME="$1"
 NEW_USER="${SHELL_NAME}_user"
 NEW_HOME="/home/${NEW_USER}"
-EXPORTS='export PATH="/opt/scala-2.12.8/bin:/usr/local/openjdk-8/bin:$PATH"'
+EXPORTS='export PATH="/opt/scala-2.12.10/bin:/usr/local/openjdk-8/bin:$PATH"'
 SHARE_CACHE='export COURSIER_CACHE=/var/cache/coursier'
 
 case "$SHELL_NAME" in
   fish)
-    EXPORTS='set -Ux fish_user_paths $fish_user_paths /opt/scala-2.12.8/bin /usr/local/openjdk-8/bin'
+    EXPORTS='set -Ux fish_user_paths $fish_user_paths /opt/scala-2.12.10/bin /usr/local/openjdk-8/bin'
     NEW_RC="${NEW_HOME}/.config/fish/config.fish"
     NEW_PROFILE="${NEW_RC}"
     SHARE_CACHE='set -Ux COURSIER_CACHE /var/cache/coursier'

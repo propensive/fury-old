@@ -8,8 +8,8 @@ fury module update -m app -c scala/compiler
 echo $?
 fury project select -p scala
 fury module add -n compiler -t compiler
-fury module update -C scala-lang.org:scala-compiler:2.12.8
-fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury module update -C scala-lang.org:scala-compiler:2.12.10
+fury binary add -b org.scala-lang:scala-compiler:2.12.10
 fury project select -p hello-world
 fury module update -m app -c scala/compiler
 echo $?

@@ -13,7 +13,7 @@ MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 QUIET='0'
 UPGRADEDIR="$FURYHOME/upgrade"
-SCALA_VERSION="2.12.8"
+SCALA_VERSION="2.12.10"
 NAILGUN_VERSION="1.0.0"
 
 trap cleanup INT
