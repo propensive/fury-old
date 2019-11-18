@@ -42,6 +42,9 @@ runtest() {
   return $SUCCESS
 }
 
+mkdir -pv ~/.local/share/fury/layers
+mkdir -pv ~/.cache/fury/policies
+
 if [ "$1" = "" ]; then
 
   fury start
