@@ -28,11 +28,12 @@ publish: dist/install.sh
 opt:
 	mkdir -p opt
 
-opt/fury-$(FURYSTABLE).tar.gz: opt
-	if [ ! -f "$@" ]; then curl -s -o $@ "https://storage.googleapis.com/revivalist/downloads/fury.build/fury-$(FURYSTABLE).sh"; fi
+opt/fury-$(FURYSTABLE).sh: opt
+	curl -C - -s -o $@ "https://storage.googleapis.com/revivalist/downloads/fury.build/fury-$(FURYSTABLE).sh"
 
-$(FURYLOCAL): opt/fury-$(FURYSTABLE).tar.gz
-	sh opt/fury-$(FURYSTABLE).tar.gz opt/fury-$(FURYSTABLE)
+$(FURYLOCAL): opt/fury-$(FURYSTABLE).sh
+	sh opt/fury-$(FURYSTABLE).sh opt/fury-$(FURYSTABLE)
+	touch $(FURYLOCAL)
 
 dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	cat etc/install.sh $< > dist/install.sh
