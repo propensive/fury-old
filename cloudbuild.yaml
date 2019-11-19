@@ -1,22 +1,22 @@
 steps:
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '--file', 'dkr/build', '--tag', 'fury', '.']
+- name: 'gcr.io/kaniko-project/executor:latest'
+  args: ['--dockerfile', 'dkr/build', '--destination=gcr.io/$PROJECT_ID/image', '--cache=true', '--cache-ttl=336h']
   timeout: 300s
   id: 'build'
 
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '--file', 'dkr/unittests', '.']
+- name: 'gcr.io/kaniko-project/executor:latest'
+  args: ['--dockerfile', 'dkr/unittests', '--destination=gcr.io/$PROJECT_ID/image', '--cache=true', '--cache-ttl=336h']
   timeout: 300s
   id: 'unittests'
 
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '--file', 'dkr/integration', '.']
+- name: 'gcr.io/kaniko-project/executor:latest'
+  args: ['--dockerfile', 'dkr/integration', '--destination=gcr.io/$PROJECT_ID/image', '--cache=true', '--cache-ttl=336h']
   timeout: 300s
   id: 'integration'
 
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '--file', 'dkr/community', '.']
-  timeout: 600s
+- name: 'gcr.io/kaniko-project/executor:latest'
+  args: ['--dockerfile', 'dkr/community', '--destination=gcr.io/$PROJECT_ID/image', '--cache=true', '--cache-ttl=336h']
+  timeout: 300s
   id: 'community'
 
 artifacts:
