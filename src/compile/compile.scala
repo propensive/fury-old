@@ -18,6 +18,7 @@ package fury.core
 
 import java.io._
 import java.net.URI
+import java.nio.channels.{Channels, Pipe, ReadableByteChannel, SelectableChannel}
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.{CompletableFuture, ExecutionException, Executors, TimeUnit}
@@ -112,7 +113,7 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
 object BspConnectionManager {
   case class Handle(in: OutputStream,
                     out: InputStream,
-                    err: InputStream,
+                    err: SelectableChannel with ReadableByteChannel,
                     sink: PrintWriter,
                     broken: Promise[Unit],
                     launcher: Future[LauncherStatus])
@@ -125,7 +126,7 @@ object BspConnectionManager {
       err.close()
     }
 
-    override val source: BufferedReader = new BufferedReader(new InputStreamReader(err))
+    override val source: SelectableChannel with ReadableByteChannel = err
 
     override def onStop(): Unit = {
       broken.success(())
@@ -159,9 +160,9 @@ object BspConnectionManager {
     val out = new PipedInputStream
     out.connect(bloopOut)
 
-    val bloopErr = new PipedOutputStream
-    val err = new PipedInputStream
-    err.connect(bloopErr)
+    val fromBloopErr = Pipe.open()
+    val bloopErr = Channels.newOutputStream(fromBloopErr.sink())
+    val err = fromBloopErr.source()
 
     val launcher = new LauncherMain(
       clientIn = bloopIn,

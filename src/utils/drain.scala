@@ -18,39 +18,44 @@ package fury.utils
 
 import java.io.{BufferedReader, IOException, PrintWriter}
 import java.nio.CharBuffer
+import java.nio.ByteBuffer
+import java.nio.channels.{ReadableByteChannel, SelectableChannel, SelectionKey, Selector}
 import org.eclipse.lsp4j.jsonrpc.JsonRpcException
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.blocking
 
 class Drain(private val ec: ExecutionContext){
 
-  private val handles: mutable.Set[Drainable] = mutable.HashSet()
+  private val selector = Selector.open()
 
-  def register(drainable: Drainable)(implicit ec: ExecutionContext): Unit = {
-    handles.synchronized {
-      handles += drainable
-    }
+  def register(drainable: Drainable): Unit = {
+    selector.wakeup()
+    drainable.source.configureBlocking(false)
+    drainable.source.register(selector, SelectionKey.OP_READ, drainable.sink)
   }
 
-  private val buffer = CharBuffer.allocate(1024)
+  private val buffer = ByteBuffer.allocate(1024)
 
   Future(blocking {
     while(true) {
-      handles.foreach { handle =>
+      selector.select(1000)
+      selector.selectedKeys().asScala.foreach { key =>
+        val handle = key.attachment().asInstanceOf[Drainable]
         try {
-          val bytesRead = handle.source.read(buffer)
+          val bytesRead = key.channel().asInstanceOf[ReadableByteChannel].read(buffer)
           if (bytesRead == -1){
-            handle.onStop()
+            //handle.onStop()
           } else if (bytesRead > 0){
             buffer.flip()
             handle.sink.write(buffer.toString)
           }
         } catch {
           case e @ (_ : JsonRpcException | _: IOException) =>
+            key.cancel()
             handle.sink.println("Broken handle!")
-            handles.synchronized { handles -= handle }
             e.printStackTrace(handle.sink)
             handle.onError(e)
         } finally {
@@ -64,7 +69,7 @@ class Drain(private val ec: ExecutionContext){
 }
 
 trait Drainable {
-  val source: BufferedReader
+  val source: SelectableChannel with ReadableByteChannel
   val sink: PrintWriter
   def onError(e: Throwable): Unit
   def onStop(): Unit
