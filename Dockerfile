@@ -17,6 +17,5 @@ COPY src /build/src
 RUN (cd /build && make dist/install.sh)
 
 # Clean up build
-RUN mv /build/dist/install.sh /install.sh
-RUN /install.sh
-RUN fury about
+RUN /build/dist/install.sh
+RUN sh -c 'mv /build/dist/install.sh /fury-$(git rev-parse --short HEAD).sh'

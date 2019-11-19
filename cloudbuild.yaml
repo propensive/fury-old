@@ -12,18 +12,23 @@ steps:
   id: 'unittests'
 
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['run', '-u', 'bash_user', '-w', '/home/bash_user', '-t', 'fury/ci', '/integration']
+  args: ['run', '-w', '/build', '-t', 'fury/ci', 'make', 'integration']
   timeout: 300s
   waitFor:
     - build
   id: 'integration'
 
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['run', '-u', 'bash_user', '-w', '/home/bash_user', '-t', 'fury/ci', '/community']
+  args: ['run', '-w', 'build', '-t', 'fury/ci', 'make', 'community']
   timeout: 600s
   waitFor:
     - build
   id: 'community'
+
+artifacts:
+  objects:
+    location: 'gs://fury-releases/'
+    paths: ['/fury-*.sh']
 
 options:
   machineType: 'N1_HIGHCPU_8'
