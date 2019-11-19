@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.5. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.11. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -53,7 +53,7 @@ import scala.util.control.NonFatal
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
 object BloopServer {
- 
+
   private var lock: Promise[Unit] = Promise.successful(())
   private var connections: List[Connection] = Nil
   private val bloopVersion = "1.3.5"
@@ -68,7 +68,7 @@ object BloopServer {
   }
 
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
-  
+
   private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout): Future[Connection] = singleTasking { promise =>
     val serverIoPipe = Pipe.open()
     val serverIn = Channels.newInputStream(serverIoPipe.source())
@@ -79,7 +79,7 @@ object BloopServer {
 
     val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, System.out,
         StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, promise)
-    
+
     val thread = Threads.launcher.newThread { () =>
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
@@ -87,11 +87,11 @@ object BloopServer {
         serverJvmOptions = Nil
       )
     }
-    
+
     thread.start()
-    
+
     val client = new FuryBuildClient(multiplexer, compilation, targetId, layout)
-      
+
     val bspServer = new Launcher.Builder[FuryBspServer]()
       //.traceMessages(log)
       .setRemoteInterface(classOf[FuryBspServer])
@@ -100,17 +100,17 @@ object BloopServer {
       .setOutput(clientOut)
       .setLocalService(client)
       .create()
-    
+
     bspServer.startListening()
-      
+
     val proxy = bspServer.getRemoteProxy
-      
+
     val capabilities = new BuildClientCapabilities(List("scala").asJava)
     val initParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString, capabilities)
 
     proxy.buildInitialize(initParams).get(5, TimeUnit.SECONDS)
     proxy.onBuildInitialized()
-    
+
     Connection(proxy, client, thread)
   }
 
@@ -466,7 +466,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
     BloopServer.borrow(layout.base, multiplexer, this, target.id, layout) { conn =>
-      
+
       val result: Try[CompileResult] = {
         for {
           res <- wrapServerErrors(conn.server.buildTargetCompile(params))
@@ -476,7 +476,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
       //conn.writeTrace(layout)
       //conn.writeMessages(layout)
-      
+
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
         val bti = soi.getTarget
         val classDir = soi.getClassDirectory
