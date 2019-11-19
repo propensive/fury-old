@@ -63,4 +63,6 @@ COPY etc/community /community
 COPY test /home/bash_user/test
 RUN chown -R bash_user:bash_user /home/bash_user/test
 
+RUN mkdir -p /root/.local /root/.cache
+
 RUN FURY_VERSION=`cat /build/.version`; ln -sf "/home/bash_user/.fury/bin/fury" /usr/local/bin/fury

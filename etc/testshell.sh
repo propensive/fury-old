@@ -31,7 +31,7 @@ esac
 
 apt-get -qq install "${SHELL_NAME}" > /dev/null
 useradd -s "$(which ${SHELL_NAME})" -G coursier -d "$NEW_HOME" "$NEW_USER"
-mkdir -p "$NEW_HOME"
+mkdir -p "$NEW_HOME" "$NEW_HOME/.cache" "$NEW_HOME/.local/share"
 mkdir -p $(dirname "${NEW_RC}")
 echo "${EXPORTS}" >>"${NEW_PROFILE}"
 echo "${SHARE_CACHE}" >>"${NEW_PROFILE}"
