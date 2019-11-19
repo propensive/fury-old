@@ -9,9 +9,9 @@ NATIVEJARS=dist/bundle/lib/fury-frontend.jar $(NAILGUNJARPATH) bootstrap/scala/l
 DOCKER_TAG=fury-ci
 INIT_CGROUP=$(shell cat /proc/1/cgroup | tail -n1 | cut -d: -f3)
 ifeq ($(INIT_CGROUP),"/")
-	FURY_OUTPUT=linear
-else
 	FURY_OUTPUT=graph
+else
+	FURY_OUTPUT=linear
 endif
 
 export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)

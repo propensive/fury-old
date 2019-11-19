@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 # WARNING: Only for execution in docker.
-# This script downloads shell from apt repository, creates new user and
+# This script installs the shell, creates a new user and
 # installs Fury using the shell passed as command line parameter
 #
-# Argument 1: shell type
-# Argument 2: conjunction symbol for the specified shell
-#
 # Example usage:
-# ./installation_test bash " && "
+# ./testshell.sh bash
 
 SHELL_NAME="$1"
 NEW_USER="${SHELL_NAME}_user"
@@ -48,7 +45,7 @@ git config --global user.name "$NEW_USER"
 ~/.fury/bin/fury about 
 ~/.fury/bin/fury stop
 EOF
-chown -R "$NEW_USER" "$NEW_HOME"
+chown -R "$NEW_USER":"$NEW_USER" "$NEW_HOME"
 chmod +x "$NEW_HOME/commands"
 
 su -l "$NEW_USER" -c "/install.sh ${NEW_HOME}/.fury"
