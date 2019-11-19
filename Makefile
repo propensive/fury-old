@@ -116,7 +116,7 @@ dist/bundle/bin/ng.py: dist/bundle/bin/.dir
 fury-native: dist/bundle/lib/fury-frontend.jar
 	native-image -cp $(shell bash -c "ls $(NATIVEJARS) | paste -s -d: -") fury.Main
 
-test:
+unittests:
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-ogdl
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-core

@@ -18,4 +18,4 @@ RUN (cd /build && make dist/install.sh)
 
 # Clean up build
 RUN /build/dist/install.sh
-RUN sh -c 'mv /build/dist/install.sh /fury-$(git rev-parse --short HEAD).sh'
+RUN sh -c 'mv /build/dist/install.sh /fury.sh'
