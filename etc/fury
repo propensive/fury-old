@@ -3,7 +3,7 @@
 if [ "$(uname -s)" = 'Linux' ]; then
   FURYHOME="$(realpath $(dirname "$(readlink -f "$0")")/..)"
 else
-  FURYHOME="$(realpath $(cd "$(dirname "$0")"/.. && pwd -P))"
+  FURYHOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
 fi
 
 ARGS="$@"
