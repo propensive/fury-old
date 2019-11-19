@@ -48,7 +48,7 @@ case class Shell(environment: Environment) {
       Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
 
     val policyFile = layout.policyDir / UUID.randomUUID().toString
-    policy.save(policyFile)
+    policy.save(policyFile).get
 
     val allProperties: Map[String, String] =
       properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)
