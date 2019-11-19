@@ -536,7 +536,10 @@ schemas	default	id	default
 						bloopSpec	None
 						environment	
 						properties	
-						policy	java.lang.RuntimePermission getenv.HOME -	className	java.lang.RuntimePermission
+						policy	java.io.FilePermission <<ALL FILES>> read,write	className	java.io.FilePermission
+								target	<<ALL FILES>>
+								action	Some	read,write
+							java.lang.RuntimePermission getenv.HOME -	className	java.lang.RuntimePermission
 								target	getenv.HOME
 								action	None
 							java.lang.RuntimePermission getenv.XDG_CACHE_HOME -	className	java.lang.RuntimePermission
