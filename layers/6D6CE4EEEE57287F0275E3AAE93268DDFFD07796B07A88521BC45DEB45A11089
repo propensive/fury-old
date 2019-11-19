@@ -536,7 +536,27 @@ schemas	default	id	default
 						bloopSpec	None
 						environment	
 						properties	
-						policy	
+						policy	java.lang.RuntimePermission getenv.HOME -	className	java.lang.RuntimePermission
+								target	getenv.HOME
+								action	None
+							java.lang.RuntimePermission getenv.XDG_CACHE_HOME -	className	java.lang.RuntimePermission
+								target	getenv.XDG_CACHE_HOME
+								action	None
+							java.lang.RuntimePermission getenv.XDG_CONFIG_DIRS -	className	java.lang.RuntimePermission
+								target	getenv.XDG_CONFIG_DIRS
+								action	None
+							java.lang.RuntimePermission getenv.XDG_CONFIG_HOME -	className	java.lang.RuntimePermission
+								target	getenv.XDG_CONFIG_HOME
+								action	None
+							java.lang.RuntimePermission getenv.XDG_DATA_DIRS -	className	java.lang.RuntimePermission
+								target	getenv.XDG_DATA_DIRS
+								action	None
+							java.lang.RuntimePermission getenv.XDG_DATA_HOME -	className	java.lang.RuntimePermission
+								target	getenv.XDG_DATA_HOME
+								action	None
+							java.lang.RuntimePermission getenv.XDG_RUNTIME_DIR -	className	java.lang.RuntimePermission
+								target	getenv.XDG_RUNTIME_DIR
+								action	None
 						hidden	false
 					test-ogdl	id	test-ogdl
 						kind	Application
