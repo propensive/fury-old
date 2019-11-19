@@ -1,0 +1,7 @@
+FROM openjdk:8
+RUN (apt-get -qq update > /dev/null && apt-get -qq install make gcc > /dev/null)
+RUN (git config --global user.email 'fury@propensive.com' && git config --global user.name 'Fury Test')
+RUN sh -c "cd /opt && curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_linux-amd64.tar.gz | tar zxf - go-ipfs/ipfs"
+COPY Makefile /build/Makefile
+ADD https://storage.googleapis.com/revivalist/downloads/fury.build/fury-0.7.9.sh /install.sh
+RUN (chmod +x /install.sh && /install.sh && /opt/fury-0.7.9/bin/fury install)

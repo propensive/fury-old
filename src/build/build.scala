@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.5. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.9. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -133,6 +133,13 @@ object BuildCli {
   } yield new MenuContext(cli, layout, config, layer)
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
+
+  def install(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+    invoc    <- cli.read()
+    log      <- invoc.logger()
+    handle   <- ~BspConnectionManager.bloopLauncher(new java.io.PrintWriter(System.out))
+    _        <- ~Await.result(handle.launcher, duration.Duration.Inf)
+  } yield log.await()
 
   def status: String = {
     val runtime = Runtime.getRuntime

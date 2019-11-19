@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.5. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.9. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -66,6 +66,7 @@ object FuryMenu {
             Action('list, msg"list environment variable", EnvCli.list)
         ),
         Action('help, msg"help on using Fury", help),
+        Action('install, msg"finalize installation", BuildCli.install, false),
         Action('kill, msg"kill the Fury server", BuildCli.notImplemented),
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
