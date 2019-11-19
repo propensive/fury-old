@@ -14,7 +14,7 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.utils
+package fury.core
 
 import scala.collection.mutable.Map
 import scala.collection.Set
@@ -23,8 +23,8 @@ import scala.util._
 
 abstract class Pool[K, T <: AnyRef](private implicit val ec: ExecutionContext) {
 
-  def create(key: K): T
-  def destroy(value: T): Unit
+  def create(key: K)(implicit log: Log): T
+  def destroy(value: T)(implicit log: Log): Unit
   def isBad(value: T): Boolean
 
   private[this] val pool: Map[K, Future[T]] = scala.collection.concurrent.TrieMap()
@@ -41,7 +41,7 @@ abstract class Pool[K, T <: AnyRef](private implicit val ec: ExecutionContext) {
     pool(key) = value
   }
 
-  private[this] final def createOrRecycle(key: K): Future[T] = {
+  private[this] final def createOrRecycle(key: K)(implicit log: Log): Future[T] = {
     val result = pool.get(key) match {
       case None =>
         val res = Future(blocking(create(key)))
@@ -59,7 +59,7 @@ abstract class Pool[K, T <: AnyRef](private implicit val ec: ExecutionContext) {
     result.recoverWith{ case _ => createOrRecycle(key) }
   }
 
-  def borrow[S](key: K)(action: T => S): Future[S] = {
+  def borrow[S](key: K)(action: T => S)(implicit log: Log): Future[S] = {
     val released = Promise[T]
     val lock: AnyRef = pool.get(key).getOrElse(pool)
     
@@ -81,42 +81,4 @@ abstract class Pool[K, T <: AnyRef](private implicit val ec: ExecutionContext) {
       }
     }
   }
-
-}
-
-sealed trait PoolCleaner[K, T <: AnyRef] { this: Pool[K, T] =>
-
-  def isIdle(value: T): Boolean
-
-  val cleaningInterval: Long
-
-  def clean()(implicit cleaner: ExecutionContext): Future[Unit] = {
-    Future.traverse(keySet) { key =>
-      val foo = get(key)
-      foo.synchronized{
-        foo.map { conn =>
-          remove(key)
-          if(isIdle(conn)) {
-            destroy(conn)
-            //add(key, Future.failed[T](new Exception("Resource has been destroyed")))
-          } else add(key, Future.successful(conn))
-        }
-      }
-    }.map(_ => ())
-  }
-
-  protected def keepCleaning()(implicit cleaner: ExecutionContext): Future[Unit] = {
-    clean().andThen { case _ =>
-      Thread.sleep(cleaningInterval)
-      keepCleaning()
-    }
-  }
-
-}
-
-abstract class SelfCleaningPool[K, T <: AnyRef](val cleaningInterval: Long)(implicit ec: ExecutionContext)
-  extends Pool[K, T]()(ec) with PoolCleaner[K, T] {
-
-  keepCleaning()(Threads.singleThread("pool-cleaner", daemon = true))
-
 }

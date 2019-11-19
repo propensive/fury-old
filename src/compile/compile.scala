@@ -52,35 +52,97 @@ import scala.util.control.NonFatal
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-object BloopServer {
- 
-  private var lock: Promise[Unit] = Promise.successful(())
-  private var connections: List[Connection] = Nil
-  private val bloopVersion = "1.3.5"
+class BspConnection(val future: java.util.concurrent.Future[Void],
+                    val client: FuryBuildClient,
+                    server: FuryBspServer,
+                    traceBuffer: CharArrayWriter,
+                    messageBuffer: CharArrayWriter) {
 
-  def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
-    val newLock: Promise[Unit] = Promise()
-    BloopServer.synchronized {
-      val future = lock.future.map { case _ => work(newLock) }
-      lock = newLock
-      future
+  val createdAt: Long = System.currentTimeMillis
+
+  def shutdown(): Unit = {
+    messageBuffer.append(s"Closing connection: ${this.toString}").append("\n")
+    try {
+      server.buildShutdown().get(5, TimeUnit.SECONDS)
+      server.onBuildExit()
+    } catch {
+      case NonFatal(e) =>
+        messageBuffer.append(e.getMessage).append("\n")
+        e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
     }
+    writeTrace(client.layout)
+    writeMessages(client.layout)
+    future.cancel(false)
+    future.get()
   }
 
-  case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
-  
-  private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout): Future[Connection] = singleTasking { promise =>
-    val serverIoPipe = Pipe.open()
-    val serverIn = Channels.newInputStream(serverIoPipe.source())
-    val clientOut = Channels.newOutputStream(serverIoPipe.sink())
-    val clientIoPipe = Pipe.open()
-    val clientIn = Channels.newInputStream(clientIoPipe.source())
-    val serverOut = Channels.newOutputStream(clientIoPipe.sink())
+  def provision[T](currentCompilation: Compilation,
+                   targetId: TargetId,
+                   layout: Layout,
+                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]],
+                   tries: Int = 0)
+                  (action: FuryBspServer => T)
+  : T = try {
+    client.compilation = currentCompilation
+    client.targetId = targetId
+    client.layout = layout
+    client.multiplexer = currentMultiplexer
+    client.connection = this
+    action(server)
+  } catch {
+    case exception: ExecutionException =>
+      Option(exception.getCause) match {
+        case Some(exception: JsonRpcException) =>
+          if(tries < 3) provision(currentCompilation, targetId, layout, currentMultiplexer, tries + 1)(action)
+          else throw BspException()
+        case _ =>
+          throw exception
+      }
+  }
 
-    val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, System.out,
-        StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, promise)
-    
-    val thread = Threads.launcher.newThread { () =>
+  def writeTrace(layout: Layout): Try[Unit] = for {
+    _ <- layout.traceLogfile.appendSync(traceBuffer.toString)
+  } yield traceBuffer.reset()
+
+  def writeMessages(layout: Layout): Try[Unit] = for {
+    _ <- layout.messagesLogfile.appendSync(messageBuffer.toString)
+  } yield messageBuffer.reset()
+
+}
+
+object BspConnectionManager {
+  case class Handle(in: OutputStream,
+                    out: InputStream,
+                    log: PrintStream,
+                    broken: Promise[Unit],
+                    launcher: Future[LauncherStatus])
+
+  private val bloopVersion = "1.3.5"
+
+  def bloopLauncher()(implicit log: Log): Handle = {
+
+    val bloopIn = new PipedInputStream
+    val in = new PipedOutputStream
+    in.connect(bloopIn)
+
+    val bloopOut = new PipedOutputStream
+    val out = new PipedInputStream
+    out.connect(bloopOut)
+
+    val printWriter = log.noteStream()
+
+    val launcher = new LauncherMain(
+      clientIn = bloopIn,
+      clientOut = bloopOut,
+      out = printWriter,
+      charset = StandardCharsets.UTF_8,
+      shell = bloop.bloopgun.core.Shell.default,
+      userNailgunHost = None,
+      userNailgunPort = None,
+      startedServer = Promise[Unit]()
+    )
+
+    val future = Future(blocking {
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
         skipBspConnection = false,
@@ -125,16 +187,7 @@ object BloopServer {
       }
     }.getOrElse(Await.result(connect(dir, multiplexer, compilation, targetId, layout), Duration.Inf))
 
-    try {
-      val result = fn(conn)
-      BloopServer.synchronized(conn.server.buildShutdown().get())
-      //BloopServer.synchronized(connections ::= conn)
-      Success(result)
-    } catch {
-      case e: Exception =>
-        //conn.terminate()
-        Failure(e)
-    }
+    Handle(in, out, printWriter, Promise[Unit], future)
   }
 }
 
@@ -142,6 +195,55 @@ object Compilation {
 
   //FIXME
   var receiverClient: Option[BuildClient] = None
+
+  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection]() {
+
+    def destroy(value: BspConnection)(implicit log: Log): Unit = value.shutdown()
+    def isBad(value: BspConnection): Boolean = value.future.isDone
+
+    def create(dir: Path)(implicit log: Log): BspConnection = {
+      val bspMessageBuffer = new CharArrayWriter()
+      val bspTraceBuffer = new CharArrayWriter()
+      val handle = BspConnectionManager.bloopLauncher()(log)
+      val client = receiverClient.fold[FuryBuildClient](
+        new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
+      ){
+        rec => new ForwardingClient(rec)
+      }
+      val launcher = new Launcher.Builder[FuryBspServer]()
+        //.traceMessages(new PrintWriter(handle.log))
+        .setRemoteInterface(classOf[FuryBspServer])
+        .setExecutorService(compilationThreadPool)
+        .setInput(handle.out)
+        .setOutput(handle.in)
+        .setLocalService(client)
+        .create()
+
+      val future = launcher.startListening()
+      val server = launcher.getRemoteProxy
+      val capabilities = new BuildClientCapabilities(List("scala").asJava)
+
+      val initializeParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
+        capabilities)
+
+      server.buildInitialize(initializeParams).get
+      server.onBuildInitialized()
+      val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
+
+      handle.broken.future.andThen {
+        case Success(_) =>
+          log.note(msg"Connection for $dir has been closed")
+          //log.flush()
+          bspConn.future.cancel(false)
+        case Failure(e) =>
+          log.note(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
+          //e.printStackTrace(log)
+          //log.flush()
+          bspConn.future.cancel(false)
+      }
+      bspConn
+    }
+  }
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 

@@ -24,7 +24,8 @@ import guillotine._
 import scala.util._
 import scala.collection.mutable.HashMap
 
-import java.io.{PrintWriter, FileWriter}
+import java.io.{PrintWriter, FileWriter, PrintStream, PipedOutputStream, PipedInputStream, InputStreamReader,
+    BufferedReader}
 import java.text.{DecimalFormat, SimpleDateFormat}
 import java.util.Date
 
@@ -108,8 +109,26 @@ class Log(private[this] val output: LogStyle) {
   def warn(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Warn)
   def fail(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Fail)
 
+  def noteStream(): PrintStream = {
+    val out = new PipedOutputStream()
+    val in = new PipedInputStream()
+    out.connect(in)
+
+    val thread: Thread = new Thread {
+      override def run(): Unit = {
+        new BufferedReader(new InputStreamReader(in)).lines().forEach(note(_))
+      }
+    }
+
+    thread.setDaemon(true)
+    thread.start()
+    
+    new PrintStream(out)
+  }
+
   def await(success: Boolean = true): ExitStatus = {
     writers.foreach(_.flush())
     if(success) Done else Abort
   }
+
 }
