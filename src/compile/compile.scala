@@ -111,9 +111,19 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
 }
 
 object BloopServer {
-  
+ 
+  private var ready: Promise[Unit] = Promise.successful(())
   private var connections: List[Connection] = Nil
   private val bloopVersion = "1.3.5"
+
+  def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
+    val newReady: Promise[Unit] = Promise()
+    BloopServer.synchronized {
+      val future = ready.future.map { case _ => work(newReady) }
+      ready = newReady
+      future
+    }
+  }
 
   case class Connection(in: OutputStream, out: InputStream, thread: Thread) {
     def terminate(): Unit = {
@@ -123,7 +133,7 @@ object BloopServer {
     }
   }
   
-  private def connect(): Connection = {
+  private def connect(): Future[Connection] = singleTasking { promise =>
     val serverIoPipe = Pipe.open()
     val serverIn = Channels.newInputStream(serverIoPipe.source())
     val clientOut = Channels.newOutputStream(serverIoPipe.sink())
@@ -132,7 +142,7 @@ object BloopServer {
     val serverOut = Channels.newOutputStream(clientIoPipe.sink())
 
     val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, System.out,
-        StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, Promise[Unit]())
+        StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, promise)
     
     val thread = Threads.launcher.newThread { () =>
       launcher.runLauncher(
@@ -152,11 +162,11 @@ object BloopServer {
       connections match {
         case head :: tail =>
           connections = tail
-          head
+          Some(head)
         case Nil =>
-          connect()
+          None
       }
-    }
+    }.getOrElse(Await.result(connect(), Duration.Inf))
 
     try {
       val result = fn(conn)
