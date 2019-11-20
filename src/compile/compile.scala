@@ -473,13 +473,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def bspUpdate(log: Log, targetId: TargetId, layout: Layout): Try[Unit] = Success(())
-    /*Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
-      conn.provision(this, targetId, layout, None) { server =>
-        Try(server.workspaceBuildTargets.get)
-      }
-    }, Duration.Inf)*/
-
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def checkoutAll(log: Log, layout: Layout, https: Boolean): Try[Unit] =
@@ -600,17 +593,17 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-    BloopServer.borrow { conn => Compilation.run(layout.base) { conn =>
-      val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
-        wrapServerErrors(server.buildTargetCompile(params))
-      }
-      val scalacOptions: Try[ScalacOptionsResult] = conn.provision(this, target.id, layout, None) { server =>
-        wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
+    Compilation.run(layout.base) { conn =>
+      val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+        for {
+          res <- wrapServerErrors(server.buildTargetCompile(params))
+          opts <- wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
+        } yield CompileResult(res, opts)
       }
       conn.writeTrace(layout)
       conn.writeMessages(layout)
       
-      scalacOptions.get.getItems.asScala.foreach { case soi =>
+      result.get.scalacOptions.getItems.asScala.foreach { case soi =>
         val bti = soi.getTarget
         val classDir = soi.getClassDirectory
         val targetId = bspToFury(bti)
@@ -621,8 +614,8 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
         soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
       }
 
-      CompileResult(bspCompileResult.get, scalacOptions.get)
-    } }.flatten
+      result.get
+    }
   }
 
   private[this] def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
