@@ -1,3 +1,6 @@
-object HelloWorld extends App {
+
+enum Greeting { case Hello, Goodbye }
+
+object HelloWorld extends App
   println("Hello world")
-}
+end HelloWorld
