@@ -20,7 +20,7 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
-import java.util.concurrent.{CompletableFuture, ExecutionException, Executors, TimeUnit}
+import java.util.concurrent.{CompletableFuture, ExecutionException, Executors, Semaphore, TimeUnit}
 
 import bloop.bloopgun.BloopgunCli
 import bloop.launcher.{LauncherMain, LauncherStatus}
@@ -149,6 +149,8 @@ object BspConnectionManager {
 
   private val bloopVersion = "1.3.5"
 
+  private val foobar = new Semaphore(1)
+
   def bloopLauncher(sink: PrintWriter): Handle = {
 
     val bloopIn = new PipedInputStream
@@ -163,6 +165,8 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
+    val startedServer = Promise[Unit]()
+
     val launcher = new LauncherMain(
       clientIn = bloopIn,
       clientOut = bloopOut,
@@ -171,10 +175,13 @@ object BspConnectionManager {
       shell = bloop.bloopgun.core.Shell.default,
       userNailgunHost = None,
       userNailgunPort = None,
-      startedServer = Promise[Unit]()
+      startedServer = startedServer
     )
 
+    startedServer.future.foreach{_ => foobar.release()}
+
     val future = Future(blocking {
+      foobar.acquire()
       launcher.runLauncher(
         bloopVersionToInstall = bloopVersion,
         skipBspConnection = false,
