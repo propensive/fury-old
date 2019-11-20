@@ -19,6 +19,7 @@ package fury.core
 import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
+import java.nio.channels._
 import java.time.LocalDateTime
 import java.util.concurrent.{CompletableFuture, ExecutionException, Executors, TimeUnit}
 
@@ -123,24 +124,15 @@ object BloopServer {
   }
   
   private def connect(): Connection = {
-    val bloopIn = new PipedInputStream
-    val in = new PipedOutputStream
-    in.connect(bloopIn)
+    val serverIoPipe = Pipe.open()
+    val serverIn = Channels.newInputStream(serverIoPipe.source())
+    val clientOut = Channels.newOutputStream(serverIoPipe.sink())
+    val clientIoPipe = Pipe.open()
+    val clientIn = Channels.newInputStream(clientIoPipe.source())
+    val serverOut = Channels.newOutputStream(clientIoPipe.sink())
 
-    val bloopOut = new PipedOutputStream
-    val out = new PipedInputStream
-    out.connect(bloopOut)
-
-    val launcher: LauncherMain = new LauncherMain(
-      clientIn = bloopIn,
-      clientOut = bloopOut,
-      out = System.out,
-      charset = StandardCharsets.UTF_8,
-      shell = bloop.bloopgun.core.Shell.default,
-      userNailgunHost = None,
-      userNailgunPort = None,
-      startedServer = Promise[Unit]()
-    )
+    val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, System.out,
+        StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, Promise[Unit]())
     
     val thread = Threads.launcher.newThread { () =>
       launcher.runLauncher(
@@ -152,7 +144,7 @@ object BloopServer {
     
     thread.start()
 
-    Connection(in, out, thread)
+    Connection(clientOut, clientIn, thread)
   }
 
   def borrow[T](fn: Connection => T): Try[T] = {
