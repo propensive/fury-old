@@ -1,4 +1,4 @@
-fury layer init | sed "s|$(pwd)/||"
+fury layer init 
 fury project add -n scala
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
