@@ -149,7 +149,34 @@ object BspConnectionManager {
 
   private val bloopVersion = "1.3.5"
 
-  def bloopLauncher(sink: PrintWriter): Handle = {
+  private lazy val firstLaunchStarted: LauncherStatus = synchronized {
+    val bloopIn = new PipedInputStream
+    val in = new PipedOutputStream
+    in.connect(bloopIn)
+
+    val bloopOut = new PipedOutputStream
+    val out = new PipedInputStream
+    out.connect(bloopOut)
+
+    val launcher = new LauncherMain(
+      clientIn = bloopIn,
+      clientOut = bloopOut,
+      out = System.err,
+      charset = StandardCharsets.UTF_8,
+      shell = bloop.bloopgun.core.Shell.default,
+      userNailgunHost = None,
+      userNailgunPort = None,
+      startedServer = Promise[Unit]()
+    )
+    launcher.runLauncher(
+      bloopVersionToInstall = bloopVersion,
+      skipBspConnection = true,
+      serverJvmOptions = Nil
+    )
+  }
+
+  def bloopLauncher(sink: PrintWriter): Handle =  {
+    firstLaunchStarted
 
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
