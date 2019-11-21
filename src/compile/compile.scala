@@ -150,10 +150,9 @@ object BspConnectionManager {
 
   private val bloopVersion = "1.3.5"
 
-  private val lock = new ReentrantLock(true)
-  private val canLaunch = lock.newCondition()
+  private val firstLaunchStarted = Promise[Unit]
 
-  def bloopLauncher(sink: PrintWriter): Handle = {
+  def bloopLauncher(sink: PrintWriter): Handle = synchronized {
 
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
@@ -167,7 +166,13 @@ object BspConnectionManager {
     val err = new PipedInputStream
     err.connect(bloopErr)
 
-    val startedServer = Promise[Unit]()
+    val first = !firstLaunchStarted.isCompleted
+
+    if(!first){
+      Await.result(firstLaunchStarted.future, Duration.Inf)
+    }
+
+    val startedServer = if(first) firstLaunchStarted else Promise[Unit]
 
     val launcher = new LauncherMain(
       clientIn = bloopIn,
@@ -180,31 +185,15 @@ object BspConnectionManager {
       startedServer = startedServer
     )
 
-    def release() = {
-      lock.lock()
-      try{
-        canLaunch.signal()
-      } finally {
-        lock.unlock()
-      }
-    }
-
-    startedServer.future.transform(_ => Success(release()))
-
     val future = Future(blocking {
-      lock.lock()
-      try {
-        canLaunch.await()
-        lock.unlock()
-        launcher.runLauncher(
-          bloopVersionToInstall = bloopVersion,
-          skipBspConnection = false,
-          serverJvmOptions = Nil
-        )
-      } finally {
-        if(lock.isHeldByCurrentThread) lock.unlock()
-      }
+      launcher.runLauncher(
+        bloopVersionToInstall = bloopVersion,
+        skipBspConnection = false,
+        serverJvmOptions = Nil
+      )
     })
+
+    //Await.result(startedServer.future, Duration.Inf)
 
     Handle(in, out, err, sink, Promise[Unit], future)
   }
