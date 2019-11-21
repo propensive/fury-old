@@ -149,7 +149,7 @@ object BspConnectionManager {
 
   private val bloopVersion = "1.3.5"
 
-  private lazy val firstLaunchStarted: LauncherStatus = synchronized {
+  private lazy val firstLaunchStarted: Long = synchronized {
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
     in.connect(bloopIn)
@@ -173,10 +173,11 @@ object BspConnectionManager {
       skipBspConnection = true,
       serverJvmOptions = Nil
     )
+    System.currentTimeMillis()
   }
 
   def bloopLauncher(sink: PrintWriter): Handle =  {
-    firstLaunchStarted
+    System.err.println(s"First launcher completed ${System.currentTimeMillis() - firstLaunchStarted} ms ago")
 
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
