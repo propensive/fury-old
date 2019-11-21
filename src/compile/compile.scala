@@ -21,6 +21,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.concurrent.{CompletableFuture, ExecutionException, Executors, Semaphore, TimeUnit}
+import java.util.concurrent.locks._
 
 import bloop.bloopgun.BloopgunCli
 import bloop.launcher.{LauncherMain, LauncherStatus}
@@ -149,7 +150,8 @@ object BspConnectionManager {
 
   private val bloopVersion = "1.3.5"
 
-  private val foobar = new Semaphore(1)
+  private val lock = new ReentrantLock(true)
+  private val canLaunch = lock.newCondition()
 
   def bloopLauncher(sink: PrintWriter): Handle = {
 
@@ -178,15 +180,30 @@ object BspConnectionManager {
       startedServer = startedServer
     )
 
-    startedServer.future.foreach{_ => foobar.release()}
+    def release() = {
+      lock.lock()
+      try{
+        canLaunch.signal()
+      } finally {
+        lock.unlock()
+      }
+    }
+
+    startedServer.future.transform(_ => Success(release()))
 
     val future = Future(blocking {
-      foobar.acquire()
-      launcher.runLauncher(
-        bloopVersionToInstall = bloopVersion,
-        skipBspConnection = false,
-        serverJvmOptions = Nil
-      )
+      lock.lock()
+      try {
+        canLaunch.await()
+        lock.unlock()
+        launcher.runLauncher(
+          bloopVersionToInstall = bloopVersion,
+          skipBspConnection = false,
+          serverJvmOptions = Nil
+        )
+      } finally {
+        if(lock.isHeldByCurrentThread) lock.unlock()
+      }
     })
 
     Handle(in, out, err, sink, Promise[Unit], future)
