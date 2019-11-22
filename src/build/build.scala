@@ -134,13 +134,13 @@ object BuildCli {
 
   def notImplemented(cli: Cli[CliParam[_]]): Try[ExitStatus] = Success(Abort)
 
-  def install(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
-    invoc    <- cli.read()
-    log      <- invoc.logger()
-    _        <- ~log.info("Starting server...")
-    handle   <- ~BspConnectionManager.bloopLauncher(new java.io.PrintWriter(System.out))
-    _        <- ~log.info("Server status: "+Await.result(handle.launcher, duration.Duration.Inf))
-  } yield log.await()
+//  def install(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+//    invoc    <- cli.read()
+//    log      <- invoc.logger()
+//    _        <- ~log.info("Starting server...")
+//    handle   <- ~BspConnectionManager.bloopLauncher(new java.io.PrintWriter(System.out))
+//    _        <- ~log.info("Server status: "+Await.result(handle.launcher, duration.Duration.Inf))
+//  } yield log.await()
 
   def status: String = {
     val runtime = Runtime.getRuntime

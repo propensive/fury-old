@@ -66,7 +66,7 @@ object FuryMenu {
             Action('list, msg"list environment variable", EnvCli.list)
         ),
         Action('help, msg"help on using Fury", help),
-        Action('install, msg"finalize installation", BuildCli.install, false),
+        //Action('install, msg"finalize installation", BuildCli.install, false),
         Action('kill, msg"kill the Fury server", BuildCli.notImplemented),
         Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
             Action('add, msg"add a new module to the project", ModuleCli.add),
