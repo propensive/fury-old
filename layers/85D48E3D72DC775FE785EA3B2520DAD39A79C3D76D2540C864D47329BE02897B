@@ -650,7 +650,7 @@ schemas	default	id	default
 						properties	
 						policy	
 						hidden	false
-				main	Some	core
+				main	Some	test-core
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
