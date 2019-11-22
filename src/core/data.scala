@@ -80,12 +80,12 @@ case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: 
 }
 
 object Policy {
-  def read(log: Log): Try[Policy] =
-    Success(Ogdl.read[Policy](Installation.policyFile,
-        upgrade(log, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant])))
+  def read(log: Log): Policy =
+    Ogdl.read[Policy](Installation.policyFile,
+        upgrade(log, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant]))
 
   def save(log: Log, policy: Policy): Try[Unit] =
-    Installation.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
+    Installation.policyFile.extantParents().writeSync(Ogdl.serialize(Ogdl(policy)))
 
   private def upgrade(log: Log, ogdl: Ogdl): Ogdl = ogdl
 }
