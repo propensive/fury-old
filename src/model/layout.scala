@@ -45,7 +45,6 @@ object Layout {
 }
 
 object Xdg {
-  
   private case class Var(name: String) {
     private val variable = Option(System.getenv(s"XDG_$name"))
     def path: Option[Path] = variable.map(Path(_))
@@ -63,9 +62,9 @@ object Xdg {
   def findData(filename: Path): Option[Path] = (dataHome :: dataDirs).map(filename in _).find(_.exists)
   def findConfig(filename: Path): Option[Path] = (configHome :: configDirs).map(filename in _).find(_.exists)
 
-  def data(filename: Path): Path = filename in dataHome.extant()
-  def config(filename: Path): Path = filename in configHome.extant()
-  def cache(filename: Path): Path = filename in cacheHome.extant()
+  def data(filename: Path): Path = (filename in dataHome).extantParents()
+  def config(filename: Path): Path = (filename in configHome).extantParents()
+  def cache(filename: Path): Path = (filename in cacheHome).extantParents()
 }
 
 object Installation {

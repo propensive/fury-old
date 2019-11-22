@@ -105,6 +105,11 @@ case class Path(input: String) {
     this
   }
 
+  def extantParents(): Path = {
+    parent.mkdir()
+    this
+  }
+
   def resolve(rel: Path) = {
     Path(javaPath.resolve(rel.javaPath))
   }
