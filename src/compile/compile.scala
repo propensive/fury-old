@@ -126,12 +126,9 @@ object BloopServer {
     }.getOrElse(Await.result(connect(dir, multiplexer, compilation, targetId, layout), Duration.Inf))
 
     try {
-      println("Executing in borrow")
       val result = fn(conn)
-      println("returning connection to pool")
-      conn.server.buildShutdown().get()
+      BloopServer.synchronized(conn.server.buildShutdown().get())
       //BloopServer.synchronized(connections ::= conn)
-      println("returned connection to pool")
       Success(result)
     } catch {
       case e: Exception =>
