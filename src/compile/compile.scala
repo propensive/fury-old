@@ -52,88 +52,24 @@ import scala.util.control.NonFatal
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-class BspConnection(val future: java.util.concurrent.Future[Void],
-                    val client: FuryBuildClient,
-                    server: FuryBspServer,
-                    traceBuffer: CharArrayWriter,
-                    messageBuffer: CharArrayWriter) {
-
-  val createdAt: Long = System.currentTimeMillis
-
-  def shutdown(): Unit = {
-    messageBuffer.append(s"Closing connection: ${this.toString}").append("\n")
-    try {
-      server.buildShutdown().get(5, TimeUnit.SECONDS)
-      server.onBuildExit()
-    } catch {
-      case NonFatal(e) =>
-        messageBuffer.append(e.getMessage).append("\n")
-        e.getStackTrace.foreach(x => messageBuffer.append(x.toString).append("\n"))
-    }
-    writeTrace(client.layout)
-    writeMessages(client.layout)
-    future.cancel(false)
-    future.get()
-  }
-
-  def provision[T](currentCompilation: Compilation,
-                   targetId: TargetId,
-                   layout: Layout,
-                   currentMultiplexer: Option[Multiplexer[ModuleRef, CompileEvent]],
-                   tries: Int = 0)
-                  (action: FuryBspServer => T)
-  : T = try {
-    client.compilation = currentCompilation
-    client.targetId = targetId
-    client.layout = layout
-    client.multiplexer = currentMultiplexer
-    client.connection = this
-    action(server)
-  } catch {
-    case exception: ExecutionException =>
-      Option(exception.getCause) match {
-        case Some(exception: JsonRpcException) =>
-          if(tries < 3) provision(currentCompilation, targetId, layout, currentMultiplexer, tries + 1)(action)
-          else throw BspException()
-        case _ =>
-          throw exception
-      }
-  }
-
-  def writeTrace(layout: Layout): Try[Unit] = for {
-    _ <- layout.traceLogfile.appendSync(traceBuffer.toString)
-  } yield traceBuffer.reset()
-
-  def writeMessages(layout: Layout): Try[Unit] = for {
-    _ <- layout.messagesLogfile.appendSync(messageBuffer.toString)
-  } yield messageBuffer.reset()
-
-}
-
 object BloopServer {
  
-  private var ready: Promise[Unit] = Promise.successful(())
+  private var lock: Promise[Unit] = Promise.successful(())
   private var connections: List[Connection] = Nil
   private val bloopVersion = "1.3.5"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
-    val newReady: Promise[Unit] = Promise()
+    val newLock: Promise[Unit] = Promise()
     BloopServer.synchronized {
-      val future = ready.future.map { case _ => work(newReady) }
-      ready = newReady
+      val future = lock.future.map { case _ => work(newLock) }
+      lock = newLock
       future
     }
   }
 
-  case class Connection(in: OutputStream, out: InputStream, thread: Thread) {
-    def terminate(): Unit = {
-      in.close()
-      out.close()
-      thread.join()
-    }
-  }
+  case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
-  private def connect(): Future[Connection] = singleTasking { promise =>
+  private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout): Future[Connection] = singleTasking { promise =>
     val serverIoPipe = Pipe.open()
     val serverIn = Channels.newInputStream(serverIoPipe.source())
     val clientOut = Channels.newOutputStream(serverIoPipe.sink())
@@ -153,11 +89,32 @@ object BloopServer {
     }
     
     thread.start()
+    
+    val client = new FuryBuildClient(messageSink = new PrintWriter("/home/jpretty/output.log"), multiplexer, compilation, targetId, layout)
+      
+    val bspServer = new Launcher.Builder[FuryBspServer]()
+      //.traceMessages(log)
+      .setRemoteInterface(classOf[FuryBspServer])
+      .setExecutorService(Threads.bsp)
+      .setInput(clientIn)
+      .setOutput(clientOut)
+      .setLocalService(client)
+      .create()
+    
+    bspServer.startListening()
+      
+    val proxy = bspServer.getRemoteProxy
+      
+    val capabilities = new BuildClientCapabilities(List("scala").asJava)
+    val initParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString, capabilities)
 
-    Connection(clientOut, clientIn, thread)
+    proxy.buildInitialize(initParams).get(5, TimeUnit.SECONDS)
+    proxy.onBuildInitialized()
+    
+    Connection(proxy, client, thread)
   }
 
-  def borrow[T](fn: Connection => T): Try[T] = {
+  def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T): Try[T] = {
     val conn = BloopServer.synchronized {
       connections match {
         case head :: tail =>
@@ -166,15 +123,19 @@ object BloopServer {
         case Nil =>
           None
       }
-    }.getOrElse(Await.result(connect(), Duration.Inf))
+    }.getOrElse(Await.result(connect(dir, multiplexer, compilation, targetId, layout), Duration.Inf))
 
     try {
+      println("Executing in borrow")
       val result = fn(conn)
-      BloopServer.synchronized(connections ::= conn)
+      println("returning connection to pool")
+      conn.server.buildShutdown().get()
+      //BloopServer.synchronized(connections ::= conn)
+      println("returned connection to pool")
       Success(result)
     } catch {
       case e: Exception =>
-        conn.terminate()
+        //conn.terminate()
         Failure(e)
     }
   }
@@ -184,42 +145,6 @@ object Compilation {
 
   //FIXME
   var receiverClient: Option[BuildClient] = None
-
-  def run[T](dir: Path)(fn: BspConnection => T): Try[T] = {
-    val bspMessageBuffer = new CharArrayWriter()
-    val bspTraceBuffer = new CharArrayWriter()
-    val log = new java.io.PrintWriter(bspTraceBuffer, true)
-    
-    val client = receiverClient.fold[FuryBuildClient](
-      new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
-    ){
-      rec => new ForwardingClient(rec)
-    }
-
-    BloopServer.borrow { conn =>
-    
-      val launcher = new Launcher.Builder[FuryBspServer]()
-        .traceMessages(log)
-        .setRemoteInterface(classOf[FuryBspServer])
-        .setExecutorService(Threads.bsp)
-        .setInput(conn.out)
-        .setOutput(conn.in)
-        .setLocalService(client)
-        .create()
-      val future = launcher.startListening()
-      val server = launcher.getRemoteProxy
-      val capabilities = new BuildClientCapabilities(List("scala").asJava)
-
-      val initializeParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
-        capabilities)
-
-      server.buildInitialize(initializeParams).get
-      server.onBuildInitialized()
-      
-      val bspConn = new BspConnection(future, client, server, bspTraceBuffer, bspMessageBuffer)
-      fn(bspConn)
-    }
-  }
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
@@ -293,24 +218,14 @@ object Compilation {
   }
 }
 
-sealed abstract class FuryBuildClient extends BuildClient {
-  var compilation: Compilation = _
-  var targetId: TargetId = _
-  var layout: Layout = _
-  var connection: BspConnection = _
-  //TODO move to DisplayingClient
-  var multiplexer: Option[Multiplexer[ModuleRef, CompileEvent]] = None
-}
-
-class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
-
+class FuryBuildClient(messageSink: PrintWriter, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout) extends BuildClient {
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
-    multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+    multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
     messageSink.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
   }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {
-    multiplexer.foreach(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+    multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
     messageSink.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
   }
 
@@ -357,30 +272,28 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
         case _ => msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("H")}${Ansi.Color.base01("]")}"
       }
 
-      multiplexer.foreach { mp =>
-        mp(targetId.ref) = DiagnosticMsg(
-          targetId.ref,
-          CompilerDiagnostic(
-            msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
-  ${'|'} ${UserMsg(
-              theme =>
-                diag.getMessage
-                  .split("\n")
-                  .to[List]
-                  .map { ln =>
-                    Ansi.Color.base1(ln)
-                  }
-                  .join(msg"""
-  ${'|'} """.string(theme)))}
-  ${'|'} ${highlightedLine.dropWhile(_ == ' ')}
+      multiplexer(targetId.ref) = DiagnosticMsg(
+        targetId.ref,
+        CompilerDiagnostic(
+          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
+${'|'} ${UserMsg(
+            theme =>
+              diag.getMessage
+                .split("\n")
+                .to[List]
+                .map { ln =>
+                  Ansi.Color.base1(ln)
+                }
+                .join(msg"""
+${'|'} """.string(theme)))}
+${'|'} ${highlightedLine.dropWhile(_ == ' ')}
 """,
-            repo,
-            filePath,
-            lineNo,
-            charNum
-          )
+          repo,
+          filePath,
+          lineNo,
+          charNum
         )
-      }
+      )
     }
   }
 
@@ -408,17 +321,15 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
-    multiplexer.foreach {
-      _(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
-    }
+    multiplexer(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId: TargetId = getTargetId(report.getTarget.getUri)
-    multiplexer.foreach { mp => mp(targetId.ref) = StartCompile(targetId.ref) }
+    multiplexer(targetId.ref) = StartCompile(targetId.ref)
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      multiplexer.foreach(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
+      multiplexer(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
     }
   }
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
@@ -426,43 +337,9 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
       val report = convertDataTo[CompileReport](params.getData)
       val targetId: TargetId = getTargetId(report.getTarget.getUri)
       val ref = targetId.ref
-      multiplexer.foreach { mp =>
-        mp(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
-        if(!compilation.targets(ref).kind.needsExecution) mp(ref) = StopRun(ref)
-        else mp(ref) = StartRun(ref)
-      }
-  }
-}
-
-class ForwardingClient(receiver: BuildClient) extends FuryBuildClient {
-
-  //TODO check if messages have to be transformed, e. g. the target IDs
-  override def onBuildShowMessage(showMessageParams: ShowMessageParams): Unit = {
-    receiver.onBuildShowMessage(showMessageParams)
-  }
-
-  override def onBuildLogMessage(logMessageParams: LogMessageParams): Unit = {
-    receiver.onBuildLogMessage(logMessageParams)
-  }
-
-  override def onBuildTaskStart(taskStartParams: TaskStartParams): Unit = {
-    receiver.onBuildTaskStart(taskStartParams)
-  }
-
-  override def onBuildTaskProgress(taskProgressParams: TaskProgressParams): Unit = {
-    receiver.onBuildTaskProgress(taskProgressParams)
-  }
-
-  override def onBuildTaskFinish(taskFinishParams: TaskFinishParams): Unit = {
-    receiver.onBuildTaskFinish(taskFinishParams)
-  }
-
-  override def onBuildPublishDiagnostics(publishDiagnosticsParams: PublishDiagnosticsParams): Unit = {
-    receiver.onBuildPublishDiagnostics(publishDiagnosticsParams)
-  }
-
-  override def onBuildTargetDidChange(didChangeBuildTarget: DidChangeBuildTarget): Unit = {
-    receiver.onBuildTargetDidChange(didChangeBuildTarget)
+      multiplexer(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
+      if(!compilation.targets(ref).kind.needsExecution) multiplexer(ref) = StopRun(ref)
+      else multiplexer(ref) = StartRun(ref)
   }
 }
 
@@ -595,15 +472,17 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-    Compilation.run(layout.base) { conn =>
-      val result: Try[CompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
+    BloopServer.borrow(layout.base, multiplexer, this, target.id, layout) { conn =>
+      
+      val result: Try[CompileResult] = {
         for {
-          res <- wrapServerErrors(server.buildTargetCompile(params))
-          opts <- wrapServerErrors(server.buildTargetScalacOptions(scalacOptionsParams))
+          res <- wrapServerErrors(conn.server.buildTargetCompile(params))
+          opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
         } yield CompileResult(res, opts)
       }
-      conn.writeTrace(layout)
-      conn.writeMessages(layout)
+
+      //conn.writeTrace(layout)
+      //conn.writeMessages(layout)
       
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
         val bti = soi.getTarget
