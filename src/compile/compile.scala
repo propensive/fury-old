@@ -90,7 +90,7 @@ object BloopServer {
     
     thread.start()
     
-    val client = new FuryBuildClient(messageSink = new PrintWriter("/home/jpretty/output.log"), multiplexer, compilation, targetId, layout)
+    val client = new FuryBuildClient(multiplexer, compilation, targetId, layout)
       
     val bspServer = new Launcher.Builder[FuryBspServer]()
       //.traceMessages(log)
@@ -218,16 +218,12 @@ object Compilation {
   }
 }
 
-class FuryBuildClient(messageSink: PrintWriter, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout) extends BuildClient {
-  override def onBuildShowMessage(params: ShowMessageParams): Unit = {
+class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout) extends BuildClient {
+  override def onBuildShowMessage(params: ShowMessageParams): Unit =
     multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
-    messageSink.println(s"${LocalDateTime.now} showMessage: ${params.getMessage}")
-  }
 
-  override def onBuildLogMessage(params: LogMessageParams): Unit = {
+  override def onBuildLogMessage(params: LogMessageParams): Unit =
     multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
-    messageSink.println(s"${LocalDateTime.now}  logMessage: ${params.getMessage}")
-  }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
