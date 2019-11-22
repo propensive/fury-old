@@ -462,7 +462,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-    BloopServer.borrow(layout.base, multiplexer, this, target.id, layout) { conn =>
+    BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout) { conn =>
       
       val result: Try[CompileResult] = {
         for {
