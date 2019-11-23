@@ -102,8 +102,8 @@ case class ImportPath(path: String) {
     if(relPath.path.startsWith("/")) relPath
     else {
       rawParts match {
-        case ".." :: tail => ImportPath(path.split("/").to[List].dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
-        case xs => ImportPath((path.split("/").to[List] ++ xs).mkString("/"))
+        case ".." :: tail => ImportPath(rawParts.dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
+        case xs => ImportPath((rawParts ++ xs).mkString("/"))
       }
     }
 }
