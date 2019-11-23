@@ -209,7 +209,7 @@ object BuildCli {
       https        <- ~invoc(HttpsArg).isSuccess
       module       <- optModule.ascribe(UnspecifiedModule())
       pipelining   <- ~invoc(PipeliningArg).toOption
-      globalPolicy <- Policy.read(log)
+      globalPolicy <- ~Policy.read(log)
       reporter     =  invoc(ReporterArg).toOption.getOrElse(GraphReporter)
       watch        =  invoc(WatchArg).isSuccess
       compilation  <- Compilation.syncCompilation(log, schema, module.ref(project), layout, https)
@@ -291,7 +291,7 @@ object BuildCli {
       module         <- optModule.ascribe(UnspecifiedModule())
       pipelining     <- ~invoc(PipeliningArg).toOption
       fatJar         =  invoc(FatJarArg).isSuccess
-      globalPolicy   <- Policy.read(log)
+      globalPolicy   <- ~Policy.read(log)
       reporter       <- ~invoc(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  invoc(WatchArg).isSuccess
       compilation    <- Compilation.syncCompilation(log, schema, module.ref(project), layout, https)

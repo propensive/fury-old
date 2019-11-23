@@ -288,7 +288,7 @@ object PermissionCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
       _               <- Layer.save(log, layer, layout)
-      policy          <- Policy.read(log)
+      policy          <- ~Policy.read(log)
       newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
       _               <- Policy.save(log, newPolicy)
     } yield {
@@ -350,7 +350,7 @@ object PermissionCli {
       module        <- optModule.ascribe(UnspecifiedModule())
       permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
-      policy        <- Policy.read(log)
+      policy        <- ~Policy.read(log)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
       _             <- Policy.save(log, newPolicy)
     } yield log.await()
