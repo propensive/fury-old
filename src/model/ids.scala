@@ -73,7 +73,7 @@ case class ModuleId(key: String) extends Key(msg"module")
 object ImportPath {
   implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
   implicit val stringShow: StringShow[ImportPath] = _.path
-  val Root: ImportPath = ImportPath(".")
+  val Root: ImportPath = ImportPath("")
 
   // FIXME: Actually parse it and check that it's valid
   def parse(str: String): Option[ImportPath] =
@@ -81,14 +81,31 @@ object ImportPath {
 }
 
 case class ImportPath(path: String) {
-  def parts: List[ImportId] = path.split("/").to[List].tail.map(ImportId(_))
+
+  private[this] lazy val rawParts: List[String] = path.split("/").to[List]
+
+  def parts: List[ImportId] = rawParts match {
+    case Nil => Nil
+    case "" :: tail => tail.map(ImportId(_))
+    case _ => Nil
+  }
+
   def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
-  def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("./", "/", ""))
+  def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("/", "/", ""))
   def isEmpty: Boolean = parts.length == 0
   def head: ImportId = parts.head
   
   def prefix(importId: ImportId): ImportPath =
-    ImportPath((importId :: parts).map(_.key).mkString("./", "/", ""))
+    ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
+
+  def dereference(relPath: ImportPath): ImportPath =
+    if(relPath.path.startsWith("/")) relPath
+    else {
+      rawParts match {
+        case ".." :: tail => ImportPath(rawParts.dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
+        case xs => ImportPath((rawParts ++ xs).mkString("/"))
+      }
+    }
 }
 
 case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))
