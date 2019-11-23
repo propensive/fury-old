@@ -31,11 +31,10 @@ object ModuleCli {
 
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
-                     override val config: Config,
                      override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project])
-             extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -43,15 +42,14 @@ object ModuleCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-  } yield Context(cli, layout, config, layer, schema, optProject)
+  } yield Context(cli, layout, layer, schema, optProject)
 
   def select(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -67,7 +65,7 @@ object ModuleCli {
       force    <- ~invoc(ForceArg).isSuccess
       focus    <- ~Lenses.focus(optSchemaId, force)
       layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
-      _        <- ~Layer.save(log, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -81,12 +79,12 @@ object ModuleCli {
       raw     <- ~invoc(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
 
-      table   <- ~Tables(config).show(Tables(config).modules(project.id, project.main), cli.cols, rows,
+      table   <- ~Tables().show(Tables().modules(project.id, project.main), cli.cols, rows,
                      raw)(_.id)
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -101,7 +99,7 @@ object ModuleCli {
       cli            <- cli.hint(HiddenArg, List("on", "off"))
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
+                            _.compilerRefs(Log.silent, layout, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -121,7 +119,7 @@ object ModuleCli {
       moduleArg      <- invoc(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
       compilerId     <- ~invoc(CompilerArg).toOption
-      compilerRef    <- compilerId.map(resolveToCompiler(log, cli.installation, ctx, _))
+      compilerRef    <- compilerId.map(resolveToCompiler(log, ctx, _))
                             .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
       module         = Module(moduleId, compiler = compilerRef)
 
@@ -146,20 +144,20 @@ object ModuleCli {
                             lens(ws) = Some(compilerRef)
                         } else Try(layer)
 
-      _              <- ~Layer.save(log, layer, layout, cli.installation)
+      _              <- ~Layer.save(log, layer, layout)
       schema         <- defaultSchema
 
-      _              <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
+      _              <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout,
                             false)
 
       _              <- ~log.info(msg"Set current module to ${module.id}")
     } yield log.await()
   }
 
-  private def resolveToCompiler(log: Log, installation: Installation, ctx: Context, reference: String): Try[ModuleRef] = for {
+  private def resolveToCompiler(log: Log, ctx: Context, reference: String): Try[ModuleRef] = for {
     project  <- ctx.optProject.ascribe(UnspecifiedProject())
     moduleRef      <- ModuleRef.parse(project.id, reference, true)
-    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(log, ctx.layout, installation, https = true))
+    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(log, ctx.layout, https = true))
     _      <-   if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
@@ -169,7 +167,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Log.silent(config), layout, cli.installation, true)))
+                      Log.silent, layout, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -185,10 +183,10 @@ object ModuleCli {
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainModule(_, project.id)) {
                       (lens, ws) => if(lens(ws) == Some(moduleId)) lens(ws) = None else ws }
 
-      _        <- ~Layer.save(log, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout)
       schema   <- defaultSchema
       
-      _        <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
+      _        <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout,
                       false)
 
     } yield log.await()
@@ -201,7 +199,7 @@ object ModuleCli {
       cli         <- cli.hint(HiddenArg, List("on", "off"))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Log.silent(config), layout, cli.installation, true)))
+                         _.compilerRefs(Log.silent, layout, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
@@ -232,7 +230,7 @@ object ModuleCli {
       compilerId  <- ~invoc(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(log, cli.installation, ctx, _)).map(_.headOption)
+      compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(log, ctx, _)).map(_.headOption)
       hidden      <- ~invoc(HiddenArg).toOption
       mainClass   <- ~invoc(MainArg).toOption
       pluginName  <- ~invoc(PluginArg).toOption
@@ -259,10 +257,10 @@ object ModuleCli {
                          pluginName.map(Some(_))
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
-      _           <- ~Layer.save(log, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout)
       schema      <- defaultSchema
 
-      _           <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
+      _           <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout,
                          false)
 
     } yield log.await()
@@ -297,9 +295,9 @@ object BinaryCli {
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.allBinaries.to[List]
       schema  <- defaultSchema
-      table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
+      table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(identity)
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -326,10 +324,10 @@ object BinaryCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id,
                          module.id))(_(_) -= binaryToDel)
 
-      _           <- ~Layer.save(log, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout)
       schema      <- defaultSchema
 
-      _           <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
+      _           <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout,
                          false)
 
     } yield log.await()
@@ -351,10 +349,10 @@ object BinaryCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
                        module.id))(_(_) += binary)
       
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
       schema    <- defaultSchema
 
-      _         <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
+      _         <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout,
                        false)
 
     } yield log.await()
@@ -389,10 +387,10 @@ object ParamCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.params.to[List]
-      table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
+      table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -414,10 +412,10 @@ object ParamCli {
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id,
                       module.id))(_(_) -= paramArg)
 
-      _        <- ~Layer.save(log, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout)
       schema   <- defaultSchema
 
-      _        <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
+      _        <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout,
                       false)
 
     } yield log.await()
@@ -436,10 +434,10 @@ object ParamCli {
       layer   <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
                      _(_) += param)
 
-      _       <- ~Layer.save(log, layer, layout, cli.installation)
+      _       <- ~Layer.save(log, layer, layout)
       schema  <- defaultSchema
 
-      _       <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout, cli.installation,
+      _       <- ~Compilation.asyncCompilation(log, schema, module.ref(project), layout,
                      false)
 
     } yield log.await()

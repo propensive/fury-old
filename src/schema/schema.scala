@@ -26,15 +26,14 @@ import scala.util._
 
 import language.higherKinds
 
-case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, config: Config, layer: Layer)
+case class SchemaCtx(cli: Cli[CliParam[_]], layout: Layout, layer: Layer)
 
 object SchemaCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
-    config <- ~cli.config
-    layer  <- Layer.read(Log.silent(config), layout, cli.installation)
-  } yield SchemaCtx(cli, layout, config, layer)
+    layer  <- Layer.read(Log.silent, layout)
+  } yield SchemaCtx(cli, layout, layer)
 
   def select(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
@@ -46,7 +45,7 @@ object SchemaCli {
       _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
       layer    <- ~(lens(layer) = schemaId)
-      _        <- ~Layer.save(log, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -61,19 +60,18 @@ object SchemaCli {
       log       <- invoc.logger()
       raw       <- ~invoc(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
-      table     <- ~Tables(config).show(Tables(config).schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      table     <- ~Tables().show(Tables().schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
+      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
 
-  private[this] def diffTable(config: Config,
-                              left: Schema,
+  private[this] def diffTable(left: Schema,
                               right: Schema,
                               rows: Seq[Difference],
                               cols: Int,
                               raw: Boolean) =
-    Tables(config).show(Tables(config).differences(left.id.key, right.id.key), cols, rows, raw)(_.label)
+    Tables().show(Tables().differences(left.id.key, right.id.key), cols, rows, raw)(_.label)
 
   def diff(ctx: SchemaCtx): Try[ExitStatus] = {
     import ctx._
@@ -89,8 +87,8 @@ object SchemaCli {
       otherArg  <- invoc(CompareArg)
       other     <- layer.schemas.findBy(otherArg)
       rows      <- ~Diff.gen[Schema].diff(schema, other)
-      table     <- ~diffTable(config, schema, other, rows, cli.cols, raw)
-      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      table     <- ~diffTable(schema, other, rows, cli.cols, raw)
+      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -109,7 +107,7 @@ object SchemaCli {
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
       layer    <- ~(if(layer.main == schema.id) layer.copy(main = newName) else layer)
-      _        <- ~Layer.save(log, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -127,7 +125,7 @@ object SchemaCli {
       lens      <- ~Lenses.layer.schemas
       layer     <- ~lens.modify(layer)(_ + newSchema)
       layer     <- ~layer.copy(main = newSchema.id)
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -141,7 +139,7 @@ object SchemaCli {
       schema   <- layer.schemas.findBy(schemaId)
       lens     <- ~Lenses.layer.schemas
       layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
-      _        <- ~Layer.save(log, layer, layout, cli.installation)
+      _        <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 }

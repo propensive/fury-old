@@ -118,6 +118,7 @@ fury-native: dist/bundle/lib/fury-frontend.jar
 
 test: bootstrap/build.fury
 	fury layer extract -f $<
+	fury permission grant --project fury --module test-core -P 228 4a8 538 7f0 c0d c2e f90 00b
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-ogdl
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-core

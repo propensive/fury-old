@@ -24,9 +24,9 @@ import kaleidoscope._
 import scala.collection.immutable.SortedSet
 import scala.util._
 
-case class Tables(config: Config) {
+case class Tables() {
 
-  implicit val theme: Theme = config.theme
+  implicit val theme: Theme = Installation.config().theme
 
   def show[T, S: MsgShow](table: Tabulation[T],
                           cols: Int,

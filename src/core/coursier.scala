@@ -51,11 +51,11 @@ object Coursier {
     }
   }
   
-  def fetch(log: Log, binary: Binary, layout: Layout): Try[List[Path]] = synchronized {
-    val dir = layout.binariesDir / binary.group / binary.artifact / binary.version
+  def fetch(log: Log, binary: Binary): Try[List[Path]] = synchronized {
+    val dir = Installation.binsDir / binary.group / binary.artifact / binary.version
     if(dir.exists) Success(dir.children.map(dir / _))
     else {
-      val tmpDir = layout.binariesDir / java.util.UUID.randomUUID().toString
+      val tmpDir = Installation.binsDir / java.util.UUID.randomUUID().toString
       
       val paths = for {
         _     <- ~tmpDir.mkdir()

@@ -270,7 +270,7 @@ case class JavaProperty(key: String, value: String)
 object Scope {
   def apply(id: ScopeId, layout: Layout, projectId: ProjectId) = id match {
     case ScopeId.Project => ProjectScope(projectId)
-    case ScopeId.Directory => DirectoryScope(layout.base.value)
+    case ScopeId.Directory => DirectoryScope(layout.baseDir.value)
     //case ScopeId.Layer => LayerScope()
   }
 }

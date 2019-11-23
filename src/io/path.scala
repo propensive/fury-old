@@ -44,8 +44,6 @@ object Path {
     case _ => None
   }
 
-  def mkTempDir(): Try[Path] = Try(Path(Files.createTempDirectory("fury").toString))
-
   // Rewritten from https://stackoverflow.com/a/10068306
   private class CopyFileVisitor(sourcePath: JavaPath, targetPath: JavaPath)
       extends SimpleFileVisitor[JavaPath] {
@@ -104,6 +102,11 @@ case class Path(input: String) {
 
   def extant(): Path = {
     mkdir()
+    this
+  }
+
+  def extantParents(): Path = {
+    parent.mkdir()
     this
   }
 
@@ -175,8 +178,6 @@ case class Path(input: String) {
   def relativizeTo(dir: Path) = Path(dir.javaPath.relativize(this.javaPath))
   def parent = Path(javaPath.getParent.toString)
   def rename(fn: String => String): Path = parent / fn(name)
-
-  def mkTempFile(): Try[Path] = Try(Path(Files.createTempFile(javaPath, null, ".tmp").toString))
   
   def mkParents(): Try[Path] =
     Outcome.rescue[java.io.IOException](FileWriteError(parent, _)) {

@@ -76,24 +76,24 @@ object Binary {
 
 case class Binary(binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
-  def paths(log: Log, layout: Layout): Try[List[Path]] = Coursier.fetch(log, this, layout)
+  def paths(log: Log): Try[List[Path]] = Coursier.fetch(log, this)
 }
 
 object Policy {
-  def read(log: Log, installation: Installation): Try[Policy] =
-    Success(Ogdl.read[Policy](installation.policyFile,
-        upgrade(log, installation, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant])))
+  def read(log: Log): Policy =
+    Ogdl.read[Policy](Installation.policyFile,
+        upgrade(log, _)).toOption.getOrElse(Policy(SortedSet.empty[Grant]))
 
-  def save(log: Log, installation: Installation, policy: Policy): Try[Unit] =
-    installation.policyFile.writeSync(Ogdl.serialize(Ogdl(policy)))
+  def save(log: Log, policy: Policy): Try[Unit] =
+    Installation.policyFile.extantParents().writeSync(Ogdl.serialize(Ogdl(policy)))
 
-  private def upgrade(log: Log, installation: Installation, ogdl: Ogdl): Ogdl = ogdl
+  private def upgrade(log: Log, ogdl: Ogdl): Ogdl = ogdl
 }
 
 case class Policy(policy: SortedSet[Grant] = TreeSet()) {
   def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
     Policy(policy.filter {
-      case Grant(DirectoryScope(dir), _) => dir == layout.base.value
+      case Grant(DirectoryScope(dir), _) => dir == layout.baseDir.value
       case Grant(ProjectScope(id), _)    => projectId == id
       //case Grant(LayerScope(hash), _)    => hash == layer.hash
     })
@@ -191,7 +191,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module          <- resolvedProject.project(ref.moduleId)
       compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                          else makeTarget(log, module.compiler, layout).map(Some(_))
-      binaries        <- module.allBinaries.map(_.paths(log, layout)).sequence.map(_.flatten)
+      binaries        <- module.allBinaries.map(_.paths(log)).sequence.map(_.flatten)
       dependencies    <- module.after.traverse { dep => for{
                            origin <- entity(dep.projectId)
                          } yield TargetId(origin.schema.id, dep)}
@@ -199,12 +199,12 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     } yield {
       // FIXME: This assumes published layers will not have local sources
       // Previously this was (_ in resolvedProject.path)
-      val sourcePaths = module.localSources.map(_ in layout.base).to[List] ++
+      val sourcePaths = module.localSources.map(_ in layout.baseDir).to[List] ++
         module.sharedSources.map(_.path in layout.sharedDir).to[List] ++
         checkouts.flatMap { c =>
           c.local match {
             case Some(p) => c.sources.map(_ in p)
-            case None    => c.sources.map(_ in c.path(layout))
+            case None    => c.sources.map(_ in c.path)
           }
         }
       Target(
@@ -319,34 +319,34 @@ case class Schema(id: SchemaId,
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
   def duplicate(id: String) = copy(id = SchemaId(id))
 
-  def compilerRefs(log: Log, layout: Layout, installation: Installation, https: Boolean): List[ModuleRef] =
-    allProjects(log, layout, installation, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
+  def compilerRefs(log: Log, layout: Layout, https: Boolean): List[ModuleRef] =
+    allProjects(log, layout, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def importCandidates(log: Log, layout: Layout, installation: Installation, https: Boolean): List[String] =
-    repos.to[List].flatMap(_.importCandidates(log, this, layout, installation, https).toOption.to[List].flatten)
+  def importCandidates(log: Log, layout: Layout, https: Boolean): List[String] =
+    repos.to[List].flatMap(_.importCandidates(log, this, layout, https).toOption.to[List].flatten)
 
-  def hierarchy(log: Log, layout: Layout, installation: Installation, https: Boolean): Try[Hierarchy] = for {
+  def hierarchy(log: Log, layout: Layout, https: Boolean): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
-      layer        <- Layer.read(log, ref.layerRef, layout, installation)
+      layer        <- Layer.read(log, ref.layerRef, layout)
       resolved     <- layer.schemas.findBy(ref.schema)
-      tree         <- resolved.hierarchy(log, layout, installation, https)
+      tree         <- resolved.hierarchy(log, layout, https)
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 
-  def resolvedImports(log: Log, layout: Layout, installation: Installation, https: Boolean): Try[Map[ImportId, Schema]] =
-    imports.to[List].map { sr => resolve(sr, log, layout, installation, https).map(sr.id -> _) }.sequence.map(_.toMap)
+  def resolvedImports(log: Log, layout: Layout, https: Boolean): Try[Map[ImportId, Schema]] =
+    imports.to[List].map { sr => resolve(sr, log, layout, https).map(sr.id -> _) }.sequence.map(_.toMap)
 
-  def importedSchemas(log: Log, layout: Layout, installation: Installation, https: Boolean): Try[List[Schema]] =
-    resolvedImports(log, layout, installation, https).map(_.values.to[List])
+  def importedSchemas(log: Log, layout: Layout, https: Boolean): Try[List[Schema]] =
+    resolvedImports(log, layout, https).map(_.values.to[List])
   
-  def importTree(log: Log, layout: Layout, installation: Installation, https: Boolean): Try[List[ImportPath]] = for {
-    imports    <- resolvedImports(log, layout, installation, https)
+  def importTree(log: Log, layout: Layout, https: Boolean): Try[List[ImportPath]] = for {
+    imports    <- resolvedImports(log, layout, https)
     importList <- imports.to[List].map { case (id, schema) =>
-                    schema.importTree(log, layout, installation, https).map { is => is.map(_.prefix(id)) }
+                    schema.importTree(log, layout, https).map { is => is.map(_.prefix(id)) }
                   }.sequence.map(_.flatten)
   } yield (ImportPath.Root :: importList)
 
-  def allProjects(log: Log, layout: Layout, installation: Installation, https: Boolean): Try[List[Project]] = {
+  def allProjects(log: Log, layout: Layout, https: Boolean): Try[List[Project]] = {
     @tailrec
     def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
       treeNodes match{
@@ -360,7 +360,7 @@ case class Schema(id: SchemaId,
     }
 
     for {
-      allSchemas <- flatten(List(this))(Nil, _.importedSchemas(log, layout, installation, https))
+      allSchemas <- flatten(List(this))(Nil, _.importedSchemas(log, layout, https))
     } yield allSchemas.flatMap(_.projects)
   }
 
@@ -369,8 +369,8 @@ case class Schema(id: SchemaId,
     case Some(m) => Failure(ProjectAlreadyExists(m.id))
   }
   
-  def resolve(ref: SchemaRef, log: Log, layout: Layout, installation: Installation, https: Boolean): Try[Schema] = for {
-    layer    <- Layer.read(log, ref.layerRef, layout, installation)
+  def resolve(ref: SchemaRef, log: Log, layout: Layout, https: Boolean): Try[Schema] = for {
+    layer    <- Layer.read(log, ref.layerRef, layout)
     resolved <- layer.schemas.findBy(ref.schema)
   } yield resolved
 }
@@ -389,59 +389,58 @@ case class Layer(version: Int = Layer.CurrentVersion,
 object Layer {
   val CurrentVersion = 4
 
-  def loadFromIpfs(log: Log, layerRef: IpfsRef, env: Environment, installation: Installation): Try[LayerRef] = for {
-    tmpFile  <- installation.layersPath.mkTempFile()
-    file     <- Shell(env).ipfs.get(layerRef, tmpFile)
-    layer    <- Layer.read(log, file, env)
-    layerRef <- saveLayer(layer, installation)
-    _        <- tmpFile.delete()
-  } yield layerRef
+  def loadFromIpfs(log: Log, layerRef: IpfsRef, env: Environment): Try[LayerRef] =
+    Installation.tmpFile { tmpFile => for {
+      file     <- Shell(env).ipfs.get(layerRef, tmpFile)
+      layer    <- Layer.read(log, file, env)
+      layerRef <- saveLayer(layer)
+    } yield layerRef }
 
-  def loadFile(log: Log, file: Path, layout: Layout, env: Environment, installation: Installation): Try[LayerRef] = for {
-    tmpDir <- Path.mkTempDir()
-    _      <- TarGz.extract(log, file, tmpDir)
-    _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(installation.layersPath / f.name) }.sequence
-    bases  <- ~(tmpDir / "bases").childPaths
-    _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
-    focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
-    _      <- tmpDir.delete()
-  } yield focus.layerRef
+  def loadFile(log: Log, file: Path, layout: Layout, env: Environment): Try[LayerRef] =
+    Installation.tmpDir { tmpDir => for {
+      _      <- TarGz.extract(log, file, tmpDir)
+      _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
+      bases  <- ~(tmpDir / "bases").childPaths
+      _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
+      focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
+    } yield focus.layerRef }
 
-  def share(log: Log, layer: Layer, env: Environment, installation: Installation): Try[IpfsRef] = for {
-    layerRef <- ~digestLayer(layer)
-    file     <- ~(installation.layersPath / layerRef.key)
-    _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
-    ref      <- Shell(env).ipfs.add(file)
-  } yield ref
+    def share(log: Log, layer: Layer, env: Environment): Try[IpfsRef] = for {
+      layerRef <- ~digestLayer(layer)
+      file     <- ~(Installation.layersPath / layerRef.key)
+      _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
+      ref      <- Shell(env).ipfs.add(file)
+    } yield ref
 
 
-  def loadCatalog(log: Log, catalogRef: IpfsRef, env: Environment, installation: Installation): Try[Catalog] = for {
-    tmpFile  <- installation.layersPath.mkTempFile()
-    file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
-    catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
-  } yield catalog
+  def loadCatalog(log: Log, catalogRef: IpfsRef, env: Environment): Try[Catalog] =
+    Installation.tmpFile { tmpFile => for {
+      file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
+      catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
+    } yield catalog
+  }
 
-  def lookup(log: Log, domain: String, env: Environment, installation: Installation): Try[List[Artifact]] = for {
+  def lookup(log: Log, domain: String, env: Environment): Try[List[Artifact]] = for {
     records   <- Dns.lookup(log, domain)
     records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
-    catalogs  <- records.map { loadCatalog(log, _, env, installation) }.sequence
+    catalogs  <- records.map { loadCatalog(log, _, env) }.sequence
     artifacts <- ~catalogs.flatMap(_.artifacts)
   } yield artifacts
  
-  def follow(importLayer: ImportLayer, config: Config): Option[Followable] = importLayer match {
+  def follow(importLayer: ImportLayer): Option[Followable] = importLayer match {
     case IpfsImport(hash) => None
     case RefImport(followable) => Some(followable)
-    case DefaultImport(path) => Some(Followable(config.service, path))
+    case DefaultImport(path) => Some(Followable(Installation.config().service, path))
   }
 
-  def resolve(log: Log, followable: Followable, env: Environment, installation: Installation): Try[LayerRef] = for {
-    artifacts <- lookup(log, followable.domain, env, installation)
+  def resolve(log: Log, followable: Followable, env: Environment): Try[LayerRef] = for {
+    artifacts <- lookup(log, followable.domain, env)
     ref       <- Try(artifacts.find(_.path == followable.path).get)
-    layerRef  <- loadFromIpfs(log, ref.ref, env, installation)
+    layerRef  <- loadFromIpfs(log, ref.ref, env)
   } yield layerRef
 
-  def pathCompletions(log: Log, domain: String, env: Environment, installation: Installation): Try[List[String]] =
-    lookup(log, domain, env, installation).map(_.map(_.path))
+  def pathCompletions(log: Log, domain: String, env: Environment): Try[List[String]] =
+    lookup(log, domain, env).map(_.map(_.path))
 
   def read(log: Log, string: String, env: Environment): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(log, env, _)))
@@ -452,73 +451,73 @@ object Layer {
   def readFocus(log: Log, layout: Layout): Try[Focus] =
     Ogdl.read[Focus](layout.focusFile, identity(_))
 
-  private def collectLayerRefs(log: Log, ref: SchemaRef, layout: Layout, installation: Installation): Try[Set[LayerRef]] = for {
-    layer   <- read(log, ref.layerRef, layout, installation)
+  private def collectLayerRefs(log: Log, ref: SchemaRef, layout: Layout): Try[Set[LayerRef]] = for {
+    layer   <- read(log, ref.layerRef, layout)
     schema  <- layer.schemas.findBy(ref.schema)
-    imports <- schema.imports.map(collectLayerRefs(log, _, layout, installation)).sequence.map(_.flatten)
+    imports <- schema.imports.map(collectLayerRefs(log, _, layout)).sequence.map(_.flatten)
   } yield imports + ref.layerRef
 
-  def export(log: Log, layer: Layer, layout: Layout, installation: Installation, path: Path): Try[Path] = for {
+  def export(log: Log, layer: Layer, layout: Layout, path: Path): Try[Path] = for {
     layerRef  <- ~digestLayer(layer)
     schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
-    layerRefs <- collectLayerRefs(log, schemaRef, layout, installation)
-    filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), installation.layersPath / ref.key) }.toMap
+    layerRefs <- collectLayerRefs(log, schemaRef, layout)
+    filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
     // include bases
     _         <- TarGz.store(filesMap.updated(Path(".focus.fury"), layout.focusFile), path)
   } yield path
 
-  def base(log: Log, layout: Layout, installation: Installation): Try[Layer] = for {
+  def base(log: Log, layout: Layout): Try[Layer] = for {
     focus    <- readFocus(log, layout)
-    layer    <- read(log, focus.layerRef, layout, installation)
+    layer    <- read(log, focus.layerRef, layout)
   } yield layer
 
-  def read(log: Log, layout: Layout, installation: Installation): Try[Layer] = for {
+  def read(log: Log, layout: Layout): Try[Layer] = for {
     focus    <- readFocus(log, layout)
-    layer    <- read(log, focus.layerRef, layout, installation)
-    newLayer <- resolveSchema(log, layout, installation, layer, focus.path)
+    layer    <- read(log, focus.layerRef, layout)
+    newLayer <- resolveSchema(log, layout, layer, focus.path)
   } yield newLayer
 
-  def read(log: Log, ref: LayerRef, layout: Layout, installation: Installation): Try[Layer] =
-    Ogdl.read[Layer](installation.layersPath / ref.key, upgrade(log, layout.env, _))
+  def read(log: Log, ref: LayerRef, layout: Layout): Try[Layer] =
+    Ogdl.read[Layer](Installation.layersPath / ref.key, upgrade(log, layout.env, _))
 
-  def resolveSchema(log: Log, layout: Layout, installation: Installation, layer: Layer, path: ImportPath): Try[Layer] =
+  def resolveSchema(log: Log, layout: Layout, layer: Layer, path: ImportPath): Try[Layer] =
     path.parts.foldLeft(Try(layer)) { case (current, importId) => for {
       layer     <- current
       schema    <- layer.mainSchema
       schemaRef <- schema.imports.findBy(importId)
-      layer     <- read(log, schemaRef.layerRef, layout, installation)
+      layer     <- read(log, schemaRef.layerRef, layout)
     } yield layer.copy(main = schemaRef.schema) }
 
   def digestLayer(layer: Layer): LayerRef =
     LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
 
-  def create(log: Log, newLayer: Layer, layout: Layout, installation: Installation): Try[LayerRef] = for {
-    layerRef     <- saveLayer(newLayer, installation)
+  def create(log: Log, newLayer: Layer, layout: Layout): Try[LayerRef] = for {
+    layerRef     <- saveLayer(newLayer)
     _            <- saveFocus(log, Focus(layerRef), layout)
   } yield layerRef
 
-  def save(log: Log, newLayer: Layer, layout: Layout, installation: Installation): Try[LayerRef] = for {
+  def save(log: Log, newLayer: Layer, layout: Layout): Try[LayerRef] = for {
     focus        <- readFocus(log, layout)
-    currentLayer <- read(log, focus.layerRef, layout, installation)
-    layerRef     <- saveSchema(log, layout, installation, newLayer, focus.path, currentLayer)
+    currentLayer <- read(log, focus.layerRef, layout)
+    layerRef     <- saveSchema(log, layout, newLayer, focus.path, currentLayer)
     _            <- saveFocus(log, focus.copy(layerRef = layerRef), layout)
   } yield layerRef
 
-  private def saveSchema(log: Log, layout: Layout, installation: Installation, newLayer: Layer, path: ImportPath, currentLayer: Layer): Try[LayerRef] =
-    if(path.isEmpty) saveLayer(newLayer, installation)
+  private def saveSchema(log: Log, layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer): Try[LayerRef] =
+    if(path.isEmpty) saveLayer(newLayer)
     else for {
       schema    <- currentLayer.mainSchema
       schemaRef <- schema.imports.findBy(path.head)
-      nextLayer <- read(log, schemaRef.layerRef, layout, installation)
-      layerRef  <- saveSchema(log, layout, installation, newLayer, path.tail, nextLayer)
+      nextLayer <- read(log, schemaRef.layerRef, layout)
+      layerRef  <- saveSchema(log, layout, newLayer, path.tail, nextLayer)
       newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef = layerRef))
       newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) + newSchema)
-      newLayerRef <- saveLayer(newLayer, installation)
+      newLayerRef <- saveLayer(newLayer)
     } yield newLayerRef
 
-  private def saveLayer(layer: Layer, installation: Installation): Try[LayerRef] = for {
+  private def saveLayer(layer: Layer): Try[LayerRef] = for {
     layerRef <- ~digestLayer(layer)
-    _        <- (installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
+    _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
   } yield layerRef
 
   def saveFocus(log: Log, focus: Focus, layout: Layout): Try[Unit] =
@@ -638,7 +637,7 @@ case class Checkout(repoId: RepoId,
                     sources: List[Path]) {
 
   def hash: Digest = this.digest[Md5]
-  def path(layout: Layout): Path = layout.srcsDir / hash.encoded
+  def path: Path = Installation.srcsDir / hash.encoded
 
   def get(log: Log, layout: Layout, https: Boolean): Try[Path] = for {
     repoDir    <- repo.fetch(log, layout, https)
@@ -647,11 +646,11 @@ case class Checkout(repoId: RepoId,
 
   private def checkout(log: Log, layout: Layout): Try[Path] =
     local.map(Success(_)).getOrElse {
-      if(!(path(layout) / ".done").exists) {
-        if(path(layout).exists()) {
+      if(!(path / ".done").exists) {
+        if(path.exists()) {
           val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
           log.info(msg"Found incomplete checkout of $sourceText")
-          path(layout).delete()
+          path.delete()
         }
 
         val sourceDesc: UserMsg = sources match {
@@ -665,11 +664,11 @@ case class Checkout(repoId: RepoId,
         }
 
         log.info(msg"Checking out $sourceDesc from repository $repoId")
-        path(layout).mkdir()
+        path.mkdir()
         Shell(layout.env).git
-          .sparseCheckout(repo.path(layout), path(layout), sources, refSpec = refSpec.id, commit = commit.id)
-          .map(path(layout).waive)
-      } else Success(path(layout))
+          .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
+          .map(path.waive)
+      } else Success(path)
     }
 }
 
@@ -690,11 +689,11 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
-  def importCandidates(log: Log, schema: Schema, layout: Layout, installation: Installation, https: Boolean): Try[List[String]] = for {
+  def importCandidates(log: Log, schema: Schema, layout: Layout, https: Boolean): Try[List[String]] = for {
     repoDir     <- repo.fetch(log, layout, https)
     focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
     focus       <- ~Ogdl.read[Focus](focusString, identity(_))
-    layer       <- Layer.read(log, focus.layerRef, layout, installation)
+    layer       <- Layer.read(log, focus.layerRef, layout)
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
@@ -710,7 +709,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
 case class Repo(ref: String) {
   def hash: Digest               = ref.digest[Md5]
-  def path(layout: Layout): Path = layout.reposDir / hash.encoded
+  def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
   def update(layout: Layout): Try[UserMsg] = for {
     oldCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
