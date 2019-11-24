@@ -16,7 +16,9 @@
 */
 package fury.core
 
-import fury.strings._, fury.jsongen._, fury.io.Path, fury.model._, fury.ogdl._
+import fury.strings._, fury.io.Path, fury.model._, fury.ogdl._
+
+import euphemism._
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
@@ -49,7 +51,7 @@ object Bsp {
       // FIXME we should use fury launch jar directly with java here
       fury   <- whichFury(layout)
       config = bspConfigJson(fury)
-      _      <- bspConfig.writeSync(config.serialize)
+      _      <- bspConfig.writeSync(config.toString)
     } yield ()
   }
 
@@ -59,7 +61,7 @@ object Bsp {
   }
 
   private def bspConfigJson(fury: Path): Json =
-    Json(
+    Json.of(
         name = "Fury",
         argv = List(
             fury.javaPath.toAbsolutePath.toString,
