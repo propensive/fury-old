@@ -1075,7 +1075,7 @@ schemas	default	id	default
 			euphemism	id	euphemism
 				repo	gh:propensive/euphemism
 				track	master
-				commit	21be406a547389b8df021a03e871983a30e2da4a
+				commit	ba6e92ac3ddcdf17ad0799c42531ee21f088c000
 				local	None
 			exoskeleton	id	exoskeleton
 				repo	gh:propensive/exoskeleton
