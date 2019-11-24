@@ -5,7 +5,7 @@ FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
-NATIVEJARS=dist/bundle/lib/fury-frontend.jar $(NAILGUNJARPATH) bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
+NATIVEJARS=dist/bundle/lib/fury-frontend.jar $(NAILGUNJARPATH) boot/scala/lib/scala-library.jar boot/scala/lib/scala-reflect.jar
 DOCKER_TAG=fury-ci
 INIT_CGROUP=$(shell cat /proc/1/cgroup | tail -n1 | cut -d: -f3)
 ifeq ($(INIT_CGROUP),"/")
@@ -14,7 +14,7 @@ else
 	FURY_OUTPUT=linear
 endif
 
-export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
+export PATH := $(PWD)/boot/scala/bin:$(PATH)
 
 all: dist/bundle/lib/fury-frontend.jar
 
@@ -58,17 +58,17 @@ dist/bundle/etc:
 
 # Compilation
 
-bootstrap/scala:
+boot/scala:
 	mkdir -p $@
 	curl -s https://downloads.lightbend.com/scala/2.12.8/scala-2.12.8.tgz | tar xz -C $@ --strip 1 2> /dev/null
 
-bootstrap/bin:
+boot/bin:
 	mkdir -p $@
 
-bootstrap/build.fury: bootstrap/bin
+boot/build.fury: boot/bin
 	tar -cvzf $@ .focus.fury layers/*
 
-pre-compile: bootstrap/bin bootstrap/scala $(NAILGUNJARPATH)
+pre-compile: boot/bin boot/scala $(NAILGUNJARPATH)
 
 # Libraries
 
@@ -78,13 +78,13 @@ dist/bundle/lib:
 dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
-dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/build.fury bootstrap/bin .version src/**/*.scala
-	$(FURYLOCAL) layer extract -f bootstrap/build.fury
+dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) boot/build.fury boot/bin .version src/**/*.scala
+	$(FURYLOCAL) layer extract -f boot/build.fury
 	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
 	$(FURYLOCAL) build save --https --output $(FURY_OUTPUT) --project fury --module frontend --dir $<
 	jar -uf $@ .version
 
-dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% compile
+dist/bundle/lib/%.jar: boot/bin .version dist/bundle/lib boot/git/% compile
 	jar -cf $@ -C $< $*
 
 # Binaries
@@ -105,7 +105,7 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v1.1.0-M14-4/coursier
 	chmod +x $@
 
-dist/bundle/bin/ng.c: bootstrap/ng/.dir
+dist/bundle/bin/ng.c: boot/ng/.dir
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
 
 dist/bundle/bin/ng.py: dist/bundle/bin/.dir
@@ -116,7 +116,7 @@ dist/bundle/bin/ng.py: dist/bundle/bin/.dir
 fury-native: dist/bundle/lib/fury-frontend.jar
 	native-image -cp $(shell bash -c "ls $(NATIVEJARS) | paste -s -d: -") fury.Main
 
-test: bootstrap/build.fury
+test: boot/build.fury
 	fury layer extract -f $<
 	fury permission grant --project fury --module test-core -P 228 4a8 538 7f0 c0d c2e f90 00b
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
@@ -148,9 +148,9 @@ clean-ci:
 	docker build --no-cache -t fury-ci .
 
 clean: clean-dist
-	rm -rf bootstrap dist opt
+	rm -rf boot dist opt
 
-download: dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) bootstrap/scala
+download: dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c dist/bundle/lib dist/bundle/lib/$(NAILGUNJAR) boot/scala
 
 install: dist/install.sh
 	dist/install.sh
