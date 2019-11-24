@@ -622,7 +622,11 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	fury/io	projectId	fury
+						after	euphemism/core	projectId	euphemism
+								moduleId	core
+								intransitive	false
+								hidden	false
+							fury/io	projectId	fury
 								moduleId	io
 								intransitive	false
 								hidden	false
@@ -650,7 +654,7 @@ schemas	default	id	default
 						properties	
 						policy	
 						hidden	false
-				main	Some	test-core
+				main	Some	frontend
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -667,8 +671,8 @@ schemas	default	id	default
 				track	master
 				commit	d1e7aae5000e1efe92b2bde48bdb82c6064c7e06
 				local	None
-		imports	29B89F711E5D63E22B8D798F55C6FF01A4E1638C12C4F1DD631DEE4CBC48EF2B:default	id	platform
-				layerRef	29B89F711E5D63E22B8D798F55C6FF01A4E1638C12C4F1DD631DEE4CBC48EF2B
+		imports	25033F7CFF02CD5B7ADB9BF40A30E1C81A3DC5BF8943F273A91886F9F7604DEC:default	id	platform
+				layerRef	25033F7CFF02CD5B7ADB9BF40A30E1C81A3DC5BF8943F273A91886F9F7604DEC
 				schema	default
 				follow	None
 		main	Some	fury
