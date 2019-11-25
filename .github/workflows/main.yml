@@ -1,0 +1,59 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Run Makefile
+      run: |
+        make install
+        lsof -i :8462 -i :8212 -t | xargs kill
+        echo "::add-path::$HOME/.fury/bin"
+      timeout-minutes: 5
+    - name: Run unit tests
+      run: make test
+      timeout-minutes: 5
+      continue-on-error: true
+    - name: Package unit test logs
+      run: find . -type f -name '*.log' | tar cvzf unit-test-logs.tar.gz --files-from -
+    - uses: actions/upload-artifact@v1
+      with:
+        name: unit-test-logs
+        path: unit-test-logs.tar.gz
+    - name: Prepare environment for integration tests
+      run: |
+        git config --global user.name $USER
+        git config --global user.email johndoe@example.com
+        mkdir $HOME/opt
+        pushd $HOME/opt
+        curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_linux-amd64.tar.gz | tar zxf - go-ipfs/ipfs
+        popd
+        $HOME/opt/go-ipfs/ipfs init
+        lsof -i :8462 -i :8212 -t | xargs kill
+        echo "::add-path::$HOME/opt/go-ipfs"
+      timeout-minutes: 2
+    - name: Run integration tests
+      run: etc/integration
+      timeout-minutes: 5
+      continue-on-error: true
+    - name: Package integration logs
+      run: find test -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
+    - uses: actions/upload-artifact@v1
+      with:
+        name: integration-logs
+        path: integration-logs.tar.gz
+    - name: Run community builds
+      run: etc/community
+      timeout-minutes: 5
+      continue-on-error: true
+    - name: Package community logs
+      run: find test -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
+    - uses: actions/upload-artifact@v1
+      with:
+        name: community-logs
+        path: community-logs.tar.gz
