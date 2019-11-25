@@ -16,37 +16,55 @@
 */
 package fury.io
 
-import mercator._
-
-import java.net.URI
+import java.io.InputStream
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileSystems, FileVisitResult, Files, Path => JavaPath, SimpleFileVisitor}
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
 import java.util.stream.Collectors
-import java.util.zip.{ZipEntry, ZipFile, ZipOutputStream}
+import java.util.zip.{ZipEntry, ZipOutputStream}
 
-import scala.collection.JavaConverters._
+import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
+
 import scala.util.Try
+import org.apache.commons.compress.parallel.InputStreamSupplier
+import org.apache.commons.compress.archivers.zip.UnixStat
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import mercator._
+import scala.collection.JavaConverters._
+
+import org.apache.commons.compress.archivers.zip._
 
 object Zipper {
 
-  def pack(root: Path, destination: Path): Try[Path] = pack(root.javaPath, destination.javaPath).map(Path(_))
+  def pack(root: Path, destination: Path, zipCreator: ParallelScatterZipCreator): Try[Path] = pack(root.javaPath, destination.javaPath, zipCreator).map(Path(_))
   def unpack(source: Path, destination: Path): Try[Zip] = unpack(source.javaPath, destination.javaPath)
 
-  private def packfs(zip: Zip, destination: JavaPath): Try[JavaPath] = {
-    val fs = FileSystems.newFileSystem(
-      URI.create("jar:" + destination.toUri.toString),
-      Map("create" -> "true").asJava,
-      null
-    )
-    val result = zip.entries.toList.sorted.traverse { case (name, source) =>
-      Try(Files.copy(source, fs.getPath("/").resolve(name), REPLACE_EXISTING))
-    }.map { _ => destination }
-    fs.close()
-    result
+  private def packfs(zip: Zip, destination: JavaPath, zipCreator: ParallelScatterZipCreator): Try[JavaPath] = Try {
+      zip.entries.toList.sorted.foreach { case (name, source) =>
+        val za = createZipArchiveEntry(Paths.get(name))
+        val iss = new InputStreamSupplier() {
+          override def get: InputStream = {
+            Files.newInputStream(source)
+          }
+        }
+        if(!source.toFile.isDirectory){
+          zipCreator.addArchiveEntry(za, iss)
+        }
+      }
+    }.map(_ => destination)
+
+
+
+
+  private def createZipArchiveEntry(path: JavaPath) = {
+    val za = new ZipArchiveEntry(path.toString)
+    za.setMethod(ZipEntry.DEFLATED)
+    za.setSize(path.toString.length)
+    za.setUnixMode(UnixStat.FILE_FLAG | 0x664)
+    za
   }
 
-  private def pack(root: JavaPath, destination: JavaPath): Try[JavaPath] = {
+  private def pack(root: JavaPath, destination: JavaPath, zipCreator: ParallelScatterZipCreator) = {
     val javaPaths = if(Files.isDirectory(root)){
       val javaPathWalker = Files.walk(root)
       val toPack = javaPathWalker.collect(Collectors.toList[JavaPath]).asScala.toList//.tail
@@ -55,15 +73,15 @@ object Zipper {
     } else List(root)
 
     packfs(Zip(javaPaths.map { javaPath => root.getParent.relativize(javaPath).toString -> javaPath }.toMap),
-        destination)
+        destination, zipCreator)
   }
 
-  private def unpack(source: JavaPath, destination: JavaPath): Try[Zip] = for {
+  private def unpack(source: JavaPath, destination: JavaPath): Try[Zip] = for{
     zipFile    <- Try(new ZipFile(source.toFile))
-    zipEntries = zipFile.entries().asScala.toList
-    entries    <- zipEntries.traverse { zipEntry =>
-      val name = zipEntry.getName
-      val in = zipFile.getInputStream(zipEntry)
+    zipEntries = zipFile.getEntriesInPhysicalOrder.asScala.toList
+    entries <- zipEntries.traverse{ zip =>
+      val name = zip.getName
+      val in = zipFile.getInputStream(zip)
       val result = Try {
         val target = destination.resolve(name)
         if(name.endsWith("/")) Files.createDirectories(target)
@@ -77,6 +95,7 @@ object Zipper {
       result
     }
   } yield Zip(entries.toMap)
+
 
   private class ZippingFileVisitor(sourceJavaPath: JavaPath, out: ZipOutputStream)
       extends SimpleFileVisitor[JavaPath] {

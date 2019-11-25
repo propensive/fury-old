@@ -434,6 +434,8 @@ case class Compilation(graph: Map[TargetId, Set[TargetId]],
       _                <- Shell(layout.env).jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
         manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
+      _                 = log.info(msg"Finish.")
+
     } yield ()
   }
 
