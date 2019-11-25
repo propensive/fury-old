@@ -81,6 +81,7 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/build.fury bootstrap/bin .version src/**/*.scala
 	$(FURYLOCAL) layer extract -f bootstrap/build.fury
 	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
+	$(FURYLOCAL) permission grant --module ast --project jawn -P b7a
 	$(FURYLOCAL) build save --https --output $(FURY_OUTPUT) --project fury --module frontend --dir $<
 	jar -uf $@ .version
 
@@ -118,7 +119,7 @@ fury-native: dist/bundle/lib/fury-frontend.jar
 
 test: bootstrap/build.fury
 	fury layer extract -f $<
-	fury permission grant --project fury --module test-core -P 228 4a8 538 7f0 c0d c2e f90 00b
+	fury permission grant --project fury --module test-core -P 228 4a8 538 7f0 c0d c2e f90 00b b7a
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-ogdl
 	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-core
