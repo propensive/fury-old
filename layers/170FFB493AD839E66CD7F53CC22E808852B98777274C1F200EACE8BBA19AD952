@@ -1075,7 +1075,7 @@ schemas	default	id	default
 			euphemism	id	euphemism
 				repo	gh:propensive/euphemism
 				track	master
-				commit	ba6e92ac3ddcdf17ad0799c42531ee21f088c000
+				commit	93e595c8e6ec5d50ce40cedfd8babd2c83a734a3
 				local	None
 			exoskeleton	id	exoskeleton
 				repo	gh:propensive/exoskeleton
@@ -1110,7 +1110,7 @@ schemas	default	id	default
 			magnolia	id	magnolia
 				repo	gh:propensive/magnolia
 				track	fury
-				commit	bbb25520f50144097e7263550a6d7e1cbe601b6b
+				commit	d07a3ceea0dde0c01fcfdc56d365c964ecac5d85
 				local	None
 			mercator	id	mercator
 				repo	gh:propensive/mercator
