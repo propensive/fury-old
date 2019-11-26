@@ -16,7 +16,11 @@ jobs:
         echo "::add-path::$HOME/.fury/bin"
       timeout-minutes: 5
     - name: Run unit tests
-      run: make test
+      run: |
+        make test
+        SUCCESS=$?
+        if [ $SUCCESS -ne 0 ]; then touch unittests.failed; fi
+        exit $SUCCESS
       timeout-minutes: 5
       continue-on-error: true
     - name: Package unit test logs
@@ -38,7 +42,11 @@ jobs:
         echo "::add-path::$HOME/opt/go-ipfs"
       timeout-minutes: 2
     - name: Run integration tests
-      run: etc/integration
+      run: |
+        etc/integration
+        SUCCESS=$?
+        if [ $SUCCESS -ne 0 ]; then touch integration.failed; fi
+        exit $SUCCESS
       timeout-minutes: 5
       continue-on-error: true
     - name: Package integration logs
@@ -48,7 +56,11 @@ jobs:
         name: integration-logs
         path: integration-logs.tar.gz
     - name: Run community builds
-      run: etc/community
+      run: |
+        etc/community
+        SUCCESS=$?
+        if [ $SUCCESS -ne 0 ]; then touch community.failed; fi
+        exit $SUCCESS
       timeout-minutes: 5
       continue-on-error: true
     - name: Package community logs
@@ -57,3 +69,6 @@ jobs:
       with:
         name: community-logs
         path: community-logs.tar.gz
+    - name: Summary
+      run: |
+        ! ls -1 *.failed 2> /dev/null
