@@ -69,6 +69,14 @@ jobs:
       with:
         name: community-logs
         path: community-logs.tar.gz
+    - name: Look around
+      run: |
+        pwd
+        ls ~/.cache/coursier
+        du -h ~/.cache/coursier
+        du -h ~/.cache/fury
+        find ~ -type f -name '*bloop*.jar'
+        find ~ -type f -name '*contextual*.jar'
     - name: Summary
       run: |
         ! ls -1 *.failed 2> /dev/null
