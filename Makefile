@@ -7,7 +7,7 @@ NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 NATIVEJARS=dist/bundle/lib/fury-frontend.jar $(NAILGUNJARPATH) bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
 DOCKER_TAG=fury-ci
-INIT_CGROUP=$(shell cat /proc/1/cgroup | tail -n1 | cut -d: -f3)
+INIT_CGROUP=$(shell cat /proc/1/cgroup 2> /dev/null || echo '' | tail -n1 | cut -d: -f3)
 ifeq ($(INIT_CGROUP),"/")
 	FURY_OUTPUT=graph
 else
