@@ -12,7 +12,7 @@ jobs:
     - uses: actions/cache@v1
       with:
        path: ~/.cache/coursier
-       key: ${{ runner.os }}-fury-${{ hashFiles('layers/*') }}
+       key: ${{ runner.os }}-coursier-${{ hashFiles('layers/*') }}
     - uses: actions/cache@v1
       with:
        path: ~/.cache/fury
