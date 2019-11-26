@@ -12,6 +12,7 @@ jobs:
     - name: Run Makefile
       run: |
         make install
+        $HOME/.fury/bin/fury config set --pipelining off
         lsof -i :8462 -i :8212 -t | xargs kill
         echo "::add-path::$HOME/.fury/bin"
       timeout-minutes: 5
