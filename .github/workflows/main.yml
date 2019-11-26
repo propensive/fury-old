@@ -25,10 +25,8 @@ jobs:
       timeout-minutes: 5
     - name: Run unit tests
       run: |
-        make test
-        SUCCESS=$?
-        if [ $SUCCESS -ne 0 ]; then touch unittests.failed; fi
-        exit $SUCCESS
+        make test || touch unittests.failed
+        ! ls -1 unittests.failed 2> /dev/null
       timeout-minutes: 5
       continue-on-error: true
     - name: Package unit test logs
@@ -51,10 +49,8 @@ jobs:
       timeout-minutes: 2
     - name: Run integration tests
       run: |
-        etc/integration
-        SUCCESS=$?
-        if [ $SUCCESS -ne 0 ]; then touch integration.failed; fi
-        exit $SUCCESS
+        etc/integration || touch integration.failed
+        ! ls -1 integration.failed 2> /dev/null
       timeout-minutes: 5
       continue-on-error: true
     - name: Package integration logs
@@ -65,10 +61,8 @@ jobs:
         path: integration-logs.tar.gz
     - name: Run community builds
       run: |
-        etc/community
-        SUCCESS=$?
-        if [ $SUCCESS -ne 0 ]; then touch community.failed; fi
-        exit $SUCCESS
+        etc/community || touch community.failed
+        ! ls -1 community.failed 2> /dev/null
       timeout-minutes: 5
       continue-on-error: true
     - name: Package community logs
