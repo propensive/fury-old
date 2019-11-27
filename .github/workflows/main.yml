@@ -5,7 +5,11 @@ on: [push]
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
 
     steps:
     - uses: actions/checkout@v1
@@ -28,7 +32,7 @@ jobs:
       run: find . -type f -name '*.log' | tar cvzf compilation-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1
       with:
-        name: compilation-logs
+        name: compilation-logs-${{ runner.os }}
         path: compilation-logs.tar.gz
       if: failure()
     - name: Run unit tests
@@ -41,7 +45,7 @@ jobs:
       run: find . -type f -name '*.log' | tar cvzf unit-test-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1
       with:
-        name: unit-test-logs
+        name: unit-test-logs-${{ runner.os }}
         path: unit-test-logs.tar.gz
     - name: Prepare environment for integration tests
       run: |
@@ -49,7 +53,9 @@ jobs:
         git config --global user.email johndoe@example.com
         mkdir $HOME/opt
         pushd $HOME/opt
-        curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_linux-amd64.tar.gz | tar zxf - go-ipfs/ipfs
+        IPFS_BUILD=linux
+        if [[ ${{ matrix.os }} =~ macos-[a-zA-Z0-9_] ]]; then IPFS_BUILD=darwin; fi
+        curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_$IPFS_BUILD-amd64.tar.gz | tar zxf - go-ipfs/ipfs
         popd
         $HOME/opt/go-ipfs/ipfs init
         lsof -i :8462 -i :8212 -t | xargs kill
@@ -65,7 +71,7 @@ jobs:
       run: find test -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1
       with:
-        name: integration-logs
+        name: integration-logs-${{ runner.os }}
         path: integration-logs.tar.gz
     - name: Run community builds
       run: |
@@ -77,7 +83,7 @@ jobs:
       run: find test -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1
       with:
-        name: community-logs
+        name: community-logs-${{ runner.os }}
         path: community-logs.tar.gz
     - name: Summary
       run: |
