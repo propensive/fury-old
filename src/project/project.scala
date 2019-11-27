@@ -29,21 +29,20 @@ import scala.collection.immutable.SortedSet
 object ProjectCli {
   import Args._
 
-  def context(cli: Cli[CliParam[_]]) = for {
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    layer        <- Layer.read(layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     optSchemaArg <- ~cli.peek(SchemaArg)
   } yield new MenuContext(cli, layout, layer, optSchemaArg)
 
-  def select(ctx: MenuContext): Try[ExitStatus] = {
+  def select(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
       force     <- ~invoc(ForceArg).isSuccess
@@ -52,27 +51,26 @@ object ProjectCli {
       _         <- schema(projectId)
       focus     <- ~Lenses.focus(optSchemaId, force)
       layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)
 
     } yield log.await()
   }
 
-  def list(ctx: MenuContext): Try[ExitStatus] = {
+  def list(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli    <- cli.hint(RawArg)
       invoc  <- cli.read()
-      log    <- invoc.logger()
       raw    <- ~invoc(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
-      _      <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
-      _      <- ~log.println(table.mkString("\n"))
+      _      <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+      _      <- ~log.info(table.mkString("\n"))
     } yield log.await()
   }
 
-  def add(ctx: MenuContext): Try[ExitStatus] = {
+  def add(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(ProjectNameArg)
@@ -80,10 +78,9 @@ object ProjectCli {
       dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
-                            Log.silent, layout, false))
+                            layout, false))
 
       invoc          <- cli.read()
-      log            <- invoc.logger()
       compilerId     <- ~invoc(DefaultCompilerArg).toOption
       optCompilerRef <- compilerId.map(ModuleRef.parseFull(_, true)).to[List].sequence.map(_.headOption)
       projectId      <- invoc(ProjectNameArg)
@@ -96,19 +93,18 @@ object ProjectCli {
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(_(_) =
                             Some(project.id))
 
-      _              <- ~Layer.save(log, layer, layout)
+      _              <- ~Layer.save(layer, layout)
       _              <- ~log.info(msg"Set current project to ${project.id}")
     } yield log.await()
   }
 
-  def remove(ctx: MenuContext): Try[ExitStatus] = {
+  def remove(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       projectId <- invoc(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
       force     <- ~invoc(ForceArg).isSuccess
@@ -119,11 +115,11 @@ object ProjectCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                        if(lens(ws) == Some(projectId))(lens(ws) = None) else ws }
 
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)(log)
     } yield log.await()
   }
 
-  def update(ctx: MenuContext): Try[ExitStatus] = {
+  def update(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
@@ -131,14 +127,13 @@ object ProjectCli {
       cli            <- cli.hint(DescriptionArg)
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
-                            _.compilerRefs(Log.silent, layout, false)))
+                            _.compilerRefs(layout, false)))
       
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
       cli            <- cli.hint(ProjectNameArg, projectId)
       invoc          <- cli.read()
-      log            <- invoc.logger()
       projectId      <- projectId.ascribe(UnspecifiedProject())
       schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       project        <- schema.projects.findBy(projectId)
@@ -158,7 +153,7 @@ object ProjectCli {
       lens           <- ~Lenses.layer.schemas
       layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
       layer          <- ~lens.modify(layer)(_ + newSchema)
-      _              <- ~Layer.save(log, layer, layout)
+      _              <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 }

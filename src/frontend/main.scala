@@ -32,11 +32,11 @@ import scala.util._
 
 object Main {
 
-  def invoke(cli: Cli[CliParam[_]]): ExitStatus = {
+  def invoke(cli: Cli[CliParam[_]])(implicit log: Log): ExitStatus = {
 
     val layer = for {
       layout <- cli.layout
-      layer  <- Layer.read(Log.silent, layout)
+      layer  <- Layer.read(layout)
     } yield layer
 
     val actions = layer.toOption
@@ -53,7 +53,7 @@ object Main {
             (cli: Cli[CliParam[_]]) => action(cli))
       }
 
-    Recovery.recover(cli)(FuryMenu.menu(actions)(cli, cli))
+    Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
   }
 
   def main(args: Array[String]): Unit = run(
@@ -86,7 +86,8 @@ object Main {
     ) =
     exit {
       val pid = args.head.toInt
-      val cli = Cli(out, ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, pid)
+      implicit val log: Log = Log.global(Some(pid))
+      val cli = Cli(new java.io.PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, pid)
       Lifecycle.trackThread(cli, args.lift(1).exists(Set("about", "help")(_))) {
         val end = invoke(cli).code
         out.flush()

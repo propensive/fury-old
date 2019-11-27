@@ -31,12 +31,12 @@ object RepoCli {
 
   case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer)
   
-  def context(cli: Cli[CliParam[_]]) = for {
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout <- cli.layout
-    layer  <- Layer.read(Log.silent, layout)
+    layer  <- Layer.read(layout)
   } yield Context(cli, layout, layer)
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
@@ -46,14 +46,13 @@ object RepoCli {
       schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(ctx.layer.main)
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
-      log       <- invoc.logger()
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
-      _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+      _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
 
-  def unfork(ctx: Context): Try[ExitStatus] = {
+  def unfork(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -61,17 +60,16 @@ object RepoCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def fork(ctx: Context): Try[ExitStatus] = {
+  def fork(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -81,12 +79,11 @@ object RepoCli {
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       dir       <- invoc(DirArg)
       https     <- ~invoc(HttpsArg).isSuccess
-      bareRepo  <- repo.repo.fetch(log, layout, https)
+      bareRepo  <- repo.repo.fetch(layout, https)
       absPath   <- { for {
                      absPath <- ~(layout.pwd.resolve(dir))
                      _       <- Try(absPath.mkdir())
@@ -102,11 +99,11 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = Some(absPath))
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def pull(ctx: Context): Try[ExitStatus] = {
+  def pull(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -115,14 +112,12 @@ object RepoCli {
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(AllArg, List[String]())
       invoc     <- cli.read()
-      log       <- invoc.logger()
       all       <- ~invoc(AllArg).toOption
       
       optRepos  <- invoc(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                        schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
       repos     <- optRepos.map(schema.repo(_, layout)).sequence
-      log       <- invoc.logger()
       msgs      <- repos.map(_.repo.update(layout).map(log.info(_))).sequence
       lens      <- ~Lenses.layer.repos(schema.id)
 
@@ -135,7 +130,7 @@ object RepoCli {
                      case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
                    }
 
-      _         <- ~Layer.save(log, newLayer, layout)
+      _         <- ~Layer.save(newLayer, layout)
 
       _         <- ~newRepos.foreach { case (newRepo, _) =>
                      log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
@@ -144,7 +139,7 @@ object RepoCli {
     } yield log.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -162,7 +157,6 @@ object RepoCli {
 
       cli            <- cli.hint(VersionArg, versions)
       invoc          <- cli.read()
-      log            <- invoc.logger()
       optSchemaArg   <- ~invoc(SchemaArg).toOption
       schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
@@ -177,7 +171,7 @@ object RepoCli {
 
       urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
       repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
-      _              <- repo.fetch(log, layout, https)
+      _              <- repo.fetch(layout, https)
 
       commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
                             exoskeleton.InvalidArgValue("version", version.id))
@@ -186,11 +180,11 @@ object RepoCli {
       sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
-      _              <- ~Layer.save(log, layer, layout)
+      _              <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def update(ctx: Context): Try[ExitStatus] = {
+  def update(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli         <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -204,7 +198,6 @@ object RepoCli {
       versions    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
       cli         <- cli.hint(VersionArg, versions.flatten)
       invoc       <- cli.read()
-      log         <- invoc.logger()
       optSchemaId <- ~invoc(SchemaArg).toOption
       schemaArg   <- ~optSchemaId.getOrElse(layer.main)
       schema      <- layer.schemas.findBy(schemaArg)
@@ -221,11 +214,11 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      _           <- ~Layer.save(log, layer, layout)
+      _           <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
@@ -233,12 +226,11 @@ object RepoCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       repoId    <- invoc(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 }

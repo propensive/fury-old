@@ -40,10 +40,10 @@ object DependencyCli {
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]]) =
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) =
     for {
       layout       <- cli.layout
-      layer        <- Layer.read(Log.silent, layout)
+      layer        <- Layer.read(layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
       schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -61,12 +61,11 @@ object DependencyCli {
 
     } yield new Context(cli, layout, layer, schema, optProject, optModule)
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -74,14 +73,14 @@ object DependencyCli {
       table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.println(table.mkString("\n"))
+      _       <- ~log.info(table.mkString("\n"))
     } yield log.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -89,7 +88,6 @@ object DependencyCli {
       cli       <- cli.hint(ForceArg)
       cli       <- cli.hint(HttpsArg)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       https     <- ~invoc(HttpsArg).isSuccess
       linkArg   <- invoc(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
@@ -100,26 +98,25 @@ object DependencyCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id,
                        module.id))(_(_) -= moduleRef)
 
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)
       optSchema <- ~layer.mainSchema.toOption
 
-      _         <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, moduleRef, layout,
+      _         <- ~optSchema.foreach(Compilation.asyncCompilation(_, moduleRef, layout,
                        https))
 
     } yield log.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
       cli              <- cli.hint(IntransitiveArg)
       invoc            <- cli.read()
-      log              <- invoc.logger()
       project          <- optProject.ascribe(UnspecifiedProject())
       module           <- optModule.ascribe(UnspecifiedModule())
       intransitive     <- ~invoc(IntransitiveArg).isSuccess
@@ -129,9 +126,9 @@ object DependencyCli {
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,
                               module.id))(_(_) += moduleRef)
 
-      _                <- ~Layer.save(log, layer, layout)
+      _                <- ~Layer.save(layer, layout)
 
-      _                <- ~optSchema.foreach(Compilation.asyncCompilation(log, _, moduleRef, layout,
+      _                <- ~optSchema.foreach(Compilation.asyncCompilation(_, moduleRef, layout,
                               false))
 
     } yield log.await()
@@ -152,9 +149,9 @@ object EnvCli {
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]]) = for {
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    layer        <- Layer.read(layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -170,12 +167,11 @@ object EnvCli {
                     } yield module }
   } yield new Context(cli, layout, layer, schema, optProject, optModule)
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -183,21 +179,20 @@ object EnvCli {
       table   <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.println(table.mkString("\n"))
+      _       <- ~log.info(table.mkString("\n"))
     } yield log.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli       <- cli.hint(EnvArg, optModule.to[List].flatMap(_.environment.to[List]))
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       envArg    <- invoc(EnvArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
@@ -206,21 +201,20 @@ object EnvCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.environment(_, project.id,
                        module.id))(_(_) -= envArg)
 
-      _         <- ~Layer.save(log, layer, layout)
+      _         <- ~Layer.save(layer, layout)
       optSchema <- ~layer.mainSchema.toOption
     } yield log.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
       invoc           <- cli.read()
-      log             <- invoc.logger()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       envArg          <- invoc(EnvArg)
@@ -228,7 +222,7 @@ object EnvCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.environment(_, project.id,
                              module.id))(_(_) += envArg)
 
-      _               <- ~Layer.save(log, layer, layout)
+      _               <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 }
@@ -247,9 +241,9 @@ object PermissionCli {
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]]) = for {
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    layer        <- Layer.read(layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -267,7 +261,7 @@ object PermissionCli {
 
   } yield Context(cli, layout, layer, schema, optProject, optModule)
 
-  def require(ctx: Context): Try[ExitStatus] = {
+  def require(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli             <- cli.hint(ScopeArg, ScopeId.All)
@@ -276,7 +270,6 @@ object PermissionCli {
       cli             <- cli.hint(PermissionTargetArg)
       cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
       invoc           <- cli.read()
-      log             <- invoc.logger()
       scopeId         =  invoc(ScopeArg).getOrElse(ScopeId.Project)
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
@@ -287,24 +280,23 @@ object PermissionCli {
       permission      =  Permission(classArg, targetArg, actionArg)
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
-      _               <- Layer.save(log, layer, layout)
+      _               <- Layer.save(layer, layout)
       policy          <- ~Policy.read(log)
       newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
-      _               <- Policy.save(log, newPolicy)
+      _               <- Policy.save(newPolicy)
     } yield {
       log.info(msg"${PermissionHash(permission.hash)}")
       log.await()
     }
   }
 
-  def obviate(ctx: Context): Try[ExitStatus] = {
+  def obviate(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       cli           <- cli.hint(ForceArg)
       invoc         <- cli.read()
-      log           <- invoc.logger()
       permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
@@ -312,16 +304,15 @@ object PermissionCli {
       force         =  invoc(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
                            module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
-      _             <- Layer.save(log, layer, layout)
+      _             <- Layer.save(layer, layout)
     } yield log.await()
   }
   
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -329,14 +320,14 @@ object PermissionCli {
       table   <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.println(table.mkString("\n"))
+      _       <- ~log.info(table.mkString("\n"))
     } yield log.await()
   }
 
-  def grant(ctx: Context): Try[ExitStatus] = {
+  def grant(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._ 
     
     for {
@@ -344,7 +335,6 @@ object PermissionCli {
       //TODO check if hints still work
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       invoc         <- cli.read()
-      log           <- invoc.logger()
       scopeId       <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
@@ -352,7 +342,7 @@ object PermissionCli {
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
       policy        <- ~Policy.read(log)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
-      _             <- Policy.save(log, newPolicy)
+      _             <- Policy.save(newPolicy)
     } yield log.await()
   }
 
@@ -373,9 +363,9 @@ object PropertyCli {
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]]) = for {
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(Log.silent, layout)
+    layer        <- Layer.read(layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -393,12 +383,11 @@ object PropertyCli {
 
   } yield Context(cli, layout, layer, schema, optProject, optModule)
 
-  def list(ctx: Context): Try[ExitStatus] = {
+  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
       invoc   <- cli.read()
-      log     <- invoc.logger()
       raw     <- ~invoc(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
@@ -406,21 +395,20 @@ object PropertyCli {
       table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.println(table.mkString("\n"))
+      _       <- ~log.info(table.mkString("\n"))
     } yield log.await()
   }
 
-  def remove(ctx: Context): Try[ExitStatus] = {
+  def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli       <- cli.hint(PropArg, optModule.to[List].flatMap(_.properties.to[List]))
       cli       <- cli.hint(ForceArg)
       invoc     <- cli.read()
-      log       <- invoc.logger()
       propArg   <- invoc(PropArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
@@ -429,19 +417,18 @@ object PropertyCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.properties(_, project.id,
                        module.id))(_(_) -= propArg)
 
-      _         <- Layer.save(log, layer, layout)
+      _         <- Layer.save(layer, layout)
     } yield log.await()
   }
 
-  def add(ctx: Context): Try[ExitStatus] = {
+  def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()
-      log             <- invoc.logger()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
       propArg         <- invoc(PropArg)
@@ -449,7 +436,7 @@ object PropertyCli {
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.properties(_, project.id,
                              module.id))(_(_) += propArg)
 
-      _               <- Layer.save(log, layer, layout)
+      _               <- Layer.save(layer, layout)
     } yield log.await()
   }
 }

@@ -139,10 +139,8 @@ You can grant these permissions with,
             s"$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            invoc  <- cli.read()
-            log    <- invoc.logger()
-            _      <- ~layout.errorLogfile.mkParents
-            _      <- ~layout.errorLogfile.writeSync(errorString)
+            log    <- ~Log.global(Some(cli.pid))
+            _      <- ~log.fail(errorString)
             _      <- ~log.await()
           } yield
             cli.abort(msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}")

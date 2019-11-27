@@ -56,7 +56,7 @@ object TarGz {
     out.close()
   }
 
-  def extract(log: Log, file: Path, destination: Path): Try[Unit] = Try {
+  def extract(file: Path, destination: Path)(implicit log: Log): Try[Unit] = Try {
     val fis  = new FileInputStream(file.javaFile)
     val gzis = new GZIPInputStream(fis)
     val in   = new TarInputStream(gzis)

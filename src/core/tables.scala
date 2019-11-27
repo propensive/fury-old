@@ -26,7 +26,7 @@ import scala.util._
 
 case class Tables() {
 
-  implicit val theme: Theme = Installation.config().theme
+  implicit val theme: Theme = ManagedConfig().theme
 
   def show[T, S: MsgShow](table: Tabulation[T],
                           cols: Int,

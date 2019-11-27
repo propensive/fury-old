@@ -22,7 +22,7 @@ import scala.util._
 
 object FuryMenu {
 
-  def menu(aliases: List[Action[Cli[CliParam[_]]]]): Menu[Cli[CliParam[_]], _] =
+  def menu(aliases: List[Action[Cli[CliParam[_]]]])(implicit log: Log): Menu[Cli[CliParam[_]], _] =
     Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)(List(
         Action('about, msg"about Fury", BuildCli.about),
         Menu('alias, msg"view and edit command aliases", AliasCli.context, 'list)(
@@ -141,11 +141,9 @@ object FuryMenu {
         )
     ) ::: aliases: _*)
 
-  def help(cli: Cli[CliParam[_]]): Try[ExitStatus] =
+  def help(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
     for {
-      invoc <- cli.read()
-      log   <- invoc.logger()
-      _     <- ~log.info(s"""|Usage: fury <command> [<subcommands>] [<args>]
+      _     <- ~log.raw(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
                            |${menu(Nil).reference(Theme.NoColor).join("\n")}
