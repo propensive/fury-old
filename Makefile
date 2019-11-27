@@ -81,6 +81,9 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/build.fury bootstrap/bin .version src/**/*.scala
 	$(FURYLOCAL) layer extract -f bootstrap/build.fury
 	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
+	$(FURYLOCAL) layer select -l /platform/jawn
+	$(FURYLOCAL) permission grant --module ast --project jawn -P b7a
+	$(FURYLOCAL) layer select -l /
 	$(FURYLOCAL) build save --https --output $(FURY_OUTPUT) --project fury --module frontend --dir $<
 	jar -uf $@ .version
 

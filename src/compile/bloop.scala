@@ -16,13 +16,14 @@
 */
 package fury.core
 
-import fury.jsongen._, fury.io._, fury.strings._, fury.model._
+import fury.io._, fury.strings._, fury.model._
 
 import java.net._
 
 import gastronomy._
 import guillotine._
 import mercator._
+import euphemism._
 
 import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 import scala.util._
@@ -47,11 +48,21 @@ object Bloop {
     classpath <- ~compilation.classpath(target.ref, layout)
     compilerClasspath <- ~target.compiler.map(_.ref).map(compilation.classpath(_, layout)).getOrElse(classpath)
     bloopSpec = target.compiler
-      .map(_.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.7")))
+      .map(_.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")))
     params <- ~compilation.allParams(log, target.ref, layout)
-  } yield Json(
+    compilerOpt = (bloopSpec.map { spec =>
+                    Json.of(
+                      organization = spec.org,
+                      name = spec.name,
+                      version = spec.version,
+                      options = params,
+                      jars = compilerClasspath.map(_.value)
+                    )
+                  })
+  } yield Json.of(
     version = "1.0.0",
-    project = Json(
+    project = Json.of(
+      scala = compilerOpt,
       name = target.id.key,
       directory = layout.workDir(target.id).value,
       sources = target.sourcePaths.map(_.value),
@@ -59,23 +70,14 @@ object Bloop {
       classpath = (classpath ++ compilerClasspath).map(_.value),
       out = str"${layout.outputDir(target.id).value}",
       classesDir = str"${layout.classesDir(target.id).value}",
-      scala = bloopSpec.fold[Json](Undefined){ spec =>
-        Json(
-          organization = spec.org,
-          name = spec.name,
-          version = spec.version,
-          options = params,
-          jars = compilerClasspath.map(_.value)
-        )
-      },
-      java = Json(options = Nil),
-      test = Json(frameworks = Nil, options = Json(excludes = Nil, arguments = Nil)),
-      jvmPlatform = Json(
+      java = Json.of(options = Nil),
+      test = Json.of(frameworks = Nil, options = Json.of(excludes = Nil, arguments = Nil)),
+      jvmPlatform = Json.of(
         name = "jvm",
-        config = Json(home = "", options = Nil),
+        config = Json.of(home = "", options = Nil),
         mainClass = target.main.to[List]
       ),
-      resolution = Json(modules = Nil)
+      resolution = Json.of(modules = Nil)
     )
-  ).serialize
+  ).toString
 }

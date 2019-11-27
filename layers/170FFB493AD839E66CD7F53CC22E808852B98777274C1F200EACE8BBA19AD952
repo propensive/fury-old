@@ -19,6 +19,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -45,6 +46,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					test	id	test
 						kind	Application
 						main	Some	anesthesia.tests.Tests
@@ -70,6 +72,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -96,6 +99,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -125,6 +129,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					test	id	test
 						kind	Application
 						main	Some	caesura.Test
@@ -150,6 +155,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -176,6 +182,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					data	id	data
 						kind	Library
 						main	None
@@ -197,6 +204,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	data
 				license	apache-2.0
 				description	
@@ -226,6 +234,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -252,6 +261,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -278,6 +288,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					test	id	test
 						kind	Library
 						main	None
@@ -303,7 +314,42 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	test
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			euphemism	id	euphemism
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	jawn/ast	projectId	jawn
+								moduleId	ast
+								intransitive	false
+								hidden	false
+							magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	euphemism:src/core	euphemism:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -329,6 +375,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -358,6 +405,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -387,6 +435,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					macros	id	macros
 						kind	Library
 						main	None
@@ -408,6 +457,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -437,6 +487,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					core	id	core
 						kind	Library
 						main	None
@@ -458,6 +509,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					macros	id	macros
 						kind	Library
 						main	None
@@ -476,6 +528,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	bench
 				license	apache-2.0
 				description	
@@ -502,6 +555,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -535,6 +589,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -564,6 +619,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -593,6 +649,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					examples	id	examples
 						kind	Library
 						main	None
@@ -623,6 +680,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	true
 					test	id	test
 						kind	Application
 						main	Some	magnolia.tests.Tests
@@ -652,6 +710,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	test
 				license	apache-2.0
 				description	
@@ -678,6 +737,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -714,6 +774,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -740,6 +801,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	core
 				license	apache-2.0
 				description	
@@ -773,6 +835,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					core	id	core
 						kind	Library
 						main	None
@@ -794,6 +857,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					macros	id	macros
 						kind	Library
 						main	None
@@ -815,6 +879,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	cli
 				license	apache-2.0
 				description	
@@ -912,6 +977,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	all
 				license	apache-2.0
 				description	
@@ -941,6 +1007,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 					example	id	example
 						kind	Application
 						main	Some	pyroclastic.tests.Test
@@ -962,6 +1029,7 @@ schemas	default	id	default
 						environment	
 						properties	
 						policy	
+						hidden	false
 				main	Some	example
 				license	apache-2.0
 				description	
@@ -1004,6 +1072,11 @@ schemas	default	id	default
 				track	fury
 				commit	f8dee747070e1905fe95dd55f981dc497037df9d
 				local	None
+			euphemism	id	euphemism
+				repo	gh:propensive/euphemism
+				track	master
+				commit	93e595c8e6ec5d50ce40cedfd8babd2c83a734a3
+				local	None
 			exoskeleton	id	exoskeleton
 				repo	gh:propensive/exoskeleton
 				track	fury
@@ -1037,7 +1110,7 @@ schemas	default	id	default
 			magnolia	id	magnolia
 				repo	gh:propensive/magnolia
 				track	fury
-				commit	bbb25520f50144097e7263550a6d7e1cbe601b6b
+				commit	d07a3ceea0dde0c01fcfdc56d365c964ecac5d85
 				local	None
 			mercator	id	mercator
 				repo	gh:propensive/mercator
@@ -1072,6 +1145,12 @@ schemas	default	id	default
 		imports	0A24A1586682A39838622B66BACF81A3B51A7F3448371AB31B54B75DA12DCD28:scala-2.12.8	id	scala
 				layerRef	0A24A1586682A39838622B66BACF81A3B51A7F3448371AB31B54B75DA12DCD28
 				schema	scala-2.12.8
-		main	Some	probably
+				follow	None
+			72BC2FA87BC7E554FABB094FF86E87B8C4FC8CC43DB9543C9986F46F82AB7E04:default	id	jawn
+				layerRef	72BC2FA87BC7E554FABB094FF86E87B8C4FC8CC43DB9543C9986F46F82AB7E04
+				schema	default
+				follow	Some	domain	furore.dev
+						path	typelevel/jawn
+		main	Some	euphemism
 main	default
 aliases	

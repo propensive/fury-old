@@ -248,28 +248,6 @@ schemas	default	id	default
 						properties	
 						policy	
 						hidden	false
-					jsongen	id	jsongen
-						kind	Library
-						main	None
-						plugin	None
-						manifest	
-						compiler	projectId	scala
-							moduleId	compiler
-							intransitive	true
-							hidden	false
-						after	fury/strings	projectId	fury
-								moduleId	strings
-								intransitive	false
-								hidden	false
-						params	
-						sources	src/jsongen	src/jsongen
-						binaries	
-						resources	
-						bloopSpec	None
-						environment	
-						properties	
-						policy	
-						hidden	false
 					model	id	model
 						kind	Library
 						main	None
@@ -622,12 +600,12 @@ schemas	default	id	default
 							moduleId	compiler
 							intransitive	true
 							hidden	false
-						after	fury/io	projectId	fury
-								moduleId	io
+						after	euphemism/core	projectId	euphemism
+								moduleId	core
 								intransitive	false
 								hidden	false
-							fury/jsongen	projectId	fury
-								moduleId	jsongen
+							fury/io	projectId	fury
+								moduleId	io
 								intransitive	false
 								hidden	false
 							guillotine/core	projectId	guillotine
@@ -650,7 +628,7 @@ schemas	default	id	default
 						properties	
 						policy	
 						hidden	false
-				main	Some	test-core
+				main	Some	frontend
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -667,8 +645,8 @@ schemas	default	id	default
 				track	master
 				commit	d1e7aae5000e1efe92b2bde48bdb82c6064c7e06
 				local	None
-		imports	29B89F711E5D63E22B8D798F55C6FF01A4E1638C12C4F1DD631DEE4CBC48EF2B:default	id	platform
-				layerRef	29B89F711E5D63E22B8D798F55C6FF01A4E1638C12C4F1DD631DEE4CBC48EF2B
+		imports	170FFB493AD839E66CD7F53CC22E808852B98777274C1F200EACE8BBA19AD952:default	id	platform
+				layerRef	170FFB493AD839E66CD7F53CC22E808852B98777274C1F200EACE8BBA19AD952
 				schema	default
 				follow	None
 		main	Some	fury
