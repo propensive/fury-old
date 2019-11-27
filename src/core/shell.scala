@@ -22,10 +22,7 @@ import guillotine._
 
 import scala.util._
 import scala.collection.mutable.HashMap
-
-
-
-import java.io.{File, FileOutputStream}
+import java.io.File
 import java.util.UUID
 import java.util.jar.{JarFile, Manifest => JManifest}
 import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
@@ -183,7 +180,6 @@ case class Shell(environment: Environment) {
     inputs.foreach(Zipper.pack(_, dest, zipCreator))
     zipCreator.writeTo(zos)
     zos.close()
-
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
