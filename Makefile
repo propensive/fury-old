@@ -1,6 +1,6 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 BLOOPVERSION=1.3.5
-FURYSTABLE=0.7.11
+FURYSTABLE=0.7.13
 FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -133,22 +133,22 @@ community:
 	etc/community
 
 test-isolated: ci
-	@docker run -w /build -t $(DOCKER_TAG) make test
+	@docker run -f etc/docker/build -w /build -t $(DOCKER_TAG) make test
 
 integration-isolated: ci
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /integration'
+	@docker run -f etc/docker/build -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /integration'
 
 community-isolated: ci
-	@docker run -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /community'
+	@docker run -f etc/docker/build -u bash_user -w /home/bash_user -t $(DOCKER_TAG) /bin/bash -c 'source ~/.bashrc; /community'
 
 docker-console: ci
-	@docker run -u bash_user -w /home/bash_user -ti $(DOCKER_TAG) /bin/bash
+	@docker run -f etc/docker/build -u bash_user -w /home/bash_user -ti $(DOCKER_TAG) /bin/bash
 
 ci:
-	docker build -t $(DOCKER_TAG) .
+	docker build -f etc/docker/build -t $(DOCKER_TAG) .
 
 clean-ci:
-	docker build --no-cache -t fury-ci .
+	docker build -f etc/docker/build --no-cache -t fury-ci .
 
 clean: clean-dist
 	rm -rf bootstrap dist opt

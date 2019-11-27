@@ -19,7 +19,7 @@ jobs:
        key: ${{ runner.os }}-fury-${{ hashFiles('layers/*') }}
     - name: Run Makefile
       run: |
-        make install || (make clean && make install)
+        make install
         lsof -i :8462 -i :8212 -t | xargs kill
         echo "::add-path::$HOME/.fury/bin"
       timeout-minutes: 5
