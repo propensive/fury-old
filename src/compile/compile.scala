@@ -108,7 +108,7 @@ object BloopServer {
     val capabilities = new BuildClientCapabilities(List("scala").asJava)
     val initParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString, capabilities)
 
-    proxy.buildInitialize(initParams).get(5, TimeUnit.SECONDS)
+    proxy.buildInitialize(initParams).get
     proxy.onBuildInitialized()
     
     Connection(proxy, client, thread)
