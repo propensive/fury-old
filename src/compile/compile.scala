@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.12. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.13. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -108,7 +108,7 @@ object BloopServer {
     val capabilities = new BuildClientCapabilities(List("scala").asJava)
     val initParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString, capabilities)
 
-    proxy.buildInitialize(initParams).get(20, TimeUnit.SECONDS)
+    proxy.buildInitialize(initParams).get
     proxy.onBuildInitialized()
     
     Connection(proxy, client, thread)
