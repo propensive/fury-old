@@ -16,9 +16,9 @@ fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n library
 fury module add -n core -c scala/compiler
-fury repo add -n library -u $(realpath ../library) | sed 's/\/.*\/repo-fork/repo-fork/'
+fury repo add -n library -u ../library
 fury repo fork -r library -d library-local
-sed -i 's/World/fork/' library-local/src/core/constants.scala
+sed -i.bak 's/World/fork/' library-local/src/core/constants.scala
 fury source add -d library:src/core
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
