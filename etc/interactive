@@ -1,0 +1,33 @@
+#!/bin/bash
+
+ROOT=$PWD
+
+RED=$(printf '\e[31m')
+GREEN=$(printf '\e[32m')
+BLUE=$(printf '\e[34m')
+YELLOW=$(printf '\e[33m')
+RESET=$(printf '\e[0m')
+BOLD=$(printf '\e[1m')
+
+FAIL=0
+COUNT=0
+
+for TEST in $(ls $ROOT/test/interactive); do
+  for SH in zsh fish bash; do
+    timeout 5 etc/capture $SH "$(cat $ROOT/test/interactive/$TEST/command)" > "$ROOT/test/interactive/$TEST/.check.$SH"
+    let COUNT="$COUNT+1"
+    diff "$ROOT/test/interactive/$TEST/.check.$SH" "$ROOT/test/interactive/$TEST/check.$SH" > /dev/null
+    SUCCESS=$?
+    if [ "$SUCCESS" = "1" ]; then
+      echo "[${RED}FAIL${RESET}] $BLUE$TEST$RESET does not produce the expected output in $YELLOW$SH$RESET"
+      let FAIL="$FAIL+1"
+    else
+      echo "[${GREEN}PASS${RESET}] $BLUE$TEST$RESET produces the expected output in $YELLOW$SH$RESET"
+    fi
+  done
+  echo
+done
+
+let PASS="$COUNT-$FAIL"
+
+echo "${BOLD}Passed: $PASS, Failed: $FAIL$RESET"

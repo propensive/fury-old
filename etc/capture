@@ -1,0 +1,39 @@
+#!/bin/sh
+
+tmux new-session -s fury -d $1
+case $1 in
+  'fish')
+    #tmux send-keys 'fishclear'
+    TAIL=3
+    HEAD=0
+    TAB='		'
+    ;;
+  'bash')
+    #tmux send-keys 'bashclear'
+    TAIL=2
+    HEAD=3
+    TAB='		'
+    ;;
+  'zsh')
+    #tmux send-keys 'zshclear'
+    TAIL=3
+    HEAD=0
+    TAB='	'
+    ;;
+  *)
+    echo 'Please specify fish, bash or zsh as the first parameter'
+    exit 1
+esac
+
+tmux send-keys "$2"
+tmux send-keys "$TAB"
+tmux capture-pane -b buf -S -
+OUT=''
+while [ -z "$OUT" ]; do
+  tmux capture-pane -b buf -S -
+  OUT="$(tmux show-buffer -b buf | tail -n "+$TAIL" | head -n "-$HEAD" | grep -v '^$')"
+  sleep 0.1
+done
+echo "$(tmux show-buffer -b buf | tail -n "+$TAIL" | head -n "-$HEAD" | grep -v '^$')"
+tmux delete-buffer -b buf
+tmux kill-session -t fury
