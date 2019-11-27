@@ -61,8 +61,8 @@ object SourceCli {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.sources.to[List]
@@ -81,13 +81,13 @@ object SourceCli {
     for {
       cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
       cli         <- cli.hint(ForceArg)
-      invoc       <- cli.read()
-      sourceArg   <- invoc(SourceArg)
+      call        <- cli.call()
+      sourceArg   <- call(SourceArg)
       source      <- ~Source.unapply(sourceArg)
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
       sourceToDel <- ~module.sources.find(Some(_) == source)
-      force       <- ~invoc(ForceArg).isSuccess
+      force       <- ~call(ForceArg).isSuccess
 
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id,
                          module.id))(_(_) --= sourceToDel)
@@ -118,10 +118,10 @@ object SourceCli {
                         ".java") }.map(SharedSource(_))
 
       cli        <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
-      invoc      <- cli.read()
+      call       <- cli.call()
       project    <- optProject.ascribe(UnspecifiedProject())
       module     <- optModule.ascribe(UnspecifiedModule())
-      sourceArg  <- invoc(SourceArg)
+      sourceArg  <- call(SourceArg)
       source     <- ~Source.unapply(sourceArg)
 
       layer      <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, 

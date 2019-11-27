@@ -77,7 +77,7 @@ object Bsp {
     for {
       layout  <- cli.layout
       cli     <- cli.hint(Args.HttpsArg)
-      invoc   <- cli.read()
+      invoc   <- cli.call()
       https   <- ~invoc(Args.HttpsArg).isSuccess
       running <- ~run(System.in, System.out, layout, https)
     } yield {

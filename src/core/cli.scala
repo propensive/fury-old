@@ -114,21 +114,21 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
                                        env: Environment,
                                        pid: Int) {
 
-  class Invocation private[Cli] () {
+  class Call private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
-  def read()(implicit log: Log): Try[Invocation] = {
+  def call()(implicit log: Log): Try[Call] = {
     if(completion) {
       stdout.println(optCompletions.flatMap(_.output).mkString("\n"))
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
       log.attach(LogStyle(stdout, Some(pid)))
-      Success(new Invocation())
+      Success(new Call())
     }
   }
 

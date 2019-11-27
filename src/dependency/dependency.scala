@@ -65,8 +65,8 @@ object DependencyCli {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.after.to[List].sorted
@@ -87,13 +87,13 @@ object DependencyCli {
       cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.after.to[List]))
       cli       <- cli.hint(ForceArg)
       cli       <- cli.hint(HttpsArg)
-      invoc     <- cli.read()
-      https     <- ~invoc(HttpsArg).isSuccess
-      linkArg   <- invoc(LinkArg)
+      call      <- cli.call()
+      https     <- ~call(HttpsArg).isSuccess
+      linkArg   <- call(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
       moduleRef <- ModuleRef.parse(project.id, linkArg, false)
-      force     <- ~invoc(ForceArg).isSuccess
+      force     <- ~call(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id,
                        module.id))(_(_) -= moduleRef)
@@ -116,11 +116,11 @@ object DependencyCli {
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
       cli              <- cli.hint(IntransitiveArg)
-      invoc            <- cli.read()
+      call             <- cli.call()
       project          <- optProject.ascribe(UnspecifiedProject())
       module           <- optModule.ascribe(UnspecifiedModule())
-      intransitive     <- ~invoc(IntransitiveArg).isSuccess
-      linkArg          <- invoc(LinkArg)
+      intransitive     <- ~call(IntransitiveArg).isSuccess
+      linkArg          <- call(LinkArg)
       moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive)
 
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,
@@ -171,8 +171,8 @@ object EnvCli {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.environment.to[List].sorted
@@ -192,11 +192,11 @@ object EnvCli {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli       <- cli.hint(EnvArg, optModule.to[List].flatMap(_.environment.to[List]))
       cli       <- cli.hint(ForceArg)
-      invoc     <- cli.read()
-      envArg    <- invoc(EnvArg)
+      call      <- cli.call()
+      envArg    <- call(EnvArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
-      force     <- ~invoc(ForceArg).isSuccess
+      force     <- ~call(ForceArg).isSuccess
       
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.environment(_, project.id,
                        module.id))(_(_) -= envArg)
@@ -214,10 +214,10 @@ object EnvCli {
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
-      invoc           <- cli.read()
+      call            <- cli.call()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
-      envArg          <- invoc(EnvArg)
+      envArg          <- call(EnvArg)
 
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.environment(_, project.id,
                              module.id))(_(_) += envArg)
@@ -269,14 +269,14 @@ object PermissionCli {
       cli             <- cli.hint(ClassArg, Permission.Classes)
       cli             <- cli.hint(PermissionTargetArg)
       cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
-      invoc           <- cli.read()
-      scopeId         =  invoc(ScopeArg).getOrElse(ScopeId.Project)
+      call            <- cli.call()
+      scopeId         =  call(ScopeArg).getOrElse(ScopeId.Project)
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
-      classArg        <- invoc(ClassArg)
-      targetArg       <- invoc(PermissionTargetArg)
-      actionArg       =  invoc(ActionArg).toOption
-      grant           =  invoc(NoGrantArg).isFailure
+      classArg        <- call(ClassArg)
+      targetArg       <- call(PermissionTargetArg)
+      actionArg       =  call(ActionArg).toOption
+      grant           =  call(NoGrantArg).isFailure
       permission      =  Permission(classArg, targetArg, actionArg)
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.policy(_, project.id,
                              module.id))(_(_) += permission)
@@ -296,12 +296,12 @@ object PermissionCli {
       cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       cli           <- cli.hint(ForceArg)
-      invoc         <- cli.read()
-      permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
+      call          <- cli.call()
+      permHashes      <- call(PermissionArg).map(_.map(PermissionHash(_)))
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
-      force         =  invoc(ForceArg).isSuccess
+      force         =  call(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
                            module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
       _             <- Layer.save(layer, layout)
@@ -312,8 +312,8 @@ object PermissionCli {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.policyEntries.to[List].sortBy(_.hash.key)
@@ -334,11 +334,11 @@ object PermissionCli {
       cli           <- cli.hint(ScopeArg, ScopeId.All)
       //TODO check if hints still work
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
-      invoc         <- cli.read()
-      scopeId       <- ~invoc(ScopeArg).getOrElse(ScopeId.Project)
+      call          <- cli.call()
+      scopeId       <- ~call(ScopeArg).getOrElse(ScopeId.Project)
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
-      permHashes      <- invoc(PermissionArg).map(_.map(PermissionHash(_)))
+      permHashes      <- call(PermissionArg).map(_.map(PermissionHash(_)))
       permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
       policy        <- ~Policy.read(log)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
@@ -387,8 +387,8 @@ object PropertyCli {
     import ctx._
     for {
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.properties.to[List].sorted
@@ -408,11 +408,11 @@ object PropertyCli {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli       <- cli.hint(PropArg, optModule.to[List].flatMap(_.properties.to[List]))
       cli       <- cli.hint(ForceArg)
-      invoc     <- cli.read()
-      propArg   <- invoc(PropArg)
+      call      <- cli.call()
+      propArg   <- call(PropArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
-      force     <- ~invoc(ForceArg).isSuccess
+      force     <- ~call(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.properties(_, project.id,
                        module.id))(_(_) -= propArg)
@@ -428,10 +428,10 @@ object PropertyCli {
       importedSchemas  = optSchema.flatMap(_.importedSchemas(ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
-      invoc           <- cli.read()
+      call            <- cli.call()
       project         <- optProject.ascribe(UnspecifiedProject())
       module          <- optModule.ascribe(UnspecifiedModule())
-      propArg         <- invoc(PropArg)
+      propArg         <- call(PropArg)
 
       layer           <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.properties(_, project.id,
                              module.id))(_(_) += propArg)

@@ -42,10 +42,10 @@ object ProjectCli {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
-      invoc     <- cli.read()
+      call      <- cli.call()
       projectId <- ~cli.peek(ProjectArg)
       projectId <- projectId.ascribe(UnspecifiedProject())
-      force     <- ~invoc(ForceArg).isSuccess
+      force     <- ~call(ForceArg).isSuccess
       schemaId  <- ~optSchemaId.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
       _         <- schema(projectId)
@@ -60,8 +60,8 @@ object ProjectCli {
     import ctx._
     for {
       cli    <- cli.hint(RawArg)
-      invoc  <- cli.read()
-      raw    <- ~invoc(RawArg).isSuccess
+      call   <- cli.call()
+      raw    <- ~call(RawArg).isSuccess
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
@@ -80,11 +80,11 @@ object ProjectCli {
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
                             layout, false))
 
-      invoc          <- cli.read()
-      compilerId     <- ~invoc(DefaultCompilerArg).toOption
+      call           <- cli.call()
+      compilerId     <- ~call(DefaultCompilerArg).toOption
       optCompilerRef <- compilerId.map(ModuleRef.parseFull(_, true)).to[List].sequence.map(_.headOption)
-      projectId      <- invoc(ProjectNameArg)
-      license        <- Success(invoc(LicenseArg).toOption.getOrElse(License.unknown))
+      projectId      <- call(ProjectNameArg)
+      license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))
       project        <- ~Project(projectId, license = license, compiler = optCompilerRef)
 
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
@@ -104,10 +104,10 @@ object ProjectCli {
       dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       cli       <- cli.hint(ProjectArg, dSchema.projects)
       cli       <- cli.hint(ForceArg)
-      invoc     <- cli.read()
-      projectId <- invoc(ProjectArg)
+      call      <- cli.call()
+      projectId <- call(ProjectArg)
       project   <- dSchema.projects.findBy(projectId)
-      force     <- ~invoc(ForceArg).isSuccess
+      force     <- ~call(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(_.modify(_)((_:
                        SortedSet[Project]).filterNot(_.id == project.id)))
@@ -133,19 +133,19 @@ object ProjectCli {
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
       cli            <- cli.hint(ProjectNameArg, projectId)
-      invoc          <- cli.read()
+      call           <- cli.call()
       projectId      <- projectId.ascribe(UnspecifiedProject())
       schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       project        <- schema.projects.findBy(projectId)
-      force          <- ~invoc(ForceArg).isSuccess
+      force          <- ~call(ForceArg).isSuccess
       focus          <- ~Lenses.focus(optSchemaId, force)
-      licenseArg     <- ~invoc(LicenseArg).toOption
+      licenseArg     <- ~call(LicenseArg).toOption
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
-      descriptionArg <- ~invoc(DescriptionArg).toOption
+      descriptionArg <- ~call(DescriptionArg).toOption
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
-      compilerArg    <- ~invoc(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true).toOption)
+      compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true).toOption)
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
-      nameArg        <- ~invoc(ProjectNameArg).toOption
+      nameArg        <- ~call(ProjectNameArg).toOption
       newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
       newSchema      <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))

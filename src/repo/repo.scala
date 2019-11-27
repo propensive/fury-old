@@ -41,9 +41,9 @@ object RepoCli {
     for {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       cli       <- cli.hint(RawArg)
-      invoc     <- cli.read()
-      raw       <- ~invoc(RawArg).isSuccess
-      schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(ctx.layer.main)
+      call     <- cli.call()
+      raw       <- ~call(RawArg).isSuccess
+      schemaArg <- ~call(SchemaArg).toOption.getOrElse(ctx.layer.main)
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
@@ -59,8 +59,8 @@ object RepoCli {
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
-      invoc     <- cli.read()
-      repoId    <- invoc(RepoArg)
+      call     <- cli.call()
+      repoId    <- call(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
@@ -78,11 +78,11 @@ object RepoCli {
       cli       <- cli.hint(DirArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(HttpsArg)
-      invoc     <- cli.read()
-      repoId    <- invoc(RepoArg)
+      call     <- cli.call()
+      repoId    <- call(RepoArg)
       repo      <- schema.repos.findBy(repoId)
-      dir       <- invoc(DirArg)
-      https     <- ~invoc(HttpsArg).isSuccess
+      dir       <- call(DirArg)
+      https     <- ~call(HttpsArg).isSuccess
       bareRepo  <- repo.repo.fetch(layout, https)
       absPath   <- { for {
                      absPath <- ~(layout.pwd.resolve(dir))
@@ -111,10 +111,10 @@ object RepoCli {
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(AllArg, List[String]())
-      invoc     <- cli.read()
-      all       <- ~invoc(AllArg).toOption
+      call     <- cli.call()
+      all       <- ~call(AllArg).toOption
       
-      optRepos  <- invoc(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
+      optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                        schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
       repos     <- optRepos.map(schema.repo(_, layout)).sequence
@@ -156,14 +156,14 @@ object RepoCli {
                         }.to[List].sequence.map(_.flatten).recover { case e => Nil }
 
       cli            <- cli.hint(VersionArg, versions)
-      invoc          <- cli.read()
-      optSchemaArg   <- ~invoc(SchemaArg).toOption
+      call          <- cli.call()
+      optSchemaArg   <- ~call(SchemaArg).toOption
       schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
-      remote         <- ~invoc(UrlArg).toOption
-      dir            <- ~invoc(DirArg).toOption
-      https          <- ~invoc(HttpsArg).isSuccess
-      version        <- ~invoc(VersionArg).toOption.getOrElse(RefSpec.master)
+      remote         <- ~call(UrlArg).toOption
+      dir            <- ~call(DirArg).toOption
+      https          <- ~call(HttpsArg).isSuccess
+      version        <- ~call(VersionArg).toOption.getOrElse(RefSpec.master)
 
       suggested      <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
                           RepoId(d.value.split("/").last)
@@ -176,7 +176,7 @@ object RepoCli {
       commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
                             exoskeleton.InvalidArgValue("version", version.id))
 
-      nameArg        <- invoc(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
+      nameArg        <- call(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
       sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
@@ -197,18 +197,18 @@ object RepoCli {
       optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
       versions    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
       cli         <- cli.hint(VersionArg, versions.flatten)
-      invoc       <- cli.read()
-      optSchemaId <- ~invoc(SchemaArg).toOption
+      call       <- cli.call()
+      optSchemaId <- ~call(SchemaArg).toOption
       schemaArg   <- ~optSchemaId.getOrElse(layer.main)
       schema      <- layer.schemas.findBy(schemaArg)
-      repoArg     <- invoc(RepoArg)
+      repoArg     <- call(RepoArg)
       repo        <- schema.repos.findBy(repoArg)
-      dir         <- ~invoc(DirArg).toOption
-      version     <- ~invoc(VersionArg).toOption
-      remoteArg   <- ~invoc(UrlArg).toOption
+      dir         <- ~call(DirArg).toOption
+      version     <- ~call(VersionArg).toOption
+      remoteArg   <- ~call(UrlArg).toOption
       remote      <- ~remoteArg.map(Repo(_))
-      nameArg     <- ~invoc(RepoNameArg).toOption
-      force       <- ~invoc(ForceArg).isSuccess
+      nameArg     <- ~call(RepoNameArg).toOption
+      force       <- ~call(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
@@ -225,8 +225,8 @@ object RepoCli {
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
-      invoc     <- cli.read()
-      repoId    <- invoc(RepoArg)
+      call     <- cli.call()
+      repoId    <- call(RepoArg)
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)

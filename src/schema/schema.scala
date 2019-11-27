@@ -39,8 +39,8 @@ object SchemaCli {
     import ctx._
     for {
       cli      <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
-      invoc    <- cli.read()
-      schemaId <- invoc(SchemaArg)
+      call     <- cli.call()
+      schemaId <- call(SchemaArg)
       _        <- layer(schemaId)
       lens     <- ~Lenses.layer.mainSchema
       layer    <- ~(lens(layer) = schemaId)
@@ -55,8 +55,8 @@ object SchemaCli {
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
-      invoc     <- cli.read()
-      raw       <- ~invoc(RawArg).isSuccess
+      call      <- cli.call()
+      raw       <- ~call(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
       table     <- ~Tables().show(Tables().schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
       _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
@@ -77,11 +77,11 @@ object SchemaCli {
       cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       cli       <- ctx.cli.hint(CompareArg, ctx.layer.schemas.map(_.id))
       cli       <- cli.hint(RawArg)
-      invoc     <- cli.read()
-      raw       <- ~invoc(RawArg).isSuccess
-      schemaArg <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      call      <- cli.call()
+      raw       <- ~call(RawArg).isSuccess
+      schemaArg <- ~call(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
-      otherArg  <- invoc(CompareArg)
+      otherArg  <- call(CompareArg)
       other     <- layer.schemas.findBy(otherArg)
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~diffTable(schema, other, rows, cli.cols, raw)
@@ -95,11 +95,11 @@ object SchemaCli {
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli      <- cli.hint(SchemaNameArg)
-      invoc    <- cli.read()
-      newName  <- invoc(SchemaNameArg)
-      schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      call     <- cli.call()
+      newName  <- call(SchemaNameArg)
+      schemaId <- ~call(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
-      force    <- ~invoc(ForceArg).isSuccess
+      force    <- ~call(ForceArg).isSuccess
       focus    <- ~Lenses.focus(Some(schemaId), force)
       layer    <- focus(layer, _.lens(_.id)) = Some(newName)
       layer    <- ~(if(layer.main == schema.id) layer.copy(main = newName) else layer)
@@ -112,9 +112,9 @@ object SchemaCli {
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(SchemaNameArg)
-      invoc     <- cli.read()
-      name      <- invoc(SchemaNameArg)
-      schemaId  <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      call      <- cli.call()
+      name      <- call(SchemaNameArg)
+      schemaId  <- ~call(SchemaArg).toOption.getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaId)
       newSchema <- ~schema.copy(id = name)
       lens      <- ~Lenses.layer.schemas
@@ -128,8 +128,8 @@ object SchemaCli {
     import ctx._
     for {
       cli      <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      invoc    <- cli.read()
-      schemaId <- ~invoc(SchemaArg).toOption.getOrElse(layer.main)
+      call     <- cli.call()
+      schemaId <- ~call(SchemaArg).toOption.getOrElse(layer.main)
       schema   <- layer.schemas.findBy(schemaId)
       lens     <- ~Lenses.layer.schemas
       layer    <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))

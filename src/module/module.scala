@@ -56,12 +56,12 @@ object ModuleCli {
     for {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli      <- cli.hint(ForceArg)
-      invoc    <- cli.read()
+      call     <- cli.call()
       project  <- optProject.ascribe(UnspecifiedProject())
-      moduleId <- ~invoc(ModuleArg).toOption
+      moduleId <- ~call(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
       _        <- project(moduleId)
-      force    <- ~invoc(ForceArg).isSuccess
+      force    <- ~call(ForceArg).isSuccess
       focus    <- ~Lenses.focus(optSchemaId, force)
       layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
       _        <- ~Layer.save(layer, layout)
@@ -73,8 +73,8 @@ object ModuleCli {
     for {
       project <- optProject.ascribe(UnspecifiedProject())
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
 
       table   <- ~Tables().show(Tables().modules(project.id, project.main), cli.cols, rows,
@@ -111,22 +111,22 @@ object ModuleCli {
                             ~cli
                         }
 
-      invoc          <- cli.read()
+      call           <- cli.call()
       project        <- optProject.ascribe(UnspecifiedProject())
-      moduleArg      <- invoc(ModuleNameArg)
+      moduleArg      <- call(ModuleNameArg)
       moduleId       <- project.unused(moduleArg)
-      compilerId     <- ~invoc(CompilerArg).toOption
+      compilerId     <- ~call(CompilerArg).toOption
       compilerRef    <- compilerId.map(resolveToCompiler(ctx, _))
                             .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
       module         = Module(moduleId, compiler = compilerRef)
 
-      module         <- ~invoc(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
-      module         <- ~invoc(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
+      module         <- ~call(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
+      module         <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
       
-      module         <- ~invoc(MainArg).toOption.map { m => module.copy(main = if(m == "") None else Some(m))
+      module         <- ~call(MainArg).toOption.map { m => module.copy(main = if(m == "") None else Some(m))
                             }.getOrElse(module)
 
-      module         <- ~invoc(PluginArg).toOption.map { p => module.copy(plugin = if(p == "") None else
+      module         <- ~call(PluginArg).toOption.map { p => module.copy(plugin = if(p == "") None else
                             Some(p)) }.getOrElse(module)
 
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.modules(_, project.id)) {
@@ -167,9 +167,9 @@ object ModuleCli {
                       layout, true)))
 
       cli      <- cli.hint(ForceArg)
-      invoc    <- cli.read()
-      force    <- ~invoc(ForceArg).isSuccess
-      moduleId <- invoc(ModuleArg)
+      call     <- cli.call()
+      force    <- ~call(ForceArg).isSuccess
+      moduleId <- call(ModuleArg)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- project.modules.findBy(moduleId)
 
@@ -221,18 +221,18 @@ object ModuleCli {
                      }
 
       cli         <- cli.hint(ForceArg)
-      invoc       <- cli.read()
-      compilerId  <- ~invoc(CompilerArg).toOption
+      call        <- cli.call()
+      compilerId  <- ~call(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
       compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(ctx, _)).map(_.headOption)
-      hidden      <- ~invoc(HiddenArg).toOption
-      mainClass   <- ~invoc(MainArg).toOption
-      pluginName  <- ~invoc(PluginArg).toOption
-      nameArg     <- ~invoc(ModuleNameArg).toOption
+      hidden      <- ~call(HiddenArg).toOption
+      mainClass   <- ~call(MainArg).toOption
+      pluginName  <- ~call(PluginArg).toOption
+      nameArg     <- ~call(ModuleNameArg).toOption
       name        <- nameArg.to[List].map(project.unused(_)).sequence.map(_.headOption)
-      bloopSpec   <- invoc(BloopSpecArg).toOption.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
-      force       <- ~invoc(ForceArg).isSuccess
+      bloopSpec   <- call(BloopSpecArg).toOption.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
+      force       <- ~call(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).kind)) = optKind
 
@@ -283,8 +283,8 @@ object BinaryCli {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.allBinaries.to[List]
@@ -303,8 +303,8 @@ object BinaryCli {
     for {
       cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
       cli         <- cli.hint(ForceArg)
-      invoc       <- cli.read()
-      binaryArg   <- invoc(BinaryArg)
+      call        <- cli.call()
+      binaryArg   <- call(BinaryArg)
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
       binaryToDel <- Binary.filterByPartialId(module.binaries, binaryArg) match {
@@ -312,7 +312,7 @@ object BinaryCli {
                        case Nil        => Failure(UnspecifiedBinary(module.binaries.map(_.spec).toList))
                        case bins       => Failure(UnspecifiedBinary(bins.map(_.spec)))
                      }
-      force       <- ~invoc(ForceArg).isSuccess
+      force       <- ~call(ForceArg).isSuccess
       
       layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id,
                          module.id))(_(_) -= binaryToDel)
@@ -331,11 +331,11 @@ object BinaryCli {
     for {
       cli       <- cli.hint(BinaryArg)
       cli       <- cli.hint(BinaryRepoArg, List(RepoId("central")))
-      invoc     <- cli.read()
+      call      <- cli.call()
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
-      binaryArg <- invoc(BinaryArg)
-      repoId    <- ~invoc(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
+      binaryArg <- call(BinaryArg)
+      repoId    <- ~call(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
       binary    <- Binary.unapply(repoId, binaryArg)
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
@@ -373,8 +373,8 @@ object ParamCli {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(RawArg)
-      invoc   <- cli.read()
-      raw     <- ~invoc(RawArg).isSuccess
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.params.to[List]
@@ -393,11 +393,11 @@ object ParamCli {
     for {
       cli      <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
       cli      <- cli.hint(ForceArg)
-      invoc    <- cli.read()
-      paramArg <- invoc(ParamArg)
+      call     <- cli.call()
+      paramArg <- call(ParamArg)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- optModule.ascribe(UnspecifiedModule())
-      force    <- ~invoc(ForceArg).isSuccess
+      force    <- ~call(ForceArg).isSuccess
 
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id,
                       module.id))(_(_) -= paramArg)
@@ -415,10 +415,10 @@ object ParamCli {
     import ctx._, moduleCtx._
     for {
       cli     <- cli.hint(ParamArg)
-      invoc   <- cli.read()
+      call    <- cli.call()
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      param   <- invoc(ParamArg)
+      param   <- call(ParamArg)
 
       layer   <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
                      _(_) += param)
