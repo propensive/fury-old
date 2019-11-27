@@ -29,6 +29,8 @@ import fury.utils.Multiplexer
 
 import language.higherKinds
 
+
+
 object ConfigCli {
   case class Context(cli: Cli[CliParam[_]])
 
@@ -36,11 +38,8 @@ object ConfigCli {
 
   def set(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
+    val cli = ctx.cli >>> ThemeArg >>> TimestampsArg >>> PipeliningArg >>> ServiceArg
     for {
-      cli      <- cli.hint(ThemeArg, Theme.all)
-      cli      <- cli.hint(TimestampsArg, List("on", "off"))
-      cli      <- cli.hint(PipeliningArg, List("on", "off"))
-      cli      <- cli.hint(ServiceArg, List("furore.dev"))
       call     <- cli.call()
       newTheme <- ~call(ThemeArg).toOption
       timestamps <- ~call(TimestampsArg).toOption
@@ -65,8 +64,8 @@ object AliasCli {
 
   def list(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
+    val cli = ctx.cli >>> RawArg
     for {
-      cli   <- cli.hint(RawArg)
       call  <- cli.call()
       raw   <- ~call(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
@@ -351,6 +350,7 @@ object BuildCli {
 
   def classpath(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
+    val cli = ctx.cli//.expect(SchemaArg).expect(HttpsArg).expect(ProjectArg).expect(ModuleArg)
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
       cli          <- cli.hint(HttpsArg)

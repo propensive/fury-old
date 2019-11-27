@@ -22,6 +22,9 @@ import exoskeleton.Param.{Extractor => TExtractor}
 import exoskeleton._
 
 object Args {
+
+  type Whatever = CliParam[_]
+
   implicit private val schemaId: TExtractor[SchemaId] = _.headOption.flatMap(SchemaId.parse(_).toOption)
   implicit private val importLayer: TExtractor[ImportLayer] = _.headOption.flatMap(ImportLayer.parse(_))
   implicit private val aliasCmd: TExtractor[AliasCmd] = _.headOption.map(AliasCmd(_))

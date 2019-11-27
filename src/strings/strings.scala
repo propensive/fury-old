@@ -80,10 +80,12 @@ case class Joinable(values: Traversable[String]) extends AnyVal {
 case class StringPart(string: String) extends AnyVal
 
 object StringShow {
-  implicit val string: StringShow[String] = identity
-  implicit val char: StringShow[Char]     = _.toString
-  implicit val long: StringShow[Long]     = _.toString
-  implicit val int: StringShow[Int]       = _.toString
+  implicit val string: StringShow[String]   = identity
+  implicit val char: StringShow[Char]       = _.toString
+  implicit val long: StringShow[Long]       = _.toString
+  implicit val int: StringShow[Int]         = _.toString
+  implicit val boolean: StringShow[Boolean] = if(_) "on" else "off"
+  implicit val unit: StringShow[Unit]       = _ => ""
 }
 
 trait StringShow[-T] { def show(value: T): String }

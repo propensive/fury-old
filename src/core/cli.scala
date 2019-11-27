@@ -44,6 +44,7 @@ abstract class Cmd(val cmd: String, val description: String) {
 }
 
 case class CliParam[T: Param.Extractor](shortName: Char, longName: Symbol, description: String) {
+  type Type = T
   val param: SimpleParam[T] = Param[T](shortName, longName)
 }
 
@@ -161,6 +162,11 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
     Success(copy(optCompletions = newHints :: optCompletions))
   }
 
+  def >>>[P, Reqd](arg: CliParam[_])(implicit suggestions: Suggestions[arg.type, Hinted], show: StringShow[arg.Type], descriptor: Descriptor[arg.Type])
+          : Cli[Hinted with arg.type] = {
+    hint[arg.Type](arg, suggestions(this))(show, descriptor).get
+  }
+
   def hint(arg: CliParam[_]) = Success(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
 
   private[this] def write(msg: UserMsg): Unit = {
@@ -193,3 +199,21 @@ case class Completions(completions: List[Cli.OptCompletion[_]] = Nil) {
 
   def hint(arg: CliParam[_]): Completions = copy(completions = Cli.OptCompletion(arg, "()") :: completions)
 }
+
+trait Suggestions[CP <: CliParam[_] with Singleton, -Reqd <: CliParam[_]] { def apply(cli: Cli[Reqd]): Traversable[CP#Type] }
+
+object Suggestions extends Suggestions_1 {
+  import Args._
+
+  implicit val theme: Suggestions[ThemeArg.type, Whatever] = _ => Theme.all
+  implicit val timestamp: Suggestions[TimestampsArg.type, Whatever] = _ => List(true, false)
+  implicit val pipelining: Suggestions[PipeliningArg.type, Whatever] = _ => List(true, false)
+  implicit val service: Suggestions[ServiceArg.type, Whatever] = _ => List("furore.dev")
+  implicit val raw: Suggestions[RawArg.type, Whatever] = _ => Nil
+}
+
+trait Suggestions_1 {
+  import Args._
+  implicit val schema2: Suggestions[SchemaArg.type, Whatever] = _ => Nil
+}
+
