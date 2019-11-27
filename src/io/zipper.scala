@@ -23,7 +23,7 @@ import java.nio.file.StandardCopyOption._
 import java.util.stream.Collectors
 import java.util.zip.{ZipEntry, ZipOutputStream}
 
-import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
+import fury.strings._
 
 import scala.util.Try
 import org.apache.commons.compress.parallel.InputStreamSupplier
@@ -31,7 +31,6 @@ import org.apache.commons.compress.archivers.zip.UnixStat
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import mercator._
 import scala.collection.JavaConverters._
-
 import org.apache.commons.compress.archivers.zip._
 
 object Zipper {
@@ -58,7 +57,7 @@ object Zipper {
 
   private def createZipArchiveEntry(path: JavaPath) = {
     val za = new ZipArchiveEntry(path.toString)
-    za.setMethod(ZipEntry.DEFLATED)
+    za.setMethod(ZipArchiveOutputStream.DEFLATED)
     za.setSize(path.toString.length)
     za.setUnixMode(UnixStat.FILE_FLAG | 0x664)
     za
@@ -76,12 +75,12 @@ object Zipper {
         destination, zipCreator)
   }
 
-  private def unpack(source: JavaPath, destination: JavaPath): Try[Zip] = for{
+  private def unpack(source: JavaPath, destination: JavaPath): Try[Zip] = for {
     zipFile    <- Try(new ZipFile(source.toFile))
-    zipEntries = zipFile.getEntriesInPhysicalOrder.asScala.toList
-    entries <- zipEntries.traverse{ zip =>
-      val name = zip.getName
-      val in = zipFile.getInputStream(zip)
+    zipEntries = zipFile.getEntries.asScala.toList
+    entries    <- zipEntries.traverse { zipEntry =>
+      val name = zipEntry.getName
+      val in = zipFile.getInputStream(zipEntry)
       val result = Try {
         val target = destination.resolve(name)
         if(name.endsWith("/")) Files.createDirectories(target)
@@ -95,7 +94,6 @@ object Zipper {
       result
     }
   } yield Zip(entries.toMap)
-
 
   private class ZippingFileVisitor(sourceJavaPath: JavaPath, out: ZipOutputStream)
       extends SimpleFileVisitor[JavaPath] {

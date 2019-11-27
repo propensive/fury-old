@@ -22,9 +22,9 @@ import guillotine._
 
 import scala.util._
 import scala.collection.mutable.HashMap
-import java.io.{File, FileOutputStream}
+import java.io.File
 import java.util.UUID
-import java.util.jar.{JarOutputStream, Manifest => JManifest}
+import java.util.jar.{JarFile, Manifest => JManifest}
 import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 
@@ -162,14 +162,24 @@ case class Shell(environment: Environment) {
   }
 
   def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
+   /* val out = new JarOutputStream(new FileOutputStream(dest.value), manifest)
+    out.finish()
+    out.close()*/
+
     val result = new File(dest.value)
     val zos = new ZipArchiveOutputStream(result)
+
+    import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+    val entry = new ZipArchiveEntry(JarFile.MANIFEST_NAME)
+    zos.putArchiveEntry(entry)
+    manifest.write(zos)
+    zos.closeArchiveEntry()
+
     zos.setEncoding("UTF-8")
     val zipCreator = new ParallelScatterZipCreator
     inputs.foreach(Zipper.pack(_, dest, zipCreator))
     zipCreator.writeTo(zos)
     zos.close()
-
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
