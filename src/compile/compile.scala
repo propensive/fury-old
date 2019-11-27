@@ -103,7 +103,7 @@ object BloopServer {
     
     bspServer.startListening()
       
-    val proxy = bspServer.getRemoteProxy
+    val proxy = Await.result(promise.future.map { _ => bspServer.getRemoteProxy }, Duration.Inf)
       
     val capabilities = new BuildClientCapabilities(List("scala").asJava)
     val initParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString, capabilities)
