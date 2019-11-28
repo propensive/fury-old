@@ -51,7 +51,7 @@ object ConfigCli {
       config   <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
       config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
       config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
-      _        <- ~Ogdl.write(config, Installation.userConfig)
+      _        <- ~ManagedConfig.write(config)
     } yield log.await()
   }
 }
