@@ -14,6 +14,9 @@ Starting the BSP launcher...
 Opening a BSP server connection
 Could not detect a BSP server running locally
 BSP server is listening for incoming connections
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 arg1

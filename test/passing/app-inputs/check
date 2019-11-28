@@ -13,6 +13,9 @@ cd701b6615442f102ea7c636cdc16e194369a1556e049a32126b045faee45762
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
 Starting compilation of module example/app
 Successfully compiled module example/app
 Test:something
