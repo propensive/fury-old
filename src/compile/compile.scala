@@ -202,6 +202,8 @@ object Compilation {
       targetGraph.toMap
     }
 
+    def canAffectBuild(target: Target): Boolean = Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.kind)
+
     for {
       target    <- makeTarget(ref, layout)
       entity    <- entity(ref.projectId)
@@ -210,13 +212,13 @@ object Compilation {
       moduleRefToTarget   =  requiredTargets.map(t => t.ref -> t).toMap
       requiredPermissions =  requiredTargets.flatMap(_.permissions)
       _          <- policy.checkAll(requiredPermissions)
-      appModules = requiredTargets.filter(_.executed)
-      subgraphs  = DirectedGraph(graph).subgraph(appModules.map(_.id).to[Set] +
+      intermediateTargets = requiredTargets.filter(canAffectBuild)
+      subgraphs  = DirectedGraph(graph).subgraph(intermediateTargets.map(_.id).to[Set] +
         TargetId(entity.schema.id, ref)).connections
       checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
     } yield
       Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-        moduleRefToTarget ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), universe)
+        moduleRefToTarget ++ target.compiler.map (t => t.ref -> t), universe)
   }
 
   def asyncCompilation(schema: Schema,

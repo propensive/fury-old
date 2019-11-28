@@ -817,7 +817,6 @@ case class Target(ref: ModuleRef,
                   properties: Map[String, String]) {
 
   def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
-  def executed = kind == Application || kind == Benchmarks
 }
 
 object Project {
