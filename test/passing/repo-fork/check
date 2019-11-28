@@ -13,6 +13,9 @@ Set current module to app
 d42a730e5df5d6041cff16617a0cc9ad9f565162a1ad5fdcad5fa6f29c656dba
 75e0a580cc1e57819ac9fbb1fdfc8522ca51d00df2b31769f2dacf03c37b9581
 1900f723da4b58e67192e50927047cba426b8ae0567c08635a2b4509712d908c
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
 Starting compilation of module library/core
 Successfully compiled module library/core
 Starting compilation of module hello-world/app
