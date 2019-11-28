@@ -123,5 +123,6 @@ object Args {
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
   val VersionArg = CliParam[RefSpec]('V', 'version, "Git branch, tag or commit")
   val WatchArg = CliParam[Unit]('w', 'watch, "Watch for file changes")
+  val SingleColumnArg = CliParam[Unit]('1', Symbol("single-column"), "Print values in a single column")
   val ParamNoArg = Param[Int](' ', 'paramNo)
 }

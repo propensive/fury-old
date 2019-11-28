@@ -362,8 +362,10 @@ object BuildCli {
       cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
       optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
       optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
+      cli          <- cli.hint(SingleColumnArg)
       call         <- cli.call()
       https        <- ~call(HttpsArg).isSuccess
+      singleColumn <- ~call(SingleColumnArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
       
@@ -371,8 +373,11 @@ object BuildCli {
                           https)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
-      _            <- ~log.raw(classpath.map(_.value).join(":"))
-    } yield log.await()
+    } yield {
+      val separator = if(singleColumn) "\n" else ":"
+      log.raw(classpath.map(_.value).join(separator))
+      log.await()
+    }
   }
 
   def describe(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
