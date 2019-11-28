@@ -772,11 +772,11 @@ case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: Scal
 }
 
 object CompileResult {
-  def merge(results: List[CompileResult]): CompileResult = {
+  def merge(results: Iterable[CompileResult]): CompileResult = {
     CompileResult(merge(results.map(_.bspCompileResult)), merge(results.map(_.scalacOptions)))
   }
 
-  private def merge(results: List[BspCompileResult]): BspCompileResult = {
+  private def merge(results: Iterable[BspCompileResult]): BspCompileResult = {
     val distinctStatuses = results.map(_.getStatusCode).toSet
     val aggregatedStatus = List(StatusCode.CANCELLED, StatusCode.ERROR, StatusCode.OK).find(distinctStatuses.contains)
     val mergedResult = new BspCompileResult(aggregatedStatus.getOrElse(StatusCode.OK))
@@ -789,13 +789,13 @@ object CompileResult {
     mergedResult
   }
 
-  private def merge(results: List[ScalacOptionsResult]): ScalacOptionsResult = {
-    new ScalacOptionsResult(results.flatMap(_.getItems.asScala).asJava)
+  private def merge(results: Iterable[ScalacOptionsResult]): ScalacOptionsResult = {
+    new ScalacOptionsResult(results.flatMap(_.getItems.asScala).toList.asJava)
   }
 }
 
 object Target {
-  type Graph = Map[TargetId, List[TargetId]]
+  type Graph = Map[TargetId, Set[TargetId]]
 }
 
 case class Target(ref: ModuleRef,
