@@ -1,6 +1,9 @@
 Initialized an empty layer
 Set current project to hello-java
 Set current module to app
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
 Starting compilation of module hello-java/app
 Successfully compiled module hello-java/app
 Hello Java!
