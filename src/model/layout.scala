@@ -68,6 +68,8 @@ object Xdg {
 }
 
 object Installation {
+  private[this] def date: String = Layout.dateFormat.format(new Date())
+
   val userConfig: Path = Xdg.config(Path("fury/config.fury"))
   val aliasesPath: Path = Xdg.config(Path("fury/aliases"))
   val layersPath: Path = Xdg.data(Path("fury/layers"))
@@ -92,7 +94,7 @@ object Installation {
     result
   }
 
-  def config(): Config = Ogdl.read[Config](userConfig, identity(_)).toOption.getOrElse(Config())
+  def globalLogFile(): Path = logsDir.extant() / s"$date.log"
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {

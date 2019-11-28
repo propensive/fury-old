@@ -44,10 +44,9 @@ object Graph {
   case object Executing                          extends CompileState
 
   private case class GraphState(changed: Boolean,
-                        log: Log,
                         graph: Map[ModuleRef, Set[ModuleRef]],
                         stream: Iterator[CompileEvent],
-                        compilationLogs: Map[ModuleRef, CompilationInfo]) {
+                        compilationLogs: Map[ModuleRef, CompilationInfo])(implicit log: Log) {
 
     def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
       val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), messages = List.empty))
@@ -56,17 +55,19 @@ object Graph {
   }
 
   @tailrec
-  private def live(graphState: GraphState)(implicit theme: Theme): Unit = {
+  private def live(graphState: GraphState)(implicit log: Log, theme: Theme): Unit = {
     import graphState._
 
-    log.print(Ansi.hideCursor())
+    log.raw(Ansi.hideCursor())
     if (stream.hasNext) {
       val newState = stream.next match {
         case Tick =>
           val next: String = draw(graph, false, compilationLogs).mkString("\n")
           if(changed || compilationLogs.exists(_._2.state == Executing)) {
-            log.println(next)
-            log.println(Ansi.up(graph.size + 1)())
+            log.raw(next)
+            log.raw("\n")
+            log.raw(Ansi.up(graph.size + 1)())
+            log.raw("\n")
           }
           graphState.copy(changed = false)
 
@@ -93,13 +94,13 @@ object Graph {
       }
       live(newState)
     } else {
-      log.print(Ansi.showCursor())
+      log.raw(Ansi.showCursor())
       val output = compilationLogs.collect {
         case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
 
-      log.println(Ansi.down(graph.size + 1)())
+      log.raw(Ansi.down(graph.size + 2)())
       
       compilationLogs.foreach { case (ref, info) =>
         info match {
@@ -120,12 +121,11 @@ object Graph {
   }
 
 
-  def live(log: Log,
-           graph: Map[ModuleRef, Set[ModuleRef]],
+  def live(graph: Map[ModuleRef, Set[ModuleRef]],
            stream: Iterator[CompileEvent])
-          (implicit theme: Theme)
+          (implicit log: Log, theme: Theme)
           : Unit = {
-    live(GraphState(changed = true, log, graph, stream, Map()))
+    live(GraphState(changed = true, graph, stream, Map()))
   }
 
   def draw(graph: Map[ModuleRef, Set[ModuleRef]],
