@@ -71,8 +71,7 @@ object BloopServer {
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      compilation: Compilation, targetId: TargetId, layout: Layout)
-                     (implicit log: Log): Future[Connection] =
+      compilation: Compilation, targetId: TargetId, layout: Layout)(implicit log: Log): Future[Connection] =
     singleTasking { promise =>
       val serverIoPipe = Pipe.open()
       val serverIn = Channels.newInputStream(serverIoPipe.source())
