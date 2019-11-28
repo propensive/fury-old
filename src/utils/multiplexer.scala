@@ -18,11 +18,14 @@ package fury.utils
 
 /** a streaming multiplexer optimized for concurrent writes */
 final class Multiplexer[K, V](keys: List[K]) {
+  private[this] var show: Boolean = false
   private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
   private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
   private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
 
   def finished: Boolean = closed.forall(identity)
+
+  def start(): Unit = show = true
 
   def stream(interval: Int, tick: Option[V] = None): Iterator[V] = {
     def stream(lastSnapshot: List[List[V]]): Iterator[V] = {
@@ -38,7 +41,7 @@ final class Multiplexer[K, V](keys: List[K]) {
       } else {
         val time = System.currentTimeMillis - t0
         if(time < interval) Thread.sleep(interval - time)
-        changes.to[Iterator] ++ tick.to[Iterator] ++ stream(snapshot)
+        changes.to[Iterator] ++ (if(show) tick.to[Iterator] else Iterator()) ++ stream(snapshot)
       }
     }
     stream(state.to[List])

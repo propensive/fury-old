@@ -100,7 +100,6 @@ object Bsp {
 
     val client = launcher.getRemoteProxy
     server.onConnectWithClient(client)
-    Compilation.receiverClient = Some(client)
 
     val listening = launcher.startListening()
     cancel.cancel = () => listening.cancel(true) // YOLO
@@ -114,7 +113,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
   
   private[this] var client: BuildClient = _
 
-  private implicit val log    = new Log(LogStyle(new java.io.PrintWriter(System.err), None))
+  private implicit val log    = new Log(LogStyle(new java.io.PrintWriter(System.err), None, true))
 
   private def structure: Try[Structure] =
     for {

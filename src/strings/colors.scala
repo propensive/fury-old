@@ -69,9 +69,7 @@ object Ansi {
 
 object Theme {
   lazy val all = List(Full, Basic, NoColor)
-
   implicit def stringShow: StringShow[Theme] = _.name
-
   def unapply(string: String): Option[Theme] = all.find(_.name == string)
 
   object Full
@@ -96,7 +94,9 @@ object Theme {
           lineNo = Rgb(255, 255, 0),
           time = Rgb(50, 50, 100),
           active = Rgb(200, 0, 200),
-          layer = Rgb(255, 140, 0))
+          layer = Rgb(255, 140, 0),
+          info = Rgb(0, 0, 200),
+          underline = Ansi.underline)
 
   object Basic
       extends Theme(
@@ -120,12 +120,13 @@ object Theme {
           lineNo = Ansi.brightYellow,
           time = Ansi.white,
           active = Ansi.magenta,
-          layer = Ansi.brightRed)
+          layer = Ansi.brightRed,
+          info = Ansi.blue,
+          underline = Ansi.underline)
 
   object NoColor extends Theme("nocolor") {
     override val reset: AnsiCode     = AnsiCode("")
     override val bold: AnsiCode      = AnsiCode("")
-    override val underline: AnsiCode = AnsiCode("")
     override val strike: AnsiCode    = AnsiCode("")
     override val italic: AnsiCode    = AnsiCode("")
     override val reverse: AnsiCode   = AnsiCode("")
@@ -155,10 +156,11 @@ case class Theme(
     lineNo: AnsiCode = AnsiCode(""),
     time: AnsiCode = AnsiCode(""),
     active: AnsiCode = AnsiCode(""),
-    layer: AnsiCode = AnsiCode("")) {
+    layer: AnsiCode = AnsiCode(""),
+    info: AnsiCode = AnsiCode("4m"),
+    underline: AnsiCode = AnsiCode("")) {
   val reset: AnsiCode     = AnsiCode("0m")
   val bold: AnsiCode      = AnsiCode("1m")
-  val underline: AnsiCode = AnsiCode("4m")
   val strike: AnsiCode    = AnsiCode("9m")
   val italic: AnsiCode    = AnsiCode("3m")
   val reverse: AnsiCode   = AnsiCode("7m")

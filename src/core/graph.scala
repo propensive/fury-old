@@ -68,6 +68,7 @@ object Graph {
             log.raw("\n")
             log.raw(Ansi.up(graph.size + 1)())
             log.raw("\n")
+            log.flush()
           }
           graphState.copy(changed = false)
 
