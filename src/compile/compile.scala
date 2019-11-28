@@ -192,9 +192,9 @@ object Compilation {
   private def fromUniverse(universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout)(implicit log: Log): Try[Compilation] = {
     import universe._
 
-    def directDependencies(target: Target): List[TargetId] = target.dependencies ++ target.compiler.map(_.id)
+    def directDependencies(target: Target): Set[TargetId] = (target.dependencies ++ target.compiler.map(_.id)).to[Set]
 
-    def graph(target: Target): Try[Map[TargetId, List[TargetId]]] = for {
+    def graph(target: Target): Try[Map[TargetId, Set[TargetId]]] = for {
       requiredModules <- dependencies(ref, layout)
       requiredTargets <- requiredModules.traverse(makeTarget(_, layout))
     } yield {
@@ -211,8 +211,8 @@ object Compilation {
       requiredPermissions =  requiredTargets.flatMap(_.permissions)
       _          <- policy.checkAll(requiredPermissions)
       appModules = requiredTargets.filter(_.executed)
-      subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_.id).to[Set] +
-        TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
+      subgraphs  = DirectedGraph(graph).subgraph(appModules.map(_.id).to[Set] +
+        TargetId(entity.schema.id, ref)).connections
       checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
     } yield
       Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
@@ -355,8 +355,8 @@ ${'|'} ${highlightedLine}
   }
 }
 
-case class Compilation(graph: Map[TargetId, List[TargetId]],
-                       subgraphs: Map[TargetId, List[TargetId]],
+case class Compilation(graph: Map[TargetId, Set[TargetId]],
+                       subgraphs: Map[TargetId, Set[TargetId]],
                        checkouts: Set[Checkout],
                        targets: Map[ModuleRef, Target],
                        universe: Universe) {
