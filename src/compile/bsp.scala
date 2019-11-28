@@ -100,7 +100,6 @@ object Bsp {
 
     val client = launcher.getRemoteProxy
     server.onConnectWithClient(client)
-    Compilation.receiverClient = Some(client)
 
     val listening = launcher.startListening()
     cancel.cancel = () => listening.cancel(true) // YOLO

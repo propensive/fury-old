@@ -69,50 +69,53 @@ object BloopServer {
 
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
-  private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout): Future[Connection] = singleTasking { promise =>
-    val serverIoPipe = Pipe.open()
-    val serverIn = Channels.newInputStream(serverIoPipe.source())
-    val clientOut = Channels.newOutputStream(serverIoPipe.sink())
-    val clientIoPipe = Pipe.open()
-    val clientIn = Channels.newInputStream(clientIoPipe.source())
-    val serverOut = Channels.newOutputStream(clientIoPipe.sink())
+  private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent],
+      compilation: Compilation, targetId: TargetId, layout: Layout): Future[Connection] =
+    singleTasking { promise =>
+      val serverIoPipe = Pipe.open()
+      val serverIn = Channels.newInputStream(serverIoPipe.source())
+      val clientOut = Channels.newOutputStream(serverIoPipe.sink())
+      val clientIoPipe = Pipe.open()
+      val clientIn = Channels.newInputStream(clientIoPipe.source())
+      val serverOut = Channels.newOutputStream(clientIoPipe.sink())
 
-    val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, System.out,
-        StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, promise)
-    
-    val thread = Threads.launcher.newThread { () =>
-      launcher.runLauncher(
-        bloopVersionToInstall = bloopVersion,
-        skipBspConnection = false,
-        serverJvmOptions = Nil
-      )
+      val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, System.out,
+          StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, promise)
+      
+      val thread = Threads.launcher.newThread { () =>
+        launcher.runLauncher(
+          bloopVersionToInstall = bloopVersion,
+          skipBspConnection = false,
+          serverJvmOptions = Nil
+        )
+      }
+      
+      thread.start()
+      
+      val client = new FuryBuildClient(multiplexer, compilation, targetId, layout)
+        
+      val bspServer = new Launcher.Builder[FuryBspServer]()
+        //.traceMessages(log)
+        .setRemoteInterface(classOf[FuryBspServer])
+        .setExecutorService(Threads.bsp)
+        .setInput(clientIn)
+        .setOutput(clientOut)
+        .setLocalService(client)
+        .create()
+      
+      bspServer.startListening()
+        
+      val proxy = bspServer.getRemoteProxy
+        
+      val capabilities = new BuildClientCapabilities(List("scala").asJava)
+      val initParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString,
+          capabilities)
+
+      proxy.buildInitialize(initParams).get
+      proxy.onBuildInitialized()
+      
+      Connection(proxy, client, thread)
     }
-    
-    thread.start()
-    
-    val client = new FuryBuildClient(multiplexer, compilation, targetId, layout)
-      
-    val bspServer = new Launcher.Builder[FuryBspServer]()
-      //.traceMessages(log)
-      .setRemoteInterface(classOf[FuryBspServer])
-      .setExecutorService(Threads.bsp)
-      .setInput(clientIn)
-      .setOutput(clientOut)
-      .setLocalService(client)
-      .create()
-    
-    bspServer.startListening()
-      
-    val proxy = bspServer.getRemoteProxy
-      
-    val capabilities = new BuildClientCapabilities(List("scala").asJava)
-    val initParams = new InitializeBuildParams("fury", Version.current, "2.0.0-M4", dir.uriString, capabilities)
-
-    proxy.buildInitialize(initParams).get
-    proxy.onBuildInitialized()
-    
-    Connection(proxy, client, thread)
-  }
 
   def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T): Try[T] = {
     val conn = BloopServer.synchronized {
@@ -139,9 +142,6 @@ object BloopServer {
 }
 
 object Compilation {
-
-  //FIXME
-  var receiverClient: Option[BuildClient] = None
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
@@ -209,7 +209,9 @@ object Compilation {
   }
 }
 
-class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout) extends BuildClient {
+class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation,
+    targetId: TargetId, layout: Layout) extends BuildClient {
+
   override def onBuildShowMessage(params: ShowMessageParams): Unit =
     multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
 
@@ -237,43 +239,33 @@ class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compila
         (matching, remainder)
       }
 
-      val linePrefix            = codeLine.take(charNum)
+      val linePrefix = codeLine.take(charNum)
       val (matching, remainder) = takeSame(codeLine.drop(linePrefix.length))
-      val highlightedLine       = linePrefix + Ansi.brightRed(Ansi.underline(matching)) + remainder
+      
+      val highlightedLine = UserMsg { theme =>
+        msg"$linePrefix${theme.failure(theme.underline(matching))}$remainder".string(theme).dropWhile(_ == ' ')
+      }
 
       val (repo, filePath) = repos.find { case (k, v) => fileName.startsWith(k) }.map {
         case (k, v) => (v, Path(fileName.drop(k.length + 1)))
       }.getOrElse((RepoId("local"), Path(fileName.drop(layout.baseDir.value.length + 1))))
 
-      import escritoire.Ansi
-
-      implicitly[MsgShow[ModuleRef]]
-
-      val severity = diag.getSeverity.toString.toLowerCase match {
-        case "error" =>
-          msg"${Ansi.Color.base01("[")}${Ansi.Color.red("E")}${Ansi.Color.base01("]")}"
-        case "warning" =>
-          msg"${Ansi.Color.base01("[")}${Ansi.Color.yellow("W")}${Ansi.Color.base01("]")}"
-        case "information" =>
-          msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("I")}${Ansi.Color.base01("]")}"
-        case _ => msg"${Ansi.Color.base01("[")}${Ansi.Color.blue("H")}${Ansi.Color.base01("]")}"
-      }
+      val severity = UserMsg { theme => diag.getSeverity.toString.toLowerCase match {
+        case "error"       => msg"${'['}${theme.failure("E")}${']'}".string(theme)
+        case "warning"     => msg"${'['}${theme.ongoing("W")}${']'}".string(theme)
+        case "information" => msg"${'['}${theme.info("I")}${']'}".string(theme)
+        case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
+      } }
 
       multiplexer(targetId.ref) = DiagnosticMsg(
         targetId.ref,
         CompilerDiagnostic(
-          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
+          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${ineNo}${':'}
 ${'|'} ${UserMsg(
             theme =>
-              diag.getMessage
-                .split("\n")
-                .to[List]
-                .map { ln =>
-                  Ansi.Color.base1(ln)
-                }
-                .join(msg"""
+              diag.getMessage.split("\n").to[List].map(theme.gray(_)).join(msg"""
 ${'|'} """.string(theme)))}
-${'|'} ${highlightedLine.dropWhile(_ == ' ')}
+${'|'} ${highlightedLine}
 """,
           repo,
           filePath,
