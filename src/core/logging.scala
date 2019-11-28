@@ -89,7 +89,7 @@ object Log {
   
   def global(session: Option[Int]): Log = {
     val path = Installation.globalLogFile()
-    val style = LogStyle(new PrintWriter(new FileWriter(path.javaFile, true)), session, Some(true), true, true, false, Theme.Full, Note)
+    val style = LogStyle(new PrintWriter(new BufferedWriter(new FileWriter(path.javaFile, true))), session, Some(true), true, true, false, Theme.Full, Note)
     new Log(logFiles.getOrElseUpdate(path, style))
   }
 }
@@ -98,6 +98,7 @@ class Log(private[this] val output: LogStyle) {
 
   private[this] var writers: List[LogStyle] = List(output)
 
+  // FIXME
   private[this] def log(msg: UserMsg, time: Long, level: Int) = 
     writers.foreach(_.log(msg, if(time == -1) System.currentTimeMillis else time, level))
 
