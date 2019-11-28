@@ -37,12 +37,12 @@ object LogStyle {
   
   def apply(printWriter: java.io.PrintWriter, session: Option[Int], debug: Boolean): LogStyle = {
     val config = ManagedConfig()
-    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme, if(debug) Log.Note else Log.Info)
+    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme, if(debug) Log.Note else Log.Info, autoflush = true)
   }
 }
 
 
-case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int) {
+case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean) {
   private[this] val startTime: Long = System.currentTimeMillis
 
   private[this] def paddedTime(time: Long): String = timestamps match {
@@ -76,7 +76,7 @@ case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: 
 
   def raw(string: String): Unit = if(raw) printWriter.append(string)
   
-  def flush(): Unit = printWriter.flush()
+  def flush(force: Boolean = false): Unit = if(autoflush || force) printWriter.flush()
 }
 
 object Log {
@@ -89,7 +89,7 @@ object Log {
   
   def global(session: Option[Int]): Log = {
     val path = Installation.globalLogFile()
-    val style = LogStyle(new PrintWriter(new BufferedWriter(new FileWriter(path.javaFile, true))), session, Some(true), true, true, false, Theme.Full, Note)
+    val style = LogStyle(new PrintWriter(new BufferedWriter(new FileWriter(path.javaFile, true))), session, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
     new Log(logFiles.getOrElseUpdate(path, style))
   }
 }
@@ -122,9 +122,11 @@ class Log(private[this] val output: LogStyle) {
       override def write(char: Int): Unit = ()
     })
   }
+  
+  def flush(force: Boolean = false): Unit = writers.foreach(_.flush(force))
 
   def await(success: Boolean = true): ExitStatus = {
-    writers.foreach(_.flush())
+    flush(force = true)
     if(success) Done else Abort
   }
 
