@@ -24,8 +24,8 @@ import guillotine._
 import scala.util._
 import scala.collection.mutable.HashMap
 
-import java.io.{PrintWriter, FileWriter, PrintStream, PipedOutputStream, PipedInputStream, InputStreamReader,
-    BufferedReader}
+import java.io._
+import java.nio.channels._
 import java.text.{DecimalFormat, SimpleDateFormat}
 import java.util.Date
 
@@ -35,14 +35,14 @@ object LogStyle {
   final val dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd.HH:mm:ss.SSS ")
   final val threeDp: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: java.io.PrintWriter, session: Option[Int]): LogStyle = {
+  def apply(printWriter: java.io.PrintWriter, session: Option[Int], debug: Boolean): LogStyle = {
     val config = ManagedConfig()
-    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme)
+    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme, if(debug) Log.Note else Log.Info)
   }
 }
 
 
-case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean, theme: Theme) {
+case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int) {
   private[this] val startTime: Long = System.currentTimeMillis
 
   private[this] def paddedTime(time: Long): String = timestamps match {
@@ -67,7 +67,7 @@ case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: 
     case Log.Fail => failString
   })
 
-  def log(msg: UserMsg, time: Long, level: Int): Unit = {
+  def log(msg: UserMsg, time: Long, level: Int): Unit = if(level >= minLevel) {
     val fTime = paddedTime(time)
     val fLevel = optionalLogLevel(level)
     printWriter.append { msg.string(theme).split("\n").map { line => s"$fTime$fLevel$paddedSession$line" }.mkString("", "\n", "\n") }
@@ -89,7 +89,7 @@ object Log {
   
   def global(session: Option[Int]): Log = {
     val path = Installation.globalLogFile()
-    val style = LogStyle(new PrintWriter(new FileWriter(path.javaFile, true)), session, Some(true), true, true, false, Theme.Full)
+    val style = LogStyle(new PrintWriter(new FileWriter(path.javaFile, true)), session, Some(true), true, true, false, Theme.Full, Note)
     new Log(logFiles.getOrElseUpdate(path, style))
   }
 }
@@ -109,21 +109,17 @@ class Log(private[this] val output: LogStyle) {
   def warn(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Warn)
   def fail(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Fail)
 
-  def noteStream(): PrintStream = {
-    val out = new PipedOutputStream()
-    val in = new PipedInputStream()
-    out.connect(in)
+  def stream(fn: String => Unit): PrintStream = {
+    val pipe = Pipe.open()
+    val in = Channels.newInputStream(pipe.source())
+    val out = Channels.newOutputStream(pipe.sink())
 
-    val thread: Thread = new Thread {
-      override def run(): Unit = {
-        new BufferedReader(new InputStreamReader(in)).lines().forEach(note(_))
-      }
-    }
+    new PrintStream(new BufferedOutputStream(out) {
+      override def write(array: Array[Byte], off: Int, len: Int): Unit =
+        new String(array, off, len).split("\n").foreach(fn)
 
-    thread.setDaemon(true)
-    thread.start()
-    
-    new PrintStream(out)
+      override def write(char: Int): Unit = ()
+    })
   }
 
   def await(success: Boolean = true): ExitStatus = {

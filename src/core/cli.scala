@@ -127,7 +127,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
-      log.attach(LogStyle(stdout, Some(pid)))
+      log.attach(LogStyle(stdout, Some(pid), false))
       Success(new Call())
     }
   }

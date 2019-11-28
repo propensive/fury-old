@@ -41,5 +41,6 @@ object Threads {
     ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(Threads.factory(prefix, daemon)), throw _)
 
   val launcher: ThreadFactory = factory("launcher", true)
+  val logging: ThreadFactory = factory("logging", true)
   val bsp = Executors.newCachedThreadPool(Threads.factory("bsp", daemon = true))
 }

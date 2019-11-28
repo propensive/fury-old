@@ -35,6 +35,7 @@ import fury.model._
 import fury.strings._
 import fury.utils._
 import gastronomy._
+import kaleidoscope._
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.{JsonRpcException, Launcher}
 
@@ -70,7 +71,8 @@ object BloopServer {
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      compilation: Compilation, targetId: TargetId, layout: Layout): Future[Connection] =
+      compilation: Compilation, targetId: TargetId, layout: Layout)
+                     (implicit log: Log): Future[Connection] =
     singleTasking { promise =>
       val serverIoPipe = Pipe.open()
       val serverIn = Channels.newInputStream(serverIoPipe.source())
@@ -79,7 +81,37 @@ object BloopServer {
       val clientIn = Channels.newInputStream(clientIoPipe.source())
       val serverOut = Channels.newOutputStream(clientIoPipe.sink())
 
-      val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, System.out,
+      val logging: PrintStream = log.stream { str =>
+        (if(str.indexOf("[D]") == 9) str.drop(17) else str) match {
+          case r"Starting the bsp launcher.*" =>
+            log.info(msg"Starting the BSP launcher...")
+          case r"Opening a bsp server connection with.*" =>
+            log.info(msg"Opening a BSP server connection")
+          case r"Waiting for a connection at" =>
+            log.info(msg"Waiting for a socket connection")
+          case r"Loading project from .*" => None
+          case r"Loading previous analysis for .*" => None
+          case r".*detected in file:.*" => None
+          case r"  => .*" => None
+          case r"Creating a scala instance from Bloop" =>
+            log.info("Instantiating a new instance of the Scala compiler")
+          case r"The server is listening for incoming connections.*" =>
+            log.info(msg"BSP server is listening for incoming connections")
+            multiplexer.start()
+          case r"Waiting.*" => None
+          case r"Starting thread.*" => None
+          case r"No server running at .*" =>
+            log.info("Could not detect a BSP server running locally")
+          case r"Command: .*" => None
+          case r"A bloop installation has been detected.*" =>
+            log.info("Detected an existing Bloop installation")
+          case "\n" => None
+          case other =>
+            log.note(msg"${'['}bsp${']'} ${other}")
+        }
+      }
+
+      val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, logging,
           StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, promise)
       
       val thread = Threads.launcher.newThread { () =>
@@ -89,7 +121,7 @@ object BloopServer {
           serverJvmOptions = Nil
         )
       }
-      
+
       thread.start()
       
       val client = new FuryBuildClient(multiplexer, compilation, targetId, layout)
@@ -117,7 +149,7 @@ object BloopServer {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T): Try[T] = {
+  def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
     val conn = BloopServer.synchronized {
       connections match {
         case head :: tail =>
@@ -260,7 +292,7 @@ class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compila
       multiplexer(targetId.ref) = DiagnosticMsg(
         targetId.ref,
         CompilerDiagnostic(
-          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${ineNo}${':'}
+          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath} ${'+'}${lineNo}${':'}
 ${'|'} ${UserMsg(
             theme =>
               diag.getMessage.split("\n").to[List].map(theme.gray(_)).join(msg"""
@@ -288,11 +320,7 @@ ${'|'} ${highlightedLine}
 
   // FIXME: We should implement this using a regular expression
   private[this] def getTargetId(bspUri: String): TargetId = {
-    val uriQuery = new java.net.URI(bspUri).getRawQuery
-      .split("&")
-      .map(_.split("=", 2))
-      .map { x => x(0) -> x(1) }
-      .toMap
+    val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
 
     TargetId(uriQuery("id"))
   }
@@ -311,6 +339,7 @@ ${'|'} ${highlightedLine}
       multiplexer(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
     }
   }
+
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
     case TaskDataKind.COMPILE_REPORT =>
       val report = convertDataTo[CompileReport](params.getData)
