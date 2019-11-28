@@ -191,27 +191,32 @@ object Compilation {
 
   private def fromUniverse(universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout)(implicit log: Log): Try[Compilation] = {
     import universe._
+
+    def directDependencies(target: Target): List[TargetId] = target.dependencies ++ target.compiler.map(_.id)
+
+    def graph(target: Target): Try[Map[TargetId, List[TargetId]]] = for {
+      requiredModules <- dependencies(ref, layout)
+      requiredTargets <- requiredModules.traverse(makeTarget(_, layout))
+    } yield {
+      val targetGraph = (requiredTargets + target).map { t => t.id -> directDependencies(t) }
+      targetGraph.toMap
+    }
+
     for {
       target    <- makeTarget(ref, layout)
       entity    <- entity(ref.projectId)
-      graph     <- dependencies(ref, layout).map(_.map(makeTarget(_, layout)).map { a =>
-        a.map { dependencyTarget =>
-          (dependencyTarget.id, dependencyTarget.dependencies ++ dependencyTarget.compiler.map(_.id))
-        }
-      }.sequence.map(_.toMap.updated(target.id, target.dependencies ++
-        target.compiler.map(_.id)))).flatten
-      targets   <- graph.keys.map { targetId =>
-        makeTarget(targetId.ref, layout).map(targetId.ref -> _)
-      }.sequence.map(_.toMap)
-      permissions = targets.flatMap(_._2.permissions)
-      _         <- policy.checkAll(permissions)
-      appModules = targets.filter(_._2.executed)
-      subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_._2.id).to[Set] +
+      graph     <- graph(target)
+      requiredTargets     <- graph.keys.traverse { targetId => makeTarget(targetId.ref, layout) }
+      moduleRefToTarget   =  requiredTargets.map(t => t.ref -> t).toMap
+      requiredPermissions =  requiredTargets.flatMap(_.permissions)
+      _          <- policy.checkAll(requiredPermissions)
+      appModules = requiredTargets.filter(_.executed)
+      subgraphs  = DirectedGraph(graph.mapValues(_.to[Set])).subgraph(appModules.map(_.id).to[Set] +
         TargetId(entity.schema.id, ref)).connections.mapValues(_.to[List])
       checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
     } yield
       Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-        targets ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), universe)
+        moduleRefToTarget ++ (target.compiler.map { compilerTarget => compilerTarget.ref -> compilerTarget }), universe)
   }
 
   def asyncCompilation(schema: Schema,
@@ -462,7 +467,6 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
 
   def compileModule(target: Target,
                     layout: Layout,
-                    application: Boolean,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
                     pipelining: Boolean)(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
@@ -537,7 +541,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
           multiplexer(targetId.ref) = NoCompile(targetId.ref)
         }
 
-        compileModule(target, layout, target.kind == Application, multiplexer, pipelining).map {
+        compileModule(target, layout, multiplexer, pipelining).map {
           case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
             val classDirectories = compileResult.classDirectories
             val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0
