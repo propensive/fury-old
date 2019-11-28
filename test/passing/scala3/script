@@ -8,5 +8,5 @@ fury project add -n hello-world
 fury module add -n app -c scala3/compiler
 fury source add -d src
 mkdir -p src
-fury build run --output linear
+fury build run --output linear || cat .fury/logs/*
 echo $?
