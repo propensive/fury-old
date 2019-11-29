@@ -49,7 +49,7 @@ object Bloop {
 
 
     val params = compilation.allParams(target.ref, layout)
-    val compilerClasspath = target.compiler.map { compilerTarget => compilation.classpath(compilerTarget.ref, layout) }
+    val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
     val compilerOpt = target.compiler.map { compilerTarget =>
       val spec = compilerTarget.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))
       Json.of(
