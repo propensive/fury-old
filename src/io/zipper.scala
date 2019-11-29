@@ -21,12 +21,10 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
 import java.util.stream.Collectors
-import java.util.zip.{ZipEntry, ZipOutputStream}
+import java.util.zip.{ZipEntry, ZipFile, ZipOutputStream}
 
 import fury.strings._
- HEAD
 import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
-
 
 import scala.util.Try
 import org.apache.commons.compress.parallel.InputStreamSupplier
@@ -34,7 +32,7 @@ import org.apache.commons.compress.archivers.zip.UnixStat
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import mercator._
 import scala.collection.JavaConverters._
-import org.apache.commons.compress.archivers.zip._
+
 
 object Zipper {
 
@@ -43,7 +41,7 @@ object Zipper {
 
   private def packfs(zip: Zip, destination: JavaPath, zipCreator: ParallelScatterZipCreator): Try[JavaPath] = Try {
       zip.entries.toList.sorted.foreach { case (name, source) =>
-        val za = createZipArchiveEntry(Paths.get(name))
+        val za = createZipArchiveEntry(name)
         val iss = new InputStreamSupplier() {
           override def get: InputStream = {
             Files.newInputStream(source)
@@ -58,10 +56,10 @@ object Zipper {
 
 
 
-  private def createZipArchiveEntry(path: JavaPath) = {
-    val za = new ZipArchiveEntry(path.toString)
-    za.setMethod(ZipArchiveOutputStream.DEFLATED)
-    za.setSize(path.toString.length)
+  private def createZipArchiveEntry(name: String) = {
+    val za = new ZipArchiveEntry(name)
+    za.setMethod(ZipEntry.DEFLATED)
+    za.setSize(name.length)
     za.setUnixMode(UnixStat.FILE_FLAG | 0x664)
     za
   }
@@ -80,23 +78,26 @@ object Zipper {
 
   private def unpack(source: JavaPath, destination: JavaPath): Try[Zip] = for {
     zipFile    <- Try(new ZipFile(source.toFile))
-    zipEntries = zipFile.getEntries.asScala.toList
+    zipEntries = zipFile.entries.asScala.toList
     entries    <- zipEntries.traverse { zipEntry =>
       val name = zipEntry.getName
-      val in = zipFile.getInputStream(zipEntry)
-      val result = Try {
-        val target = destination.resolve(name)
-        if(name.endsWith("/")) Files.createDirectories(target)
-        else {
-          Files.createDirectories(target.getParent)
-          Files.copy(in, target, REPLACE_EXISTING)
+        val in = zipFile.getInputStream(zipEntry)
+        val result = Try {
+          val target = destination.resolve(name)
+          if (name.endsWith("/")) Files.createDirectories(target)
+          else {
+            Files.createDirectories(target.getParent)
+            Files.copy(in, target, REPLACE_EXISTING)
+          }
+          (name, target)
         }
-        (name, target)
-      }
-      in.close()
-      result
+        in.close()
+        result
     }
-  } yield Zip(entries.toMap)
+  } yield {
+    zipFile.close()
+    Zip(entries.toMap)
+  }
 
   private class ZippingFileVisitor(sourceJavaPath: JavaPath, out: ZipOutputStream)
       extends SimpleFileVisitor[JavaPath] {
