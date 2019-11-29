@@ -795,7 +795,11 @@ object CompileResult {
 }
 
 object Target {
-  type Graph = Map[TargetId, Set[TargetId]]
+  case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
+    def links: Map[ModuleRef, Set[ModuleRef]] = dependencies.map { case (k, ds) =>
+      (k.ref, ds.map { d => d.ref.copy(hidden = targets(d).kind == Compiler) })
+    }.toMap
+  }
 }
 
 case class Target(ref: ModuleRef,

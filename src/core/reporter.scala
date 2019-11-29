@@ -40,9 +40,8 @@ object GraphReporter extends Reporter("graph") {
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
-    val modules = graph.map { case (k, v) => (k.ref, v.map(_.ref)) }
     log.info(msg"Starting build")
-    Graph.live(modules, multiplexer.stream(50, Some(Tick)))(log, theme)
+    Graph.live(graph.links, multiplexer.stream(50, Some(Tick)))(log, theme)
     log.info(msg"Build completed")
   }
 }
@@ -93,5 +92,3 @@ object QuietReporter extends Reporter("quiet") {
             : Unit =
     multiplexer.stream(50, None).foreach { event => () }
 }
-
-case class TargetGraph(graph: Map[TargetId, List[TargetId]])
