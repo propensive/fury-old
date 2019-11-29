@@ -1,6 +1,6 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 BLOOPVERSION=1.3.5
-FURYSTABLE=0.7.13
+FURYSTABLE=0.7.14
 FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -23,12 +23,12 @@ publish-ipfs: dist/fury-$(VERSION).tar.gz
 
 publish: dist/install.sh
 	git tag "v$(VERSION)" -m "Version $(VERSION)"
-	gsutil -h "Cache-Control:public,max-age=60" cp $< gs://revivalist/downloads/fury.build/fury-$(VERSION).sh
+	gsutil -h "Cache-Control:public,max-age=60" cp $< gs://downloads.furore.dev/fury-$(VERSION).sh
 	git push --tags
 	@echo
 	@echo "To install this version of Fury, run:"
 	@echo
-	@echo "  curl -OL https://storage.googleapis.com/revivalist/downloads/fury.build/fury-$(VERSION).sh"
+	@echo "  curl -OL http://downloads.furore.dev/fury-$(VERSION).sh"
 	@echo "  sh install-$(VERSION).sh"
 	@echo
 
@@ -36,7 +36,7 @@ opt:
 	mkdir -p opt
 
 opt/fury-$(FURYSTABLE).sh: opt
-	curl -C - -s -o $@ "https://storage.googleapis.com/revivalist/downloads/fury.build/fury-$(FURYSTABLE).sh"
+	curl -C - -s -o $@ "http://downloads.furore.dev/fury-$(FURYSTABLE).sh"
 
 $(FURYLOCAL): opt/fury-$(FURYSTABLE).sh
 	sh opt/fury-$(FURYSTABLE).sh opt/fury-$(FURYSTABLE)
