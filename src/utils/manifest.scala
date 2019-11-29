@@ -17,7 +17,7 @@
 package fury.utils
 
 import fury.strings._
-import java.util.jar.{Attributes, Manifest => JavaManifest}
+import java.util.jar.{Attributes, JarOutputStream, Manifest => JavaManifest}
 import Attributes.Name._
 
 object Manifest {
