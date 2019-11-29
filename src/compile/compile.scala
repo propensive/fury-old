@@ -387,12 +387,25 @@ case class Compilation(graph: Target.Graph,
     Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout).waive)
   }
 
-  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
-    Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
-  } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
+  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
+    requiredTargets(ref).flatMap{ target =>
+      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+    } ++ targets(ref).binaries
+  }
 
-  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
-    targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
+  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
+    val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
+      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+    }
+    val compilerClasspath = targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
+    compilerClasspath ++ requiredPlugins
+  }
+
+  private def requiredTargets(ref: ModuleRef): Set[Target] = {
+    //TODO think of a more efficient way to get these
+    val requiredIds = deepDependencies(targets(ref).id)
+    allDependencies.filter(t => requiredIds.contains(t.id))
+  }
 
   def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
 
@@ -451,7 +464,7 @@ case class Compilation(graph: Target.Graph,
     def pluginParam(pluginTarget: Target): Parameter =
       Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
 
-    val allPlugins = allDependencies
+    val allPlugins = requiredTargets(ref)
       .filter(_.kind == Plugin)
       .filterNot(_.ref == ref)
 
