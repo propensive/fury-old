@@ -67,7 +67,7 @@ case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: 
     case Log.Fail => failString
   })
 
-  private[this] val wipe = if(clearLine) AnsiCode("2K")() else ""
+  private[this] val wipe = if(clearLine) theme.wipe() else ""
 
   def log(msg: UserMsg, time: Long, level: Int): Unit = if(level >= minLevel) {
     val fTime = paddedTime(time)
