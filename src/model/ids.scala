@@ -157,6 +157,14 @@ object TargetId {
     TargetId(schemaId, ref.projectId, ref.moduleId)
 }
 
+object Pid {
+  implicit val stringShow: StringShow[Pid] = pid => Integer.toHexString(pid.pid).padTo(4, '0')
+
+  implicit val msgShow: MsgShow[Pid] =
+    pid => UserMsg { theme => msg"${theme.active(stringShow.show(pid))}".string(theme) }
+}
+case class Pid(pid: Int)
+
 case class TargetId(key: String) extends AnyVal {
   def moduleId: ModuleId = ModuleId(key.split("_")(2))
   def projectId: ProjectId = ProjectId(key.split("_")(1))
