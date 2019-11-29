@@ -401,7 +401,7 @@ object BuildCli {
       compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                           https)
       
-      _            <- ~Graph.draw(compilation.graph.map { case (k, v) => (k.ref, v.map(_.ref).to[Set]) }, true,
+      _            <- ~Graph.draw(compilation.graph.links, true,
                           Map())(ManagedConfig().theme).foreach(log.info(_))
 
     } yield log.await()
