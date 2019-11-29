@@ -35,14 +35,14 @@ object LogStyle {
   final val dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd.HH:mm:ss.SSS ")
   final val threeDp: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: java.io.PrintWriter, session: Option[Int], debug: Boolean): LogStyle = {
+  def apply(printWriter: java.io.PrintWriter, session: Option[Int], debug: Boolean, clearLine: Boolean): LogStyle = {
     val config = ManagedConfig()
-    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme, if(debug) Log.Note else Log.Info, autoflush = true)
+    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme, if(debug) Log.Note else Log.Info, autoflush = true, clearLine = clearLine)
   }
 }
 
 
-case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean) {
+case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean, clearLine: Boolean = false) {
   private[this] val startTime: Long = System.currentTimeMillis
 
   private[this] def paddedTime(time: Long): String = timestamps match {
@@ -67,10 +67,12 @@ case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: 
     case Log.Fail => failString
   })
 
+  private[this] val wipe = if(clearLine) theme.wipe() else ""
+
   def log(msg: UserMsg, time: Long, level: Int): Unit = if(level >= minLevel) {
     val fTime = paddedTime(time)
     val fLevel = optionalLogLevel(level)
-    printWriter.append { msg.string(theme).split("\n").map { line => s"$fTime$fLevel$paddedSession$line" }.mkString("", "\n", "\n") }
+    printWriter.append { msg.string(theme).split("\n").map { line => s"$wipe$fTime$fLevel$paddedSession$line" }.mkString("", "\n", "\n") }
     printWriter.flush()
   }
 
