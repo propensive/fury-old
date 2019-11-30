@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -33,32 +33,34 @@ import language.higherKinds
 
 object LogStyle {
   final val dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd.HH:mm:ss.SSS ")
-  final val threeDp: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
+  final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: java.io.PrintWriter, session: Option[Int], debug: Boolean, clearLine: Boolean): LogStyle = {
+  def apply(printWriter: java.io.PrintWriter, pid: Pid, debug: Boolean, clearLine: Boolean): LogStyle = {
     val config = ManagedConfig()
-    LogStyle(printWriter, session, if(config.timestamps) Some(false) else None, false, false, true, config.theme, if(debug) Log.Note else Log.Info, autoflush = true, clearLine = clearLine)
+    val timestamps = if(config.timestamps) Some(false) else None
+    val logLevel = if(debug) Log.Note else Log.Info
+    LogStyle(printWriter, pid, timestamps, false, false, true, config.theme, logLevel, autoflush = true, clearLine = clearLine)
   }
 }
 
 
-case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean, clearLine: Boolean = false) {
+case class LogStyle(printWriter: PrintWriter, pid: Pid, timestamps: Option[Boolean], logLevel: Boolean,
+    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean,
+    clearLine: Boolean = false) {
+
   private[this] val startTime: Long = System.currentTimeMillis
 
   private[this] def paddedTime(time: Long): String = timestamps match {
     case None        => ""
     case Some(true)  => theme.time(LogStyle.dateTimeFormat.format(new Date()))
-    case Some(false) => theme.time(LogStyle.threeDp.format((time - startTime)/1000.0).reverse.padTo(8, ' ').reverse)
+    case Some(false) => theme.time(LogStyle.dp3.format((time - startTime)/1000.0).reverse.padTo(8, ' ').reverse)
   }
 
   private[this] final val noteString: String = msg"${'['}${theme.gray("note")}${']'} ".string(theme)
   private[this] final val infoString: String = msg"${'['}${theme.module("info")}${']'} ".string(theme)
   private[this] final val warnString: String = msg"${'['}${theme.ongoing("warn")}${']'} ".string(theme)
   private[this] final val failString: String = msg"${'['}${theme.failure("fail")}${']'} ".string(theme)
-
-  private[this] final val paddedSession: String =
-    if(!showSession) ""
-    else msg"${theme.active(session.map(Integer.toHexString(_)).getOrElse("-  -").padTo(4, '0'))}".string(theme)+" "
+  private[this] final val paddedSession: String = if(!showSession) "" else msg"$pid".string(theme)+" "
   
   private[this] def optionalLogLevel(level: Int): String = if(!logLevel) "" else (level match {
     case Log.Note => noteString
@@ -72,12 +74,15 @@ case class LogStyle(printWriter: PrintWriter, session: Option[Int], timestamps: 
   def log(msg: UserMsg, time: Long, level: Int): Unit = if(level >= minLevel) {
     val fTime = paddedTime(time)
     val fLevel = optionalLogLevel(level)
-    printWriter.append { msg.string(theme).split("\n").map { line => s"$wipe$fTime$fLevel$paddedSession$line" }.mkString("", "\n", "\n") }
+    
+    printWriter.append(msg.string(theme).split("\n").map { line =>
+      s"$wipe$fTime$fLevel$paddedSession$line"
+    }.mkString("", "\n", "\n"))
+    
     printWriter.flush()
   }
 
   def raw(string: String): Unit = if(raw) printWriter.append(string)
-  
   def flush(force: Boolean = false): Unit = if(autoflush || force) printWriter.flush()
 }
 
@@ -89,9 +94,10 @@ object Log {
 
   private val logFiles: HashMap[Path, LogStyle] = HashMap()
   
-  def global(session: Option[Int]): Log = {
+  def global(pid: Pid): Log = {
     val path = Installation.globalLogFile()
-    val style = LogStyle(new PrintWriter(new BufferedWriter(new FileWriter(path.javaFile, true))), session, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
+    val printWriter = new PrintWriter(new BufferedWriter(new FileWriter(path.javaFile, true)))
+    val style = LogStyle(printWriter, pid, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
     new Log(logFiles.getOrElseUpdate(path, style))
   }
 }
@@ -100,8 +106,7 @@ class Log(private[this] val output: LogStyle) {
 
   private[this] var writers: List[LogStyle] = List(output)
 
-  // FIXME
-  private[this] def log(msg: UserMsg, time: Long, level: Int) = 
+  private[this] def log(msg: UserMsg, time: Long, level: Int): Unit = 
     writers.foreach(_.log(msg, if(time == -1) System.currentTimeMillis else time, level))
 
   def attach(writer: LogStyle): Unit = writers ::= writer

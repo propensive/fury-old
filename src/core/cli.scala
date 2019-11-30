@@ -113,7 +113,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
                                        command: Option[Int],
                                        optCompletions: List[Cli.OptCompletion[_]],
                                        env: Environment,
-                                       pid: Int) {
+                                       pid: Pid) {
 
   class Call private[Cli] () {
     def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
@@ -128,7 +128,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
-      log.attach(LogStyle(stdout, Some(pid), false, true))
+      log.attach(LogStyle(stdout, pid, false, true))
       Success(new Call())
     }
   }
