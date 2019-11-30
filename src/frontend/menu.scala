@@ -143,6 +143,7 @@ object FuryMenu {
 
   def help(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
     for {
+      call  <- cli.call()
       _     <- ~log.raw(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
