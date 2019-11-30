@@ -136,14 +136,14 @@ You can grant these permissions with,
           cli.abort(msg"Unable to identify target binary: ${"\n\t"}${possibleBinaries.mkString("\n\t")}")
         case e =>
           val errorString =
-            s"$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
+            s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
             log    <- ~Log.global(Some(cli.pid))
             _      <- ~log.fail(errorString)
             _      <- ~log.await()
           } yield
-            cli.abort(msg"An unexpected error occurred which has been logged to ${layout.errorLogfile}")
+            cli.abort(msg"An unexpected error occurred:$errorString")
 
           def unloggable = cli.abort("An unexpected error occurred which could not be logged to disk.\n\n"+
               errorString) 
