@@ -349,6 +349,39 @@ object BuildCli {
     } yield log.await()
   }
 
+  def console(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli          <- cli.hint(SchemaArg, layer.schemas)
+      cli          <- cli.hint(HttpsArg)
+      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schema       <- layer.schemas.findBy(schemaArg)
+      cli          <- cli.hint(ProjectArg, schema.projects)
+      optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+      cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
+      optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+      optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
+      cli          <- cli.hint(SingleColumnArg)
+      call         <- cli.call()
+      https        <- ~call(HttpsArg).isSuccess
+      singleColumn <- ~call(SingleColumnArg).isSuccess
+      project      <- optProject.ascribe(UnspecifiedProject())
+      module       <- optModule.ascribe(UnspecifiedModule())
+      
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
+                          https)
+      
+      classpath    <- ~compilation.classpath(module.ref(project), layout)
+      bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
+    } yield {
+      val separator = if(singleColumn) "\n" else ":"
+      val cp = classpath.map(_.value).join(separator)
+      val bcp = bootCp.map(_.value).join(separator)
+      cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp -Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true scala.tools.nsc.MainGenericRunner""")
+    }
+  }
+
   def classpath(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {

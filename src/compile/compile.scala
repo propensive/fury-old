@@ -391,6 +391,9 @@ case class Compilation(graph: Target.Graph,
     Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
   } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
 
+  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
+    targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
+
   def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
