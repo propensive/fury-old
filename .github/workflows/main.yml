@@ -19,7 +19,7 @@ jobs:
        key: ${{ runner.os }}-coursier-${{ hashFiles('layers/*') }}
     - uses: actions/cache@v1
       with:
-       path: ~/.cache/fury
+       path: ~/.cache/fury/repos
        key: ${{ runner.os }}-fury-${{ hashFiles('layers/*') }}
     - name: Run Makefile
       run: |
