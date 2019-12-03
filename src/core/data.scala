@@ -664,6 +664,7 @@ case class Checkout(repoId: RepoId,
         path.mkdir()
         Shell(layout.env).git
           .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
+          .flatMap{ _ => (path / ".git").delete() }
           .map(path.waive)
       } else Success(path)
     }
