@@ -22,10 +22,10 @@ import guillotine._
 
 import scala.util._
 import scala.collection.mutable.HashMap
-
-import java.io.FileOutputStream
+import java.io.File
 import java.util.UUID
-import java.util.jar.{JarOutputStream, Manifest => JManifest}
+import java.util.jar.{JarFile, Manifest => JManifest}
+import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry, ZipArchiveOutputStream}
 
 case class Shell(environment: Environment) {
   private val furyHome   = Path(System.getProperty("fury.home"))
@@ -161,11 +161,17 @@ case class Shell(environment: Environment) {
   }
 
   def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
-    val out = new JarOutputStream(new FileOutputStream(dest.value), manifest)
-    out.finish()
-    out.close()
-
-    inputs.foreach(Zipper.pack(_, dest))
+   val result = new File(dest.value)
+    val zos = new ZipArchiveOutputStream(result)
+    zos.setEncoding("UTF-8")
+    val entry = new ZipArchiveEntry(JarFile.MANIFEST_NAME)
+    zos.putArchiveEntry(entry)
+    manifest.write(zos)
+    zos.closeArchiveEntry()
+    val zipCreator = new ParallelScatterZipCreator
+    inputs.foreach(Zipper.pack(_, dest, zipCreator))
+    zipCreator.writeTo(zos)
+    zos.close()
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
