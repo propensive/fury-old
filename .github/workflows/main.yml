@@ -19,7 +19,7 @@ jobs:
        key: ${{ runner.os }}-coursier-${{ hashFiles('layers/*') }}
     - uses: actions/cache@v1
       with:
-       path: ~/.cache/fury
+       path: ~/.cache/fury/repos
        key: ${{ runner.os }}-fury-${{ hashFiles('layers/*') }}
     - name: Run Makefile
       run: |
@@ -85,6 +85,8 @@ jobs:
       with:
         name: community-logs-${{ runner.os }}
         path: community-logs.tar.gz
+    - name: Inspect cache
+      run: du -h ~/.cache/fury --max-depth 2        
     - name: Summary
       run: |
         ! ls -1 *.failed 2> /dev/null
