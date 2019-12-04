@@ -428,7 +428,7 @@ case class Compilation(graph: Target.Graph,
 
   def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: String)(implicit log: Log): Try[Unit] =
     for {
-      dest <- dest.directory
+      dest <- Try(dest.extant())
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main)
     } yield ()
@@ -444,15 +444,16 @@ case class Compilation(graph: Target.Graph,
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
       manifest          = Manifest(bins.map(_.name), module.main)
-      dest             <- destination.directory
+      dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
       else Success(())
-      _                <- Shell(layout.env).jar(path, stagingDirectory.children.map(stagingDirectory / _).to[Set],
+      _                <- Shell(layout.env).jar(path, stagingDirectory.children.filterNot(_.contains("META-INF")).map(stagingDirectory / _).to[Set],
         manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
+
     } yield ()
   }
 
