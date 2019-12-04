@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -36,25 +36,26 @@ import scala.collection.JavaConverters._
 
 object Zipper {
 
-  def pack(root: Path, destination: Path, zipCreator: ParallelScatterZipCreator): Try[Path] = pack(root.javaPath, destination.javaPath, zipCreator).map(Path(_))
-  def unpack(source: Path, destination: Path): Try[Zip] = unpack(source.javaPath, destination.javaPath)
+  def pack(root: Path, destination: Path, creator: ParallelScatterZipCreator): Try[Path] = {
+    val tree = root.walkTree.map { path => path.relativizeTo(root.parent).value -> path }.toMap
+    packfs(Zip(tree), destination, creator)
+  }
 
-  private def packfs(zip: Zip, destination: JavaPath, zipCreator: ParallelScatterZipCreator): Try[JavaPath] = Try {
-      zip.entries.toList.sorted.foreach { case (name, source) =>
-        val za = createZipArchiveEntry(name)
-        val iss = new InputStreamSupplier() {
-          override def get: InputStream = {
-            Files.newInputStream(source)
-          }
-        }
-        if(!source.toFile.isDirectory){
-          zipCreator.addArchiveEntry(za, iss)
-        }
-      }
-    }.map(_ => destination)
+  def unpack(source: Path, destination: Path): Try[Zip] = for {
+    zipFile <- Try(new ZipFile(source.javaPath.toFile))
+    entries <- zipFile.entries.asScala.to[List].traverse(unpackEntry(destination, zipFile, _))
+    _       =  zipFile.close()
+  } yield Zip(entries.toMap)
 
+  private def packfs(zip: Zip, destination: Path, creator: ParallelScatterZipCreator): Try[Path] = Try {
+    zip.entries.to[List].sortBy(_._1).foreach { case (name, source) =>
+      val za = createZipArchiveEntry(name)
+      val iss = new InputStreamSupplier() { override def get: InputStream = source.inputStream() }
+      if(!source.directory) creator.addArchiveEntry(za, iss)
+    }
 
-
+    destination
+  }
 
   private def createZipArchiveEntry(name: String) = {
     val za = new ZipArchiveEntry(name)
@@ -64,53 +65,18 @@ object Zipper {
     za
   }
 
-  private def pack(root: JavaPath, destination: JavaPath, zipCreator: ParallelScatterZipCreator) = {
-    val javaPaths = if(Files.isDirectory(root)){
-      val javaPathWalker = Files.walk(root)
-      val toPack = javaPathWalker.collect(Collectors.toList[JavaPath]).asScala.toList//.tail
-      javaPathWalker.close()
-      toPack
-    } else List(root)
-
-    packfs(Zip(javaPaths.map { javaPath => root.getParent.relativize(javaPath).toString -> javaPath }.toMap),
-        destination, zipCreator)
-  }
-
-  private def unpack(source: JavaPath, destination: JavaPath): Try[Zip] = for {
-    zipFile    <- Try(new ZipFile(source.toFile))
-    zipEntries = zipFile.entries.asScala.toList
-    entries    <- zipEntries.traverse { zipEntry =>
-      val name = zipEntry.getName
-        val in = zipFile.getInputStream(zipEntry)
-        val result = Try {
-          val target = destination.resolve(name)
-          if (name.endsWith("/")) Files.createDirectories(target)
-          else {
-            Files.createDirectories(target.getParent)
-            Files.copy(in, target, REPLACE_EXISTING)
-          }
-          (name, target)
-        }
-        in.close()
-        result
+  private def unpackEntry(destination: Path, zipFile: ZipFile, entry: ZipEntry): Try[(String, Path)] = Try {
+    val path = Path(entry.getName)
+    val target = destination.resolve(path)
+    if(entry.getName.endsWith("/")) target.mkdir()
+    else {
+      val in = zipFile.getInputStream(entry)
+      target.parent.mkdir()
+      Files.copy(in, target.javaPath, REPLACE_EXISTING)
+      in.close()
     }
-  } yield {
-    zipFile.close()
-    Zip(entries.toMap)
-  }
-
-  private class ZippingFileVisitor(sourceJavaPath: JavaPath, out: ZipOutputStream)
-      extends SimpleFileVisitor[JavaPath] {
-
-    override def visitFile(file: JavaPath, attrs: BasicFileAttributes): FileVisitResult = {
-      val entry = new ZipEntry(sourceJavaPath.relativize(file).toString)
-      val content = Files.readAllBytes(file)
-      out.putNextEntry(entry)
-      out.write(content, 0, content.length)
-      out.closeEntry()
-      FileVisitResult.CONTINUE
-    }
+    (entry.getName, target)
   }
 }
 
-case class Zip(entries: Map[String, JavaPath] = Map.empty)
+case class Zip(entries: Map[String, Path] = Map.empty)

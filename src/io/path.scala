@@ -28,7 +28,7 @@ import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
-import java.io.{File => JavaFile}
+import java.io.{File => JavaFile, InputStream}
 
 object Path {
 
@@ -105,14 +105,14 @@ case class Path(input: String) {
     this
   }
 
+  def directory: Boolean = Files.isDirectory(javaPath)
+
   def extantParents(): Path = {
     parent.mkdir()
     this
   }
 
-  def resolve(rel: Path) = {
-    Path(javaPath.resolve(rel.javaPath))
-  }
+  def resolve(rel: Path) = Path(javaPath.resolve(rel.javaPath))
 
   def moveTo(path: Path): Try[Unit] =
     Outcome.rescue[java.io.IOException](FileWriteError(this, _)){
@@ -159,15 +159,14 @@ case class Path(input: String) {
     Success(writer.close())
   }.transform(identity, e => Failure(FileWriteError(this, e)))
 
-  def directory: Try[Path] = Outcome.rescue[Exception](FileWriteError(this, _)) {
-    mkdir()
-    this
-  }
-
   def copyTo(path: Path): Try[Path] = Try {
     Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
     path
   }
+
+
+  def walkTree: Iterator[Path] =
+    if(directory) Iterator(this) ++ childPaths.to[Iterator].flatMap(_.walkTree) else Iterator(this)
 
   def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
   def childPaths: List[Path] = children.map(this / _)
@@ -189,6 +188,8 @@ case class Path(input: String) {
     Files.createSymbolicLink(javaPath, target.javaPath)
     this
   }.recover { case e: java.io.IOException => this }
+
+  def inputStream(): InputStream = Files.newInputStream(javaPath)
 }
 
 case class FileNotFound(path: Path)      extends FuryException
