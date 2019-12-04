@@ -352,7 +352,7 @@ object SchemaRef {
   }
 }
 
-case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId, follow: Option[Followable] = None)
+case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId)
 
 object ImportLayer {
   def parse(str: String): Option[ImportLayer] = str match {
