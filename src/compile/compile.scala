@@ -99,6 +99,7 @@ object BloopServer {
             multiplexer.start()
           case r"Waiting.*" => None
           case r"Starting thread.*" => None
+          case r"Deduplicating compilation of .*" => None
           case r"No server running at .*" =>
             log.info("Could not detect a BSP server running locally")
           case r"Command: .*" => None
