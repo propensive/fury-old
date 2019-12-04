@@ -205,20 +205,21 @@ object Compilation {
     def canAffectBuild(target: Target): Boolean = Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.kind)
 
     for {
-      target    <- makeTarget(ref, layout)
-      entity    <- entity(ref.projectId)
-      graph     <- graph(target)
-      requiredTargets     <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout) }
-      moduleRefToTarget   =  requiredTargets.map(t => t.ref -> t).toMap
+      target              <- makeTarget(ref, layout)
+      entity              <- entity(ref.projectId)
+      graph               <- graph(target)
+      targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout).map(t => targetId -> t) }
+      requiredTargets     =  targetIndex.unzip._2
       requiredPermissions =  requiredTargets.flatMap(_.permissions)
-      _          <- policy.checkAll(requiredPermissions)
-      intermediateTargets = requiredTargets.filter(canAffectBuild)
-      subgraphs  = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
+      _                   <- policy.checkAll(requiredPermissions)
+      checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
+    } yield {
+      val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
+      val intermediateTargets = requiredTargets.filter(canAffectBuild)
+      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
         TargetId(entity.schema.id, ref)).connections
-      checkouts <- graph.dependencies.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
-    } yield
-      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
-        moduleRefToTarget ++ target.compiler.map (t => t.ref -> t), universe)
+      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _), moduleRefToTarget, targetIndex.toMap, universe)
+    }
   }
 
   def asyncCompilation(schema: Schema,
@@ -361,17 +362,13 @@ case class Compilation(graph: Target.Graph,
                        subgraphs: Map[TargetId, Set[TargetId]],
                        checkouts: Set[Checkout],
                        targets: Map[ModuleRef, Target],
+                       targetIndex: Map[TargetId, Target],
                        universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
-
-  def checkoutAll(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
-    checkouts.traverse(_.get(layout, https)).map{ _ => ()}
-
-  def deepDependencies(targetId: TargetId): Set[TargetId] = {
+  lazy val deepDependencies: Map[TargetId, Set[TargetId]] = {
     @tailrec
     def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
       if(next.isEmpty) aggregated
@@ -380,19 +377,38 @@ case class Compilation(graph: Target.Graph,
         flatten(aggregated + node, children, next - node ++ children(node))
       }
     }
-    flatten[TargetId](Set.empty, graph.dependencies(_).to[Set], Set(targetId))
+    targetIndex.map { case (targetId, _) =>
+      targetId -> flatten[TargetId](Set.empty, graph.dependencies(_).to[Set], Set(targetId))
+    }
   }
+
+  def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
+
+  def checkoutAll(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
+    checkouts.traverse(_.get(layout, https)).map{ _ => ()}
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout).waive)
   }
 
-  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
-    Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
-  } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
+  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
+    requiredTargets(ref).flatMap{ target =>
+      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+    } ++ targets(ref).binaries
+  }
 
-  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
-    targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
+  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
+    val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
+      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+    }
+    val compilerClasspath = targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
+    compilerClasspath ++ requiredPlugins
+  }
+
+  private def requiredTargets(ref: ModuleRef): Set[Target] = {
+    val requiredIds = deepDependencies(targets(ref).id)
+    requiredIds.map(targetIndex.apply)
+  }
 
   def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
 
@@ -452,7 +468,7 @@ case class Compilation(graph: Target.Graph,
     def pluginParam(pluginTarget: Target): Parameter =
       Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
 
-    val allPlugins = allDependencies
+    val allPlugins = requiredTargets(ref)
       .filter(_.kind == Plugin)
       .filterNot(_.ref == ref)
 

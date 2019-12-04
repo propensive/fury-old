@@ -5,8 +5,11 @@ fury module update -C ch.epfl.lamp:dotty-compiler_0.20:0.20.0-bin-20191005-d67af
 fury binary add -b ch.epfl.lamp:dotty-compiler_0.20:0.20.0-bin-20191005-d67af24-NIGHTLY
 fury binary add -b org.scala-lang:scala-library:2.13.1
 fury project add -n hello-world
-fury module add -n app -c scala3/compiler
+fury module add -n app -c scala3/compiler -t application -M HelloWorld
 fury source add -d src
 mkdir -p src
-fury build run --output linear || cat .fury/logs/*
+fury permission require -C java.lang.RuntimePermission -T accessClassInPackage.sun.misc
+fury permission require -C java.lang.RuntimePermission -T accessDeclaredMembers
+fury permission require -C java.lang.reflect.ReflectPermission -T suppressAccessChecks
+fury build run --output linear
 echo $?

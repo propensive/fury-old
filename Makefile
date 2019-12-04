@@ -161,4 +161,4 @@ install: dist/install.sh
 revise:
 	etc/revise
 
-.PHONY: all publish pre-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration community-isolated community download install revise
+.PHONY: all bootstrap/build.fury publish pre-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration community-isolated community download install revise

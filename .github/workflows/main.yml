@@ -12,14 +12,14 @@ jobs:
       fail-fast: false
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2-beta
     - uses: actions/cache@v1
       with:
        path: ~/.cache/coursier
        key: ${{ runner.os }}-coursier-${{ hashFiles('layers/*') }}
     - uses: actions/cache@v1
       with:
-       path: ~/.cache/fury
+       path: ~/.cache/fury/repos
        key: ${{ runner.os }}-fury-${{ hashFiles('layers/*') }}
     - name: Run Makefile
       run: |
@@ -77,7 +77,7 @@ jobs:
       run: |
         etc/community || touch community.failed
         ! ls -1 community.failed 2> /dev/null
-      timeout-minutes: 5
+      timeout-minutes: 10
       continue-on-error: true
     - name: Package community logs
       run: find test -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
@@ -85,6 +85,8 @@ jobs:
       with:
         name: community-logs-${{ runner.os }}
         path: community-logs.tar.gz
+    - name: Inspect cache
+      run: du -h ~/.cache/fury --max-depth 2        
     - name: Summary
       run: |
         ! ls -1 *.failed 2> /dev/null

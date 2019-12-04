@@ -26,7 +26,7 @@ runtest() {
 
   rm -fr "$TMPDIR"
   mkdir -p "$TMPDIR"
-  fury layer extract -f "test/community/$TEST.fury" $TMPDIR
+  fury layer extract -f "test/community/$TEST.fury" -d $TMPDIR
   cd $TMPDIR
   fury build run --https --output quiet
   SUCCESS=$?

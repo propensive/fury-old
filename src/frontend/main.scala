@@ -85,8 +85,8 @@ object Main {
       env: Environment
     ) =
     exit {
-      val pid = args.head.toInt
-      implicit val log: Log = Log.global(Some(pid))
+      val pid = Pid(args.head.toInt)
+      implicit val log: Log = Log.global(pid)
       val cli = Cli(new java.io.PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, pid)
       Lifecycle.trackThread(cli, args.lift(1).exists(Set("about", "help")(_))) {
         val end = invoke(cli).code
