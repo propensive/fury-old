@@ -17,6 +17,7 @@
 package fury
 
 import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._
+import guillotine.Environment
 
 import Args._
 
@@ -528,7 +529,7 @@ object LayerCli {
     cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
     call          <- cli.call()
     layerImport   <- call(ImportArg)
-    followable    <- Try(Layer.follow(layerImport).get)
+    followable    <- Layer.follow(layerImport).ascribe(UnspecifiedLayer())
     layerRef      <- Layer.resolve(followable, cli.env)
     dir           <- call(DirArg)
     pwd           <- cli.pwd
@@ -569,30 +570,19 @@ object LayerCli {
       cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
       fileImport    <- ~cli.peek(FileArg)
-      followable    <- ~((layerImport, fileImport) match {
-                         case (Some(imp), None) => Layer.follow(imp)
-                         case _ => None
-                       })
-      layerRef      <- ~((layerImport, fileImport) match {
-                         case (Some(imp), None) => for {
-                           followable <- Layer.follow(imp)
-                           layerRef <- Layer.resolve(followable, cli.env).toOption
-                         } yield layerRef
-                         case (None, Some(path)) =>
-                           Layer.loadFile(path in layout.pwd, layout, cli.env).toOption
-                         case _ =>
-                           None
-                       })
-      maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
-      cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
-
       call          <- cli.call()
-      layerRef      <- ~followable.flatMap(Layer.resolve(_, cli.env).toOption)
-      maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
+      layerRef      <- (layerImport, fileImport) match {
+        case (Some(imp), None) => for {
+          followable <- Layer.follow(imp).ascribe(UnspecifiedLayer())
+          ref <- Layer.resolve(followable, cli.env)
+        } yield ref
+        case (None, Some(path)) =>
+          Layer.loadFile(path in layout.pwd, layout, cli.env)
+        case _ => Failure(UnspecifiedLayer())
+      }
       nameArg       <- call(ImportNameArg)
       schemaId      <- call(ImportSchemaArg)
-      layerRef      <- layerRef.ascribe(UnspecifiedLayer())
-      schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId, followable)
+      schemaRef     =  SchemaRef(nameArg, layerRef, schemaId)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))
       
