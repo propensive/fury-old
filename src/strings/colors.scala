@@ -39,6 +39,7 @@ object Ansi {
   val strike: AnsiCode    = AnsiCode("9m")
   val italic: AnsiCode    = AnsiCode("3m")
   val reverse: AnsiCode   = AnsiCode("7m")
+  val wipe: AnsiCode      = AnsiCode("2K")
 
   val hideCursor = AnsiCode("?25l")
   val showCursor = AnsiCode("?25h")
@@ -132,6 +133,7 @@ object Theme {
     override val reverse: AnsiCode   = AnsiCode("")
     override val success: AnsiCode   = AnsiCode("")
     override val failure: AnsiCode   = AnsiCode("")
+    override val wipe: AnsiCode      = AnsiCode("")
   }
 }
 
@@ -164,4 +166,5 @@ case class Theme(
   val strike: AnsiCode    = AnsiCode("9m")
   val italic: AnsiCode    = AnsiCode("3m")
   val reverse: AnsiCode   = AnsiCode("7m")
+  val wipe: AnsiCode      = AnsiCode("2K")
 }

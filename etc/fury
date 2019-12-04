@@ -16,6 +16,13 @@ UPGRADEDIR="$FURYHOME/upgrade"
 SCALA_VERSION="2.12.8"
 NAILGUN_VERSION="1.0.0"
 
+if [ "$RUNTIME_DIRE" = "" ]; then
+  SCRIPT_DIR="/tmp/scripts"
+else
+  SCRIPT_DIR="$RUNTIME_DIR/scripts"
+fi
+
+
 trap cleanup INT
 
 cleanup() {
@@ -51,11 +58,18 @@ silently() {
     ( $@; ) 2>&3
     EXITCODE=$?
     [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
-    exit $EXITCODE
   else
     $@;
-    exit $?
+    EXITCODE=$?
   fi
+  case $EXITCODE in
+    0|1)
+      ;;
+    91)
+      source "${SCRIPT_DIR}/exec_$$"
+      ;;
+  esac
+  exit $EXITCODE
 }
 
 coursier() {

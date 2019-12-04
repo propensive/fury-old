@@ -161,16 +161,15 @@ case class Shell(environment: Environment) {
   }
 
   def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
-   val result = new File(dest.value)
-    val zos = new ZipArchiveOutputStream(result)
+    val zos = new ZipArchiveOutputStream(dest.javaPath.toFile)
     zos.setEncoding("UTF-8")
-    val entry = new ZipArchiveEntry(JarFile.MANIFEST_NAME)
-    zos.putArchiveEntry(entry)
+    zos.putArchiveEntry(new ZipArchiveEntry(JarFile.MANIFEST_NAME))
     manifest.write(zos)
     zos.closeArchiveEntry()
-    val zipCreator = new ParallelScatterZipCreator
-    inputs.foreach(Zipper.pack(_, dest, zipCreator))
-    zipCreator.writeTo(zos)
+    
+    val creator = new ParallelScatterZipCreator
+    inputs.foreach(Zipper.pack(_, dest, creator))
+    creator.writeTo(zos)
     zos.close()
   }
 

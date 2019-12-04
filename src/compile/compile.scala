@@ -194,12 +194,12 @@ object Compilation {
 
     def directDependencies(target: Target): Set[TargetId] = (target.dependencies ++ target.compiler.map(_.id)).to[Set]
 
-    def graph(target: Target): Try[Map[TargetId, Set[TargetId]]] = for {
+    def graph(target: Target): Try[Target.Graph] = for {
       requiredModules <- dependencies(ref, layout)
       requiredTargets <- requiredModules.traverse(makeTarget(_, layout))
     } yield {
       val targetGraph = (requiredTargets + target).map { t => t.id -> directDependencies(t) }
-      targetGraph.toMap
+      Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
     }
 
     def canAffectBuild(target: Target): Boolean = Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.kind)
@@ -208,14 +208,14 @@ object Compilation {
       target    <- makeTarget(ref, layout)
       entity    <- entity(ref.projectId)
       graph     <- graph(target)
-      requiredTargets     <- graph.keys.traverse { targetId => makeTarget(targetId.ref, layout) }
+      requiredTargets     <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout) }
       moduleRefToTarget   =  requiredTargets.map(t => t.ref -> t).toMap
       requiredPermissions =  requiredTargets.flatMap(_.permissions)
       _          <- policy.checkAll(requiredPermissions)
       intermediateTargets = requiredTargets.filter(canAffectBuild)
-      subgraphs  = DirectedGraph(graph).subgraph(intermediateTargets.map(_.id).to[Set] +
+      subgraphs  = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
         TargetId(entity.schema.id, ref)).connections
-      checkouts <- graph.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
+      checkouts <- graph.dependencies.keys.map { targetId => checkout(targetId.ref, layout) }.sequence
     } yield
       Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
         moduleRefToTarget ++ target.compiler.map (t => t.ref -> t), universe)
@@ -357,7 +357,7 @@ ${'|'} ${highlightedLine}
   }
 }
 
-case class Compilation(graph: Map[TargetId, Set[TargetId]],
+case class Compilation(graph: Target.Graph,
                        subgraphs: Map[TargetId, Set[TargetId]],
                        checkouts: Set[Checkout],
                        targets: Map[ModuleRef, Target],
@@ -380,7 +380,7 @@ case class Compilation(graph: Map[TargetId, Set[TargetId]],
         flatten(aggregated + node, children, next - node ++ children(node))
       }
     }
-    flatten[TargetId](Set.empty, graph(_).to[Set], Set(targetId))
+    flatten[TargetId](Set.empty, graph.dependencies(_).to[Set], Set(targetId))
   }
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
@@ -390,6 +390,9 @@ case class Compilation(graph: Map[TargetId, Set[TargetId]],
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = allDependencies.flatMap { target =>
     Set(layout.classesDir(target.id), layout.resourcesDir(target.id))
   } ++ allDependencies.flatMap(_.binaries) ++ targets(ref).binaries
+
+  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
+    targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
 
   def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
 
@@ -409,7 +412,7 @@ case class Compilation(graph: Map[TargetId, Set[TargetId]],
 
   def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: String)(implicit log: Log): Try[Unit] =
     for {
-      dest <- dest.directory
+      dest <- Try(dest.extant())
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main)
     } yield ()
@@ -425,7 +428,7 @@ case class Compilation(graph: Map[TargetId, Set[TargetId]],
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
       manifest          = Manifest(bins.map(_.name), module.main)
-      dest             <- destination.directory
+      dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)

@@ -43,41 +43,44 @@ object Bloop {
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(target: Target, compilation: Compilation, layout: Layout)(implicit log: Log): Try[String] = for {
-    _         <- ~compilation.writePlugin(target.ref, layout)
-    classpath <- ~compilation.classpath(target.ref, layout)
-    compilerClasspath <- ~target.compiler.map(_.ref).map(compilation.classpath(_, layout)).getOrElse(classpath)
-    bloopSpec = target.compiler
-      .map(_.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")))
-    params <- ~compilation.allParams(target.ref, layout)
-    compilerOpt = (bloopSpec.map { spec =>
-                    Json.of(
-                      organization = spec.org,
-                      name = spec.name,
-                      version = spec.version,
-                      options = params,
-                      jars = compilerClasspath.map(_.value)
-                    )
-                  })
-  } yield Json.of(
-    version = "1.0.0",
-    project = Json.of(
-      scala = compilerOpt,
-      name = target.id.key,
-      directory = layout.workDir(target.id).value,
-      sources = target.sourcePaths.map(_.value),
-      dependencies = compilation.graph(target.id).map(_.key),
-      classpath = (classpath ++ compilerClasspath).map(_.value),
-      out = str"${layout.outputDir(target.id).value}",
-      classesDir = str"${layout.classesDir(target.id).value}",
-      java = Json.of(options = Nil),
-      test = Json.of(frameworks = Nil, options = Json.of(excludes = Nil, arguments = Nil)),
-      jvmPlatform = Json.of(
-        name = "jvm",
-        config = Json.of(home = "", options = Nil),
-        mainClass = target.main.to[List]
-      ),
-      resolution = Json.of(modules = Nil)
+  private def makeConfig(target: Target, compilation: Compilation, layout: Layout)(implicit log: Log): Try[String] = {
+    compilation.writePlugin(target.ref, layout)
+    val classpath = compilation.classpath(target.ref, layout)
+
+
+    val params = compilation.allParams(target.ref, layout)
+    val compilerClasspath = target.compiler.map { compilerTarget => compilation.classpath(compilerTarget.ref, layout) }
+    val compilerOpt = target.compiler.map { compilerTarget =>
+      val spec = compilerTarget.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))
+      Json.of(
+        organization = spec.org,
+        name = spec.name,
+        version = spec.version,
+        options = params,
+        jars = compilerClasspath.get.map(_.value)
+      )
+    }
+    val result = Json.of(
+      version = "1.0.0",
+      project = Json.of(
+        scala = compilerOpt,
+        name = target.id.key,
+        directory = layout.workDir(target.id).value,
+        sources = target.sourcePaths.map(_.value),
+        dependencies = compilation.graph.dependencies(target.id).map(_.key),
+        classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
+        out = str"${layout.outputDir(target.id).value}",
+        classesDir = str"${layout.classesDir(target.id).value}",
+        java = Json.of(options = Nil),
+        test = Json.of(frameworks = Nil, options = Json.of(excludes = Nil, arguments = Nil)),
+        jvmPlatform = Json.of(
+          name = "jvm",
+          config = Json.of(home = "", options = Nil),
+          mainClass = target.main.to[List]
+        ),
+        resolution = Json.of(modules = Nil)
+      )
     )
-  ).toString
+    Success(result.toString)
+  }
 }

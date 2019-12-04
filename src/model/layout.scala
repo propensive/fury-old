@@ -62,24 +62,29 @@ object Xdg {
   def findData(filename: Path): Option[Path] = (dataHome :: dataDirs).map(filename in _).find(_.exists)
   def findConfig(filename: Path): Option[Path] = (configHome :: configDirs).map(filename in _).find(_.exists)
 
-  def data(filename: Path): Path = (filename in dataHome).extantParents()
-  def config(filename: Path): Path = (filename in configHome).extantParents()
-  def cache(filename: Path): Path = (filename in cacheHome).extantParents()
+  def data(filename: String): Path = (Path(filename) in dataHome).extantParents()
+  def config(filename: String): Path = (Path(filename) in configHome).extantParents()
+  def cache(filename: String): Path = (Path(filename) in cacheHome).extantParents()
 }
 
 object Installation {
   private[this] def date: String = Layout.dateFormat.format(new Date())
 
-  val userConfig: Path = Xdg.config(Path("fury/config.fury"))
-  val aliasesPath: Path = Xdg.config(Path("fury/aliases"))
-  val layersPath: Path = Xdg.data(Path("fury/layers"))
-  val policyFile: Path = Xdg.config(Path("fury/policy.fury"))
-  val srcsDir: Path = Xdg.cache(Path("fury/sources"))
-  val reposDir: Path = Xdg.cache(Path("fury/repos"))
-  val binsDir: Path = Xdg.cache(Path("fury/bins"))
-  val logsDir: Path = Xdg.cache(Path("fury/logs"))
-  val upgradeDir: Path = Xdg.cache(Path("fury/upgrade"))
-  val policyDir: Path = Xdg.cache(Path("fury/policies"))
+  val cache: Path = Xdg.cache("fury")
+  val config: Path = Xdg.config("fury")
+  val data: Path = Xdg.data("fury")
+
+  val userConfig: Path = config / "config.fury"
+  val aliasesPath: Path = config / "aliases"
+  val layersPath: Path = data / "layers"
+  val policyFile: Path = config / "policy.fury"
+  val srcsDir: Path = cache / "sources"
+  val reposDir: Path = cache / "repos"
+  val binsDir: Path = cache / "bins"
+  val logsDir: Path = cache / "logs"
+  val upgradeDir: Path = cache / "upgrade"
+  val policyDir: Path = cache / "policies"
+  val scriptsDir: Path = Xdg.runtimeDir.extant() / "scripts"
 
   def tmpDir[T](fn: Path => T): T = tmpFile { path =>
     path.mkdir()

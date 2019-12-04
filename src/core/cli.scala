@@ -30,6 +30,7 @@ case class EarlyCompletions() extends FuryException
 sealed class ExitStatus(val code: Int)
 case object Done  extends ExitStatus(0)
 case object Abort extends ExitStatus(1)
+case object Continuation extends ExitStatus(91)
 
 object NoCommand { def unapply(cli: Cli[CliParam[_]]): Boolean = cli.args.isEmpty }
 
@@ -127,7 +128,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
-      log.attach(LogStyle(stdout, Some(pid), false))
+      log.attach(LogStyle(stdout, Some(pid), false, true))
       Success(new Call())
     }
   }
@@ -151,6 +152,14 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
   def abort(msg: UserMsg): ExitStatus = {
     if(!completion) write(msg)
     Abort
+  }
+
+  def continuation(script: String): ExitStatus = {
+    val pw = new java.io.PrintWriter((Installation.scriptsDir / str"exec_${pid}").javaFile)
+    pw.write(script)
+    pw.write("\n")
+    pw.close()
+    Continuation
   }
 
   def hint[T: StringShow: Descriptor]
