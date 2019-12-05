@@ -54,7 +54,8 @@ object FuryMenu {
         ),
         Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
         Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
-            Action('set, msg"change a settings", ConfigCli.set)
+            Action('set, msg"change a settings", ConfigCli.set),
+            Action('auth, msg"authenticate using the distribution service", ConfigCli.auth)
         ),
         Menu('dependency, msg"manage dependencies for the module", DependencyCli.context, 'list)(
             Action('add, msg"add a dependency on another module", DependencyCli.add),
