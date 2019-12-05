@@ -972,7 +972,10 @@ object Service {
     case class Output(output: String)
     for {
       id   <- Try(Shell(env).ipfs.id().get)
-      out  <- Http.post(url, Json.of(path = path, hash = hash, addresses = id.Addresses), headers = Set())
+      out  <- Http.post(url, Json.of(path = path, hash = hash, addresses = id.Addresses.filter {
+                addr => !addr.startsWith("/ipv6/::1/") && !addr.startsWith("/ipv4/127.0.0.1") &&
+                    !addr.startsWith("/ipv4/192.168.") && !addr.startsWith("/ipv4/10.")
+              }), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
       res  <- Try(json.as[Output].get)
