@@ -23,7 +23,6 @@ import exoskeleton._
 
 object Args {
   implicit private val schemaId: TExtractor[SchemaId] = _.headOption.flatMap(SchemaId.parse(_).toOption)
-  implicit private val importLayer: TExtractor[ImportLayer] = _.headOption.flatMap(ImportLayer.parse(_))
   implicit private val aliasCmd: TExtractor[AliasCmd] = _.headOption.map(AliasCmd(_))
   implicit private val parameter: TExtractor[Parameter] = _.headOption.map(Parameter(_))
   implicit private val envVar: TExtractor[EnvVar] = _.headOption.flatMap(EnvVar.parse(_))
@@ -70,7 +69,7 @@ object Args {
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
-  val ImportArg = CliParam[ImportLayer]('l', Symbol("layer"), "specify an external layer to import")
+  val ImportArg = CliParam[String]('l', Symbol("layer"), "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
   val ImportSchemaArg = CliParam[SchemaId]('i', Symbol("import"), "specify the external schema to import")
 
@@ -85,6 +84,7 @@ object Args {
   val PipeliningArg = CliParam[Boolean]('P', Symbol("pipelining"), "use compilation pipelining (on, off) (experimental)")
   val PluginArg = CliParam[String]('P', 'plugin, "specify the name of the plugin")
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
+  val RemoteLayerArg = CliParam[String]('L', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val SchemaNameArg = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")

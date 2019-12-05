@@ -86,6 +86,8 @@ You can grant these permissions with,
           cli.abort(msg"The command '${e.command}' was not recognized.")
         case InvalidArgValue(param, arg) =>
           cli.abort(msg"The argument '$arg' was not a valid value for the parameter '$param'.")
+        case InvalidLayer(layer) =>
+          cli.abort(msg"The argument '$layer' does not represent a valid layer.")
         case e: ConfigFormatError =>
           cli.abort(msg"The configuration file could not be read.")
         case e: InvalidValue =>

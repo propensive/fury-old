@@ -136,6 +136,7 @@ object FuryMenu {
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('list, msg"list imported layers", LayerCli.list),
             Action('projects, msg"show all available projects", LayerCli.projects),
+            Action('publish, msg"publish a layer", LayerCli.publish),
             Action('unimport, msg"remove a previously imported layer", LayerCli.unimport),
             Action('select, msg"select a layer", LayerCli.select),
             Action('share, msg"share this layer", LayerCli.share),
