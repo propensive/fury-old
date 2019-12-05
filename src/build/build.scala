@@ -16,14 +16,15 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._
+import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._, fury.utils._
 
 import exoskeleton._
+import euphemism._
 
 import Args._
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent._
+import scala.concurrent._, duration._
 import scala.util._
 import java.text.DecimalFormat
 
@@ -55,6 +56,22 @@ object ConfigCli {
       config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
       _        <- ~ManagedConfig.write(config)
     } yield log.await()
+  }
+
+  def auth(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      call     <- cli.call()
+      code     <- ~Rnd.token(18)
+      future   <- ~Future(Http.get(str"https://${ManagedConfig().service}/await?code=$code", Map("code" -> code), Set()))
+      _        <- ~Future(Shell(cli.env).xdgOpen(str"https://${ManagedConfig().service}/auth?code=$code"))
+      response <- Await.result(future, Duration.Inf)
+      json     <- ~Json.parse(new String(response, "UTF-8")).get
+      token    <- ~json.token.as[String].get
+      config   <- ~ManagedConfig().copy(token = token)
+      _        <- ~ManagedConfig.write(config)
+    } yield log.await()
+
   }
 }
 

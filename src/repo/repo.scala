@@ -143,7 +143,7 @@ object RepoCli {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli            <- cli.hint(UrlArg)
+      cli            <- cli.hint(UrlArg, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(HttpsArg)
       projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)

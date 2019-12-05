@@ -147,7 +147,8 @@ case class Config(showContext: Boolean = true,
                   undoBuffer: Int = 5,
                   timestamps: Boolean = true,
                   pipelining: Boolean = false,
-                  service: String = "furore.dev")
+                  service: String = "furore.dev",
+                  token: String = "")
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key

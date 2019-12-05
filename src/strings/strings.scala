@@ -34,6 +34,14 @@ object `package` {
   }
 }
 
+object Rnd extends java.util.Random {
+  def token(size: Int = 20): String = {
+    val array = new Array[Byte](size)
+    nextBytes(array)
+    new String(java.util.Base64.getEncoder().encode(array), "UTF-8")
+  }
+}
+
 object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
 
 object Version {

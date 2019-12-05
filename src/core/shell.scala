@@ -68,7 +68,9 @@ case class Shell(environment: Environment) {
 
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
-  
+
+  def xdgOpen(url: String) = sh"xdg-open $url".exec[String]
+
   object ipfs {
 
     def add(path: Path): Try[IpfsRef] =
