@@ -54,7 +54,6 @@ object Args {
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[String]('b', 'binary, "specify a binary dependency")
-  val CloneRefArg = CliParam[IpfsRef]('l', 'layer, "layer reference")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[String]('C', 'class, "specify a class name")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
