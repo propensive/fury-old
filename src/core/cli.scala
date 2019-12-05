@@ -155,7 +155,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
   }
 
   def continuation(script: String): ExitStatus = {
-    val pw = new java.io.PrintWriter((Installation.scriptsDir.extant() / str"exec_${pid}").javaFile)
+    val pw = new java.io.PrintWriter((Installation.scriptsDir.extant() / s"exec_${pid.pid}").javaFile)
     pw.write(script)
     pw.write("\n")
     pw.close()
