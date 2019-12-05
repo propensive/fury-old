@@ -19,7 +19,6 @@ package fury.core
 import java.net.URI
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
-import exoskeleton._
 import fury._
 import fury.core.Graph.DiagnosticMessage
 import fury.io._
@@ -27,10 +26,14 @@ import fury.model._
 import fury.ogdl._
 import fury.strings._
 import fury.utils._
+
 import gastronomy._
 import guillotine._
 import kaleidoscope._
 import mercator._
+import exoskeleton._
+import euphemism._
+
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -389,12 +392,11 @@ case class Layer(version: Int = Layer.CurrentVersion,
 object Layer {
   val CurrentVersion = 4
 
-  def loadFromIpfs(layerRef: IpfsRef, env: Environment)(implicit log: Log): Try[LayerRef] =
+  def loadFromIpfs(layerRef: IpfsRef, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     Installation.tmpFile { tmpFile => for {
-      file     <- Shell(env).ipfs.get(layerRef, tmpFile)
-      layer    <- Layer.read(file, env)
-      layerRef <- saveLayer(layer)
-    } yield layerRef }
+      file <- Shell(env).ipfs.get(layerRef, tmpFile)
+      ref  <- loadFile(file, layout, env)
+    } yield ref }
 
   def loadFile(file: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { tmpDir => for {
@@ -405,13 +407,15 @@ object Layer {
       focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
     } yield focus.layerRef }
 
-    def share(layer: Layer, env: Environment)(implicit log: Log): Try[IpfsRef] = for {
-      layerRef <- ~digestLayer(layer)
-      file     <- ~(Installation.layersPath / layerRef.key)
-      _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
-      ref      <- Shell(env).ipfs.add(file)
-    } yield ref
-
+  def share(layer: Layer, layout: Layout, env: Environment)(implicit log: Log): Try[IpfsRef] =
+    Installation.tmpFile { tmp => for {
+      layerRef  <- ~digestLayer(layer)
+      schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
+      layerRefs <- collectLayerRefs(schemaRef, layout)
+      filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
+      _         <- TarGz.store(filesMap.updated(Path(".focus.fury"), layout.focusFile), tmp)
+      ref       <- Shell(env).ipfs.add(tmp)
+    } yield ref }
 
   def loadCatalog(catalogRef: IpfsRef, env: Environment)(implicit log: Log): Try[Catalog] =
     Installation.tmpFile { tmpFile => for {
@@ -420,27 +424,48 @@ object Layer {
     } yield catalog
   }
 
-  def lookup(domain: String, env: Environment)(implicit log: Log): Try[List[Artifact]] = for {
+  /*def lookup(domain: String, env: Environment)(implicit log: Log): Try[List[Artifact]] = for {
     records   <- Dns.lookup(domain)
     records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
     catalogs  <- records.map { loadCatalog(_, env) }.sequence
-    artifacts <- ~catalogs.flatMap(_.artifacts)
-  } yield artifacts
- 
-  def follow(importLayer: ImportLayer): Option[Followable] = importLayer match {
-    case IpfsImport(hash) => None
-    case RefImport(followable) => Some(followable)
-    case DefaultImport(path) => Some(Followable(ManagedConfig().service, path))
+    artifacts <- ~catalogs.flatMap(_.entries)
+  } yield artifacts*/
+
+  def resolve(path: String, layout: Layout): Option[LayerInput] = {
+    val service = ManagedConfig().service
+    path match {
+      case r"fury:\/\/$ref@([A-Za-z0-9]{46})\/?" =>
+        Some(IpfsRef(ref))
+      case r"fury:\/\/$domain@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
+        Some(FuryUri(domain, loc))
+      case r".*\.fury" =>
+        val file = Path(path).in(layout.pwd)
+        if(file.exists) Some(FileInput(file)) else None
+      case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
+        Some(FuryUri(service, path))
+      case _ =>
+        None
+    }
   }
 
-  def resolve(followable: Followable, env: Environment)(implicit log: Log): Try[LayerRef] = for {
-    artifacts <- lookup(followable.domain, env)
-    ref       <- Try(artifacts.find(_.path == followable.path).get)
-    layerRef  <- loadFromIpfs(ref.ref, env)
+  def resolveLoad(path: String, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] = for {
+    resolved <- resolve(path, layout).ascribe(InvalidLayer(path))
+    layerRef <- load(resolved, env, layout)
   } yield layerRef
 
-  def pathCompletions(domain: String, env: Environment)(implicit log: Log): Try[List[String]] =
-    lookup(domain, env).map(_.map(_.path))
+  def load(input: LayerInput, env: Environment, layout: Layout)(implicit log: Log): Try[LayerRef] =
+    input match {
+      case FuryUri(domain, path) => for {
+                                      entries <- Service.catalog()
+                                      ipfsRef <- Try(entries.find(_.path == path).get)
+                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, env)
+                                    } yield ref
+      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, env)
+      case FileInput(file)       => loadFile(file, layout, env)
+    }
+
+  def pathCompletions()(implicit log: Log): Try[List[String]] =
+    Service.catalog().map(_.map(_.path))
 
   def read(string: String, env: Environment)(implicit log: Log): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(env, _)))
@@ -926,5 +951,32 @@ object ManagedConfig {
   }
 
   def apply(): Config = config
+}
+
+object Service {
+
+  def catalog(): Try[List[Artifact]] = {
+    val service = ManagedConfig().service
+    val url = str"https://$service/catalog"
+    
+    for {
+      bytes <- Http.get(url, Map(), Set())
+      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
+      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
+    } yield artifacts
+  }
+
+  def publish(hash: String, env: Environment, path: String): Try[String] = {
+    val service = ManagedConfig().service
+    val url = str"https://$service/publish"
+    case class Output(output: String)
+    for {
+      id   <- Try(Shell(env).ipfs.id().get)
+      out  <- Http.post(url, Json.of(path = path, hash = hash, addresses = id.Addresses), headers = Set())
+      str  <- Success(new String(out, "UTF-8"))
+      json <- Try(Json.parse(str).get)
+      res  <- Try(json.as[Output].get)
+    } yield res.output
+  }
 }
 

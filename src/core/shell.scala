@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -19,6 +19,7 @@ package fury.core
 import fury.io._, fury.strings._, fury.model._
 
 import guillotine._
+import euphemism._
 
 import scala.util._
 import scala.collection.mutable.HashMap
@@ -77,6 +78,15 @@ case class Shell(environment: Environment) {
 
     def get(ref: IpfsRef, path: Path): Try[Path] =
       sh"ipfs get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
+
+    case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
+        ProtocolVersion: String)
+  
+    def id(): Option[IpfsId] = for {
+      out  <- sh"ipfs id".exec[Try[String]].toOption
+      json <- Json.parse(out)
+      id   <- json.as[IpfsId]
+    } yield id
   }
 
   object git {

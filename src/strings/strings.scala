@@ -27,6 +27,11 @@ object `package` {
 
   implicit def userMsg[T: MsgShow](value: T): UserMsg =
     implicitly[MsgShow[T]].show(value)
+
+  implicit class StringExtensions(str: String) {
+    def urlEncode: String = java.net.URLEncoder.encode(str, "UTF-8")
+    def bytes: Array[Byte] = str.getBytes("UTF-8")
+  }
 }
 
 object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }

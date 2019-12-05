@@ -19,6 +19,8 @@ package fury
 import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._
 import guillotine.Environment
 
+import exoskeleton._
+
 import Args._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -522,11 +524,11 @@ object LayerCli {
 
   def clone(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
-    cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
     layerImport   <- call(ImportArg)
-    followable    <- Layer.follow(layerImport).ascribe(UnspecifiedLayer())
-    layerRef      <- Layer.resolve(followable, cli.env)
+    layout        <- cli.layout
+    layerRef      <- Layer.resolveLoad(layerImport, layout, cli.env)
     dir           <- call(DirArg)
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
@@ -534,11 +536,23 @@ object LayerCli {
     _             <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
   } yield log.await()
 
+  def publish(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+    layout        <- cli.layout
+    cli           <- cli.hint(RemoteLayerArg)
+    call          <- cli.call()
+    layer         <- Layer.read(layout)
+    call          <- cli.call()
+    path          <- call(RemoteLayerArg)
+    ref           <- Layer.share(layer, layout, cli.env)
+    pub           <- Service.publish(ref.key, cli.env, path)
+    _             <- ~log.info(str"fury://${ManagedConfig().service}/$path")
+  } yield log.await()
+
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
     layer         <- Layer.read(layout)
     call          <- cli.call()
-    ref           <- Layer.share(layer, cli.env)
+    ref           <- Layer.share(layer, layout, cli.env)
     _             <- ~log.info(str"fury://${ref.key}")
   } yield log.await()
 
@@ -559,26 +573,21 @@ object LayerCli {
       layer         <- Layer.read(layout)
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli           <- cli.hint(ImportNameArg)
-      cli           <- cli.hint(FileArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
-      cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
-      fileImport    <- ~cli.peek(FileArg)
+      layerRef      <- ~layerImport.flatMap(Layer.resolveLoad(_, layout, cli.env).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
+      cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
       call          <- cli.call()
-      layerRef      <- (layerImport, fileImport) match {
-        case (Some(imp), None) => for {
-          followable <- Layer.follow(imp).ascribe(UnspecifiedLayer())
-          ref <- Layer.resolve(followable, cli.env)
-        } yield ref
-        case (None, Some(path)) =>
-          Layer.loadFile(path in layout.pwd, layout, cli.env)
-        case _ => Failure(UnspecifiedLayer())
-      }
-      nameArg       <- call(ImportNameArg)
-      schemaId      <- call(ImportSchemaArg)
-      schemaRef     =  SchemaRef(nameArg, layerRef, schemaId)
+      layerImport   <- call(ImportArg)
+      layerInput    <- Layer.resolve(layerImport, layout).ascribe(InvalidLayer(layerImport))
+      nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
+      schemaId      <- cli.peek(ImportSchemaArg).orElse(maybeLayer.map(_.main)).ascribe(MissingArg("schema"))
+      layerRef      <- Layer.resolveLoad(layerImport, layout, cli.env)
+      schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))
       
