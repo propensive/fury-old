@@ -209,26 +209,27 @@ object BuildCli {
       watch        =  call(WatchArg).isSuccess
       compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
       watcher      =  new SourceWatcher(compilation.allSources)
-      //_            =  watcher.directories.map(_.toString).foreach(s => log.info(str"$s"))
       _            =  if(watch) watcher.start()
-      future       <- new Repeater[Try[Future[CompileResult]]] {
-        var cnt: Int = 0
-        override def repeatCondition(): Boolean = watcher.hasChanges
+      repeater     = new Repeater[Try[Future[CompileResult]]] {
+                       override def repeatCondition(): Boolean = watcher.hasChanges
 
-        override def stopCondition(): Boolean = !watch
+                       override def stopCondition(): Boolean = !watch
 
-        override def action(): Try[Future[CompileResult]] = {
-          //log.info(str"Rebuild $cnt")
-          cnt = cnt + 1
-          watcher.clear()
-          compileOnce(compilation, schema, module.ref(project), layout,
-            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
-        }
-      }.start()
-      
+                       override def action(): Try[Future[CompileResult]] = {
+                         watcher.clear()
+                         compileOnce(compilation, schema, module.ref(project), layout,
+                           globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
+                       }
+                     }
+      future       <- try{
+                        repeater.start()
+                      } catch {
+                        case e: Throwable => Failure(e)
+                      } finally {
+                        watcher.stop
+                      }
     } yield {
       val result = Await.result(future, duration.Duration.Inf)
-      watcher.stop
       log.await(result.isSuccessful)
     }
   }
@@ -289,15 +290,12 @@ object BuildCli {
       compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
       watcher        =  new SourceWatcher(compilation.allSources)
       _              =  if(watch) watcher.start()
-      future         <- new Repeater[Try[Future[CompileResult]]] {
-        var cnt: Int = 0
+      repeater = new Repeater[Try[Future[CompileResult]]] {
         override def repeatCondition(): Boolean = watcher.hasChanges
 
         override def stopCondition(): Boolean = !watch
 
         override def action(): Try[Future[CompileResult]] = {
-          //log.info(str"Rebuild $cnt")
-          cnt = cnt + 1
           watcher.clear()
           for {
             task <- compileOnce(compilation, schema, module.ref(project), layout,
@@ -313,10 +311,16 @@ object BuildCli {
             }
           }
         }
-      }.start()
+      }
+      future       <- try{
+                        repeater.start()
+                      } catch {
+                        case e: Throwable => Failure(e)
+                      } finally {
+                        watcher.stop
+                      }
     } yield {
       val result = Await.result(future, duration.Duration.Inf)
-      watcher.stop
       log.await(result.isSuccessful)
     }
   }

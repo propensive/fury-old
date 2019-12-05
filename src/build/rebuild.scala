@@ -23,7 +23,7 @@ import better.files.File
 import fury.io.Path
 import fury.utils.Threads
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 trait Repeater[Res]{
   def repeatCondition(): Boolean
@@ -34,9 +34,7 @@ trait Repeater[Res]{
 
   def start(): Res = {
     val retries = Iterator.iterate(action()) { prev =>
-      try Thread.sleep(delayMillis) catch {
-        case e: InterruptedException => ()
-      }
+      Thread.sleep(delayMillis)
       if(!Thread.currentThread.isInterrupted && repeatCondition() && !stopCondition()) action() else prev
     }
     retries.dropWhile(_ => !stopCondition()).next()
@@ -44,6 +42,8 @@ trait Repeater[Res]{
 }
 
 class SourceWatcher(sources: Set[Path]){
+  private val executor = java.util.concurrent.Executors.newCachedThreadPool(Threads.factory("file-watcher", daemon = true))
+  private val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
   private[this] val changed = new AtomicBoolean(true)
 
   def isImportant(file: File): Boolean = {
@@ -53,12 +53,13 @@ class SourceWatcher(sources: Set[Path]){
   val directories: Set[File] = sources.map(src => File(src.value))
 
   def start(): SourceWatcher = {
-    watchers.foreach(_.start()(SourceWatcher.ec))
+    watchers.foreach(_.start()(ec))
     this
   }
 
   def stop(): SourceWatcher = {
-    watchers.foreach(_.stop())
+    watchers.foreach(_.close())
+    executor.shutdown()
     this
   }
 
@@ -70,7 +71,9 @@ class SourceWatcher(sources: Set[Path]){
     override def onCreate(file: File, count: Int) = onChange(file)
     override def onModify(file: File, count: Int) = onChange(file)
     override def onDelete(file: File, count: Int) = onChange(file)
-    override def start()(implicit dummy: ExecutionContext) : Unit = watcher.watchAsync(SourceWatcher.executor)
+    override def start()(implicit ec: ExecutionContext) : Unit = {
+      Future{ watcher.watch() }(ec)
+    }
   })
 
   private[this] def onChange(file: File) = {
@@ -80,9 +83,4 @@ class SourceWatcher(sources: Set[Path]){
     }
   }
 
-}
-
-object SourceWatcher{
-  val executor = java.util.concurrent.Executors.newCachedThreadPool(Threads.factory("file-watcher", daemon = true))
-  val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
 }
