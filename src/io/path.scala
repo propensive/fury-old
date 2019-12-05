@@ -28,7 +28,7 @@ import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
-import java.io.{File => JavaFile, InputStream}
+import java.io.{InputStream, File => JavaFile}
 
 object Path {
 
@@ -49,15 +49,17 @@ object Path {
       extends SimpleFileVisitor[JavaPath] {
 
     override def preVisitDirectory(dir: JavaPath, attrs: BasicFileAttributes): FileVisitResult = {
-      Files.createDirectories(targetPath.resolve(sourcePath.relativize(dir)))
+      createDirectories(targetPath.resolve(sourcePath.relativize(dir)))
       FileVisitResult.CONTINUE
     }
 
     override def visitFile(file: JavaPath, attrs: BasicFileAttributes): FileVisitResult = {
-      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)), REPLACE_EXISTING);
+      Files.copy(file, targetPath.resolve(sourcePath.relativize(file)), REPLACE_EXISTING)
       FileVisitResult.CONTINUE
     }
   }
+
+  def createDirectories(path: JavaPath): Boolean = path.toFile.mkdirs()
 }
 
 case class Path(input: String) {
@@ -173,14 +175,14 @@ case class Path(input: String) {
   def exists(): Boolean = Files.exists(javaPath)
   def ifExists(): Option[Path] = if(exists) Some(this) else None
   def absolutePath(): Try[Path] = Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
-  def mkdir(): Unit = java.nio.file.Files.createDirectories(javaPath)
+  def mkdir(): Unit =  Path.createDirectories(javaPath)
   def relativizeTo(dir: Path) = Path(dir.javaPath.relativize(this.javaPath))
   def parent = Path(javaPath.getParent.toString)
   def rename(fn: String => String): Path = parent / fn(name)
   
   def mkParents(): Try[Path] =
     Outcome.rescue[java.io.IOException](FileWriteError(parent, _)) {
-      java.nio.file.Files.createDirectories(parent.javaPath)
+      Path.createDirectories(parent.javaPath)
       this
     }
 
