@@ -27,17 +27,16 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait Repeater[Res]{
   def repeatCondition(): Boolean
-  def stopCondition(): Boolean
   def action(): Res
 
   def delayMillis: Long = 100
 
   def start(): Res = {
-    val retries = Iterator.iterate(action()) { prev =>
+    val retries = Iterator.iterate[(Boolean, Res)](false -> action()) { case (stopped, prev) =>
       Thread.sleep(delayMillis)
-      if(!Thread.currentThread.isInterrupted && repeatCondition() && !stopCondition()) action() else prev
+      if(!Thread.currentThread.isInterrupted && repeatCondition() && !stopped) false -> action() else stopped -> prev
     }
-    retries.dropWhile(_ => !stopCondition()).next()
+    retries.dropWhile(!_._1).next()._2
   }
 }
 

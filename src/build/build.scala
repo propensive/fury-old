@@ -29,6 +29,7 @@ import java.text.DecimalFormat
 import fury.utils.Multiplexer
 
 import language.higherKinds
+import scala.util.control.NonFatal
 
 object ConfigCli {
   case class Context(cli: Cli[CliParam[_]])
@@ -208,26 +209,11 @@ object BuildCli {
       reporter     =  call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch        =  call(WatchArg).isSuccess
       compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
-      watcher      =  new SourceWatcher(compilation.allSources)
-      _            =  if(watch) watcher.start()
-      repeater     = new Repeater[Try[Future[CompileResult]]] {
-                       override def repeatCondition(): Boolean = watcher.hasChanges
-
-                       override def stopCondition(): Boolean = !watch
-
-                       override def action(): Try[Future[CompileResult]] = {
-                         watcher.clear()
+      r            =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
                          compileOnce(compilation, schema, module.ref(project), layout,
                            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
-                       }
-                     }
-      future       <- try{
-                        repeater.start()
-                      } catch {
-                        case e: Throwable => Failure(e)
-                      } finally {
-                        watcher.stop
                       }
+      future       <- if(watch) Try(r.start()).flatten else r.action()
     } yield {
       val result = Await.result(future, duration.Duration.Inf)
       log.await(result.isSuccessful)
@@ -288,40 +274,46 @@ object BuildCli {
       reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  call(WatchArg).isSuccess
       compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
-      watcher        =  new SourceWatcher(compilation.allSources)
-      _              =  if(watch) watcher.start()
-      repeater = new Repeater[Try[Future[CompileResult]]] {
-        override def repeatCondition(): Boolean = watcher.hasChanges
-
-        override def stopCondition(): Boolean = !watch
-
-        override def action(): Try[Future[CompileResult]] = {
-          watcher.clear()
-          for {
-            task <- compileOnce(compilation, schema, module.ref(project), layout,
-              globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
-          } yield {
-            task.transform { completed =>
-              for{
-                compileResult  <- completed
-                compileSuccess <- compileResult.asTry
-                _              <- compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
-                  dir in layout.pwd, layout, fatJar)
-              } yield compileSuccess
-            }
+      r              =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
+        for {
+          task <- compileOnce(compilation, schema, module.ref(project), layout,
+            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
+        } yield {
+          task.transform { completed =>
+            for{
+              compileResult  <- completed
+              compileSuccess <- compileResult.asTry
+              _              <- compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
+                dir in layout.pwd, layout, fatJar)
+            } yield compileSuccess
           }
         }
       }
-      future       <- try{
-                        repeater.start()
-                      } catch {
-                        case e: Throwable => Failure(e)
-                      } finally {
-                        watcher.stop
-                      }
+      future        <- if(watch) Try(r.start()).flatten else r.action()
     } yield {
       val result = Await.result(future, duration.Duration.Inf)
       log.await(result.isSuccessful)
+    }
+  }
+
+  private def repeater[T](sources: Set[Path])(f: Unit => T): Repeater[T] = new Repeater[T]{
+    private val watcher = new SourceWatcher(sources)
+    override def repeatCondition(): Boolean = watcher.hasChanges
+
+    override def start(): T = {
+      try{
+        watcher.start()
+        super.start()
+      } catch {
+        case NonFatal(e) => throw e
+        case x: Throwable => throw new Exception("Fatal exception inside watcher", x)
+      } finally {
+        watcher.stop
+      }
+    }
+    override def action(): T = {
+      watcher.clear()
+      f()
     }
   }
 
