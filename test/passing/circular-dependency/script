@@ -3,8 +3,8 @@ fury project add -n hello-world
 fury module add -n m1
 fury module add -n m2
 fury module add -n m3
-fury dependency add -m m1 -l m2
-fury dependency add -m m2 -l m3
-fury dependency add -m m3 -l m1
+fury dependency add -m m1 -d m2
+fury dependency add -m m2 -d m3
+fury dependency add -m m3 -d m1
 fury build describe
 echo $?

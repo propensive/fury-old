@@ -2,7 +2,7 @@ fury layer init
 
 fury project add -n hello-java
 fury module add -n app -t application -M HelloWorld
-fury source add -d src
+fury source add -f src
 mkdir -p src
 cat << EOF >  src/HelloWorld.java
 public class HelloWorld {

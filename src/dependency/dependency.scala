@@ -84,12 +84,12 @@ object DependencyCli {
     import ctx._
     for {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.after.to[List]))
+      cli       <- cli.hint(DependencyArg, optModule.to[List].flatMap(_.after.to[List]))
       cli       <- cli.hint(ForceArg)
       cli       <- cli.hint(HttpsArg)
       call      <- cli.call()
       https     <- ~call(HttpsArg).isSuccess
-      linkArg   <- call(LinkArg)
+      linkArg   <- call(DependencyArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
       moduleRef <- ModuleRef.parse(project.id, linkArg, false)
@@ -114,13 +114,13 @@ object DependencyCli {
       importedSchemas  = optSchema.flatMap(_.importedSchemas(ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
-      cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
+      cli              <- cli.hint(DependencyArg, allModules.filter(!_.hidden))
       cli              <- cli.hint(IntransitiveArg)
       call             <- cli.call()
       project          <- optProject.ascribe(UnspecifiedProject())
       module           <- optModule.ascribe(UnspecifiedModule())
       intransitive     <- ~call(IntransitiveArg).isSuccess
-      linkArg          <- call(LinkArg)
+      linkArg          <- call(DependencyArg)
       moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive)
 
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,

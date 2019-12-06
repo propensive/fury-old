@@ -6,7 +6,7 @@ fury binary add -b ch.epfl.lamp:dotty-compiler_0.20:0.20.0-bin-20191005-d67af24-
 fury binary add -b org.scala-lang:scala-library:2.13.1
 fury project add -n hello-world
 fury module add -n app -c scala3/compiler -t application -M HelloWorld
-fury source add -d src
+fury source add -f src
 mkdir -p src
 fury permission require -C java.lang.RuntimePermission -T accessClassInPackage.sun.misc
 fury permission require -C java.lang.RuntimePermission -T accessDeclaredMembers
