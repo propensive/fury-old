@@ -64,8 +64,10 @@ object ConfigCli {
     for {
       call     <- cli.call()
       code     <- ~Rnd.token(18)
-      future   <- ~Future(Http.get(str"https://${ManagedConfig().service}/await?code=$code", Map("code" -> code), Set()))
-      _        <- ~Future(Shell(cli.env).xdgOpen(str"https://${ManagedConfig().service}/auth?code=$code"))
+      // These futures should be managed in the session
+      _        <- ~log.info(msg"Please visit https://${ManagedConfig().service}/auth?code=$code to log in.")
+      future   <- ~Future(blocking(Http.get(str"https://${ManagedConfig().service}/await?code=$code", Map("code" -> code), Set())))
+      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(str"https://${ManagedConfig().service}/auth?code=$code")))
       response <- Await.result(future, Duration.Inf)
       json     <- ~Json.parse(new String(response, "UTF-8")).get
       token    <- ~json.token.as[String].get
