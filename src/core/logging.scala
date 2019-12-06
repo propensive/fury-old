@@ -97,15 +97,14 @@ object Log {
   private val logFiles: HashMap[Path, LogStyle] = HashMap()
   
   lazy val global: Log = {
-   
     val initDate = LocalDate.now()
     var cached: Int = initDate.getDayOfMonth
     
-    def create(date: LocalDate) = new PrintWriter(new BufferedWriter(new FileWriter(path(date).javaFile, true)))
-    def path(date: LocalDate) = Installation.logsDir / str"${date.toString}.log"
+    def create(date: LocalDate) =
+      new PrintWriter(new BufferedWriter(new FileWriter(path(date).javaFile, true)))
     
+    def path(date: LocalDate) = Installation.logsDir / str"${date.toString}.log"
     var printWriter: PrintWriter = create(initDate)
-   
     def update(date: LocalDate): Unit =printWriter = create(date)
 
     def get(): PrintWriter = {
