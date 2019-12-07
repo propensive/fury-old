@@ -695,6 +695,9 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
+  def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
+    repo.update(commit, track, layout, https)
+
   def current(layout: Layout, https: Boolean)(implicit log: Log): Try[RefSpec] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(layout, https))
     commit <- Shell(layout.env).git.getCommit(dir)
@@ -706,16 +709,18 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 }
 
 case class Repo(ref: String) {
-  def hash: Digest               = ref.digest[Md5]
+  def hash: Digest = ref.digest[Md5]
   def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
-  def update(layout: Layout): Try[UserMsg] = for {
-    oldCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
-    _         <- Shell(layout.env).git.fetch(path(layout), None)
+  def update
+      (oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)
+      (implicit log: Log)
+      : Try[Unit] = for {
+    _         <- fetch(layout, https)
     newCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
-    msg <- ~(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
-              else msg"Repository $this is unchanged")
-  } yield msg
+    _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
+                     else msg"Repository $this is unchanged")
+  } yield ()
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
     for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
@@ -727,10 +732,13 @@ case class Repo(ref: String) {
         path(layout).delete()
       }
 
-      log.info(msg"Cloning repository at $this")
+      log.info(msg"Fetching repository at $this")
       path(layout).mkdir()
       Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
-    } else Success(path(layout))
+    } else {
+      Shell(layout.env).git.fetch(path(layout), None)
+      Success(path(layout))
+    }
 
   def simplified: String = ref match {
     case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => str"gh:$group/$project"

@@ -137,7 +137,7 @@ case class Shell(environment: Environment) {
     def getCommitFromTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} rev-parse $tag".exec[Try[String]]
 
-    def getCommit(dir: Path): Try[String] = sh"git -C ${dir.value} rev-parse --short HEAD".exec[Try[String]]
+    def getCommit(dir: Path): Try[String] = sh"git -C ${dir.value} rev-parse HEAD".exec[Try[String]]
 
     def getBranchHead(dir: Path, branch: String): Try[String] =
       sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]]
