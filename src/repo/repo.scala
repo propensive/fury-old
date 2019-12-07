@@ -107,18 +107,20 @@ object RepoCli {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(HttpsArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(AllArg, List[String]())
-      call     <- cli.call()
+      call      <- cli.call()
+      https     <- ~call(HttpsArg).isSuccess
       all       <- ~call(AllArg).toOption
       
       optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                        schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
       repos     <- optRepos.map(schema.repo(_, layout)).sequence
-      msgs      <- repos.map(_.repo.update(layout).map(log.info(_))).sequence
+      succeeded <- ~repos.map(_.pull(layout, https)).forall(_.isSuccess)
       lens      <- ~Lenses.layer.repos(schema.id)
 
       newRepos  <- repos.map { repo => for {

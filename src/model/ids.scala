@@ -530,6 +530,7 @@ object RefSpec {
   implicit val stringShow: StringShow[RefSpec] = _.id
   val master: RefSpec = RefSpec("master")
 }
+
 case class RefSpec(id: String)
 
 object Commit {
