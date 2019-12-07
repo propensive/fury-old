@@ -512,18 +512,6 @@ object LayerCli {
     _         <- Layer.saveFocus(newFocus, layout)
   } yield log.await()
  
-  def extract(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
-    cli      <- cli.hint(DirArg)
-    cli      <- cli.hint(FileArg)
-    call     <- cli.call()
-    pwd      <- cli.pwd
-    file     <- call(FileArg).map(pwd.resolve(_))
-    dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
-    layout   <- cli.newLayout.map(_.copy(baseDir = dir))
-    layerRef <- Layer.loadFile(file, layout, cli.env)
-    _        <- Layer.saveFocus(Focus(layerRef), layout)
-  } yield log.await()
-
   def clone(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
