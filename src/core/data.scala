@@ -709,7 +709,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 }
 
 case class Repo(ref: String) {
-  def hash: Digest               = ref.digest[Md5]
+  def hash: Digest = ref.digest[Md5]
   def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
   def update
