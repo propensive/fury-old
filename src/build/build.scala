@@ -31,6 +31,7 @@ import java.text.DecimalFormat
 import fury.utils.Multiplexer
 
 import language.higherKinds
+import scala.util.control.NonFatal
 
 object ConfigCli {
   case class Context(cli: Cli[CliParam[_]])
@@ -63,8 +64,10 @@ object ConfigCli {
     for {
       call     <- cli.call()
       code     <- ~Rnd.token(18)
-      future   <- ~Future(Http.get(str"https://${ManagedConfig().service}/await?code=$code", Map("code" -> code), Set()))
-      _        <- ~Future(Shell(cli.env).xdgOpen(str"https://${ManagedConfig().service}/auth?code=$code"))
+      // These futures should be managed in the session
+      _        <- ~log.info(msg"Please visit https://${ManagedConfig().service}/auth?code=$code to log in.")
+      future   <- ~Future(blocking(Http.get(str"https://${ManagedConfig().service}/await?code=$code", Map("code" -> code), Set())))
+      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(str"https://${ManagedConfig().service}/auth?code=$code")))
       response <- Await.result(future, Duration.Inf)
       json     <- ~Json.parse(new String(response, "UTF-8")).get
       token    <- ~json.token.as[String].get
@@ -226,27 +229,13 @@ object BuildCli {
       reporter     =  call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch        =  call(WatchArg).isSuccess
       compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
-      watcher      =  new SourceWatcher(compilation.allSources)
-      //_            =  watcher.directories.map(_.toString).foreach(s => log.info(str"$s"))
-      _            =  if(watch) watcher.start()
-      future       <- new Repeater[Try[Future[CompileResult]]] {
-        var cnt: Int = 0
-        override def repeatCondition(): Boolean = watcher.hasChanges
-
-        override def stopCondition(): Boolean = !watch
-
-        override def action(): Try[Future[CompileResult]] = {
-          //log.info(str"Rebuild $cnt")
-          cnt = cnt + 1
-          watcher.clear()
-          compileOnce(compilation, schema, module.ref(project), layout,
-            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
-        }
-      }.start()
-      
+      r            =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
+                         compileOnce(compilation, schema, module.ref(project), layout,
+                           globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
+                      }
+      future       <- if(watch) Try(r.start()).flatten else r.action()
     } yield {
       val result = Await.result(future, duration.Duration.Inf)
-      watcher.stop
       log.await(result.isSuccessful)
     }
   }
@@ -305,37 +294,46 @@ object BuildCli {
       reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  call(WatchArg).isSuccess
       compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
-      watcher        =  new SourceWatcher(compilation.allSources)
-      _              =  if(watch) watcher.start()
-      future         <- new Repeater[Try[Future[CompileResult]]] {
-        var cnt: Int = 0
-        override def repeatCondition(): Boolean = watcher.hasChanges
-
-        override def stopCondition(): Boolean = !watch
-
-        override def action(): Try[Future[CompileResult]] = {
-          //log.info(str"Rebuild $cnt")
-          cnt = cnt + 1
-          watcher.clear()
-          for {
-            task <- compileOnce(compilation, schema, module.ref(project), layout,
-              globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
-          } yield {
-            task.transform { completed =>
-              for{
-                compileResult  <- completed
-                compileSuccess <- compileResult.asTry
-                _              <- compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
-                  dir in layout.pwd, layout, fatJar)
-              } yield compileSuccess
-            }
+      r              =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
+        for {
+          task <- compileOnce(compilation, schema, module.ref(project), layout,
+            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
+        } yield {
+          task.transform { completed =>
+            for{
+              compileResult  <- completed
+              compileSuccess <- compileResult.asTry
+              _              <- compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
+                dir in layout.pwd, layout, fatJar)
+            } yield compileSuccess
           }
         }
-      }.start()
+      }
+      future        <- if(watch) Try(r.start()).flatten else r.action()
     } yield {
       val result = Await.result(future, duration.Duration.Inf)
-      watcher.stop
       log.await(result.isSuccessful)
+    }
+  }
+
+  private def repeater[T](sources: Set[Path])(f: Unit => T): Repeater[T] = new Repeater[T]{
+    private val watcher = new SourceWatcher(sources)
+    override def repeatCondition(): Boolean = watcher.hasChanges
+
+    override def start(): T = {
+      try{
+        watcher.start()
+        super.start()
+      } catch {
+        case NonFatal(e) => throw e
+        case x: Throwable => throw new Exception("Fatal exception inside watcher", x)
+      } finally {
+        watcher.stop
+      }
+    }
+    override def action(): T = {
+      watcher.clear()
+      f()
     }
   }
 

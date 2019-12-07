@@ -86,6 +86,7 @@ jobs:
         name: community-logs-${{ runner.os }}
         path: community-logs.tar.gz
     - name: Inspect cache
+      if: contains(runner.os, 'ubuntu')
       run: du -h ~/.cache/fury --max-depth 2        
     - name: Summary
       run: |
