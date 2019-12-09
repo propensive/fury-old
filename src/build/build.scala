@@ -525,8 +525,10 @@ object LayerCli {
     cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
     call          <- cli.call()
     layerImport   <- call(ImportArg)
-    followable    <- Layer.follow(layerImport).ascribe(UnspecifiedLayer())
-    layerRef      <- Layer.resolve(followable, cli.env)
+    layerRef      <- layerImport match {
+      case IpfsImport(hash) => Layer.loadFromIpfs(hash, cli.env)
+      case imp => Layer.resolve(Layer.follow(imp), cli.env)
+    }
     dir           <- call(DirArg)
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
@@ -568,10 +570,8 @@ object LayerCli {
       fileImport    <- ~cli.peek(FileArg)
       call          <- cli.call()
       layerRef      <- (layerImport, fileImport) match {
-        case (Some(imp), None) => for {
-          followable <- Layer.follow(imp).ascribe(UnspecifiedLayer())
-          ref <- Layer.resolve(followable, cli.env)
-        } yield ref
+        case (Some(IpfsImport(hash)), None) => Layer.loadFromIpfs(hash, cli.env)
+        case (Some(imp), None) => Layer.resolve(Layer.follow(imp), cli.env)
         case (None, Some(path)) =>
           Layer.loadFile(path in layout.pwd, layout, cli.env)
         case _ => Failure(UnspecifiedLayer())
