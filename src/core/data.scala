@@ -427,10 +427,9 @@ object Layer {
     artifacts <- ~catalogs.flatMap(_.artifacts)
   } yield artifacts
  
-  def follow(importLayer: ImportLayer): Option[Followable] = importLayer match {
-    case IpfsImport(hash) => None
-    case RefImport(followable) => Some(followable)
-    case DefaultImport(path) => Some(Followable(ManagedConfig().service, path))
+  def follow(importLayer: ImportLayer): Followable = importLayer match {
+    case RefImport(followable) => followable
+    case DefaultImport(path) => Followable(ManagedConfig().service, path)
   }
 
   def resolve(followable: Followable, env: Environment)(implicit log: Log): Try[LayerRef] = for {
