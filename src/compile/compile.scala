@@ -491,16 +491,20 @@ case class Compilation(graph: Target.Graph,
   def compileModule(target: Target,
                     layout: Layout,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
-                    pipelining: Boolean)(implicit log: Log)
+                    pipelining: Boolean,
+                    globalPolicy: Policy,
+                    args: List[String])(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
     val furyTargetIds = deepDependencies(target.id).toList
+    
     val bspTargetIds = furyTargetIds.map { dep =>
       new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
     }
+    
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
@@ -513,9 +517,6 @@ case class Compilation(graph: Target.Graph,
         } yield CompileResult(res, opts)
       }
 
-      //conn.writeTrace(layout)
-      //conn.writeMessages(layout)
-      
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
         val bti = soi.getTarget
         val classDir = soi.getClassDirectory
@@ -528,6 +529,13 @@ case class Compilation(graph: Target.Graph,
       }
 
       result.get
+    }.map {
+      case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
+        val classDirectories = compileResult.classDirectories
+        val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0
+        if(runSuccess) compileResult else compileResult.failed
+      case otherResult =>
+        otherResult
     }
   }
 
@@ -560,18 +568,12 @@ case class Compilation(graph: Target.Graph,
       } else {
         val noCompilation = target.sourcePaths.isEmpty
 
-        if(noCompilation) deepDependencies(target.id).foreach { targetId =>
-          multiplexer(targetId.ref) = NoCompile(targetId.ref)
-        }
-
-        compileModule(target, layout, multiplexer, pipelining).map {
-          case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
-            val classDirectories = compileResult.classDirectories
-            val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0
-            if(runSuccess) compileResult else compileResult.failed
-          case otherResult =>
-            otherResult
-        }
+        if(noCompilation) {
+          deepDependencies(target.id).foreach { targetId =>
+            multiplexer(targetId.ref) = NoCompile(targetId.ref)
+          }
+          Future.successful(required)
+        } else compileModule(target, layout, multiplexer, pipelining, globalPolicy, args)
       }
     }
 
