@@ -544,8 +544,8 @@ object LayerCli {
     cli           <- cli.hint(DirArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
+    layout        <- cli.newLayout
     layerImport   <- call(ImportArg)
-    layout        <- cli.layout
     layerRef      <- Layer.resolveLoad(layerImport, layout, cli.env)
     dir           <- call(DirArg)
     pwd           <- cli.pwd
@@ -559,7 +559,6 @@ object LayerCli {
     cli           <- cli.hint(RemoteLayerArg)
     call          <- cli.call()
     layer         <- Layer.read(layout)
-    call          <- cli.call()
     path          <- call(RemoteLayerArg)
     ref           <- Layer.share(layer, layout, cli.env)
     pub           <- Service.publish(ref.key, cli.env, path)

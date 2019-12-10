@@ -409,7 +409,7 @@ object Layer {
 
   def share(layer: Layer, layout: Layout, env: Environment)(implicit log: Log): Try[IpfsRef] =
     Installation.tmpFile { tmp => for {
-      layerRef  <- ~digestLayer(layer)
+      layerRef  <- saveLayer(layer)
       schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
       layerRefs <- collectLayerRefs(schemaRef, layout)
       filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
@@ -483,7 +483,7 @@ object Layer {
   } yield imports + ref.layerRef
 
   def export(layer: Layer, layout: Layout, path: Path)(implicit log: Log): Try[Path] = for {
-    layerRef  <- ~digestLayer(layer)
+    layerRef  <- saveLayer(layer)
     schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
     layerRefs <- collectLayerRefs(schemaRef, layout)
     filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap

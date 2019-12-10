@@ -137,9 +137,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
 
-  lazy val newLayout: Try[Layout] = pwd.map { pwd =>
-    Layout(Path(env.variables("HOME")), pwd, env, pwd)
-  }
+  lazy val newLayout: Try[Layout] = pwd.map { pwd => Layout(Path(env.variables("HOME")), pwd, env, pwd) }
 
   lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), pwd, env) }
   
