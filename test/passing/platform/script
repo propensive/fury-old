@@ -20,17 +20,18 @@ fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n library
 fury module add -n core -c scala/compiler
-fury repo add -n library -u $(realpath ../library)
+fury repo add -n library -u ../library
 fury source add -d library:src/core
 git add .
 git commit -m 'platform' -q
 fury build run --output linear
 echo $?
+IPFSREF=$(fury layer share)
 
 cd ../app
 fury layer init
-fury repo add -n platform -u $(realpath ../platform)
-fury import add -i platform:platform
+fury layer import -l $IPFSREF --name platform --import platform
+IPFSREF=
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read

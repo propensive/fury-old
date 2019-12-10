@@ -4,8 +4,12 @@ Set current module to compiler
 Set current project to library
 Setting default compiler for project library to scala/compiler
 Set current module to core
-Cloning repository at repo-conflict/library
-Checking out src/core from repository library
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
 Starting compilation of module library/core
 Successfully compiled module library/core
 0
@@ -17,7 +21,12 @@ Setting default compiler for project library to scala/compiler
 Set current module to core
 Repository repo-conflict/library updated to new commit
 Repository library checked out to commit
-Checking out src/core from repository library
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
 Starting compilation of module library/core
 Successfully compiled module library/core
 0

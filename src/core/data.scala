@@ -704,8 +704,8 @@ object SourceRepo {
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(layout, https))
-    commit <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.getBranchHead(dir,
-                  track.id).toOption).getOrElse(track.id)
+    commit <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.
+                  getBranchHead(dir, track.id).toOption).getOrElse(track.id)
     files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(Shell(layout.env).git.lsTree(dir,
                   commit))
   } yield files
@@ -720,6 +720,9 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     schemas     <- ~layer.schemas.to[List]
   } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
+  def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
+    repo.pull(commit, track, layout, https)
+
   def current(layout: Layout, https: Boolean)(implicit log: Log): Try[RefSpec] = for {
     dir    <- local.map(Success(_)).getOrElse(repo.fetch(layout, https))
     commit <- Shell(layout.env).git.getCommit(dir)
@@ -731,21 +734,21 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 }
 
 case class Repo(ref: String) {
-  def hash: Digest               = ref.digest[Md5]
+  def hash: Digest = ref.digest[Md5]
   def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
-  def update(layout: Layout): Try[UserMsg] = for {
-    oldCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
-    _         <- Shell(layout.env).git.fetch(path(layout), None)
-    newCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
-    msg <- ~(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
-              else msg"Repository $this is unchanged")
-  } yield msg
+  def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
+    for {
+      _         <- fetch(layout, https)
+      newCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
+      _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
+                       else msg"Repository $this has not changed")
+    } yield ()
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
     for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
 
-  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] =
+  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
     if(!(path(layout) / ".done").exists) {
       if(path(layout).exists()) {
         log.info(msg"Found incomplete clone of $this at ${path(layout)}")
@@ -756,6 +759,7 @@ case class Repo(ref: String) {
       path(layout).mkdir()
       Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
     } else Success(path(layout))
+  }
 
   def simplified: String = ref match {
     case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => str"gh:$group/$project"
