@@ -18,9 +18,6 @@ b7d1eb536c388d4e9adf8dfbb4c0d69aa8c267030d616f6883c35e27efe2befd
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
-Starting the BSP launcher...
-Opening a BSP server connection
-BSP server is listening for incoming connections
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello World

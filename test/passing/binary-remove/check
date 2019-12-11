@@ -31,9 +31,6 @@ Unable to identify target binary:
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
-Starting the BSP launcher...
-Opening a BSP server connection
-BSP server is listening for incoming connections
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello world!
