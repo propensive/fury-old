@@ -16,7 +16,7 @@
 */
 package fury.utils
 
-import fury.strings._
+import fury.strings._, fury.model._
 
 import euphemism._
 
@@ -49,40 +49,55 @@ abstract class Postable[T](val contentType: String) { def content(value: T): Arr
 case class HttpHeader(key: String, value: String)
 
 object Http {
-  def post[T: Postable](url: String, content: T, headers: Set[HttpHeader]): Try[Array[Byte]] =
+  def post[T: Postable](url: Uri, content: T, headers: Set[HttpHeader]): Try[Array[Byte]] =
     request[T](url, content, "POST", headers)
 
-  def get(url: String, params: Map[String, String], headers: Set[HttpHeader]): Try[Array[Byte]] =
+  def get(url: Uri, params: Map[String, String], headers: Set[HttpHeader]): Try[Array[Byte]] =
     request(url, params, "POST", headers)
 
-  def request[T: Postable](url: String, content: T, method: String, headers: Set[HttpHeader]): Try[Array[Byte]] = {
-    new URL(url).openConnection match {
+  def request[T: Postable](url: Uri, content: T, method: String, headers: Set[HttpHeader]): Try[Array[Byte]] = {
+    new URL(url.key).openConnection match {
       case conn: HttpURLConnection =>
         conn.setRequestMethod(method)
         conn.setRequestProperty("Content-Type", implicitly[Postable[T]].contentType)
         conn.setRequestProperty("User-Agent", str"Fury ${Version.current}")
         headers.foreach { case HttpHeader(key, value) => conn.setRequestProperty(key, value) }
         conn.setDoOutput(true)
-        val out = conn.getOutputStream()
-        out.write(implicitly[Postable[T]].content(content))
-        out.close()
+        
+        Try(conn.getOutputStream()).recoverWith {
+          case ex: UnknownHostException =>
+            Failure(DnsLookupFailure(ex.getMessage))
+        }.flatMap { out =>
+          out.write(implicitly[Postable[T]].content(content))
+          out.close()
 
-        conn.getResponseCode match {
-          case 200 =>
-            val in = conn.getInputStream()
-            val data = new ByteArrayOutputStream()
-            val buf = new Array[Byte](65536)
-            
-            @tailrec
-            def read(): Array[Byte] = {
-              val bytes = in.read(buf, 0, buf.length)
-              if(bytes < 0) data.toByteArray else {
-                data.write(buf, 0, bytes)
-                read()
+          conn.getResponseCode match {
+            case 200 =>
+              val in = conn.getInputStream()
+              val data = new ByteArrayOutputStream()
+              val buf = new Array[Byte](65536)
+              
+              @tailrec
+              def read(): Array[Byte] = {
+                val bytes = in.read(buf, 0, buf.length)
+                if(bytes < 0) data.toByteArray else {
+                  data.write(buf, 0, bytes)
+                  read()
+                }
               }
-            }
-            Try(read())
-          case code => Failure(HttpException(code))
+              Try(read())
+            case 400 => Failure(HttpBadRequest(url))
+            case 401 => Failure(HttpUnauthorized(url))
+            case 403 => Failure(HttpForbidden(url))
+            case 404 => Failure(HttpNotFound(url))
+            case 405 => Failure(HttpMethodNotAllowed(url))
+            case 500 => Failure(HttpInternalServerError(url))
+            case 501 => Failure(HttpNotImplemented(url))
+            case 502 => Failure(HttpBadGateway(url))
+            case 503 => Failure(HttpServiceUnavailable(url))
+            case 504 => Failure(HttpGatewayTimeout(url))
+            case code => Failure(HttpError(code, url))
+          }
         }
     }
   }

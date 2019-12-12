@@ -70,6 +70,16 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
+object Uri {
+  implicit val msgShow: MsgShow[Uri] = uri => UserMsg { theme => theme.uri(theme.underline(uri.key)) }
+  implicit val stringShow: StringShow[Uri] = _.key
+  implicit def diff: Diff[Uri] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+}
+
+case class Uri(schema: String, path: String) extends Key(msg"URI") {
+  def key: String = str"${schema}://${path}"
+}
+
 object ImportPath {
   implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
   implicit val stringShow: StringShow[ImportPath] = _.path
@@ -117,8 +127,9 @@ object IpfsRef {
   }
 }
 
-case class IpfsRef(key: String) extends Key(msg"ipfs ref") with LayerInput {
+case class IpfsRef(key: String) extends Key(msg"IPFS ref") with LayerInput {
   def suggestedName: Option[ImportId] = None
+  def uri: Uri = Uri("fury", key)
 }
 
 case class Catalog(entries: SortedSet[Artifact])

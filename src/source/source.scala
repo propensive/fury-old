@@ -69,7 +69,7 @@ object SourceCli {
       table   <- ~Tables().show(Tables().sources, cli.cols, rows, raw)(_.repoIdentifier)
       schema  <- defaultSchema
       
-      _       <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.info(table.mkString("\n"))

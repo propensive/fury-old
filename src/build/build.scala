@@ -65,8 +65,9 @@ object ConfigCli {
       call     <- cli.call()
       code     <- ~Rnd.token(18)
       // These futures should be managed in the session
+      uri      <- ~Uri("https", str"${ManagedConfig().service}/await?code=$code")
       _        <- ~log.info(msg"Please visit https://${ManagedConfig().service}/auth?code=$code to log in.")
-      future   <- ~Future(blocking(Http.get(str"https://${ManagedConfig().service}/await?code=$code", Map("code" -> code), Set())))
+      future   <- ~Future(blocking(Http.get(uri, Map("code" -> code), Set())))
       _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(str"https://${ManagedConfig().service}/auth?code=$code")))
       response <- Await.result(future, Duration.Inf)
       json     <- ~Json.parse(new String(response, "UTF-8")).get
@@ -93,7 +94,7 @@ object AliasCli {
       raw   <- ~call(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, true)))
+      _     <- ~(if(!raw) log.info(Tables().contextString(layer, true)))
       _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -510,7 +511,7 @@ object LayerCli {
     https     <- ~call(HttpsArg).isSuccess
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+    _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
     _         <- ~log.info(table.mkString("\n"))
   } yield log.await()
 
@@ -562,7 +563,8 @@ object LayerCli {
     path          <- call(RemoteLayerArg)
     ref           <- Layer.share(layer, layout, cli.env)
     pub           <- Service.publish(ref.key, cli.env, path)
-    _             <- ~log.info(str"fury://${ManagedConfig().service}/$path")
+    _             <- ~log.info(msg"Shared at ${ref.uri}")
+    _             <- ~log.info(msg"Published to $pub")
   } yield log.await()
 
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -570,7 +572,7 @@ object LayerCli {
     layer         <- Layer.read(layout)
     call          <- cli.call()
     ref           <- Layer.share(layer, layout, cli.env)
-    _             <- ~log.info(str"fury://${ref.key}")
+    _             <- ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
   def export(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -647,7 +649,7 @@ object LayerCli {
       table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema))
+      _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema))
                        else log)
       
       _         <- ~log.info(UserMsg { theme => table.mkString("\n") })

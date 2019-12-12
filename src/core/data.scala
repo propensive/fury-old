@@ -387,10 +387,14 @@ case class Layer(version: Int = Layer.CurrentVersion,
   def showSchema: Boolean = schemas.size > 1
   def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
+
+  def hash: String = Layer.digestLayer(this).key.take(10)
 }
 
 object Layer {
   val CurrentVersion = 4
+  implicit val msgShow: MsgShow[Layer]       = r => UserMsg(_.layer(r.hash))
+  implicit val stringShow: StringShow[Layer] = _.hash
 
   def loadFromIpfs(layerRef: IpfsRef, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     Installation.tmpFile { tmpFile => for {
@@ -961,7 +965,7 @@ object Service {
 
   def catalog(): Try[List[Artifact]] = {
     val service = ManagedConfig().service
-    val url = str"https://$service/catalog"
+    val url = Uri("https", str"$service/catalog")
     
     for {
       bytes <- Http.get(url, Map(), Set())
@@ -970,20 +974,19 @@ object Service {
     } yield artifacts
   }
 
-  def publish(hash: String, env: Environment, path: String): Try[String] = {
+  def publish(hash: String, env: Environment, path: String)(implicit log: Log): Try[Uri] = {
     val service = ManagedConfig().service
-    val url = str"https://$service/publish"
+    val url = Uri("https", str"$service/publish")
     case class Output(output: String)
     for {
       id   <- Try(Shell(env).ipfs.id().get)
-      out  <- Http.post(url, Json.of(path = path, hash = hash, addresses = id.Addresses.filter {
-                addr => !addr.startsWith("/ipv6/::1/") && !addr.startsWith("/ipv4/127.0.0.1") &&
-                    !addr.startsWith("/ipv4/192.168.") && !addr.startsWith("/ipv4/10.")
-              }), headers = Set())
+      _    <- ~log.info("Sending "+Json.of(path = path, token = ManagedConfig().token, hash = hash))
+      out  <- Http.post(url, Json.of(path = path, token = ManagedConfig().token, hash = hash), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
+      _    <- ~log.info(str)
       json <- Try(Json.parse(str).get)
       res  <- Try(json.as[Output].get)
-    } yield res.output
+    } yield Uri("fury", res.output)
   }
 }
 

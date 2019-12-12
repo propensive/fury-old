@@ -51,6 +51,18 @@ case class CompilationFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
 case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
 case class BspException() extends FuryException
+case class HttpBadRequest(uri: Uri) extends FuryException
+case class HttpUnauthorized(uri: Uri) extends FuryException
+case class HttpForbidden(uri: Uri) extends FuryException
+case class HttpNotFound(uri: Uri) extends FuryException
+case class HttpMethodNotAllowed(uri: Uri) extends FuryException
+case class HttpInternalServerError(uri: Uri) extends FuryException
+case class HttpNotImplemented(uri: Uri) extends FuryException
+case class HttpBadGateway(uri: Uri) extends FuryException
+case class HttpServiceUnavailable(uri: Uri) extends FuryException
+case class HttpGatewayTimeout(uri: Uri) extends FuryException
+case class HttpError(code: Int, uri: Uri) extends FuryException
+case class DnsLookupFailure(domain: String) extends FuryException
 
 object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
