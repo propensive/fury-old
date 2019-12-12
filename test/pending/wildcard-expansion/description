@@ -1,0 +1,1 @@
+verifies that characters like * are not expanded by the shell when they are escaped
