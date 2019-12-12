@@ -980,10 +980,8 @@ object Service {
     case class Output(output: String)
     for {
       id   <- Try(Shell(env).ipfs.id().get)
-      _    <- ~log.info("Sending "+Json.of(path = path, token = ManagedConfig().token, hash = hash))
       out  <- Http.post(url, Json.of(path = path, token = ManagedConfig().token, hash = hash), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
-      _    <- ~log.info(str)
       json <- Try(Json.parse(str).get)
       res  <- Try(json.as[Output].get)
     } yield Uri("fury", res.output)

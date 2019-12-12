@@ -74,6 +74,7 @@ object ConfigCli {
       token    <- ~json.token.as[String].get
       config   <- ~ManagedConfig().copy(token = token)
       _        <- ~ManagedConfig.write(config)
+      _        <- ~log.info("You are now authenticated")
     } yield log.await()
 
   }
@@ -338,7 +339,7 @@ object BuildCli {
     }
   }
 
-  def native(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def install(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -349,9 +350,11 @@ object BuildCli {
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli          <- cli.hint(DirArg)
+      cli          <- cli.hint(ExecNameArg)
+      //cli          <- cli.hint(DirArg)
       call         <- cli.call()
-      dir          <- call(DirArg)
+      name         <- call(ExecNameArg)
+      //dir          <- call(DirArg)
       https        <- ~call(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       optModuleId  <- ~call(ModuleArg).toOption.orElse(project.main)
@@ -363,7 +366,10 @@ object BuildCli {
       
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
-      _            <- compilation.saveNative(module.ref(project), dir in layout.pwd, layout, main)
+      _            <- compilation.saveNative(module.ref(project), Path("/usr/local/bin"), layout, main)
+      bin          <- ~Path(str"/usr/local/bin/${main.toLowerCase}")
+      newBin       <- ~(bin.rename { _ => name })
+      _            <- bin.moveTo(newBin)
     } yield log.await()
   }
 
@@ -564,7 +570,7 @@ object LayerCli {
     ref           <- Layer.share(layer, layout, cli.env)
     pub           <- Service.publish(ref.key, cli.env, path)
     _             <- ~log.info(msg"Shared at ${ref.uri}")
-    _             <- ~log.info(msg"Published to $pub")
+    _             <- ~log.info(msg"Published to ${Uri("fury", str"${ManagedConfig().service}/${path}")}")
   } yield log.await()
 
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
