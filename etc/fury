@@ -61,7 +61,7 @@ silently() {
     EXITCODE=$?
     [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
   else
-    $@;
+    "$@";
     EXITCODE=$?
   fi
   case $EXITCODE in

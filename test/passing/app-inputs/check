@@ -15,4 +15,4 @@ Opening a BSP server connection
 BSP server is listening for incoming connections
 Starting compilation of module example/app
 Successfully compiled module example/app
-Test:something
+Test message:something
