@@ -108,7 +108,7 @@ case class ImportPath(path: String) {
     }
 }
 
-case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))
+case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"))
 
 object IpfsRef {
   def parse(str: String): Option[IpfsRef] = str match {
