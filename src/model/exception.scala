@@ -50,6 +50,7 @@ case class CompilationFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
 case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
 case class BspException() extends FuryException
+case class LayersFailure(layer: ImportPath) extends FuryException
 
 object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)

@@ -73,7 +73,7 @@ case class ModuleId(key: String) extends Key(msg"module")
 object ImportPath {
   implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
   implicit val stringShow: StringShow[ImportPath] = _.path
-  val Root: ImportPath = ImportPath("")
+  val Root: ImportPath = ImportPath("/") //Can i change this?
 
   // FIXME: Actually parse it and check that it's valid
   def parse(str: String): Option[ImportPath] =
