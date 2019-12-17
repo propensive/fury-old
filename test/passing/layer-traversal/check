@@ -1,0 +1,20 @@
+Initialized an empty layer
+Set current project to scala
+Set current module to compiler
+Set current project to library
+Setting default compiler for project library to scala/compiler
+Set current module to core
+Checking out src/core from repository library
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
+Starting compilation of module library/core
+Successfully compiled module library/core
+0
+Initialized an empty layer
+platform
+path	/
+path	/platform
+path	/
+path	/
+path	/platform
