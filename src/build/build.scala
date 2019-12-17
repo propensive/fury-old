@@ -498,13 +498,13 @@ object LayerCli {
     layout    <- cli.layout
     baseLayer <- Layer.base(layout)
     schema    <- baseLayer.mainSchema
-    cli       <- cli.hint(LayerArg,  schema.importTree(layout, true).getOrElse(Nil))
+    cli       <- cli.hint(LayerArg, schema.importTree(layout, true).getOrElse(Nil))
     call      <- cli.call()
     layers    <- schema.importTree(layout, true)
     relPath   <- call(LayerArg)
-    -         <- verifyLayers(relPath, layers)
     focus     <- Layer.readFocus(layout)
     newPath   <- ~focus.path.dereference(relPath)
+    -         <- verifyLayers(newPath, layers)
     newFocus  <- ~focus.copy(path = newPath)
     _         <- Layer.saveFocus(newFocus, layout)
   } yield log.await()

@@ -73,7 +73,7 @@ case class ModuleId(key: String) extends Key(msg"module")
 object ImportPath {
   implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
   implicit val stringShow: StringShow[ImportPath] = _.path
-  val Root: ImportPath = ImportPath("/") //Can i change this?
+  val Root: ImportPath = ImportPath("/")
 
   // FIXME: Actually parse it and check that it's valid
   def parse(str: String): Option[ImportPath] =
@@ -101,9 +101,11 @@ case class ImportPath(path: String) {
   def dereference(relPath: ImportPath): ImportPath =
     if(relPath.path.startsWith("/")) relPath
     else {
-      rawParts match {
-        case ".." :: tail => ImportPath(rawParts.dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
-        case xs => ImportPath((rawParts ++ xs).mkString("/"))
+      val value = relPath.path.split("/").to[List]
+      value match {
+        case ".." :: tail =>
+          ImportPath(value.dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
+        case _            => ImportPath("/" + value.mkString("/"))
       }
     }
 }
