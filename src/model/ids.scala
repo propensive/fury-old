@@ -98,14 +98,17 @@ case class ImportPath(path: String) {
   def prefix(importId: ImportId): ImportPath =
     ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
 
-  def dereference(relPath: ImportPath): ImportPath =
-    if(relPath.path.startsWith("/")) relPath
+  def dereference(relPath: ImportPath): ImportPath = {
+    import java.nio.file.{ Path, Paths }
+    val fakePath = Paths.get(this.path).normalize()
+    val fakeRelPath = Paths.get(relPath.path).normalize()
+    if(fakeRelPath.toString.startsWith("/")) ImportPath(fakeRelPath.toString)
     else {
-      rawParts match {
-        case ".." :: tail => ImportPath(rawParts.dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
-        case xs => ImportPath((rawParts ++ xs).mkString("/"))
-      }
+      val resolvedFakePath = fakePath.resolve(fakeRelPath).normalize()
+      if(resolvedFakePath.startsWith("/")) ImportPath(resolvedFakePath.toString)
+      else throw new Exception(s"$resolvedFakePath")
     }
+  }
 }
 
 case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"))
