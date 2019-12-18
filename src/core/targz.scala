@@ -16,12 +16,12 @@
 */
 package fury.core
 
-import fury.io._, fury.model._, fury.strings._
+import fury.io._
 
 import java.io._
-import annotation._
+import annotation.tailrec
 import scala.util.Try
-import org.kamranzafar.jtar._
+import org.kamranzafar.jtar.{TarEntry, TarInputStream, TarOutputStream}
 
 import java.util.zip._
 
