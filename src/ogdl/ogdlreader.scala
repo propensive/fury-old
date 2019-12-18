@@ -17,6 +17,7 @@
 package fury.ogdl
 
 import magnolia._
+import java.nio.file.{Path, Paths}
 
 import scala.collection.generic.CanBuildFrom
 import scala.language.experimental.macros
@@ -58,6 +59,7 @@ object OgdlReader {
   implicit val int: OgdlReader[Int]         = _().toInt
   implicit val long: OgdlReader[Long]       = _().toLong
   implicit val boolean: OgdlReader[Boolean] = _().toBoolean
+  implicit val jpath: OgdlReader[Path]      = ogdl => Paths.get(ogdl())
 
   implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader](
       implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]

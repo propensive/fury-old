@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.strings._, fury.io._
+import fury.strings._
 
 import kaleidoscope._
 import gastronomy._
@@ -26,6 +26,9 @@ import scala.util._
 import language.higherKinds
 
 import scala.collection.immutable.SortedSet
+import scala.collection.JavaConverters._
+
+import java.nio.file.{ Path, Paths }
 
 object Kind {
   implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
@@ -71,23 +74,24 @@ object ModuleId {
 case class ModuleId(key: String) extends Key(msg"module")
 
 object ImportPath {
-  implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
-  implicit val stringShow: StringShow[ImportPath] = _.path
+  implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path.toString))
+  implicit val stringShow: StringShow[ImportPath] = _.path.toString
   val Root: ImportPath = ImportPath("/")
 
   // FIXME: Actually parse it and check that it's valid
   def parse(str: String): Option[ImportPath] =
     Some(ImportPath(str))
+
+  def apply(path: String): ImportPath = apply(Paths.get(path))
 }
 
-case class ImportPath(path: String) {
+case class ImportPath(path: Path) {
 
-  private[this] lazy val rawParts: List[String] = path.split("/").to[List]
+  private[this] lazy val rawParts: List[Path] = path.iterator.asScala.to[List]
 
-  def parts: List[ImportId] = rawParts match {
-    case Nil => Nil
-    case "" :: tail => tail.map(ImportId(_))
-    case _ => Nil
+  def parts: List[ImportId] = {
+    if(path.isAbsolute) rawParts.map(part => ImportId(part.toString))
+    else ???
   }
 
   def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
@@ -99,11 +103,9 @@ case class ImportPath(path: String) {
     ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
 
   def dereference(relPath: ImportPath): Try[ImportPath] = {
-    import java.nio.file.{ Path, Paths }
-    val fakePath = Paths.get(this.path).normalize()
-    val fakeRelPath = Paths.get(relPath.path)
+    val fakePath = this.path.normalize()
+    val fakeRelPath = relPath.path
     def goesAboveRoot(p: Path): Boolean = {
-      import scala.collection.JavaConverters._
       p.iterator().asScala.map(_.toString).map{
         case ".." => -1
         case "." => 0

@@ -19,6 +19,7 @@ package fury.ogdl
 import fury.strings._
 
 import magnolia.{CaseClass, Magnolia, SealedTrait}
+import java.nio.file.{Path, Paths}
 
 import scala.collection.immutable.SortedSet
 import scala.language.experimental.macros
@@ -53,6 +54,7 @@ object OgdlWriter {
   implicit val int: OgdlWriter[Int]         = i => Ogdl(i.toString)
   implicit val long: OgdlWriter[Long]       = l => Ogdl(l.toString)
   implicit val boolean: OgdlWriter[Boolean] = b => Ogdl(b.toString)
+  implicit val jpath: OgdlWriter[Path]      = b => Ogdl(b.toString)
 
   implicit def list[T: OgdlWriter: StringShow]: OgdlWriter[List[T]] =
     coll =>

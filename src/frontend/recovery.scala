@@ -135,7 +135,7 @@ You can grant these permissions with,
         case UnspecifiedBinary(possibleBinaries) =>
           cli.abort(msg"Unable to identify target binary: ${"\n\t"}${possibleBinaries.mkString("\n\t")}")
         case LayersFailure(layerPath) =>
-          cli.abort(msg"Layer name ${layerPath.path} not found.")
+          cli.abort(msg"Layer name $layerPath not found.")
         case e =>
           val errorString =
             s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
