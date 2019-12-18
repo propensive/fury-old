@@ -415,20 +415,6 @@ object Layer {
       ref       <- Shell(env).ipfs.add(tmp)
     } yield ref }
 
-  def loadCatalog(catalogRef: IpfsRef, env: Environment)(implicit log: Log): Try[Catalog] =
-    Installation.tmpFile { tmpFile => for {
-      file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
-      catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
-    } yield catalog
-  }
-
-  /*def lookup(domain: String, env: Environment)(implicit log: Log): Try[List[Artifact]] = for {
-    records   <- Dns.lookup(domain)
-    records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
-    catalogs  <- records.map { loadCatalog(_, env) }.sequence
-    artifacts <- ~catalogs.flatMap(_.entries)
-  } yield artifacts*/
-
   def resolve(path: String, layout: Layout): Option[LayerInput] = {
     val service = ManagedConfig().service
     path match {

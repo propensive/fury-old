@@ -170,7 +170,7 @@ case class Shell(environment: Environment) {
 
     def ensureNativeImageInPath(): Try[Unit] =
       Try(sh"native-image --help".exec[Try[String]]).fold(
-          _ => Failure(GraalVMError("native-image could not be executed")),
+          _ => Failure(GraalVMError("This requires the native-image command to be on the PATH")),
           _.map(_ => ())
       )
   }
@@ -193,7 +193,7 @@ case class Shell(environment: Environment) {
 
     for {
       _  <- java.ensureNativeImageInPath
-      _  <- java.ensureIsGraalVM()
+      //_  <- java.ensureIsGraalVM()
       cp  = classpath.mkString(":")
       _  <- sh"native-image -cp $cp $main".exec[Try[String]].map(main.toLowerCase.waive)
     } yield ()
