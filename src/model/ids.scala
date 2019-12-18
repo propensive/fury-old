@@ -73,7 +73,7 @@ case class ModuleId(key: String) extends Key(msg"module")
 object ImportPath {
   implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
   implicit val stringShow: StringShow[ImportPath] = _.path
-  val Root: ImportPath = ImportPath("/") //Can i change this?
+  val Root: ImportPath = ImportPath("/")
 
   // FIXME: Actually parse it and check that it's valid
   def parse(str: String): Option[ImportPath] =
@@ -98,14 +98,25 @@ case class ImportPath(path: String) {
   def prefix(importId: ImportId): ImportPath =
     ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
 
-  def dereference(relPath: ImportPath): ImportPath =
-    if(relPath.path.startsWith("/")) relPath
-    else {
-      rawParts match {
-        case ".." :: tail => ImportPath(rawParts.dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
-        case xs => ImportPath((rawParts ++ xs).mkString("/"))
-      }
+  def dereference(relPath: ImportPath): Try[ImportPath] = {
+    import java.nio.file.{ Path, Paths }
+    val fakePath = Paths.get(this.path).normalize()
+    val fakeRelPath = Paths.get(relPath.path)
+    def goesAboveRoot(p: Path): Boolean = {
+      import scala.collection.JavaConverters._
+      p.iterator().asScala.map(_.toString).map{
+        case ".." => -1
+        case "." => 0
+        case _ => 1
+      }.scanLeft(0)(_ + _).exists(_ < 0)
     }
+    val resolvedFakePath = fakePath.resolve(fakeRelPath)
+    if(goesAboveRoot(resolvedFakePath)) Failure(LayersFailure(relPath))
+    else {
+      val normalizedFakePath = resolvedFakePath.normalize()
+      Success(ImportPath(normalizedFakePath.toString))
+    }
+  }
 }
 
 case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"))
