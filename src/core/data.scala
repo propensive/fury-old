@@ -34,6 +34,8 @@ import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.collection.mutable.HashMap
+import scala.concurrent.{Await, ExecutionContext, Future, blocking}
+import scala.concurrent.duration._
 import scala.language.higherKinds
 import scala.util._
 
@@ -405,14 +407,22 @@ object Layer {
     } yield ref
 
 
-  def loadCatalog(catalogRef: IpfsRef, env: Environment)(implicit log: Log): Try[Catalog] =
-    Installation.tmpFile { tmpFile => for {
-      file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
-      catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
-    } yield catalog
+  def loadCatalog(catalogRef: IpfsRef, env: Environment)(implicit log: Log, ec: ExecutionContext): Try[Catalog] = {
+    val result = Future(blocking{
+      Installation.tmpFile { tmpFile =>
+        for {
+          _ <- Shell(env).ipfs.get(catalogRef, tmpFile)
+          catalog <- Ogdl.read[Catalog](tmpFile, identity(_))
+        } yield catalog
+      }
+    })
+
+    Try{
+      Await.result(result, 5 seconds).get
+    }
   }
 
-  def lookup(domain: String, env: Environment)(implicit log: Log): Try[List[Artifact]] = for {
+  def lookup(domain: String, env: Environment)(implicit log: Log, ec: ExecutionContext): Try[List[Artifact]] = for {
     records   <- Dns.lookup(domain)
     records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
     catalogs  <- records.map { loadCatalog(_, env) }.sequence
@@ -424,13 +434,13 @@ object Layer {
     case DefaultImport(path) => Followable(ManagedConfig().service, path)
   }
 
-  def resolve(followable: Followable, env: Environment)(implicit log: Log): Try[LayerRef] = for {
+  def resolve(followable: Followable, env: Environment)(implicit log: Log, ec: ExecutionContext): Try[LayerRef] = for {
     artifacts <- lookup(followable.domain, env)
     ref       <- Try(artifacts.find(_.path == followable.path).get)
     layerRef  <- loadFromIpfs(ref.ref, env)
   } yield layerRef
 
-  def pathCompletions(domain: String, env: Environment)(implicit log: Log): Try[List[String]] =
+  def pathCompletions(domain: String, env: Environment)(implicit log: Log, ec: ExecutionContext): Try[List[String]] =
     lookup(domain, env).map(_.map(_.path))
 
   def read(string: String, env: Environment)(implicit log: Log): Try[Layer] =
