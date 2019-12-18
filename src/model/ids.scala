@@ -83,7 +83,7 @@ case class Uri(schema: String, path: String) extends Key(msg"URI") {
 object ImportPath {
   implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
   implicit val stringShow: StringShow[ImportPath] = _.path
-  val Root: ImportPath = ImportPath("")
+  val Root: ImportPath = ImportPath("/")
 
   // FIXME: Actually parse it and check that it's valid
   def parse(str: String): Option[ImportPath] =
@@ -108,17 +108,28 @@ case class ImportPath(path: String) {
   def prefix(importId: ImportId): ImportPath =
     ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
 
-  def dereference(relPath: ImportPath): ImportPath =
-    if(relPath.path.startsWith("/")) relPath
-    else {
-      rawParts match {
-        case ".." :: tail => ImportPath(rawParts.dropRight(1).mkString("/")).dereference(ImportPath(tail.mkString("/")))
-        case xs => ImportPath((rawParts ++ xs).mkString("/"))
-      }
+  def dereference(relPath: ImportPath): Try[ImportPath] = {
+    import java.nio.file.{ Path, Paths }
+    val fakePath = Paths.get(this.path).normalize()
+    val fakeRelPath = Paths.get(relPath.path)
+    def goesAboveRoot(p: Path): Boolean = {
+      import scala.collection.JavaConverters._
+      p.iterator().asScala.map(_.toString).map{
+        case ".." => -1
+        case "." => 0
+        case _ => 1
+      }.scanLeft(0)(_ + _).exists(_ < 0)
     }
+    val resolvedFakePath = fakePath.resolve(fakeRelPath)
+    if(goesAboveRoot(resolvedFakePath)) Failure(LayersFailure(relPath))
+    else {
+      val normalizedFakePath = resolvedFakePath.normalize()
+      Success(ImportPath(normalizedFakePath.toString))
+    }
+  }
 }
 
-case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("."))
+case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"))
 
 object IpfsRef {
   def parse(str: String): Option[IpfsRef] = str match {
@@ -249,7 +260,12 @@ object PermissionHash {
   implicit val stringShow: StringShow[PermissionHash] = _.key
   implicit val msgShow: MsgShow[PermissionHash] = _.key
 }
-case class PermissionHash(key: String) extends Key(msg"permission")
+case class PermissionHash(key: String) extends Key(msg"permission") {
+  def resolve(policy: Set[Permission]): Try[Permission] = {
+    val allMatches = policy.filter(_.hash.startsWith(key))
+    if (allMatches.size == 1) Success(allMatches.head) else Failure(ItemNotFound(key, "Oops!"))
+  }
+}
 
 object ScopeId {
   implicit val stringShow: StringShow[ScopeId] = _.id

@@ -120,7 +120,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
       focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
       layer          <- Layer.read(focus.layerRef, layout)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(layout, https)
+      hierarchy      <- schema.hierarchy(layout)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>

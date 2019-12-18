@@ -160,6 +160,8 @@ You can grant these permissions with,
           cli.abort(msg"Could not do a DNS lookup for $domain.")
         case HttpError(code, url) => 
           cli.abort(msg"HTTP error ${code.toString} when attempting to access $url.")
+        case LayersFailure(layerPath) =>
+          cli.abort(msg"Layer name ${layerPath.path} not found.")
         case e =>
           val errorString =
             s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"

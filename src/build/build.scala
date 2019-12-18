@@ -525,16 +525,24 @@ object LayerCli {
     layout    <- cli.layout
     baseLayer <- Layer.base(layout)
     schema    <- baseLayer.mainSchema
-    cli       <- cli.hint(LayerArg, ImportPath("/") :: schema.importTree(layout, true).getOrElse(Nil))
+    cli       <- cli.hint(LayerArg,  schema.importTree(layout, true).getOrElse(Nil))
     call      <- cli.call()
-    _         <- schema.importTree(layout, true)
+    layers    <- schema.importTree(layout, true)
     relPath   <- call(LayerArg)
     focus     <- Layer.readFocus(layout)
-    newPath   <- ~focus.path.dereference(relPath)
+    newPath   <- focus.path.dereference(relPath)
+    _         <- verifyLayers(newPath, layers)
     newFocus  <- ~focus.copy(path = newPath)
     _         <- Layer.saveFocus(newFocus, layout)
   } yield log.await()
- 
+
+
+  def verifyLayers(path: ImportPath, list: List[ImportPath]): Try[Unit] =
+    if (list.map(_.path).contains(path.path))
+      Success()
+    else
+      Failure(LayersFailure(path))
+
   def extract(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     cli      <- cli.hint(DirArg)
     cli      <- cli.hint(FileArg)

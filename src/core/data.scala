@@ -158,12 +158,6 @@ case class Module(id: ModuleId,
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
   def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
-
-  def permission(hashPrefix: PermissionHash): Option[Permission] = {
-    val allMatches = policy.filter(_.hash.startsWith(hashPrefix.key))
-    if (allMatches.size == 1) Some(allMatches.head) else None
-  }
-
   def policyEntries: Set[PermissionEntry] = {
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
@@ -328,11 +322,11 @@ case class Schema(id: SchemaId,
   def importCandidates(layout: Layout, https: Boolean)(implicit log: Log): List[String] =
     repos.to[List].flatMap(_.importCandidates(this, layout, https).toOption.to[List].flatten)
 
-  def hierarchy(layout: Layout, https: Boolean)(implicit log: Log): Try[Hierarchy] = for {
+  def hierarchy(layout: Layout)(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
       layer        <- Layer.read(ref.layerRef, layout)
       resolved     <- layer.schemas.findBy(ref.schema)
-      tree         <- resolved.hierarchy(layout, https)
+      tree         <- resolved.hierarchy(layout)
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 

@@ -297,10 +297,14 @@ object PermissionCli {
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       cli           <- cli.hint(ForceArg)
       call          <- cli.call()
-      permHashes      <- call(PermissionArg).map(_.map(PermissionHash(_)))
+      permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
-      permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
+      schema        <- layer.schemas.findBy(layer.main)
+      hierarchy     <- schema.hierarchy(layout)
+      universe      <- hierarchy.universe
+      compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
+      permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
       force         =  call(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
                            module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
@@ -335,12 +339,16 @@ object PermissionCli {
       //TODO check if hints still work
       cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
       call          <- cli.call()
-      scopeId       <- ~call(ScopeArg).getOrElse(ScopeId.Project)
+      scopeId       =  call(ScopeArg).getOrElse(ScopeId.Project)
       project       <- optProject.ascribe(UnspecifiedProject())
       module        <- optModule.ascribe(UnspecifiedModule())
-      permHashes      <- call(PermissionArg).map(_.map(PermissionHash(_)))
-      permissions    <- permHashes.traverse(x => module.permission(x).ascribe(ItemNotFound(x)))
-      policy        <- ~Policy.read(log)
+      permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
+      schema        <- layer.schemas.findBy(layer.main)
+      hierarchy     <- schema.hierarchy(layout)
+      universe      <- hierarchy.universe
+      compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
+      permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
+      policy        =  Policy.read(log)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
       _             <- Policy.save(newPolicy)
     } yield log.await()

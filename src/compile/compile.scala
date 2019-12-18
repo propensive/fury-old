@@ -183,14 +183,15 @@ object Compilation {
                     https: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(layout, https)
+    hierarchy   <- schema.hierarchy(layout)
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
-    compilation <- fromUniverse(universe, ref, policy, layout)
+    compilation <- fromUniverse(universe, ref, layout)
+    _           <- policy.checkAll(compilation.requiredPermissions)
     _           <- compilation.generateFiles(layout)
   } yield compilation
 
-  private def fromUniverse(universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout)(implicit log: Log): Try[Compilation] = {
+  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Compilation] = {
     import universe._
 
     def directDependencies(target: Target): Set[TargetId] = (target.dependencies ++ target.compiler.map(_.id)).to[Set]
@@ -212,14 +213,14 @@ object Compilation {
       targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout).map(t => targetId -> t) }
       requiredTargets     =  targetIndex.unzip._2
       requiredPermissions =  requiredTargets.flatMap(_.permissions)
-      _                   <- policy.checkAll(requiredPermissions)
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
         TargetId(entity.schema.id, ref)).connections
-      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _), moduleRefToTarget, targetIndex.toMap, universe)
+      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
+        moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
   }
 
@@ -364,6 +365,7 @@ case class Compilation(graph: Target.Graph,
                        checkouts: Set[Checkout],
                        targets: Map[ModuleRef, Target],
                        targetIndex: Map[TargetId, Target],
+                       requiredPermissions: Set[Permission],
                        universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
