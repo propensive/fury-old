@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.io._, fury.strings._, fury.model._, fury.utils._
+import fury.strings._, fury.model._, fury.utils._
 
 object Reporter {
   val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, QuietReporter)

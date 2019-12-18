@@ -22,7 +22,6 @@ import guillotine._
 
 import scala.util._
 import scala.collection.mutable.HashMap
-import java.io.File
 import java.util.UUID
 import java.util.jar.{JarFile, Manifest => JManifest}
 import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry, ZipArchiveOutputStream}
