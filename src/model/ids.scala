@@ -98,15 +98,24 @@ case class ImportPath(path: String) {
   def prefix(importId: ImportId): ImportPath =
     ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
 
-  def dereference(relPath: ImportPath): ImportPath = {
+  def dereference(relPath: ImportPath): Try[ImportPath] = {
     import java.nio.file.{ Path, Paths }
     val fakePath = Paths.get(this.path).normalize()
-    val fakeRelPath = Paths.get(relPath.path).normalize()
-    if(fakeRelPath.toString.startsWith("/")) ImportPath(fakeRelPath.toString)
+    val fakeRelPath = Paths.get(relPath.path)//.normalize()
+    def goesAboveRoot(p: Path): Boolean = {
+      import scala.collection.JavaConverters._
+      p.iterator().asScala.map(_.toString).map{
+        case ".." => -1
+        case "." => 0
+        case _ => 1
+      }.scanLeft(0)(_ + _).exists(_ < 0)
+    }
+    val resolvedFakePath = fakePath.resolve(fakeRelPath)
+    if(goesAboveRoot(resolvedFakePath)) Failure(LayersFailure(relPath))
     else {
-      val resolvedFakePath = fakePath.resolve(fakeRelPath).normalize()
-      if(resolvedFakePath.startsWith("/")) ImportPath(resolvedFakePath.toString)
-      else throw new Exception(s"$resolvedFakePath")
+      val normalizedFakePath = resolvedFakePath.normalize()
+      if(normalizedFakePath.startsWith("/")) Success(ImportPath(normalizedFakePath.toString))
+      else ???
     }
   }
 }

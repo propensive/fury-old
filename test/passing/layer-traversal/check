@@ -16,5 +16,14 @@ platform
 path	/
 path	/platform
 path	/
+Layer name .. not found.
+1
 path	/
 path	/platform
+Layer name /.. not found.
+1
+path	/platform
+Layer name /platform/../.. not found.
+1
+path	/platform
+path	/

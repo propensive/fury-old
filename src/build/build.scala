@@ -503,7 +503,7 @@ object LayerCli {
     layers    <- schema.importTree(layout, true)
     relPath   <- call(LayerArg)
     focus     <- Layer.readFocus(layout)
-    newPath   <- ~focus.path.dereference(relPath)
+    newPath   <- focus.path.dereference(relPath)
     _         <- verifyLayers(newPath, layers)
     newFocus  <- ~focus.copy(path = newPath)
     _         <- Layer.saveFocus(newFocus, layout)

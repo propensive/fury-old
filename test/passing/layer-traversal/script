@@ -33,12 +33,21 @@ fury layer init
 fury layer import -l $IPFSREF --name platform --import platform
 IPFSREF=
 fury layer list --raw
-grep path .focus.fury 
+grep path .focus.fury
 fury layer select -l platform
 grep path .focus.fury
 fury layer select -l ..
-grep path .focus.fury 
+grep path .focus.fury
 fury layer select -l ..
-grep path .focus.fury 
+echo $?
+grep path .focus.fury
 fury layer select -l /platform
-grep path .focus.fury 
+grep path .focus.fury
+fury layer select -l /..
+echo $?
+grep path .focus.fury
+fury layer select -l /platform/../..
+echo $?
+grep path .focus.fury
+fury layer select -l /platform/..
+grep path .focus.fury
