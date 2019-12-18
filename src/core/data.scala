@@ -495,7 +495,7 @@ object Layer {
   } yield layerRef
 
   private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)(implicit log: Log): Try[LayerRef] =
-    if(path.isEmpty) saveLayer(newLayer)
+    if(path.isRoot) saveLayer(newLayer)
     else for {
       schema    <- currentLayer.mainSchema
       schemaRef <- schema.imports.findBy(path.head)

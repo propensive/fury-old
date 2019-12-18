@@ -87,20 +87,16 @@ object ImportPath {
 
 case class ImportPath(path: Path) {
 
-  private[this] lazy val rawParts: List[Path] = path.iterator.asScala.to[List]
+  private[this] val rawParts: List[String] = path.iterator.asScala.map(_.toString).to[List]
 
-  def parts: List[ImportId] = {
-    if(path.isAbsolute) rawParts.map(part => ImportId(part.toString))
-    else ???
-  }
+  private[this] val parts: List[ImportId] = rawParts.map(ImportId(_))
 
-  def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
-  def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("/", "/", ""))
-  def isEmpty: Boolean = parts.length == 0
+  def /(importId: ImportId): ImportPath = ImportPath(path.resolve(importId.key))
+  def tail: ImportPath = ImportPath(Paths.get("", rawParts.tail : _*))
+  def isRoot: Boolean = path.toString == path.getRoot
   def head: ImportId = parts.head
   
-  def prefix(importId: ImportId): ImportPath =
-    ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
+  def prefix(importId: ImportId): ImportPath = ImportPath(Paths.get(importId.key, rawParts.tail : _*))
 
   def dereference(relPath: ImportPath): Try[ImportPath] = {
     val fakePath = this.path.normalize()
