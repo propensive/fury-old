@@ -366,10 +366,12 @@ object BuildCli {
       
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
+      _            <- ~log.info(msg"Building native image for $name")
       _            <- compilation.saveNative(module.ref(project), Path("/usr/local/bin"), layout, main)
       bin          <- ~Path(str"/usr/local/bin/${main.toLowerCase}")
       newBin       <- ~(bin.rename { _ => name })
       _            <- bin.moveTo(newBin)
+      _            <- ~log.info(msg"Installed $name executable")
     } yield log.await()
   }
 
