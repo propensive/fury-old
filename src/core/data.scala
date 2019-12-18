@@ -20,13 +20,11 @@ import java.net.URI
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import exoskeleton._
-import fury._
 import fury.core.Graph.DiagnosticMessage
 import fury.io._
 import fury.model._
 import fury.ogdl._
 import fury.strings._
-import fury.utils._
 import gastronomy._
 import guillotine._
 import kaleidoscope._

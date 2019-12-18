@@ -16,17 +16,13 @@
 */
 package fury.core
 
-import fury.strings._, fury.io._, fury.model._, fury.ogdl._
+import fury.strings._, fury.io._, fury.model._
 
-import exoskeleton._
-import guillotine._
-
-import scala.util._
 import scala.collection.mutable.HashMap
 
 import java.io._
 import java.nio.channels._
-import java.text.{DecimalFormat, SimpleDateFormat}
+import java.text.SimpleDateFormat
 import java.util.Date
 import java.time._
 

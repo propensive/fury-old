@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._
+import fury.strings._
 
 object Prompt {
 

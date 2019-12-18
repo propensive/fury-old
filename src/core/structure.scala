@@ -18,9 +18,6 @@ package fury.core
 
 import fury.strings._, fury.model._
 
-import guillotine._
-import exoskeleton._
-
 import scala.util._
 
 sealed trait MenuStructure[T] {
