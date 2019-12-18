@@ -73,7 +73,7 @@ case class ModuleId(key: String) extends Key(msg"module")
 object ImportPath {
   implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
   implicit val stringShow: StringShow[ImportPath] = _.path
-  val Root: ImportPath = ImportPath("/") //Can i change this?
+  val Root: ImportPath = ImportPath("/")
 
   // FIXME: Actually parse it and check that it's valid
   def parse(str: String): Option[ImportPath] =
@@ -101,7 +101,7 @@ case class ImportPath(path: String) {
   def dereference(relPath: ImportPath): Try[ImportPath] = {
     import java.nio.file.{ Path, Paths }
     val fakePath = Paths.get(this.path).normalize()
-    val fakeRelPath = Paths.get(relPath.path)//.normalize()
+    val fakeRelPath = Paths.get(relPath.path)
     def goesAboveRoot(p: Path): Boolean = {
       import scala.collection.JavaConverters._
       p.iterator().asScala.map(_.toString).map{
@@ -114,8 +114,7 @@ case class ImportPath(path: String) {
     if(goesAboveRoot(resolvedFakePath)) Failure(LayersFailure(relPath))
     else {
       val normalizedFakePath = resolvedFakePath.normalize()
-      if(normalizedFakePath.startsWith("/")) Success(ImportPath(normalizedFakePath.toString))
-      else ???
+      Success(ImportPath(normalizedFakePath.toString))
     }
   }
 }
