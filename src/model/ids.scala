@@ -379,10 +379,18 @@ object ImportLayer {
   }
 }
 
-sealed trait ImportLayer
-case class IpfsImport(hash: IpfsRef) extends ImportLayer
-case class RefImport(followable: Followable) extends ImportLayer
-case class DefaultImport(path: String) extends ImportLayer
+sealed trait ImportLayer { def dirSuggestion: Option[Path] }
+case class IpfsImport(hash: IpfsRef) extends ImportLayer {
+  def dirSuggestion: Option[Path] = None
+}
+
+case class RefImport(followable: Followable) extends ImportLayer {
+  def dirSuggestion: Option[Path] = Some(followable.path.split("/").last).map(Path(_))
+}
+
+case class DefaultImport(path: String) extends ImportLayer {
+  def dirSuggestion: Option[Path] = Some(path.split("/").last).map(Path(_))
+}
 
 object Followable {
   implicit val msgShow: MsgShow[Followable] = fl => UserMsg { theme =>
