@@ -574,21 +574,27 @@ object LayerCli {
   def publish(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(RemoteLayerArg)
+    cli           <- cli.hint(RawArg)
     call          <- cli.call()
     layer         <- Layer.read(layout)
     path          <- call(RemoteLayerArg)
+    raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, cli.env)
     pub           <- Service.publish(ref.key, cli.env, path)
-    _             <- ~log.info(msg"Shared at ${ref.uri}")
-    _             <- ~log.info(msg"Published to ${Uri("fury", str"${ManagedConfig().service}/${path}")}")
+    _             <- if(raw) ~log.raw(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
+    uri           <- ~Uri("fury", str"${ManagedConfig().service}/${path}")
+    _             <- if(raw) ~log.raw(str"$uri") else ~log.info(msg"Published to $uri")
   } yield log.await()
 
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
+    cli           <- cli.hint(RawArg)
     layer         <- Layer.read(layout)
     call          <- cli.call()
+    raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, cli.env)
     _             <- ~log.info(msg"Shared at ${ref.uri}")
+    _             <- if(raw) ~log.raw(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
   def export(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
