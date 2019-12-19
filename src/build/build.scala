@@ -16,13 +16,15 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._
-import guillotine.Environment
+import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._, fury.utils._
+
+import exoskeleton._
+import euphemism._
 
 import Args._
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent._
+import scala.concurrent._, duration._
 import scala.util._
 import java.text.DecimalFormat
 
@@ -56,6 +58,26 @@ object ConfigCli {
       _        <- ~ManagedConfig.write(config)
     } yield log.await()
   }
+
+  def auth(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      call     <- cli.call()
+      code     <- ~Rnd.token(18)
+      // These futures should be managed in the session
+      uri      <- ~Uri("https", str"${ManagedConfig().service}/await?code=$code")
+      _        <- ~log.info(msg"Please visit https://${ManagedConfig().service}/auth?code=$code to log in.")
+      future   <- ~Future(blocking(Http.get(uri, Map("code" -> code), Set())))
+      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(str"https://${ManagedConfig().service}/auth?code=$code")))
+      response <- Await.result(future, Duration.Inf)
+      json     <- ~Json.parse(new String(response, "UTF-8")).get
+      token    <- ~json.token.as[String].get
+      config   <- ~ManagedConfig().copy(token = token)
+      _        <- ~ManagedConfig.write(config)
+      _        <- ~log.info("You are now authenticated")
+    } yield log.await()
+
+  }
 }
 
 object AliasCli {
@@ -73,7 +95,7 @@ object AliasCli {
       raw   <- ~call(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, true)))
+      _     <- ~(if(!raw) log.info(Tables().contextString(layer, true)))
       _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -317,7 +339,7 @@ object BuildCli {
     }
   }
 
-  def native(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def install(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli          <- cli.hint(SchemaArg, layer.schemas)
@@ -328,9 +350,11 @@ object BuildCli {
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli          <- cli.hint(DirArg)
+      cli          <- cli.hint(ExecNameArg)
+      //cli          <- cli.hint(DirArg)
       call         <- cli.call()
-      dir          <- call(DirArg)
+      name         <- call(ExecNameArg)
+      //dir          <- call(DirArg)
       https        <- ~call(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       optModuleId  <- ~call(ModuleArg).toOption.orElse(project.main)
@@ -342,7 +366,12 @@ object BuildCli {
       
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
-      _            <- compilation.saveNative(module.ref(project), dir in layout.pwd, layout, main)
+      _            <- ~log.info(msg"Building native image for $name")
+      _            <- compilation.saveNative(module.ref(project), Installation.usrDir, layout, main)
+      bin          <- ~(Installation.usrDir / main.toLowerCase)
+      newBin       <- ~(bin.rename { _ => name })
+      _            <- bin.moveTo(newBin)
+      _            <- ~log.info(msg"Installed $name executable")
     } yield log.await()
   }
 
@@ -405,7 +434,7 @@ object BuildCli {
       classpath    <- ~compilation.classpath(module.ref(project), layout)
     } yield {
       val separator = if(singleColumn) "\n" else ":"
-      log.raw(classpath.map(_.value).join(separator))
+      log.rawln(classpath.map(_.value).join(separator))
       log.await()
     }
   }
@@ -490,7 +519,7 @@ object LayerCli {
     https     <- ~call(HttpsArg).isSuccess
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+    _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
     _         <- ~log.info(table.mkString("\n"))
   } yield log.await()
 
@@ -530,26 +559,42 @@ object LayerCli {
 
   def clone(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
-    cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
+    layout        <- cli.newLayout
     layerImport   <- call(ImportArg)
-    layerRef      <- layerImport match {
-      case IpfsImport(hash) => Layer.loadFromIpfs(hash, cli.env)
-      case imp => Layer.resolve(Layer.follow(imp), cli.env)
-    }
-    dir           <- call(DirArg).pacify(call(ImportArg).toOption.flatMap(_.dirSuggestion))
+    resolved      <- Layer.resolve(layerImport, layout)
+    layerRef      <- Layer.load(resolved, cli.env, layout)
+    dir           <- call(DirArg).pacify(resolved.suggestedName.map { n => Path(n.key) })
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
     _             <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
   } yield log.await()
 
+  def publish(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+    layout        <- cli.layout
+    cli           <- cli.hint(RemoteLayerArg)
+    cli           <- cli.hint(RawArg)
+    call          <- cli.call()
+    layer         <- Layer.read(layout)
+    path          <- call(RemoteLayerArg)
+    raw           <- ~call(RawArg).isSuccess
+    ref           <- Layer.share(layer, layout, cli.env)
+    pub           <- Service.publish(ref.key, cli.env, path)
+    _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
+    uri           <- ~Uri("fury", str"${ManagedConfig().service}/${path}")
+    _             <- if(raw) ~log.rawln(str"$uri") else ~log.info(msg"Published to $uri")
+  } yield log.await()
+
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
+    cli           <- cli.hint(RawArg)
     layer         <- Layer.read(layout)
     call          <- cli.call()
-    ref           <- Layer.share(layer, cli.env)
-    _             <- ~log.info(str"fury://${ref.key}")
+    raw           <- ~call(RawArg).isSuccess
+    ref           <- Layer.share(layer, layout, cli.env)
+    _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
   def export(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -569,24 +614,21 @@ object LayerCli {
       layer         <- Layer.read(layout)
       cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli           <- cli.hint(ImportNameArg)
-      cli           <- cli.hint(FileArg)
       schemaArg     <- ~cli.peek(SchemaArg)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
-      cli           <- cli.hint(ImportArg, Layer.pathCompletions(ManagedConfig().service, cli.env).getOrElse(Nil))
+      cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
-      fileImport    <- ~cli.peek(FileArg)
+      layerRef      <- ~layerImport.flatMap(Layer.resolve(_, layout).flatMap(Layer.load(_, cli.env, layout)).toOption)
+      maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
+      cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
       call          <- cli.call()
-      layerRef      <- (layerImport, fileImport) match {
-        case (Some(IpfsImport(hash)), None) => Layer.loadFromIpfs(hash, cli.env)
-        case (Some(imp), None) => Layer.resolve(Layer.follow(imp), cli.env)
-        case (None, Some(path)) =>
-          Layer.loadFile(path in layout.pwd, layout, cli.env)
-        case _ => Failure(UnspecifiedLayer())
-      }
-      nameArg       <- call(ImportNameArg)
-      schemaId      <- call(ImportSchemaArg)
-      schemaRef     =  SchemaRef(nameArg, layerRef, schemaId)
+      layerImport   <- call(ImportArg)
+      layerInput    <- Layer.resolve(layerImport, layout)
+      nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
+      schemaId      <- cli.peek(ImportSchemaArg).orElse(maybeLayer.map(_.main)).ascribe(MissingArg("schema"))
+      layerRef      <- Layer.load(layerInput, cli.env, layout)
+      schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))
       
@@ -629,7 +671,7 @@ object LayerCli {
       table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema))
+      _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema))
                        else log)
       
       _         <- ~log.info(UserMsg { theme => table.mkString("\n") })

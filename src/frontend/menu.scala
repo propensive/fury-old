@@ -42,7 +42,7 @@ object FuryMenu {
             Action('run, msg"compile a module", BuildCli.compile(None, None)),
             Action('describe, msg"describe the build for a module", BuildCli.describe),
             Action('save, msg"save a JAR file", BuildCli.save),
-            Action('native, msg"build a native executable using GraalVM", BuildCli.native)
+            Action('install, msg"install an application locally", BuildCli.install)
         ),
         Menu('clean, msg"clean fury workspace", CleanCli.context, 'all)(
             Action('all, msg"clean all", CleanCli.cleanAll),
@@ -54,7 +54,8 @@ object FuryMenu {
         ),
         Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
         Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
-            Action('set, msg"change a settings", ConfigCli.set)
+            Action('set, msg"change a settings", ConfigCli.set),
+            Action('auth, msg"authenticate using the distribution service", ConfigCli.auth)
         ),
         Menu('dependency, msg"manage dependencies for the module", DependencyCli.context, 'list)(
             Action('add, msg"add a dependency on another module", DependencyCli.add),
@@ -136,6 +137,7 @@ object FuryMenu {
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
             Action('list, msg"list imported layers", LayerCli.list),
             Action('projects, msg"show all available projects", LayerCli.projects),
+            Action('publish, msg"publish a layer", LayerCli.publish),
             Action('unimport, msg"remove a previously imported layer", LayerCli.unimport),
             Action('select, msg"select a layer", LayerCli.select),
             Action('share, msg"share this layer", LayerCli.share),

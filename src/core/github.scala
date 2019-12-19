@@ -16,61 +16,21 @@
 */
 package fury.core
 
-import fury.io._
+import fury.strings._, fury.model._, fury.utils._
 
-import java.io._
-import annotation.tailrec
+import euphemism._
+import kaleidoscope._
+
 import scala.util.Try
-import org.kamranzafar.jtar.{TarEntry, TarInputStream, TarOutputStream}
 
-import java.util.zip._
-
-object TarGz {
-
-  @tailrec
-  private def transfer(
-      in: InputStream,
-      out: OutputStream,
-      data: Array[Byte] = new Array(65536),
-      keepOpen: Boolean = false
-    ): Unit = {
-    val count = in.read(data)
-    if (count != -1) {
-      out.write(data, 0, count)
-      transfer(in, out, data, keepOpen)
-    } else {
-      out.flush()
-      if (!keepOpen) in.close()
-    }
-  }
-
-  def store(files: Map[Path, Path], destination: Path): Try[Unit] = Try {
-    val fos  = new FileOutputStream(destination.javaFile)
-    val gzos = new GZIPOutputStream(fos)
-    val out  = new TarOutputStream(gzos)
-    files.foreach { case (name, path) =>
-      val entry = new TarEntry(path.javaFile, name.value)
-      entry.setModTime(0L)
-      out.putNextEntry(entry)
-      val in = new BufferedInputStream(new FileInputStream(path.javaFile))
-      transfer(in, out)
-    }
-    out.close()
-  }
-
-  def extract(file: Path, destination: Path)(implicit log: Log): Try[Unit] = Try {
-    val fis  = new FileInputStream(file.javaFile)
-    val gzis = new GZIPInputStream(fis)
-    val in   = new TarInputStream(gzis)
-    Iterator.continually(in.getNextEntry).takeWhile(_ != null).filter(!_.isDirectory).foreach { entry =>
-      val path = Path(entry.getName) in destination
-      path.mkParents()
-      val fos = new FileOutputStream(path.javaFile)
-      val out = new BufferedOutputStream(fos)
-      transfer(in, out, keepOpen = true)
-      out.close()
-    }
-    in.close()
+object GitHub {
+  def repos(prefix: String)(implicit log: Log): List[String] = prefix match {
+    case r"gh:$org@([a-z][a-z0-9]*)\/" => (for {
+      _   <- ~log.info(s"Looking for completions for $org...")
+      out <- Http.get(Uri("https", str"api.github.com/orgs/$org/repos"), Map(), Set(HttpHeader("Authorization", s"token ${ManagedConfig().token}")))
+      _   <- ~log.info(new String(out, "UTF-8"))
+      rs  <- Try(Json.parse(new String(out, "UTF-8")).get)
+    } yield rs.as[List[Json]].get.flatMap(_.name.as[String].map { name => str"gh:$org/$name" }.to[List])).toOption.to[List].flatten
+    case _ => Nil
   }
 }
-

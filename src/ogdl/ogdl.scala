@@ -100,7 +100,7 @@ object Ogdl {
     }
 
   def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
-    val buffer = ByteBuffer.wrap(string.getBytes("UTF-8"))
+    val buffer = ByteBuffer.wrap(string.bytes)
     val ogdl   = OgdlParser.parse(buffer)
 
     implicitly[OgdlReader[T]].read(ogdl)

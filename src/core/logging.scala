@@ -79,9 +79,14 @@ case class LogStyle(printWriter: () => PrintWriter, pid: Pid, timestamps: Option
     
     printWriter().flush()
   }
-
-  def raw(string: String): Unit = if(raw) printWriter().append(string)
+  
   def flush(force: Boolean = false): Unit = if(autoflush || force) printWriter().flush()
+  def raw(string: String): Unit = if(raw) printWriter().append(string)
+  
+  def rawln(string: String): Unit = if(raw) {
+    printWriter().append(string)
+    printWriter().append('\n')
+  }
 }
 
 object Log {
@@ -122,6 +127,7 @@ class Log(private[this] val output: LogStyle) {
 
   def attach(writer: LogStyle): Unit = writers ::= writer
   def raw(str: String): Unit = writers.foreach(_.raw(str))
+  def rawln(str: String): Unit = writers.foreach(_.rawln(str))
 
   def note(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Note)
   def info(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Info)

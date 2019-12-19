@@ -47,7 +47,7 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
+      _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
       _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }
@@ -145,7 +145,7 @@ object RepoCli {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli            <- cli.hint(UrlArg)
+      cli            <- cli.hint(UrlArg, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(HttpsArg)
       projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)
