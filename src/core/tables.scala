@@ -84,13 +84,17 @@ case class Tables() {
   def modules(projectId: ProjectId, current: Option[ModuleId]): Tabulation[Module] = Tabulation[Module](
     Heading("", m => Some(m.id) == current),
     Heading("MODULE", _.id),
-    Heading("TYPE", _.kind),
     Heading("DEPENDENCIES", (m: Module) => m.after, width = FlexibleWidth)(refinedModuleDep(projectId)),
     Heading("SRCS", _.sources),
     Heading("BINS", m => bar(m.allBinaries.size)),
     Heading("COMPILER", _.compiler),
+    Heading("PARAMS", m => bar(m.params.size)),
     Heading("TYPE", _.kind),
-    Heading("PARAMS", m => bar(m.params.size))
+    Heading("DETAILS", m => m.kind match {
+      case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
+      case Application => m.main.fold(msg"${'-'}") { a => msg"$a" }
+      case _ => msg"${'-'}"
+    })
   )
 
   val aliases: Tabulation[Alias] = Tabulation(
