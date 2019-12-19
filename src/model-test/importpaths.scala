@@ -110,5 +110,33 @@ object ImportPathTests extends TestApp {
         relativePath.prefix(ImportId("")) == ImportPath("/")
     }.assert(_ == true)
 
+    test("root path as dereference base") {
+      root.dereference(ImportPath("xxx")) == Success(ImportPath("/xxx")) &&
+        root.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        root.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        root.dereference(ImportPath("")) == Success(ImportPath("/"))
+    }.assert(_ == true)
+
+    test("current path as dereference base") {
+      here.dereference(ImportPath("xxx")) == Success(ImportPath("xxx")) &&
+        here.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        here.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        here.dereference(ImportPath("")) == Success(ImportPath(""))
+    }.assert(_ == true)
+
+    test("parent path as dereference base") {
+      parent.dereference(ImportPath("xxx")).isFailure &&
+        parent.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        parent.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        parent.dereference(ImportPath("")).isFailure
+    }.assert(_ == true)
+
+    test("absolute path as dereference base") {
+      absolutePath.dereference(ImportPath("xxx"))== Success(ImportPath("/foo/xxx")) &&
+        absolutePath.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        absolutePath.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        absolutePath.dereference(ImportPath(""))== Success(ImportPath("/foo"))
+    }.assert(_ == true)
+
   }
 }
