@@ -434,7 +434,7 @@ object BuildCli {
       classpath    <- ~compilation.classpath(module.ref(project), layout)
     } yield {
       val separator = if(singleColumn) "\n" else ":"
-      log.raw(classpath.map(_.value).join(separator))
+      log.rawln(classpath.map(_.value).join(separator))
       log.await()
     }
   }
@@ -582,9 +582,9 @@ object LayerCli {
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, cli.env)
     pub           <- Service.publish(ref.key, cli.env, path)
-    _             <- if(raw) ~log.raw(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
+    _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
     uri           <- ~Uri("fury", str"${ManagedConfig().service}/${path}")
-    _             <- if(raw) ~log.raw(str"$uri") else ~log.info(msg"Published to $uri")
+    _             <- if(raw) ~log.rawln(str"$uri") else ~log.info(msg"Published to $uri")
   } yield log.await()
 
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -594,7 +594,7 @@ object LayerCli {
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, cli.env)
-    _             <- if(raw) ~log.raw(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
+    _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
   def export(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
