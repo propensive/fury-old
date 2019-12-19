@@ -593,7 +593,6 @@ object LayerCli {
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, cli.env)
-    _             <- ~log.info(msg"Shared at ${ref.uri}")
     _             <- if(raw) ~log.raw(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
