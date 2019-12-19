@@ -416,27 +416,22 @@ object Layer {
       ref       <- Shell(env).ipfs.add(tmp)
     } yield ref }
 
-  def resolve(path: String, layout: Layout): Option[LayerInput] = {
+  def resolve(path: String, layout: Layout): Try[LayerInput] = {
     val service = ManagedConfig().service
     path match {
       case r"fury:\/\/$ref@([A-Za-z0-9]{46})\/?" =>
-        Some(IpfsRef(ref))
+        Success(IpfsRef(ref))
       case r"fury:\/\/$domain@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
-        Some(FuryUri(domain, loc))
+        Success(FuryUri(domain, loc))
       case r".*\.fury" =>
         val file = Path(path).in(layout.pwd)
-        if(file.exists) Some(FileInput(file)) else None
+        if(file.exists) Success(FileInput(file)) else Failure(FileNotFound(file))
       case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
-        Some(FuryUri(service, path))
-      case _ =>
-        None
+        Success(FuryUri(service, path))
+      case name =>
+        Failure(InvalidLayer(name))
     }
   }
-
-  def resolveLoad(path: String, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] = for {
-    resolved <- resolve(path, layout).ascribe(InvalidLayer(path))
-    layerRef <- load(resolved, env, layout)
-  } yield layerRef
 
   def load(input: LayerInput, env: Environment, layout: Layout)(implicit log: Log): Try[LayerRef] =
     input match {

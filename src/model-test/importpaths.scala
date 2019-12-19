@@ -28,51 +28,114 @@ object ImportPathTests extends TestApp {
     val root = ImportPath("/")
     val here = ImportPath(".")
     val parent = ImportPath("..")
+    val absolutePath = ImportPath("/foo")
+    val nestedAbsolutePath = ImportPath("/foo/bar")
+    val relativePath = ImportPath("bar")
+    val nestedRelativePath = ImportPath("baz/quux")
 
-    test("root path") {
+    test("root path head & tail") {
       root.isEmpty &&
       Try(root.head).isFailure &&
       Try(root.tail).isFailure
     }.assert(_ == true)
 
-    test("current path") {
+    test("current path head & tail") {
       here.isEmpty &&
         Try(here.head).isFailure &&
         Try(here.tail).isFailure
     }.assert(_ == true)
 
-    test("parent path") {
+    test("parent path head & tail") {
       parent.isEmpty &&
         Try(parent.head).isFailure &&
         Try(parent.tail).isFailure
     }.assert(_ == true)
 
-    test("absolute path") {
-      val absolutePath = ImportPath("/foo")
+    test("absolute path head & tail") {
       !absolutePath.isEmpty &&
         Try(absolutePath.head) == Success(ImportId("foo")) &&
         Try(absolutePath.tail) == Success(ImportPath("/"))
     }.assert(_ == true)
 
-    test("relative path") {
-      val relativePath = ImportPath("bar")
+    test("relative path head & tail") {
       relativePath.isEmpty &&
         Try(relativePath.head).isFailure &&
         Try(relativePath.tail).isFailure
     }.assert(_ == true)
 
-    test("nested absolute path") {
-      val absolutePath = ImportPath("/foo/bar")
-      !absolutePath.isEmpty &&
-        Try(absolutePath.head) == Success(ImportId("foo")) &&
-        Try(absolutePath.tail) == Success(ImportPath("/bar"))
+    test("nested absolute path head & tail") {
+      !nestedAbsolutePath.isEmpty &&
+        Try(nestedAbsolutePath.head) == Success(ImportId("foo")) &&
+        Try(nestedAbsolutePath.tail) == Success(ImportPath("/bar"))
     }.assert(_ == true)
 
-    test("nested relative path") {
-      val relativePath = ImportPath("baz/quux")
-      relativePath.isEmpty &&
-        Try(relativePath.head).isFailure &&
-        Try(relativePath.tail).isFailure
+    test("nested relative path head & tail") {
+      nestedRelativePath.isEmpty &&
+        Try(nestedRelativePath.head).isFailure &&
+        Try(nestedRelativePath.tail).isFailure
+    }.assert(_ == true)
+
+    test("root path as prefix") {
+      root.prefix(ImportId("xxx")) == ImportPath("/xxx") &&
+      root.prefix(ImportId("/xxx")) == ImportPath("//xxx") &&
+      root.prefix(ImportId("/")) == ImportPath("//") &&
+      root.prefix(ImportId("")) == ImportPath("/")
+    }.assert(_ == true)
+
+    test("current path as prefix") {
+      here.prefix(ImportId("xxx")) == ImportPath("/xxx") &&
+        here.prefix(ImportId("/xxx")) == ImportPath("//xxx") &&
+        here.prefix(ImportId("/")) == ImportPath("//") &&
+        here.prefix(ImportId("")) == ImportPath("/")
+    }.assert(_ == true)
+
+    test("parent path as prefix") {
+      parent.prefix(ImportId("xxx")) == ImportPath("/xxx") &&
+        parent.prefix(ImportId("/xxx")) == ImportPath("//xxx") &&
+        parent.prefix(ImportId("/")) == ImportPath("//") &&
+        parent.prefix(ImportId("")) == ImportPath("/")
+    }.assert(_ == true)
+
+    test("absolute path as prefix") {
+      absolutePath.prefix(ImportId("xxx")) == ImportPath("/xxx/foo") &&
+        absolutePath.prefix(ImportId("/xxx")) == ImportPath("//xxx/foo") &&
+        absolutePath.prefix(ImportId("/")) == ImportPath("///foo") &&
+        absolutePath.prefix(ImportId("")) == ImportPath("//foo")
+    }.assert(_ == true)
+
+    test("relative path as prefix") {
+      relativePath.prefix(ImportId("xxx")) == ImportPath("/xxx") &&
+        relativePath.prefix(ImportId("/xxx")) == ImportPath("//xxx") &&
+        relativePath.prefix(ImportId("/")) == ImportPath("//") &&
+        relativePath.prefix(ImportId("")) == ImportPath("/")
+    }.assert(_ == true)
+
+    test("root path as dereference base") {
+      root.dereference(ImportPath("xxx")) == Success(ImportPath("/xxx")) &&
+        root.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        root.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        root.dereference(ImportPath("")) == Success(ImportPath("/"))
+    }.assert(_ == true)
+
+    test("current path as dereference base") {
+      here.dereference(ImportPath("xxx")) == Success(ImportPath("xxx")) &&
+        here.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        here.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        here.dereference(ImportPath("")) == Success(ImportPath(""))
+    }.assert(_ == true)
+
+    test("parent path as dereference base") {
+      parent.dereference(ImportPath("xxx")).isFailure &&
+        parent.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        parent.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        parent.dereference(ImportPath("")).isFailure
+    }.assert(_ == true)
+
+    test("absolute path as dereference base") {
+      absolutePath.dereference(ImportPath("xxx"))== Success(ImportPath("/foo/xxx")) &&
+        absolutePath.dereference(ImportPath("/xxx")) == Success(ImportPath("/xxx")) &&
+        absolutePath.dereference(ImportPath("/")) == Success(ImportPath("/")) &&
+        absolutePath.dereference(ImportPath(""))== Success(ImportPath("/foo"))
     }.assert(_ == true)
 
   }

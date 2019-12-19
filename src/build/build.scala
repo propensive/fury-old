@@ -563,8 +563,9 @@ object LayerCli {
     call          <- cli.call()
     layout        <- cli.newLayout
     layerImport   <- call(ImportArg)
-    layerRef      <- Layer.resolveLoad(layerImport, layout, cli.env)
-    dir           <- call(DirArg)
+    resolved      <- Layer.resolve(layerImport, layout)
+    layerRef      <- Layer.load(resolved, cli.env, layout)
+    dir           <- call(DirArg).pacify(resolved.suggestedName.map { n => Path(n.key) })
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
@@ -618,15 +619,15 @@ object LayerCli {
      
       cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
-      layerRef      <- ~layerImport.flatMap(Layer.resolveLoad(_, layout, cli.env).toOption)
+      layerRef      <- ~layerImport.flatMap(Layer.resolve(_, layout).flatMap(Layer.load(_, cli.env, layout)).toOption)
       maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
       call          <- cli.call()
       layerImport   <- call(ImportArg)
-      layerInput    <- Layer.resolve(layerImport, layout).ascribe(InvalidLayer(layerImport))
+      layerInput    <- Layer.resolve(layerImport, layout)
       nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
       schemaId      <- cli.peek(ImportSchemaArg).orElse(maybeLayer.map(_.main)).ascribe(MissingArg("schema"))
-      layerRef      <- Layer.resolveLoad(layerImport, layout, cli.env)
+      layerRef      <- Layer.load(layerInput, cli.env, layout)
       schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))

@@ -397,7 +397,6 @@ object FuryUri {
   implicit val msgShow: MsgShow[FuryUri] = fl => UserMsg { theme =>
     msg"theme.layer(fury://${fl.domain}/${fl.path})".string(theme)
   }
-
   implicit val stringShow: StringShow[FuryUri] = fl => str"fury://${fl.domain}/${fl.path}"
   implicit def diff: Diff[FuryUri] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
   
