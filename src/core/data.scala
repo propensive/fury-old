@@ -748,10 +748,7 @@ case class Repo(ref: String) {
     case other                                               => other
   }
 
-  def projectName: Try[RepoId] = ref match {
-    case r".*/$project@([^\/]*).git" => Success(RepoId(project))
-    case value                       => Failure(InvalidValue(value))
-  }
+  def projectName: Try[RepoId] = RepoId.parse(simplified.split("/").last)
 }
 
 sealed trait CompileEvent
