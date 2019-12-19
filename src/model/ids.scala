@@ -488,6 +488,11 @@ case class SchemaId(key: String) extends Key(msg"schema")
 object RepoId {
   implicit val msgShow: MsgShow[RepoId]       = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
+  
+  def parse(name: String): Try[RepoId] = name match {
+    case r"[a-z](-?[a-z0-9]+)*" => Success(RepoId(name))
+    case _                      => Failure(InvalidValue(name))
+  }
 }
 
 case class RepoId(key: String) extends Key(msg"repository")

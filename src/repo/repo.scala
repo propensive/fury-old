@@ -162,23 +162,18 @@ object RepoCli {
       optSchemaArg   <- ~call(SchemaArg).toOption
       schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
-      remote         <- ~call(UrlArg).toOption
       dir            <- ~call(DirArg).toOption
       https          <- ~call(HttpsArg).isSuccess
       version        <- ~call(VersionArg).toOption.getOrElse(RefSpec.master)
-
-      suggested      <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
-                          RepoId(d.value.split("/").last)
-                        })
-
       urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
       repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      suggested      <- repo.projectName
       _              <- repo.fetch(layout, https)
 
       commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
                             exoskeleton.InvalidArgValue("version", version.id))
 
-      nameArg        <- call(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
+      nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
       sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
