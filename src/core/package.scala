@@ -42,4 +42,14 @@ object `package` {
   implicit class Unitize[T](t: T) { def unit: Unit = ()         }
   implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
   implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
+
+  implicit class TryExtensions[T](t: Try[T]) {
+    def pacify(alternative: => Option[T]): Try[T] = t match {
+      case Success(v) => t
+      case Failure(e) => alternative match {
+        case Some(v) => Success(v)
+        case None => t
+      }
+    }
+  }
 }

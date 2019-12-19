@@ -537,7 +537,7 @@ object LayerCli {
       case IpfsImport(hash) => Layer.loadFromIpfs(hash, cli.env)
       case imp => Layer.resolve(Layer.follow(imp), cli.env)
     }
-    dir           <- call(DirArg)
+    dir           <- call(DirArg).pacify(call(ImportArg).toOption.flatMap(_.dirSuggestion))
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
