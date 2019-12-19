@@ -89,7 +89,7 @@ case class ImportPath(path: Path) {
 
   private[this] val rawParts: List[String] = path.iterator.asScala.map(_.toString).to[List]
 
-  private[this] val parts: List[ImportId] = rawParts.map(ImportId(_))
+  val parts: List[ImportId] = rawParts.map(ImportId(_))
 
   def /(importId: ImportId): ImportPath = ImportPath(path.resolve(importId.key))
   def tail: ImportPath = ImportPath(Paths.get("", rawParts.tail : _*))

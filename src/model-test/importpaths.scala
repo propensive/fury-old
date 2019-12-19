@@ -34,43 +34,43 @@ object ImportPathTests extends TestApp {
     val nestedRelativePath = ImportPath("baz/quux")
 
     test("root path head & tail") {
-      root.isEmpty &&
+      root.isRoot &&
       Try(root.head).isFailure &&
       Try(root.tail).isFailure
     }.assert(_ == true)
 
     test("current path head & tail") {
-      here.isEmpty &&
+      here.isRoot &&
         Try(here.head).isFailure &&
         Try(here.tail).isFailure
     }.assert(_ == true)
 
     test("parent path head & tail") {
-      parent.isEmpty &&
+      parent.isRoot &&
         Try(parent.head).isFailure &&
         Try(parent.tail).isFailure
     }.assert(_ == true)
 
     test("absolute path head & tail") {
-      !absolutePath.isEmpty &&
+      !absolutePath.isRoot &&
         Try(absolutePath.head) == Success(ImportId("foo")) &&
         Try(absolutePath.tail) == Success(ImportPath("/"))
     }.assert(_ == true)
 
     test("relative path head & tail") {
-      relativePath.isEmpty &&
+      relativePath.isRoot &&
         Try(relativePath.head).isFailure &&
         Try(relativePath.tail).isFailure
     }.assert(_ == true)
 
     test("nested absolute path head & tail") {
-      !nestedAbsolutePath.isEmpty &&
+      !nestedAbsolutePath.isRoot &&
         Try(nestedAbsolutePath.head) == Success(ImportId("foo")) &&
         Try(nestedAbsolutePath.tail) == Success(ImportPath("/bar"))
     }.assert(_ == true)
 
     test("nested relative path head & tail") {
-      nestedRelativePath.isEmpty &&
+      nestedRelativePath.isRoot &&
         Try(nestedRelativePath.head).isFailure &&
         Try(nestedRelativePath.tail).isFailure
     }.assert(_ == true)
