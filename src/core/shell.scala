@@ -76,8 +76,8 @@ case class Shell(environment: Environment) {
   object ipfs {
 
     def add(path: Path): Try[IpfsRef] =
-      sh"ipfs add ${path.value}".exec[Try[String]].flatMap { out =>
-        Try(IpfsRef(out.split(" ")(1)))
+      sh"ipfs add -r -Q -H ${path.value}".exec[Try[String]].flatMap { out =>
+        Try(IpfsRef(out))
       }
 
     def get(ref: IpfsRef, path: Path): Try[Path] =

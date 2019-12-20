@@ -392,10 +392,18 @@ object Layer {
   implicit val stringShow: StringShow[Layer] = _.hash
 
   def loadFromIpfs(layerRef: IpfsRef, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
-    Installation.tmpFile { tmpFile => for {
-      file <- Shell(env).ipfs.get(layerRef, tmpFile)
-      ref  <- loadFile(file, layout, env)
+    Installation.tmpDir { dir => for {
+      file <- Shell(env).ipfs.get(layerRef, dir)
+      ref  <- loadDir(file, layout, env)
     } yield ref }
+
+  def loadDir(dir: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
+    for {
+      _      <- (dir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
+      bases  <- ~(dir / "bases").childPaths
+      _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
+      focus  <- Ogdl.read[Focus](dir / ".focus.fury", identity(_))
+    } yield focus.layerRef
 
   def loadFile(file: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { tmpDir => for {
@@ -407,12 +415,14 @@ object Layer {
     } yield focus.layerRef }
 
   def share(layer: Layer, layout: Layout, env: Environment)(implicit log: Log): Try[IpfsRef] =
-    Installation.tmpFile { tmp => for {
+    Installation.tmpDir { tmp => for {
       layerRef  <- saveLayer(layer)
-      schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
+      schemaRef =  SchemaRef(ImportId(""), layerRef, layer.main)
       layerRefs <- collectLayerRefs(schemaRef, layout)
-      filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
-      _         <- TarGz.store(filesMap.updated(Path(".focus.fury"), layout.focusFile), tmp)
+      _         =  (tmp / "layers").mkdir()
+      filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
+          .updated(tmp / ".focus.fury", layout.focusFile)
+      _         <- filesMap.toSeq.traverse{ case (dest, src) => src.copyTo(dest)}
       ref       <- Shell(env).ipfs.add(tmp)
     } yield ref }
 
