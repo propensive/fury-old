@@ -1,0 +1,1156 @@
+version	4
+schemas	default	id	default
+		projects	adversaria	id	adversaria
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	adversaria:src/core	adversaria:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			anesthesia	id	anesthesia
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	../anesthesia/src/core	../anesthesia/src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					test	id	test
+						kind	Application
+						main	Some	anesthesia.tests.Tests
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	anesthesia/core	projectId	anesthesia
+								moduleId	core
+								intransitive	false
+								hidden	false
+							probably/cli	projectId	probably
+								moduleId	cli
+								intransitive	false
+								hidden	false
+						params	
+						sources	../anesthesia/src/test	../anesthesia/src/test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			annexation	id	annexation
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	annexation:src/core	annexation:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			caesura	id	caesura
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	caesura:src/core	caesura:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					test	id	test
+						kind	Application
+						main	Some	caesura.Test
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	caesura/core	projectId	caesura
+								moduleId	core
+								intransitive	false
+								hidden	false
+							probably/cli	projectId	probably
+								moduleId	cli
+								intransitive	false
+								hidden	false
+						params	
+						sources	caesura:src/test	caesura:src/test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			contextual	id	contextual
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	contextual:src/core	contextual:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					data	id	data
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	contextual/core	projectId	contextual
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	contextual:src/data	contextual:src/data
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	data
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			dissonance	id	dissonance
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	dissonance:src/core	dissonance:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			escritoire	id	escritoire
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	escritoire:src/core	escritoire:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			eucalyptus	id	eucalyptus
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	eucalyptus:src/core	eucalyptus:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					test	id	test
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	eucalyptus/core	projectId	eucalyptus
+								moduleId	core
+								intransitive	false
+								hidden	false
+							probably/cli	projectId	probably
+								moduleId	cli
+								intransitive	false
+								hidden	false
+						params	
+						sources	
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	test
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			euphemism	id	euphemism
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	jawn/ast	projectId	jawn
+								moduleId	ast
+								intransitive	false
+								hidden	false
+							magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	euphemism:src/core	euphemism:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			exoskeleton	id	exoskeleton
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	exoskeleton:src/core	exoskeleton:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			gastronomy	id	gastronomy
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	gastronomy:src/core	gastronomy:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			guillotine	id	guillotine
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	guillotine/macros	projectId	guillotine
+								moduleId	macros
+								intransitive	false
+								hidden	false
+						params	
+						sources	guillotine:src/core	guillotine:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					macros	id	macros
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	contextual/core	projectId	contextual
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	guillotine:src/macros	guillotine:src/macros
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			honeycomb	id	honeycomb
+				modules	bench	id	bench
+						kind	Benchmarks
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	honeycomb/core	projectId	honeycomb
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/bench	src/bench
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	honeycomb/macros	projectId	honeycomb
+								moduleId	macros
+								intransitive	false
+								hidden	false
+						params	
+						sources	honeycomb:src/core	honeycomb:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					macros	id	macros
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	honeycomb:src/macros	honeycomb:src/macros
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	bench
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			inflection	id	inflection
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			intaglio	id	intaglio
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	annexation/core	projectId	annexation
+								moduleId	core
+								intransitive	false
+								hidden	false
+							guillotine/core	projectId	guillotine
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	intaglio:src/core	intaglio:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			kaleidoscope	id	kaleidoscope
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	contextual/core	projectId	contextual
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	kaleidoscope:src/core	kaleidoscope:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			magnolia	id	magnolia
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	mercator/core	projectId	mercator
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	magnolia:src/core	magnolia:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					examples	id	examples
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	Xexperimental	Xexperimental
+							Xfuture	Xfuture
+							Ywarn-adapted-args	Ywarn-adapted-args
+							Ywarn-dead-code	Ywarn-dead-code
+							Ywarn-inaccessible	Ywarn-inaccessible
+							Ywarn-nullary-unit	Ywarn-nullary-unit
+							Ywarn-numeric-widen	Ywarn-numeric-widen
+							Ywarn-value-discard	Ywarn-value-discard
+							deprecation	deprecation
+							feature	feature
+						sources	magnolia:src/examples	magnolia:src/examples
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	true
+					test	id	test
+						kind	Application
+						main	Some	magnolia.tests.Tests
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	contextual/data	projectId	contextual
+								moduleId	data
+								intransitive	false
+								hidden	false
+							magnolia/examples	projectId	magnolia
+								moduleId	examples
+								intransitive	false
+								hidden	false
+							probably/cli	projectId	probably
+								moduleId	cli
+								intransitive	false
+								hidden	false
+						params	
+						sources	magnolia:src/test	magnolia:src/test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	test
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			mercator	id	mercator
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	mercator:src/core	mercator:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			mutatus	id	mutatus
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	adversaria/core	projectId	adversaria
+								moduleId	core
+								intransitive	false
+								hidden	false
+							magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	mutatus:src/core	mutatus:src/core
+						binaries	com.google.cloud:google-cloud-datastore:1.62.0	binRepo	central
+								group	com.google.cloud
+								artifact	google-cloud-datastore
+								version	1.62.0
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			optometry	id	optometry
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	
+						params	
+						sources	optometry:src/core	optometry:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	core
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			probably	id	probably
+				modules	cli	id	cli
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	escritoire/core	projectId	escritoire
+								moduleId	core
+								intransitive	false
+								hidden	false
+							probably/core	projectId	probably
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	probably:src/cli	probably:src/cli
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	probably/macros	projectId	probably
+								moduleId	macros
+								intransitive	false
+								hidden	false
+						params	
+						sources	probably:src/core	probably:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					macros	id	macros
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	probably:src/macros	probably:src/macros
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	cli
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			propensive	id	propensive
+				modules	all	id	all
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	java
+							moduleId	compiler
+							intransitive	false
+							hidden	false
+						after	adversaria/core	projectId	adversaria
+								moduleId	core
+								intransitive	false
+								hidden	false
+							annexation/core	projectId	annexation
+								moduleId	core
+								intransitive	false
+								hidden	false
+							caesura/core	projectId	caesura
+								moduleId	core
+								intransitive	false
+								hidden	false
+							contextual/core	projectId	contextual
+								moduleId	core
+								intransitive	false
+								hidden	false
+							escritoire/core	projectId	escritoire
+								moduleId	core
+								intransitive	false
+								hidden	false
+							eucalyptus/core	projectId	eucalyptus
+								moduleId	core
+								intransitive	false
+								hidden	false
+							exoskeleton/core	projectId	exoskeleton
+								moduleId	core
+								intransitive	false
+								hidden	false
+							gastronomy/core	projectId	gastronomy
+								moduleId	core
+								intransitive	false
+								hidden	false
+							guillotine/core	projectId	guillotine
+								moduleId	core
+								intransitive	false
+								hidden	false
+							honeycomb/core	projectId	honeycomb
+								moduleId	core
+								intransitive	false
+								hidden	false
+							intaglio/core	projectId	intaglio
+								moduleId	core
+								intransitive	false
+								hidden	false
+							kaleidoscope/core	projectId	kaleidoscope
+								moduleId	core
+								intransitive	false
+								hidden	false
+							magnolia/core	projectId	magnolia
+								moduleId	core
+								intransitive	false
+								hidden	false
+							mercator/core	projectId	mercator
+								moduleId	core
+								intransitive	false
+								hidden	false
+							mutatus/core	projectId	mutatus
+								moduleId	core
+								intransitive	false
+								hidden	false
+							optometry/core	projectId	optometry
+								moduleId	core
+								intransitive	false
+								hidden	false
+							probably/core	projectId	probably
+								moduleId	core
+								intransitive	false
+								hidden	false
+							pyroclastic/core	projectId	pyroclastic
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	all
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+			pyroclastic	id	pyroclastic
+				modules	core	id	core
+						kind	Library
+						main	None
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	mercator/core	projectId	mercator
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	pyroclastic:src/core	pyroclastic:src/core
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+					example	id	example
+						kind	Application
+						main	Some	pyroclastic.tests.Test
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	pyroclastic/core	projectId	pyroclastic
+								moduleId	core
+								intransitive	false
+								hidden	false
+						params	
+						sources	pyroclastic:src/example	pyroclastic:src/example
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
+				main	Some	example
+				license	apache-2.0
+				description	
+				compiler	Some	projectId	scala
+						moduleId	compiler
+						intransitive	true
+						hidden	false
+		repos	adversaria	id	adversaria
+				repo	gh:propensive/adversaria
+				track	master
+				commit	025684621c34523747e9a0dcd596533cdc4831da
+				local	None
+			annexation	id	annexation
+				repo	gh:propensive/annexation
+				track	master
+				commit	e4a16d6e0cdcae3f8daae3b057c019677863649f
+				local	None
+			caesura	id	caesura
+				repo	gh:propensive/caesura
+				track	master
+				commit	8cd076b79c6b6f31358ceb0056f2d32e8a076a40
+				local	None
+			contextual	id	contextual
+				repo	gh:propensive/contextual
+				track	fury
+				commit	6e082fb93fd599375f442aa9d1b2bd35747f2dca
+				local	None
+			dissonance	id	dissonance
+				repo	gh:propensive/dissonance
+				track	master
+				commit	9f0488b78d69d3cd89e10e0f4f468b189e97f2ac
+				local	None
+			escritoire	id	escritoire
+				repo	gh:propensive/escritoire
+				track	fury
+				commit	982f220bb48cf9e867ed3450bbd65a38bb86425f
+				local	None
+			eucalyptus	id	eucalyptus
+				repo	gh:propensive/eucalyptus
+				track	fury
+				commit	f8dee747070e1905fe95dd55f981dc497037df9d
+				local	None
+			euphemism	id	euphemism
+				repo	gh:propensive/euphemism
+				track	master
+				commit	93e595c8e6ec5d50ce40cedfd8babd2c83a734a3
+				local	None
+			exoskeleton	id	exoskeleton
+				repo	gh:propensive/exoskeleton
+				track	fury
+				commit	80aacbcd5f7bdf606f412915bd16dd9f2ea5d74b
+				local	None
+			gastronomy	id	gastronomy
+				repo	gh:propensive/gastronomy
+				track	fury
+				commit	e4ffb9ad10258bef3993efd90bac69d6a563aed3
+				local	None
+			guillotine	id	guillotine
+				repo	gh:propensive/guillotine
+				track	fury
+				commit	8f46d3bd23037a1e37eac32315ba50b44583fed6
+				local	None
+			honeycomb	id	honeycomb
+				repo	gh:propensive/honeycomb
+				track	master
+				commit	92aefb73e9ebcf4e56a19c8dc7da42938430ad58
+				local	None
+			intaglio	id	intaglio
+				repo	gh:propensive/intaglio
+				track	master
+				commit	b1c427c0347cc643a91dc3cbbc231709a4ada878
+				local	None
+			kaleidoscope	id	kaleidoscope
+				repo	gh:propensive/kaleidoscope
+				track	fury
+				commit	766a537b65e3c5c6211a43d53fdb612284bce0ba
+				local	None
+			magnolia	id	magnolia
+				repo	gh:propensive/magnolia
+				track	fury
+				commit	d07a3ceea0dde0c01fcfdc56d365c964ecac5d85
+				local	None
+			mercator	id	mercator
+				repo	gh:propensive/mercator
+				track	fury
+				commit	97601f41c2bdf4faf285c3d2beb4be9631dc4d03
+				local	None
+			mutatus	id	mutatus
+				repo	gh:propensive/mutatus
+				track	master
+				commit	1dea1c83c0fc38cee4c8f30d8d76612e9120043c
+				local	None
+			optometry	id	optometry
+				repo	gh:propensive/optometry
+				track	master
+				commit	d0afa0b3e95636beb43f7703a932bbb8aa60e533
+				local	None
+			probably	id	probably
+				repo	gh:propensive/probably
+				track	fury
+				commit	27c0dfc6c7487feeee425ce194bf6bc37bcdf8a7
+				local	None
+			pyroclastic	id	pyroclastic
+				repo	gh:propensive/pyroclastic
+				track	master
+				commit	81d234e0db6ca62ae02e6ab0db4e206c34af4223
+				local	None
+			scala	id	scala
+				repo	gh:propensive/.scala
+				track	master
+				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
+				local	None
+		imports	0A24A1586682A39838622B66BACF81A3B51A7F3448371AB31B54B75DA12DCD28:scala-2.12.8	id	scala
+				layerRef	0A24A1586682A39838622B66BACF81A3B51A7F3448371AB31B54B75DA12DCD28
+				schema	scala-2.12.8
+				follow	None
+			72BC2FA87BC7E554FABB094FF86E87B8C4FC8CC43DB9543C9986F46F82AB7E04:default	id	jawn
+				layerRef	72BC2FA87BC7E554FABB094FF86E87B8C4FC8CC43DB9543C9986F46F82AB7E04
+				schema	default
+				follow	Some	domain	furore.dev
+						path	typelevel/jawn
+		main	Some	euphemism
+main	default
+aliases	

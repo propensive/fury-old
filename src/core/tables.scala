@@ -35,7 +35,7 @@ case class Tables() {
                          (main: T => S)
                          : Seq[String] =
     if(raw) rows.map(main).map { e => implicitly[MsgShow[S]].show(e).string(Theme.NoColor) }
-    else table.tabulate(cols, rows)
+    else table.tabulate(cols, rows, Some(theme.gray()))
 
   def contextString(layer: Layer, showSchema: Boolean, elements: UserMsg*): UserMsg =
     (if(showSchema) elements else elements.tail).foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
