@@ -95,7 +95,7 @@ object AliasCli {
       raw   <- ~call(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.rawln(Tables().contextString(layer, true)))
+      _     <- ~(if(!raw) log.info(Tables().contextString(layer, true)))
       _     <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
@@ -519,7 +519,7 @@ object LayerCli {
     https     <- ~call(HttpsArg).isSuccess
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.rawln(Tables().contextString(layer, layer.showSchema, schema)))
+    _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
     _         <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
@@ -671,7 +671,7 @@ object LayerCli {
       table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
                        raw)(_._1.schema.key)
       
-      _         <- ~(if(!raw) log.rawln(Tables().contextString(layer, layer.showSchema, schema))
+      _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema))
                        else log)
       
       _         <- ~log.rawln(table.mkString("\n"))

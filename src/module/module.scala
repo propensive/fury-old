@@ -82,7 +82,7 @@ object ModuleCli {
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.rawln(Tables().contextString(layer, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project)))
 
       _       <- ~log.rawln(table.mkString("\n"))
@@ -291,7 +291,7 @@ object BinaryCli {
       schema  <- defaultSchema
       table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(identity)
 
-      _       <- ~(if(!raw) log.rawln(Tables().contextString(layer, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.rawln(table.mkString("\n"))
@@ -381,7 +381,7 @@ object ParamCli {
       table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.rawln(Tables().contextString(layer, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.rawln(table.mkString("\n"))

@@ -59,7 +59,7 @@ object SchemaCli {
       raw       <- ~call(RawArg).isSuccess
       rows      <- ~layer.schemas.to[List]
       table     <- ~Tables().show(Tables().schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.rawln(Tables().contextString(layer, layer.showSchema, schema)))
+      _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
       _         <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
@@ -85,7 +85,7 @@ object SchemaCli {
       other     <- layer.schemas.findBy(otherArg)
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~diffTable(schema, other, rows, cli.cols, raw)
-      _         <- ~(if(!raw) log.rawln(Tables().contextString(layer, layer.showSchema, schema)))
+      _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
       _         <- ~log.raw(table.mkString("\n"))
     } yield log.await()
   }
