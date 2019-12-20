@@ -85,7 +85,7 @@ object ModuleCli {
       _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project)))
 
-      _       <- ~log.info(table.mkString("\n"))
+      _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -294,7 +294,7 @@ object BinaryCli {
       _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.info(table.mkString("\n"))
+      _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -384,7 +384,7 @@ object ParamCli {
       _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.info(table.mkString("\n"))
+      _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 

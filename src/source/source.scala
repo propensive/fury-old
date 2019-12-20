@@ -72,7 +72,7 @@ object SourceCli {
       _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project, module)))
 
-      _       <- ~log.info(table.mkString("\n"))
+      _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 
