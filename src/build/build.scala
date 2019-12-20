@@ -96,7 +96,7 @@ object AliasCli {
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
       _     <- ~(if(!raw) log.info(Tables().contextString(layer, true)))
-      _     <- ~log.info(UserMsg { theme => table.mkString("\n") })
+      _     <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -520,7 +520,7 @@ object LayerCli {
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
     _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
-    _         <- ~log.info(table.mkString("\n"))
+    _         <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -674,7 +674,7 @@ object LayerCli {
       _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema))
                        else log)
       
-      _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
+      _         <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 }

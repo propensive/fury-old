@@ -60,7 +60,7 @@ object SchemaCli {
       rows      <- ~layer.schemas.to[List]
       table     <- ~Tables().show(Tables().schemas(Some(schema.id)), cli.cols, rows, raw)(_.id)
       _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
-      _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
+      _         <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -86,7 +86,7 @@ object SchemaCli {
       rows      <- ~Diff.gen[Schema].diff(schema, other)
       table     <- ~diffTable(schema, other, rows, cli.cols, raw)
       _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
-      _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
+      _         <- ~log.raw(table.mkString("\n"))
     } yield log.await()
   }
 
