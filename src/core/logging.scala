@@ -16,35 +16,33 @@
 */
 package fury.core
 
-import fury.strings._, fury.io._, fury.model._, fury.ogdl._
+import fury.strings._, fury.io._, fury.model._
 
-import exoskeleton._
-import guillotine._
-
-import scala.util._
 import scala.collection.mutable.HashMap
 
 import java.io._
 import java.nio.channels._
-import java.text.{DecimalFormat, SimpleDateFormat}
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.time._
 
 import language.higherKinds
 
 object LogStyle {
   final val dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd.HH:mm:ss.SSS ")
+  final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: java.io.PrintWriter, pid: Pid, debug: Boolean, clearLine: Boolean): LogStyle = {
+  def apply(printWriter: => java.io.PrintWriter, pid: Pid, debug: Boolean, clearLine: Boolean): LogStyle = {
     val config = ManagedConfig()
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info
-    LogStyle(printWriter, pid, timestamps, false, false, true, config.theme, logLevel, autoflush = true, clearLine = clearLine)
+    LogStyle(() => printWriter, pid, timestamps, false, false, true, config.theme, logLevel, autoflush = true, clearLine = clearLine)
   }
 }
 
 
-case class LogStyle(printWriter: PrintWriter, pid: Pid, timestamps: Option[Boolean], logLevel: Boolean,
+case class LogStyle(printWriter: () => PrintWriter, pid: Pid, timestamps: Option[Boolean], logLevel: Boolean,
     showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean,
     clearLine: Boolean = false) {
 
@@ -75,15 +73,20 @@ case class LogStyle(printWriter: PrintWriter, pid: Pid, timestamps: Option[Boole
     val fTime = paddedTime(time)
     val fLevel = optionalLogLevel(level)
     
-    printWriter.append(msg.string(theme).split("\n").map { line =>
+    printWriter().append(msg.string(theme).split("\n").map { line =>
       s"$wipe$fTime$fLevel$paddedSession$line"
     }.mkString("", "\n", "\n"))
     
-    printWriter.flush()
+    printWriter().flush()
   }
-
-  def raw(string: String): Unit = if(raw) printWriter.append(string)
-  def flush(force: Boolean = false): Unit = if(autoflush || force) printWriter.flush()
+  
+  def flush(force: Boolean = false): Unit = if(autoflush || force) printWriter().flush()
+  def raw(string: String): Unit = if(raw) printWriter().append(string)
+  
+  def rawln(string: String): Unit = if(raw) {
+    printWriter().append(string)
+    printWriter().append('\n')
+  }
 }
 
 object Log {
@@ -94,11 +97,24 @@ object Log {
 
   private val logFiles: HashMap[Path, LogStyle] = HashMap()
   
-  def global(pid: Pid): Log = {
-    val path = Installation.globalLogFile()
-    val printWriter = new PrintWriter(new BufferedWriter(new FileWriter(path.javaFile, true)))
-    val style = LogStyle(printWriter, pid, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
-    new Log(logFiles.getOrElseUpdate(path, style))
+  lazy val global: Log = {
+    val initDate = LocalDate.now()
+    var cached: Int = initDate.getDayOfMonth
+    
+    def create(date: LocalDate) =
+      new PrintWriter(new BufferedWriter(new FileWriter(path(date).javaFile, true)))
+    
+    def path(date: LocalDate) = Installation.logsDir / str"${date.toString}.log"
+    var printWriter: PrintWriter = create(initDate)
+    def update(date: LocalDate): Unit =printWriter = create(date)
+
+    def get(): PrintWriter = {
+      val date = LocalDate.now()
+      if(cached != date.getDayOfMonth) update(date)
+      printWriter
+    }
+    
+    new Log(LogStyle(get, Pid(0), Some(true), true, true, false, Theme.Full, Note, autoflush = false))
   }
 }
 
@@ -111,6 +127,7 @@ class Log(private[this] val output: LogStyle) {
 
   def attach(writer: LogStyle): Unit = writers ::= writer
   def raw(str: String): Unit = writers.foreach(_.raw(str))
+  def rawln(str: String): Unit = writers.foreach(_.rawln(str))
 
   def note(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Note)
   def info(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Info)

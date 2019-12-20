@@ -47,8 +47,8 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
-      _         <- ~log.info(UserMsg { theme => table.mkString("\n") })
+      _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
+      _         <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -107,18 +107,20 @@ object RepoCli {
     import ctx._
     for {
       cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
+      cli       <- cli.hint(HttpsArg)
       schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(AllArg, List[String]())
-      call     <- cli.call()
+      call      <- cli.call()
+      https     <- ~call(HttpsArg).isSuccess
       all       <- ~call(AllArg).toOption
       
       optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                        schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
       repos     <- optRepos.map(schema.repo(_, layout)).sequence
-      msgs      <- repos.map(_.repo.update(layout).map(log.info(_))).sequence
+      succeeded <- ~repos.map(_.pull(layout, https)).forall(_.isSuccess)
       lens      <- ~Lenses.layer.repos(schema.id)
 
       newRepos  <- repos.map { repo => for {
@@ -143,7 +145,7 @@ object RepoCli {
     import ctx._
     for {
       cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      cli            <- cli.hint(UrlArg)
+      cli            <- cli.hint(UrlArg, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(HttpsArg)
       projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)
@@ -160,23 +162,18 @@ object RepoCli {
       optSchemaArg   <- ~call(SchemaArg).toOption
       schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
-      remote         <- ~call(UrlArg).toOption
       dir            <- ~call(DirArg).toOption
       https          <- ~call(HttpsArg).isSuccess
       version        <- ~call(VersionArg).toOption.getOrElse(RefSpec.master)
-
-      suggested      <- ~(repoOpt.flatMap(_.projectName.toOption): Option[RepoId]).orElse(dir.map { d =>
-                          RepoId(d.value.split("/").last)
-                        })
-
       urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
       repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+      suggested      <- repo.projectName
       _              <- repo.fetch(layout, https)
 
       commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
                             exoskeleton.InvalidArgValue("version", version.id))
 
-      nameArg        <- call(RepoNameArg).toOption.orElse(suggested).ascribe(exoskeleton.MissingArg("name"))
+      nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
       sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))

@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.io._, fury.model._, fury.ogdl._
+import fury.strings._, fury.io._, fury.model._
 
 import exoskeleton._
 import guillotine._
@@ -137,16 +137,18 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
 
-  lazy val newLayout: Try[Layout] = pwd.map { pwd =>
-    Layout(Path(env.variables("HOME")), pwd, env, pwd)
-  }
+  lazy val newLayout: Try[Layout] = pwd.map { pwd => Layout(Path(env.variables("HOME")), pwd, env, pwd) }
 
   lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), pwd, env) }
   
   def next: Option[String] = args.prefix.headOption.map(_.value)
   def completion: Boolean = command.isDefined
   def prefix(str: String): Cli[Hinted] = copy(args = ParamMap((str :: args.args.to[List]): _*))
-  def tail: Cli[Hinted] = copy(args = args.tail)
+  
+  def tail: Cli[Hinted] =
+    if(args.headOption.map(_.length) == Some(2)) copy(args = ParamMap(args.args.head.tail +: args.args.tail: _*))
+    else copy(args = args.tail)
+  
   def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).toOption)
 
   def abort(msg: UserMsg): ExitStatus = {

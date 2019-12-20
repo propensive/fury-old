@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -19,10 +19,10 @@ package fury.core
 import fury.io._, fury.strings._, fury.model._
 
 import guillotine._
+import euphemism._
 
 import scala.util._
 import scala.collection.mutable.HashMap
-import java.io.File
 import java.util.UUID
 import java.util.jar.{JarFile, Manifest => JManifest}
 import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry, ZipArchiveOutputStream}
@@ -67,7 +67,12 @@ case class Shell(environment: Environment) {
 
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
-  
+
+  def tryXdgOpen(url: String): Try[Unit] = {
+    Try(sh"xdg-open $url".exec[String])
+    Success(())
+  }
+
   object ipfs {
 
     def add(path: Path): Try[IpfsRef] =
@@ -77,6 +82,15 @@ case class Shell(environment: Environment) {
 
     def get(ref: IpfsRef, path: Path): Try[Path] =
       sh"ipfs get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
+
+    case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
+        ProtocolVersion: String)
+  
+    def id(): Option[IpfsId] = for {
+      out  <- sh"ipfs id".exec[Try[String]].toOption
+      json <- Json.parse(out)
+      id   <- json.as[IpfsId]
+    } yield id
   }
 
   object git {
@@ -137,7 +151,7 @@ case class Shell(environment: Environment) {
     def getCommitFromTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} rev-parse $tag".exec[Try[String]]
 
-    def getCommit(dir: Path): Try[String] = sh"git -C ${dir.value} rev-parse --short HEAD".exec[Try[String]]
+    def getCommit(dir: Path): Try[String] = sh"git -C ${dir.value} rev-parse HEAD".exec[Try[String]]
 
     def getBranchHead(dir: Path, branch: String): Try[String] =
       sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]]
@@ -155,7 +169,7 @@ case class Shell(environment: Environment) {
 
     def ensureNativeImageInPath(): Try[Unit] =
       Try(sh"native-image --help".exec[Try[String]]).fold(
-          _ => Failure(GraalVMError("native-image could not be executed")),
+          _ => Failure(GraalVMError("This requires the native-image command to be on the PATH")),
           _.map(_ => ())
       )
   }
@@ -178,7 +192,7 @@ case class Shell(environment: Environment) {
 
     for {
       _  <- java.ensureNativeImageInPath
-      _  <- java.ensureIsGraalVM()
+      //_  <- java.ensureIsGraalVM()
       cp  = classpath.mkString(":")
       _  <- sh"native-image -cp $cp $main".exec[Try[String]].map(main.toLowerCase.waive)
     } yield ()

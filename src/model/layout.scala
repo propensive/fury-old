@@ -21,15 +21,12 @@ import fury._, io._, strings._, ogdl._
 import gastronomy._
 import guillotine._
 import java.util.{List => _, _}
-import java.text._
 
 import scala.util.Try
 
 import language.higherKinds
 
 object Layout {
-  final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
-  
   def find(home: Path, pwd: Path, env: Environment): Try[Layout] = findBase(pwd).map(Layout(home, pwd, env, _))
 
   private def findBase(dir: Path): Try[Path] = {
@@ -68,7 +65,8 @@ object Xdg {
 }
 
 object Installation {
-  private[this] def date: String = Layout.dateFormat.format(new Date())
+
+  val usrDir: Path = (Path(System.getProperty("fury.home")) / "usr").extant()
 
   val cache: Path = Xdg.cache("fury")
   val config: Path = Xdg.config("fury")
@@ -98,12 +96,9 @@ object Installation {
     file.delete()
     result
   }
-
-  def globalLogFile(): Path = logsDir.extant() / s"$date.log"
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
-  private[this] val nowString: String = Layout.dateFormat.format(new Date())
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   
   lazy val furyDir: Path = (baseDir / ".fury").extant()
@@ -120,10 +115,6 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val workDir: Path = (furyDir / "work").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
-  
-  lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
-  lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
-  lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
   
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()

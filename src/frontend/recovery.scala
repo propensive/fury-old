@@ -86,6 +86,8 @@ You can grant these permissions with,
           cli.abort(msg"The command '${e.command}' was not recognized.")
         case InvalidArgValue(param, arg) =>
           cli.abort(msg"The argument '$arg' was not a valid value for the parameter '$param'.")
+        case InvalidLayer(layer) =>
+          cli.abort(msg"The argument '$layer' does not represent a valid layer.")
         case e: ConfigFormatError =>
           cli.abort(msg"The configuration file could not be read.")
         case e: InvalidValue =>
@@ -134,12 +136,38 @@ You can grant these permissions with,
           cli.abort(msg"Binary not found.")
         case UnspecifiedBinary(possibleBinaries) =>
           cli.abort(msg"Unable to identify target binary: ${"\n\t"}${possibleBinaries.mkString("\n\t")}")
+        case HttpBadRequest(url) =>
+          cli.abort(msg"HTTP error 401 (Bad Request) when attempting to access $url.")
+        case HttpUnauthorized(url) => 
+          cli.abort(msg"HTTP error 402 (Unauthorized) when attempting to access $url.")
+        case HttpForbidden(url) => 
+          cli.abort(msg"HTTP error 403 (Forbidden) when attempting to access $url.")
+        case HttpNotFound(url) => 
+          cli.abort(msg"HTTP error 404 (Not Found) when attempting to access $url.")
+        case HttpMethodNotAllowed(url) => 
+          cli.abort(msg"HTTP error 405 (Method Not Allowed) when attempting to access $url.")
+        case HttpInternalServerError(url) => 
+          cli.abort(msg"HTTP error 500 (Internal Server Error) when attempting to access $url.")
+        case HttpNotImplemented(url) => 
+          cli.abort(msg"HTTP error 501 (Not Implemented) when attempting to access $url.")
+        case HttpBadGateway(url) => 
+          cli.abort(msg"HTTP error 502 (Bad Gateway) when attempting to access $url.")
+        case HttpServiceUnavailable(url) => 
+          cli.abort(msg"HTTP error 503 (Service Unavailable) when attempting to access $url.")
+        case HttpGatewayTimeout(url) => 
+          cli.abort(msg"HTTP error 504 (Gateway Timeout) when attempting to access $url.")
+        case DnsLookupFailure(domain) => 
+          cli.abort(msg"Could not do a DNS lookup for $domain.")
+        case HttpError(code, url) => 
+          cli.abort(msg"HTTP error ${code.toString} when attempting to access $url.")
+        case LayersFailure(layerPath) =>
+          cli.abort(msg"Layer name ${layerPath.path} not found.")
         case e =>
           val errorString =
             s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            log    <- ~Log.global(cli.pid)
+            log    <- ~Log.global
             _      <- ~log.fail(errorString)
             _      <- ~log.await()
           } yield

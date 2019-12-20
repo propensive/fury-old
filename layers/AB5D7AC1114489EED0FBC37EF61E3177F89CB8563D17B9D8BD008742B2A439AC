@@ -1065,7 +1065,7 @@ schemas	default	id	default
 			escritoire	id	escritoire
 				repo	gh:propensive/escritoire
 				track	fury
-				commit	3c996af5f7009bed3e2bbb2387267d5788c32bc6
+				commit	982f220bb48cf9e867ed3450bbd65a38bb86425f
 				local	None
 			eucalyptus	id	eucalyptus
 				repo	gh:propensive/eucalyptus

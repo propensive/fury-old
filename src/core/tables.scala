@@ -35,10 +35,10 @@ case class Tables() {
                          (main: T => S)
                          : Seq[String] =
     if(raw) rows.map(main).map { e => implicitly[MsgShow[S]].show(e).string(Theme.NoColor) }
-    else table.tabulate(cols, rows)
+    else table.tabulate(cols, rows, Some(theme.gray()))
 
-  def contextString(layer: UserMsg, showSchema: Boolean, elements: UserMsg*): UserMsg =
-    (if(showSchema) elements else elements.tail).foldLeft(layer) { (l, r) => msg"$l/$r" }
+  def contextString(layer: Layer, showSchema: Boolean, elements: UserMsg*): UserMsg =
+    (if(showSchema) elements else elements.tail).foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
 
   implicit private val parameter: AnsiShow[SortedSet[Parameter]] = _.map(_.name).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)
@@ -84,13 +84,17 @@ case class Tables() {
   def modules(projectId: ProjectId, current: Option[ModuleId]): Tabulation[Module] = Tabulation[Module](
     Heading("", m => Some(m.id) == current),
     Heading("MODULE", _.id),
-    Heading("TYPE", _.kind),
     Heading("DEPENDENCIES", (m: Module) => m.after, width = FlexibleWidth)(refinedModuleDep(projectId)),
     Heading("SRCS", _.sources),
     Heading("BINS", m => bar(m.allBinaries.size)),
     Heading("COMPILER", _.compiler),
+    Heading("PARAMS", m => bar(m.params.size)),
     Heading("TYPE", _.kind),
-    Heading("PARAMS", m => bar(m.params.size))
+    Heading("DETAILS", m => m.kind match {
+      case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
+      case Application => m.main.fold(msg"${'-'}") { a => msg"$a" }
+      case _ => msg"${'-'}"
+    })
   )
 
   val aliases: Tabulation[Alias] = Tabulation(
