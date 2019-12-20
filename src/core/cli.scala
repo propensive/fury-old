@@ -144,7 +144,11 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
   def next: Option[String] = args.prefix.headOption.map(_.value)
   def completion: Boolean = command.isDefined
   def prefix(str: String): Cli[Hinted] = copy(args = ParamMap((str :: args.args.to[List]): _*))
-  def tail: Cli[Hinted] = copy(args = args.tail)
+  
+  def tail: Cli[Hinted] =
+    if(args.headOption.map(_.length) == Some(2)) copy(args = ParamMap(args.args.head.tail +: args.args.tail: _*))
+    else copy(args = args.tail)
+  
   def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).toOption)
 
   def abort(msg: UserMsg): ExitStatus = {
