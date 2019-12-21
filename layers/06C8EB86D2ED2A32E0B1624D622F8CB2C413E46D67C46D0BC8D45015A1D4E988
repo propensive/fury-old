@@ -1137,11 +1137,6 @@ schemas	default	id	default
 				track	master
 				commit	81d234e0db6ca62ae02e6ab0db4e206c34af4223
 				local	None
-			scala	id	scala
-				repo	gh:propensive/.scala
-				track	master
-				commit	94e03663a05fa2568b31e4315dea1e0d94513cc0
-				local	None
 		imports	0A24A1586682A39838622B66BACF81A3B51A7F3448371AB31B54B75DA12DCD28:scala-2.12.8	id	scala
 				layerRef	0A24A1586682A39838622B66BACF81A3B51A7F3448371AB31B54B75DA12DCD28
 				schema	scala-2.12.8
