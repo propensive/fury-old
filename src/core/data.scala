@@ -966,7 +966,7 @@ object Service {
 
   def catalog(): Try[List[Artifact]] = {
     val service = ManagedConfig().service
-    val url = Uri("https", str"$service/catalog")
+    val url = Https(Path(service) / "catalog")
     
     for {
       bytes <- Http.get(url, Map(), Set())
@@ -977,7 +977,7 @@ object Service {
 
   def publish(hash: String, env: Environment, path: String)(implicit log: Log): Try[Uri] = {
     val service = ManagedConfig().service
-    val url = Uri("https", str"$service/publish")
+    val url = Https(Path(service) / "publish")
     case class Output(output: String)
     for {
       ipfs <- Ipfs.daemon()
@@ -986,7 +986,7 @@ object Service {
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
       res  <- Try(json.as[Output].get)
-    } yield Uri("fury", res.output)
+    } yield Uri("fury", Path(res.output))
   }
 }
 

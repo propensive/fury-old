@@ -92,7 +92,10 @@ object Installation {
     }
   }
 
-  val usrDir: Path = (Path(System.getProperty("fury.home")) / "usr").extant()
+  val installDir: Path = Path(System.getProperty("fury.home"))
+  val usrDir: Path = (installDir / "usr").extant()
+  val ipfsInstallDir: Path = installDir / "ipfs"
+  val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"
 
   val cache: Path = Xdg.cache("fury")
   val config: Path = Xdg.config("fury")

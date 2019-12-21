@@ -28,17 +28,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object Ipfs {
 
-  class IpfsServer() {
+  class IpfsServer(ipfsPath: String) {
     def add(path: Path): Try[IpfsRef] =
-      sh"ipfs add -r -Q -H ${path.value}".exec[Try[String]].flatMap { out =>
+      sh"$ipfsPath add -r -Q -H ${path.value}".exec[Try[String]].flatMap { out =>
         Try(IpfsRef(out))
       }
 
     def get(ref: IpfsRef, path: Path): Try[Path] =
-      sh"ipfs get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
+      sh"$ipfsPath get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
     
     def id(): Option[IpfsId] = for {
-      out  <- sh"ipfs id".exec[Try[String]].toOption
+      out  <- sh"$ipfsPath id".exec[Try[String]].toOption
       json <- Json.parse(out)
       id   <- json.as[IpfsId]
     } yield id
@@ -50,31 +50,64 @@ object Ipfs {
   def daemon()(implicit log: Log): Try[IpfsServer] = {
     log.info("Checking for IPFS daemon")
     val awaiting = Promise[Try[IpfsServer]]()
-    
+   
+    def handleAsync(path: String): Int = sh"$path daemon".async(
+      stdout = {
+        case r".*Daemon is ready.*" =>
+          log.info("IPFS daemon has started")
+          awaiting.success(Success(new IpfsServer(path)))
+        case r".*Initializing daemon.*" =>
+          log.info("Initializing IPFS daemon")
+        case other =>
+          log.note(str"[ipfs] $other")
+      },
+      stderr = {
+        case r".*ipfs daemon is running.*" =>
+          log.info("IPFS daemon is already running")
+          awaiting.success(Success(new IpfsServer(path)))
+        case other =>
+          log.note(str"[ipfs] $other")
+      }
+    ).await()
+
     Future { blocking {
-      sh"ipfs daemon".async(
-        stdout = {
-          case r".*Daemon is ready.*" =>
-            log.info("IPFS daemon has started")
-            awaiting.success(Success(new IpfsServer()))
-          case r".*Initializing daemon.*" =>
-            log.info("Initializing IPFS daemon")
-          case other =>
-            log.note(str"[ipfs] $other")
-        },
-        stderr = {
-          case r".*ipfs daemon is running.*" =>
-            log.info("IPFS daemon is already running")
-            awaiting.success(Success(new IpfsServer()))
-          case other =>
-            log.note(str"[ipfs] $other")
-        }
-      ).await() match {
-        case 127 => awaiting.success(Failure(IpfsNotOnPath()))
+      handleAsync(Installation.ipfsBin.value) match {
+        case 127 =>
+          log.note("Could not find IPFS installation in Fury install directory; trying PATH")
+          handleAsync("ipfs") match {
+            case 127 =>
+              log.info("IPFS is not installed; attempting to install IPFS")
+              distBinary.foreach { bin =>
+                log.info(msg"Downloading $bin...")
+                (for {
+                  in <- Http.requestStream(bin, Map[String, String](), "GET", Set())
+                  _  <- TarGz.extract(in, Installation.ipfsInstallDir)
+                  _  <- ~Installation.ipfsBin.setExecutable(true)
+                  _  <- ~log.info(msg"Installed embedded IFPS to ${Installation.ipfsInstallDir}")
+                } yield handleAsync(Installation.ipfsBin.value)) match {
+                  case Success(_) =>
+                    awaiting.success(Success(new IpfsServer(Installation.ipfsBin.value)))
+                  case Failure(_) =>
+                    log.fail(msg"Failed to run or install IPFS")
+                    awaiting.success(Failure(IpfsNotOnPath()))
+                }
+              }
+          }
       }
     } }
 
-    Await.result(awaiting.future, 20.seconds)
+    Await.result(awaiting.future, 120.seconds)
+  }
+
+  private def distBinary: Option[Uri] = {
+    def url(sys: String) = Https(Path("dist.ipfs.io") / "go-ipfs" / "v0.4.22" / str"go-ipfs_v0.4.22_$sys.tar.gz")
+    Installation.system.flatMap {
+      case Windows(_)   => None
+      case Linux(X86)   => Some(url("linux-386"))
+      case Linux(X64)   => Some(url("linux-amd64"))
+      case MacOs(X86)   => Some(url("darwin-386"))
+      case MacOs(X64)   => Some(url("darwin-amd64"))
+    }
   }
 }
 

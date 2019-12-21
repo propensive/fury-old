@@ -65,10 +65,10 @@ object ConfigCli {
       call     <- cli.call()
       code     <- ~Rnd.token(18)
       // These futures should be managed in the session
-      uri      <- ~Uri("https", str"${ManagedConfig().service}/await?code=$code")
-      _        <- ~log.info(msg"Please visit https://${ManagedConfig().service}/auth?code=$code to log in.")
+      uri      <- ~Https(Path(ManagedConfig().service) / "await?code=$code")
+      _        <- ~log.info(msg"Please visit $uri to log in.")
       future   <- ~Future(blocking(Http.get(uri, Map("code" -> code), Set())))
-      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(str"https://${ManagedConfig().service}/auth?code=$code")))
+      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
       response <- Await.result(future, Duration.Inf)
       json     <- ~Json.parse(new String(response, "UTF-8")).get
       token    <- ~json.token.as[String].get
@@ -585,7 +585,7 @@ object LayerCli {
     ref           <- Layer.share(layer, layout, cli.env)
     pub           <- Service.publish(ref.key, cli.env, path)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
-    uri           <- ~Uri("fury", str"${ManagedConfig().service}/${path}")
+    uri           <- ~Uri("fury", Path(ManagedConfig().service) / path)
     _             <- if(raw) ~log.rawln(str"$uri") else ~log.info(msg"Published to $uri")
   } yield log.await()
 

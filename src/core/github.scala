@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._, fury.utils._
+import fury.strings._, fury.model._, fury.utils._, fury.io._
 
 import euphemism._
 import kaleidoscope._
@@ -27,7 +27,7 @@ object GitHub {
   def repos(prefix: String)(implicit log: Log): List[String] = prefix match {
     case r"gh:$org@([a-z][a-z0-9]*)\/" => (for {
       _   <- ~log.info(s"Looking for completions for $org...")
-      out <- Http.get(Uri("https", str"api.github.com/orgs/$org/repos"), Map(), Set(HttpHeader("Authorization", s"token ${ManagedConfig().token}")))
+      out <- Http.get(Https(Path("api.github.com") / "orgs" / org / "repos"), Map(), Set(HttpHeader("Authorization", s"token ${ManagedConfig().token}")))
       _   <- ~log.info(new String(out, "UTF-8"))
       rs  <- Try(Json.parse(new String(out, "UTF-8")).get)
     } yield rs.as[List[Json]].get.flatMap(_.name.as[String].map { name => str"gh:$org/$name" }.to[List])).toOption.to[List].flatten

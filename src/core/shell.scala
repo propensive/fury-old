@@ -68,8 +68,8 @@ case class Shell(environment: Environment) {
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
 
-  def tryXdgOpen(url: String): Try[Unit] = {
-    Try(sh"xdg-open $url".exec[String])
+  def tryXdgOpen(url: Uri): Try[Unit] = {
+    Try(sh"xdg-open ${url.key}".exec[String])
     Success(())
   }
 

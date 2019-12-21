@@ -58,19 +58,21 @@ object TarGz {
     out.close()
   }
 
-  def extract(file: Path, destination: Path)(implicit log: Log): Try[Unit] = Try {
-    val fis  = new FileInputStream(file.javaFile)
-    val gzis = new GZIPInputStream(fis)
-    val in   = new TarInputStream(gzis)
-    Iterator.continually(in.getNextEntry).takeWhile(_ != null).filter(!_.isDirectory).foreach { entry =>
+  def extract(file: Path, destination: Path)(implicit log: Log): Try[Unit] =
+    extract(new FileInputStream(file.javaFile), destination)
+  
+  def extract(in: InputStream, destination: Path)(implicit log: Log): Try[Unit] = Try {
+    val gzis = new GZIPInputStream(in)
+    val tis   = new TarInputStream(gzis)
+    Iterator.continually(tis.getNextEntry).takeWhile(_ != null).filter(!_.isDirectory).foreach { entry =>
       val path = Path(entry.getName) in destination
       path.mkParents()
       val fos = new FileOutputStream(path.javaFile)
       val out = new BufferedOutputStream(fos)
-      transfer(in, out, keepOpen = true)
+      transfer(tis, out, keepOpen = true)
       out.close()
     }
-    in.close()
+    tis.close()
   }
 }
 
