@@ -19,10 +19,11 @@ package fury.model
 import fury._, io._, strings._, ogdl._
 
 import gastronomy._
+import kaleidoscope._
 import guillotine._
 import java.util.{List => _, _}
 
-import scala.util.Try
+import scala.util._
 
 import language.higherKinds
 
@@ -64,7 +65,32 @@ object Xdg {
   def cache(filename: String): Path = (Path(filename) in cacheHome).extantParents()
 }
 
+sealed trait Os
+case class Windows(machine: Machine) extends Os
+case class Linux(machine: Machine) extends Os
+case class MacOs(machine: Machine) extends Os
+
+sealed trait Machine
+case object X64 extends Machine
+case object X86 extends Machine
+
 object Installation {
+
+  lazy val system: Option[Os] = {
+    import environments.enclosing
+    val machine: Option[Machine] = sh"uname -m".exec[Try[String]] match {
+      case Success("x86_64" | "amd64") => Some(X64)
+      case Success("i386" | "i686")    => Some(X86)
+      case _                           => None
+    }
+
+    sh"uname".exec[Try[String]] match {
+      case Success("Darwin")   => machine.map(MacOs(_))
+      case Success("Linux")    => machine.map(Linux(_))
+      case Success(r"MINGW.*") => machine.map(Windows(_))
+      case _                   => None
+    }
+  }
 
   val usrDir: Path = (Path(System.getProperty("fury.home")) / "usr").extant()
 
