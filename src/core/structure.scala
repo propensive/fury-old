@@ -52,7 +52,7 @@ case class Menu[T, S](
         else apply(cli.prefix(default.name), ctx)
       case Some(next) =>
         val cmd = items.find(_.command.name == next.value).orElse {
-          if(next.value.length <= 2) items.find(_.shortcut == next.value(0))
+          if(next.value.length <= 2 && !cli.command.exists(_ < 4)) items.find(_.shortcut == next.value(0))
           else None
         }
 
