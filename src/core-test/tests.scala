@@ -21,7 +21,6 @@ import probably.TestApp
 object Tests {
   private val testSuites = List[TestApp](
       DirectedGraphTest,
-      TablesTest
   )
 
   def main(args: Array[String]): Unit = testSuites.foreach(_.execute())
