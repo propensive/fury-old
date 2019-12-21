@@ -263,7 +263,7 @@ object PermissionHash {
 case class PermissionHash(key: String) extends Key(msg"permission") {
   def resolve(policy: Set[Permission]): Try[Permission] = {
     val allMatches = policy.filter(_.hash.startsWith(key))
-    if (allMatches.size == 1) Success(allMatches.head) else Failure(ItemNotFound(key, "Oops!"))
+    if (allMatches.size == 1) Success(allMatches.head) else Failure(ItemNotFound(key, "permission"))
   }
 }
 
