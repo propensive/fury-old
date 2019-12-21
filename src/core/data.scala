@@ -394,7 +394,8 @@ object Layer {
 
   def loadFromIpfs(layerRef: IpfsRef, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { dir => for {
-      file <- Shell(env).ipfs.get(layerRef, dir)
+      ipfs <- Ipfs.daemon()
+      file <- ipfs.get(layerRef, dir)
       ref  <- loadDir(file, layout, env)
     } yield ref }
 
@@ -424,7 +425,8 @@ object Layer {
       filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
           .updated(tmp / ".focus.fury", layout.focusFile)
       _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest)}
-      ref       <- Shell(env).ipfs.add(tmp)
+      ipfs      <- Ipfs.daemon()
+      ref       <- ipfs.add(tmp)
     } yield ref }
 
   def resolve(path: String, layout: Layout): Try[LayerInput] = {
@@ -978,7 +980,8 @@ object Service {
     val url = Uri("https", str"$service/publish")
     case class Output(output: String)
     for {
-      id   <- Try(Shell(env).ipfs.id().get)
+      ipfs <- Ipfs.daemon()
+      id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json.of(path = path, token = ManagedConfig().token, hash = hash), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)

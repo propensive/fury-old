@@ -256,7 +256,8 @@ object BuildCli {
     call          <- cli.call()
     records       <- Dns.lookup(ManagedConfig().service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
-    file          <- Shell(cli.env).ipfs.get(latestRef, tmpFile)
+    ipfs          <- Ipfs.daemon()
+    file          <- ipfs.get(latestRef, tmpFile)
     _             <- TarGz.extract(file, Installation.upgradeDir)
   } yield log.await() }
 
@@ -570,6 +571,7 @@ object LayerCli {
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
     _             <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
+    _             <- ~log.info(msg"Cloned layer $layerRef into $dir")
   } yield log.await()
 
   def publish(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
