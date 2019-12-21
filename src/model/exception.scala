@@ -64,6 +64,7 @@ case class HttpGatewayTimeout(uri: Uri) extends FuryException
 case class HttpError(code: Int, uri: Uri) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
+case class NoSourcesError(repoId: RepoId, commit: Commit, sources: UserMsg) extends FuryException
 
 object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
