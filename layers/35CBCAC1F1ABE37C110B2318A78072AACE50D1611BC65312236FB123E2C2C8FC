@@ -657,7 +657,7 @@ schemas	default	id	default
 						properties	
 						policy	
 						hidden	false
-				main	Some	frontend
+				main	Some	test-core
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -669,8 +669,8 @@ schemas	default	id	default
 				track	master
 				commit	239b0dd7bfd36eef9dd6c613675c721ab5d570c7
 				local	None
-		imports	06C8EB86D2ED2A32E0B1624D622F8CB2C413E46D67C46D0BC8D45015A1D4E988:default	id	platform
-				layerRef	06C8EB86D2ED2A32E0B1624D622F8CB2C413E46D67C46D0BC8D45015A1D4E988
+		imports	DA4B26041ADDDB769CBEC747A2149C551CF9415B5CED478E54DDF11ABF650CD5:default	id	platform
+				layerRef	DA4B26041ADDDB769CBEC747A2149C551CF9415B5CED478E54DDF11ABF650CD5
 				schema	default
 				follow	None
 		main	Some	fury
