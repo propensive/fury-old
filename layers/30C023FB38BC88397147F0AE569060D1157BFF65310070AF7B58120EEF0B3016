@@ -669,11 +669,6 @@ schemas	default	id	default
 				track	master
 				commit	239b0dd7bfd36eef9dd6c613675c721ab5d570c7
 				local	None
-			platform	id	platform
-				repo	gh:propensive/platform
-				track	master
-				commit	d1e7aae5000e1efe92b2bde48bdb82c6064c7e06
-				local	None
 		imports	AB5D7AC1114489EED0FBC37EF61E3177F89CB8563D17B9D8BD008742B2A439AC:default	id	platform
 				layerRef	AB5D7AC1114489EED0FBC37EF61E3177F89CB8563D17B9D8BD008742B2A439AC
 				schema	default

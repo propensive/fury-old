@@ -25,7 +25,7 @@ import scala.util._
 
 object Recovery {
 
-  def recover(cli: Cli[CliParam[_]])(result: Try[ExitStatus]): ExitStatus = result match {
+  def recover(cli: Cli[CliParam[_]])(result: Try[ExitStatus])(implicit log: Log): ExitStatus = result match {
     case Success(exitStatus) =>
       exitStatus
     case Failure(err) =>
@@ -119,6 +119,8 @@ You can grant these permissions with,
           cli.abort(msg"This compiler is not known.")
         case UnknownBinaryRepository(repoId: BinRepoId) =>
           cli.abort(msg"The binary repository $repoId could not be resolved.")
+        case NoSourcesError(repoId, commit, sources) =>
+          cli.abort(msg"The repository $repoId did not contain the sources $sources at commit $commit.")
         case e: ShellFailure =>
           cli.abort(
               msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
@@ -167,9 +169,9 @@ You can grant these permissions with,
             s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            log    <- ~Log.global
-            _      <- ~log.fail(errorString)
-            _      <- ~log.await()
+            gLog   <- ~Log.global
+            _      <- ~gLog.fail(errorString)
+            _      <- ~gLog.await()
           } yield
             cli.abort(msg"An unexpected error occurred:$errorString")
 

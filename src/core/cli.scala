@@ -151,8 +151,8 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
   
   def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).toOption)
 
-  def abort(msg: UserMsg): ExitStatus = {
-    if(!completion) write(msg)
+  def abort(msg: UserMsg)(implicit log: Log): ExitStatus = {
+    if(!completion) log.fail(msg)
     Abort
   }
 

@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -190,7 +190,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                          else makeTarget(module.compiler, layout).map(Some(_))
       binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
-      dependencies    <- module.after.traverse { dep => for{
+      dependencies    <- module.after.traverse { dep => for {
                            origin <- entity(dep.projectId)
                          } yield TargetId(origin.schema.id, dep)}
       checkouts       <- checkout(ref, layout)
@@ -252,15 +252,16 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
     resolveTransitiveDependencies(forbidden = Set.empty, ref, layout)
 
-  private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
-    for {
-      entity   <- entity(ref.projectId)
-      module   <- entity.project(ref.moduleId)
-      deps     =  module.after ++ module.compilerDependencies
-      repeated =  deps.intersect(forbidden)
-      _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
-      tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _, layout).filter(!_.contains(ref))).sequence
-    } yield deps ++ tDeps.flatten
+  private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout):
+      Try[Set[ModuleRef]] = for {
+    entity   <- entity(ref.projectId)
+    module   <- entity.project(ref.moduleId)
+    deps     =  module.after ++ module.compilerDependencies
+    repeated =  deps.intersect(forbidden)
+    _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
+    tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _,
+                    layout).filter(!_.contains(ref))).sequence
+  } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
@@ -347,7 +348,7 @@ case class Schema(id: SchemaId,
   def allProjects(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Project]] = {
     @tailrec
     def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
-      treeNodes match{
+      treeNodes match {
         case Nil => ~aggregated
         case head :: tail =>
           getChildren(head) match {
@@ -422,7 +423,7 @@ object Layer {
       _         =  (tmp / "layers").mkdir()
       filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
           .updated(tmp / ".focus.fury", layout.focusFile)
-      _         <- filesMap.toSeq.traverse{ case (dest, src) => src.copyTo(dest)}
+      _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest)}
       ref       <- Shell(env).ipfs.add(tmp)
     } yield ref }
 
@@ -431,8 +432,8 @@ object Layer {
     path match {
       case r"fury:\/\/$ref@([A-Za-z0-9]{46})\/?" =>
         Success(IpfsRef(ref))
-      case r"fury:\/\/$domain@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
-        Success(FuryUri(domain, loc))
+      case r"fury:\/\/$dom@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
+        Success(FuryUri(dom, loc))
       case r".*\.fury" =>
         val file = Path(path).in(layout.pwd)
         if(file.exists) Success(FileInput(file)) else Failure(FileNotFound(file))
@@ -518,15 +519,19 @@ object Layer {
     _            <- saveFocus(focus.copy(layerRef = layerRef), layout)
   } yield layerRef
 
-  private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)(implicit log: Log): Try[LayerRef] =
+  private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)
+                        (implicit log: Log)
+                        : Try[LayerRef] =
     if(path.isEmpty) saveLayer(newLayer)
     else for {
       schema    <- currentLayer.mainSchema
       schemaRef <- schema.imports.findBy(path.head)
       nextLayer <- read(schemaRef.layerRef, layout)
       layerRef  <- saveSchema(layout, newLayer, path.tail, nextLayer)
-      newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef = layerRef))
-      newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) + newSchema)
+      newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef =
+                       layerRef))
+      newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) +
+                       newSchema)
       newLayerRef <- saveLayer(newLayer)
     } yield newLayerRef
 
@@ -658,6 +663,16 @@ case class Checkout(repoId: RepoId,
 
   private def checkout(layout: Layout)(implicit log: Log): Try[Path] =
     local.map(Success(_)).getOrElse {
+      val sourceDesc: UserMsg = sources match {
+        case List() =>
+          UserMsg { theme => theme.path("*") }
+        case head :: Nil =>
+          msg"$head"
+        case head :: tail =>
+          val init = tail.foldLeft(msg"${'{'}$head") { case (str, next) => msg"$str${','} $next" }
+          msg"$init${'}'}"
+      }
+
       if(!(path / ".done").exists) {
         if(path.exists()) {
           val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
@@ -665,22 +680,15 @@ case class Checkout(repoId: RepoId,
           path.delete()
         }
 
-        val sourceDesc: UserMsg = sources match {
-          case List() =>
-            UserMsg { theme => theme.path("*") }
-          case head :: Nil =>
-            msg"$head"
-          case head :: tail =>
-            val init = tail.foldLeft(msg"${'{'}$head") { case (str, next) => msg"$str${','} $next" }
-            msg"$init${'}'}"
-        }
-
         log.info(msg"Checking out $sourceDesc from repository $repoId")
         path.mkdir()
         Shell(layout.env).git
           .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
-          .flatMap{ _ => (path / ".git").delete() }
-          .map(path.waive)
+          .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
+          case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
+            Failure(NoSourcesError(repoId, commit, sourceDesc))
+          case e: Exception => Failure(e)
+        }
       } else Success(path)
     }
 }
@@ -702,13 +710,14 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
-  def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] = for {
-    repoDir     <- repo.fetch(layout, https)
-    focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
-    focus       <- ~Ogdl.read[Focus](focusString, identity(_))
-    layer       <- Layer.read(focus.layerRef, layout)
-    schemas     <- ~layer.schemas.to[List]
-  } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
+  def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] =
+    for {
+      repoDir     <- repo.fetch(layout, https)
+      focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
+      focus       <- ~Ogdl.read[Focus](focusString, identity(_))
+      layer       <- Layer.read(focus.layerRef, layout)
+      schemas     <- ~layer.schemas.to[List]
+    } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
   def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
     repo.pull(commit, track, layout, https)
@@ -718,7 +727,9 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     commit <- Shell(layout.env).git.getCommit(dir)
   } yield RefSpec(commit)
 
-  def sourceCandidates(layout: Layout, https: Boolean)(pred: String => Boolean)(implicit log: Log): Try[Set[Source]] =
+  def sourceCandidates(layout: Layout, https: Boolean)(pred: String => Boolean)
+                      (implicit log: Log)
+                      : Try[Set[Source]] =
     listFiles(layout, https).map(_.filter { f => pred(f.filename) }.map { p =>
         ExternalSource(id, p.parent): Source }.to[Set])
 }
@@ -795,7 +806,10 @@ object CompileResult {
 
   private def merge(results: Iterable[BspCompileResult]): BspCompileResult = {
     val distinctStatuses = results.map(_.getStatusCode).toSet
-    val aggregatedStatus = List(StatusCode.CANCELLED, StatusCode.ERROR, StatusCode.OK).find(distinctStatuses.contains)
+    
+    val aggregatedStatus = List(StatusCode.CANCELLED, StatusCode.ERROR,
+        StatusCode.OK).find(distinctStatuses.contains)
+    
     val mergedResult = new BspCompileResult(aggregatedStatus.getOrElse(StatusCode.OK))
     results.headOption.foreach { res =>
       //TODO think of a better way to merge those fields
@@ -916,8 +930,10 @@ trait Source {
 
 case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def description: String = str"${repoId}:${path.value}"
-  def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((path, _).digest[Md5])
   def repoIdentifier: RepoId = repoId
+  
+  def hash(schema: Schema, layout: Layout): Try[Digest] =
+    schema.repo(repoId, layout).map((path, _).digest[Md5])
 }
 
 case class SharedSource(path: Path) extends Source {
