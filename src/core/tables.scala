@@ -75,22 +75,22 @@ case class Tables() {
   }
 
   def differences(left: String, right: String): Tabulation[Difference] = Tabulation[Difference](
-    Heading("TYPE", _.entity),
-    Heading("DIFF", _.label),
+    Heading("Type", _.entity),
+    Heading("Diff", _.label),
     Heading(left.toUpperCase, _.left),
     Heading(right.toUpperCase, _.right)
   )
 
   def modules(projectId: ProjectId, current: Option[ModuleId]): Tabulation[Module] = Tabulation[Module](
     Heading("", m => Some(m.id) == current),
-    Heading("MODULE", _.id),
-    Heading("DEPENDENCIES", (m: Module) => m.after, width = FlexibleWidth)(refinedModuleDep(projectId)),
-    Heading("SRCS", _.sources),
-    Heading("BINS", m => bar(m.allBinaries.size)),
-    Heading("COMPILER", _.compiler),
-    Heading("PARAMS", m => bar(m.params.size)),
-    Heading("TYPE", _.kind),
-    Heading("DETAILS", m => m.kind match {
+    Heading("Module", _.id),
+    Heading("Dependencies", (m: Module) => m.after, width = FlexibleWidth)(refinedModuleDep(projectId)),
+    Heading("Sources", _.sources),
+    Heading("Binaries", m => bar(m.allBinaries.size)),
+    Heading("Compiler", _.compiler),
+    Heading("Params", m => bar(m.params.size)),
+    Heading("Type", _.kind),
+    Heading("Details", m => m.kind match {
       case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
       case Application => m.main.fold(msg"${'-'}") { a => msg"$a" }
       case _ => msg"${'-'}"
@@ -98,80 +98,80 @@ case class Tables() {
   )
 
   val aliases: Tabulation[Alias] = Tabulation(
-    Heading("ALIAS", _.cmd),
-    Heading("DESC", _.description),
-    Heading("MODULE", _.module)
+    Heading("Alias", _.cmd),
+    Heading("Description", _.description),
+    Heading("Module", _.module)
   )
 
   val dependencies: Tabulation[ModuleRef] = Tabulation[ModuleRef](
-    Heading("PROJECT", _.projectId),
-    Heading("MODULE", _.moduleId)
+    Heading("Project", _.projectId),
+    Heading("Module", _.moduleId)
   )
 
   val sources: Tabulation[Source] = Tabulation(
-    Heading("REPO", _.repoIdentifier),
-    Heading("PATH", _.path)
+    Heading("Repo", _.repoIdentifier),
+    Heading("Path", _.path)
   )
 
   val params: Tabulation[Parameter] = Tabulation(
-    Heading("PARAM", _.name)
+    Heading("Param", _.name)
   )
 
   val permissions: Tabulation[PermissionEntry] = Tabulation(
-    Heading("HASH", _.hash),
-    Heading("CLASS", _.permission.className),
-    Heading("TARGET", _.permission.target),
-    Heading("ACTION", _.permission.action.getOrElse("-")),
+    Heading("Hash", _.hash),
+    Heading("Class", _.permission.className),
+    Heading("Target", _.permission.target),
+    Heading("Action", _.permission.action.getOrElse("-")),
   )
 
   val envs: Tabulation[EnvVar] = Tabulation(
-    Heading("KEY", _.key),
-    Heading("VALUE", _.value)
+    Heading("Key", _.key),
+    Heading("Value", _.value)
   )
   
   val props: Tabulation[JavaProperty] = Tabulation(
-    Heading("KEY", _.key),
-    Heading("VALUE", _.value)
+    Heading("Key", _.key),
+    Heading("Value", _.value)
   )
 
   val binaries: Tabulation[Binary] = Tabulation(
-    Heading("SERVICE", _.binRepo),
-    Heading("GROUP", _.group),
-    Heading("ARTIFACT", _.artifact),
-    Heading("VERSION", _.version)
+    Heading("Service", _.binRepo),
+    Heading("Group", _.group),
+    Heading("Artifact", _.artifact),
+    Heading("Version", _.version)
   )
 
   def imports(current: Option[SchemaId]): Tabulation[(SchemaRef, Try[Schema])] = Tabulation(
     Heading("", s => Some(s._1.schema.key) == current),
     Heading("ID", _._1.id),
-    Heading("REF", _._1.layerRef),
-    Heading("SCHEMA", _._1.schema),
-    Heading("PROJECTS", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),
-    Heading("REPOS", s => s._2.toOption.map { s => bar(s.sourceRepoIds.size) }.getOrElse(msg"-")),
-    Heading( "IMPORTS", s => s._2.toOption.map { s => bar(s.imports.size) }.getOrElse(msg"-"))
+    Heading("Ref", _._1.layerRef),
+    Heading("Schema", _._1.schema),
+    Heading("Projects", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),
+    Heading("Repos", s => s._2.toOption.map { s => bar(s.sourceRepoIds.size) }.getOrElse(msg"-")),
+    Heading("Imports", s => s._2.toOption.map { s => bar(s.imports.size) }.getOrElse(msg"-"))
   )
 
   def schemas(current: Option[SchemaId]): Tabulation[Schema] = Tabulation(
     Heading("", s => Some(s.id) == current),
-    Heading("SCHEMA", _.id),
-    Heading("PROJECTS", s => bar(s.projects.size)),
-    Heading("REPOS", s => bar(s.sourceRepoIds.size)),
-    Heading("IMPORTS", s => bar(s.imports.size))
+    Heading("Schema", _.id),
+    Heading("Projects", s => bar(s.projects.size)),
+    Heading("Repos", s => bar(s.sourceRepoIds.size)),
+    Heading("Imports", s => bar(s.imports.size))
   )
 
   def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation[Project](
     Heading("", p => Some(p.id) == current),
-    Heading("PROJECT", _.id),
-    Heading("MODULES", p => bar(p.modules.size)),
-    Heading("DESC", _.description),
-    Heading("LICENSE", _.license),
-    Heading("COMPILER", _.compiler)
+    Heading("Project", _.id),
+    Heading("Modules", p => bar(p.modules.size)),
+    Heading("Description", _.description),
+    Heading("License", _.license),
+    Heading("Compiler", _.compiler)
   )
 
   def repositories(layout: Layout): Tabulation[SourceRepo] = Tabulation(
-    Heading("REPO", _.id),
-    Heading("REMOTE", _.repo),
-    Heading("TRACK", _.track),
-    Heading("COMMIT/PATH", commitPath(_))
+    Heading("Repo", _.id),
+    Heading("Remote", _.repo),
+    Heading("Branch", _.track),
+    Heading("Commit/Path", commitPath(_))
   )
 }
