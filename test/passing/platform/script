@@ -26,7 +26,7 @@ git add .
 git commit -m 'platform' -q
 fury build run --output linear
 echo $?
-IPFSREF=$(fury layer share)
+IPFSREF=$(fury layer share --raw)
 
 cd ../app
 fury layer init

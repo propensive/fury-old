@@ -16,12 +16,12 @@
 */
 package fury.core
 
-import fury.io._, fury.model._, fury.strings._
+import fury.io._
 
 import java.io._
-import annotation._
+import annotation.tailrec
 import scala.util.Try
-import org.kamranzafar.jtar._
+import org.kamranzafar.jtar.{TarEntry, TarInputStream, TarOutputStream}
 
 import java.util.zip._
 
@@ -49,7 +49,9 @@ object TarGz {
     val gzos = new GZIPOutputStream(fos)
     val out  = new TarOutputStream(gzos)
     files.foreach { case (name, path) =>
-      out.putNextEntry(new TarEntry(path.javaFile, name.value))
+      val entry = new TarEntry(path.javaFile, name.value)
+      entry.setModTime(0L)
+      out.putNextEntry(entry)
       val in = new BufferedInputStream(new FileInputStream(path.javaFile))
       transfer(in, out)
     }

@@ -526,6 +526,32 @@ schemas	default	id	default
 								target	getenv.XDG_RUNTIME_DIR
 								action	None
 						hidden	false
+					test-model	id	test-model
+						kind	Application
+						main	Some	fury.ImportPathTests
+						plugin	None
+						manifest	
+						compiler	projectId	scala
+							moduleId	compiler
+							intransitive	true
+							hidden	false
+						after	fury/model	projectId	fury
+								moduleId	model
+								intransitive	false
+								hidden	false
+							probably/cli	projectId	probably
+								moduleId	cli
+								intransitive	false
+								hidden	false
+						params	
+						sources	src/model-test	src/model-test
+						binaries	
+						resources	
+						bloopSpec	None
+						environment	
+						properties	
+						policy	
+						hidden	false
 					test-ogdl	id	test-ogdl
 						kind	Application
 						main	Some	fury.Tests
@@ -631,7 +657,7 @@ schemas	default	id	default
 						properties	
 						policy	
 						hidden	false
-				main	Some	frontend
+				main	Some	test-core
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala
@@ -643,13 +669,8 @@ schemas	default	id	default
 				track	master
 				commit	239b0dd7bfd36eef9dd6c613675c721ab5d570c7
 				local	None
-			platform	id	platform
-				repo	gh:propensive/platform
-				track	master
-				commit	d1e7aae5000e1efe92b2bde48bdb82c6064c7e06
-				local	None
-		imports	170FFB493AD839E66CD7F53CC22E808852B98777274C1F200EACE8BBA19AD952:default	id	platform
-				layerRef	170FFB493AD839E66CD7F53CC22E808852B98777274C1F200EACE8BBA19AD952
+		imports	DA4B26041ADDDB769CBEC747A2149C551CF9415B5CED478E54DDF11ABF650CD5:default	id	platform
+				layerRef	DA4B26041ADDDB769CBEC747A2149C551CF9415B5CED478E54DDF11ABF650CD5
 				schema	default
 				follow	None
 		main	Some	fury

@@ -66,7 +66,7 @@ class SourceWatcher(sources: Set[Path]){
 
   def clear(): Unit = changed.set(false)
 
-  private[this] val watchers = directories.map( src => new RecursiveFileMonitor(src) {
+  private[this] lazy val watchers = directories.map( src => new RecursiveFileMonitor(src) {
     override def onCreate(file: File, count: Int) = onChange(file)
     override def onModify(file: File, count: Int) = onChange(file)
     override def onDelete(file: File, count: Int) = onChange(file)

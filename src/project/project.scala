@@ -65,8 +65,8 @@ object ProjectCli {
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
-      _      <- ~(if(!raw) log.info(Tables().contextString(layout.baseDir, layer.showSchema, schema)))
-      _      <- ~log.info(table.mkString("\n"))
+      _      <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
+      _      <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 
@@ -148,8 +148,9 @@ object ProjectCli {
       nameArg        <- ~call(ProjectNameArg).toOption
       newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
+      layer          <- if(!schema.main.isEmpty) ~layer else focus(layer, _.lens(_.main)) = Some(newId)
+      layer          <- if(Some(project.id) != schema.main) ~layer else focus(layer, _.lens(_.main)) = Some(newId)
       newSchema      <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-      newSchema      <- ~(if(Some(project.id) == newSchema.main) newSchema.copy(main = newId) else newSchema)
       lens           <- ~Lenses.layer.schemas
       layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
       layer          <- ~lens.modify(layer)(_ + newSchema)

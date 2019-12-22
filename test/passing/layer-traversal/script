@@ -1,0 +1,53 @@
+mkdir app
+mkdir library
+mkdir platform
+
+cd library
+git init -q
+mkdir -p src/core
+echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
+git add .
+git commit -m 'version 1' -q
+
+cd ../platform
+git init -q
+echo '.fury' > .gitignore
+fury layer init
+fury schema add -n platform
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n library
+fury module add -n core -c scala/compiler
+fury repo add -n library -u ../library
+fury source add -d library:src/core
+git add .
+git commit -m 'platform' -q
+fury build run --output linear
+echo $?
+IPFSREF=$(fury layer share --raw)
+
+cd ../app
+fury layer init
+fury layer import -l $IPFSREF --name platform --import platform
+IPFSREF=
+fury layer list --raw
+grep path .focus.fury
+fury layer select -l platform
+grep path .focus.fury
+fury layer select -l ..
+grep path .focus.fury
+fury layer select -l ..
+echo $?
+grep path .focus.fury
+fury layer select -l /platform
+grep path .focus.fury
+fury layer select -l /..
+echo $?
+grep path .focus.fury
+fury layer select -l /platform/../..
+echo $?
+grep path .focus.fury
+fury layer select -l /platform/..
+grep path .focus.fury

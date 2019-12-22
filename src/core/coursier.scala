@@ -16,13 +16,12 @@
 */
 package fury.core
 
-import fury.io._, fury.strings._, fury.model._
+import fury.io._, fury.model._
 
 import mercator._
 
 import coursier.{Module => CModule, _}
 
-import scala.collection.mutable.{HashMap => MutableMap}
 import scala.util._
 
 object Coursier {

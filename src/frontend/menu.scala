@@ -31,10 +31,10 @@ object FuryMenu {
             Action('list, msg"list command aliases", AliasCli.list)
         ),
         Action('bsp, msg"start BSP server", Bsp.startServer, false),
-        Menu('binary, msg"manage binary dependencies for the module", BinaryCli.context, 'list)(
-            Action('add, msg"add a binary dependency to the module", BinaryCli.add),
-            Action('remove, msg"remove a binary dependency from the module", BinaryCli.remove),
-            Action('list, msg"list binary dependencies for the module", BinaryCli.list)
+        Menu('binary, msg"manage binary dependencies for the module", BinaryCli.context, 'list, shortcut = 'b')(
+            Action('add, msg"add a binary dependency to the module", BinaryCli.add, shortcut = 'a'),
+            Action('remove, msg"remove a binary dependency from the module", BinaryCli.remove, shortcut = 'r'),
+            Action('list, msg"list binary dependencies for the module", BinaryCli.list, shortcut = 'l')
         ),
         Menu('build, msg"perform build actions", BuildCli.context, 'run)(
             Action('classpath, msg"show a classpath for a module", BuildCli.classpath),
@@ -42,7 +42,7 @@ object FuryMenu {
             Action('run, msg"compile a module", BuildCli.compile(None, None)),
             Action('describe, msg"describe the build for a module", BuildCli.describe),
             Action('save, msg"save a JAR file", BuildCli.save),
-            Action('native, msg"build a native executable using GraalVM", BuildCli.native)
+            Action('install, msg"install an application locally", BuildCli.install)
         ),
         Menu('clean, msg"clean fury workspace", CleanCli.context, 'all)(
             Action('all, msg"clean all", CleanCli.cleanAll),
@@ -54,26 +54,27 @@ object FuryMenu {
         ),
         Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
         Menu('config, msg"change system configuration options", ConfigCli.context, 'set)(
-            Action('set, msg"change a settings", ConfigCli.set)
+            Action('set, msg"change a settings", ConfigCli.set),
+            Action('auth, msg"authenticate using the distribution service", ConfigCli.auth)
         ),
-        Menu('dependency, msg"manage dependencies for the module", DependencyCli.context, 'list)(
-            Action('add, msg"add a dependency on another module", DependencyCli.add),
-            Action('remove, msg"remove a dependency", DependencyCli.remove),
-            Action('list, msg"list dependencies for the module", DependencyCli.list)
+        Menu('dependency, msg"manage dependencies for the module", DependencyCli.context, 'list, shortcut = 'd')(
+            Action('add, msg"add a dependency on another module", DependencyCli.add, shortcut = 'a'),
+            Action('remove, msg"remove a dependency", DependencyCli.remove, shortcut = 'r'),
+            Action('list, msg"list dependencies for the module", DependencyCli.list, shortcut = 'l')
         ),
-        Menu('env, msg"manage application environment variables", EnvCli.context, 'list)(
-            Action('add, msg"add an environment variable", EnvCli.add),
-            Action('remove, msg"remove an environment variable", EnvCli.remove),
-            Action('list, msg"list environment variable", EnvCli.list)
+        Menu('env, msg"manage application environment variables", EnvCli.context, 'list, shortcut = 'e')(
+            Action('add, msg"add an environment variable", EnvCli.add, shortcut = 'a'),
+            Action('remove, msg"remove an environment variable", EnvCli.remove, shortcut = 'r'),
+            Action('list, msg"list environment variable", EnvCli.list, shortcut = 'l')
         ),
         Action('help, msg"help on using Fury", help),
         Action('kill, msg"kill the Fury server", BuildCli.notImplemented),
-        Menu('module, msg"view and edit modules", ModuleCli.context, 'list)(
-            Action('add, msg"add a new module to the project", ModuleCli.add),
-            Action('remove, msg"remove a module from the project", ModuleCli.remove),
-            Action('list, msg"list modules for the project", ModuleCli.list),
-            Action('select, msg"select the current module", ModuleCli.select),
-            Action('update, msg"update the module", ModuleCli.update)
+        Menu('module, msg"view and edit modules", ModuleCli.context, 'list, shortcut = 'm')(
+            Action('add, msg"add a new module to the project", ModuleCli.add, shortcut = 'a'),
+            Action('remove, msg"remove a module from the project", ModuleCli.remove, shortcut = 'r'),
+            Action('list, msg"list modules for the project", ModuleCli.list, shortcut = 'l'),
+            Action('select, msg"select the current module", ModuleCli.select, shortcut = 's'),
+            Action('update, msg"update the module", ModuleCli.update, shortcut = 'u')
         ),
         Menu('param, msg"manage compiler parameters for the module", ParamCli.context, 'list)(
             Action('add, msg"add a compiler parameter to the module", ParamCli.add),
@@ -86,12 +87,12 @@ object FuryMenu {
             Action('obviate, msg"remove an application permission", PermissionCli.obviate),
             Action('require, msg"add an application permission", PermissionCli.require)
         ),
-        Menu('project, msg"manage projects", ProjectCli.context, 'list)(
-            Action('add, msg"add a new project to the schema", ProjectCli.add),
-            Action('remove, msg"remove a project from the schema", ProjectCli.remove),
-            Action('list, msg"list projects for the schema", ProjectCli.list),
-            Action('select, msg"select the current project", ProjectCli.select),
-            Action('update, msg"update a project", ProjectCli.update)
+        Menu('project, msg"manage projects", ProjectCli.context, 'list, shortcut = 'p')(
+            Action('add, msg"add a new project to the schema", ProjectCli.add, shortcut = 'a'),
+            Action('remove, msg"remove a project from the schema", ProjectCli.remove, shortcut = 'r'),
+            Action('list, msg"list projects for the schema", ProjectCli.list, shortcut = 'l'),
+            Action('select, msg"select the current project", ProjectCli.select, shortcut = 's'),
+            Action('update, msg"update a project", ProjectCli.update, shortcut = 'u')
         ),
         Action('prompt, msg"show a context prompt", BuildCli.prompt, false),
         Menu('property, msg"manage application -D properties", PropertyCli.context, 'list)(
@@ -100,10 +101,10 @@ object FuryMenu {
             Action('list, msg"list -D properties", PropertyCli.list)
         ),
         Action('restart, msg"restart the Fury server", BuildCli.notImplemented),
-        Menu('source, msg"manage sources for the module", SourceCli.context, 'list)(
-            Action('add, msg"add a source directory to the module", SourceCli.add),
-            Action('remove, msg"remove a source directory from the module", SourceCli.remove),
-            Action('list, msg"list sources for the module", SourceCli.list)
+        Menu('source, msg"manage sources for the module", SourceCli.context, 'list, shortcut = 's')(
+            Action('add, msg"add a source directory to the module", SourceCli.add, shortcut = 'a'),
+            Action('remove, msg"remove a source directory from the module", SourceCli.remove, shortcut = 'r'),
+            Action('list, msg"list sources for the module", SourceCli.list, shortcut = 'l')
         ),
         Action('stop, msg"gracefully shut down the Fury server", ((_: Cli[CliParam[_]]) => Lifecycle.shutdown())),
         Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
@@ -114,30 +115,31 @@ object FuryMenu {
             Action('select, msg"select the current schema", SchemaCli.select),
             Action('update, msg"update a schema", SchemaCli.update)
         ),
-        Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list)(
-            Action('add, msg"add a source repository to the schema", RepoCli.add),
-            Action('update, msg"update a source repository", RepoCli.update),
-            Action('remove, msg"remove a source repository from the schema", RepoCli.remove),
-            Action('fork, msg"fork a managed repository locally", RepoCli.fork),
+        Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list, shortcut = 'r')(
+            Action('add, msg"add a source repository to the schema", RepoCli.add, shortcut = 'a'),
+            Action('update, msg"update a source repository", RepoCli.update, shortcut = 'u'),
+            Action('remove, msg"remove a source repository from the schema", RepoCli.remove, shortcut = 'r'),
+            Action('fork, msg"fork a managed repository locally", RepoCli.fork, shortcut = 'f'),
             Action('unfork, msg"restore a source repository to a managed checkout", RepoCli.unfork),
-            Action('list, msg"list source repositories", RepoCli.list),
+            Action('list, msg"list source repositories", RepoCli.list, shortcut = 'l'),
             Action(
                 'pull,
                 msg"pull the latest version of the source repo from the remote",
-                RepoCli.pull)
+                RepoCli.pull, shortcut = 'p')
         ),
         Action('upgrade, msg"upgrade to the latest version of Fury", BuildCli.upgrade),
         //Action('undo, msg"undo the previous modification", BuildCli.undo),
-        Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects)(
-            Action('clone, msg"clone an external layer", LayerCli.clone),
-            Action('export, msg"export a layer to a file", LayerCli.export),
+        Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects, shortcut = 'l')(
+            Action('clone, msg"clone an external layer", LayerCli.clone, shortcut = 'c'),
+            Action('export, msg"export a layer to a file", LayerCli.export, shortcut = 'e'),
             Action('extract, msg"extract a layer file", LayerCli.extract),
-            Action('import, msg"import an external layer", LayerCli.addImport),
+            Action('import, msg"import an external layer", LayerCli.addImport, shortcut = 'i'),
             Action('init, msg"initialize a new Fury layer", LayerCli.init),
-            Action('list, msg"list imported layers", LayerCli.list),
+            Action('list, msg"list imported layers", LayerCli.list, shortcut = 'l'),
             Action('projects, msg"show all available projects", LayerCli.projects),
+            Action('publish, msg"publish a layer", LayerCli.publish, shortcut = 'p'),
             Action('unimport, msg"remove a previously imported layer", LayerCli.unimport),
-            Action('select, msg"select a layer", LayerCli.select),
+            Action('select, msg"select a layer", LayerCli.select, shortcut = 's'),
             Action('share, msg"share this layer", LayerCli.share),
         )
     ) ::: aliases: _*)
@@ -148,7 +150,7 @@ object FuryMenu {
       _     <- ~log.raw(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
-                           |${menu(Nil).reference(Theme.NoColor).join("\n")}
+                           |${menu(Nil).reference(ManagedConfig().theme).join("\n")}
                            |
                            |More help is available on the Fury website: https://fury.build/
                            |""".stripMargin)

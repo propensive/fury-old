@@ -14,28 +14,23 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury
+package fury.core
 
-import fury.core._, fury.strings._
+import fury.strings._, fury.model._, fury.utils._
 
-import probably._
+import euphemism._
+import kaleidoscope._
 
-object TablesTest extends TestApp {
-  override def tests(): Unit = {
-    test("contextString with showSchema=true") {
-      val tables = Tables()
+import scala.util.Try
 
-      tables.contextString(msg"foo", true, msg"bar", msg"baz").string(Theme.NoColor)
-    }.assert {
-      _ == "foo/bar/baz"
-    }
-
-    test("contextString with showSchema=false") {
-      val tables = Tables()
-
-      tables.contextString(msg"foo", false, msg"bar", msg"baz").string(Theme.NoColor)
-    }.assert {
-      _ == "foo/baz"
-    }
+object GitHub {
+  def repos(prefix: String)(implicit log: Log): List[String] = prefix match {
+    case r"gh:$org@([a-z][a-z0-9]*)\/" => (for {
+      _   <- ~log.info(s"Looking for completions for $org...")
+      out <- Http.get(Uri("https", str"api.github.com/orgs/$org/repos"), Map(), Set(HttpHeader("Authorization", s"token ${ManagedConfig().token}")))
+      _   <- ~log.info(new String(out, "UTF-8"))
+      rs  <- Try(Json.parse(new String(out, "UTF-8")).get)
+    } yield rs.as[List[Json]].get.flatMap(_.name.as[String].map { name => str"gh:$org/$name" }.to[List])).toOption.to[List].flatten
+    case _ => Nil
   }
 }

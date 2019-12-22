@@ -20,15 +20,12 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.channels._
-import java.time.LocalDateTime
-import java.util.concurrent.{CompletableFuture, ExecutionException, Executors, TimeUnit}
+import java.util.concurrent.{CompletableFuture, ExecutionException}
 
-import bloop.bloopgun.BloopgunCli
-import bloop.launcher.{LauncherMain, LauncherStatus}
+import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
-import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
+import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
-import fury._
 import fury.core.Graph.CompilerDiagnostic
 import fury.io._
 import fury.model._
@@ -37,19 +34,18 @@ import fury.utils._
 import gastronomy._
 import kaleidoscope._
 import mercator._
-import org.eclipse.lsp4j.jsonrpc.{JsonRpcException, Launcher}
+import org.eclipse.lsp4j.jsonrpc.Launcher
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.HashMap
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent._
-import scala.concurrent.duration._
+import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.duration.Duration
 import scala.language.higherKinds
 import scala.reflect.{ClassTag, classTag}
 import scala.util._
-import scala.util.control.NonFatal
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
@@ -183,14 +179,15 @@ object Compilation {
                     https: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(layout, https)
+    hierarchy   <- schema.hierarchy(layout)
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
-    compilation <- fromUniverse(universe, ref, policy, layout)
+    compilation <- fromUniverse(universe, ref, layout)
+    _           <- policy.checkAll(compilation.requiredPermissions)
     _           <- compilation.generateFiles(layout)
   } yield compilation
 
-  private def fromUniverse(universe: Universe, ref: ModuleRef, policy: Policy, layout: Layout)(implicit log: Log): Try[Compilation] = {
+  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Compilation] = {
     import universe._
 
     def directDependencies(target: Target): Set[TargetId] = (target.dependencies ++ target.compiler.map(_.id)).to[Set]
@@ -212,14 +209,14 @@ object Compilation {
       targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout).map(t => targetId -> t) }
       requiredTargets     =  targetIndex.unzip._2
       requiredPermissions =  requiredTargets.flatMap(_.permissions)
-      _                   <- policy.checkAll(requiredPermissions)
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
         TargetId(entity.schema.id, ref)).connections
-      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _), moduleRefToTarget, targetIndex.toMap, universe)
+      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
+        moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
   }
 
@@ -364,6 +361,7 @@ case class Compilation(graph: Target.Graph,
                        checkouts: Set[Checkout],
                        targets: Map[ModuleRef, Target],
                        targetIndex: Map[TargetId, Target],
+                       requiredPermissions: Set[Permission],
                        universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()

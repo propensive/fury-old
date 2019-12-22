@@ -65,6 +65,9 @@ object Xdg {
 }
 
 object Installation {
+
+  val usrDir: Path = (Path(System.getProperty("fury.home")) / "usr").extant()
+
   val cache: Path = Xdg.cache("fury")
   val config: Path = Xdg.config("fury")
   val data: Path = Xdg.data("fury")

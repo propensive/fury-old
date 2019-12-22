@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -19,18 +19,22 @@ package fury.core
 import java.net.URI
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
-import exoskeleton._
 import fury._
+import exoskeleton._
 import fury.core.Graph.DiagnosticMessage
 import fury.io._
 import fury.model._
 import fury.ogdl._
 import fury.strings._
 import fury.utils._
+
 import gastronomy._
 import guillotine._
 import kaleidoscope._
 import mercator._
+import exoskeleton._
+import euphemism._
+
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -155,12 +159,6 @@ case class Module(id: ModuleId,
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
   def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
-
-  def permission(hashPrefix: PermissionHash): Option[Permission] = {
-    val allMatches = policy.filter(_.hash.startsWith(hashPrefix.key))
-    if (allMatches.size == 1) Some(allMatches.head) else None
-  }
-
   def policyEntries: Set[PermissionEntry] = {
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
@@ -192,7 +190,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                          else makeTarget(module.compiler, layout).map(Some(_))
       binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
-      dependencies    <- module.after.traverse { dep => for{
+      dependencies    <- module.after.traverse { dep => for {
                            origin <- entity(dep.projectId)
                          } yield TargetId(origin.schema.id, dep)}
       checkouts       <- checkout(ref, layout)
@@ -254,15 +252,16 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
     resolveTransitiveDependencies(forbidden = Set.empty, ref, layout)
 
-  private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
-    for {
-      entity   <- entity(ref.projectId)
-      module   <- entity.project(ref.moduleId)
-      deps     =  module.after ++ module.compilerDependencies
-      repeated =  deps.intersect(forbidden)
-      _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
-      tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _, layout).filter(!_.contains(ref))).sequence
-    } yield deps ++ tDeps.flatten
+  private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout):
+      Try[Set[ModuleRef]] = for {
+    entity   <- entity(ref.projectId)
+    module   <- entity.project(ref.moduleId)
+    deps     =  module.after ++ module.compilerDependencies
+    repeated =  deps.intersect(forbidden)
+    _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
+    tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _,
+                    layout).filter(!_.contains(ref))).sequence
+  } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
@@ -325,11 +324,11 @@ case class Schema(id: SchemaId,
   def importCandidates(layout: Layout, https: Boolean)(implicit log: Log): List[String] =
     repos.to[List].flatMap(_.importCandidates(this, layout, https).toOption.to[List].flatten)
 
-  def hierarchy(layout: Layout, https: Boolean)(implicit log: Log): Try[Hierarchy] = for {
+  def hierarchy(layout: Layout)(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
       layer        <- Layer.read(ref.layerRef, layout)
       resolved     <- layer.schemas.findBy(ref.schema)
-      tree         <- resolved.hierarchy(layout, https)
+      tree         <- resolved.hierarchy(layout)
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 
@@ -349,7 +348,7 @@ case class Schema(id: SchemaId,
   def allProjects(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Project]] = {
     @tailrec
     def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
-      treeNodes match{
+      treeNodes match {
         case Nil => ~aggregated
         case head :: tail =>
           getChildren(head) match {
@@ -384,17 +383,28 @@ case class Layer(version: Int = Layer.CurrentVersion,
   def showSchema: Boolean = schemas.size > 1
   def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
+
+  def hash: String = Layer.digestLayer(this).key.take(10)
 }
 
 object Layer {
   val CurrentVersion = 4
+  implicit val msgShow: MsgShow[Layer]       = r => UserMsg(_.layer(r.hash))
+  implicit val stringShow: StringShow[Layer] = _.hash
 
-  def loadFromIpfs(layerRef: IpfsRef, env: Environment)(implicit log: Log): Try[LayerRef] =
-    Installation.tmpFile { tmpFile => for {
-      file     <- Shell(env).ipfs.get(layerRef, tmpFile)
-      layer    <- Layer.read(file, env)
-      layerRef <- saveLayer(layer)
-    } yield layerRef }
+  def loadFromIpfs(layerRef: IpfsRef, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
+    Installation.tmpDir { dir => for {
+      file <- Shell(env).ipfs.get(layerRef, dir)
+      ref  <- loadDir(file, layout, env)
+    } yield ref }
+
+  def loadDir(dir: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
+    for {
+      _      <- (dir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
+      bases  <- ~(dir / "bases").childPaths
+      _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
+      focus  <- Ogdl.read[Focus](dir / ".focus.fury", identity(_))
+    } yield focus.layerRef
 
   def loadFile(file: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { tmpDir => for {
@@ -405,41 +415,48 @@ object Layer {
       focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
     } yield focus.layerRef }
 
-    def share(layer: Layer, env: Environment)(implicit log: Log): Try[IpfsRef] = for {
-      layerRef <- ~digestLayer(layer)
-      file     <- ~(Installation.layersPath / layerRef.key)
-      _        <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
-      ref      <- Shell(env).ipfs.add(file)
-    } yield ref
+  def share(layer: Layer, layout: Layout, env: Environment)(implicit log: Log): Try[IpfsRef] =
+    Installation.tmpDir { tmp => for {
+      layerRef  <- saveLayer(layer)
+      schemaRef =  SchemaRef(ImportId(""), layerRef, layer.main)
+      layerRefs <- collectLayerRefs(schemaRef, layout)
+      _         =  (tmp / "layers").mkdir()
+      filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
+          .updated(tmp / ".focus.fury", layout.focusFile)
+      _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest)}
+      ref       <- Shell(env).ipfs.add(tmp)
+    } yield ref }
 
-
-  def loadCatalog(catalogRef: IpfsRef, env: Environment)(implicit log: Log): Try[Catalog] =
-    Installation.tmpFile { tmpFile => for {
-      file     <- Shell(env).ipfs.get(catalogRef, tmpFile)
-      catalog  <- Ogdl.read[Catalog](tmpFile, identity(_))
-    } yield catalog
+  def resolve(path: String, layout: Layout): Try[LayerInput] = {
+    val service = ManagedConfig().service
+    path match {
+      case r"fury:\/\/$ref@([A-Za-z0-9]{46})\/?" =>
+        Success(IpfsRef(ref))
+      case r"fury:\/\/$dom@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
+        Success(FuryUri(dom, loc))
+      case r".*\.fury" =>
+        val file = Path(path).in(layout.pwd)
+        if(file.exists) Success(FileInput(file)) else Failure(FileNotFound(file))
+      case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
+        Success(FuryUri(service, path))
+      case name =>
+        Failure(InvalidLayer(name))
+    }
   }
 
-  def lookup(domain: String, env: Environment)(implicit log: Log): Try[List[Artifact]] = for {
-    records   <- Dns.lookup(domain)
-    records   <- ~records.filter(_.startsWith("fury:")).map { rec => IpfsRef(rec.drop(5)) }
-    catalogs  <- records.map { loadCatalog(_, env) }.sequence
-    artifacts <- ~catalogs.flatMap(_.artifacts)
-  } yield artifacts
- 
-  def follow(importLayer: ImportLayer): Followable = importLayer match {
-    case RefImport(followable) => followable
-    case DefaultImport(path) => Followable(ManagedConfig().service, path)
-  }
+  def load(input: LayerInput, env: Environment, layout: Layout)(implicit log: Log): Try[LayerRef] =
+    input match {
+      case FuryUri(domain, path) => for {
+                                      entries <- Service.catalog()
+                                      ipfsRef <- Try(entries.find(_.path == path).get)
+                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, env)
+                                    } yield ref
+      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, env)
+      case FileInput(file)       => loadFile(file, layout, env)
+    }
 
-  def resolve(followable: Followable, env: Environment)(implicit log: Log): Try[LayerRef] = for {
-    artifacts <- lookup(followable.domain, env)
-    ref       <- Try(artifacts.find(_.path == followable.path).get)
-    layerRef  <- loadFromIpfs(ref.ref, env)
-  } yield layerRef
-
-  def pathCompletions(domain: String, env: Environment)(implicit log: Log): Try[List[String]] =
-    lookup(domain, env).map(_.map(_.path))
+  def pathCompletions()(implicit log: Log): Try[List[String]] =
+    Service.catalog().map(_.map(_.path))
 
   def read(string: String, env: Environment)(implicit log: Log): Try[Layer] =
     Success(Ogdl.read[Layer](string, upgrade(env, _)))
@@ -457,7 +474,7 @@ object Layer {
   } yield imports + ref.layerRef
 
   def export(layer: Layer, layout: Layout, path: Path)(implicit log: Log): Try[Path] = for {
-    layerRef  <- ~digestLayer(layer)
+    layerRef  <- saveLayer(layer)
     schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
     layerRefs <- collectLayerRefs(schemaRef, layout)
     filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
@@ -502,15 +519,19 @@ object Layer {
     _            <- saveFocus(focus.copy(layerRef = layerRef), layout)
   } yield layerRef
 
-  private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)(implicit log: Log): Try[LayerRef] =
+  private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)
+                        (implicit log: Log)
+                        : Try[LayerRef] =
     if(path.isEmpty) saveLayer(newLayer)
     else for {
       schema    <- currentLayer.mainSchema
       schemaRef <- schema.imports.findBy(path.head)
       nextLayer <- read(schemaRef.layerRef, layout)
       layerRef  <- saveSchema(layout, newLayer, path.tail, nextLayer)
-      newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef = layerRef))
-      newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) + newSchema)
+      newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef =
+                       layerRef))
+      newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) +
+                       newSchema)
       newLayerRef <- saveLayer(newLayer)
     } yield newLayerRef
 
@@ -642,6 +663,16 @@ case class Checkout(repoId: RepoId,
 
   private def checkout(layout: Layout)(implicit log: Log): Try[Path] =
     local.map(Success(_)).getOrElse {
+      val sourceDesc: UserMsg = sources match {
+        case List() =>
+          UserMsg { theme => theme.path("*") }
+        case head :: Nil =>
+          msg"$head"
+        case head :: tail =>
+          val init = tail.foldLeft(msg"${'{'}$head") { case (str, next) => msg"$str${','} $next" }
+          msg"$init${'}'}"
+      }
+
       if(!(path / ".done").exists) {
         if(path.exists()) {
           val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
@@ -649,22 +680,15 @@ case class Checkout(repoId: RepoId,
           path.delete()
         }
 
-        val sourceDesc: UserMsg = sources match {
-          case List() =>
-            UserMsg { theme => theme.path("*") }
-          case head :: Nil =>
-            msg"$head"
-          case head :: tail =>
-            val init = tail.foldLeft(msg"${'{'}$head") { case (str, next) => msg"$str${','} $next" }
-            msg"$init${'}'}"
-        }
-
         log.info(msg"Checking out $sourceDesc from repository $repoId")
         path.mkdir()
         Shell(layout.env).git
           .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
-          .flatMap{ _ => (path / ".git").delete() }
-          .map(path.waive)
+          .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
+          case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
+            Failure(NoSourcesError(repoId, commit, sourceDesc))
+          case e: Exception => Failure(e)
+        }
       } else Success(path)
     }
 }
@@ -686,13 +710,14 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
 
-  def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] = for {
-    repoDir     <- repo.fetch(layout, https)
-    focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
-    focus       <- ~Ogdl.read[Focus](focusString, identity(_))
-    layer       <- Layer.read(focus.layerRef, layout)
-    schemas     <- ~layer.schemas.to[List]
-  } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
+  def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] =
+    for {
+      repoDir     <- repo.fetch(layout, https)
+      focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
+      focus       <- ~Ogdl.read[Focus](focusString, identity(_))
+      layer       <- Layer.read(focus.layerRef, layout)
+      schemas     <- ~layer.schemas.to[List]
+    } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
   def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
     repo.pull(commit, track, layout, https)
@@ -702,7 +727,9 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     commit <- Shell(layout.env).git.getCommit(dir)
   } yield RefSpec(commit)
 
-  def sourceCandidates(layout: Layout, https: Boolean)(pred: String => Boolean)(implicit log: Log): Try[Set[Source]] =
+  def sourceCandidates(layout: Layout, https: Boolean)(pred: String => Boolean)
+                      (implicit log: Log)
+                      : Try[Set[Source]] =
     listFiles(layout, https).map(_.filter { f => pred(f.filename) }.map { p =>
         ExternalSource(id, p.parent): Source }.to[Set])
 }
@@ -742,10 +769,7 @@ case class Repo(ref: String) {
     case other                                               => other
   }
 
-  def projectName: Try[RepoId] = ref match {
-    case r".*/$project@([^\/]*).git" => Success(RepoId(project))
-    case value                       => Failure(InvalidValue(value))
-  }
+  def projectName: Try[RepoId] = RepoId.parse(simplified.split("/").last)
 }
 
 sealed trait CompileEvent
@@ -782,7 +806,10 @@ object CompileResult {
 
   private def merge(results: Iterable[BspCompileResult]): BspCompileResult = {
     val distinctStatuses = results.map(_.getStatusCode).toSet
-    val aggregatedStatus = List(StatusCode.CANCELLED, StatusCode.ERROR, StatusCode.OK).find(distinctStatuses.contains)
+    
+    val aggregatedStatus = List(StatusCode.CANCELLED, StatusCode.ERROR,
+        StatusCode.OK).find(distinctStatuses.contains)
+    
     val mergedResult = new BspCompileResult(aggregatedStatus.getOrElse(StatusCode.OK))
     results.headOption.foreach { res =>
       //TODO think of a better way to merge those fields
@@ -903,8 +930,10 @@ trait Source {
 
 case class ExternalSource(repoId: RepoId, path: Path) extends Source {
   def description: String = str"${repoId}:${path.value}"
-  def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((path, _).digest[Md5])
   def repoIdentifier: RepoId = repoId
+  
+  def hash(schema: Schema, layout: Layout): Try[Digest] =
+    schema.repo(repoId, layout).map((path, _).digest[Md5])
 }
 
 case class SharedSource(path: Path) extends Source {
@@ -929,5 +958,32 @@ object ManagedConfig {
   }
 
   def apply(): Config = config
+}
+
+object Service {
+
+  def catalog(): Try[List[Artifact]] = {
+    val service = ManagedConfig().service
+    val url = Uri("https", str"$service/catalog")
+    
+    for {
+      bytes <- Http.get(url, Map(), Set())
+      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
+      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
+    } yield artifacts
+  }
+
+  def publish(hash: String, env: Environment, path: String)(implicit log: Log): Try[Uri] = {
+    val service = ManagedConfig().service
+    val url = Uri("https", str"$service/publish")
+    case class Output(output: String)
+    for {
+      id   <- Try(Shell(env).ipfs.id().get)
+      out  <- Http.post(url, Json.of(path = path, token = ManagedConfig().token, hash = hash), headers = Set())
+      str  <- Success(new String(out, "UTF-8"))
+      json <- Try(Json.parse(str).get)
+      res  <- Try(json.as[Output].get)
+    } yield Uri("fury", res.output)
+  }
 }
 
