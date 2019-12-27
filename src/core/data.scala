@@ -752,13 +752,13 @@ case class Repo(ref: String) {
     for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
 
   def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if((path(layout) / ".done").exists)  Success(path(layout))
+    if((path(layout) / ".done").exists) Success(path(layout))
     else fetch(layout, https)
   }
 
   def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if(path(layout).exists()) {
-      log.info(msg"Found incomplete clone of $this at ${path(layout)}")
+    if(path(layout).exists && !(path(layout) / ".done").exists) {
+      log.info(msg"Found incomplete clone of $this")
       path(layout).delete()
     }
 
