@@ -657,7 +657,7 @@ case class Checkout(repoId: RepoId,
   def path: Path = Installation.srcsDir / hash.encoded
 
   def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = for {
-    repoDir    <- repo.fetch(layout, https)
+    repoDir    <- repo.get(layout, https)
     workingDir <- checkout(layout)
   } yield workingDir
 
@@ -701,7 +701,7 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
-    dir    <- local.map(Success(_)).getOrElse(repo.fetch(layout, https))
+    dir    <- local.map(Success(_)).getOrElse(repo.get(layout, https))
     commit <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.
                   getBranchHead(dir, track.id).toOption).getOrElse(track.id)
     files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(Shell(layout.env).git.lsTree(dir,
@@ -712,7 +712,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] =
     for {
-      repoDir     <- repo.fetch(layout, https)
+      repoDir     <- repo.get(layout, https)
       focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
       focus       <- ~Ogdl.read[Focus](focusString, identity(_))
       layer       <- Layer.read(focus.layerRef, layout)
@@ -749,17 +749,20 @@ case class Repo(ref: String) {
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
     for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
 
-  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if(!(path(layout) / ".done").exists) {
-      if(path(layout).exists()) {
-        log.info(msg"Found incomplete clone of $this at ${path(layout)}")
-        path(layout).delete()
-      }
+  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
+    if((path(layout) / ".done").exists)  Success(path(layout))
+    else fetch(layout, https)
+  }
 
-      log.info(msg"Cloning repository at $this")
-      path(layout).mkdir()
-      Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
-    } else Success(path(layout))
+  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
+    if(path(layout).exists()) {
+      log.info(msg"Found incomplete clone of $this at ${path(layout)}")
+      path(layout).delete()
+    }
+
+    log.info(msg"Cloning repository at $this")
+    path(layout).mkdir()
+    Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
   }
 
   def simplified: String = ref match {

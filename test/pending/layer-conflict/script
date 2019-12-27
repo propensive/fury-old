@@ -9,7 +9,6 @@ mkdir -p src/core
 echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
 git add .
 git commit -m 'version 1' -q
-git log -1
 
 cd ../platform1
 git init -q
@@ -28,13 +27,12 @@ git add .
 git commit -m 'platform 1' -q
 fury build run --output linear
 echo $?
-IPFSREF_1=$(fury layer share)
+IPFSREF_1=$(fury layer share --raw)
 
 cd ../library
 echo 'object Constants { val x = 123 }' > src/core/constants.scala
 git add .
 git commit -m 'version 2' -q
-git log -1
 
 cd ../platform2
 git init -q
@@ -54,7 +52,7 @@ git add .
 git commit -m 'platform 2' -q
 fury build run --output linear
 echo $?
-IPFSREF_2=$(fury layer share)
+IPFSREF_2=$(fury layer share --raw)
 
 cd ../app
 fury layer init
