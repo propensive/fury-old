@@ -757,8 +757,8 @@ case class Repo(ref: String) {
   }
 
   def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if(path(layout).exists && !(path(layout) / ".done").exists) {
-      log.info(msg"Found incomplete clone of $this")
+    if(path(layout).exists) {
+      if(!(path(layout) / ".done").exists) log.info(msg"Found incomplete clone of $this")
       path(layout).delete()
     }
 
