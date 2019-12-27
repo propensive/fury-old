@@ -48,7 +48,7 @@ object Ipfs {
       ProtocolVersion: String)
 
   def daemon()(implicit log: Log): Try[IpfsServer] = {
-    log.info("Checking for IPFS daemon")
+    log.note("Checking for IPFS daemon")
     val awaiting = Promise[Try[IpfsServer]]()
    
     def handleAsync(path: String): Int = sh"$path daemon".async(
@@ -63,7 +63,7 @@ object Ipfs {
       },
       stderr = {
         case r".*ipfs daemon is running.*" =>
-          log.info("IPFS daemon is already running")
+          log.note("IPFS daemon is already running")
           awaiting.success(Success(new IpfsServer(path)))
         case other =>
           log.note(str"[ipfs] $other")
@@ -100,7 +100,9 @@ object Ipfs {
   }
 
   private def distBinary: Option[Uri] = {
-    def url(sys: String) = Https(Path("dist.ipfs.io") / "go-ipfs" / "v0.4.22" / str"go-ipfs_v0.4.22_$sys.tar.gz")
+    def url(sys: String) = Https(Path("dist.ipfs.io") / "go-ipfs" / "v0.4.22" /
+        str"go-ipfs_v0.4.22_$sys.tar.gz")
+    
     Installation.system.flatMap {
       case Windows(_)   => None
       case Linux(X86)   => Some(url("linux-386"))
