@@ -1085,7 +1085,7 @@ schemas	default	id	default
 			gastronomy	id	gastronomy
 				repo	gh:propensive/gastronomy
 				track	fury
-				commit	e4ffb9ad10258bef3993efd90bac69d6a563aed3
+				commit	b60c9e6ce761f50a4d8ec518263eff4dac8d96e9
 				local	None
 			guillotine	id	guillotine
 				repo	gh:propensive/guillotine
