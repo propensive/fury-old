@@ -47,17 +47,17 @@ object Ipfs {
   case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
       ProtocolVersion: String)
 
-  def daemon()(implicit log: Log): Try[IpfsServer] = {
+  def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsServer] = {
     log.note("Checking for IPFS daemon")
     val awaiting = Promise[Try[IpfsServer]]()
    
     def handleAsync(path: String): Int = sh"$path daemon".async(
       stdout = {
         case r".*Daemon is ready.*" =>
-          log.info("IPFS daemon has started")
+          log.infoWhen(!quiet)(msg"IPFS daemon has started")
           awaiting.success(Success(new IpfsServer(path)))
         case r".*Initializing daemon.*" =>
-          log.info("Initializing IPFS daemon")
+          log.infoWhen(!quiet)(msg"Initializing IPFS daemon")
         case other =>
           log.note(str"[ipfs] $other")
       },
@@ -76,22 +76,22 @@ object Ipfs {
           log.note("Could not find IPFS installation in Fury install directory; trying PATH")
           handleAsync("ipfs") match {
             case 127 =>
-              log.info("IPFS is not installed")
+              log.infoWhen(!quiet)(msg"IPFS is not installed")
               distBinary.foreach { bin =>
                 Installation.system.foreach { sys =>
-                  log.info(msg"Attempting to install IPFS for $sys")
+                  log.infoWhen(!quiet)(msg"Attempting to install IPFS for $sys")
                 }
-                log.info(msg"Downloading $bin...")
+                log.infoWhen(!quiet)(msg"Downloading $bin...")
                 (for {
                   in <- Http.requestStream(bin, Map[String, String](), "GET", Set())
                   _  <- TarGz.extract(in, Installation.ipfsInstallDir)
                   _  <- ~Installation.ipfsBin.setExecutable(true)
-                  _  <- ~log.info(msg"Installed embedded IFPS to ${Installation.ipfsInstallDir}")
+                  _  <- ~log.infoWhen(!quiet)(msg"Installed embedded IFPS to ${Installation.ipfsInstallDir}")
                 } yield handleAsync(Installation.ipfsBin.value)) match {
                   case Success(_) =>
                     awaiting.success(Success(new IpfsServer(Installation.ipfsBin.value)))
                   case Failure(_) =>
-                    log.fail(msg"Failed to run or install IPFS")
+                    log.failWhen(!quiet)(msg"Failed to run or install IPFS")
                     awaiting.success(Failure(IpfsNotOnPath()))
                 }
               }

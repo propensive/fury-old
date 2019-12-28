@@ -256,7 +256,7 @@ object BuildCli {
     call          <- cli.call()
     records       <- Dns.lookup(ManagedConfig().service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
-    ipfs          <- Ipfs.daemon()
+    ipfs          <- Ipfs.daemon(false)
     file          <- ipfs.get(latestRef, tmpFile)
     _             <- TarGz.extract(file, Installation.upgradeDir)
   } yield log.await() }
@@ -582,8 +582,8 @@ object LayerCli {
     layer         <- Layer.read(layout)
     path          <- call(RemoteLayerArg)
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, cli.env)
-    pub           <- Service.publish(ref.key, cli.env, path)
+    ref           <- Layer.share(layer, layout, cli.env, raw)
+    pub           <- Service.publish(ref.key, cli.env, path, raw)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
     uri           <- ~Uri("fury", Path(ManagedConfig().service) / path)
     _             <- if(raw) ~log.rawln(str"$uri") else ~log.info(msg"Published to $uri")
@@ -595,7 +595,7 @@ object LayerCli {
     layer         <- Layer.read(layout)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, cli.env)
+    ref           <- Layer.share(layer, layout, cli.env, raw)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 

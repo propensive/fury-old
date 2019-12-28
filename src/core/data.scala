@@ -392,9 +392,12 @@ object Layer {
   implicit val msgShow: MsgShow[Layer]       = r => UserMsg(_.layer(r.hash))
   implicit val stringShow: StringShow[Layer] = _.hash
 
-  def loadFromIpfs(layerRef: IpfsRef, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
+  def loadFromIpfs
+      (layerRef: IpfsRef, layout: Layout, env: Environment, quiet: Boolean)
+      (implicit log: Log)
+      : Try[LayerRef] =
     Installation.tmpDir { dir => for {
-      ipfs <- Ipfs.daemon()
+      ipfs <- Ipfs.daemon(quiet)
       file <- ipfs.get(layerRef, dir)
       ref  <- loadDir(file, layout, env)
     } yield ref }
@@ -416,7 +419,7 @@ object Layer {
       focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
     } yield focus.layerRef }
 
-  def share(layer: Layer, layout: Layout, env: Environment)(implicit log: Log): Try[IpfsRef] =
+  def share(layer: Layer, layout: Layout, env: Environment, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
     Installation.tmpDir { tmp => for {
       layerRef  <- saveLayer(layer)
       schemaRef =  SchemaRef(ImportId(""), layerRef, layer.main)
@@ -425,7 +428,7 @@ object Layer {
       filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
           .updated(tmp / ".focus.fury", layout.focusFile)
       _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest)}
-      ipfs      <- Ipfs.daemon()
+      ipfs      <- Ipfs.daemon(quiet)
       ref       <- ipfs.add(tmp)
     } yield ref }
 
@@ -451,9 +454,9 @@ object Layer {
       case FuryUri(domain, path) => for {
                                       entries <- Service.catalog()
                                       ipfsRef <- Try(entries.find(_.path == path).get)
-                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, env)
+                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, env, false)
                                     } yield ref
-      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, env)
+      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, env, false)
       case FileInput(file)       => loadFile(file, layout, env)
     }
 
@@ -975,12 +978,11 @@ object Service {
     } yield artifacts
   }
 
-  def publish(hash: String, env: Environment, path: String)(implicit log: Log): Try[Uri] = {
-    val service = ManagedConfig().service
-    val url = Https(Path(service) / "publish")
+  def publish(hash: String, env: Environment, path: String, quiet: Boolean)(implicit log: Log): Try[Uri] = {
+    val url = Https(Path(ManagedConfig().service) / "publish")
     case class Output(output: String)
     for {
-      ipfs <- Ipfs.daemon()
+      ipfs <- Ipfs.daemon(quiet)
       id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json.of(path = path, token = ManagedConfig().token, hash = hash), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
