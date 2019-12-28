@@ -675,23 +675,20 @@ case class Checkout(repoId: RepoId,
           msg"$init${'}'}"
       }
 
-      if(!(path / ".done").exists) {
-        if(path.exists()) {
-          val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
-          log.info(msg"Found incomplete checkout of $sourceText")
-          path.delete()
-        }
+      if(path.exists) {
+        if(!(path / ".done").exists) log.info(msg"Found incomplete checkout of ${sourceDesc}")
+        path.delete()
+      }
 
-        log.info(msg"Checking out $sourceDesc from repository $repoId")
-        path.mkdir()
-        Shell(layout.env).git
-          .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
-          .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
-          case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
-            Failure(NoSourcesError(repoId, commit, sourceDesc))
-          case e: Exception => Failure(e)
-        }
-      } else Success(path)
+      log.info(msg"Checking out $sourceDesc from repository $repoId")
+      path.mkdir()
+      Shell(layout.env).git
+        .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
+        .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
+        case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
+          Failure(NoSourcesError(repoId, commit, sourceDesc))
+        case e: Exception => Failure(e)
+      }
     }
 }
 

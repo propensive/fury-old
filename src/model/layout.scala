@@ -65,11 +65,29 @@ object Xdg {
   def cache(filename: String): Path = (Path(filename) in cacheHome).extantParents()
 }
 
+object Os {
+  implicit val stringShow: StringShow[Os] = {
+    case Windows(m) => str"Windows ($m)"
+    case Linux(m)   => str"Linux ($m)"
+    case MacOs(m)   => str"Mac OS X ($m)"
+  }
+
+  implicit val userMsg: MsgShow[Os] = os => UserMsg { implicit theme =>
+    msg"${theme.path(stringShow.show(os))}".string(theme)
+  }
+}
+
 sealed trait Os
 case class Windows(machine: Machine) extends Os
 case class Linux(machine: Machine) extends Os
 case class MacOs(machine: Machine) extends Os
 
+object Machine {
+  implicit val stringShow: StringShow[Machine] = {
+    case X64 => "64-bit x86"
+    case X86 => "32-bit x86"
+  }
+}
 sealed trait Machine
 case object X64 extends Machine
 case object X86 extends Machine
