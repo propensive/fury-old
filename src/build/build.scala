@@ -571,7 +571,7 @@ object LayerCli {
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
     _             <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
-    _             <- ~log.info(msg"Cloned layer $layerRef into $dir")
+    _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
 
   def publish(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
