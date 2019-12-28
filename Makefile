@@ -1,7 +1,7 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
 BLOOPVERSION=1.3.5
-FURYSTABLE=0.7.14
-FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
+FURYSTABLE=QmdRhemdnLpHwWsj4jRbXciiKofUgBMcc2ZprbQyEMrBMY
+FURYLOCAL=opt/fury/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
@@ -35,11 +35,11 @@ publish: dist/install.sh
 opt:
 	mkdir -p opt
 
-opt/fury-$(FURYSTABLE).sh: opt
-	curl -C - -s -o $@ "http://downloads.furore.dev/fury-$(FURYSTABLE).sh"
+opt/fury.sh: opt
+	curl -C - -s -o $@ "https://gateway.ipfs.io/ipfs/$(FURYSTABLE)"
 
-$(FURYLOCAL): opt/fury-$(FURYSTABLE).sh
-	sh opt/fury-$(FURYSTABLE).sh opt/fury-$(FURYSTABLE)
+$(FURYLOCAL): opt/fury.sh
+	sh opt/fury.sh opt/fury
 	touch $(FURYLOCAL)
 
 dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
