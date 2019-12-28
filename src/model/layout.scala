@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -19,10 +19,11 @@ package fury.model
 import fury._, io._, strings._, ogdl._
 
 import gastronomy._
+import kaleidoscope._
 import guillotine._
 import java.util.{List => _, _}
 
-import scala.util.Try
+import scala.util._
 
 import language.higherKinds
 
@@ -64,9 +65,55 @@ object Xdg {
   def cache(filename: String): Path = (Path(filename) in cacheHome).extantParents()
 }
 
+object Os {
+  implicit val stringShow: StringShow[Os] = {
+    case Windows(m) => str"Windows ($m)"
+    case Linux(m)   => str"Linux ($m)"
+    case MacOs(m)   => str"Mac OS X ($m)"
+  }
+
+  implicit val userMsg: MsgShow[Os] = os => UserMsg { implicit theme =>
+    msg"${theme.path(stringShow.show(os))}".string(theme)
+  }
+}
+
+sealed trait Os
+case class Windows(machine: Machine) extends Os
+case class Linux(machine: Machine) extends Os
+case class MacOs(machine: Machine) extends Os
+
+object Machine {
+  implicit val stringShow: StringShow[Machine] = {
+    case X64 => "64-bit x86"
+    case X86 => "32-bit x86"
+  }
+}
+sealed trait Machine
+case object X64 extends Machine
+case object X86 extends Machine
+
 object Installation {
 
-  val usrDir: Path = (Path(System.getProperty("fury.home")) / "usr").extant()
+  lazy val system: Option[Os] = {
+    import environments.enclosing
+    val machine: Option[Machine] = sh"uname -m".exec[Try[String]] match {
+      case Success("x86_64" | "amd64") => Some(X64)
+      case Success("i386" | "i686")    => Some(X86)
+      case _                           => None
+    }
+
+    sh"uname".exec[Try[String]] match {
+      case Success("Darwin")   => machine.map(MacOs(_))
+      case Success("Linux")    => machine.map(Linux(_))
+      case Success(r"MINGW.*") => machine.map(Windows(_))
+      case _                   => None
+    }
+  }
+
+  val installDir: Path = Path(System.getProperty("fury.home"))
+  val usrDir: Path = (installDir / "usr").extant()
+  val ipfsInstallDir: Path = installDir / "ipfs"
+  val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"
 
   val cache: Path = Xdg.cache("fury")
   val config: Path = Xdg.config("fury")

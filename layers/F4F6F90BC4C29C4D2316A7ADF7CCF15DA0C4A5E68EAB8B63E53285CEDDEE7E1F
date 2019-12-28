@@ -657,7 +657,7 @@ schemas	default	id	default
 						properties	
 						policy	
 						hidden	false
-				main	Some	test-core
+				main	Some	frontend
 				license	apache-2.0
 				description	
 				compiler	Some	projectId	scala

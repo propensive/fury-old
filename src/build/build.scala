@@ -65,10 +65,10 @@ object ConfigCli {
       call     <- cli.call()
       code     <- ~Rnd.token(18)
       // These futures should be managed in the session
-      uri      <- ~Uri("https", str"${ManagedConfig().service}/await?code=$code")
-      _        <- ~log.info(msg"Please visit https://${ManagedConfig().service}/auth?code=$code to log in.")
+      uri      <- ~Https(Path(ManagedConfig().service) / "await?code=$code")
+      _        <- ~log.info(msg"Please visit $uri to log in.")
       future   <- ~Future(blocking(Http.get(uri, Map("code" -> code), Set())))
-      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(str"https://${ManagedConfig().service}/auth?code=$code")))
+      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
       response <- Await.result(future, Duration.Inf)
       json     <- ~Json.parse(new String(response, "UTF-8")).get
       token    <- ~json.token.as[String].get
@@ -256,7 +256,8 @@ object BuildCli {
     call          <- cli.call()
     records       <- Dns.lookup(ManagedConfig().service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
-    file          <- Shell(cli.env).ipfs.get(latestRef, tmpFile)
+    ipfs          <- Ipfs.daemon(false)
+    file          <- ipfs.get(latestRef, tmpFile)
     _             <- TarGz.extract(file, Installation.upgradeDir)
   } yield log.await() }
 
@@ -570,6 +571,7 @@ object LayerCli {
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
     _             <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
+    _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
 
   def publish(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -580,10 +582,10 @@ object LayerCli {
     layer         <- Layer.read(layout)
     path          <- call(RemoteLayerArg)
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, cli.env)
-    pub           <- Service.publish(ref.key, cli.env, path)
+    ref           <- Layer.share(layer, layout, cli.env, raw)
+    pub           <- Service.publish(ref.key, cli.env, path, raw)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
-    uri           <- ~Uri("fury", str"${ManagedConfig().service}/${path}")
+    uri           <- ~Uri("fury", Path(ManagedConfig().service) / path)
     _             <- if(raw) ~log.rawln(str"$uri") else ~log.info(msg"Published to $uri")
   } yield log.await()
 
@@ -593,7 +595,7 @@ object LayerCli {
     layer         <- Layer.read(layout)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, cli.env)
+    ref           <- Layer.share(layer, layout, cli.env, raw)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 

@@ -114,6 +114,8 @@ case class Path(input: String) {
     this
   }
 
+  def setExecutable(exec: Boolean): Try[Unit] = Try(javaFile.setExecutable(exec))
+
   def resolve(rel: Path) = Path(javaPath.resolve(rel.javaPath))
 
   def moveTo(path: Path): Try[Unit] =
