@@ -68,29 +68,9 @@ case class Shell(environment: Environment) {
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
 
-  def tryXdgOpen(url: String): Try[Unit] = {
-    Try(sh"xdg-open $url".exec[String])
+  def tryXdgOpen(url: Uri): Try[Unit] = {
+    Try(sh"xdg-open ${url.key}".exec[String])
     Success(())
-  }
-
-  object ipfs {
-
-    def add(path: Path): Try[IpfsRef] =
-      sh"ipfs add -r -Q -H ${path.value}".exec[Try[String]].flatMap { out =>
-        Try(IpfsRef(out))
-      }
-
-    def get(ref: IpfsRef, path: Path): Try[Path] =
-      sh"ipfs get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
-
-    case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
-        ProtocolVersion: String)
-  
-    def id(): Option[IpfsId] = for {
-      out  <- sh"ipfs id".exec[Try[String]].toOption
-      json <- Json.parse(out)
-      id   <- json.as[IpfsId]
-    } yield id
   }
 
   object git {

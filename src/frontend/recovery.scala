@@ -48,6 +48,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Could not start the bloop server.")
         case NoLatestVersion() =>
           cli.abort(msg"Could not determine the current latest version of Fury.")
+        case IpfsNotOnPath() =>
+          cli.abort(msg"The command 'ipfs' was not on the PATH. IPFS must be installed to perform this operation.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path, e) =>
@@ -123,7 +125,7 @@ You can grant these permissions with,
           cli.abort(msg"The repository $repoId did not contain the sources $sources at commit $commit.")
         case e: ShellFailure =>
           cli.abort(
-              msg"An error occurred while running: ${e.command}${"\n\n"}${e.stdout}${"\n"}${e.stderr}")
+              msg"An error occurred while running: ${e.command}${"\n"}${e.stdout}${"\n"}${e.stderr}")
         case e: CompilationFailure =>
           cli.abort(msg"One of the compile or run tasks failed. Check the logs for details.")
         case e: ModuleAlreadyExists =>

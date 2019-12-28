@@ -392,9 +392,13 @@ object Layer {
   implicit val msgShow: MsgShow[Layer]       = r => UserMsg(_.layer(r.hash))
   implicit val stringShow: StringShow[Layer] = _.hash
 
-  def loadFromIpfs(layerRef: IpfsRef, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
+  def loadFromIpfs
+      (layerRef: IpfsRef, layout: Layout, env: Environment, quiet: Boolean)
+      (implicit log: Log)
+      : Try[LayerRef] =
     Installation.tmpDir { dir => for {
-      file <- Shell(env).ipfs.get(layerRef, dir)
+      ipfs <- Ipfs.daemon(quiet)
+      file <- ipfs.get(layerRef, dir)
       ref  <- loadDir(file, layout, env)
     } yield ref }
 
@@ -415,7 +419,7 @@ object Layer {
       focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
     } yield focus.layerRef }
 
-  def share(layer: Layer, layout: Layout, env: Environment)(implicit log: Log): Try[IpfsRef] =
+  def share(layer: Layer, layout: Layout, env: Environment, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
     Installation.tmpDir { tmp => for {
       layerRef  <- saveLayer(layer)
       schemaRef =  SchemaRef(ImportId(""), layerRef, layer.main)
@@ -424,7 +428,8 @@ object Layer {
       filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
           .updated(tmp / ".focus.fury", layout.focusFile)
       _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest)}
-      ref       <- Shell(env).ipfs.add(tmp)
+      ipfs      <- Ipfs.daemon(quiet)
+      ref       <- ipfs.add(tmp)
     } yield ref }
 
   def resolve(path: String, layout: Layout): Try[LayerInput] = {
@@ -449,9 +454,9 @@ object Layer {
       case FuryUri(domain, path) => for {
                                       entries <- Service.catalog()
                                       ipfsRef <- Try(entries.find(_.path == path).get)
-                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, env)
+                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, env, false)
                                     } yield ref
-      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, env)
+      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, env, false)
       case FileInput(file)       => loadFile(file, layout, env)
     }
 
@@ -673,23 +678,20 @@ case class Checkout(repoId: RepoId,
           msg"$init${'}'}"
       }
 
-      if(!(path / ".done").exists) {
-        if(path.exists()) {
-          val sourceText = if(sources.isEmpty) "all sources" else sources.map(_.value).mkString("[", ", ", "]")
-          log.info(msg"Found incomplete checkout of $sourceText")
-          path.delete()
-        }
+      if(path.exists) {
+        if(!(path / ".done").exists) log.info(msg"Found incomplete checkout of ${sourceDesc}")
+        path.delete()
+      }
 
-        log.info(msg"Checking out $sourceDesc from repository $repoId")
-        path.mkdir()
-        Shell(layout.env).git
-          .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
-          .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
-          case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
-            Failure(NoSourcesError(repoId, commit, sourceDesc))
-          case e: Exception => Failure(e)
-        }
-      } else Success(path)
+      log.info(msg"Checking out $sourceDesc from repository $repoId")
+      path.mkdir()
+      Shell(layout.env).git
+        .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
+        .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
+        case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
+          Failure(NoSourcesError(repoId, commit, sourceDesc))
+        case e: Exception => Failure(e)
+      }
     }
 }
 
@@ -750,13 +752,13 @@ case class Repo(ref: String) {
     for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
 
   def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if((path(layout) / ".done").exists)  Success(path(layout))
+    if((path(layout) / ".done").exists) Success(path(layout))
     else fetch(layout, https)
   }
 
   def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if(path(layout).exists()) {
-      log.info(msg"Found incomplete clone of $this at ${path(layout)}")
+    if(path(layout).exists) {
+      if(!(path(layout) / ".done").exists) log.info(msg"Found incomplete clone of $this")
       path(layout).delete()
     }
 
@@ -967,7 +969,7 @@ object Service {
 
   def catalog(): Try[List[Artifact]] = {
     val service = ManagedConfig().service
-    val url = Uri("https", str"$service/catalog")
+    val url = Https(Path(service) / "catalog")
     
     for {
       bytes <- Http.get(url, Map(), Set())
@@ -976,17 +978,17 @@ object Service {
     } yield artifacts
   }
 
-  def publish(hash: String, env: Environment, path: String)(implicit log: Log): Try[Uri] = {
-    val service = ManagedConfig().service
-    val url = Uri("https", str"$service/publish")
+  def publish(hash: String, env: Environment, path: String, quiet: Boolean)(implicit log: Log): Try[Uri] = {
+    val url = Https(Path(ManagedConfig().service) / "publish")
     case class Output(output: String)
     for {
-      id   <- Try(Shell(env).ipfs.id().get)
+      ipfs <- Ipfs.daemon(quiet)
+      id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json.of(path = path, token = ManagedConfig().token, hash = hash), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
       res  <- Try(json.as[Output].get)
-    } yield Uri("fury", res.output)
+    } yield Uri("fury", Path(res.output))
   }
 }
 

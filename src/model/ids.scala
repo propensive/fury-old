@@ -76,7 +76,7 @@ object Uri {
   implicit def diff: Diff[Uri] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 }
 
-case class Uri(schema: String, path: String) extends Key(msg"URI") {
+case class Uri(schema: String, path: Path) extends Key(msg"URI") {
   def key: String = str"${schema}://${path}"
 }
 
@@ -140,7 +140,7 @@ object IpfsRef {
 
 case class IpfsRef(key: String) extends Key(msg"IPFS ref") with LayerInput {
   def suggestedName: Option[ImportId] = None
-  def uri: Uri = Uri("fury", key)
+  def uri: Uri = Uri("fury", Path(key))
 }
 
 case class Catalog(entries: SortedSet[Artifact])

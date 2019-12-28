@@ -77,8 +77,8 @@ case class Tables() {
   def differences(left: String, right: String): Tabulation[Difference] = Tabulation[Difference](
     Heading("Type", _.entity),
     Heading("Diff", _.label),
-    Heading(left.toUpperCase, _.left),
-    Heading(right.toUpperCase, _.right)
+    Heading(left, _.left),
+    Heading(right, _.right)
   )
 
   def modules(projectId: ProjectId, current: Option[ModuleId]): Tabulation[Module] = Tabulation[Module](

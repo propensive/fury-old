@@ -14,9 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.utils
+package fury.core
 
-import fury.strings._, fury.model._
+import fury.strings._, fury.model._, fury.io._
 
 import euphemism._
 
@@ -42,60 +42,80 @@ object Postable {
   implicit object json extends Postable[Json]("application/json") {
     def content(value: Json): Array[Byte] = value.toString.bytes
   }
+
 }
 
 abstract class Postable[T](val contentType: String) { def content(value: T): Array[Byte] }
 
 case class HttpHeader(key: String, value: String)
 
+object Https { def apply(path: Path): Uri = Uri("https", path) }
+
 object Http {
+
+  def apply(path: Path): Uri = Uri("http", path)
+
   def post[T: Postable](url: Uri, content: T, headers: Set[HttpHeader]): Try[Array[Byte]] =
     request[T](url, content, "POST", headers)
 
   def get(url: Uri, params: Map[String, String], headers: Set[HttpHeader]): Try[Array[Byte]] =
-    request(url, params, "POST", headers)
+    request(url, params, "GET", headers)
 
-  def request[T: Postable](url: Uri, content: T, method: String, headers: Set[HttpHeader]): Try[Array[Byte]] = {
+  private def request[T: Postable]
+                     (url: Uri, content: T, method: String, headers: Set[HttpHeader])
+                     : Try[Array[Byte]] = {
+    requestStream[T](url, content, method, headers).flatMap { in =>
+      val data = new ByteArrayOutputStream()
+      val buf = new Array[Byte](65536)
+      
+      @tailrec
+      def read(): Array[Byte] = {
+        val bytes = in.read(buf, 0, buf.length)
+        if(bytes < 0) data.toByteArray else {
+          data.write(buf, 0, bytes)
+          read()
+        }
+      }
+      
+      Try(read())
+    }
+  }
+
+  def requestStream[T: Postable]
+                   (url: Uri, content: T, method: String, headers: Set[HttpHeader])
+                   : Try[InputStream] = {
     new URL(url.key).openConnection match {
       case conn: HttpURLConnection =>
         conn.setRequestMethod(method)
         conn.setRequestProperty("Content-Type", implicitly[Postable[T]].contentType)
         conn.setRequestProperty("User-Agent", str"Fury ${Version.current}")
         headers.foreach { case HttpHeader(key, value) => conn.setRequestProperty(key, value) }
-        conn.setDoOutput(true)
         
-        Try(conn.getOutputStream()).recoverWith {
-          case ex: UnknownHostException =>
-            Failure(DnsLookupFailure(ex.getMessage))
-        }.flatMap { out =>
-          out.write(implicitly[Postable[T]].content(content))
-          out.close()
-
+        (method match {
+          case "GET" | "HEAD" => Success(())
+          case "POST" | "PUT" =>
+            conn.setDoOutput(true)
+            Try(conn.getOutputStream()).recoverWith {
+              case ex: UnknownHostException =>
+                Failure(DnsLookupFailure(ex.getMessage))
+            }.flatMap { out =>
+              out.write(implicitly[Postable[T]].content(content))
+              out.close()
+              Success(())
+            }
+        }).flatMap { _ =>
           conn.getResponseCode match {
-            case 200 =>
-              val in = conn.getInputStream()
-              val data = new ByteArrayOutputStream()
-              val buf = new Array[Byte](65536)
-              
-              @tailrec
-              def read(): Array[Byte] = {
-                val bytes = in.read(buf, 0, buf.length)
-                if(bytes < 0) data.toByteArray else {
-                  data.write(buf, 0, bytes)
-                  read()
-                }
-              }
-              Try(read())
-            case 400 => Failure(HttpBadRequest(url))
-            case 401 => Failure(HttpUnauthorized(url))
-            case 403 => Failure(HttpForbidden(url))
-            case 404 => Failure(HttpNotFound(url))
-            case 405 => Failure(HttpMethodNotAllowed(url))
-            case 500 => Failure(HttpInternalServerError(url))
-            case 501 => Failure(HttpNotImplemented(url))
-            case 502 => Failure(HttpBadGateway(url))
-            case 503 => Failure(HttpServiceUnavailable(url))
-            case 504 => Failure(HttpGatewayTimeout(url))
+            case 200  => Success(conn.getInputStream())
+            case 400  => Failure(HttpBadRequest(url))
+            case 401  => Failure(HttpUnauthorized(url))
+            case 403  => Failure(HttpForbidden(url))
+            case 404  => Failure(HttpNotFound(url))
+            case 405  => Failure(HttpMethodNotAllowed(url))
+            case 500  => Failure(HttpInternalServerError(url))
+            case 501  => Failure(HttpNotImplemented(url))
+            case 502  => Failure(HttpBadGateway(url))
+            case 503  => Failure(HttpServiceUnavailable(url))
+            case 504  => Failure(HttpGatewayTimeout(url))
             case code => Failure(HttpError(code, url))
           }
         }

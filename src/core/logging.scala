@@ -134,6 +134,15 @@ class Log(private[this] val output: LogStyle) {
   def warn(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Warn)
   def fail(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Fail)
 
+  def infoWhen(pred: Boolean)(msg: UserMsg, time: Long = -1): Unit =
+    if(pred) info(msg, time) else note(msg, time)
+
+  def warnWhen(pred: Boolean)(msg: UserMsg, time: Long = -1): Unit =
+    if(pred) warn(msg, time) else note(msg, time)
+
+  def failWhen(pred: Boolean)(msg: UserMsg, time: Long = -1): Unit =
+    if(pred) fail(msg, time) else note(msg, time)
+
   def stream(fn: String => Unit): PrintStream = {
     val pipe = Pipe.open()
     val in = Channels.newInputStream(pipe.source())
