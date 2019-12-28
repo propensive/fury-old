@@ -1,6 +1,6 @@
 /*
    ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                         ║
+   ║ Fury, version 0.7.14. Copyright 2018-19 Jon Pretty, Propensive OÜ.                                        ║
    ║                                                                                                           ║
    ║ The primary distribution site is: https://propensive.com/                                                 ║
    ║                                                                                                           ║
@@ -76,8 +76,11 @@ object Ipfs {
           log.note("Could not find IPFS installation in Fury install directory; trying PATH")
           handleAsync("ipfs") match {
             case 127 =>
-              log.info("IPFS is not installed; attempting to install IPFS")
+              log.info("IPFS is not installed")
               distBinary.foreach { bin =>
+                Installation.system.foreach { sys =>
+                  log.info(msg"Attempting to install IPFS for $sys")
+                }
                 log.info(msg"Downloading $bin...")
                 (for {
                   in <- Http.requestStream(bin, Map[String, String](), "GET", Set())
