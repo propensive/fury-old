@@ -171,7 +171,7 @@ You can grant these permissions with,
             s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            gLog   <- ~Log.global
+            gLog   <- ~Log.log(Pid(0))
             _      <- ~gLog.fail(errorString)
             _      <- ~gLog.await()
           } yield

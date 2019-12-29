@@ -183,7 +183,7 @@ object TargetId {
 }
 
 object Pid {
-  implicit val stringShow: StringShow[Pid] = pid => Integer.toHexString(pid.pid).padTo(4, '0')
+  implicit val stringShow: StringShow[Pid] = pid => Integer.toHexString(pid.pid).padTo(5, '0')
 
   implicit val msgShow: MsgShow[Pid] =
     pid => UserMsg { theme => msg"${theme.active(stringShow.show(pid))}".string(theme) }
