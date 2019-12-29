@@ -768,9 +768,9 @@ case class Repo(ref: String) {
   }
 
   def simplified: String = ref match {
-    case r"git@github.com:$group@(.*)/$project@(.*)\.git"    => str"gh:$group/$project"
-    case r"git@bitbucket.com:$group@(.*)/$project@(.*)\.git" => str"bb:$group/$project"
-    case r"git@gitlab.com:$group@(.*)/$project@(.*)\.git"    => str"gl:$group/$project"
+    case r"git@github.com:$group@(.*)/$project@(.*?)(\.git)?"    => str"gh:$group/$project"
+    case r"git@bitbucket.com:$group@(.*)/$project@(.*?)(\.git)?" => str"bb:$group/$project"
+    case r"git@gitlab.com:$group@(.*)/$project@(.*?)(\.git)?"    => str"gl:$group/$project"
     case other                                               => other
   }
 
