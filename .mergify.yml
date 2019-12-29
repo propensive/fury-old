@@ -1,7 +1,7 @@
 pull_request_rules:
   - name: automatic merge on CI success and review
     conditions:
-      - "status-success=build (ubuntu-latest)"
+      - "status-success=CI / build (ubuntu-latest) (push)"
       - "base=master"
       - "#approved-reviews-by>=1"
     actions:
