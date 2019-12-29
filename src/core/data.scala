@@ -686,7 +686,7 @@ case class Checkout(repoId: RepoId,
       log.info(msg"Checking out $sourceDesc from repository $repoId")
       path.mkdir()
       Shell(layout.env).git
-        .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id)
+        .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id, None)
         .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
         case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
           Failure(NoSourcesError(repoId, commit, sourceDesc))
@@ -773,6 +773,8 @@ case class Repo(ref: String) {
     case r"git@gitlab.com:$group@(.*)/$project@(.*)\.git"    => str"gl:$group/$project"
     case other                                               => other
   }
+
+  def universal(https: Boolean): String = Repo.fromString(simplified, https)
 
   def projectName: Try[RepoId] = RepoId.parse(simplified.split("/").last)
 }
