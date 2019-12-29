@@ -171,7 +171,7 @@ case class Tables() {
   def repositories(layout: Layout): Tabulation[SourceRepo] = Tabulation(
     Heading("Repo", _.id),
     Heading("Remote", _.repo),
-    Heading("Branch", _.track),
+    Heading("Branch/Tag", _.track),
     Heading("Commit/Path", commitPath(_))
   )
 }
