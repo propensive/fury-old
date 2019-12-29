@@ -94,7 +94,7 @@ object RepoCli {
                    } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
       _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
-                       repo.commit.id)
+                       repo.commit.id, Some(repo.repo.universal(false)))
 
       newRepo   <- ~repo.copy(local = Some(absPath))
       lens      <- ~Lenses.layer.repos(schema.id)
