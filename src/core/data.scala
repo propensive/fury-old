@@ -721,7 +721,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
       schemas     <- ~layer.schemas.to[List]
     } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
-  def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
+  def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
     repo.pull(commit, track, layout, https)
 
   def current(layout: Layout, https: Boolean)(implicit log: Log): Try[RefSpec] = for {
@@ -740,13 +740,13 @@ case class Repo(ref: String) {
   def hash: Digest = ref.digest[Md5]
   def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
-  def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
+  def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
     for {
       _         <- fetch(layout, https)
       newCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
       _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
                        else msg"Repository $this has not changed")
-    } yield ()
+    } yield newCommit
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
     for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)

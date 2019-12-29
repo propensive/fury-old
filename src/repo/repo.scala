@@ -194,7 +194,7 @@ object RepoCli {
       optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
       versions    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
       cli         <- cli.hint(VersionArg, versions.flatten)
-      call       <- cli.call()
+      call        <- cli.call()
       optSchemaId <- ~call(SchemaArg).toOption
       schemaArg   <- ~optSchemaId.getOrElse(layer.main)
       schema      <- layer.schemas.findBy(schemaArg)
@@ -211,6 +211,8 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
+      commit      <- version.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).commit)) = Some(commit)
       _           <- ~Layer.save(layer, layout)
     } yield log.await()
   }
