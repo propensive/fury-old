@@ -94,8 +94,13 @@ case class Shell(environment: Environment) {
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Try[String]]
       str <- sh"git -C ${dir.value} fetch --all".exec[Try[String]]
       _   <- sh"git -C ${dir.value} checkout $commit".exec[Try[String]]
-      _   <- ~remote.foreach { _ => sh"git -C ${dir.value} remote remove origin".exec[Try[String]] }
-      _   <- ~remote.foreach { url => sh"git -C ${dir.value} remote add origin $url".exec[Try[String]] }
+      _   <- ~remote.foreach { url => for {
+               _ <- sh"git -C ${dir.value} remote remove origin".exec[Try[String]]
+               _ <- sh"git -C ${dir.value} remote add origin $url".exec[Try[String]]
+               _ <- sh"git -C ${dir.value} checkout -b $refSpec".exec[Try[String]]
+               _ <- sh"git -C ${dir.value} fetch".exec[Try[String]]
+               _ <- sh"git -C ${dir.value} branch -u origin/$refSpec".exec[Try[String]]
+             } yield () }
       _   <- ~(dir / ".done").touch()
     } yield str
 
