@@ -229,8 +229,8 @@ object ModuleCli {
       hidden      <- ~call(HiddenArg).toOption
       mainClass   <- ~call(MainArg).toOption
       pluginName  <- ~call(PluginArg).toOption
-      nameArg     <- ~call(ModuleNameArg).toOption
-      name        <- nameArg.to[List].map(project.unused(_)).sequence.map(_.headOption)
+      newId       <- ~call(ModuleNameArg).toOption
+      name        <- newId.to[List].map(project.unused(_)).sequence.map(_.headOption)
       bloopSpec   <- call(BloopSpecArg).toOption.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
       force       <- ~call(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)
@@ -250,6 +250,9 @@ object ModuleCli {
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).plugin)) =
                          pluginName.map(Some(_))
+
+      layer       <- if(newId.isEmpty || project.main != Some(module.id)) ~layer
+                     else focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(newId)
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name
       _           <- ~Layer.save(layer, layout)
