@@ -73,7 +73,7 @@ object ProjectCli {
   def add(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli            <- cli.hint(ProjectNameArg)
+      cli            <- cli.hint(ProjectNameArg, List(layout.baseDir.name))
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
       dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
 
@@ -132,7 +132,7 @@ object ProjectCli {
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
       cli            <- cli.hint(LicenseArg, License.standardLicenses)
-      cli            <- cli.hint(ProjectNameArg, projectId)
+      cli            <- cli.hint(ProjectNameArg, ProjectId(layout.baseDir.name) :: projectId.to[List])
       call           <- cli.call()
       projectId      <- projectId.ascribe(UnspecifiedProject())
       schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
