@@ -33,16 +33,16 @@ object LogStyle {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: => java.io.PrintWriter, pid: Pid, debug: Boolean, clearLine: Boolean): LogStyle = {
+  def apply(printWriter: => java.io.PrintWriter, debug: Boolean, clearLine: Boolean): LogStyle = {
     val config = ManagedConfig()
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info
-    LogStyle(() => printWriter, pid, timestamps, false, false, true, config.theme, logLevel, autoflush = true, clearLine = clearLine)
+    LogStyle(() => printWriter, timestamps, false, false, true, config.theme, logLevel, autoflush = true, clearLine = clearLine)
   }
 }
 
 
-case class LogStyle(printWriter: () => PrintWriter, pid: Pid, timestamps: Option[Boolean], logLevel: Boolean,
+case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean], logLevel: Boolean,
     showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean,
     clearLine: Boolean = false) {
 
@@ -58,7 +58,6 @@ case class LogStyle(printWriter: () => PrintWriter, pid: Pid, timestamps: Option
   private[this] final val infoString: String = msg"${'['}${theme.module("info")}${']'} ".string(theme)
   private[this] final val warnString: String = msg"${'['}${theme.ongoing("warn")}${']'} ".string(theme)
   private[this] final val failString: String = msg"${'['}${theme.failure("fail")}${']'} ".string(theme)
-  private[this] final val paddedSession: String = if(!showSession) "" else msg"$pid".string(theme)+" "
   
   private[this] def optionalLogLevel(level: Int): String = if(!logLevel) "" else (level match {
     case Log.Note => noteString
@@ -69,9 +68,10 @@ case class LogStyle(printWriter: () => PrintWriter, pid: Pid, timestamps: Option
 
   private[this] val wipe = if(clearLine) theme.wipe() else ""
 
-  def log(msg: UserMsg, time: Long, level: Int): Unit = if(level >= minLevel) {
+  def log(msg: UserMsg, time: Long, level: Int, pid: Pid): Unit = if(level >= minLevel) {
     val fTime = paddedTime(time)
     val fLevel = optionalLogLevel(level)
+    val paddedSession: String = if(!showSession) "" else msg"$pid".string(theme)+" "
     
     printWriter().append(msg.string(theme).split("\n").map { line =>
       s"$wipe$fTime$fLevel$paddedSession$line"
@@ -97,7 +97,7 @@ object Log {
 
   private val logFiles: HashMap[Path, LogStyle] = HashMap()
   
-  lazy val global: Log = {
+  private lazy val global: LogStyle = {
     val initDate = LocalDate.now()
     var cached: Int = initDate.getDayOfMonth
     
@@ -106,7 +106,7 @@ object Log {
     
     def path(date: LocalDate) = Installation.logsDir / str"${date.toString}.log"
     var printWriter: PrintWriter = create(initDate)
-    def update(date: LocalDate): Unit =printWriter = create(date)
+    def update(date: LocalDate): Unit = printWriter = create(date)
 
     def get(): PrintWriter = {
       val date = LocalDate.now()
@@ -114,25 +114,27 @@ object Log {
       printWriter
     }
     
-    new Log(LogStyle(get, Pid(0), Some(true), true, true, false, Theme.Full, Note, autoflush = false))
+    LogStyle(get, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
   }
+
+  def log(pid: Pid): Log = new Log(global, pid)
 }
 
-class Log(private[this] val output: LogStyle) {
+class Log(private[this] val output: LogStyle, pid: Pid) {
 
   private[this] var writers: List[LogStyle] = List(output)
 
-  private[this] def log(msg: UserMsg, time: Long, level: Int): Unit = 
-    writers.foreach(_.log(msg, if(time == -1) System.currentTimeMillis else time, level))
+  private[this] def log(msg: UserMsg, time: Long, level: Int, pid: Pid): Unit = 
+    writers.foreach(_.log(msg, if(time == -1) System.currentTimeMillis else time, level, pid))
 
   def attach(writer: LogStyle): Unit = writers ::= writer
   def raw(str: String): Unit = writers.foreach(_.raw(str))
   def rawln(str: String): Unit = writers.foreach(_.rawln(str))
 
-  def note(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Note)
-  def info(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Info)
-  def warn(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Warn)
-  def fail(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Fail)
+  def note(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Note, pid)
+  def info(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Info, pid)
+  def warn(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Warn, pid)
+  def fail(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Fail, pid)
 
   def infoWhen(pred: Boolean)(msg: UserMsg, time: Long = -1): Unit =
     if(pred) info(msg, time) else note(msg, time)
