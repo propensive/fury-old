@@ -95,9 +95,9 @@ object Args {
       "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
-  val ParamArg = CliParam[Parameter]('P', 'param, "compiler parameter")
+  val OptionArg = CliParam[Parameter]('o', 'option, "compiler option")
   val PermissionArg = CliParam[List[String]]('P', 'permission, "permission entries")
-  val PropArg = CliParam[JavaProperty]('D', 'param, "Java -D property")
+  val PropArg = CliParam[JavaProperty]('D', 'property, "Java -D property")
   val QuietArg = CliParam[Unit]('q', 'quiet, "show less output")
   val RepoArg = CliParam[RepoId]('r', 'repo, "specify a repository")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")

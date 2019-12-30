@@ -354,7 +354,7 @@ object BinaryCli {
   }
 }
 
-object ParamCli {
+object OptionCli {
 
   case class ParamCtx(moduleCtx: ModuleCli.Context, optModule: Option[Module])
 
@@ -394,10 +394,10 @@ object ParamCli {
   def remove(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli      <- cli.hint(ParamArg, optModule.to[List].flatMap(_.params))
+      cli      <- cli.hint(OptionArg, optModule.to[List].flatMap(_.params))
       cli      <- cli.hint(ForceArg)
       call     <- cli.call()
-      paramArg <- call(ParamArg)
+      paramArg <- call(OptionArg)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- optModule.ascribe(UnspecifiedModule())
       force    <- ~call(ForceArg).isSuccess
@@ -417,11 +417,11 @@ object ParamCli {
   def add(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli     <- cli.hint(ParamArg)
+      cli     <- cli.hint(OptionArg)
       call    <- cli.call()
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      param   <- call(ParamArg)
+      param   <- call(OptionArg)
 
       layer   <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
                      _(_) += param)

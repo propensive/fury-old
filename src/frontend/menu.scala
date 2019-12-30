@@ -76,10 +76,10 @@ object FuryMenu {
             Action('select, msg"select the current module", ModuleCli.select, shortcut = 's'),
             Action('update, msg"update the module", ModuleCli.update, shortcut = 'u')
         ),
-        Menu('param, msg"manage compiler parameters for the module", ParamCli.context, 'list)(
-            Action('add, msg"add a compiler parameter to the module", ParamCli.add),
-            Action('remove, msg"remove a compiler parameter from the module", ParamCli.remove),
-            Action('list, msg"list compiler parameters for the module", ParamCli.list)
+        Menu('option, msg"manage compiler options for the module", OptionCli.context, 'list)(
+            Action('add, msg"add a compiler option to the module", OptionCli.add),
+            Action('remove, msg"remove a compiler option from the module", OptionCli.remove),
+            Action('list, msg"list compiler options for the module", OptionCli.list)
         ),
         Menu('permission, msg"manage application permissions", PermissionCli.context, 'list)(
             Action('grant, msg"grant an application permissions on your system", PermissionCli.grant),
