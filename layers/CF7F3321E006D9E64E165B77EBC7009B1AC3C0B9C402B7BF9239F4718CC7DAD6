@@ -631,10 +631,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/utils	src/utils
-						binaries	io.get-coursier:coursier_2.12:2.0.0-RC5	binRepo	central
+						binaries	io.get-coursier:coursier_2.12:2.0.0-RC5-4	binRepo	central
 								group	io.get-coursier
 								artifact	coursier_2.12
-								version	2.0.0-RC5
+								version	2.0.0-RC5-4
 							org.openjdk.jmh:jmh-core:1.21	binRepo	central
 								group	org.openjdk.jmh
 								artifact	jmh-core

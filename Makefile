@@ -105,7 +105,7 @@ dist/bundle/bin/upgrade: dist/bundle/bin/.dir
 	chmod +x $@
 
 dist/bundle/bin/coursier: dist/bundle/bin/.dir
-	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v1.1.0-M14-4/coursier
+	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v2.0.0-RC5-3/coursier
 	chmod +x $@
 
 dist/bundle/bin/ng.c: bootstrap/ng/.dir
