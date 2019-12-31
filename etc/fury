@@ -111,13 +111,19 @@ startNailgun() {
     source "${UPGRADEDIR}/bin/upgrade" && ${FURYHOME}/bin/fury "$ARGS"
     exit $?
   else
-    message 'Starting Fury daemon...'
+    if [ "$1" = "prompt" ]; then
+      message 'Starting Fury daemon...'
+    fi
     java -Dfury.home="${FURYHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
     until (alive); do
-      message '.'
+      if [ "$1" = "prompt" ]; then
+        message '.'
+      fi
       sleep 0.1
     done
-    message 'done\n'
+    if [ "$1" = "prompt" ]; then
+      message 'done\n'
+    fi
   fi
 }
 
