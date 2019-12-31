@@ -32,10 +32,19 @@ object OgdlParser {
       out
     }
 
+    @tailrec
     def readIndent(i: Int): Int =
       if(buffer.remaining == 0) i
       else
         (buffer.get(): @switch) match {
+          case '#' =>
+            if(i == 0) {
+              readComment()
+              readIndent(i)
+            } else {
+              buffer.position(buffer.position() - 1)
+              i
+            }
           case '\t' =>
             readIndent(i + 1)
           case _ =>
@@ -43,6 +52,14 @@ object OgdlParser {
             i
         }
 
+    @tailrec
+    def readComment(): Unit =
+      if(buffer.remaining == 0) ()
+      else (buffer.get(): @switch) match {
+        case '\n' => ()
+        case _ => readComment()
+      }
+    
     def append(ogdl: Ogdl, string: String, index: Int): Ogdl = ogdl match {
       case Ogdl(Vector()) =>
         if(index == 0) Ogdl(Vector((string, Ogdl(Vector()))))
@@ -59,6 +76,9 @@ object OgdlParser {
       if(buffer.remaining == 0) root
       else
         (buffer.get(): @switch) match {
+          case '#' =>
+            readComment()
+            parse(root, focus, buffer.position)
           case '\n' =>
             val key: String = readString(mark)
             val cur         = readIndent(0)
