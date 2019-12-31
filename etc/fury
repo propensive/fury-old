@@ -16,10 +16,10 @@ UPGRADEDIR="$FURYHOME/upgrade"
 SCALA_VERSION="2.12.8"
 NAILGUN_VERSION="1.0.0"
 
-if [ "$RUNTIME_DIRE" = "" ]; then
+if [ "$XDG_RUNTIME_DIR" = "" ]; then
   SCRIPT_DIR="/tmp/scripts"
 else
-  SCRIPT_DIR="$RUNTIME_DIR/scripts"
+  SCRIPT_DIR="$XDG_RUNTIME_DIR/scripts"
 fi
 
 
@@ -67,6 +67,7 @@ silently() {
       ;;
     91)
       source "${SCRIPT_DIR}/exec_$$"
+      rm "${SCRIPT_DIR}/exec_$$"
       ;;
   esac
   exit $EXITCODE

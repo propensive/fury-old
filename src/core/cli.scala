@@ -157,10 +157,12 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
   }
 
   def continuation(script: String): ExitStatus = {
-    val pw = new java.io.PrintWriter((Installation.scriptsDir.extant() / s"exec_${pid.pid}").javaFile)
+    val scriptFile = Installation.scriptsDir.extant() / str"exec_${pid.pid}"
+    val pw = new java.io.PrintWriter(scriptFile.javaFile)
     pw.write(script)
     pw.write("\n")
     pw.close()
+    Log.log(Pid(0)).info(msg"Exporting temporary script file to ${scriptFile}")
     Continuation
   }
 
