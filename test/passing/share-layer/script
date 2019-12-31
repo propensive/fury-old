@@ -23,5 +23,5 @@ cd layer3
 fury module list -p example --raw
 cd ..
 
-diff -q layer1/.focus.fury layer2/.focus.fury
-diff -q layer1/.focus.fury layer3/.focus.fury
+diff -q layer1/.fury.conf layer2/.fury.conf
+diff -q layer1/.fury.conf layer3/.fury.conf

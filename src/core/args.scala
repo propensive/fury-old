@@ -64,6 +64,7 @@ object Args {
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val EnvArg = CliParam[EnvVar]('e', 'env, "specify the environment variable in the form KEY=value")
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
+  val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
@@ -80,7 +81,10 @@ object Args {
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg = CliParam[String]('M', 'main, "specify a main class")
-  val PipeliningArg = CliParam[Boolean]('P', Symbol("pipelining"), "use compilation pipelining (on, off) (experimental)")
+  
+  val PipeliningArg = CliParam[Boolean]('P', Symbol("pipelining"),
+      "use compilation pipelining (on, off) (experimental)")
+  
   val PluginArg = CliParam[String]('P', 'plugin, "specify the name of the plugin")
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
   val RemoteLayerArg = CliParam[String]('n', 'name, "specify a name at which to publish the layer")

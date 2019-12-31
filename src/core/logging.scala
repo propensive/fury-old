@@ -37,7 +37,8 @@ object LogStyle {
     val config = ManagedConfig()
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info
-    LogStyle(() => printWriter, timestamps, false, false, true, config.theme, logLevel, autoflush = true, clearLine = clearLine)
+    LogStyle(() => printWriter, timestamps, false, false, true, config.theme, logLevel, autoflush = true,
+        clearLine = clearLine)
   }
 }
 

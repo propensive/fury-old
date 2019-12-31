@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.strings._, fury.io._
+import fury.strings._, fury.io._, fury.ogdl._
 
 import kaleidoscope._
 import gastronomy._
@@ -73,6 +73,12 @@ case class ModuleId(key: String) extends Key(msg"module")
 object Uri {
   implicit val msgShow: MsgShow[Uri] = uri => UserMsg { theme => theme.uri(theme.underline(uri.key)) }
   implicit val stringShow: StringShow[Uri] = _.key
+  implicit val ogdlWriter: OgdlWriter[Uri] = uri => Ogdl(uri.key)
+  
+  implicit val ogdlReader: OgdlReader[Uri] = _() match {
+    case r"$scheme@([a-z]+):\/\/$path@(.*)$$" => Uri(scheme, Path(path))
+  }
+
   implicit def diff: Diff[Uri] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 }
 
@@ -129,7 +135,12 @@ case class ImportPath(path: String) {
   }
 }
 
-case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"))
+case class PublishedLayer(url: Uri, major: Int, minor: Int) {
+  def version: String = str"$major.$minor"
+}
+
+case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
+    published: Option[PublishedLayer] = None)
 
 object IpfsRef {
   def parse(str: String): Option[IpfsRef] = str match {
