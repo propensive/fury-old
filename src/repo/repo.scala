@@ -45,7 +45,7 @@ object RepoCli {
       raw       <- ~call(RawArg).isSuccess
       schemaArg <- ~call(SchemaArg).toOption.getOrElse(ctx.layer.main)
       schema    <- ctx.layer.schemas.findBy(schemaArg)
-      rows      <- ~schema.repos.to[List].sortBy(_.id)
+      rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
       _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema)))
       _         <- ~log.rawln(table.mkString("\n"))

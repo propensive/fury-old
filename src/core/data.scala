@@ -372,6 +372,15 @@ case class Schema(id: SchemaId,
     layer    <- Layer.read(ref.layerRef, layout)
     resolved <- layer.schemas.findBy(ref.schema)
   } yield resolved
+
+  def localRepo(layout: Layout): Try[SourceRepo] = for {
+    repo   <- Repo.local(layout)
+    commit <- Shell(layout.env).git.getCommit(layout.baseDir).map(Commit(_))
+    branch <- Shell(layout.env).git.getBranch(layout.baseDir).map(RefSpec(_))
+  } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
+
+  def allRepos(layout: Layout): SortedSet[SourceRepo] =
+    localRepo(layout).toOption.to[SortedSet] ++ repos
 }
 
 case class Layer(version: Int = Layer.CurrentVersion,

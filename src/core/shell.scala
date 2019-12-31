@@ -152,6 +152,9 @@ case class Shell(environment: Environment) {
 
     def getTag(dir: Path, tag: String): Try[String] =
       sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]]
+    
+    def getBranch(dir: Path): Try[String] =
+      sh"git -C ${(dir / ".git").value} rev-parse --abbrev-ref HEAD".exec[Try[String]]
   }
 
   object java {
