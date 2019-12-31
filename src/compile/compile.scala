@@ -297,7 +297,7 @@ class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compila
       multiplexer(targetId.ref) = DiagnosticMsg(
         targetId.ref,
         CompilerDiagnostic(
-          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}
+          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum + 1).toString}
 ${'|'} ${UserMsg(
             theme =>
               diag.getMessage.split("\n").to[List].map(theme.gray(_)).join(msg"""
