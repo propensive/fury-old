@@ -139,7 +139,7 @@ case class PublishedLayer(url: Uri, major: Int, minor: Int) {
   def version: String = str"$major.$minor"
 }
 
-case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
+case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
     published: Option[PublishedLayer] = None)
 
 object IpfsRef {

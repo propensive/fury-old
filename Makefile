@@ -66,7 +66,8 @@ bootstrap/bin:
 	mkdir -p $@
 
 bootstrap/build.fury: bootstrap/bin
-	tar cvzf $@ .focus.fury layers/*
+	cp -n .focus.fury .fury.conf 2> /dev/null | true
+	tar cvzf $@ .focus.fury .fury.conf layers/*
 
 pre-compile: bootstrap/bin bootstrap/scala $(NAILGUNJARPATH)
 

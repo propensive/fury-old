@@ -501,8 +501,8 @@ object LayerCli {
     cli    <- cli.hint(ForceArg)
     call   <- cli.call()
     force  =  call(ForceArg).isSuccess
-    _      <- if (layout.focusFile.exists && !force) Failure(AlreadyInitialized()) else ~()
-    _      <- layout.focusFile.mkParents()
+    _      <- if (layout.confFile.exists && !force) Failure(AlreadyInitialized()) else ~()
+    _      <- layout.confFile.mkParents()
     _      <- Layer.create(Layer(), layout)
     _      <- ~log.info(str"Initialized an empty layer")
   } yield log.await()
@@ -532,11 +532,11 @@ object LayerCli {
     call      <- cli.call()
     layers    <- schema.importTree(layout, true)
     relPath   <- call(LayerArg)
-    focus     <- Layer.readFocus(layout)
+    focus     <- Layer.readFuryConf(layout)
     newPath   <- focus.path.dereference(relPath)
     _         <- verifyLayers(newPath, layers)
-    newFocus  <- ~focus.copy(path = newPath)
-    _         <- Layer.saveFocus(newFocus, layout)
+    newConf   <- ~focus.copy(path = newPath)
+    _         <- Layer.saveFuryConf(newConf, layout)
   } yield log.await()
 
 
@@ -555,7 +555,7 @@ object LayerCli {
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
     layout   <- cli.newLayout.map(_.copy(baseDir = dir))
     layerRef <- Layer.loadFile(file, layout, cli.env)
-    _        <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), layout)
+    _        <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout)
   } yield log.await()
 
   def clone(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -570,7 +570,7 @@ object LayerCli {
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
-    _             <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), dir / ".focus.fury")
+    _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout.confFile)
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
 
@@ -591,8 +591,8 @@ object LayerCli {
     _             <- if(raw) ~log.rawln(str"${pub.url}")
                      else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
 
-    _             <- Layer.saveFocus(Focus(Layer.digestLayer(layer), ImportPath.Root, Some(pub)),
-                         layout.focusFile)
+    _             <- Layer.saveFuryConf(FuryConf(Layer.digestLayer(layer), ImportPath.Root, Some(pub)),
+                         layout.confFile)
 
   } yield log.await()
 

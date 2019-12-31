@@ -402,13 +402,20 @@ object Layer {
       ref  <- loadDir(file, layout, env)
     } yield ref }
 
+  def moveFuryConfIfNecessary(dir: Path): Try[Unit] = {
+    val oldFile = dir / ".focus.fury"
+    val newFile = dir / ".fury.conf"
+    Try(if(oldFile.exists && !newFile.exists) oldFile.rename { f => ".fury.conf" }.unit)
+  }
+
   def loadDir(dir: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     for {
       _      <- (dir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
       bases  <- ~(dir / "bases").childPaths
       _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
-      focus  <- Ogdl.read[Focus](dir / ".focus.fury", identity(_))
-    } yield focus.layerRef
+      _      <- moveFuryConfIfNecessary(dir)
+      conf   <- Ogdl.read[FuryConf](dir / ".fury.conf", identity(_))
+    } yield conf.layerRef
 
   def loadFile(file: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { tmpDir => for {
@@ -416,8 +423,9 @@ object Layer {
       _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
       bases  <- ~(tmpDir / "bases").childPaths
       _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
-      focus  <- Ogdl.read[Focus](tmpDir / ".focus.fury", identity(_))
-    } yield focus.layerRef }
+      _      <- moveFuryConfIfNecessary(tmpDir)
+      conf   <- Ogdl.read[FuryConf](tmpDir / ".fury.conf", identity(_))
+    } yield conf.layerRef }
 
   def share(layer: Layer, layout: Layout, env: Environment, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
     Installation.tmpDir { tmp => for {
@@ -426,7 +434,7 @@ object Layer {
       layerRefs <- collectLayerRefs(schemaRef, layout)
       _         =  (tmp / "layers").mkdir()
       filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
-          .updated(tmp / ".focus.fury", layout.focusFile)
+          .updated(tmp / ".fury.conf", layout.confFile)
       _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest)}
       ipfs      <- Ipfs.daemon(quiet)
       ref       <- ipfs.add(tmp)
@@ -469,8 +477,8 @@ object Layer {
   def read(path: Path, env: Environment)(implicit log: Log): Try[Layer] =
     Ogdl.read[Layer](path, upgrade(env, _))
 
-  def readFocus(layout: Layout)(implicit log: Log): Try[Focus] =
-    Ogdl.read[Focus](layout.focusFile, identity(_))
+  def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
+    Ogdl.read[FuryConf](layout.confFile, identity(_))
 
   private def collectLayerRefs(ref: SchemaRef, layout: Layout)(implicit log: Log): Try[Set[LayerRef]] = for {
     layer   <- read(ref.layerRef, layout)
@@ -483,18 +491,18 @@ object Layer {
     schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
     layerRefs <- collectLayerRefs(schemaRef, layout)
     filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
-    _         <- TarGz.store(filesMap.updated(Path(".focus.fury"), layout.focusFile), path)
+    _         <- TarGz.store(filesMap.updated(Path(".fury.conf"), layout.confFile), path)
   } yield path
 
   def base(layout: Layout)(implicit log: Log): Try[Layer] = for {
-    focus    <- readFocus(layout)
-    layer    <- read(focus.layerRef, layout)
+    conf     <- readFuryConf(layout)
+    layer    <- read(conf.layerRef, layout)
   } yield layer
 
   def read(layout: Layout)(implicit log: Log): Try[Layer] = for {
-    focus    <- readFocus(layout)
-    layer    <- read(focus.layerRef, layout)
-    newLayer <- resolveSchema(layout, layer, focus.path)
+    conf     <- readFuryConf(layout)
+    layer    <- read(conf.layerRef, layout)
+    newLayer <- resolveSchema(layout, layer, conf.path)
   } yield newLayer
 
   def read(ref: LayerRef, layout: Layout)(implicit log: Log): Try[Layer] =
@@ -513,14 +521,14 @@ object Layer {
 
   def create(newLayer: Layer, layout: Layout)(implicit log: Log): Try[LayerRef] = for {
     layerRef     <- saveLayer(newLayer)
-    _            <- saveFocus(Focus(layerRef), layout)
+    _            <- saveFuryConf(FuryConf(layerRef), layout)
   } yield layerRef
 
   def save(newLayer: Layer, layout: Layout)(implicit log: Log): Try[LayerRef] = for {
-    focus        <- readFocus(layout)
-    currentLayer <- read(focus.layerRef, layout)
-    layerRef     <- saveSchema(layout, newLayer, focus.path, currentLayer)
-    _            <- saveFocus(focus.copy(layerRef = layerRef), layout)
+    conf         <- readFuryConf(layout)
+    currentLayer <- read(conf.layerRef, layout)
+    layerRef     <- saveSchema(layout, newLayer, conf.path, currentLayer)
+    _            <- saveFuryConf(conf.copy(layerRef = layerRef), layout)
   } yield layerRef
 
   private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)
@@ -544,12 +552,12 @@ object Layer {
     _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
   } yield layerRef
 
-  def saveFocus(focus: Focus, layout: Layout)(implicit log: Log): Try[Unit] =
-    saveFocus(focus, layout.focusFile)
+  def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] =
+    saveFuryConf(conf, layout.confFile)
 
-  def saveFocus(focus: Focus, path: Path)(implicit log: Log): Try[Unit] = for {
-    focusStr <- ~Ogdl.serialize(Ogdl(focus))
-    _        <- path.writeSync(focusStr)
+  def saveFuryConf(conf: FuryConf, path: Path)(implicit log: Log): Try[Unit] = for {
+    confStr  <- ~Ogdl.serialize(Ogdl(conf))
+    _        <- path.writeSync(confStr)
   } yield ()
 
   private def upgrade(env: Environment, ogdl: Ogdl)(implicit log: Log): Ogdl =
@@ -714,9 +722,13 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] =
     for {
       repoDir     <- repo.get(layout, https)
-      focusString <- Shell(layout.env).git.showFile(repoDir, ".focus.fury")
-      focus       <- ~Ogdl.read[Focus](focusString, identity(_))
-      layer       <- Layer.read(focus.layerRef, layout)
+
+      confString  <- Shell(layout.env).git.showFile(repoDir, ".fury.conf").orElse {
+                       Shell(layout.env).git.showFile(repoDir, "focus.fury")
+                     }
+
+      conf        <- ~Ogdl.read[FuryConf](confString, identity(_))
+      layer       <- Layer.read(conf.layerRef, layout)
       schemas     <- ~layer.schemas.to[List]
     } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
