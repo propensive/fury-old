@@ -67,6 +67,7 @@ silently() {
       ;;
     91)
       source "${SCRIPT_DIR}/exec_$$"
+      rm "${SCRIPT_DIR}/exec_$$"
       ;;
   esac
   exit $EXITCODE
