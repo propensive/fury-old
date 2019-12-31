@@ -168,10 +168,11 @@ case class Tables() {
     Heading("Compiler", _.compiler)
   )
 
-  def repositories(layout: Layout): Tabulation[SourceRepo] = Tabulation(
+  def repositories(layout: Layout)(implicit log: Log): Tabulation[SourceRepo] = Tabulation(
     Heading("Repo", _.id),
     Heading("Remote", _.repo),
     Heading("Branch/Tag", _.track),
-    Heading("Commit/Path", commitPath(_))
+    Heading("Commit/Path", commitPath(_)),
+    Heading("Changes", _.changes(layout, true).toOption.flatten.getOrElse("-"))
   )
 }

@@ -667,6 +667,10 @@ object Repo {
     case other =>
       other
   }
+
+  def local(layout: Layout): Try[Repo] = for {
+    origin <- Shell(layout.env).git.getOrigin(layout.baseDir)
+  } yield Repo(origin)
 }
 
 case class Checkout(repoId: RepoId,
@@ -729,6 +733,11 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   } yield files
 
   def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
+
+  def changes(layout: Layout, https: Boolean)(implicit log: Log): Try[Option[String]] = for {
+    repoDir <- local.map(Success(_)).getOrElse(repo.fetch(layout, https))
+    changes <- Shell(layout.env).git.diffShortStat(repoDir)
+  } yield if(changes.isEmpty) None else Some(changes)
 
   def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] =
     for {

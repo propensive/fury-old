@@ -80,6 +80,12 @@ case class Shell(environment: Environment) {
       sh"git clone --mirror $url ${dir.value}".exec[Try[String]].map { out => (dir / ".done").touch(); out }
     }
 
+    def getOrigin(dir: Path): Try[String] =
+      sh"git -C ${dir.value} config --get remote.origin.url".exec[Try[String]]
+
+    def diffShortStat(dir: Path): Try[String] =
+      sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat".exec[Try[String]]
+
     def sparseCheckout(from: Path,
                        dir: Path,
                        sources: List[Path],
