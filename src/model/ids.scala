@@ -129,7 +129,10 @@ case class ImportPath(path: String) {
   }
 }
 
-case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"))
+case class PublishedLayer(url: String, major: Int, minor: Int)
+
+case class Focus(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
+    published: Option[PublishedLayer] = None)
 
 object IpfsRef {
   def parse(str: String): Option[IpfsRef] = str match {

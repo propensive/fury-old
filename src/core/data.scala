@@ -483,7 +483,6 @@ object Layer {
     schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
     layerRefs <- collectLayerRefs(schemaRef, layout)
     filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
-    // include bases
     _         <- TarGz.store(filesMap.updated(Path(".focus.fury"), layout.focusFile), path)
   } yield path
 
@@ -980,7 +979,10 @@ object Service {
     } yield artifacts
   }
 
-  def publish(hash: String, env: Environment, path: String, quiet: Boolean)(implicit log: Log): Try[Uri] = {
+  def publish
+      (hash: String, env: Environment, path: String, quiet: Boolean, breaking: Boolean)
+      (implicit log: Log): Try[Uri] = {
+
     val url = Https(Path(ManagedConfig().service) / "publish")
     case class Output(output: String)
     for {

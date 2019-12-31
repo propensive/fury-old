@@ -64,6 +64,7 @@ object Args {
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val EnvArg = CliParam[EnvVar]('e', 'env, "specify the environment variable in the form KEY=value")
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
+  val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
