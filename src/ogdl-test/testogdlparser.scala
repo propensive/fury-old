@@ -63,6 +63,18 @@ object OgdlParserTest extends TestApp {
       read("A\n\tB\n")
     }.assert(_ == graph("A" -> "B"))
 
+    test("Comments at the start are skipped") {
+      read("#comment\nA\n\tB\n")
+    }.assert(_ == graph("A" -> "B"))
+
+    test("Comments at the end are skipped") {
+      read("A\n\tB\n#comment")
+    }.assert(_ == graph("A" -> "B"))
+
+    test("Comments in the middle are skipped") {
+      read("A\n#comment\n\tB\n")
+    }.assert(_ == graph("A" -> "B"))
+
     test("Node on the next line is a sibling of previous node") {
       read("A\nB\n")
     }.assert(_ == graph("A", "B"))
