@@ -555,7 +555,7 @@ object LayerCli {
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
     layout   <- cli.newLayout.map(_.copy(baseDir = dir))
     layerRef <- Layer.loadFile(file, layout, cli.env)
-    _        <- Layer.saveFocus(Focus(layerRef), layout)
+    _        <- Layer.saveFocus(Focus(layerRef, ImportPath.Root), layout)
   } yield log.await()
 
   def clone(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -578,15 +578,22 @@ object LayerCli {
     layout        <- cli.layout
     cli           <- cli.hint(RemoteLayerArg)
     cli           <- cli.hint(RawArg)
+    cli           <- cli.hint(BreakingArg)
     call          <- cli.call()
     layer         <- Layer.read(layout)
     path          <- call(RemoteLayerArg)
+    breaking      <- ~call(BreakingArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, cli.env, raw)
-    pub           <- Service.publish(ref.key, cli.env, path, raw)
+    pub           <- Service.publish(ref.key, cli.env, path, raw, breaking)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
-    uri           <- ~Uri("fury", Path(ManagedConfig().service) / path)
-    _             <- if(raw) ~log.rawln(str"$uri") else ~log.info(msg"Published to $uri")
+
+    _             <- if(raw) ~log.rawln(str"${pub.url}")
+                     else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
+
+    _             <- Layer.saveFocus(Focus(Layer.digestLayer(layer), ImportPath.Root, Some(pub)),
+                         layout.focusFile)
+
   } yield log.await()
 
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {

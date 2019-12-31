@@ -981,18 +981,20 @@ object Service {
 
   def publish
       (hash: String, env: Environment, path: String, quiet: Boolean, breaking: Boolean)
-      (implicit log: Log): Try[Uri] = {
+      (implicit log: Log): Try[PublishedLayer] = {
 
     val url = Https(Path(ManagedConfig().service) / "publish")
-    case class Output(output: String)
+    case class Request(path: String, token: String, hash: String, breaking: Boolean)
+    case class Response(output: String)
     for {
       ipfs <- Ipfs.daemon(quiet)
       id   <- Try(ipfs.id().get)
-      out  <- Http.post(url, Json.of(path = path, token = ManagedConfig().token, hash = hash), headers = Set())
+      out  <- Http.post(url, Json(Request(path, ManagedConfig().token, hash, breaking)), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
-      res  <- Try(json.as[Output].get)
-    } yield Uri("fury", Path(res.output))
+      res  <- Try(json.as[Response].get)
+      // FIXME: Get major and minor version numbers
+    } yield PublishedLayer(Uri("fury", Path(str"${ManagedConfig().service}/${path}")), 0, 0)
   }
 }
 
