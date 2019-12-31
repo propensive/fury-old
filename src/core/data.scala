@@ -519,10 +519,21 @@ object Layer {
   def digestLayer(layer: Layer): LayerRef =
     LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
 
-  def create(newLayer: Layer, layout: Layout)(implicit log: Log): Try[LayerRef] = for {
-    layerRef     <- saveLayer(newLayer)
-    _            <- saveFuryConf(FuryConf(layerRef), layout)
-  } yield layerRef
+  def init(env: Environment, layout: Layout)(implicit log: Log): Try[Unit] = {
+    if(layout.confFile.exists) { for {
+      conf     <- readFuryConf(layout)
+      url      <- Try(conf.published.get)
+      ref      <- resolve(url.url.key, layout)
+      layer    <- Layer.load(ref, env, layout)
+      _        <- saveFuryConf(FuryConf(layer), layout)
+      _        <- ~log.info(msg"Initialized layer ${layer}")
+    } yield () } else { for {
+      _        <- layout.confFile.mkParents()
+      layerRef <- saveLayer(Layer())
+      _        <- saveFuryConf(FuryConf(layerRef), layout)
+      _        <- ~log.info(msg"Initialized an empty layer")
+    } yield () }
+  }
 
   def save(newLayer: Layer, layout: Layout)(implicit log: Log): Try[LayerRef] = for {
     conf         <- readFuryConf(layout)
