@@ -570,7 +570,7 @@ object LayerCli {
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
-    _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout.confFile)
+    _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), dir / ".fury.conf")
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
 
