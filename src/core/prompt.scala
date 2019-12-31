@@ -24,19 +24,16 @@ object Prompt {
 
   def zsh(
       layer: Layer,
-      schema: Schema,
       optProject: Option[Project],
       optModule: Option[Module]
     )(implicit theme: Theme
     ): String = {
-    val schemaId  = schema.id.key
+    val layerId = layer.hash
     val projectId = optProject.map(_.id.key).getOrElse("-")
     val moduleId  = optModule.map(_.id.key).getOrElse("-")
-    val schemaText =
-      if(layer.schemas.size <= 1) "" else s"${escape(theme.schema)}$schemaId${escape(theme.gray)}/"
 
-    msg" ${escape(theme.gray)}[$schemaText${escape(theme.project)}$projectId${escape(theme.gray)}/${escape(
-        theme.module)}$moduleId${escape(theme.gray)}]${escape(Ansi.reset)}".string(theme)
+    msg"${escape(Ansi.reset)}${escape(theme.gray)}//${escape(theme.layer)}$layerId${escape(theme.gray)}#${escape(theme.project)}$projectId${escape(theme.gray)}/${escape(
+        theme.module)}$moduleId${escape(theme.gray)}${escape(Ansi.reset)}".string(theme)
   }
 
   def empty(implicit theme: Theme) = {

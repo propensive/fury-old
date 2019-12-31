@@ -249,7 +249,7 @@ object BuildCli {
     optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
     optModuleId  <- ~optProject.flatMap(_.main)
     optModule    <- ~optModuleId.flatMap { mId => optProject.flatMap(_.modules.findBy(mId).toOption) }
-  } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
+  } yield Prompt.zsh(layer, optProject, optModule)(theme)
 
   def upgrade(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
     layout        <- cli.layout
@@ -266,7 +266,7 @@ object BuildCli {
     layer  <- ~Layer.read(layout).toOption
     msg    <- layer.fold(Try(Prompt.empty(ManagedConfig().theme)))(getPrompt(_, ManagedConfig().theme))
     call   <- cli.call()
-    _      <- ~log.info(msg)
+    _      <- ~log.raw(msg)
   } yield log.await()
 
   def save(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
