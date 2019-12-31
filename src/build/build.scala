@@ -498,13 +498,8 @@ object BuildCli {
 object LayerCli {
   def init(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout <- cli.newLayout
-    cli    <- cli.hint(ForceArg)
     call   <- cli.call()
-    force  =  call(ForceArg).isSuccess
-    _      <- if (layout.confFile.exists && !force) Failure(AlreadyInitialized()) else ~()
-    _      <- layout.confFile.mkParents()
-    _      <- Layer.create(Layer(), layout)
-    _      <- ~log.info(str"Initialized an empty layer")
+    _      <- Layer.init(cli.env, layout)
   } yield log.await()
 
   def projects(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
