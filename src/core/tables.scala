@@ -69,8 +69,9 @@ case class Tables() {
 
   private def bar(n: Int) = msg"${theme.gray("■" * n)}"
 
-  private def commitPath(r: SourceRepo) = r.local match {
-    case Some(dir) => msg"${theme.path(dir.value)}"
+  private def commitOrPath(layout: Layout, r: SourceRepo) = r.localDir(layout) match {
+    case Some(dir) => if(r.localDir(layout) == Some(layout.baseDir)) msg"${theme.italic("local")}"
+                      else msg"${theme.path(dir.value)}"
     case None      => msg"${theme.version(r.commit.id.take(7))}"
   }
 
@@ -171,8 +172,8 @@ case class Tables() {
   def repositories(layout: Layout)(implicit log: Log): Tabulation[SourceRepo] = Tabulation(
     Heading("Repo", _.id),
     Heading("Remote", _.repo),
-    Heading("Branch/Tag", _.track),
-    Heading("Commit/Path", commitPath(_)),
+    Heading("Branch/Tag", _.tracking(layout)),
+    Heading("Commit/Path", commitOrPath(layout, _)),
     Heading("Changes", _.changes(layout, true).toOption.flatten.getOrElse("-"))
   )
 }
