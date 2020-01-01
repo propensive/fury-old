@@ -48,6 +48,7 @@ mkdir -pv ~/.cache/fury/policies
 if [ "$1" = "" ]; then
 
   fury start
+  fury clean
   fury config set --theme nocolor --timestamps off
 
   for ATEST in $(ls $ROOT/test/passing); do
