@@ -398,26 +398,23 @@ case class Layer(version: Int = Layer.CurrentVersion,
 
 object Layer {
   val CurrentVersion = 4
-  implicit val msgShow: MsgShow[Layer]       = r => UserMsg(_.layer(r.hash))
+  implicit val msgShow: MsgShow[Layer] = r => UserMsg(_.layer(r.hash))
   implicit val stringShow: StringShow[Layer] = _.hash
 
-  def loadFromIpfs
-      (layerRef: IpfsRef, layout: Layout, env: Environment, quiet: Boolean)
-      (implicit log: Log)
-      : Try[LayerRef] =
+  def loadFromIpfs(layerRef: IpfsRef, layout: Layout, quiet: Boolean)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { dir => for {
       ipfs <- Ipfs.daemon(quiet)
       file <- ipfs.get(layerRef, dir)
-      ref  <- loadDir(file, layout, env)
+      ref  <- loadDir(file, layout)
     } yield ref }
 
   def moveFuryConfIfNecessary(dir: Path): Try[Unit] = {
     val oldFile = dir / ".focus.fury"
     val newFile = dir / ".fury.conf"
-    Try(if(oldFile.exists && !newFile.exists) oldFile.rename { f => ".fury.conf" }.unit)
+    Try(if(oldFile.exists && !newFile.exists) oldFile.moveTo(newFile))
   }
 
-  def loadDir(dir: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
+  def loadDir(dir: Path, layout: Layout)(implicit log: Log): Try[LayerRef] =
     for {
       _      <- (dir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
       bases  <- ~(dir / "bases").childPaths
@@ -426,7 +423,7 @@ object Layer {
       conf   <- Ogdl.read[FuryConf](dir / ".fury.conf", identity(_))
     } yield conf.layerRef
 
-  def loadFile(file: Path, layout: Layout, env: Environment)(implicit log: Log): Try[LayerRef] =
+  def loadFile(file: Path, layout: Layout)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { tmpDir => for {
       _      <- TarGz.extract(file, tmpDir)
       _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
@@ -436,20 +433,21 @@ object Layer {
       conf   <- Ogdl.read[FuryConf](tmpDir / ".fury.conf", identity(_))
     } yield conf.layerRef }
 
-  def share(layer: Layer, layout: Layout, env: Environment, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
+  def share(layer: Layer, layout: Layout, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
     Installation.tmpDir { tmp => for {
       layerRef  <- saveLayer(layer)
       schemaRef =  SchemaRef(ImportId(""), layerRef, layer.main)
       layerRefs <- collectLayerRefs(schemaRef, layout)
       _         =  (tmp / "layers").mkdir()
-      filesMap  =  layerRefs.map { ref => (tmp / "layers" / ref.key, Installation.layersPath / ref.key) }.toMap
-          .updated(tmp / ".fury.conf", layout.confFile)
-      _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest)}
+      filesMap  =  layerRefs.map { ref =>
+                     (tmp / "layers" / ref.key, Installation.layersPath / ref.key)
+                   }.toMap.updated(tmp / ".fury.conf", layout.confFile)
+      _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest) }
       ipfs      <- Ipfs.daemon(quiet)
       ref       <- ipfs.add(tmp)
     } yield ref }
 
-  def resolve(path: String, layout: Layout): Try[LayerInput] = {
+  def parse(path: String, layout: Layout): Try[LayerInput] = {
     val service = ManagedConfig().service
     path match {
       case r"fury:\/\/$ref@([A-Za-z0-9]{46})\/?" =>
@@ -466,25 +464,19 @@ object Layer {
     }
   }
 
-  def load(input: LayerInput, env: Environment, layout: Layout)(implicit log: Log): Try[LayerRef] =
+  def load(input: LayerInput, layout: Layout)(implicit log: Log): Try[LayerRef] =
     input match {
       case FuryUri(domain, path) => for {
-                                      entries <- Service.catalog()
+                                      entries <- Service.catalog(domain)
                                       ipfsRef <- Try(entries.find(_.path == path).get)
-                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, env, false)
+                                      ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, false)
                                     } yield ref
-      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, env, false)
-      case FileInput(file)       => loadFile(file, layout, env)
+      case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, false)
+      case FileInput(file)       => loadFile(file, layout)
     }
 
   def pathCompletions()(implicit log: Log): Try[List[String]] =
-    Service.catalog().map(_.map(_.path))
-
-  def read(string: String, env: Environment)(implicit log: Log): Try[Layer] =
-    Success(Ogdl.read[Layer](string, upgrade(env, _)))
-
-  def read(path: Path, env: Environment)(implicit log: Log): Try[Layer] =
-    Ogdl.read[Layer](path, upgrade(env, _))
+    Service.catalog(ManagedConfig().service).map(_.map(_.path))
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
     Ogdl.read[FuryConf](layout.confFile, identity(_))
@@ -515,7 +507,7 @@ object Layer {
   } yield newLayer
 
   def read(ref: LayerRef, layout: Layout)(implicit log: Log): Try[Layer] =
-    Ogdl.read[Layer](Installation.layersPath / ref.key, upgrade(layout.env, _))
+    Ogdl.read[Layer](Installation.layersPath / ref.key, upgrade(_))
 
   def resolveSchema(layout: Layout, layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
     path.parts.foldLeft(Try(layer)) { case (current, importId) => for {
@@ -528,12 +520,12 @@ object Layer {
   def digestLayer(layer: Layer): LayerRef =
     LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
 
-  def init(env: Environment, layout: Layout)(implicit log: Log): Try[Unit] = {
+  def init(layout: Layout)(implicit log: Log): Try[Unit] = {
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       url      <- Try(conf.published.get)
-      ref      <- resolve(url.url.key, layout)
-      layer    <- Layer.load(ref, env, layout)
+      ref      <- parse(url.url.key, layout)
+      layer    <- Layer.load(ref, layout)
       _        <- saveFuryConf(FuryConf(layer), layout)
       _        <- ~log.info(msg"Initialized layer ${layer}")
     } yield () } else { for {
@@ -580,49 +572,11 @@ object Layer {
     _        <- path.writeSync(confStr)
   } yield ()
 
-  private def upgrade(env: Environment, ogdl: Ogdl)(implicit log: Log): Ogdl =
+  private def upgrade(ogdl: Ogdl)(implicit log: Log): Ogdl =
     Try(ogdl.version().toInt).getOrElse(1) match {
-      case 1 =>
-        log.info("Migrating layer file from version 1")
-        upgrade(
-            env,
-            ogdl.set(
-                schemas = ogdl.schemas.map { schema =>
-                  schema.set(
-                      repos = schema.repos.map { repo =>
-                        log.info(msg"Checking commit hash for ${repo.repo()}")
-                        val commit =
-                          Shell(env).git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
-                        repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
-                      }
-                  )
-                },
-                version = Ogdl(2)
-            )
-        )
-      case 2 =>
-        log.info("Migrating layer file from version 2")
-        upgrade(
-            env,
-            ogdl.set(
-                schemas = ogdl.schemas.map { schema =>
-                  schema.set(
-                      projects = schema.projects.map { project =>
-                        project.set(
-                            modules = project.modules.map { module =>
-                              module.set(kind = Ogdl(module.kind().capitalize))
-                            }
-                        )
-                      }
-                  )
-                },
-                version = Ogdl(3)
-            )
-        )
       case 3 =>
         log.info("Migrating layer file from version 2")
         upgrade(
-            env,
             ogdl.set(
                 schemas = ogdl.schemas.map { schema =>
                   schema.set(
@@ -1009,8 +963,7 @@ object ManagedConfig {
 
 object Service {
 
-  def catalog(): Try[List[Artifact]] = {
-    val service = ManagedConfig().service
+  def catalog(service: String): Try[List[Artifact]] = {
     val url = Https(Path(service) / "catalog")
     
     for {
@@ -1020,9 +973,9 @@ object Service {
     } yield artifacts
   }
 
-  def publish
-      (hash: String, env: Environment, path: String, quiet: Boolean, breaking: Boolean)
-      (implicit log: Log): Try[PublishedLayer] = {
+  def publish(hash: String, path: String, quiet: Boolean, breaking: Boolean)
+             (implicit log: Log)
+             : Try[PublishedLayer] = {
 
     val url = Https(Path(ManagedConfig().service) / "publish")
     case class Request(path: String, token: String, hash: String, breaking: Boolean)
