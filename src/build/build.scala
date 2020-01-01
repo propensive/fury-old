@@ -499,7 +499,7 @@ object LayerCli {
   def init(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout <- cli.newLayout
     call   <- cli.call()
-    _      <- Layer.init(cli.env, layout)
+    _      <- Layer.init(layout)
   } yield log.await()
 
   def projects(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
@@ -549,7 +549,7 @@ object LayerCli {
     file     <- call(FileArg).map(pwd.resolve(_))
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
     layout   <- cli.newLayout.map(_.copy(baseDir = dir))
-    layerRef <- Layer.loadFile(file, layout, cli.env)
+    layerRef <- Layer.loadFile(file, layout)
     _        <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout)
   } yield log.await()
 
@@ -559,8 +559,8 @@ object LayerCli {
     call          <- cli.call()
     layout        <- cli.newLayout
     layerImport   <- call(ImportArg)
-    resolved      <- Layer.resolve(layerImport, layout)
-    layerRef      <- Layer.load(resolved, cli.env, layout)
+    resolved      <- Layer.parse(layerImport, layout)
+    layerRef      <- Layer.load(resolved, layout)
     dir           <- call(DirArg).pacify(resolved.suggestedName.map { n => Path(n.key) })
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
@@ -579,7 +579,7 @@ object LayerCli {
     path          <- call(RemoteLayerArg)
     breaking      <- ~call(BreakingArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, cli.env, raw)
+    ref           <- Layer.share(layer, layout, raw)
     pub           <- Service.publish(ref.key, cli.env, path, raw, breaking)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
 
@@ -597,7 +597,7 @@ object LayerCli {
     layer         <- Layer.read(layout)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, cli.env, raw)
+    ref           <- Layer.share(layer, layout, raw)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
@@ -623,15 +623,15 @@ object LayerCli {
      
       cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
       layerImport   <- ~cli.peek(ImportArg)
-      layerRef      <- ~layerImport.flatMap(Layer.resolve(_, layout).flatMap(Layer.load(_, cli.env, layout)).toOption)
+      layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(_, layout)).toOption)
       maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
       cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
       call          <- cli.call()
       layerImport   <- call(ImportArg)
-      layerInput    <- Layer.resolve(layerImport, layout)
+      layerInput    <- Layer.parse(layerImport, layout)
       nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
       schemaId      <- cli.peek(ImportSchemaArg).orElse(maybeLayer.map(_.main)).ascribe(MissingArg("schema"))
-      layerRef      <- Layer.load(layerInput, cli.env, layout)
+      layerRef      <- Layer.load(layerInput, layout)
       schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))
