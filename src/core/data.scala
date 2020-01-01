@@ -567,9 +567,21 @@ object Layer {
   def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] =
     saveFuryConf(conf, layout.confFile)
 
+  private final val confComments: String =
+    str"""# This is a Fury configuration file. It contains significant
+         |# whitespace and is not intended to be human-editable.
+         |#
+         |# For more information, please visit https://propensive.com/fury/
+         |#
+         |""".stripMargin
+  
+  private final val vimModeline: String =
+    str"""# vim: set noai ts=12 sw=12:
+         |""".stripMargin
+
   def saveFuryConf(conf: FuryConf, path: Path)(implicit log: Log): Try[Unit] = for {
     confStr  <- ~Ogdl.serialize(Ogdl(conf))
-    _        <- path.writeSync(confStr)
+    _        <- path.writeSync(confComments+confStr+vimModeline)
   } yield ()
 
   private def upgrade(ogdl: Ogdl)(implicit log: Log): Ogdl =
