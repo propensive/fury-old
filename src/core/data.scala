@@ -240,7 +240,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
           Checkout(
               repo.id,
               repo.repo,
-              repo.local,
+              repo.localDir(layout),
               repo.commit,
               repo.track,
               paths.map(_.path).to[List])
@@ -380,7 +380,9 @@ case class Schema(id: SchemaId,
   } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 
   def allRepos(layout: Layout): SortedSet[SourceRepo] =
-    localRepo(layout).toOption.to[SortedSet] ++ repos
+    (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
+      repos.map(_.repo.simplified).contains(r.repo.simplified)
+    }) ++ repos
 }
 
 case class Layer(version: Int = Layer.CurrentVersion,
@@ -601,41 +603,6 @@ object Counter {
   }
 }
 
-object Repo {
-  implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
-  implicit val stringShow: StringShow[Repo] = _.simplified
-
-  case class ExistingLocalFileAsAbspath(absPath: String)
-
-  object ExistingLocalFileAsAbspath {
-    def unapply(path: String): Option[String] = Path(path).absolutePath().toOption match {
-      case Some(absPath) => absPath.ifExists().map(_.value)
-      case None          => None
-    }
-  }
-
-  def fromString(str: String, https: Boolean): String = str match {
-    case "." => ""
-    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      if(https) str"https://github.com/$group/$project.git"
-      else str"git@github.com:$group/$project.git"
-    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      if(https) str"https://gitlab.com/$group/$project.git"
-      else str"git@gitlab.com:$group/$project.git"
-    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      if(https) str"https://bitbucket.com/$group/$project.git"
-      str"git@bitbucket.com:$group/$project.git"
-    case ExistingLocalFileAsAbspath(abspath) =>
-      abspath
-    case other =>
-      other
-  }
-
-  def local(layout: Layout): Try[Repo] = for {
-    origin <- Shell(layout.env).git.getOrigin(layout.baseDir)
-  } yield Repo(origin)
-}
-
 case class Checkout(repoId: RepoId,
                     repo: Repo,
                     local: Option[Path],
@@ -688,17 +655,28 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
-    dir    <- local.map(Success(_)).getOrElse(repo.get(layout, https))
+    dir    <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
     commit <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.
                   getBranchHead(dir, track.id).toOption).getOrElse(track.id)
-    files  <- local.map(Success(dir.children.map(Path(_))).waive).getOrElse(Shell(layout.env).git.lsTree(dir,
-                  commit))
+    files  <- localDir(layout).map(Success(dir.children.map(Path(_))).waive).getOrElse(
+                  Shell(layout.env).git.lsTree(dir, commit))
   } yield files
 
-  def fullCheckout: Checkout = Checkout(id, repo, local, commit, track, List())
+  def tracking(layout: Layout): Option[RefSpec] = localDir(layout).fold(Option(track)) { dir =>
+    Shell(layout.env).git.getBranch(dir).toOption.map(RefSpec(_))
+  }
+
+  def fullCheckout(layout: Layout): Checkout = Checkout(id, repo, localDir(layout), commit, track, List())
+
+  def localDir(layout: Layout): Option[Path] = local.orElse {
+    Repo.local(layout).map(_.simplified == repo.simplified) match {
+      case Success(true) => Some(layout.baseDir)
+      case _             => None
+    }
+  }
 
   def changes(layout: Layout, https: Boolean)(implicit log: Log): Try[Option[String]] = for {
-    repoDir <- local.map(Success(_)).getOrElse(repo.fetch(layout, https))
+    repoDir <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
     changes <- Shell(layout.env).git.diffShortStat(repoDir)
   } yield if(changes.isEmpty) None else Some(changes)
 
@@ -707,7 +685,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
       repoDir     <- repo.get(layout, https)
 
       confString  <- Shell(layout.env).git.showFile(repoDir, ".fury.conf").orElse {
-                       Shell(layout.env).git.showFile(repoDir, "focus.fury")
+                       Shell(layout.env).git.showFile(repoDir, ".focus.fury")
                      }
 
       conf        <- ~Ogdl.read[FuryConf](confString, identity(_))
@@ -719,7 +697,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     repo.pull(commit, track, layout, https)
 
   def current(layout: Layout, https: Boolean)(implicit log: Log): Try[RefSpec] = for {
-    dir    <- local.map(Success(_)).getOrElse(repo.fetch(layout, https))
+    dir    <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
     commit <- Shell(layout.env).git.getCommit(dir)
   } yield RefSpec(commit)
 
@@ -728,6 +706,39 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
                       : Try[Set[Source]] =
     listFiles(layout, https).map(_.filter { f => pred(f.filename) }.map { p =>
         ExternalSource(id, p.parent): Source }.to[Set])
+}
+
+object Repo {
+  implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
+  implicit val stringShow: StringShow[Repo] = _.simplified
+
+  case class ExistingLocalFileAsAbspath(absPath: String)
+
+  object ExistingLocalFileAsAbspath {
+    def unapply(path: String): Option[String] = Path(path).absolutePath().toOption match {
+      case Some(absPath) => absPath.ifExists().map(_.value)
+      case None          => None
+    }
+  }
+
+  def fromString(str: String, https: Boolean): String = str match {
+    case "." => ""
+    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      if(https) str"https://github.com/$group/$project.git"
+      else str"git@github.com:$group/$project.git"
+    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      if(https) str"https://gitlab.com/$group/$project.git"
+      else str"git@gitlab.com:$group/$project.git"
+    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      if(https) str"https://bitbucket.com/$group/$project.git"
+      str"git@bitbucket.com:$group/$project.git"
+    case ExistingLocalFileAsAbspath(abspath) =>
+      abspath
+    case other =>
+      other
+  }
+
+  def local(layout: Layout): Try[Repo] = Shell(layout.env).git.getOrigin(layout.baseDir).map(Repo(_))
 }
 
 case class Repo(ref: String) {
