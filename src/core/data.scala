@@ -398,13 +398,10 @@ case class Layer(version: Int = Layer.CurrentVersion,
 
 object Layer {
   val CurrentVersion = 4
-  implicit val msgShow: MsgShow[Layer]       = r => UserMsg(_.layer(r.hash))
+  implicit val msgShow: MsgShow[Layer] = r => UserMsg(_.layer(r.hash))
   implicit val stringShow: StringShow[Layer] = _.hash
 
-  def loadFromIpfs
-      (layerRef: IpfsRef, layout: Layout, quiet: Boolean)
-      (implicit log: Log)
-      : Try[LayerRef] =
+  def loadFromIpfs(layerRef: IpfsRef, layout: Layout, quiet: Boolean)(implicit log: Log): Try[LayerRef] =
     Installation.tmpDir { dir => for {
       ipfs <- Ipfs.daemon(quiet)
       file <- ipfs.get(layerRef, dir)
@@ -414,7 +411,7 @@ object Layer {
   def moveFuryConfIfNecessary(dir: Path): Try[Unit] = {
     val oldFile = dir / ".focus.fury"
     val newFile = dir / ".fury.conf"
-    Try(if(oldFile.exists && !newFile.exists) oldFile.rename { f => ".fury.conf" }.unit)
+    Try(if(oldFile.exists && !newFile.exists) oldFile.moveTo(newFile))
   }
 
   def loadDir(dir: Path, layout: Layout)(implicit log: Log): Try[LayerRef] =
@@ -481,12 +478,6 @@ object Layer {
   def pathCompletions()(implicit log: Log): Try[List[String]] =
     Service.catalog(ManagedConfig().service).map(_.map(_.path))
 
-  def read(string: String, env: Environment)(implicit log: Log): Try[Layer] =
-    Success(Ogdl.read[Layer](string, upgrade(env, _)))
-
-  def read(path: Path, env: Environment)(implicit log: Log): Try[Layer] =
-    Ogdl.read[Layer](path, upgrade(env, _))
-
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
     Ogdl.read[FuryConf](layout.confFile, identity(_))
 
@@ -516,7 +507,7 @@ object Layer {
   } yield newLayer
 
   def read(ref: LayerRef, layout: Layout)(implicit log: Log): Try[Layer] =
-    Ogdl.read[Layer](Installation.layersPath / ref.key, upgrade(layout.env, _))
+    Ogdl.read[Layer](Installation.layersPath / ref.key, upgrade(_))
 
   def resolveSchema(layout: Layout, layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
     path.parts.foldLeft(Try(layer)) { case (current, importId) => for {
@@ -581,49 +572,11 @@ object Layer {
     _        <- path.writeSync(confStr)
   } yield ()
 
-  private def upgrade(env: Environment, ogdl: Ogdl)(implicit log: Log): Ogdl =
+  private def upgrade(ogdl: Ogdl)(implicit log: Log): Ogdl =
     Try(ogdl.version().toInt).getOrElse(1) match {
-      case 1 =>
-        log.info("Migrating layer file from version 1")
-        upgrade(
-            env,
-            ogdl.set(
-                schemas = ogdl.schemas.map { schema =>
-                  schema.set(
-                      repos = schema.repos.map { repo =>
-                        log.info(msg"Checking commit hash for ${repo.repo()}")
-                        val commit =
-                          Shell(env).git.lsRemoteRefSpec(repo.repo(), repo.refSpec()).toOption.get
-                        repo.set(commit = Ogdl(Commit(commit)), track = repo.refSpec)
-                      }
-                  )
-                },
-                version = Ogdl(2)
-            )
-        )
-      case 2 =>
-        log.info("Migrating layer file from version 2")
-        upgrade(
-            env,
-            ogdl.set(
-                schemas = ogdl.schemas.map { schema =>
-                  schema.set(
-                      projects = schema.projects.map { project =>
-                        project.set(
-                            modules = project.modules.map { module =>
-                              module.set(kind = Ogdl(module.kind().capitalize))
-                            }
-                        )
-                      }
-                  )
-                },
-                version = Ogdl(3)
-            )
-        )
       case 3 =>
         log.info("Migrating layer file from version 2")
         upgrade(
-            env,
             ogdl.set(
                 schemas = ogdl.schemas.map { schema =>
                   schema.set(
@@ -1020,9 +973,9 @@ object Service {
     } yield artifacts
   }
 
-  def publish
-      (hash: String, env: Environment, path: String, quiet: Boolean, breaking: Boolean)
-      (implicit log: Log): Try[PublishedLayer] = {
+  def publish(hash: String, path: String, quiet: Boolean, breaking: Boolean)
+             (implicit log: Log)
+             : Try[PublishedLayer] = {
 
     val url = Https(Path(ManagedConfig().service) / "publish")
     case class Request(path: String, token: String, hash: String, breaking: Boolean)

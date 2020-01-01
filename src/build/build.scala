@@ -96,7 +96,7 @@ object AliasCli {
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
       _     <- ~(if(!raw) log.info(Tables().contextString(layer, true)))
-      _     <- ~log.rawln(table.mkString("\n"))
+      _     <- ~log.rawln(table.join("\n"))
     } yield log.await()
   }
 
@@ -580,7 +580,7 @@ object LayerCli {
     breaking      <- ~call(BreakingArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, raw)
-    pub           <- Service.publish(ref.key, cli.env, path, raw, breaking)
+    pub           <- Service.publish(ref.key, path, raw, breaking)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
 
     _             <- if(raw) ~log.rawln(str"${pub.url}")
