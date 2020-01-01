@@ -775,17 +775,16 @@ case class Repo(ref: String) {
   }
 
   def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if(path(layout).exists && !(path(layout) / ".done").exists) {
+    val done = path(layout) / ".done"
+    if(path(layout).exists && !done.exists) {
       log.info(msg"Found incomplete clone of $this")
       path(layout).delete()
     }
     if(path(layout).exists) {
-      val done = path(layout) / ".done"
       done.delete()
-      Shell(layout.env).git.fetch(path(layout), None).map { _ =>
-        done.touch()
-        path(layout)
-      }
+      Shell(layout.env).git.fetch(path(layout), None)
+      done.touch()
+      Success(path(layout))
     } else {
       log.info(msg"Cloning repository at $this")
       path(layout).mkdir()
