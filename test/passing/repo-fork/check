@@ -21,7 +21,6 @@ Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello fork!
 0
-Checking out src/core from repository library
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
