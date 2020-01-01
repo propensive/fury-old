@@ -17,10 +17,6 @@ jobs:
       with:
        path: ~/.cache/coursier
        key: ${{ runner.os }}-coursier-${{ hashFiles('layers/*') }}
-    - uses: actions/cache@v1
-      with:
-       path: ~/.cache/fury/repos
-       key: ${{ runner.os }}-fury-${{ hashFiles('layers/*') }}
     - name: Run Makefile
       run: |
         make install
@@ -40,7 +36,6 @@ jobs:
         make test || touch unittests.failed
         ! ls -1 unittests.failed 2> /dev/null
       timeout-minutes: 5
-      continue-on-error: true
     - name: Package unit test logs
       run: find . -type f -name '*.log' | tar cvzf unit-test-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1
@@ -66,7 +61,6 @@ jobs:
         etc/integration || touch integration.failed
         ! ls -1 integration.failed 2> /dev/null
       timeout-minutes: 5
-      continue-on-error: true
     - name: Package integration logs
       run: find test -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1
@@ -78,7 +72,6 @@ jobs:
         etc/community || touch community.failed
         ! ls -1 community.failed 2> /dev/null
       timeout-minutes: 10
-      continue-on-error: true
     - name: Package community logs
       run: find test -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1

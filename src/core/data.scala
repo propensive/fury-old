@@ -642,20 +642,21 @@ case class Checkout(repoId: RepoId,
           msg"$init${'}'}"
       }
 
-      if(path.exists) {
-        if(!(path / ".done").exists) log.info(msg"Found incomplete checkout of ${sourceDesc}")
+      if(path.exists && !(path / ".done").exists) {
+        log.info(msg"Found incomplete checkout of ${sourceDesc}")
         path.delete()
       }
 
-      log.info(msg"Checking out $sourceDesc from repository $repoId")
-      path.mkdir()
-      Shell(layout.env).git
-        .sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id, commit = commit.id, None)
-        .flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
-        case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
-          Failure(NoSourcesError(repoId, commit, sourceDesc))
-        case e: Exception => Failure(e)
-      }
+      if(!path.exists) {
+        log.info(msg"Checking out $sourceDesc from repository $repoId")
+        path.mkdir()
+        Shell(layout.env).git.sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec.id,
+            commit = commit.id, None).flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
+          case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
+            Failure(NoSourcesError(repoId, commit, sourceDesc))
+          case e: Exception => Failure(e)
+        }
+      } else Success(path)
     }
 }
 
@@ -774,14 +775,21 @@ case class Repo(ref: String) {
   }
 
   def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if(path(layout).exists) {
-      if(!(path(layout) / ".done").exists) log.info(msg"Found incomplete clone of $this")
+    val done = path(layout) / ".done"
+    if(path(layout).exists && !done.exists) {
+      log.info(msg"Found incomplete clone of $this")
       path(layout).delete()
     }
-
-    log.info(msg"Cloning repository at $this")
-    path(layout).mkdir()
-    Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
+    if(path(layout).exists) {
+      done.delete()
+      Shell(layout.env).git.fetch(path(layout), None)
+      done.touch()
+      Success(path(layout))
+    } else {
+      log.info(msg"Cloning repository at $this")
+      path(layout).mkdir()
+      Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
+    }
   }
 
   def simplified: String = ref match {
