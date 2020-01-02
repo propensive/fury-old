@@ -27,6 +27,35 @@ import scala.concurrent._, duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object Ipfs {
+  import io.ipfs.api._
+  import io.ipfs.multihash.Multihash
+
+  class IpfsApi(api: IPFS){
+    def add(path: Path): Try[IpfsRef] = Try {
+      val file = new NamedStreamable.FileWrapper(path.javaFile)
+      val node = api.add(file).get(0)
+      IpfsRef(node.hash.toBase58)
+    }
+
+    def get(ref: IpfsRef, path: Path): Try[Path] = Try {
+      val hash = Multihash.fromBase58(ref.key)
+      val data = api.get(hash)
+      path.writeSync(data).get
+      path
+    }
+
+    def id(): Try[IpfsId] = Try {
+      import scala.collection.JavaConverters._
+      val idInfo = api.id()
+      IpfsId(
+        ID = idInfo.get("ID").toString,
+        PublicKey = idInfo.get("PublicKey").toString,
+        Addresses = idInfo.get("Addresses").asInstanceOf[java.util.List[String]].asScala.toList,
+        AgentVersion = idInfo.get("AgentVersion").toString,
+        ProtocolVersion = idInfo.get("ProtocolVersion").toString
+      )
+    }
+  }
 
   class IpfsServer(ipfsPath: String) {
     def add(path: Path): Try[IpfsRef] =
@@ -47,15 +76,17 @@ object Ipfs {
   case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
       ProtocolVersion: String)
 
-  def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsServer] = {
+  def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsApi] = {
     log.note("Checking for IPFS daemon")
-    val awaiting = Promise[Try[IpfsServer]]()
+    val awaiting = Promise[Try[IpfsApi]]()
+
+    lazy val apiHandle = new IpfsApi(new IPFS("localhost", 5001))
    
     def handleAsync(path: String): Int = sh"$path daemon".async(
       stdout = {
         case r".*Daemon is ready.*" =>
           log.infoWhen(!quiet)(msg"IPFS daemon has started")
-          awaiting.success(Success(new IpfsServer(path)))
+          awaiting.success(Success(apiHandle))
         case r".*Initializing daemon.*" =>
           log.infoWhen(!quiet)(msg"Initializing IPFS daemon")
         case other =>
@@ -64,7 +95,7 @@ object Ipfs {
       stderr = {
         case r".*ipfs daemon is running.*" =>
           log.note("IPFS daemon is already running")
-          awaiting.success(Success(new IpfsServer(path)))
+          awaiting.success(Success(apiHandle))
         case other =>
           log.note(str"[ipfs] $other")
       }
@@ -89,7 +120,7 @@ object Ipfs {
                   _  <- ~log.infoWhen(!quiet)(msg"Installed embedded IFPS to ${Installation.ipfsInstallDir}")
                 } yield handleAsync(Installation.ipfsBin.value)) match {
                   case Success(_) =>
-                    awaiting.success(Success(new IpfsServer(Installation.ipfsBin.value)))
+                    awaiting.success(Success(apiHandle))
                   case Failure(_) =>
                     log.failWhen(!quiet)(msg"Failed to run or install IPFS")
                     awaiting.success(Failure(IpfsNotOnPath()))

@@ -28,7 +28,7 @@ import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
-import java.io.{InputStream, File => JavaFile}
+import java.io.{FileOutputStream, InputStream, File => JavaFile}
 
 object Path {
 
@@ -148,6 +148,12 @@ case class Path(input: String) {
 
     Outcome.rescue[java.io.IOException](FileWriteError(this, _))(delete(javaFile))
   }
+
+  def writeSync(content: Array[Byte]): Try[Unit] = Try {
+    val output = new FileOutputStream(javaPath.toFile)
+    output.write(content)
+    Success(output.close())
+  }.transform(identity, e => Failure(FileWriteError(this, e)))
 
   def writeSync(content: String): Try[Unit] = Try {
     val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))

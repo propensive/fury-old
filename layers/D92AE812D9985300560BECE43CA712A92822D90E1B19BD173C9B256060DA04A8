@@ -111,6 +111,10 @@ schemas	default	id	default
 								group	ch.epfl.scala
 								artifact	sockets
 								version	1.3.5
+							com.github.ipfs:java-ipfs-http-client:v1.2.3	binRepo	jitpack
+								group	com.github.ipfs
+								artifact	java-ipfs-http-client
+								version	v1.2.3
 							org.kamranzafar:jtar:2.3	binRepo	central
 								group	org.kamranzafar
 								artifact	jtar
