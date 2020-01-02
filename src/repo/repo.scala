@@ -124,7 +124,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     call      <- cli.call()
     https     <- ~call(HttpsArg).isSuccess
     all       <- ~call(AllArg).toOption
-    
+
     optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                       schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
@@ -160,7 +160,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(RepoNameArg, projectNameOpt)
     remoteOpt      <- ~cli.peek(UrlArg)
     repoOpt        <- ~remoteOpt.map(Repo(_))
-    
+
     versions       <- repoOpt.map { repo =>
                         Shell(layout.env).git.lsRemote(Repo.fromString(repo.ref, true))
                       }.to[List].sequence.map(_.flatten).recover { case e => Nil }
@@ -176,7 +176,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
     repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
     suggested      <- repo.projectName
-    _              <- repo.fetch(layout, https)
+    _              <- repo.fetch(layout, https, shallow = true)
 
     commit         <- repo.getCommitFromTag(layout, refSpec).toOption.ascribe(
                           exoskeleton.InvalidArgValue("refspec", refSpec.id))

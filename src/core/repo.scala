@@ -76,7 +76,7 @@ object Repo {
       else fetch(layout, https)
     }
   
-    def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
+    def fetch(layout: Layout, https: Boolean, shallow: Boolean = false)(implicit log: Log): Try[Path] = {
       val done = path(layout) / ".done"
       if(path(layout).exists && !done.exists) {
         log.info(msg"Found incomplete clone of $this")
@@ -90,7 +90,7 @@ object Repo {
       } else {
         log.info(msg"Cloning repository at $this")
         path(layout).mkdir()
-        Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
+        Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout), shallow).map(path(layout).waive)
       }
     }
   

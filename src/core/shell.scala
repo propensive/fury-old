@@ -80,10 +80,15 @@ case class Shell(environment: Environment) {
   }
 
   object git {
-    def cloneBare(url: String, dir: Path): Try[String] = {
+    def cloneBare(url: String, dir: Path, shallow: Boolean): Try[String] = {
       implicit val defaultEnvironment: Environment = sshBatchEnv
 
-      sh"git clone --mirror $url ${dir.value}".exec[Try[String]].map { out => (dir / ".done").touch(); out }
+      val command = if(shallow){
+        sh"git clone --depth 1 --shallow-submodules --bare $url ${dir.value}"
+      } else {
+        sh"git clone --mirror $url ${dir.value}"
+      }
+      command.exec[Try[String]].map { out => (dir / ".done").touch(); out }
     }
 
     def getOrigin(dir: Path): Try[String] =
