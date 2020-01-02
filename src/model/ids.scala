@@ -395,7 +395,14 @@ object SchemaRef {
 
 case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId, follow: Option[FuryUri] = None)
 
-sealed trait LayerInput { def suggestedName: Option[ImportId] }
+sealed trait LayerInput {
+  def suggestedName: Option[ImportId]
+  def publishedLayer: Option[PublishedLayer] = this match {
+    case FuryUri(domain, path) => Some(PublishedLayer(Uri("fury", Path(str"$domain/$path")), 0, 0))
+    case _                     => None
+  }
+}
+
 case class FileInput(path: Path) extends LayerInput {
   def suggestedName: Option[ImportId] =
     path.value.split("/").last.split("\\.").head match {

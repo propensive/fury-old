@@ -152,7 +152,7 @@ object Layer {
         url      <- Try(conf.published.get)
         ref      <- parse(url.url.key, layout)
         layer    <- Layer.load(ref, layout)
-        _        <- saveFuryConf(FuryConf(layer), layout)
+        _        <- saveFuryConf(FuryConf(layer, conf.path, conf.published), layout)
         _        <- ~log.info(msg"Initialized layer ${layer}")
       } yield () } else { for {
         _        <- layout.confFile.mkParents()
@@ -196,6 +196,10 @@ object Layer {
     private final val confComments: String =
       str"""# This is a Fury configuration file. It contains significant
            |# whitespace and is not intended to be human-editable.
+           |#
+           |# To start using Fury with this project, install Fury and run,
+           |#
+           |#   fury layer init
            |#
            |# For more information, please visit https://propensive.com/fury/
            |#
