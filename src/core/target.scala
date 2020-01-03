@@ -42,7 +42,8 @@ object Target {
                     intransitive: Boolean,
                     sourcePaths: List[Path],
                     environment: Map[String, String],
-                    properties: Map[String, String]) {
+                    properties: Map[String, String],
+                    optDefs: Set[OptDef]) {
   
     def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
   }

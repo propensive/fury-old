@@ -46,7 +46,7 @@ case class Module(id: ModuleId,
                   properties: SortedSet[JavaProperty] = TreeSet(),
                   policy: SortedSet[Permission] = TreeSet(),
                   hidden: Boolean = false,
-                  optionDefs: SortedSet[OptDef] = TreeSet()) {
+                  optDefs: SortedSet[OptDef] = TreeSet()) {
 
   def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)

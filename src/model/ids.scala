@@ -516,13 +516,15 @@ object RepoId {
 case class RepoId(key: String) extends Key(msg"repository")
 
 object Opt {
-  implicit val stringShow: StringShow[Opt] = _.name.key
-  implicit val msgShow: MsgShow[Opt] = v => UserMsg(_.param(v.name.key))
-  implicit val diff: Diff[Opt] = (l, r) => Diff.stringDiff.diff(l.name.key, r.name.key)
+  implicit val stringShow: StringShow[Opt] = _.id.key
+  implicit val msgShow: MsgShow[Opt] = v => UserMsg(_.param(v.id.key))
+  implicit val diff: Diff[Opt] = (l, r) => Diff.stringDiff.diff(l.id.key, r.id.key)
 }
 
-case class Opt(name: OptId, persistent: Boolean, remove: Boolean) {
-  def parameter = str"-${name.key}"
+case class Opt(id: OptId, persistent: Boolean, remove: Boolean) {
+  def parameter = str"-${id.key}"
+  def transform(optDefs: Set[OptDef]): List[String] =
+    optDefs.find(_.id == id).map(_.transform).getOrElse(List(id.key))
 }
 
 object License {
@@ -590,7 +592,9 @@ object OptDef {
   implicit val diff: Diff[OptDef] = Diff.gen[OptDef]
 }
 
-case class OptDef(option: OptId, description: String, transform: List[String])
+case class OptDef(id: OptId, description: String, transform: List[String], persistent: Boolean) {
+  def opt: Opt = Opt(id, persistent = true, remove = false)
+}
 
 object OptId {
   implicit val stringShow: StringShow[OptId] = _.key

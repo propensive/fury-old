@@ -66,7 +66,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         ref.intransitive,
         sourcePaths,
         module.environment.map { e => (e.key, e.value) }.toMap,
-        module.properties.map { p => (p.key, p.value) }.toMap
+        module.properties.map { p => (p.key, p.value) }.toMap,
+        module.optDefs
       )
     }
 

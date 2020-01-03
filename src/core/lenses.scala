@@ -173,8 +173,8 @@ object Lenses {
     def params(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).params)
 
-    def optionDefs(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).optionDefs)
+    def optDefs(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).optDefs)
 
     def repoId(schemaId: SchemaId, repoId: RepoId) =
       lens(_.schemas(on(schemaId)).repos(on(repoId)).id)

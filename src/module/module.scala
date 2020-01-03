@@ -381,7 +381,7 @@ object OptionCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.params.to[List]
-      table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.name)
+      table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.id)
       schema  <- defaultSchema
 
       _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
@@ -423,15 +423,17 @@ object OptionCli {
       cli         <- cli.hint(OptArg)
       cli         <- cli.hint(DescriptionArg)
       cli         <- cli.hint(TransformArg)
+      cli         <- cli.hint(PersistentArg)
       call        <- cli.call()
       option      <- call(OptArg)
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
       description <- ~call(DescriptionArg).getOrElse("")
+      persist     <- ~call(PersistentArg).isSuccess
       transform   <- ~call.suffix
-      optDef      <- ~OptDef(option, description, transform)
+      optDef      <- ~OptDef(option, description, transform, persist)
 
-      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optionDefs(_, project.id,
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optDefs(_, project.id,
                          module.id))(_(_) += optDef)
 
     } yield log.await()
@@ -445,9 +447,9 @@ object OptionCli {
       option      <- call(OptArg)
       module      <- optModule.ascribe(UnspecifiedModule())
       project     <- optProject.ascribe(UnspecifiedProject())
-      optDef      <- module.optionDefs.findBy(option)
+      optDef      <- module.optDefs.findBy(option)
       
-      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optionDefs(_, project.id,
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optDefs(_, project.id,
                          module.id))(_(_) -= optDef)
 
     } yield log.await()
