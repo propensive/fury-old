@@ -400,14 +400,16 @@ case class Compilation(graph: Target.Graph,
     target      <- this(ref)
     compileOpts <- ~target.compiler.to[Set].flatMap(_.optDefs.filter(_.persistent)).map(_.opt)
     refParams   <- ~target.params.filter(_.persistent)
+    removals    <- ~refParams.filter(_.remove).map(_.id)
     opts        <- target.dependencies.map(_.ref).traverse(persistentOpts(_))
-  } yield compileOpts ++ opts.flatten ++ refParams.filter(!_.remove) -- refParams.filter(_.remove)
+  } yield (compileOpts ++ opts.flatten ++ refParams.filter(!_.remove)).filterNot(removals contains _.id)
 
   def aggregatedOpts(ref: ModuleRef): Try[Set[Opt]] = for {
     target    <- this(ref)
     tmpParams <- ~target.params.filter(!_.persistent)
+    removals  <- ~tmpParams.filter(_.remove).map(_.id)
     opts      <- persistentOpts(ref)
-  } yield opts ++ tmpParams.filter(!_.remove) -- tmpParams.filter(_.remove)
+  } yield (opts ++ tmpParams.filter(!_.remove)).filterNot(removals contains _.id)
 
   def aggregatedOptDefs(ref: ModuleRef): Try[Set[OptDef]] = for {
     target  <- this(ref)

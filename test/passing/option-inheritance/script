@@ -1,0 +1,46 @@
+fury layer init
+
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+
+fury option define -o ia -D 'Warn about inferring Any' -t -- -Ywarn-infer-any
+fury option define -o aa -D 'Warn about adapted arguments' -t -- -Ywarn-adapted-args
+fury option define -P -o nu -D 'Warn about side-effecting nullary methods' -t -- -Ywarn-nullary-unit
+
+fury project add -n sequence
+
+fury module add -n aiap -c scala/compiler
+fury source add -d src
+fury option add -o ia -P
+
+
+fury module add -n aaat-dnut -c scala/compiler
+fury source add -d src
+fury dependency add -l sequence/aiap
+fury option add -o aa
+fury option remove -o nu
+
+
+fury module add -n diap-dnut -c scala/compiler
+fury source add -d src
+fury dependency add -l sequence/aaat-dnut
+fury option remove -o ia -P
+fury option define -o mix -D 'Several options' -t -- -Ywarn-nullary-unit -Ywarn-adapted-args -Ywarn-infer-any
+
+fury module add -n dnut -c scala/compiler
+fury source add -d src
+fury dependency add -l sequence/diap-dnut
+fury option remove -o nu
+
+
+fury module add -n all -c scala/compiler
+fury source add -d src
+fury dependency add -l sequence/dnut
+fury option add -o mix
+
+
+fury clean classes
+fury build run --output linear | grep 'Ywarn\|Starting'
+echo $?

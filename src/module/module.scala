@@ -400,13 +400,14 @@ object OptionCli {
       call     <- cli.call()
       paramArg <- call(OptArg)
       persist  <- ~call(PersistentArg).isSuccess
-      param    <- ~Opt(paramArg, persist, remove = true)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- optModule.ascribe(UnspecifiedModule())
+      opt      <- ~module.opts.find(_.id == paramArg)
       force    <- ~call(ForceArg).isSuccess
 
-      layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.opts(_, project.id,
-                      module.id))(_(_) -= param)
+      layer    <- opt.fold(Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.opts(_, project.id, module.id))(_(_) += Opt(paramArg, persist, true))) { o =>
+                    Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.opts(_, project.id, module.id))(_(_) -= o)
+                  }
 
       _        <- ~Layer.save(layer, layout)
       schema   <- defaultSchema
