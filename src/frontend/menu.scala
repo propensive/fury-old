@@ -78,7 +78,9 @@ object FuryMenu {
         ),
         Menu('option, msg"manage compiler options for the module", OptionCli.context, 'list)(
             Action('add, msg"add a compiler option to the module", OptionCli.add),
+            Action('define, msg"introduce a new compiler option for dependents", OptionCli.define),
             Action('remove, msg"remove a compiler option from the module", OptionCli.remove),
+            Action('undefine, msg"remove a compiler option definition", OptionCli.undefine),
             Action('list, msg"list compiler options for the module", OptionCli.list)
         ),
         Menu('permission, msg"manage application permissions", PermissionCli.context, 'list)(

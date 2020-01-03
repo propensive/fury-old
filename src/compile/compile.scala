@@ -464,8 +464,8 @@ case class Compilation(graph: Target.Graph,
   }
 
   def allParams(ref: ModuleRef, layout: Layout)(implicit log: Log): List[String] = {
-    def pluginParam(pluginTarget: Target): Parameter =
-      Parameter(str"Xplugin:${layout.classesDir(pluginTarget.id)}")
+    def pluginParam(pluginTarget: Target): Opt =
+      Opt(OptId(str"Xplugin:${layout.classesDir(pluginTarget.id)}"), persistent = true, remove = false)
 
     val allPlugins = requiredTargets(ref)
       .filter(_.kind == Plugin)

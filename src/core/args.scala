@@ -24,7 +24,6 @@ import exoskeleton._
 object Args {
   implicit private val schemaId: TExtractor[SchemaId] = _.headOption.flatMap(SchemaId.parse(_).toOption)
   implicit private val aliasCmd: TExtractor[AliasCmd] = _.headOption.map(AliasCmd(_))
-  implicit private val parameter: TExtractor[Parameter] = _.headOption.map(Parameter(_))
   implicit private val envVar: TExtractor[EnvVar] = _.headOption.flatMap(EnvVar.parse(_))
   implicit private val javaProp: TExtractor[JavaProperty] = _.headOption.flatMap(JavaProperty.parse(_))
   implicit private val licenseId: TExtractor[LicenseId] = _.headOption.map(LicenseId(_))
@@ -41,6 +40,7 @@ object Args {
   implicit private val importPath: TExtractor[ImportPath] = _.headOption.flatMap(ImportPath.parse(_))
   implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
   implicit private val scopeId: TExtractor[ScopeId] = _.headOption.flatMap(ScopeId.unapply(_))
+  implicit private val optId: TExtractor[OptId] = _.headOption.map(OptId(_))
 
   implicit private val boolean: TExtractor[Boolean] = _.headOption map {
     case "on" | "true" | "1" => true
@@ -62,8 +62,10 @@ object Args {
   val DirArg = CliParam[Path]('d', 'dir, "specify the new repository destination directory")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
+  val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
   val EnvArg = CliParam[EnvVar]('e', 'env, "specify the environment variable in the form KEY=value")
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
+  val PersistentArg = CliParam[Unit]('p', 'persistent, "this option change should apply to all dependants")
   val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
@@ -99,7 +101,7 @@ object Args {
       "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
-  val OptionArg = CliParam[Parameter]('o', 'option, "compiler option")
+  val OptArg = CliParam[OptId]('o', 'option, "compiler option")
   val PermissionArg = CliParam[List[String]]('P', 'permission, "permission entries")
   val PropArg = CliParam[JavaProperty]('D', 'property, "Java -D property")
   val QuietArg = CliParam[Unit]('q', 'quiet, "show less output")
@@ -113,6 +115,7 @@ object Args {
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
   val ServiceArg = CliParam[String]('S', 'service, "specify the default remote layer service")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
+  val TransformArg = CliParam[Unit]('t', 'transform, "transform the option into the parameters following --")
   val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
   val NoGrantArg = CliParam[String]('0', Symbol("no-grant"), "do not grant the permission automatically")
   val TagArg = CliParam[String]('t', 'tag, "git tag")

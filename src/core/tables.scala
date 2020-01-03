@@ -40,7 +40,7 @@ case class Tables() {
   def contextString(layer: Layer, showSchema: Boolean, elements: UserMsg*): UserMsg =
     (if(showSchema) elements else elements.tail).foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
 
-  implicit private val parameter: AnsiShow[SortedSet[Parameter]] = _.map(_.name).map {
+  implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.name.key).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)
     case s @ r"D.*" => Ansi.yellow("-" + s)
     case s @ r"J.*" => Ansi.magenta("-" + s)
@@ -114,7 +114,7 @@ case class Tables() {
     Heading("Path", _.path)
   )
 
-  val params: Tabulation[Parameter] = Tabulation(
+  val params: Tabulation[Opt] = Tabulation(
     Heading("Param", _.name)
   )
 

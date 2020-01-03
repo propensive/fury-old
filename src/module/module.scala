@@ -394,16 +394,19 @@ object OptionCli {
   def remove(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli      <- cli.hint(OptionArg, optModule.to[List].flatMap(_.params))
+      cli      <- cli.hint(OptArg, optModule.to[List].flatMap(_.params))
       cli      <- cli.hint(ForceArg)
+      cli      <- cli.hint(PersistentArg)
       call     <- cli.call()
-      paramArg <- call(OptionArg)
+      paramArg <- call(OptArg)
+      persist  <- ~call(PersistentArg).isSuccess
+      param    <- ~Opt(paramArg, persist, remove = true)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- optModule.ascribe(UnspecifiedModule())
       force    <- ~call(ForceArg).isSuccess
 
       layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id,
-                      module.id))(_(_) -= paramArg)
+                      module.id))(_(_) -= param)
 
       _        <- ~Layer.save(layer, layout)
       schema   <- defaultSchema
@@ -414,22 +417,61 @@ object OptionCli {
     } yield log.await()
   }
 
+  def define(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      cli         <- cli.hint(OptArg)
+      cli         <- cli.hint(DescriptionArg)
+      cli         <- cli.hint(TransformArg)
+      call        <- cli.call()
+      option      <- call(OptArg)
+      module      <- optModule.ascribe(UnspecifiedModule())
+      project     <- optProject.ascribe(UnspecifiedProject())
+      description <- ~call(DescriptionArg).getOrElse("")
+      transform   <- ~call.suffix
+      optDef      <- ~OptDef(option, description, transform)
+
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optionDefs(_, project.id,
+                         module.id))(_(_) += optDef)
+
+    } yield log.await()
+  }
+
+  def undefine(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      cli         <- cli.hint(OptArg)
+      call        <- cli.call()
+      option      <- call(OptArg)
+      module      <- optModule.ascribe(UnspecifiedModule())
+      project     <- optProject.ascribe(UnspecifiedProject())
+      optDef      <- module.optionDefs.findBy(option)
+      
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optionDefs(_, project.id,
+                         module.id))(_(_) -= optDef)
+
+    } yield log.await()
+  }
+
   def add(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli     <- cli.hint(OptionArg)
-      call    <- cli.call()
-      project <- optProject.ascribe(UnspecifiedProject())
-      module  <- optModule.ascribe(UnspecifiedModule())
-      param   <- call(OptionArg)
+      cli      <- cli.hint(OptArg)
+      cli      <- cli.hint(PersistentArg)
+      call     <- cli.call()
+      project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- optModule.ascribe(UnspecifiedModule())
+      paramArg <- call(OptArg)
+      persist  <- ~call(PersistentArg).isSuccess
+      param    <- ~Opt(paramArg, persist, remove = false)
 
-      layer   <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
+      layer    <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
                      _(_) += param)
 
-      _       <- ~Layer.save(layer, layout)
-      schema  <- defaultSchema
+      _        <- ~Layer.save(layer, layout)
+      schema   <- defaultSchema
 
-      _       <- ~Compilation.asyncCompilation(schema, module.ref(project), layout,
+      _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout,
                      false)
 
     } yield log.await()

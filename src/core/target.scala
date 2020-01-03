@@ -37,7 +37,7 @@ object Target {
                     dependencies: List[TargetId],
                     compiler: Option[Target],
                     bloopSpec: Option[BloopSpec],
-                    params: List[Parameter],
+                    params: List[Opt],
                     permissions: List[Permission],
                     intransitive: Boolean,
                     sourcePaths: List[Path],

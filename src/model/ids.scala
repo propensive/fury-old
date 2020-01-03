@@ -515,13 +515,15 @@ object RepoId {
 
 case class RepoId(key: String) extends Key(msg"repository")
 
-object Parameter {
-  implicit val stringShow: StringShow[Parameter] = _.name
-  implicit val msgShow: MsgShow[Parameter] = v => UserMsg(_.param(v.name))
-  implicit val diff: Diff[Parameter] = (l, r) => Diff.stringDiff.diff(l.name, r.name)
+object Opt {
+  implicit val stringShow: StringShow[Opt] = _.name.key
+  implicit val msgShow: MsgShow[Opt] = v => UserMsg(_.param(v.name.key))
+  implicit val diff: Diff[Opt] = (l, r) => Diff.stringDiff.diff(l.name.key, r.name.key)
 }
 
-case class Parameter(name: String) { def parameter = str"-$name" }
+case class Opt(name: OptId, persistent: Boolean, remove: Boolean) {
+  def parameter = str"-${name.key}"
+}
 
 object License {
   implicit val msgShow: MsgShow[License]       = v => UserMsg(_.license(v.id.key))
@@ -581,6 +583,21 @@ object RefSpec {
 }
 
 case class RefSpec(id: String)
+
+object OptDef {
+  implicit val stringShow: StringShow[OptDef] = _.transform.mkString(" ")
+  implicit val msgShow: MsgShow[OptDef] = v => UserMsg(_.param(v.transform.mkString(" ")))
+  implicit val diff: Diff[OptDef] = Diff.gen[OptDef]
+}
+
+case class OptDef(option: OptId, description: String, transform: List[String])
+
+object OptId {
+  implicit val stringShow: StringShow[OptId] = _.key
+  implicit val msgShow: MsgShow[OptId] = v => UserMsg(_.param(v.key))
+}
+
+case class OptId(key: String) extends Key(msg"option")
 
 object Commit {
   implicit val stringShow: StringShow[Commit] = _.id

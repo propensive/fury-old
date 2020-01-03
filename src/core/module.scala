@@ -37,7 +37,7 @@ case class Module(id: ModuleId,
                   manifest: List[ManifestEntry] = List(),
                   compiler: ModuleRef = ModuleRef.JavaRef,
                   after: SortedSet[ModuleRef] = TreeSet(),
-                  params: SortedSet[Parameter] = TreeSet(),
+                  params: SortedSet[Opt] = TreeSet(),
                   sources: SortedSet[Source] = TreeSet(),
                   binaries: SortedSet[Binary] = TreeSet(),
                   resources: SortedSet[Path] = TreeSet(),
@@ -45,7 +45,8 @@ case class Module(id: ModuleId,
                   environment: SortedSet[EnvVar] = TreeSet(),
                   properties: SortedSet[JavaProperty] = TreeSet(),
                   policy: SortedSet[Permission] = TreeSet(),
-                  hidden: Boolean = false) {
+                  hidden: Boolean = false,
+                  optionDefs: SortedSet[OptDef] = TreeSet()) {
 
   def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
