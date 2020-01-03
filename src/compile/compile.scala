@@ -397,10 +397,10 @@ case class Compilation(graph: Target.Graph,
   }
 
   def persistentOpts(ref: ModuleRef): Try[Set[Opt]] = for {
-    target    <- this(ref)
+    target      <- this(ref)
     compileOpts <- ~target.compiler.to[Set].flatMap(_.optDefs.filter(_.persistent)).map(_.opt)
-    refParams <- ~target.params.filter(_.persistent)
-    opts      <- requiredTargets(ref).map(_.ref).traverse(persistentOpts(_))
+    refParams   <- ~target.params.filter(_.persistent)
+    opts        <- target.dependencies.map(_.ref).traverse(persistentOpts(_))
   } yield compileOpts ++ opts.flatten ++ refParams.filter(!_.remove) -- refParams.filter(_.remove)
 
   def aggregatedOpts(ref: ModuleRef): Try[Set[Opt]] = for {
@@ -408,6 +408,11 @@ case class Compilation(graph: Target.Graph,
     tmpParams <- ~target.params.filter(!_.persistent)
     opts      <- persistentOpts(ref)
   } yield opts ++ tmpParams.filter(!_.remove) -- tmpParams.filter(_.remove)
+
+  def aggregatedOptDefs(ref: ModuleRef): Try[Set[OptDef]] = for {
+    target  <- this(ref)
+    optDefs <- target.dependencies.map(_.ref).traverse(aggregatedOptDefs(_))
+  } yield  optDefs.flatten.to[Set] ++ target.optDefs
 
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>

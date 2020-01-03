@@ -524,7 +524,7 @@ object Opt {
 case class Opt(id: OptId, persistent: Boolean, remove: Boolean) {
   def parameter = str"-${id.key}"
   def transform(optDefs: Set[OptDef]): List[String] =
-    optDefs.find(_.id == id).map(_.transform).getOrElse(List(id.key))
+    optDefs.find(_.id == id).map(_.transform).getOrElse(List(str"-${id.key}"))
 }
 
 object License {

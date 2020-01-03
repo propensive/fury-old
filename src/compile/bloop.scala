@@ -46,9 +46,12 @@ object Bloop {
   private def makeConfig(target: Target, compilation: Compilation, layout: Layout)(implicit log: Log): Try[String] = {
     compilation.writePlugin(target.ref, layout)
     val classpath = compilation.classpath(target.ref, layout)
-    val optDefs: Set[OptDef] = Set() // FIXME
-    val opts = compilation.aggregatedOpts(target.ref).map(_.to[List].flatMap(_.transform(optDefs))).getOrElse(Nil)
-    val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
+    val optDefs = compilation.aggregatedOptDefs(target.ref).getOrElse(Set())
+    
+    val opts: List[String] =
+      compilation.aggregatedOpts(target.ref).map(_.to[List].flatMap(_.transform(optDefs))).getOrElse(Nil)
+    
+      val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
     val compilerOpt = target.compiler.map { compilerTarget =>
       val spec = compilerTarget.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))
       Json.of(
