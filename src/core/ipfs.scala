@@ -21,8 +21,10 @@ import fury.strings._, fury.io._, fury.model._
 import guillotine._, environments.enclosing
 import kaleidoscope._
 import euphemism._
+import mercator._
 
 import scala.util._
+import scala.collection.JavaConverters._
 import scala.concurrent._, duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -33,19 +35,16 @@ object Ipfs {
   case class IpfsApi(api: IPFS){
     def add(path: Path): Try[IpfsRef] = Try {
       val file = new NamedStreamable.FileWrapper(path.javaFile)
-      val node = api.add(file).get(0)
-      IpfsRef(node.hash.toBase58)
+      val nodes = api.add(file).asScala
+      val top = nodes.last
+      IpfsRef(top.hash.toBase58)
     }
 
-    def get(ref: IpfsRef, path: Path): Try[Path] = Try {
-      val hash = Multihash.fromBase58(ref.key)
-      val data = api.get(hash)
-      path.writeSync(data).get
-      path
-    }
+    def getDirectory(ref: IpfsRef, path: Path): Try[Path] = getDirectory(Multihash.fromBase58(ref.key), path)
+
+    def get(ref: IpfsRef, path: Path): Try[Path] = getFile(Multihash.fromBase58(ref.key), path)
 
     def id(): Try[IpfsId] = Try {
-      import scala.collection.JavaConverters._
       val idInfo = api.id()
       IpfsId(
         ID = idInfo.get("ID").toString,
@@ -55,6 +54,28 @@ object Ipfs {
         ProtocolVersion = idInfo.get("ProtocolVersion").toString
       )
     }
+
+    private def getDirectory(rootHash: Multihash, rootPath: Path): Try[Path] = {
+      val (directoryType, fileType) = (1, 2) //FIXME magic numbers
+      val nodes = api.ls(rootHash).asScala.toList
+      rootPath.mkdir()
+      val result = nodes.traverse { node =>
+        import node._
+        `type`.get.intValue match {
+          case `fileType` => getFile(hash, rootPath / name.get())
+          case `directoryType` => getDirectory(hash, rootPath / name.get())
+          case _ => Failure(new Exception(s"MerkleNode ${hash} has unknown type: ${`type`}"))
+        }
+      }
+      result.map(_ => rootPath)
+    }
+
+    private def getFile(hash: Multihash, path: Path): Try[Path] = for {
+      _    <- path.mkParents()
+      data =  api.get(hash)
+      _    <- path.writeSync(data)
+    } yield path
+
   }
 
   class IpfsServer(ipfsPath: String) {
