@@ -89,7 +89,7 @@ case class Tables() {
     Heading("Sources", _.sources),
     Heading("Binaries", m => bar(m.allBinaries.size)),
     Heading("Compiler", _.compiler),
-    Heading("Params", m => bar(m.params.size)),
+    Heading("Options", m => bar(m.opts.size)),
     Heading("Type", _.kind),
     Heading("Details", m => m.kind match {
       case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
@@ -114,7 +114,7 @@ case class Tables() {
     Heading("Path", _.path)
   )
 
-  val params: Tabulation[Opt] = Tabulation(
+  val opts: Tabulation[Opt] = Tabulation(
     Heading("", o => if(o.remove) "-" else "+"),
     Heading("Param", _.id),
     Heading("Persistent", _.persistent),

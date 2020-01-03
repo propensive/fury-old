@@ -380,8 +380,8 @@ object OptionCli {
       raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      rows    <- ~module.params.to[List]
-      table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.id)
+      rows    <- ~module.opts.to[List]
+      table   <- ~Tables().show(Tables().opts, cli.cols, rows, raw)(_.id)
       schema  <- defaultSchema
 
       _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
@@ -394,7 +394,7 @@ object OptionCli {
   def remove(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli      <- cli.hint(OptArg, optModule.to[List].flatMap(_.params))
+      cli      <- cli.hint(OptArg, optModule.to[List].flatMap(_.opts))
       cli      <- cli.hint(ForceArg)
       cli      <- cli.hint(PersistentArg)
       call     <- cli.call()
@@ -405,7 +405,7 @@ object OptionCli {
       module   <- optModule.ascribe(UnspecifiedModule())
       force    <- ~call(ForceArg).isSuccess
 
-      layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.params(_, project.id,
+      layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.opts(_, project.id,
                       module.id))(_(_) -= param)
 
       _        <- ~Layer.save(layer, layout)
@@ -467,7 +467,7 @@ object OptionCli {
       persist  <- ~call(PersistentArg).isSuccess
       param    <- ~Opt(paramArg, persist, remove = false)
 
-      layer    <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.params(_, project.id, module.id))(
+      layer    <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.opts(_, project.id, module.id))(
                      _(_) += param)
 
       _        <- ~Layer.save(layer, layout)

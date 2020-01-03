@@ -39,7 +39,7 @@ case class Layer(version: Int = Layer.CurrentVersion,
 }
 
 object Layer {
-    val CurrentVersion = 4
+    val CurrentVersion = 5
     implicit val msgShow: MsgShow[Layer] = r => UserMsg(_.layer(r.hash))
     implicit val stringShow: StringShow[Layer] = _.hash
   
@@ -233,7 +233,7 @@ object Layer {
     private def upgrade(ogdl: Ogdl)(implicit log: Log): Ogdl =
       Try(ogdl.version().toInt).getOrElse(1) match {
         case 3 =>
-          log.info("Migrating layer file from version 2")
+          log.note("Migrating layer file from version 2")
           upgrade(
               ogdl.set(
                   schemas = ogdl.schemas.map { schema =>
@@ -245,6 +245,29 @@ object Layer {
                   },
                   version = Ogdl(4)
               )
+          )
+  
+        case 4 =>
+          log.note("Migrating layer file from version 4")
+          upgrade(
+            ogdl.set(
+              schemas = ogdl.schemas.map { s =>
+                s.set(
+                  projects = s.projects.map { p =>
+                    p.set(
+                      modules = p.modules.map { m =>
+                        m.set(
+                          opts = m.params.map { p =>
+                            Ogdl(Opt(OptId(p()), false, false))
+                          }
+                        )
+                      }
+                    )
+                  }
+                )
+              },
+              version = Ogdl(5)
+            )
           )
   
         case CurrentVersion => ogdl

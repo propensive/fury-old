@@ -61,7 +61,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         dependencies.to[List],
         compiler,
         module.bloopSpec,
-        module.params.to[List],
+        module.opts.to[List],
         module.policy.to[List],
         ref.intransitive,
         sourcePaths,
