@@ -412,7 +412,7 @@ case class Compilation(graph: Target.Graph,
   def aggregatedOptDefs(ref: ModuleRef): Try[Set[OptDef]] = for {
     target  <- this(ref)
     optDefs <- target.dependencies.map(_.ref).traverse(aggregatedOptDefs(_))
-  } yield  optDefs.flatten.to[Set] ++ target.optDefs
+  } yield  optDefs.flatten.to[Set] ++ target.optDefs ++ target.compiler.to[Set].flatMap(_.optDefs)
 
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>

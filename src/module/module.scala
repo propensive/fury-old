@@ -435,7 +435,8 @@ object OptionCli {
 
       layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optDefs(_, project.id,
                          module.id))(_(_) += optDef)
-
+      
+      _           <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
@@ -452,13 +453,23 @@ object OptionCli {
       layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optDefs(_, project.id,
                          module.id))(_(_) -= optDef)
 
+      _           <- ~Layer.save(layer, layout)
     } yield log.await()
   }
 
   def add(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli      <- cli.hint(OptArg)
+      optDefs  <- ~(for {
+                    project     <- optProject
+                    module      <- optModule
+                    schema      <- defaultSchema.toOption
+                    compilation <- Compilation.syncCompilation(schema, module.ref(project), layout,
+                                       true).toOption
+                    optDefs     <- compilation.aggregatedOptDefs(module.ref(project)).toOption
+                  } yield optDefs.map(_.id)).getOrElse(Set())
+      
+      cli      <- cli.hint(OptArg, optDefs)
       cli      <- cli.hint(PersistentArg)
       call     <- cli.call()
       project  <- optProject.ascribe(UnspecifiedProject())
