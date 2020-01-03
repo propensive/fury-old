@@ -47,7 +47,7 @@ object Repo {
     def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
       for {
         _         <- fetch(layout, https)
-        newCommit <- Shell(layout.env).git.getCommit(path(layout)).map(Commit(_))
+        newCommit <- Shell(layout.env).git.getCommit(path(layout))
         _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
                          else msg"Repository $this has not changed")
       } yield newCommit

@@ -21,6 +21,7 @@ Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello fork!
 0
+Uncommitted changes (1 file changed, 1 insertion(+), 1 deletion(-)) in library-local will not apply to the unforked repo
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections

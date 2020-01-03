@@ -84,7 +84,7 @@ case class Schema(id: SchemaId,
 
   def localRepo(layout: Layout): Try[SourceRepo] = for {
     repo   <- Repo.local(layout)
-    commit <- Shell(layout.env).git.getCommit(layout.baseDir).map(Commit(_))
+    commit <- Shell(layout.env).git.getCommit(layout.baseDir)
     branch <- Shell(layout.env).git.getBranch(layout.baseDir).map(RefSpec(_))
   } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 
