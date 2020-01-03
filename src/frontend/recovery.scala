@@ -54,6 +54,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path, e) =>
           cli.abort(msg"Couldn't write to file $path. Cause: ${e.toString}")
+        case DownloadTimeout() =>
+          cli.abort(msg"The download didn't complete within 60 seconds.")
         case FileNotFound(path) =>
           cli.abort(
               msg"""Could not find the file $path. Run `fury layer init` to create a new layer.""")
