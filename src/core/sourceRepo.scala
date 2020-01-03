@@ -71,11 +71,12 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     _          <- if(local.isDefined) Success(()) else Failure(RepoNotForked(id))
     dir        <- ~local.get
     forkCommit <- Shell(layout.env).git.getCommit(dir)
-    _          <- Try(if(forkCommit != commit) log.info(msg"Updating $id commit to $forkCommit of $dir"))
+    relDir     <- ~(dir.relativizeTo(layout.pwd))
+    _          <- Try(if(forkCommit != commit) log.info(msg"Updating $id commit to $forkCommit of $relDir"))
     changes    <- changes(layout, https)
     
     _          <- Try(changes.foreach { cs => log.warn(
-                      msg"Uncommitted changes ($cs) in $dir will not apply to the unforked repo") })
+                      msg"Uncommitted changes ($cs) in $relDir will not apply to the unforked repo") })
 
   } yield copy(local = None, commit = forkCommit)
 }
