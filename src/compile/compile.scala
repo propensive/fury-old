@@ -396,20 +396,30 @@ case class Compilation(graph: Target.Graph,
     } ++ targets(ref).binaries
   }
 
-  def persistentOpts(ref: ModuleRef): Try[Set[Opt]] = for {
+  def persistentOpts(ref: ModuleRef): Try[Set[SourcedOpt]] = for {
     target      <- this(ref)
-    compileOpts <- ~target.compiler.to[Set].flatMap(_.optDefs.filter(_.persistent)).map(_.opt)
-    refParams   <- ~target.params.filter(_.persistent)
-    removals    <- ~refParams.filter(_.remove).map(_.id)
-    opts        <- target.dependencies.map(_.ref).traverse(persistentOpts(_))
-  } yield (compileOpts ++ opts.flatten ++ refParams.filter(!_.remove)).filterNot(removals contains _.id)
+    optCompiler <- ~target.compiler
 
-  def aggregatedOpts(ref: ModuleRef): Try[Set[Opt]] = for {
-    target    <- this(ref)
-    tmpParams <- ~target.params.filter(!_.persistent)
-    removals  <- ~tmpParams.filter(_.remove).map(_.id)
-    opts      <- persistentOpts(ref)
-  } yield (opts ++ tmpParams.filter(!_.remove)).filterNot(removals contains _.id)
+    compileOpts <- ~optCompiler.to[Set].flatMap { c => c.optDefs.filter(_.persistent).map(_.opt(c.ref,
+                       OptSource.Compiler)) }
+
+    refParams   <- ~target.params.filter(_.persistent).map(_.sourced(optCompiler.map(_.ref).getOrElse(
+                       ModuleRef.JavaRef), OptSource.Module(target.ref)))
+
+    removals    <- ~refParams.filter(_.opt.remove).map(_.opt.id)
+    inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_)).map(_.flatten)
+  } yield (compileOpts ++ inherited ++ refParams.filter(!_.opt.remove)).filterNot(removals contains _.opt.id)
+
+  def aggregatedOpts(ref: ModuleRef): Try[Set[SourcedOpt]] = for {
+    target      <- this(ref)
+    optCompiler <- ~target.compiler
+    
+    tmpParams   <- ~target.params.filter(!_.persistent).map(_.sourced(optCompiler.map(_.ref).getOrElse(
+                       ModuleRef.JavaRef), OptSource.Local))
+
+    removals    <- ~tmpParams.filter(_.opt.remove).map(_.opt.id)
+    opts        <- persistentOpts(ref)
+  } yield (opts ++ tmpParams.filter(!_.opt.remove)).filterNot(removals contains _.opt.id)
 
   def aggregatedOptDefs(ref: ModuleRef): Try[Set[OptDef]] = for {
     target  <- this(ref)

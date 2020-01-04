@@ -47,9 +47,10 @@ object Bloop {
     compilation.writePlugin(target.ref, layout)
     val classpath = compilation.classpath(target.ref, layout)
     val optDefs = compilation.aggregatedOptDefs(target.ref).getOrElse(Set())
+    val compiler = target.compiler.fold(ModuleRef.JavaRef)(_.ref)
     
     val opts: List[String] =
-      compilation.aggregatedOpts(target.ref).map(_.to[List].flatMap(_.transform(optDefs))).getOrElse(Nil)
+      compilation.aggregatedOpts(target.ref).map(_.to[List].filter(_.compiler == compiler).flatMap(_.opt.transform(optDefs))).getOrElse(Nil)
     
       val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
     val compilerOpt = target.compiler.map { compilerTarget =>

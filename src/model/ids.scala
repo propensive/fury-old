@@ -525,7 +525,19 @@ case class Opt(id: OptId, persistent: Boolean, remove: Boolean) {
   def parameter = str"-${id.key}"
   def transform(optDefs: Set[OptDef]): List[String] =
     optDefs.find(_.id == id).map(_.transform).getOrElse(List(str"-${id.key}"))
+  
+  def sourced(compiler: ModuleRef, source: OptSource): SourcedOpt = SourcedOpt(this, compiler, source)
 }
+
+
+sealed trait OptSource
+object OptSource {
+  case object Compiler extends OptSource
+  case object Local extends OptSource
+  case class Module(ref: ModuleRef) extends OptSource
+}
+
+case class SourcedOpt(opt: Opt, compiler: ModuleRef, source: OptSource)
 
 object License {
   implicit val msgShow: MsgShow[License]       = v => UserMsg(_.license(v.id.key))
@@ -593,7 +605,8 @@ object OptDef {
 }
 
 case class OptDef(id: OptId, description: String, transform: List[String], persistent: Boolean) {
-  def opt: Opt = Opt(id, persistent = true, remove = false)
+  def opt(compiler: ModuleRef, source: OptSource): SourcedOpt =
+    Opt(id, persistent = true, remove = false).sourced(compiler, source)
 }
 
 object OptId {
