@@ -19,7 +19,7 @@ jobs:
        key: ${{ runner.os }}-coursier-${{ hashFiles('layers/*') }}
     - name: Run Makefile
       run: |
-        make install
+        make test-install
         lsof -i :8462 -i :8212 -t | xargs kill
         echo "::add-path::$HOME/.fury/bin"
       timeout-minutes: 5
@@ -31,17 +31,6 @@ jobs:
         name: compilation-logs-${{ runner.os }}
         path: compilation-logs.tar.gz
       if: failure()
-    - name: Run unit tests
-      run: |
-        make test || touch unittests.failed
-        ! ls -1 unittests.failed 2> /dev/null
-      timeout-minutes: 5
-    - name: Package unit test logs
-      run: find . -type f -name '*.log' | tar cvzf unit-test-logs.tar.gz --files-from -
-    - uses: actions/upload-artifact@v1
-      with:
-        name: unit-test-logs-${{ runner.os }}
-        path: unit-test-logs.tar.gz
     - name: Prepare environment for integration tests
       run: |
         git config --global user.name $USER

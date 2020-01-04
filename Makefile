@@ -160,7 +160,15 @@ download: dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c di
 install: dist/install.sh
 	dist/install.sh
 
+test-install: dist/install.sh
+	"$(FURYLOCAL)" permission grant --project fury --module test-core -P 228 4a8 538 7f0 c0d c2e f90 00b
+	"$(FURYLOCAL)" build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
+	"$(FURYLOCAL)" build run --https --output $(FURY_OUTPUT) --project fury --module test-ogdl
+	"$(FURYLOCAL)" build run --https --output $(FURY_OUTPUT) --project fury --module test-model
+	"$(FURYLOCAL)" build run --https --output $(FURY_OUTPUT) --project fury --module test-core
+	dist/install.sh
+
 revise:
 	etc/revise
 
-.PHONY: all bootstrap/build.fury publish pre-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration community-isolated community download install revise
+.PHONY: all bootstrap/build.fury publish pre-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration community-isolated community download install test-install revise
