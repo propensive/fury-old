@@ -34,7 +34,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                          else makeTarget(module.compiler, layout).map(Some(_))
       binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
-      dependencies    <- module.after.traverse { dep => for {
+      dependencies    <- module.dependencies.traverse { dep => for {
                            origin <- entity(dep.projectId)
                          } yield TargetId(origin.schema.id, dep)}
       checkouts       <- checkout(ref, layout)
@@ -100,7 +100,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       Try[Set[ModuleRef]] = for {
     entity   <- entity(ref.projectId)
     module   <- entity.project(ref.moduleId)
-    deps     =  module.after ++ module.compilerDependencies
+    deps     =  module.dependencies ++ module.compilerDependencies
     repeated =  deps.intersect(forbidden)
     _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
     tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _,

@@ -85,7 +85,7 @@ case class Tables() {
   def modules(projectId: ProjectId, current: Option[ModuleId]): Tabulation[Module] = Tabulation[Module](
     Heading("", m => Some(m.id) == current),
     Heading("Module", _.id),
-    Heading("Dependencies", (m: Module) => m.after, width = FlexibleWidth)(refinedModuleDep(projectId)),
+    Heading("Dependencies", (m: Module) => m.dependencies, width = FlexibleWidth)(refinedModuleDep(projectId)),
     Heading("Sources", _.sources),
     Heading("Binaries", m => bar(m.allBinaries.size)),
     Heading("Compiler", _.compiler),

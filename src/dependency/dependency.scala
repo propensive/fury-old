@@ -69,7 +69,7 @@ object DependencyCli {
       raw     <- ~call(RawArg).isSuccess
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
-      rows    <- ~module.after.to[List].sorted
+      rows    <- ~module.dependencies.to[List].sorted
       table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
@@ -84,7 +84,7 @@ object DependencyCli {
     import ctx._
     for {
       cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.after.to[List]))
+      cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.dependencies.to[List]))
       cli       <- cli.hint(ForceArg)
       cli       <- cli.hint(HttpsArg)
       call      <- cli.call()
@@ -95,7 +95,7 @@ object DependencyCli {
       moduleRef <- ModuleRef.parse(project.id, linkArg, false)
       force     <- ~call(ForceArg).isSuccess
 
-      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.after(_, project.id,
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.dependencies(_, project.id,
                        module.id))(_(_) -= moduleRef)
 
       _         <- ~Layer.save(layer, layout)
@@ -123,8 +123,8 @@ object DependencyCli {
       linkArg          <- call(LinkArg)
       moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive)
 
-      layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.after(_, project.id,
-                              module.id))(_(_) += moduleRef)
+      layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.dependencies(_,
+                              project.id, module.id))(_(_) += moduleRef)
 
       _                <- ~Layer.save(layer, layout)
 
