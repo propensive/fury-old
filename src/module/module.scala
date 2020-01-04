@@ -375,19 +375,20 @@ object OptionCli {
   def list(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli     <- cli.hint(RawArg)
-      call    <- cli.call()
-      raw     <- ~call(RawArg).isSuccess
-      project <- optProject.ascribe(UnspecifiedProject())
-      module  <- optModule.ascribe(UnspecifiedModule())
-      rows    <- ~module.opts.to[List]
-      table   <- ~Tables().show(Tables().opts, cli.cols, rows, raw)(_.id)
-      schema  <- defaultSchema
+      cli         <- cli.hint(RawArg)
+      call        <- cli.call()
+      raw         <- ~call(RawArg).isSuccess
+      project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
+      schema      <- defaultSchema
+      compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true)
+      rows        <- compilation.aggregatedOpts(module.ref(project))
+      table       <- ~Tables().show(Tables().opts(module.opts.to[Set].map(_.id)), cli.cols, rows.to[List], raw)(_.id)
 
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                     project, module)))
+      _           <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
+                         project, module)))
 
-      _       <- ~log.rawln(table.mkString("\n"))
+      _           <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
 

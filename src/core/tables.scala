@@ -114,10 +114,11 @@ case class Tables() {
     Heading("Path", _.path)
   )
 
-  val opts: Tabulation[Opt] = Tabulation(
+  def opts(local: Set[OptId]): Tabulation[Opt] = Tabulation(
     Heading("", o => if(o.remove) "-" else "+"),
     Heading("Param", _.id),
-    Heading("Persistent", _.persistent),
+    Heading("Persistent", o => if(o.persistent) "Yes" else "No"),
+    Heading("Inherited", o => if(local.contains(o.id)) "No" else "Yes")
   )
 
   val permissions: Tabulation[PermissionEntry] = Tabulation(
