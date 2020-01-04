@@ -220,7 +220,7 @@ object Permission {
   implicit val msgShow: MsgShow[Permission] = stringShow.show
   
   implicit val stringShow: StringShow[Permission] =
-    p => str"${p.className} ${p.target} ${p.action.getOrElse("-"): String}"
+    p => str"${p.classRef} ${p.target} ${p.action.getOrElse("-"): String}"
   
   implicit def diff: Diff[Permission] = Diff.gen[Permission]
 
@@ -255,7 +255,7 @@ object Permission {
     "javax.xml.ws.WebServicePermission"
   )
 }
-case class Permission(className: String, target: String, action: Option[String]) {
+case class Permission(classRef: ClassRef, target: String, action: Option[String]) {
   def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
 }
 
@@ -503,6 +503,38 @@ object SchemaId {
 
 case class SchemaId(key: String) extends Key(msg"schema")
 
+object ClassRef {
+  implicit val msgShow: MsgShow[ClassRef] = r => UserMsg(_.layer(r.key))
+  implicit val stringShow: StringShow[ClassRef] = _.key
+  implicit val diff: Diff[ClassRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+
+  def unapply(name: String): Some[ClassRef] = Some(ClassRef(name))
+}
+  
+case class ClassRef(key: String) extends Key(msg"class")
+
+object PluginId {
+  implicit val msgShow: MsgShow[PluginId] = r => UserMsg(_.module(r.key))
+  implicit val stringShow: StringShow[PluginId] = _.key
+  implicit val diff: Diff[PluginId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  
+  def unapply(name: String): Some[PluginId] = Some(PluginId(name))
+}
+
+case class PluginId(key: String) extends Key(msg"plugin")
+  
+object ExecName {
+  implicit val msgShow: MsgShow[ExecName] = r => UserMsg(_.module(r.key))
+  implicit val stringShow: StringShow[ExecName] = _.key
+  implicit val diff: Diff[ExecName] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  
+  def unapply(name: String): Some[ExecName] = Some(ExecName(name))
+}
+
+case class ExecName(key: String) extends Key(msg"executable")
+  
+case class Plugin(id: PluginId, ref: ModuleRef, main: ClassRef)
+
 object RepoId {
   implicit val msgShow: MsgShow[RepoId]       = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
@@ -525,6 +557,15 @@ case class Opt(id: OptId, persistent: Boolean, remove: Boolean) {
   def parameter = str"-${id.key}"
   def transform(optDefs: Set[OptDef]): List[String] =
     optDefs.find(_.id == id).map(_.transform).getOrElse(List(str"-${id.key}"))
+}
+
+
+sealed trait Origin
+object Origin {
+  case object Compiler extends Origin
+  case object Local extends Origin
+  case object Plugin extends Origin
+  case class Module(ref: ModuleRef) extends Origin
 }
 
 object License {
@@ -593,8 +634,11 @@ object OptDef {
 }
 
 case class OptDef(id: OptId, description: String, transform: List[String], persistent: Boolean) {
-  def opt: Opt = Opt(id, persistent = true, remove = false)
+  def opt(compiler: ModuleRef, source: Origin): Ancestry[Opt] =
+    Ancestry(Opt(id, persistent = true, remove = false), compiler, source)
 }
+
+case class Ancestry[T](value: T, compiler: ModuleRef, source: Origin)
 
 object OptId {
   implicit val stringShow: StringShow[OptId] = _.key

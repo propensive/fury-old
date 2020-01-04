@@ -29,8 +29,8 @@ object Target {
   case class Target(ref: ModuleRef,
                     schemaId: SchemaId,
                     kind: Kind,
-                    main: Option[String],
-                    plugin: Option[String],
+                    main: Option[ClassRef],
+                    plugin: Option[PluginId],
                     repos: List[Repo],
                     checkouts: List[Checkout],
                     binaries: List[Path],
@@ -46,5 +46,6 @@ object Target {
                     optDefs: Set[OptDef]) {
   
     def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
+    def impliedCompiler: ModuleRef = if(kind == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
   }
   

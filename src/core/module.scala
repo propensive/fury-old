@@ -32,8 +32,8 @@ object Module {
 
 case class Module(id: ModuleId,
                   kind: Kind = Library,
-                  main: Option[String] = None,
-                  plugin: Option[String] = None,
+                  main: Option[ClassRef] = None,
+                  plugin: Option[PluginId] = None,
                   manifest: List[ManifestEntry] = List(),
                   compiler: ModuleRef = ModuleRef.JavaRef,
                   after: SortedSet[ModuleRef] = TreeSet(),
@@ -54,6 +54,7 @@ case class Module(id: ModuleId,
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
   def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
   def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
+  
   def policyEntries: Set[PermissionEntry] = {
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
