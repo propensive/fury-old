@@ -46,5 +46,6 @@ object Target {
                     optDefs: Set[OptDef]) {
   
     def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
+    def impliedCompiler: ModuleRef = if(kind == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
   }
   

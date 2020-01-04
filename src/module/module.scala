@@ -468,7 +468,7 @@ object OptionCli {
                     compilation <- Compilation.syncCompilation(schema, module.ref(project), layout,
                                        true).toOption
                     optDefs     <- compilation.aggregatedOptDefs(module.ref(project)).toOption
-                  } yield optDefs.map(_.id)).getOrElse(Set())
+                  } yield optDefs.map(_.value.id)).getOrElse(Set())
       
       cli      <- cli.hint(OptArg, optDefs)
       cli      <- cli.hint(PersistentArg)

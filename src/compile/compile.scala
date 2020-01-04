@@ -396,35 +396,38 @@ case class Compilation(graph: Target.Graph,
     } ++ targets(ref).binaries
   }
 
-  def persistentOpts(ref: ModuleRef): Try[Set[SourcedOpt]] = for {
+  def persistentOpts(ref: ModuleRef): Try[Set[Ancestry[Opt]]] = for {
     target      <- this(ref)
     optCompiler <- ~target.compiler
 
     compileOpts <- ~optCompiler.to[Set].flatMap { c => c.optDefs.filter(_.persistent).map(_.opt(c.ref,
-                       OptSource.Compiler)) }
+                       Origin.Compiler)) }
 
-    refParams   <- ~target.params.filter(_.persistent).map(_.sourced(optCompiler.map(_.ref).getOrElse(
-                       ModuleRef.JavaRef), OptSource.Module(target.ref)))
+    refParams   <- ~target.params.filter(_.persistent).map(Ancestry(_, optCompiler.map(_.ref).getOrElse(
+                       ModuleRef.JavaRef), Origin.Module(target.ref)))
 
-    removals    <- ~refParams.filter(_.opt.remove).map(_.opt.id)
+    removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_)).map(_.flatten)
-  } yield (compileOpts ++ inherited ++ refParams.filter(!_.opt.remove)).filterNot(removals contains _.opt.id)
+  } yield (compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
+      _.value.id)
 
-  def aggregatedOpts(ref: ModuleRef): Try[Set[SourcedOpt]] = for {
+  def aggregatedOpts(ref: ModuleRef): Try[Set[Ancestry[Opt]]] = for {
     target      <- this(ref)
     optCompiler <- ~target.compiler
     
-    tmpParams   <- ~target.params.filter(!_.persistent).map(_.sourced(optCompiler.map(_.ref).getOrElse(
-                       ModuleRef.JavaRef), OptSource.Local))
+    tmpParams   <- ~target.params.filter(!_.persistent).map(Ancestry(_, optCompiler.map(_.ref).getOrElse(
+                       ModuleRef.JavaRef), Origin.Local))
 
-    removals    <- ~tmpParams.filter(_.opt.remove).map(_.opt.id)
+    removals    <- ~tmpParams.filter(_.value.remove).map(_.value.id)
     opts        <- persistentOpts(ref)
-  } yield (opts ++ tmpParams.filter(!_.opt.remove)).filterNot(removals contains _.opt.id)
+  } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id)
 
-  def aggregatedOptDefs(ref: ModuleRef): Try[Set[OptDef]] = for {
+  def aggregatedOptDefs(ref: ModuleRef): Try[Set[Ancestry[OptDef]]] = for {
     target  <- this(ref)
     optDefs <- target.dependencies.map(_.ref).traverse(aggregatedOptDefs(_))
-  } yield  optDefs.flatten.to[Set] ++ target.optDefs ++ target.compiler.to[Set].flatMap(_.optDefs)
+  } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Ancestry(_, target.impliedCompiler,
+      Origin.Module(target.ref))) ++ target.compiler.to[Set].flatMap { c => c.optDefs.map(Ancestry(_, c.ref,
+      Origin.Compiler)) }
 
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
