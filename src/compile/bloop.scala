@@ -51,7 +51,7 @@ object Bloop {
         compiler).map(_.value)
     
     val opts: List[String] =
-      compilation.aggregatedOpts(target.ref).map(_.to[List].filter(_.compiler == compiler).flatMap(
+      compilation.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == compiler).flatMap(
           _.value.transform(optDefs))).getOrElse(Nil)
     
       val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }

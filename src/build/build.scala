@@ -354,7 +354,7 @@ object BuildCli {
       cli          <- cli.hint(ExecNameArg)
       //cli          <- cli.hint(DirArg)
       call         <- cli.call()
-      name         <- call(ExecNameArg)
+      exec         <- call(ExecNameArg)
       //dir          <- call(DirArg)
       https        <- ~call(HttpsArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
@@ -367,12 +367,12 @@ object BuildCli {
       
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
-      _            <- ~log.info(msg"Building native image for $name")
+      _            <- ~log.info(msg"Building native image for $exec")
       _            <- compilation.saveNative(module.ref(project), Installation.usrDir, layout, main)
-      bin          <- ~(Installation.usrDir / main.toLowerCase)
-      newBin       <- ~(bin.rename { _ => name })
+      bin          <- ~(Installation.usrDir / main.key.toLowerCase)
+      newBin       <- ~(bin.rename { _ => exec.key })
       _            <- bin.moveTo(newBin)
-      _            <- ~log.info(msg"Installed $name executable")
+      _            <- ~log.info(msg"Installed $exec executable")
     } yield log.await()
   }
 

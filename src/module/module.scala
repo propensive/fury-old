@@ -123,11 +123,11 @@ object ModuleCli {
       module         <- ~call(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
       module         <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
       
-      module         <- ~call(MainArg).toOption.map { m => module.copy(main = if(m == "") None else Some(m))
-                            }.getOrElse(module)
+      module         <- ~call(MainArg).toOption.fold(module) { m => module.copy(main = if(m.key.isEmpty) None else
+                            Some(m)) }
 
-      module         <- ~call(PluginArg).toOption.map { p => module.copy(plugin = if(p == "") None else
-                            Some(p)) }.getOrElse(module)
+      module         <- ~call(PluginArg).toOption.fold(module) { p => module.copy(plugin = if(p.key.isEmpty) None else
+                            Some(p)) }
 
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.modules(_, project.id)) {
                             (lens, ws) => lens.modify(layer)((_: SortedSet[Module]) + module) }

@@ -122,7 +122,7 @@ case class Tables() {
 
   val permissions: Tabulation[PermissionEntry] = Tabulation(
     Heading("Hash", _.hash),
-    Heading("Class", _.permission.className),
+    Heading("Class", _.permission.classRef),
     Heading("Target", _.permission.target),
     Heading("Action", _.permission.action.getOrElse("-")),
   )

@@ -57,7 +57,7 @@ case class Policy(policy: SortedSet[Grant] = TreeSet()) {
     policy.foreach { grant =>
       val p = grant.permission
       val actionAddendum = p.action.fold("") { a => s""", "$a"""" }
-      sb.append(str""" permission ${p.className} "${p.target}"${actionAddendum};""")
+      sb.append(str""" permission ${p.classRef} "${p.target}"${actionAddendum};""")
       sb.append('\n')
     }
     sb.append("};\n")

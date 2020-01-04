@@ -411,7 +411,7 @@ case class Compilation(graph: Target.Graph,
   } yield (compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
       _.value.id)
 
-  def aggregatedOpts(ref: ModuleRef): Try[Set[Ancestry[Opt]]] = for {
+  def aggregatedOpts(ref: ModuleRef, layout: Layout): Try[Set[Ancestry[Opt]]] = for {
     target      <- this(ref)
     optCompiler <- ~target.compiler
     
@@ -420,6 +420,7 @@ case class Compilation(graph: Target.Graph,
 
     removals    <- ~tmpParams.filter(_.value.remove).map(_.value.id)
     opts        <- persistentOpts(ref)
+    pOpts       <- pluginOpts(ref, layout)
   } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id)
 
   def aggregatedOptDefs(ref: ModuleRef): Try[Set[Ancestry[OptDef]]] = for {
@@ -429,6 +430,13 @@ case class Compilation(graph: Target.Graph,
       Origin.Module(target.ref))) ++ target.compiler.to[Set].flatMap { c => c.optDefs.map(Ancestry(_, c.ref,
       Origin.Compiler)) }
 
+  def aggregatedPlugins(ref: ModuleRef): Try[Set[Ancestry[Plugin]]] = for {
+    target  <- this(ref)
+    plugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
+  } yield plugins.flatten.to[Set] ++ target.plugin.map { m =>
+      Ancestry(Plugin(m, target.ref, target.main.get), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
+      Origin.Plugin) }
+  
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
@@ -451,18 +459,18 @@ case class Compilation(graph: Target.Graph,
 
       target.main.foreach { main =>
         file.writeSync(str"""|<plugin>
-                             | <name>${target.plugin.getOrElse("plugin"): String}</name>
+                             | <name>${target.plugin.fold("plugin")(_.key)}</name>
                              | <classname>${main}</classname>
                              |</plugin>""".stripMargin)
       }
     }
   }
 
-  def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: String)(implicit log: Log): Try[Unit] =
+  def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: ClassRef)(implicit log: Log): Try[Unit] =
     for {
       dest <- Try(dest.extant())
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
-      _    <- Shell(layout.env).native(dest, cp, main)
+      _    <- Shell(layout.env).native(dest, cp, main.key)
     } yield ()
 
   def saveJars(ref: ModuleRef,
@@ -475,7 +483,7 @@ case class Compilation(graph: Target.Graph,
     for {
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
-      manifest          = Manifest(bins.map(_.name), module.main)
+      manifest          = Manifest(bins.map(_.name), module.main.map(_.key))
       dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
@@ -496,17 +504,13 @@ case class Compilation(graph: Target.Graph,
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
-  def allParams(ref: ModuleRef, layout: Layout)(implicit log: Log): List[String] = {
-    def pluginParam(pluginTarget: Target): Opt =
-      Opt(OptId(str"Xplugin:${layout.classesDir(pluginTarget.id)}"), persistent = true, remove = false)
-
-    val allPlugins = requiredTargets(ref)
-      .filter(_.kind == Plugin)
-      .filterNot(_.ref == ref)
-
-    val params = targets(ref).params ++ allPlugins.map(pluginParam)
-
-    params.map(_.parameter)
+  def pluginOpts(ref: ModuleRef, layout: Layout): Try[Set[Ancestry[Opt]]] = for {
+    plugins <- aggregatedPlugins(ref)
+    targets <- plugins.traverse { p => apply(p.value.ref) }
+    target  <- apply(ref)
+  } yield targets.map { t =>
+      Ancestry(Opt(OptId(str"Xplugin:${layout.classesDir(t.id)}"), persistent = true, remove = false),
+          target.ref, Origin.Plugin)
   }
 
   def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
@@ -626,7 +630,7 @@ case class Compilation(graph: Target.Graph,
     }
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
+      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.fold("")(_.key),
       securePolicy = target.kind == Application,
       env = target.environment,
       properties = target.properties,
