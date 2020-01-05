@@ -22,19 +22,30 @@ import scala.collection.immutable._
 import scala.util._
 
 object Policy {
+  val CurrentVersion = 1
   def read(implicit log: Log): Policy =
     Ogdl.read[Policy](Installation.policyFile,
-        upgrade(_)).toOption.getOrElse(Policy(SortedSet.empty[Grant]))
+        migrate(_)).toOption.getOrElse(Policy())
 
   def save(policy: Policy)(implicit log: Log): Try[Unit] =
     Installation.policyFile.extantParents().writeSync(Ogdl.serialize(Ogdl(policy)))
 
-  private def upgrade(ogdl: Ogdl)(implicit log: Log): Ogdl = ogdl
+  private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
+    val version = Try(ogdl.version().toInt).getOrElse(0)
+    if(version < Policy.CurrentVersion) {
+      migrate((version match {
+        case 0 =>
+          ogdl.map { grant =>
+            grant.set(permission = grant.permission.set(classRef = Ogdl(grant.permission.className())))
+          }
+      }).set(version = Ogdl(version + 1)))
+    } else ogdl
+  }
 }
 
-case class Policy(policy: SortedSet[Grant] = TreeSet()) {
+case class Policy(version: Int = Policy.CurrentVersion, policy: SortedSet[Grant] = TreeSet()) {
   def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
-    Policy(policy.filter {
+    Policy(Policy.CurrentVersion, policy.filter {
       case Grant(DirectoryScope(dir), _) => dir == layout.baseDir.value
       case Grant(ProjectScope(id), _)    => projectId == id
       //case Grant(LayerScope(hash), _)    => hash == layer.hash

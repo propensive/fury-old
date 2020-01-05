@@ -32,7 +32,7 @@ import scala.util._
 
 object Main {
 
-  def invoke(cli: Cli[CliParam[_]])(implicit log: Log): ExitStatus = try {
+  def invoke(cli: Cli[CliParam[_]])(implicit log: Log): ExitStatus = {
 
     val layer = for {
       layout <- cli.layout
@@ -54,12 +54,6 @@ object Main {
       }
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
-  } catch {
-    case e: Throwable =>
-      log.fail("Terminal error when running Fury")
-      log.fail(msg"    ${e.toString}")
-      e.getStackTrace.foreach { ln => log.fail(msg"        at $ln") }
-      Abort
   }
 
   def main(args: Array[String]): Unit = run(
