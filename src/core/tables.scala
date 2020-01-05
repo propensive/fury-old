@@ -53,6 +53,13 @@ case class Tables() {
     case Some(v) => implicitly[AnsiShow[T]].show(v)
   }
 
+  implicit private val origin: AnsiShow[Origin] = {
+    case Origin.Local       => theme.italic(theme.param("local"))
+    case Origin.Module(ref) => msg"$ref".string(theme)
+    case Origin.Plugin      => theme.italic(theme.param("plugin"))
+    case Origin.Compiler    => theme.italic(theme.param("compiler"))
+  }
+
   private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] = _.map {
     case ModuleRef(p, m, intransitive, _) =>
       val extra = (if(intransitive) msg"*" else msg"")
@@ -114,11 +121,11 @@ case class Tables() {
     Heading("Path", _.path)
   )
 
-  def opts(local: Set[OptId]): Tabulation[Opt] = Tabulation(
-    Heading("", o => if(o.remove) "-" else "+"),
-    Heading("Param", _.id),
-    Heading("Persistent", o => if(o.persistent) "Yes" else "No"),
-    Heading("Inherited", o => if(local.contains(o.id)) "No" else "Yes")
+  val opts: Tabulation[Ancestry[Opt]] = Tabulation(
+    Heading("", o => if(o.value.remove) "-" else "+"),
+    Heading("Param", _.value.id),
+    Heading("Persistent", o => if(o.value.persistent) "Yes" else "No"),
+    Heading("Origin", _.source),
   )
 
   val permissions: Tabulation[PermissionEntry] = Tabulation(

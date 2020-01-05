@@ -380,10 +380,12 @@ object OptionCli {
       raw         <- ~call(RawArg).isSuccess
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
+      compiler    <- ~module.compiler
       schema      <- defaultSchema
       compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true)
-      rows        <- compilation.aggregatedOpts(module.ref(project))
-      table       <- ~Tables().show(Tables().opts(module.opts.to[Set].map(_.id)), cli.cols, rows.to[List], raw)(_.id)
+      rows        <- compilation.aggregatedOpts(module.ref(project), layout)
+      showRows    <- ~rows.to[List].filter(_.compiler == compiler)
+      table       <- ~Tables().show(Tables().opts, cli.cols, showRows, raw)(_.value.id)
 
       _           <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                          project, module)))
