@@ -65,6 +65,7 @@ object Bloop {
         jars = compilerClasspath.get.map(_.value)
       )
     }
+
     val result = Json.of(
       version = "1.0.0",
       project = Json.of(
