@@ -634,11 +634,11 @@ object OptDef {
 }
 
 case class OptDef(id: OptId, description: String, transform: List[String], persistent: Boolean) {
-  def opt(compiler: ModuleRef, source: Origin): Ancestry[Opt] =
-    Ancestry(Opt(id, persistent = true, remove = false), compiler, source)
+  def opt(compiler: ModuleRef, source: Origin): Provenance[Opt] =
+    Provenance(Opt(id, persistent = true, remove = false), compiler, source)
 }
 
-case class Ancestry[T](value: T, compiler: ModuleRef, source: Origin)
+case class Provenance[T](value: T, compiler: ModuleRef, source: Origin)
 
 object OptId {
   implicit val stringShow: StringShow[OptId] = _.key

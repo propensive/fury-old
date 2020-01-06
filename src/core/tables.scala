@@ -121,7 +121,7 @@ case class Tables() {
     Heading("Path", _.path)
   )
 
-  val opts: Tabulation[Ancestry[Opt]] = Tabulation(
+  val opts: Tabulation[Provenance[Opt]] = Tabulation(
     Heading("", o => if(o.value.remove) "-" else "+"),
     Heading("Param", _.value.id),
     Heading("Persistent", o => if(o.value.persistent) "Yes" else "No"),

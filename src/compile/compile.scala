@@ -396,45 +396,48 @@ case class Compilation(graph: Target.Graph,
     } ++ targets(ref).binaries
   }
 
-  def persistentOpts(ref: ModuleRef): Try[Set[Ancestry[Opt]]] = for {
+  def persistentOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
     target      <- this(ref)
     optCompiler <- ~target.compiler
 
     compileOpts <- ~optCompiler.to[Set].flatMap { c => c.optDefs.filter(_.persistent).map(_.opt(c.ref,
                        Origin.Compiler)) }
 
-    refParams   <- ~target.params.filter(_.persistent).map(Ancestry(_, optCompiler.map(_.ref).getOrElse(
+    refParams   <- ~target.params.filter(_.persistent).map(Provenance(_, optCompiler.map(_.ref).getOrElse(
                        ModuleRef.JavaRef), Origin.Module(target.ref)))
 
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
-    inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_)).map(_.flatten)
-  } yield (compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
+    inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
+    pOpts       <- ~(target.plugin.map { t =>
+                     Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
+                         remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
+                   }.to[Set])
+  } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
       _.value.id)
 
-  def aggregatedOpts(ref: ModuleRef, layout: Layout): Try[Set[Ancestry[Opt]]] = for {
-    target      <- this(ref)
+  def aggregatedOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
+    target      <- apply(ref)
     optCompiler <- ~target.compiler
     
-    tmpParams   <- ~target.params.filter(!_.persistent).map(Ancestry(_, optCompiler.map(_.ref).getOrElse(
+    tmpParams   <- ~target.params.filter(!_.persistent).map(Provenance(_, optCompiler.map(_.ref).getOrElse(
                        ModuleRef.JavaRef), Origin.Local))
 
     removals    <- ~tmpParams.filter(_.value.remove).map(_.value.id)
-    opts        <- persistentOpts(ref)
-    pOpts       <- pluginOpts(ref, layout)
+    opts        <- persistentOpts(ref, layout)
   } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id)
 
-  def aggregatedOptDefs(ref: ModuleRef): Try[Set[Ancestry[OptDef]]] = for {
+  def aggregatedOptDefs(ref: ModuleRef): Try[Set[Provenance[OptDef]]] = for {
     target  <- this(ref)
     optDefs <- target.dependencies.map(_.ref).traverse(aggregatedOptDefs(_))
-  } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Ancestry(_, target.impliedCompiler,
-      Origin.Module(target.ref))) ++ target.compiler.to[Set].flatMap { c => c.optDefs.map(Ancestry(_, c.ref,
+  } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Provenance(_, target.impliedCompiler,
+      Origin.Module(target.ref))) ++ target.compiler.to[Set].flatMap { c => c.optDefs.map(Provenance(_, c.ref,
       Origin.Compiler)) }
 
-  def aggregatedPlugins(ref: ModuleRef): Try[Set[Ancestry[Plugin]]] = for {
-    target  <- this(ref)
-    plugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
-  } yield plugins.flatten.to[Set] ++ target.plugin.map { m =>
-      Ancestry(Plugin(m, target.ref, target.main.get), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
+  def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[Plugin]]] = for {
+    target           <- apply(ref)
+    inheritedPlugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
+  } yield inheritedPlugins.flatten.to[Set] ++ target.plugin.map { m =>
+      Provenance(Plugin(m, target.ref, target.main.get), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
       Origin.Plugin) }
   
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
@@ -502,15 +505,6 @@ case class Compilation(graph: Target.Graph,
                                             layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
-  }
-
-  def pluginOpts(ref: ModuleRef, layout: Layout): Try[Set[Ancestry[Opt]]] = for {
-    plugins <- aggregatedPlugins(ref)
-    targets <- plugins.traverse { p => apply(p.value.ref) }
-    target  <- apply(ref)
-  } yield targets.map { t =>
-      Ancestry(Opt(OptId(str"Xplugin:${layout.classesDir(t.id)}"), persistent = true, remove = false),
-          target.ref, Origin.Plugin)
   }
 
   def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
