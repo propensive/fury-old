@@ -391,11 +391,55 @@ case class Compilation(graph: Target.Graph,
   }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
-    requiredTargets(ref).flatMap{ target =>
+    requiredTargets(ref).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
     } ++ targets(ref).binaries
   }
 
+  def persistentOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
+    target      <- this(ref)
+    optCompiler <- ~target.compiler
+
+    compileOpts <- ~optCompiler.to[Set].flatMap { c => c.optDefs.filter(_.persistent).map(_.opt(c.ref,
+                       Origin.Compiler)) }
+
+    refParams   <- ~target.params.filter(_.persistent).map(Provenance(_, optCompiler.map(_.ref).getOrElse(
+                       ModuleRef.JavaRef), Origin.Module(target.ref)))
+
+    removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
+    inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
+    pOpts       <- ~(if(target.kind == Plugin) Set(
+                     Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
+                         remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
+                   ) else Set())
+  } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
+      _.value.id)
+
+  def aggregatedOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
+    target      <- apply(ref)
+    optCompiler <- ~target.compiler
+    
+    tmpParams   <- ~target.params.filter(!_.persistent).map(Provenance(_, optCompiler.map(_.ref).getOrElse(
+                       ModuleRef.JavaRef), Origin.Local))
+
+    removals    <- ~tmpParams.filter(_.value.remove).map(_.value.id)
+    opts        <- persistentOpts(ref, layout)
+  } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id)
+
+  def aggregatedOptDefs(ref: ModuleRef): Try[Set[Provenance[OptDef]]] = for {
+    target  <- this(ref)
+    optDefs <- target.dependencies.map(_.ref).traverse(aggregatedOptDefs(_))
+  } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Provenance(_, target.impliedCompiler,
+      Origin.Module(target.ref))) ++ target.compiler.to[Set].flatMap { c => c.optDefs.map(Provenance(_, c.ref,
+      Origin.Compiler)) }
+
+  def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[Plugin]]] = for {
+    target           <- apply(ref)
+    inheritedPlugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
+  } yield inheritedPlugins.flatten.to[Set] ++ target.plugin.map { m =>
+      Provenance(Plugin(m, target.ref, target.main.get), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
+      Origin.Plugin) }
+  
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
@@ -418,18 +462,18 @@ case class Compilation(graph: Target.Graph,
 
       target.main.foreach { main =>
         file.writeSync(str"""|<plugin>
-                             | <name>${target.plugin.getOrElse("plugin"): String}</name>
+                             | <name>${target.plugin.fold("plugin")(_.key)}</name>
                              | <classname>${main}</classname>
                              |</plugin>""".stripMargin)
       }
     }
   }
 
-  def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: String)(implicit log: Log): Try[Unit] =
+  def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: ClassRef)(implicit log: Log): Try[Unit] =
     for {
       dest <- Try(dest.extant())
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
-      _    <- Shell(layout.env).native(dest, cp, main)
+      _    <- Shell(layout.env).native(dest, cp, main.key)
     } yield ()
 
   def saveJars(ref: ModuleRef,
@@ -442,7 +486,7 @@ case class Compilation(graph: Target.Graph,
     for {
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
-      manifest          = Manifest(bins.map(_.name), module.main)
+      manifest          = Manifest(bins.map(_.name), module.main.map(_.key))
       dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
@@ -461,19 +505,6 @@ case class Compilation(graph: Target.Graph,
                                             layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
-  }
-
-  def allParams(ref: ModuleRef, layout: Layout)(implicit log: Log): List[String] = {
-    def pluginParam(pluginTarget: Target): Opt =
-      Opt(OptId(str"Xplugin:${layout.classesDir(pluginTarget.id)}"), persistent = true, remove = false)
-
-    val allPlugins = requiredTargets(ref)
-      .filter(_.kind == Plugin)
-      .filterNot(_.ref == ref)
-
-    val params = targets(ref).params ++ allPlugins.map(pluginParam)
-
-    params.map(_.parameter)
   }
 
   def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
@@ -593,7 +624,7 @@ case class Compilation(graph: Target.Graph,
     }
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.getOrElse(""),
+      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.fold("")(_.key),
       securePolicy = target.kind == Application,
       env = target.environment,
       properties = target.properties,

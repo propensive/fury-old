@@ -39,7 +39,7 @@ case class Layer(version: Int = Layer.CurrentVersion,
 }
 
 object Layer {
-    val CurrentVersion = 4
+    val CurrentVersion = 5
     implicit val msgShow: MsgShow[Layer] = r => UserMsg(_.layer(r.hash))
     implicit val stringShow: StringShow[Layer] = _.hash
   
@@ -149,7 +149,7 @@ object Layer {
     } yield newLayer
   
     def read(ref: LayerRef, layout: Layout)(implicit log: Log): Try[Layer] =
-      Ogdl.read[Layer](Installation.layersPath / ref.key, upgrade(_))
+      Ogdl.read[Layer](Installation.layersPath / ref.key, migrate(_))
   
     def resolveSchema(layout: Layout, layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
       path.parts.foldLeft(Try(layer)) { case (current, importId) => for {
@@ -230,24 +230,36 @@ object Layer {
       _        <- path.writeSync(confComments+confStr+vimModeline)
     } yield ()
   
-    private def upgrade(ogdl: Ogdl)(implicit log: Log): Ogdl =
-      Try(ogdl.version().toInt).getOrElse(1) match {
-        case 3 =>
-          log.info("Migrating layer file from version 2")
-          upgrade(
-              ogdl.set(
-                  schemas = ogdl.schemas.map { schema =>
-                    schema.set(
-                        imports = schema.imports.map { imp =>
-                          imp.set(id = Ogdl(s"unknown-${Counter.next()}"))
-                        }
-                    )
-                  },
-                  version = Ogdl(4)
-              )
-          )
+    private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
+      val version = Try(ogdl.version().toInt).getOrElse(1)
+      if(version < CurrentVersion) {
+        log.note(msg"Migrating layer file from version $version to ${version + 1}")
+        migrate((version match {
+          case 0 | 1 | 2 =>
+            log.fail(msg"Cannot migrate from layers earlier than version 3")
+            // FIXME: Handle this better
+            throw new Exception()
+          case 3 =>
+            ogdl.set(schemas = ogdl.schemas.map { schema =>
+              schema.set(imports = schema.imports.map { imp =>
+                imp.set(id = Ogdl(s"unknown-${Counter.next()}"))
+              })
+            })
   
-        case CurrentVersion => ogdl
-      }
+          case 4 =>
+            ogdl.set(schemas = ogdl.schemas.map { schema =>
+              schema.set(projects = schema.projects.map { project =>
+                project.set(modules = project.modules.map { module =>
+                  module.set(
+                    opts = module.params.map { param => Ogdl(Opt(OptId(param()), false, false)) },
+                    policy = module.policy.map { permission => permission.set(classRef =
+                        Ogdl(permission.className())) }
+                  )
+                })
+              })
+            })
+        }).set(version = Ogdl(version + 1)))
+      } else ogdl
+    }
   }
   

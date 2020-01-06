@@ -42,7 +42,9 @@ object Rnd extends java.util.Random {
   }
 }
 
-object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
+object UserMsg {
+  implicit val msgShow: MsgShow[UserMsg] = identity
+}
 
 object Version {
   final val current: String =

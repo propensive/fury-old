@@ -40,7 +40,7 @@ case class Tables() {
   def contextString(layer: Layer, showSchema: Boolean, elements: UserMsg*): UserMsg =
     (if(showSchema) elements else elements.tail).foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
 
-  implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.name.key).map {
+  implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.id.key).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)
     case s @ r"D.*" => Ansi.yellow("-" + s)
     case s @ r"J.*" => Ansi.magenta("-" + s)
@@ -51,6 +51,13 @@ case class Tables() {
   implicit private def option[T: AnsiShow]: AnsiShow[Option[T]] = {
     case None    => "-"
     case Some(v) => implicitly[AnsiShow[T]].show(v)
+  }
+
+  implicit private val origin: AnsiShow[Origin] = {
+    case Origin.Local       => theme.italic(theme.param("local"))
+    case Origin.Module(ref) => msg"$ref".string(theme)
+    case Origin.Plugin      => theme.italic(theme.param("plugin"))
+    case Origin.Compiler    => theme.italic(theme.param("compiler"))
   }
 
   private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] = _.map {
@@ -89,7 +96,7 @@ case class Tables() {
     Heading("Sources", _.sources),
     Heading("Binaries", m => bar(m.allBinaries.size)),
     Heading("Compiler", _.compiler),
-    Heading("Params", m => bar(m.params.size)),
+    Heading("Options", m => bar(m.opts.size)),
     Heading("Type", _.kind),
     Heading("Details", m => m.kind match {
       case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
@@ -114,13 +121,16 @@ case class Tables() {
     Heading("Path", _.path)
   )
 
-  val params: Tabulation[Opt] = Tabulation(
-    Heading("Param", _.name)
+  val opts: Tabulation[Provenance[Opt]] = Tabulation(
+    Heading("", o => if(o.value.remove) "-" else "+"),
+    Heading("Param", _.value.id),
+    Heading("Persistent", o => if(o.value.persistent) "Yes" else "No"),
+    Heading("Origin", _.source),
   )
 
   val permissions: Tabulation[PermissionEntry] = Tabulation(
     Heading("Hash", _.hash),
-    Heading("Class", _.permission.className),
+    Heading("Class", _.permission.classRef),
     Heading("Target", _.permission.target),
     Heading("Action", _.permission.action.getOrElse("-")),
   )
