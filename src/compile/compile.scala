@@ -408,10 +408,10 @@ case class Compilation(graph: Target.Graph,
 
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
-    pOpts       <- ~(target.plugin.map { t =>
+    pOpts       <- ~(if(target.kind == Plugin) Set(
                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
-                   }.to[Set])
+                   ) else Set())
   } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
       _.value.id)
 
