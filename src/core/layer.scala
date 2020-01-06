@@ -25,7 +25,7 @@ import kaleidoscope._
 import scala.util._
 import scala.collection.immutable._
 
-case class Layer(version: Int = Layer.CurrentVersion,
+case class Layer(version: Int,
                  schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
                  main: SchemaId = SchemaId.default,
                  aliases: SortedSet[Alias] = TreeSet()) { layer =>
@@ -172,7 +172,7 @@ object Layer {
         _        <- ~log.info(msg"Initialized layer ${layer}")
       } yield () } else { for {
         _        <- layout.confFile.mkParents()
-        layerRef <- saveLayer(Layer())
+        layerRef <- saveLayer(Layer(CurrentVersion))
         _        <- saveFuryConf(FuryConf(layerRef), layout)
         _        <- ~log.info(msg"Initialized an empty layer")
       } yield () }
