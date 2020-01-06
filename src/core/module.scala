@@ -22,7 +22,7 @@ import scala.util._
 import scala.collection.immutable._
 
 object Module {
-  implicit val msgShow: MsgShow[Module]       = v => UserMsg(_.module(v.id.key))
+  implicit val msgShow: MsgShow[Module] = v => UserMsg(_.module(v.id.key))
   implicit val stringShow: StringShow[Module] = _.id.key
   implicit val diff: Diff[Module] = Diff.gen[Module]
 
@@ -46,7 +46,8 @@ case class Module(id: ModuleId,
                   properties: SortedSet[JavaProperty] = TreeSet(),
                   policy: SortedSet[Permission] = TreeSet(),
                   hidden: Boolean = false,
-                  optDefs: SortedSet[OptDef] = TreeSet()) {
+                  optDefs: SortedSet[OptDef] = TreeSet(),
+                  deterministic: Boolean = false) {
 
   def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
