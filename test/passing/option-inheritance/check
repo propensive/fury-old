@@ -1,0 +1,25 @@
+Initialized an empty layer
+Set current project to scala
+Set current module to compiler
+Set current project to sequence
+Setting default compiler for project sequence to scala/compiler
+Set current module to aiap
+Set current module to aaat-dnut
+Set current module to diap-dnut
+Set current module to dnut
+Set current module to all
+Starting the BSP launcher...
+Starting compilation of module sequence/aiap
+| List(1, "two")     // -Ywarn-infer-any         ia
+| def foo: Unit = () // -Ywarn-nullary-unit      nu
+Starting compilation of module sequence/aaat-dnut
+| List(1, "two")     // -Ywarn-infer-any         ia
+| Some(1, 2)         // -Ywarn-adapted-args      aa
+Starting compilation of module sequence/diap-dnut
+| def foo: Unit = () // -Ywarn-nullary-unit      nu
+Starting compilation of module sequence/dnut
+Starting compilation of module sequence/all
+| List(1, "two")     // -Ywarn-infer-any         ia
+| Some(1, 2)         // -Ywarn-adapted-args      aa
+| def foo: Unit = () // -Ywarn-nullary-unit      nu
+0

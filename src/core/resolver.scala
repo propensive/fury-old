@@ -26,7 +26,7 @@ object Resolver {
   implicit val schemaResolver: Resolver[Schema, SchemaId]       = _ == _.id
   implicit val sourceRepoResolver: Resolver[SourceRepo, RepoId] = _ == _.id
   implicit val importResolver: Resolver[SchemaRef, ImportId]    = _ == _.id
-  implicit val optDefResolver: Resolver[OptDef, OptId]          = _ == _.option
+  implicit val optDefResolver: Resolver[OptDef, OptId]          = _ == _.id
 }
 
 trait Resolver[-T, I] { def matchOn(id: I, value: T): Boolean }

@@ -40,6 +40,9 @@ object Args {
   implicit private val importPath: TExtractor[ImportPath] = _.headOption.flatMap(ImportPath.parse(_))
   implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
   implicit private val scopeId: TExtractor[ScopeId] = _.headOption.flatMap(ScopeId.unapply(_))
+  implicit private val classRef: TExtractor[ClassRef] = _.headOption.flatMap(ClassRef.unapply(_))
+  implicit private val pluginId: TExtractor[PluginId] = _.headOption.flatMap(PluginId.unapply(_))
+  implicit private val execName: TExtractor[ExecName] = _.headOption.flatMap(ExecName.unapply(_))
   implicit private val optId: TExtractor[OptId] = _.headOption.map(OptId(_))
 
   implicit private val boolean: TExtractor[Boolean] = _.headOption map {
@@ -55,7 +58,7 @@ object Args {
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[String]('b', 'binary, "specify a binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
-  val ClassArg = CliParam[String]('C', 'class, "specify a class name")
+  val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
   val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
   val SourceArg = CliParam[String]('d', 'source, "specify a source directory")
@@ -65,7 +68,7 @@ object Args {
   val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
   val EnvArg = CliParam[EnvVar]('e', 'env, "specify the environment variable in the form KEY=value")
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
-  val PersistentArg = CliParam[Unit]('p', 'persistent, "this option change should apply to all dependants")
+  val PersistentArg = CliParam[Unit]('P', 'persistent, "this option change should apply to all dependants")
   val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
@@ -82,17 +85,17 @@ object Args {
   val LayerArg = CliParam[ImportPath]('l', 'layer, "specify the layer")
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
-  val MainArg = CliParam[String]('M', 'main, "specify a main class")
+  val MainArg = CliParam[ClassRef]('M', 'main, "specify a main class")
   
   val PipeliningArg = CliParam[Boolean]('P', Symbol("pipelining"),
       "use compilation pipelining (on, off) (experimental)")
   
-  val PluginArg = CliParam[String]('P', 'plugin, "specify the name of the plugin")
+  val PluginArg = CliParam[PluginId]('P', 'plugin, "specify the name of the plugin")
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
   val RemoteLayerArg = CliParam[String]('n', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val SchemaNameArg = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
-  val ExecNameArg = CliParam[String]('n', 'name, "specify a name for the executable")
+  val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")

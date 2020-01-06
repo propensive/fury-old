@@ -170,11 +170,11 @@ object Lenses {
     def binaries(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).binaries)
 
-    def params(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).params)
+    def opts(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).opts)
 
-    def optionDefs(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
-      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).optionDefs)
+    def optDefs(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).optDefs)
 
     def repoId(schemaId: SchemaId, repoId: RepoId) =
       lens(_.schemas(on(schemaId)).repos(on(repoId)).id)

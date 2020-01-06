@@ -26,7 +26,9 @@ object Rgb { def apply(r: Int, g: Int, b: Int): AnsiCode = AnsiCode(s"38;2;$r;$g
 
 object MsgShow {
   implicit val string: MsgShow[String] = v => UserMsg(_ => v)
+  implicit val int: MsgShow[Int] = v => UserMsg(_ => v.toString)
   implicit val char: MsgShow[Char]     = ch => UserMsg(_.gray(ch.toString))
+  implicit val stackTraceElement: MsgShow[StackTraceElement] = ste => UserMsg(_.gray(ste.toString))
 }
 
 trait MsgShow[T] { def show(value: T): UserMsg }

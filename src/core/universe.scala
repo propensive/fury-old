@@ -39,8 +39,6 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
                          } yield TargetId(origin.schema.id, dep)}
       checkouts       <- checkout(ref, layout)
     } yield {
-      // FIXME: This assumes published layers will not have local sources
-      // Previously this was (_ in resolvedProject.path)
       val sourcePaths = module.localSources.map(_ in layout.baseDir).to[List] ++
         module.sharedSources.map(_.path in layout.sharedDir).to[List] ++
         checkouts.flatMap { c =>
@@ -61,12 +59,13 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
         dependencies.to[List],
         compiler,
         module.bloopSpec,
-        module.params.to[List],
+        module.opts.to[List],
         module.policy.to[List],
         ref.intransitive,
         sourcePaths,
         module.environment.map { e => (e.key, e.value) }.toMap,
-        module.properties.map { p => (p.key, p.value) }.toMap
+        module.properties.map { p => (p.key, p.value) }.toMap,
+        module.optDefs
       )
     }
 
@@ -90,8 +89,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
               paths.map(_.path).to[List])
       }.to[Set]
 
-  def ++(that: Universe): Universe =
-    Universe(entities ++ that.entities)
+  def ++(that: Universe): Universe = Universe(entities ++ that.entities)
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
     resolveTransitiveDependencies(forbidden = Set.empty, ref, layout)
