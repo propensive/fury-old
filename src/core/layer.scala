@@ -233,7 +233,7 @@ object Layer {
     private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
       val version = Try(ogdl.version().toInt).getOrElse(1)
       if(version < CurrentVersion) {
-        log.note(msg"Migrating layer file from version $version to ${version + 1}")
+        log.info(msg"Migrating layer file from version $version to ${version + 1}")
         migrate((version match {
           case 0 | 1 | 2 =>
             log.fail(msg"Cannot migrate from layers earlier than version 3")
@@ -253,7 +253,7 @@ object Layer {
                   module.set(
                     opts = module.params.map { param => Ogdl(Opt(OptId(param()), false, false)) },
                     dependencies = module.after,
-                    binaries = module.binaries.map { bin => bin.set(id = bin.project) },
+                    binaries = module.binaries.map { bin => bin.set(id = bin.artifact) },
                     policy = module.policy.map { permission => permission.set(classRef =
                         Ogdl(permission.className())) }
                   )
