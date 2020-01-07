@@ -159,7 +159,6 @@ download: dist/bundle/bin/coursier dist/bundle/bin/ng.py dist/bundle/bin/ng.c di
 
 install: dist/install.sh
 	dist/install.sh
-	rm ~/.config/fury/policy.fury
 
 revise:
 	etc/revise
