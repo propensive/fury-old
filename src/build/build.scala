@@ -520,18 +520,23 @@ object LayerCli {
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
-    layout    <- cli.layout
-    baseLayer <- Layer.base(layout)
-    schema    <- baseLayer.mainSchema
-    cli       <- cli.hint(LayerArg,  schema.importTree(layout, true).getOrElse(Nil))
-    call      <- cli.call()
-    layers    <- schema.importTree(layout, true)
-    relPath   <- call(LayerArg)
-    focus     <- Layer.readFuryConf(layout)
-    newPath   <- focus.path.dereference(relPath)
-    _         <- verifyLayers(newPath, layers)
-    newConf   <- ~focus.copy(path = newPath)
-    _         <- Layer.saveFuryConf(newConf, layout)
+    layout       <- cli.layout
+    baseLayer    <- Layer.base(layout)
+    layer        <- Layer.read(layout)
+    baseSchema   <- baseLayer.mainSchema
+    schema       <- layer.mainSchema
+    focus        <- Layer.readFuryConf(layout)
+    currentLayer <- ~Some(focus.path)
+    absTree      <- ~baseSchema.importTree(layout, true).getOrElse(Nil)
+    relLayers    <- ~schema.imports.map { sr => ImportPath(sr.id.key) }
+    parentLayer  <- if(baseLayer == layer) ~None else ~Some(ImportPath(".."))
+    cli          <- cli.hint(LayerArg, absTree.to[Set] ++ relLayers ++ parentLayer -- currentLayer)
+    call         <- cli.call()
+    relPath      <- call(LayerArg)
+    newPath      <- focus.path.dereference(relPath)
+    _            <- verifyLayers(newPath, absTree)
+    newConf      <- ~focus.copy(path = newPath)
+    _            <- Layer.saveFuryConf(newConf, layout)
   } yield log.await()
 
 
