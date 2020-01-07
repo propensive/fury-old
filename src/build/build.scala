@@ -187,7 +187,7 @@ object BuildCli {
                                  |  /_/    \_._//_/  _\_. /
                                  |                   \___/
                                  |
-                                 |Fury build tool for Scala, version ${Version.current}.
+                                 |Fury build tool for Scala, version ${FuryVersion.current}.
                                  |This software is provided under the Apache 2.0 License.
                                  |Fury depends on Bloop, Coursier, Git and Nailgun.
                                  |© Copyright 2018-19 Jon Pretty, Propensive OÜ.

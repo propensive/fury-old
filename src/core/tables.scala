@@ -146,6 +146,7 @@ case class Tables() {
   )
 
   val binaries: Tabulation[Binary] = Tabulation(
+    Heading("Binary", _.id),
     Heading("Service", _.binRepo),
     Heading("Group", _.group),
     Heading("Artifact", _.artifact),

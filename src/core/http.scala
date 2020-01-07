@@ -88,7 +88,7 @@ object Http {
       case conn: HttpURLConnection =>
         conn.setRequestMethod(method)
         conn.setRequestProperty("Content-Type", implicitly[Postable[T]].contentType)
-        conn.setRequestProperty("User-Agent", str"Fury ${Version.current}")
+        conn.setRequestProperty("User-Agent", str"Fury ${FuryVersion.current}")
         headers.foreach { case HttpHeader(key, value) => conn.setRequestProperty(key, value) }
         
         (method match {

@@ -22,33 +22,9 @@ import exoskeleton.Param.{Extractor => TExtractor}
 import exoskeleton._
 
 object Args {
-  implicit private val schemaId: TExtractor[SchemaId] = _.headOption.flatMap(SchemaId.parse(_).toOption)
-  implicit private val aliasCmd: TExtractor[AliasCmd] = _.headOption.map(AliasCmd(_))
-  implicit private val envVar: TExtractor[EnvVar] = _.headOption.flatMap(EnvVar.parse(_))
-  implicit private val javaProp: TExtractor[JavaProperty] = _.headOption.flatMap(JavaProperty.parse(_))
-  implicit private val licenseId: TExtractor[LicenseId] = _.headOption.map(LicenseId(_))
-  implicit private val repoId: TExtractor[RepoId] = _.headOption.map(RepoId(_))
-  implicit private val binRepoId: TExtractor[BinRepoId] = _.headOption.map(BinRepoId(_))
-  implicit private val moduleId: TExtractor[ModuleId] = _.headOption.flatMap(ModuleId.parse(_).toOption)
-  implicit private val projectId: TExtractor[ProjectId] = _.headOption.flatMap(ProjectId.parse(_).toOption)
-  implicit private val importId: TExtractor[ImportId] = _.headOption.flatMap(ImportId.parse(_).toOption)
-  implicit private val path: TExtractor[Path] = _.headOption.flatMap(Path.unapply(_))
-  implicit private val kindKey: TExtractor[Kind] = _.headOption.flatMap(Kind.unapply(_))
-  implicit private val version: TExtractor[RefSpec] = _.headOption.map(RefSpec(_))
-  implicit private val theme: TExtractor[Theme] = _.headOption.flatMap(Theme.unapply(_))
-  implicit private val ipfsRef: TExtractor[IpfsRef] = _.headOption.flatMap(IpfsRef.parse(_))
-  implicit private val importPath: TExtractor[ImportPath] = _.headOption.flatMap(ImportPath.parse(_))
-  implicit private val reporter: TExtractor[Reporter] = _.headOption.flatMap(Reporter.unapply(_))
-  implicit private val scopeId: TExtractor[ScopeId] = _.headOption.flatMap(ScopeId.unapply(_))
-  implicit private val classRef: TExtractor[ClassRef] = _.headOption.flatMap(ClassRef.unapply(_))
-  implicit private val pluginId: TExtractor[PluginId] = _.headOption.flatMap(PluginId.unapply(_))
-  implicit private val execName: TExtractor[ExecName] = _.headOption.flatMap(ExecName.unapply(_))
-  implicit private val optId: TExtractor[OptId] = _.headOption.map(OptId(_))
 
-  implicit private val boolean: TExtractor[Boolean] = _.headOption map {
-    case "on" | "true" | "1" => true
-    case "off" | "false" | "0" => false
-  }
+  implicit def extractor[T: Parser]: TExtractor[T] = _.headOption.flatMap(implicitly[Parser[T]].parse(_))
+
   implicit private val stringList: TExtractor[List[String]] = x => Some(x.to[List])
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
@@ -56,7 +32,8 @@ object Args {
   val BinaryRepoArg = CliParam[BinRepoId]('r', 'repo, "Specify the repository from which to fetch binaries")
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
-  val BinaryArg = CliParam[String]('b', 'binary, "specify a binary dependency")
+  val BinaryArg = CliParam[BinaryId]('b', 'binary, "specify a binary")
+  val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
@@ -131,7 +108,8 @@ object Args {
       "Type of module (library, application, plugin, compiler, benchmarks)")
 
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
-  val VersionArg = CliParam[RefSpec]('V', 'version, "Git branch, tag or commit")
+  val RefSpecArg = CliParam[RefSpec]('V', 'version, "Git branch, tag or commit")
+  val VersionArg = CliParam[Version]('v', 'version, "The published version of the binary")
   val WatchArg = CliParam[Unit]('w', 'watch, "Watch for file changes")
   val SingleColumnArg = CliParam[Unit]('1', Symbol("single-column"), "Print values in a single column")
   val ParamNoArg = Param[Int](' ', 'paramNo)

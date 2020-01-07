@@ -16,6 +16,7 @@
 */
 package fury.strings
 
+import scala.util.Try
 import language.implicitConversions
 
 object `package` {
@@ -32,7 +33,23 @@ object `package` {
     def urlEncode: String = java.net.URLEncoder.encode(str, "UTF-8")
     def bytes: Array[Byte] = str.getBytes("UTF-8")
   }
+
+  implicit class Only[T](value: T) {
+    def only[S](pf: PartialFunction[T, S]): Option[S] = Some(value).collect(pf)
+  }
 }
+
+object Parser {
+  implicit val string: Parser[String] = Some(_)
+  implicit val int: Parser[Int] = str => Try(str.toInt).toOption
+  
+  implicit val boolean: Parser[Boolean] = _.only {
+    case "on" | "true" | "1" => true
+    case "off" | "false" | "0" => false
+  }
+}
+
+trait Parser[T] { def parse(str: String): Option[T] }
 
 object Rnd extends java.util.Random {
   def token(size: Int = 20): String = {
@@ -42,11 +59,9 @@ object Rnd extends java.util.Random {
   }
 }
 
-object UserMsg {
-  implicit val msgShow: MsgShow[UserMsg] = identity
-}
+object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
 
-object Version {
+object FuryVersion {
   final val current: String =
     try scala.io.Source.fromResource(".version", getClass.getClassLoader).getLines.next
     catch { case e: NullPointerException => "unknown" }

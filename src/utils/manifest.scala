@@ -27,7 +27,7 @@ object Manifest {
     mainAttributes.put(MANIFEST_VERSION, "1.0")
     mainClass.foreach(mainAttributes.put(MAIN_CLASS, _))
     mainAttributes.put(CLASS_PATH, classpath.to[List].sorted.join(" "))
-    mainAttributes.putValue("Created-By", str"Fury ${Version.current}")
+    mainAttributes.putValue("Created-By", str"Fury ${FuryVersion.current}")
     
     result
   }

@@ -55,14 +55,12 @@ object ModuleCli {
     import ctx._
     for {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli      <- cli.hint(ForceArg)
       call     <- cli.call()
       project  <- optProject.ascribe(UnspecifiedProject())
       moduleId <- ~call(ModuleArg).toOption
       moduleId <- moduleId.ascribe(UnspecifiedModule())
       _        <- project(moduleId)
-      force    <- ~call(ForceArg).isSuccess
-      focus    <- ~Lenses.focus(optSchemaId, force)
+      focus    <- ~Lenses.focus(optSchemaId, true)
       layer    <- focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId))
       _        <- ~Layer.save(layer, layout)
     } yield log.await()
@@ -152,10 +150,10 @@ object ModuleCli {
   }
 
   private def resolveToCompiler(ctx: Context, reference: String)(implicit log: Log): Try[ModuleRef] = for {
-    project  <- ctx.optProject.ascribe(UnspecifiedProject())
-    moduleRef      <- ModuleRef.parse(project.id, reference, true)
-    availableCompilers = ctx.layer.schemas.flatMap(_.compilerRefs(ctx.layout, https = true))
-    _      <-   if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
+    project            <- ctx.optProject.ascribe(UnspecifiedProject())
+    moduleRef          <- ModuleRef.parse(project.id, reference, true).ascribe(InvalidValue(reference))
+    availableCompilers  = ctx.layer.schemas.flatMap(_.compilerRefs(ctx.layout, https = true))
+    _                  <- if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
   def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
@@ -166,17 +164,15 @@ object ModuleCli {
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
                       layout, true)))
 
-      cli      <- cli.hint(ForceArg)
       call     <- cli.call()
-      force    <- ~call(ForceArg).isSuccess
       moduleId <- call(ModuleArg)
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- project.modules.findBy(moduleId)
 
-      layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.modules(_, project.id)) {
+      layer    <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.modules(_, project.id)) {
                       (lens, ws) => lens.modify(ws)((_: SortedSet[Module]).filterNot(_.id == module.id)) }
 
-      layer    <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainModule(_, project.id)) {
+      layer    <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainModule(_, project.id)) {
                       (lens, ws) => if(lens(ws) == Some(moduleId)) lens(ws) = None else ws }
 
       _        <- ~Layer.save(layer, layout)
@@ -198,6 +194,7 @@ object ModuleCli {
                          _.compilerRefs(layout, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
+      cli         <- cli.hint(ForceArg)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
 
       optModule   <- Success { for {
@@ -220,18 +217,21 @@ object ModuleCli {
                          ~cli
                      }
 
-      cli         <- cli.hint(ForceArg)
       call        <- cli.call()
       compilerId  <- ~call(CompilerArg).toOption
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
       compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(ctx, _)).map(_.headOption)
       hidden      <- ~call(HiddenArg).toOption
-      mainClass   <- ~call(MainArg).toOption
-      pluginName  <- ~call(PluginArg).toOption
+      mainClass   <- ~cli.peek(MainArg)
+      pluginName  <- ~cli.peek(PluginArg)
       newId       <- ~call(ModuleNameArg).toOption
       name        <- newId.to[List].map(project.unused(_)).sequence.map(_.headOption)
-      bloopSpec   <- call(BloopSpecArg).toOption.to[List].map(BloopSpec.parse(_)).sequence.map(_.headOption)
+      
+      bloopSpec   <- cli.peek(BloopSpecArg).to[List].map { v =>
+                       BloopSpec.unapply(v).ascribe(InvalidValue(v))
+                     }.sequence.map(_.headOption)
+
       force       <- ~call(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).kind)) = optKind
@@ -301,23 +301,41 @@ object BinaryCli {
     } yield log.await()
   }
 
+  def update(ctx: BinariesCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
+      cli         <- cli.hint(VersionArg)
+      call        <- cli.call()
+      binaryArg   <- call(BinaryArg)
+      versionArg  <- call(VersionArg)
+      project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
+      binary      <- module.binaries.findBy(binaryArg)
+      
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
+                         module.id))(_(_) -= binary)
+
+      _           <- ~Layer.save(layer, layout)
+      schema      <- defaultSchema
+
+      _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout,
+                         false)
+
+    } yield log.await()
+  }
+
   def remove(ctx: BinariesCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
       cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
-      cli         <- cli.hint(ForceArg)
       call        <- cli.call()
       binaryArg   <- call(BinaryArg)
       project     <- optProject.ascribe(UnspecifiedProject())
       module      <- optModule.ascribe(UnspecifiedModule())
-      binaryToDel <- Binary.filterByPartialId(module.binaries, binaryArg) match {
-                       case bin :: Nil => Success(bin)
-                       case Nil        => Failure(UnspecifiedBinary(module.binaries.map(_.spec).toList))
-                       case bins       => Failure(UnspecifiedBinary(bins.map(_.spec)))
-                     }
-      force       <- ~call(ForceArg).isSuccess
+      binaryToDel <- module.binaries.findBy(binaryArg)
       
-      layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.binaries(_, project.id,
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
                          module.id))(_(_) -= binaryToDel)
 
       _           <- ~Layer.save(layer, layout)
@@ -332,23 +350,23 @@ object BinaryCli {
   def add(ctx: BinariesCtx)(implicit log: Log): Try[ExitStatus] = {
     import ctx._, moduleCtx._
     for {
-      cli       <- cli.hint(BinaryArg)
-      cli       <- cli.hint(BinaryRepoArg, List(RepoId("central")))
-      call      <- cli.call()
-      project   <- optProject.ascribe(UnspecifiedProject())
-      module    <- optModule.ascribe(UnspecifiedModule())
-      binaryArg <- call(BinaryArg)
-      repoId    <- ~call(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
-      binary    <- Binary.unapply(repoId, binaryArg)
+      cli        <- cli.hint(BinaryArg)
+      cli        <- cli.hint(BinaryRepoArg, List(RepoId("central")))
+      call       <- cli.call()
+      project    <- optProject.ascribe(UnspecifiedProject())
+      module     <- optModule.ascribe(UnspecifiedModule())
+      binSpecArg <- call(BinSpecArg)
+      repoId     <- ~call(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
+      binary     <- Binary.parse(repoId, binSpecArg)
 
-      layer     <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
                        module.id))(_(_) += binary)
       
-      _         <- ~Layer.save(layer, layout)
-      schema    <- defaultSchema
+      _          <- ~Layer.save(layer, layout)
+      schema     <- defaultSchema
 
-      _         <- ~Compilation.asyncCompilation(schema, module.ref(project), layout,
-                       false)
+      _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout,
+                        false)
 
     } yield log.await()
   }
@@ -398,7 +416,6 @@ object OptionCli {
     import ctx._, moduleCtx._
     for {
       cli      <- cli.hint(OptArg, optModule.to[List].flatMap(_.opts))
-      cli      <- cli.hint(ForceArg)
       cli      <- cli.hint(PersistentArg)
       call     <- cli.call()
       paramArg <- call(OptArg)
@@ -406,10 +423,9 @@ object OptionCli {
       project  <- optProject.ascribe(UnspecifiedProject())
       module   <- optModule.ascribe(UnspecifiedModule())
       opt      <- ~module.opts.find(_.id == paramArg)
-      force    <- ~call(ForceArg).isSuccess
 
       layer    <- opt.fold(Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.opts(_, project.id, module.id))(_(_) += Opt(paramArg, persist, true))) { o =>
-                    Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.opts(_, project.id, module.id))(_(_) -= o)
+                    Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.opts(_, project.id, module.id))(_(_) -= o)
                   }
 
       _        <- ~Layer.save(layer, layout)

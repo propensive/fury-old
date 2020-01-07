@@ -103,5 +103,8 @@ object Repo {
   
     def universal(https: Boolean): String = Repo.fromString(simplified, https)
   
-    def projectName: Try[RepoId] = RepoId.parse(simplified.split("/").last)
+    def projectName: Try[RepoId] = {
+      val value = simplified.split("/").last
+      RepoId.unapply(value).ascribe(InvalidValue(value))
+    }
   }

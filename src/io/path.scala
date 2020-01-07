@@ -34,15 +34,13 @@ object Path {
 
   implicit val stringShow: StringShow[Path] = _.value
   implicit val diff: Diff[Path] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
+  implicit val parser: Parser[Path] = unapply(_)
 
   def apply(jpath: JavaPath): Path = Path(jpath.toString)
   def apply(file: JavaFile): Path = Path(file.getAbsolutePath)
   def apply(uri: URI): Path = Path(Paths.get(uri))
 
-  def unapply(str: String): Option[Path] = str match {
-    case r"""$dir@([^*?:;,&|"\%<>]*)""" => Some(Path(dir))
-    case _ => None
-  }
+  def unapply(str: String): Option[Path] = str.only { case r"""$dir@([^*?:;,&|"\%<>]*)""" => Path(dir) }
 
   // Rewritten from https://stackoverflow.com/a/10068306
   private class CopyFileVisitor(sourcePath: JavaPath, targetPath: JavaPath)

@@ -81,8 +81,12 @@ object ProjectCli {
                             layout, false))
 
       call           <- cli.call()
-      compilerId     <- ~call(DefaultCompilerArg).toOption
-      optCompilerRef <- compilerId.map(ModuleRef.parseFull(_, true)).to[List].sequence.map(_.headOption)
+      compilerId     <- ~cli.peek(DefaultCompilerArg)
+      
+      optCompilerRef <- compilerId.to[List].map { v =>
+                          ModuleRef.parseFull(v, true).ascribe(InvalidValue(v))
+                        }.sequence.map(_.headOption)
+
       projectId      <- call(ProjectNameArg)
       license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))
       project        <- ~Project(projectId, license = license, compiler = optCompilerRef)
@@ -143,7 +147,7 @@ object ProjectCli {
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
       descriptionArg <- ~call(DescriptionArg).toOption
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
-      compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true).toOption)
+      compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true))
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
       nameArg        <- ~call(ProjectNameArg).toOption
       newId          <- ~nameArg.flatMap(schema.unused(_).toOption)

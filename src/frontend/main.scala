@@ -34,23 +34,13 @@ object Main {
 
   def invoke(cli: Cli[CliParam[_]])(implicit log: Log): ExitStatus = {
 
-    val layer = for {
-      layout <- cli.layout
-      layer  <- Layer.read(layout)
-    } yield layer
+    val layer = for(layout <- cli.layout; layer  <- Layer.read(layout)) yield layer
 
-    val actions = layer.toOption
-      .to[List]
-      .flatMap { ws =>
-        ws.aliases
-      }
-      .map { alias =>
+    val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
         def action(cli: Cli[CliParam[_]]) =
           AliasCli.context(cli).flatMap(BuildCli.compile(alias.schema, Some(alias.module)))
-        Action(
-            Symbol(alias.cmd.key),
-            msg"${alias.description}",
-            (cli: Cli[CliParam[_]]) => action(cli))
+
+        Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli[CliParam[_]]) => action(cli))
       }
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))

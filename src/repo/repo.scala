@@ -158,24 +158,24 @@ object RepoCli {
                           Shell(layout.env).git.lsRemote(Repo.fromString(repo.ref, true))
                         }.to[List].sequence.map(_.flatten).recover { case e => Nil }
 
-      cli            <- cli.hint(VersionArg, versions)
+      cli            <- cli.hint(RefSpecArg, versions)
       call          <- cli.call()
       optSchemaArg   <- ~call(SchemaArg).toOption
       schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
       dir            <- ~call(DirArg).toOption
       https          <- ~call(HttpsArg).isSuccess
-      version        <- ~call(VersionArg).toOption.getOrElse(RefSpec.master)
+      refSpec        <- ~call(RefSpecArg).toOption.getOrElse(RefSpec.master)
       urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
       repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
       suggested      <- repo.projectName
       _              <- repo.fetch(layout, https)
 
-      commit         <- repo.getCommitFromTag(layout, version).toOption.ascribe(
-                            exoskeleton.InvalidArgValue("version", version.id))
+      commit         <- repo.getCommitFromTag(layout, refSpec).toOption.ascribe(
+                            exoskeleton.InvalidArgValue("refspec", refSpec.id))
 
       nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
-      sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
+      sourceRepo     <- ~SourceRepo(nameArg, repo, refSpec, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
       _              <- ~Layer.save(layer, layout)
@@ -193,8 +193,8 @@ object RepoCli {
       schema      <- layer.schemas.findBy(schemaArg)
       cli         <- cli.hint(RepoArg, schema.repos)
       optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
-      versions    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
-      cli         <- cli.hint(VersionArg, versions.flatten)
+      refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
+      cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
       call        <- cli.call()
       optSchemaId <- ~call(SchemaArg).toOption
       schemaArg   <- ~optSchemaId.getOrElse(layer.main)
@@ -202,17 +202,17 @@ object RepoCli {
       repoArg     <- call(RepoArg)
       repo        <- schema.repos.findBy(repoArg)
       dir         <- ~call(DirArg).toOption
-      version     <- ~call(VersionArg).toOption
+      refSpec     <- ~call(RefSpecArg).toOption
       remoteArg   <- ~call(UrlArg).toOption
       remote      <- ~remoteArg.map(Repo(_))
       nameArg     <- ~call(RepoNameArg).toOption
       force       <- ~call(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote
-      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
+      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = refSpec
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      commit      <- version.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
+      commit      <- refSpec.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).commit)) = Some(commit)
       _           <- ~Layer.save(layer, layout)
     } yield log.await()

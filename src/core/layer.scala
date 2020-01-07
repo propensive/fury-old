@@ -253,6 +253,7 @@ object Layer {
                   module.set(
                     opts = module.params.map { param => Ogdl(Opt(OptId(param()), false, false)) },
                     dependencies = module.after,
+                    binaries = module.binaries.map { bin => bin.set(id = bin.project) },
                     policy = module.policy.map { permission => permission.set(classRef =
                         Ogdl(permission.className())) }
                   )

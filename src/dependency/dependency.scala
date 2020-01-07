@@ -92,7 +92,7 @@ object DependencyCli {
       linkArg   <- call(LinkArg)
       project   <- optProject.ascribe(UnspecifiedProject())
       module    <- optModule.ascribe(UnspecifiedModule())
-      moduleRef <- ModuleRef.parse(project.id, linkArg, false)
+      moduleRef <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
       force     <- ~call(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.dependencies(_, project.id,
@@ -121,7 +121,7 @@ object DependencyCli {
       module           <- optModule.ascribe(UnspecifiedModule())
       intransitive     <- ~call(IntransitiveArg).isSuccess
       linkArg          <- call(LinkArg)
-      moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive)
+      moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
 
       layer            <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.dependencies(_,
                               project.id, module.id))(_(_) += moduleRef)

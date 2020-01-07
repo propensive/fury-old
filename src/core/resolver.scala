@@ -21,12 +21,13 @@ import fury.strings._, fury.model._
 import scala.util.Try
 
 object Resolver {
-  implicit val moduleResolver: Resolver[Module, ModuleId]       = _ == _.id
-  implicit val projectResolver: Resolver[Project, ProjectId]    = _ == _.id
-  implicit val schemaResolver: Resolver[Schema, SchemaId]       = _ == _.id
+  implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id
+  implicit val projectResolver: Resolver[Project, ProjectId] = _ == _.id
+  implicit val schemaResolver: Resolver[Schema, SchemaId] = _ == _.id
   implicit val sourceRepoResolver: Resolver[SourceRepo, RepoId] = _ == _.id
-  implicit val importResolver: Resolver[SchemaRef, ImportId]    = _ == _.id
-  implicit val optDefResolver: Resolver[OptDef, OptId]          = _ == _.id
+  implicit val importResolver: Resolver[SchemaRef, ImportId] = _ == _.id
+  implicit val binaryResolver: Resolver[Binary, BinaryId] = _ == _.id
+  implicit val optDefResolver: Resolver[OptDef, OptId] = _ == _.id
 }
 
 trait Resolver[-T, I] { def matchOn(id: I, value: T): Boolean }

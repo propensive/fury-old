@@ -19,6 +19,7 @@ package fury.core
 import fury.strings._, fury.model._, fury.utils._
 
 object Reporter {
+  implicit val parser: Parser[Reporter] = unapply(_)
   val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, QuietReporter)
   final private val reporters: Map[String, Reporter] = all.map { r => r.name -> r }.toMap
   def unapply(string: String): Option[Reporter] = reporters.get(string)

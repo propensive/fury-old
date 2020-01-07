@@ -68,7 +68,7 @@ object Bsp {
             "standalone",
             "bsp"
         ),
-        version = Version.current,
+        version = FuryVersion.current,
         bspVersion = bspVersion,
         languages = List("java", "scala")
     )
@@ -177,7 +177,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
     
     capabilities.setTestProvider(testProvider)
 
-    val result = new InitializeBuildResult("Fury", Version.current, Bsp.bspVersion, capabilities)
+    val result = new InitializeBuildResult("Fury", FuryVersion.current, Bsp.bspVersion, capabilities)
     val future = new CompletableFuture[InitializeBuildResult]()
     future.complete(result)    
     future
