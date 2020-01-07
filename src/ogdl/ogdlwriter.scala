@@ -31,13 +31,22 @@ trait OgdlWriter[T] {
 object OgdlWriter {
   type Typeclass[T] = OgdlWriter[T]
 
+  def structurallyEqual(a: Any, b: Any): Boolean = a match {
+    case a: SortedSet[_] => b match {
+      case b: SortedSet[_] => a.size == b.size && a.zip(b).forall { case (a, b) => structurallyEqual(a, b) }
+      case _ => false
+    }
+    case a => a == b
+  }
+
   def combine[T](caseClass: CaseClass[OgdlWriter, T]): OgdlWriter[T] = { value =>
     if(caseClass.isValueClass || caseClass.parameters.length == 1) {
       val param = caseClass.parameters.head
       param.typeclass.write(param.dereference(value))
     } else
-      Ogdl(caseClass.parameters.to[Vector].map { param =>
-        (param.label, param.typeclass.write(param.dereference(value)))
+      Ogdl(caseClass.parameters.to[Vector].flatMap { param =>
+        if(param.default.isDefined && structurallyEqual(param.default.get, param.dereference(value))) Vector()
+        else Vector((param.label, param.typeclass.write(param.dereference(value))))
       })
   }
 
@@ -54,25 +63,20 @@ object OgdlWriter {
   implicit val long: OgdlWriter[Long]       = l => Ogdl(l.toString)
   implicit val boolean: OgdlWriter[Boolean] = b => Ogdl(b.toString)
 
-  implicit def list[T: OgdlWriter: StringShow]: OgdlWriter[List[T]] =
-    coll =>
-      Ogdl {
-        if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-        else
-          (coll.to[Vector].map { e =>
-            implicitly[StringShow[T]].show(e) -> Ogdl(e)
-          })
-      }
+  implicit def list[T: OgdlWriter: StringShow]: OgdlWriter[List[T]] = coll =>
+    Ogdl {
+      if(coll.isEmpty) Vector(("", Ogdl(Vector())))
+      else
+        (coll.to[Vector].map { e =>
+          implicitly[StringShow[T]].show(e) -> Ogdl(e)
+        })
+    }
 
-  implicit def treeSet[T: OgdlWriter: StringShow]: OgdlWriter[SortedSet[T]] =
-    coll =>
-      Ogdl {
-        if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-        else
-          (coll.to[Vector].map { e =>
-            implicitly[StringShow[T]].show(e) -> Ogdl(e)
-          })
-      }
+  implicit def treeSet[T: OgdlWriter: StringShow]: OgdlWriter[SortedSet[T]] = coll =>
+    Ogdl {
+      if(coll.isEmpty) Vector(("", Ogdl(Vector())))
+      else (coll.to[Vector].map { e => implicitly[StringShow[T]].show(e) -> Ogdl(e) })
+    }
 
   implicit def gen[T]: OgdlWriter[T] = macro Magnolia.gen[T]
 }

@@ -122,7 +122,7 @@ object Installation {
   val userConfig: Path = config / "config.fury"
   val aliasesPath: Path = config / "aliases"
   val layersPath: Path = data / "layers"
-  val policyFile: Path = config / "policy.fury"
+  val policyFile: Path = config / "policy.conf"
   val srcsDir: Path = cache / "sources"
   val reposDir: Path = cache / "repos"
   val binsDir: Path = cache / "bins"
