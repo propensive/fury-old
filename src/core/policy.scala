@@ -35,9 +35,9 @@ object Policy {
     if(version < Policy.CurrentVersion) {
       migrate((version match {
         case 0 =>
-          ogdl.map { grant =>
+          ogdl.set(policy = ogdl.map { grant =>
             grant.set(permission = grant.permission.set(classRef = Ogdl(grant.permission.className())))
-          }
+          })
       }).set(version = Ogdl(version + 1)))
     } else ogdl
   }
