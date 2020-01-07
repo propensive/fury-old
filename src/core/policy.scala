@@ -25,7 +25,7 @@ object Policy {
   val CurrentVersion = 1
   def read(implicit log: Log): Policy =
     Ogdl.read[Policy](Installation.policyFile,
-        migrate(_)).toOption.getOrElse(Policy())
+        migrate(_)).toOption.getOrElse(Policy(CurrentVersion))
 
   def save(policy: Policy)(implicit log: Log): Try[Unit] =
     Installation.policyFile.extantParents().writeSync(Ogdl.serialize(Ogdl(policy)))
@@ -43,7 +43,7 @@ object Policy {
   }
 }
 
-case class Policy(version: Int = Policy.CurrentVersion, policy: SortedSet[Grant] = TreeSet()) {
+case class Policy(version: Int, policy: SortedSet[Grant] = TreeSet()) {
   def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
     Policy(Policy.CurrentVersion, policy.filter {
       case Grant(DirectoryScope(dir), _) => dir == layout.baseDir.value
