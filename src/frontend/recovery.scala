@@ -98,6 +98,8 @@ You can grant these permissions with,
           cli.abort(msg"Failed to read OGDL file: $error.")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
+        case e: NotUnique =>
+          cli.abort(msg"The ${e.kind} ${e.item} already exists.")
         case e: UnspecifiedProject =>
           cli.abort(msg"The project has not been specified.")
         case e: UnspecifiedRepo =>
