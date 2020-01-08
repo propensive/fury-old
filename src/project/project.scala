@@ -150,7 +150,7 @@ object ProjectCli {
       compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true))
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
       nameArg        <- ~call(ProjectNameArg).toOption
-      newId          <- ~nameArg.flatMap(schema.unused(_).toOption)
+      newId          <- ~nameArg.flatMap(schema.projects.unique(_).toOption)
       layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
      
       layer          <- if(newId.isEmpty || schema.main != Some(project.id)) ~layer

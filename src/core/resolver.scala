@@ -18,7 +18,7 @@ package fury.core
 
 import fury.strings._, fury.model._
 
-import scala.util.Try
+import scala.util._
 
 object Resolver {
   implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id
@@ -36,4 +36,7 @@ class ResolverExt[T](items: Traversable[T]) {
 
   def findBy[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Try[T] =
     items.find(resolver.matchOn(id, _)).ascribe(ItemNotFound(id))
+
+  def unique[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Try[I] =
+    if(items.exists(resolver.matchOn(id, _))) Failure(NotUnique(id)) else Success(id)
 }

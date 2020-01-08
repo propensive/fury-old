@@ -441,7 +441,7 @@ object BinaryId {
   implicit def diff: Diff[BinaryId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[BinaryId] = unapply(_)
 
-  def unapply(name: String): Option[BinaryId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => BinaryId(name) }
+  def unapply(name: String): Option[BinaryId] = name.only { case r"[a-z]([\-\.]?[a-z0-9]+)*" => BinaryId(name) }
 }
 
 case class BinaryId(key: String) extends Key("binary")
