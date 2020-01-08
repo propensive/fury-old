@@ -15,21 +15,16 @@ fury source add -d src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello world!") }' > src/hello.scala
 fury binary add -b com.spotify:logging:2.2.6
-fury binary add -b com.spotify:logging:2.2.0
-fury binary add -b org.libj:logging:0.4.2
+fury binary add -b com.spotify:logging:2.2.0 -n logging
+fury binary add -b com.spotify:logging:2.2.0 -n logging-2.2.0
+fury binary add -b org.libj:logging:0.4.2 -n libj-logging
 fury binary list --raw
-fury binary remove -b com.spotify:logging
+fury binary remove -b logging
 echo $?
-fury binary remove -b com.spotify:logging:2.2.0
+fury binary remove -b logging-2.2.0
 echo $?
 fury binary remove -b logging
 echo $?
-fury binary remove -b logging:0.4.2
-echo $?
-fury binary remove -b com.spotify:logging:2.2.3
-echo $?
-fury binary remove -b com.spotify:logging:2.2.6
+fury binary remove -b libj-logging
 echo $?
 fury binary list --raw
-fury build run --output linear -- arg1 arg2
-echo $?
