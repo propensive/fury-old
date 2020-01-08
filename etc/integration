@@ -7,6 +7,8 @@ AFAILED=0
 BCOUNT=0
 BPASSED=0
 BFAILED=0
+AFAILURES=()
+BFAILURES=()
 
 runtest() {
   DIR="$1"
@@ -53,22 +55,22 @@ if [ "$1" = "" ]; then
 
   for ATEST in $(ls $ROOT/test/passing); do
     let ACOUNT="$ACOUNT+1"
-    runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || let AFAILED="$AFAILED+1"
+    runtest "$ROOT/test/passing" $ATEST && let APASSED="$APASSED+1" || { let AFAILED="$AFAILED+1"; AFAILURES+=($ATEST); }
   done
 
   for BTEST in $(ls $ROOT/test/pending); do
     let BCOUNT="$BCOUNT+1"
-    runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || let BFAILED="$BFAILED+1"
+    runtest "$ROOT/test/pending" $BTEST && let BPASSED="$BPASSED+1" || { let BFAILED="$BFAILED+1"; BFAILURES+=($BTEST); }
   done
 
   echo ""
   echo "===================================================================================================="
   echo " Passing tests     PASSED: $APASSED"
-  echo "                   FAILED: $AFAILED"
+  echo "                   FAILED: $AFAILED    ${AFAILURES[@]}"
   echo "                    TOTAL: $ACOUNT"
 
   echo " Pending tests     PASSED: $BPASSED"
-  echo "                   FAILED: $BFAILED"
+  echo "                   FAILED: $BFAILED    ${BFAILURES[@]}"
   echo "                    TOTAL: $BCOUNT"
   echo "===================================================================================================="
   [ $ACOUNT = 0 ] && echo "No tests were run." && exit 1
