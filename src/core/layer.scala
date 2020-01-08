@@ -46,7 +46,7 @@ object Layer {
     def loadFromIpfs(layerRef: IpfsRef, layout: Layout, quiet: Boolean)(implicit log: Log): Try[LayerRef] =
       Installation.tmpDir { dir => for {
         ipfs <- Ipfs.daemon(quiet)
-        file <- ipfs.getDirectory(layerRef, dir)
+        file <- ipfs.get(layerRef, dir)
         ref  <- loadDir(file, layout)
       } yield ref }
   

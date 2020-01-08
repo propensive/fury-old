@@ -16,12 +16,12 @@
 */
 package fury.core
 
+import java.io.ByteArrayInputStream
+
 import fury.strings._, fury.io._, fury.model._
 
 import guillotine._, environments.enclosing
 import kaleidoscope._
-import euphemism._
-import mercator._
 
 import scala.util._
 import scala.collection.JavaConverters._
@@ -40,8 +40,6 @@ object Ipfs {
       IpfsRef(top.hash.toBase58)
     }
 
-    def getDirectory(ref: IpfsRef, path: Path): Try[Path] = getDirectory(Multihash.fromBase58(ref.key), path)
-
     def get(ref: IpfsRef, path: Path): Try[Path] = getFile(Multihash.fromBase58(ref.key), path)
 
     def id(): Try[IpfsId] = Try {
@@ -55,43 +53,13 @@ object Ipfs {
       )
     }
 
-    private def getDirectory(rootHash: Multihash, rootPath: Path): Try[Path] = {
-      val (directoryType, fileType) = (1, 2) //FIXME magic numbers
-      val nodes = api.ls(rootHash).asScala.toList
-      rootPath.mkdir()
-      val result = nodes.traverse { node =>
-        import node._
-        `type`.get.intValue match {
-          case `fileType` => getFile(hash, rootPath / name.get())
-          case `directoryType` => getDirectory(hash, rootPath / name.get())
-          case _ => Failure(new Exception(s"MerkleNode ${hash} has unknown type: ${`type`}"))
-        }
-      }
-      result.map(_ => rootPath)
-    }
-
     private def getFile(hash: Multihash, path: Path): Try[Path] = for {
       _    <- path.mkParents()
       data =  api.get(hash)
-      _    <- path.writeSync(data)
-    } yield path
+      in   =  new ByteArrayInputStream(data)
+      _    =  TarGz.untar(in, path)
+    } yield path.childPaths.head
 
-  }
-
-  class IpfsServer(ipfsPath: String) {
-    def add(path: Path): Try[IpfsRef] =
-      sh"$ipfsPath add -r -Q -H ${path.value}".exec[Try[String]].flatMap { out =>
-        Try(IpfsRef(out))
-      }
-
-    def get(ref: IpfsRef, path: Path): Try[Path] =
-      sh"$ipfsPath get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
-    
-    def id(): Option[IpfsId] = for {
-      out  <- sh"$ipfsPath id".exec[Try[String]].toOption
-      json <- Json.parse(out)
-      id   <- json.as[IpfsId]
-    } yield id
   }
 
   case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
