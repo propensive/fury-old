@@ -3,7 +3,9 @@
 mkdir -p .sandbox
 cp $HOME/.fury/classpath .sandbox/ # FIXME: Don't assume Fury is installed here
 
+export XDG_CONFIG_DIR="${PWD}/.sandbox/.config"
 export FURY_PORT="8463"
+
 if [ "$(uname -s)" = 'Linux' ]; then
   export FURY_HOME="$(realpath $(dirname "$(readlink -f "$0")")/..)/.sandbox"
 else
