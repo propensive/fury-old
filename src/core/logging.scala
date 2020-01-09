@@ -33,19 +33,17 @@ object LogStyle {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: => java.io.PrintWriter, debug: Boolean, clearLine: Boolean): LogStyle = {
+  def apply(printWriter: => java.io.PrintWriter, debug: Boolean): LogStyle = {
     val config = ManagedConfig()
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info
-    LogStyle(() => printWriter, timestamps, false, false, true, config.theme, logLevel, autoflush = true,
-        clearLine = clearLine)
+    LogStyle(() => printWriter, timestamps, false, false, true, config.theme, logLevel, autoflush = true)
   }
 }
 
 
 case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean], logLevel: Boolean,
-    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean,
-    clearLine: Boolean = false) {
+    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean) {
 
   private[this] val startTime: Long = System.currentTimeMillis
 
@@ -67,7 +65,7 @@ case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean],
     case Log.Fail => failString
   })
 
-  private[this] val wipe = if(clearLine) theme.wipe() else ""
+  private[this] val wipe = if(theme.name == Theme.NoColor.name) "" else theme.wipe()
 
   def log(msg: UserMsg, time: Long, level: Int, pid: Pid): Unit = if(level >= minLevel) {
     val fTime = paddedTime(time)
