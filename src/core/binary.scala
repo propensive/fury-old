@@ -29,13 +29,11 @@ object Binary {
   implicit val stringShow: StringShow[Binary] = _.spec
   implicit def diff: Diff[Binary] = Diff.gen[Binary]
 
-  def parse(service: BinRepoId, binSpec: BinSpec): Try[Binary] =
-    binSpec.string match {
-      case r"$g@([\.\-_a-zA-Z0-9]*)\:$a@([\.\-_a-zA-Z0-9]*)\:$v@([\.\-\+_a-zA-Z0-9]*)" =>
-        Success(Binary(BinaryId(a), service, g, a, v))
-      case _ =>
-        Failure(InvalidArgValue("binary", binSpec.string))
-    }
+  def apply(id: Option[BinaryId], service: BinRepoId, binSpec: BinSpec): Try[Binary] =
+    binSpec.string.only {
+      case r"$group@([\.\-_a-zA-Z0-9]*)\:$artifact@([\.\-_a-zA-Z0-9]*)\:$version@([\.\-\+_a-zA-Z0-9]*)" =>
+        Binary(id.getOrElse(BinaryId(artifact)), service, group, artifact, version)
+    }.ascribe(InvalidValue(binSpec.string))
 
   private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()
 

@@ -73,3 +73,9 @@ object ItemNotFound {
 }
 
 case class ItemNotFound(item: UserMsg, kind: UserMsg) extends FuryException
+
+object NotUnique {
+  def apply[K <: Key: MsgShow](key: K): NotUnique = NotUnique(implicitly[MsgShow[K]].show(key), key.kind)
+}
+
+case class NotUnique(item: UserMsg, kind: UserMsg) extends FuryException

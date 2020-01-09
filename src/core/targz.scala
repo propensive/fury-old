@@ -61,9 +61,13 @@ object TarGz {
   def extract(file: Path, destination: Path)(implicit log: Log): Try[Unit] =
     extract(new FileInputStream(file.javaFile), destination)
   
-  def extract(in: InputStream, destination: Path)(implicit log: Log): Try[Unit] = Try {
+  def extract(in: InputStream, destination: Path): Try[Unit] = Try {
     val gzis = new GZIPInputStream(in)
-    val tis   = new TarInputStream(gzis)
+    untar(gzis, destination)
+  }
+
+  def untar(in: InputStream, destination: Path) = {
+    val tis = new TarInputStream(in)
     Iterator.continually(tis.getNextEntry).takeWhile(_ != null).filter(!_.isDirectory).foreach { entry =>
       val path = Path(entry.getName) in destination
       path.mkParents()

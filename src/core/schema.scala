@@ -88,11 +88,6 @@ case class Schema(id: SchemaId,
     } yield allSchemas.flatMap(_.projects)
   }
 
-  def unused(projectId: ProjectId): Try[ProjectId] = projects.find(_.id == projectId) match {
-    case None    => Success(projectId)
-    case Some(m) => Failure(ProjectAlreadyExists(m.id))
-  }
-  
   def resolve(ref: SchemaRef, layout: Layout, https: Boolean)(implicit log: Log): Try[Schema] = for {
     layer    <- Layer.read(ref.layerRef, layout)
     resolved <- layer.schemas.findBy(ref.schema)

@@ -16,90 +16,119 @@
 */
 package fury.core
 
+import java.io.ByteArrayInputStream
+
 import fury.strings._, fury.io._, fury.model._
 
 import guillotine._, environments.enclosing
 import kaleidoscope._
-import euphemism._
 
 import scala.util._
+import scala.collection.JavaConverters._
 import scala.concurrent._, duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object Ipfs {
+  import io.ipfs.api._
+  import io.ipfs.multihash.Multihash
 
-  class IpfsServer(ipfsPath: String) {
-    def add(path: Path): Try[IpfsRef] =
-      sh"$ipfsPath add -r -Q -H ${path.value}".exec[Try[String]].flatMap { out =>
-        Try(IpfsRef(out))
-      }
+  case class IpfsApi(api: IPFS){
+    def add(path: Path): Try[IpfsRef] = Try {
+      val file = new NamedStreamable.FileWrapper(path.javaFile)
+      val nodes = api.add(file).asScala
+      val top = nodes.last
+      IpfsRef(top.hash.toBase58)
+    }
 
-    def get(ref: IpfsRef, path: Path): Try[Path] =
-      sh"$ipfsPath get /ipfs/${ref.key} -o ${path.value}".exec[Try[String]].map(_ => path)
-    
-    def id(): Option[IpfsId] = for {
-      out  <- sh"$ipfsPath id".exec[Try[String]].toOption
-      json <- Json.parse(out)
-      id   <- json.as[IpfsId]
-    } yield id
+    def get(ref: IpfsRef, path: Path): Try[Path] = getFile(Multihash.fromBase58(ref.key), path)
+
+    def id(): Try[IpfsId] = Try {
+      val idInfo = api.id()
+      IpfsId(
+        ID = idInfo.get("ID").toString,
+        PublicKey = idInfo.get("PublicKey").toString,
+        Addresses = idInfo.get("Addresses").asInstanceOf[java.util.List[String]].asScala.toList,
+        AgentVersion = idInfo.get("AgentVersion").toString,
+        ProtocolVersion = idInfo.get("ProtocolVersion").toString
+      )
+    }
+
+    private def getFile(hash: Multihash, path: Path): Try[Path] = for {
+      _    <- path.mkParents()
+      data =  api.get(hash)
+      in   =  new ByteArrayInputStream(data)
+      _    =  TarGz.untar(in, path)
+    } yield path.childPaths.head
+
   }
 
   case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
       ProtocolVersion: String)
 
-  def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsServer] = {
+  def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsApi] = {
     log.note("Checking for IPFS daemon")
-    val awaiting = Promise[Try[IpfsServer]]()
-   
-    def handleAsync(path: String): Int = sh"$path daemon".async(
-      stdout = {
-        case r".*Daemon is ready.*" =>
-          log.infoWhen(!quiet)(msg"IPFS daemon has started")
-          awaiting.success(Success(new IpfsServer(path)))
-        case r".*Initializing daemon.*" =>
-          log.infoWhen(!quiet)(msg"Initializing IPFS daemon")
-        case other =>
-          log.note(str"[ipfs] $other")
-      },
-      stderr = {
-        case r".*ipfs daemon is running.*" =>
-          log.note("IPFS daemon is already running")
-          awaiting.success(Success(new IpfsServer(path)))
-        case other =>
-          log.note(str"[ipfs] $other")
-      }
-    ).await()
 
-    Future { blocking {
-      handleAsync(Installation.ipfsBin.value) match {
-        case 127 =>
-          log.note("Could not find IPFS installation in Fury install directory; trying PATH")
-          handleAsync("ipfs") match {
-            case 127 =>
-              log.infoWhen(!quiet)(msg"IPFS is not installed")
-              distBinary.foreach { bin =>
-                Installation.system.foreach { sys =>
-                  log.infoWhen(!quiet)(msg"Attempting to install IPFS for $sys")
-                }
-                log.infoWhen(!quiet)(msg"Downloading $bin...")
-                (for {
-                  in <- Http.requestStream(bin, Map[String, String](), "GET", Set())
-                  _  <- TarGz.extract(in, Installation.ipfsInstallDir)
-                  _  <- ~Installation.ipfsBin.setExecutable(true)
-                  _  <- ~log.infoWhen(!quiet)(msg"Installed embedded IFPS to ${Installation.ipfsInstallDir}")
-                } yield handleAsync(Installation.ipfsBin.value)) match {
-                  case Success(_) =>
-                    awaiting.success(Success(new IpfsServer(Installation.ipfsBin.value)))
-                  case Failure(_) =>
-                    log.failWhen(!quiet)(msg"Failed to run or install IPFS")
-                    awaiting.success(Failure(IpfsNotOnPath()))
-                }
-              }
+    def getHandle(): Try[IPFS] = Try{ new IPFS("localhost", 5001) }
+
+    def handleAsync(path: String): Future[Unit] = {
+      val ready = Promise[Unit]
+      Future(blocking{ sh"$path daemon".async(
+        stdout = {
+          case r".*Daemon is ready.*" =>
+            log.infoWhen(!quiet)(msg"IPFS daemon has started")
+            ready.success(())
+          case r".*Initializing daemon.*" =>
+            log.infoWhen(!quiet)(msg"Initializing IPFS daemon")
+          case other =>
+            log.note(str"[ipfs] $other")
+        },
+        stderr = {
+          case r".*ipfs daemon is running.*" =>
+            log.note("IPFS daemon is already running")
+          case other =>
+            log.note(str"[ipfs] $other")
+        }
+      ).await()})
+      log.infoWhen(!quiet)(msg"Waiting for the IPFS daemon...")
+      ready.future
+    }
+
+    def find(): Try[String] = {
+      val embedded = Installation.ipfsBin.javaFile
+      if(embedded.isFile && embedded.canExecute) Success(Installation.ipfsBin.value)
+      else {
+        sh"which ipfs".exec[Try[String]]()
+      }
+    }
+
+    def install(): Try[Unit] = {
+      Installation.system.foreach { sys =>
+        log.infoWhen(!quiet)(msg"Attempting to install IPFS for $sys")
+      }
+      val bin = distBinary.get
+      log.infoWhen(!quiet)(msg"Downloading $bin...")
+      for {
+        in <- Http.requestStream(bin, Map[String, String](), "GET", Set())
+        _  <- TarGz.extract(in, Installation.ipfsInstallDir)
+        _  <- ~Installation.ipfsBin.setExecutable(true)
+      } yield {
+        log.infoWhen(!quiet)(msg"Installed embedded IFPS to ${Installation.ipfsInstallDir}")
+      }
+    }
+
+    getHandle().recoverWith {
+      //TODO think of a better way to match the exact exception
+      case e: RuntimeException if e.getMessage.contains("Couldn't connect to IPFS daemon") =>
+        log.infoWhen(!quiet)(msg"Couldn't connect to IPFS daemon")
+        for {
+          ipfsPath <- find().orElse(install().map(_ => Installation.ipfsBin.value))
+          _        <- {
+            val task = handleAsync(ipfsPath)
+            Await.ready(task, 120.seconds).value.get
           }
-      }
-    } }
-
-    Await.result(awaiting.future, 120.seconds)
+          api      <- getHandle()
+        } yield api
+    }.map(IpfsApi(_))
   }
 
   private def distBinary: Option[Uri] = {

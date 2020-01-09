@@ -112,7 +112,7 @@ object ModuleCli {
       call           <- cli.call()
       project        <- optProject.ascribe(UnspecifiedProject())
       moduleArg      <- call(ModuleNameArg)
-      moduleId       <- project.unused(moduleArg)
+      moduleId       <- project.modules.unique(moduleArg)
       compilerId     <- ~call(CompilerArg).toOption
       compilerRef    <- compilerId.map(resolveToCompiler(ctx, _))
                             .orElse(project.compiler.map(~_)).getOrElse(~defaultCompiler)
@@ -226,7 +226,7 @@ object ModuleCli {
       mainClass   <- ~cli.peek(MainArg)
       pluginName  <- ~cli.peek(PluginArg)
       newId       <- ~call(ModuleNameArg).toOption
-      name        <- newId.to[List].map(project.unused(_)).sequence.map(_.headOption)
+      name        <- newId.to[List].map(project.modules.unique(_)).sequence.map(_.headOption)
       
       bloopSpec   <- cli.peek(BloopSpecArg).to[List].map { v =>
                        BloopSpec.unapply(v).ascribe(InvalidValue(v))
@@ -292,7 +292,7 @@ object BinaryCli {
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.allBinaries.to[List]
       schema  <- defaultSchema
-      table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(identity)
+      table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(_.id)
 
       _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
                      project, module)))
@@ -351,16 +351,19 @@ object BinaryCli {
     import ctx._, moduleCtx._
     for {
       cli        <- cli.hint(BinaryArg)
+      cli        <- cli.hint(BinaryNameArg)
       cli        <- cli.hint(BinaryRepoArg, List(RepoId("central")))
       call       <- cli.call()
       project    <- optProject.ascribe(UnspecifiedProject())
       module     <- optModule.ascribe(UnspecifiedModule())
       binSpecArg <- call(BinSpecArg)
-      repoId     <- ~call(BinaryRepoArg).toOption.getOrElse(BinRepoId.Central)
-      binary     <- Binary.parse(repoId, binSpecArg)
+      binName    <- ~call(BinaryNameArg).toOption
+      repoId     <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
+      binary     <- Binary(binName, repoId, binSpecArg)
+      _          <- module.binaries.unique(binary.id)
 
-      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
-                       module.id))(_(_) += binary)
+      layer      <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.binaries(_, project.id,
+                        module.id))(_(_) += binary)
       
       _          <- ~Layer.save(layer, layout)
       schema     <- defaultSchema
