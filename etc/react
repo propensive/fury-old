@@ -1,0 +1,32 @@
+#!/bin/bash
+
+mkdir -p .sandbox
+cp $HOME/.fury/classpath .sandbox/ # FIXME: Don't assume Fury is installed here
+
+export XDG_CONFIG_DIR="${PWD}/.sandbox/.config"
+export FURY_PORT="8463"
+
+if [ "$(uname -s)" = 'Linux' ]; then
+  export FURY_HOME="$(realpath $(dirname "$(readlink -f "$0")")/..)/.sandbox"
+else
+  export FURY_HOME="$(cd "$(dirname "$0")"/.. && pwd -P)/.sandbox"
+fi
+
+export PATH="$FURY_HOME/bin:$PATH"
+TEST="$1"
+
+init() {
+  cp -r dist/bundle/* .sandbox/
+}
+
+watchAndWait() {
+  init
+  fury start
+  echo "Running test $TEST..."
+  source etc/integration "$TEST"
+  fury kill
+  inotifywait -q --event close_write dist/bundle/lib/fury-frontend.jar test/*/$TEST/script test/*/$TEST/check && echo "Changes detected at $(date +%r)."
+  watchAndWait
+}
+
+watchAndWait

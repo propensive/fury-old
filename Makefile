@@ -21,6 +21,15 @@ all: dist/bundle/lib/fury-frontend.jar
 publish-ipfs: dist/fury-$(VERSION).tar.gz
 	@ipfs add dist/fury-$(VERSION).tar.gz
 
+watch:
+	@echo "Run,"
+	@echo
+	@echo "    etc/react <test name>"
+	@echo
+	@echo "in another terminal to run an integration test upon a successful build"
+	@echo
+	fury build save -w -d dist/bundle/lib --output linear
+
 publish: dist/install.sh
 	git tag "v$(VERSION)" -m "Version $(VERSION)"
 	gsutil -h "Cache-Control:public,max-age=60" cp $< gs://downloads.furore.dev/fury-$(VERSION).sh

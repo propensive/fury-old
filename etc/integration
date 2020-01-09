@@ -47,11 +47,11 @@ runtest() {
 mkdir -pv ~/.local/share/fury/layers
 mkdir -pv ~/.cache/fury/policies
 
-if [ "$1" = "" ]; then
+fury start
+fury clean
+fury config set --theme nocolor --timestamps off
 
-  fury start
-  fury clean
-  fury config set --theme nocolor --timestamps off
+if [ "$1" = "" ]; then
 
   for ATEST in $(ls $ROOT/test/passing); do
     let ACOUNT="$ACOUNT+1"
