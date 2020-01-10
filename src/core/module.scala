@@ -40,7 +40,7 @@ case class Module(id: ModuleId,
                   opts: SortedSet[Opt] = TreeSet(),
                   sources: SortedSet[Source] = TreeSet(),
                   binaries: SortedSet[Binary] = TreeSet(),
-                  resources: SortedSet[Path] = TreeSet(),
+                  resources: SortedSet[Source] = TreeSet(),
                   bloopSpec: Option[BloopSpec] = None,
                   environment: SortedSet[EnvVar] = TreeSet(),
                   properties: SortedSet[JavaProperty] = TreeSet(),
@@ -54,7 +54,7 @@ case class Module(id: ModuleId,
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, hidden = hidden)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
   def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
-  def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.path }
+  def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.dir }
   
   def policyEntries: Set[PermissionEntry] = {
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)

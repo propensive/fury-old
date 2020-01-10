@@ -33,56 +33,58 @@ object Source {
 
   implicit val msgShow: MsgShow[Source] = v => UserMsg { theme =>
     v match {
-      case ExternalSource(repoId, path) =>
-        msg"${theme.repo(repoId.key)}${theme.gray(":")}${theme.path(path.value)}".string(theme)
-      case SharedSource(path) =>
-        msg"${theme.repo("shared")}${theme.gray(":")}${theme.path(path.value)}".string(theme)
-      case LocalSource(path) =>
-        msg"${theme.path(path.value)}".string(theme)
+      case ExternalSource(repoId, dir, glob) =>
+        msg"$repoId${':'}$dir${'/'}${'/'}$glob".string(theme)
+      case SharedSource(dir, glob) =>
+        msg"${RepoId("shared")}${':'}$dir${'/'}${'/'}$glob".string(theme)
+      case LocalSource(dir, glob) =>
+        msg"$dir${'/'}${'/'}$glob".string(theme)
     }
   }
 
-  def unapply(string: String): Option[Source] = string match {
-    case r"shared:$path@(.*)" =>
-      Some(SharedSource(Path(path)))
-    case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$path@(.*)" =>
-      Some(ExternalSource(RepoId(repo), Path(path)))
-    case r"$path@(.*)" =>
-      Some(LocalSource(Path(path)))
-    case _ =>
-      None
+  def unapply(string: String): Option[Source] = string.only {
+    case r"shared:$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
+      SharedSource(Path(dir), Glob(pattern))
+    case r"shared:$dir@([^\*\{\}\[\]]*)" =>
+      SharedSource(Path(dir), Glob.All)
+    case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
+      ExternalSource(RepoId(repo), Path(dir), Glob(pattern))
+    case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)" =>
+      ExternalSource(RepoId(repo), Path(dir), Glob.All)
+    case r"$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
+      LocalSource(Path(dir), Glob(pattern))
+    case r"$dir@([^\*\{\}\[\]]*)" =>
+      LocalSource(Path(dir), Glob.All)
   }
 
-  def repoId(src: Source): Option[RepoId] = src match {
-    case ExternalSource(repoId, _) => Some(repoId)
-    case _                         => None
-  }
+  def repoId(src: Source): Option[RepoId] = src.only { case ExternalSource(repoId, _, _) => repoId }
 }
 
 trait Source {
   def description: String
   def hash(schema: Schema, layout: Layout): Try[Digest]
-  def path: Path
+  def dir: Path
+  def glob: Glob
   def repoIdentifier: RepoId
 }
 
-case class ExternalSource(repoId: RepoId, path: Path) extends Source {
-    def description: String = str"${repoId}:${path.value}"
-    def repoIdentifier: RepoId = repoId
-    
-    def hash(schema: Schema, layout: Layout): Try[Digest] =
-      schema.repo(repoId, layout).map((path, _).digest[Md5])
-  }
+case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
+  def description: String = str"${repoId}:${dir.value}//$glob"
+  def repoIdentifier: RepoId = repoId
   
-  case class SharedSource(path: Path) extends Source {
-    def description: String = str"shared:${path.value}"
-    def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-2, path).digest[Md5])
-    def repoIdentifier: RepoId = RepoId("-")
-  }
-  
-  case class LocalSource(path: Path) extends Source {
-    def description: String = str"${path.value}"
-    def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, path).digest[Md5])
-    def repoIdentifier: RepoId = RepoId("-")
-  }
-  
+  def hash(schema: Schema, layout: Layout): Try[Digest] =
+    schema.repo(repoId, layout).map((dir, _).digest[Md5])
+}
+
+case class SharedSource(dir: Path, glob: Glob) extends Source {
+  def description: String = str"shared:${dir}//$glob"
+  def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-2, dir).digest[Md5])
+  def repoIdentifier: RepoId = RepoId("shared")
+}
+
+case class LocalSource(dir: Path, glob: Glob) extends Source {
+  def description: String = str"${dir.value}//$glob"
+  def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, dir).digest[Md5])
+  def repoIdentifier: RepoId = RepoId("local")
+}
+

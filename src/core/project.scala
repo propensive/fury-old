@@ -46,5 +46,7 @@ case class Project(id: ProjectId,
   def compilerRefs: List[ModuleRef] =
     modules.to[List].collect { case m if m.kind == Compiler => m.ref(this) }
 
-  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect { case ExternalSource(repoId, _) => repoId }
+  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect {
+    case ExternalSource(repoId, _, _) => repoId
+  }
 }

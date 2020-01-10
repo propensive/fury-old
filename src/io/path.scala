@@ -23,10 +23,12 @@ import kaleidoscope._
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
+import scala.collection.generic.CanBuildFrom
 
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath}
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath,
+    FileSystems}
 import java.nio.file.StandardCopyOption._
 import java.io.{InputStream, File => JavaFile}
 
@@ -192,6 +194,29 @@ case class Path(input: String) {
   }.recover { case e: java.io.IOException => this }
 
   def inputStream(): InputStream = Files.newInputStream(javaPath)
+
+  def matches(glob: Glob): Boolean = glob.matches(this)
+}
+
+object Glob {
+  implicit val msgShow: MsgShow[Glob] = glob => UserMsg(_.path(glob.pattern))
+  implicit val stringShow: StringShow[Glob] = _.pattern
+  implicit val diff: Diff[Glob] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+
+  val All = Glob("**/*")
+}
+
+case class Glob(pattern: String) {
+  private[this] val javaGlob = FileSystems.getDefault.getPathMatcher(str"glob:$pattern")
+  def matches(path: Path): Boolean = javaGlob.matches(path.javaPath)
+  
+  def apply[Coll[T] <: Traversable[T]]
+           (xs: Coll[Path])
+           (implicit cbf: CanBuildFrom[Coll[Path], Path, Coll[Path]]): Coll[Path] = {
+    val b = cbf()
+    xs.foreach { x => if(matches(x)) b += x }
+    b.result
+  }
 }
 
 case class FileNotFound(path: Path)      extends FuryException

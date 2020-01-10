@@ -40,7 +40,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       checkouts       <- checkout(ref, layout)
     } yield {
       val sourcePaths = module.localSources.map(_ in layout.baseDir).to[List] ++
-        module.sharedSources.map(_.path in layout.sharedDir).to[List] ++
+        module.sharedSources.map(_.dir in layout.sharedDir).to[List] ++
         checkouts.flatMap { c =>
           c.local match {
             case Some(p) => c.sources.map(_ in p)
@@ -86,7 +86,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
               repo.localDir(layout),
               repo.commit,
               repo.track,
-              paths.map(_.path).to[List])
+              paths.map(_.dir).to[List])
       }.to[Set]
 
   def ++(that: Universe): Universe = Universe(entities ++ that.entities)

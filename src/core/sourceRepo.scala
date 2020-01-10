@@ -81,7 +81,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
                       (implicit log: Log)
                       : Try[Set[Source]] =
     listFiles(layout, https).map(_.filter { f => pred(f.filename) }.map { p =>
-        ExternalSource(id, p.parent): Source }.to[Set])
+        ExternalSource(id, p.parent, Glob.All): Source }.to[Set])
   
   def unfork(layout: Layout, https: Boolean)(implicit log: Log): Try[SourceRepo] = for {
     _          <- if(local.isDefined) Success(()) else Failure(RepoNotForked(id))
