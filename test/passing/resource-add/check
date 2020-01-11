@@ -10,8 +10,4 @@ BSP server is listening for incoming connections
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Saving JAR file out/hello-world-app.jar
-Archive:  out/hello-world-app.jar
-  inflating: HelloWorld.class        
-  inflating: HelloWorld$.class       
-  inflating: META-INF/MANIFEST.MF    
   inflating: readme.txt              

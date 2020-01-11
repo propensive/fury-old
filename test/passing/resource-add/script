@@ -8,4 +8,4 @@ fury module add -n app -c scala/compiler -M HelloWorld
 fury source add -d src
 fury resource add -d res//**
 fury build save --output linear -d out
-unzip out/hello-world-app.jar | sort
+unzip out/hello-world-app.jar | grep readme
