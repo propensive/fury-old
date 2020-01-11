@@ -20,8 +20,8 @@ still under active development.
 * IPFS
     * If Fury cannot detect a running IPFS daemon, a new one will be started. 
     * Fury will also download the IPFS distribution if an installed one cannot be found.
-* Tab completion for shell commands works only in [Fish](https://fishshell.com/). 
-    * Support for Bash and Zsh may appear in the future.
+* Tab completion for shell commands works only in Zsh. 
+    * Support for Bash and [Fish](https://fishshell.com) may appear in the future.
     
 ### Installing latest version from source
 ```
@@ -37,8 +37,3 @@ make install
 
 ### Website
 Full information about Fury is available on the [Fury website](https://fury.build/).
-
-### Status
-Fury is under active development, but a binary release is not publicly
-available yet.
-
