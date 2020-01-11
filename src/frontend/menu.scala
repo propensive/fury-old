@@ -109,14 +109,6 @@ object FuryMenu {
             Action('list, msg"list sources for the module", SourceCli.list, shortcut = 'l')
         ),
         Action('stop, msg"gracefully shut down the Fury server", ((_: Cli[CliParam[_]]) => Lifecycle.shutdown())),
-        Menu('schema, msg"manage the current schema", SchemaCli.context, 'list)(
-            Action('add, msg"add a schema to the layer", SchemaCli.add),
-            Action('remove, msg"remove a schema from the layer", SchemaCli.remove),
-            Action('diff, msg"compare this schema to another one", SchemaCli.diff),
-            Action('list, msg"list schemas for the layer", SchemaCli.list),
-            Action('select, msg"select the current schema", SchemaCli.select),
-            Action('update, msg"update a schema", SchemaCli.update)
-        ),
         Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list, shortcut = 'r')(
             Action('add, msg"add a source repository to the schema", RepoCli.add, shortcut = 'a'),
             Action('update, msg"update a source repository", RepoCli.update, shortcut = 'u'),
