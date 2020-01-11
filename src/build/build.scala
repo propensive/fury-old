@@ -115,8 +115,7 @@ object AliasCli {
   def add(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli              <- cli.hint(SchemaArg, layer.schemas)
-      optSchemaArg     <- ~cli.peek(SchemaArg)
+      optSchemaArg     <- ~Some(SchemaId.default)
       cli              <- cli.hint(AliasArg)
       cli              <- cli.hint(DescriptionArg)
 
@@ -208,9 +207,8 @@ object BuildCli {
              (implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, layer.schemas)
       cli          <- cli.hint(HttpsArg)
-      schemaArg    <- ~cli.peek(SchemaArg).orElse(optSchema).getOrElse(layer.main)
+      schemaArg    <- ~SchemaId.default
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       cli          <- cli.hint(PipeliningArg, List("on", "off"))
@@ -272,9 +270,8 @@ object BuildCli {
   def save(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli            <- cli.hint(SchemaArg, layer.schemas)
       cli            <- cli.hint(HttpsArg)
-      schemaArg      <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg      <- ~SchemaId.default
       schema         <- layer.schemas.findBy(schemaArg)
       cli            <- cli.hint(ProjectArg, schema.projects)
       optProjectId   <- ~cli.peek(ProjectArg).orElse(schema.main)
@@ -343,9 +340,8 @@ object BuildCli {
   def install(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, layer.schemas)
       cli          <- cli.hint(HttpsArg)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg    <- ~SchemaId.default
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
@@ -379,9 +375,8 @@ object BuildCli {
   def console(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, layer.schemas)
       cli          <- cli.hint(HttpsArg)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg    <- ~SchemaId.default
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
@@ -412,9 +407,8 @@ object BuildCli {
   def classpath(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, layer.schemas)
       cli          <- cli.hint(HttpsArg)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg    <- ~SchemaId.default
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
@@ -443,9 +437,8 @@ object BuildCli {
   def describe(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli          <- cli.hint(SchemaArg, layer.schemas)
       cli          <- cli.hint(HttpsArg)
-      schemaArg    <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg    <- ~SchemaId.default
       schema       <- layer.schemas.findBy(schemaArg)
       cli          <- cli.hint(ProjectArg, schema.projects)
       optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
@@ -505,9 +498,8 @@ object LayerCli {
   def projects(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout    <- cli.layout
     layer     <- Layer.read(layout)
-    cli       <- cli.hint(SchemaArg, layer.schemas)
     cli       <- cli.hint(HttpsArg)
-    schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+    schemaArg <- ~SchemaId.default
     schema    <- layer.schemas.findBy(schemaArg)
     cli       <- cli.hint(RawArg)
     call      <- cli.call()
@@ -624,9 +616,8 @@ object LayerCli {
     for {
       layout        <- cli.layout
       layer         <- Layer.read(layout)
-      cli           <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli           <- cli.hint(ImportNameArg)
-      schemaArg     <- ~cli.peek(SchemaArg)
+      schemaArg     <- ~Some(SchemaId.default)
       defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
      
       cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
@@ -652,12 +643,11 @@ object LayerCli {
     for {
       layout    <- cli.layout
       layer     <- Layer.read(layout)
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      schemaArg <- ~cli.peek(SchemaArg)
+      schemaArg <- ~Some(SchemaId.default)
       dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
       call      <- cli.call()
-      schemaId  <- ~call(SchemaArg).toOption.getOrElse(layer.main)
+      schemaId  <- ~SchemaId.default
       importArg <- call(ImportIdArg)
       schema    <- layer.schemas.findBy(schemaId)
       lens      <- ~Lenses.layer.imports(schema.id)
@@ -670,9 +660,8 @@ object LayerCli {
     for {
       layout    <- cli.layout
       layer     <- Layer.read(layout)
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(HttpsArg)
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg <- ~SchemaId.default
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       call      <- cli.call()

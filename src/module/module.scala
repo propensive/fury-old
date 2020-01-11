@@ -43,8 +43,7 @@ object ModuleCli {
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
     layer        <- Layer.read(layout)
-    cli          <- cli.hint(SchemaArg, layer.schemas)
-    schemaArg    <- ~cli.peek(SchemaArg)
+    schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
