@@ -74,6 +74,7 @@ object Theme {
   lazy val all = List(Full, Basic, NoColor)
   implicit def stringShow: StringShow[Theme] = _.name
   implicit val parser: Parser[Theme] = unapply(_)
+
   def unapply(string: String): Option[Theme] = all.find(_.name == string)
 
   object Full

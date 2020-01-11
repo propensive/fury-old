@@ -16,6 +16,8 @@
 */
 package fury.ogdl
 
+import fury.strings._
+
 import magnolia._
 
 import scala.collection.generic.CanBuildFrom
@@ -54,10 +56,11 @@ object OgdlReader {
         .read(map)
   }
 
-  implicit val string: OgdlReader[String]   = _()
-  implicit val int: OgdlReader[Int]         = _().toInt
-  implicit val long: OgdlReader[Long]       = _().toLong
+  implicit val string: OgdlReader[String] = _()
+  implicit val int: OgdlReader[Int] = _().toInt
+  implicit val long: OgdlReader[Long] = _().toLong
   implicit val boolean: OgdlReader[Boolean] = _().toBoolean
+  implicit val theme: OgdlReader[Theme] = ogdl => Theme.unapply(ogdl()).getOrElse(Theme.Full)
 
   implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader](
       implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
