@@ -58,10 +58,11 @@ object OgdlWriter {
     }
   }
 
-  implicit val string: OgdlWriter[String]   = string => Ogdl(Vector((string, Ogdl(Vector()))))
-  implicit val int: OgdlWriter[Int]         = i => Ogdl(i.toString)
-  implicit val long: OgdlWriter[Long]       = l => Ogdl(l.toString)
-  implicit val boolean: OgdlWriter[Boolean] = b => Ogdl(b.toString)
+  implicit val string: OgdlWriter[String] = string => Ogdl(Vector((string, Ogdl(Vector()))))
+  implicit val int: OgdlWriter[Int] = int => Ogdl(int.toString)
+  implicit val long: OgdlWriter[Long] = long => Ogdl(long.toString)
+  implicit val boolean: OgdlWriter[Boolean] = boolean => Ogdl(boolean.toString)
+  implicit val theme: OgdlWriter[Theme] = theme => Ogdl(theme.name)
 
   implicit def list[T: OgdlWriter: StringShow]: OgdlWriter[List[T]] = coll =>
     Ogdl {
