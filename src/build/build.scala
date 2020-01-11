@@ -624,14 +624,12 @@ object LayerCli {
       layerImport   <- ~cli.peek(ImportArg)
       layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(_, layout)).toOption)
       maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
-      cli           <- cli.hint(ImportSchemaArg, maybeLayer.map(_.schemas.map(_.id)).getOrElse(Nil))
       call          <- cli.call()
       layerImport   <- call(ImportArg)
       layerInput    <- Layer.parse(layerImport, layout)
       nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
-      schemaId      <- cli.peek(ImportSchemaArg).orElse(maybeLayer.map(_.main)).ascribe(MissingArg("schema"))
       layerRef      <- Layer.load(layerInput, layout)
-      schemaRef     <- ~SchemaRef(nameArg, layerRef, schemaId)
+      schemaRef     <- ~SchemaRef(nameArg, layerRef, SchemaId.default)
       layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
                            schemaRef.copy(id = nameArg)))
       
