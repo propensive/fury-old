@@ -61,6 +61,7 @@ case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException
+case class UnknownRepo(repoId: RepoId) extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException
 case class UnspecifiedLayer() extends FuryException
 case class UnspecifiedMain(module: ModuleId) extends FuryException

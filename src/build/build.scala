@@ -307,7 +307,7 @@ object BuildCli {
               compileResult  <- completed
               compileSuccess <- compileResult.asTry
               _              <- compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
-                dir in layout.pwd, layout, fatJar)
+                                    dir in layout.pwd, layout, fatJar)
             } yield compileSuccess
           }
         }

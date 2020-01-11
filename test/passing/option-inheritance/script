@@ -1,5 +1,4 @@
 fury layer init
-
 fury project add -n scala
 fury module add -n compiler -t compiler
 fury module update -C scala-lang.org:scala-compiler:2.12.8
@@ -15,13 +14,11 @@ fury module add -n aiap -c scala/compiler
 fury source add -d src
 fury option add -o ia -P
 
-
 fury module add -n aaat-dnut -c scala/compiler
 fury source add -d src
 fury dependency add -l sequence/aiap
 fury option add -o aa
 fury option remove -o nu
-
 
 fury module add -n diap-dnut -c scala/compiler
 fury source add -d src

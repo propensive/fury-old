@@ -38,56 +38,37 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
                            origin <- entity(dep.projectId)
                          } yield TargetId(origin.schema.id, dep)}
       checkouts       <- checkout(ref, layout)
-    } yield {
-      val sourcePaths = module.localSources.map(_ in layout.baseDir).to[List] ++
-        module.sharedSources.map(_.dir in layout.sharedDir).to[List] ++
-        checkouts.flatMap { c =>
-          c.local match {
-            case Some(p) => c.sources.map(_ in p)
-            case None    => c.sources.map(_ in c.path)
-          }
-        }
-      Target(
-        ref,
-        resolvedProject.schema.id,
-        module.kind,
-        module.main,
-        module.plugin,
-        resolvedProject.schema.repos.map(_.repo).to[List],
-        checkouts.to[List],
-        binaries.to[List],
-        dependencies.to[List],
-        compiler,
-        module.bloopSpec,
-        module.opts.to[List],
-        module.policy.to[List],
-        ref.intransitive,
-        sourcePaths,
-        module.environment.map { e => (e.key, e.value) }.toMap,
-        module.properties.map { p => (p.key, p.value) }.toMap,
-        module.optDefs
-      )
-    }
+      sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
+    } yield Target(
+      ref,
+      resolvedProject.schema.id,
+      module.kind,
+      module.main,
+      module.plugin,
+      resolvedProject.schema.repos.map(_.repo).to[List],
+      checkouts.checkouts.to[List],
+      binaries.to[List],
+      dependencies.to[List],
+      compiler,
+      module.bloopSpec,
+      module.opts.to[List],
+      module.policy.to[List],
+      ref.intransitive,
+      sources.to[List],
+      module.environment.map { e => (e.key, e.value) }.toMap,
+      module.properties.map { p => (p.key, p.value) }.toMap,
+      module.optDefs,
+      module.resources.to[List]
+    )
 
-  def checkout(ref: ModuleRef, layout: Layout): Try[Set[Checkout]] =
-    for {
-      entity <- entity(ref.projectId)
-      module <- entity.project(ref.moduleId)
-      repos <- module.externalSources
-                .groupBy(_.repoId)
-                .map { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }
-                .sequence
-    } yield
-      repos.map {
-        case (repo, paths) =>
-          Checkout(
-              repo.id,
-              repo.repo,
-              repo.localDir(layout),
-              repo.commit,
-              repo.track,
-              paths.map(_.dir).to[List])
-      }.to[Set]
+  def checkout(ref: ModuleRef, layout: Layout): Try[Checkouts] = for {
+    entity <- entity(ref.projectId)
+    module <- entity.project(ref.moduleId)
+    repos  <- (module.externalSources ++ module.externalResources).to[List]
+                  .groupBy(_.repoId).map { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }.sequence
+  } yield Checkouts(repos.map { case (repo, paths) =>
+    Checkout(repo.id, repo.repo, repo.localDir(layout), repo.commit, repo.track, paths.map(_.dir).to[List])
+  }.to[Set])
 
   def ++(that: Universe): Universe = Universe(entities ++ that.entities)
 

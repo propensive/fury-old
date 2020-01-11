@@ -215,7 +215,7 @@ object Compilation {
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
         TargetId(entity.schema.id, ref)).connections
-      Compilation(graph, subgraphs, checkouts.foldLeft(Set[Checkout]())(_ ++ _),
+      Compilation(graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
         moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
   }
@@ -258,7 +258,7 @@ class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compila
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val repos = compilation.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
+    val repos = compilation.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
@@ -358,7 +358,7 @@ ${'|'} ${highlightedLine}
 
 case class Compilation(graph: Target.Graph,
                        subgraphs: Map[TargetId, Set[TargetId]],
-                       checkouts: Set[Checkout],
+                       checkouts: Checkouts,
                        targets: Map[ModuleRef, Target],
                        targetIndex: Map[TargetId, Target],
                        requiredPermissions: Set[Permission],
@@ -384,7 +384,7 @@ case class Compilation(graph: Target.Graph,
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def checkoutAll(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
-    checkouts.traverse(_.get(layout, https)).map{ _ => ()}
+    checkouts.checkouts.traverse(_.get(layout, https)).map{ _ => ()}
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout).waive)
@@ -440,6 +440,11 @@ case class Compilation(graph: Target.Graph,
       Provenance(Plugin(m, target.ref, target.main.get), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
       Origin.Plugin) }
   
+  def aggregatedResources(ref: ModuleRef): Try[Set[Source]] = for {
+    target    <- apply(ref)
+    inherited <- target.dependencies.map(_.ref).traverse(aggregatedResources(_))
+  } yield inherited.flatten.to[Set] ++ target.resources
+  
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
@@ -491,8 +496,11 @@ case class Compilation(graph: Target.Graph,
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
+
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
-      else Success(())
+                          else Success(())
+      resources        <- aggregatedResources(ref)
+      _                <- ~resources.foreach(_.copyTo(checkouts, layout, stagingDirectory))
       _                <- Shell(layout.env).jar(path, stagingDirectory.children.filterNot(_.contains("META-INF")).map(stagingDirectory / _).to[Set],
         manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())

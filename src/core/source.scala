@@ -20,6 +20,7 @@ import fury.ogdl._, fury.io._, fury.model._, fury.strings._
 
 import gastronomy._
 import kaleidoscope._
+import mercator._
 
 import scala.util._
 
@@ -66,25 +67,42 @@ trait Source {
   def dir: Path
   def glob: Glob
   def repoIdentifier: RepoId
+
+  def base(checkouts: Checkouts, layout: Layout): Try[Path]
+  def dir(checkouts: Checkouts, layout: Layout): Try[Path] = base(checkouts, layout).map(dir in _)
+  
+  def files(checkouts: Checkouts, layout: Layout): Try[Stream[Path]] =
+    dir(checkouts, layout).map { dir => glob(dir, dir.walkTree) }
+  
+  def copyTo(checkouts: Checkouts, layout: Layout, destination: Path)(implicit log: Log): Try[Unit] = for {
+    baseDir  <- dir(checkouts, layout)
+    allFiles <- files(checkouts, layout)
+    _        <- allFiles.to[List].map { f =>
+                  f.relativizeTo(baseDir).in(destination).mkParents().map(f.copyTo(_))
+                }.sequence
+  } yield ()
 }
 
 case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
   def description: String = str"${repoId}:${dir.value}//$glob"
   def repoIdentifier: RepoId = repoId
+  def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((dir, _).digest[Md5])
   
-  def hash(schema: Schema, layout: Layout): Try[Digest] =
-    schema.repo(repoId, layout).map((dir, _).digest[Md5])
+  def base(checkouts: Checkouts, layout: Layout): Try[Path] =
+    checkouts(repoId).map { checkout => checkout.local.getOrElse(checkout.path) }
 }
 
 case class SharedSource(dir: Path, glob: Glob) extends Source {
   def description: String = str"shared:${dir}//$glob"
   def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-2, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("shared")
+  def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.sharedDir)
 }
 
 case class LocalSource(dir: Path, glob: Glob) extends Source {
   def description: String = str"${dir.value}//$glob"
   def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("local")
+  def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.baseDir)
 }
 

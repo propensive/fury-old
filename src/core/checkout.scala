@@ -23,6 +23,13 @@ import guillotine._
 
 import scala.util._
 
+case class Checkouts(checkouts: Set[Checkout]) {
+  def apply(repoId: RepoId): Try[Checkout] =
+    checkouts.find(_.repoId == repoId).ascribe(UnknownRepo(repoId))
+  
+  def ++(that: Checkouts): Checkouts = Checkouts(checkouts ++ that.checkouts)
+}
+
 case class Checkout(repoId: RepoId,
                     repo: Repo,
                     local: Option[Path],
@@ -42,7 +49,7 @@ case class Checkout(repoId: RepoId,
     local.map(Success(_)).getOrElse {
       val sourceDesc: UserMsg = sources match {
         case List() =>
-          UserMsg { theme => theme.path("*") }
+          UserMsg(_.path("*"))
         case head :: Nil =>
           msg"$head"
         case head :: tail =>

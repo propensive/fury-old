@@ -39,7 +39,8 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     Shell(layout.env).git.getBranch(dir).toOption.map(RefSpec(_))
   }
 
-  def fullCheckout(layout: Layout): Checkout = Checkout(id, repo, localDir(layout), commit, track, List())
+  def fullCheckout(layout: Layout): Checkout =
+    Checkout(id, repo, localDir(layout), commit, track, List())
 
   def localDir(layout: Layout): Option[Path] = local.orElse {
     Repo.local(layout).map(_.simplified == repo.simplified) match {

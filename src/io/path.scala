@@ -168,9 +168,8 @@ case class Path(input: String) {
     path
   }
 
-
-  def walkTree: Iterator[Path] =
-    if(directory) Iterator(this) ++ childPaths.to[Iterator].flatMap(_.walkTree) else Iterator(this)
+  def walkTree: Stream[Path] =
+    if(directory) Stream(this) ++: childPaths.to[Stream].flatMap(_.walkTree) else Stream(this)
 
   def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
   def childPaths: List[Path] = children.map(this / _)
@@ -194,8 +193,6 @@ case class Path(input: String) {
   }.recover { case e: java.io.IOException => this }
 
   def inputStream(): InputStream = Files.newInputStream(javaPath)
-
-  def matches(glob: Glob): Boolean = glob.matches(this)
 }
 
 object Glob {
@@ -207,14 +204,12 @@ object Glob {
 }
 
 case class Glob(pattern: String) {
-  private[this] val javaGlob = FileSystems.getDefault.getPathMatcher(str"glob:$pattern")
-  def matches(path: Path): Boolean = javaGlob.matches(path.javaPath)
-  
-  def apply[Coll[T] <: Traversable[T]]
-           (xs: Coll[Path])
+  def apply[Coll[T] <: Iterable[T]]
+           (dir: Path, xs: Coll[Path])
            (implicit cbf: CanBuildFrom[Coll[Path], Path, Coll[Path]]): Coll[Path] = {
+    val javaGlob = FileSystems.getDefault.getPathMatcher(str"glob:$dir/$pattern")
     val b = cbf()
-    xs.foreach { x => if(matches(x)) b += x }
+    xs.foreach { x => if(javaGlob.matches(x.javaPath)) b += x }
     b.result
   }
 }
