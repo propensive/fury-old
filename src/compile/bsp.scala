@@ -138,7 +138,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
                          universe.makeTarget(key, layout).map(key -> _)
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
-    } yield Structure(modules.toMap, graph, checkouts.foldLeft(Set[Checkout]())(_ ++ _), targets)
+    } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
 
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
@@ -382,7 +382,7 @@ object FuryBuildServer {
 
   case class Structure(modules: Map[ModuleRef, Module],
                        graph: Map[ModuleRef, List[ModuleRef]],
-                       checkouts: Set[Checkout],
+                       checkouts: Checkouts,
                        targets: Map[ModuleRef, Target]) {
 
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()

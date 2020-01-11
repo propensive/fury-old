@@ -102,6 +102,12 @@ object FuryMenu {
             Action('remove, msg"remove a -D property", PropertyCli.remove),
             Action('list, msg"list -D properties", PropertyCli.list)
         ),
+        Menu('resource, msg"manage resources for the module", ResourceCli.context, 'list, shortcut = 's')(
+            Action('add, msg"add a resource directory to the module", ResourceCli.add, shortcut = 'a'),
+            Action('remove, msg"remove a resource directory from the module", ResourceCli.remove,
+                shortcut = 'r'),
+            Action('list, msg"list resources for the module", ResourceCli.list, shortcut = 'l')
+        ),
         Action('restart, msg"restart the Fury server", BuildCli.notImplemented),
         Menu('source, msg"manage sources for the module", SourceCli.context, 'list, shortcut = 's')(
             Action('add, msg"add a source directory to the module", SourceCli.add, shortcut = 'a'),

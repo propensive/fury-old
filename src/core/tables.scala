@@ -118,7 +118,14 @@ case class Tables() {
 
   val sources: Tabulation[Source] = Tabulation(
     Heading("Repo", _.repoIdentifier),
-    Heading("Path", _.path)
+    Heading("Path", _.dir),
+    Heading("Sources", _.glob)
+  )
+
+  val resources: Tabulation[Source] = Tabulation(
+    Heading("Repo", _.repoIdentifier),
+    Heading("Base", _.dir),
+    Heading("Resources", _.glob)
   )
 
   val opts: Tabulation[Provenance[Opt]] = Tabulation(

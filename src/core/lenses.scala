@@ -155,6 +155,9 @@ object Lenses {
     def sources(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).sources)
 
+    def resources(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId) =
+      lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).resources)
+
     def environment(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId)
                    : Lens[Layer, SortedSet[EnvVar], SortedSet[EnvVar]] =
       lens(_.schemas(on(schemaId)).projects(on(projectId)).modules(on(moduleId)).environment)

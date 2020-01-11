@@ -110,6 +110,8 @@ You can grant these permissions with,
           cli.abort(msg"The layer has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>
           cli.abort(msg"The module reference $moduleRef could not be resolved.")
+        case UnknownRepo(repoId: RepoId) =>
+          cli.abort(msg"The repository reference $repoId could not be resolved.")
         case UnspecifiedMain(moduleId: ModuleId) =>
           cli.abort(msg"Main class not defined for module '${moduleId}'.")
         case GraalVMError(message: String) =>

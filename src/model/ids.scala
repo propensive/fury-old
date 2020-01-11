@@ -163,7 +163,7 @@ case class Artifact(path: String, ref: String)
 object LayerRef {
   implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.take(8).toLowerCase))
   implicit val stringShow: StringShow[LayerRef] = _.key
-  implicit def diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
   def unapply(value: String): Option[LayerRef] = value.only { case r"[a-f0-9]{64}" => LayerRef(value) }
 }
@@ -220,7 +220,7 @@ object Permission {
   implicit val stringShow: StringShow[Permission] =
     p => str"${p.classRef} ${p.target} ${p.action.getOrElse("-"): String}"
   
-  implicit def diff: Diff[Permission] = Diff.gen[Permission]
+  implicit val diff: Diff[Permission] = Diff.gen[Permission]
 
   val Classes: List[String] = List(
     "java.awt.AWTPermission",
@@ -308,7 +308,7 @@ case class PermissionEntry(permission: Permission, hash: PermissionHash)
 object EnvVar {
   implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
   implicit val stringShow: StringShow[EnvVar] = e => str"${e.key}=${e.value}"
-  implicit def diff: Diff[EnvVar] = Diff.gen[EnvVar]
+  implicit val diff: Diff[EnvVar] = Diff.gen[EnvVar]
   implicit val parser: Parser[EnvVar] = unapply(_)
 
   def unapply(str: String): Option[EnvVar] = str.split("=", 2).only {
@@ -322,7 +322,7 @@ case class EnvVar(key: String, value: String)
 object JavaProperty {
   implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.key}=${e.value}"
   implicit val stringShow: StringShow[JavaProperty] = e => str"${e.key}=${e.value}"
-  implicit def diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
+  implicit val diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
   implicit val parser: Parser[JavaProperty] = unapply(_)
 
   def unapply(str: String): Option[JavaProperty] = str.split("=", 2).only {
@@ -348,7 +348,7 @@ case class ProjectScope(name: ProjectId) extends Scope
 object BloopSpec {
   implicit val msgShow: MsgShow[BloopSpec] = v => msg"${v.org}:${v.name}"
   implicit val stringShow: StringShow[BloopSpec] = bs => str"${bs.org}:${bs.name}"
-  implicit def diff: Diff[BloopSpec] = Diff.gen[BloopSpec]
+  implicit val diff: Diff[BloopSpec] = Diff.gen[BloopSpec]
   implicit val parser: Parser[BloopSpec] = unapply(_)
 
   def unapply(str: String): Option[BloopSpec] = str.only {
@@ -384,7 +384,7 @@ object SchemaRef {
     UserMsg { theme => msg"${v.layerRef}${':'}${v.schema}".string(theme) }
 
   implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.layerRef}:${sr.schema}"
-  implicit def diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
+  implicit val diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
   implicit val parser: Parser[SchemaRef] = unapply(_)
 
   def unapply(value: String): Option[SchemaRef] = value.only {
@@ -414,7 +414,7 @@ object FuryUri {
   }
 
   implicit val stringShow: StringShow[FuryUri] = fl => str"fury://${fl.domain}/${fl.path}"
-  implicit def diff: Diff[FuryUri] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+  implicit val diff: Diff[FuryUri] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
   
   def parse(str: String): Option[FuryUri] =
     str.only { case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)" => FuryUri(d, p) }
@@ -427,7 +427,7 @@ case class FuryUri(domain: String, path: String) extends LayerInput {
 object ImportId {
   implicit val msgShow: MsgShow[ImportId] = m => UserMsg(_.layer(m.key))
   implicit val stringShow: StringShow[ImportId] = _.key
-  implicit def diff: Diff[ImportId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val diff: Diff[ImportId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[ImportId] = unapply(_)
 
   def unapply(name: String): Option[ImportId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ImportId(name) }
@@ -438,7 +438,7 @@ case class ImportId(key: String) extends Key("import")
 object BinaryId {
   implicit val msgShow: MsgShow[BinaryId] = b => UserMsg(_.binary(b.key))
   implicit val stringShow: StringShow[BinaryId] = _.key
-  implicit def diff: Diff[BinaryId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val diff: Diff[BinaryId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[BinaryId] = unapply(_)
 
   def unapply(name: String): Option[BinaryId] = name.only { case r"[a-z]([_\-\.]?[a-z0-9]+)*" => BinaryId(name) }
@@ -449,7 +449,7 @@ case class BinaryId(key: String) extends Key("binary")
 object BinSpec {
   implicit val msgShow: MsgShow[BinSpec] = b => UserMsg(_.binary(b.string))
   implicit val stringShow: StringShow[BinSpec] = _.string
-  implicit def diff: Diff[BinSpec] = (l, r) => Diff.stringDiff.diff(l.string, r.string)
+  implicit val diff: Diff[BinSpec] = (l, r) => Diff.stringDiff.diff(l.string, r.string)
   implicit val parser: Parser[BinSpec] = unapply(_)
 
   // FIXME: Parse content better
@@ -461,7 +461,7 @@ case class BinSpec(string: String)
 object Version {
   implicit val msgShow: MsgShow[Version] = b => UserMsg(_.version(b.key))
   implicit val stringShow: StringShow[Version] = _.key
-  implicit def diff: Diff[Version] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val diff: Diff[Version] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[Version] = unapply(_)
 
   def unapply(name: String): Option[Version] = name.only { case r"\d+(\.\d+)*" => Version(name) }

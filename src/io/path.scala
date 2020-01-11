@@ -23,10 +23,12 @@ import kaleidoscope._
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
+import scala.collection.generic.CanBuildFrom
 
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath}
+import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath,
+    FileSystems}
 import java.nio.file.StandardCopyOption._
 import java.io.{InputStream, File => JavaFile}
 
@@ -166,9 +168,8 @@ case class Path(input: String) {
     path
   }
 
-
-  def walkTree: Iterator[Path] =
-    if(directory) Iterator(this) ++ childPaths.to[Iterator].flatMap(_.walkTree) else Iterator(this)
+  def walkTree: Stream[Path] =
+    if(directory) Stream(this) ++: childPaths.to[Stream].flatMap(_.walkTree) else Stream(this)
 
   def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
   def childPaths: List[Path] = children.map(this / _)
@@ -192,6 +193,25 @@ case class Path(input: String) {
   }.recover { case e: java.io.IOException => this }
 
   def inputStream(): InputStream = Files.newInputStream(javaPath)
+}
+
+object Glob {
+  implicit val msgShow: MsgShow[Glob] = glob => UserMsg(_.path(glob.pattern))
+  implicit val stringShow: StringShow[Glob] = _.pattern
+  implicit val diff: Diff[Glob] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+
+  val All = Glob("**/*")
+}
+
+case class Glob(pattern: String) {
+  def apply[Coll[T] <: Iterable[T]]
+           (dir: Path, xs: Coll[Path])
+           (implicit cbf: CanBuildFrom[Coll[Path], Path, Coll[Path]]): Coll[Path] = {
+    val javaGlob = FileSystems.getDefault.getPathMatcher(str"glob:$dir/$pattern")
+    val b = cbf()
+    xs.foreach { x => if(javaGlob.matches(x.javaPath)) b += x }
+    b.result
+  }
 }
 
 case class FileNotFound(path: Path)      extends FuryException
