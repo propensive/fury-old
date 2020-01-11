@@ -667,7 +667,7 @@ object LayerCli {
       https     <- ~call(HttpsArg).isSuccess
       rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, layout, https)) }
       
-      table     <- ~Tables().show(Tables().imports(Some(layer.main)), cli.cols, rows,
+      table     <- ~Tables().show(Tables().imports, cli.cols, rows,
                        raw)(_._1.schema.key)
       
       _         <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema))
