@@ -13,7 +13,6 @@ cd ../platform
 git init -q
 echo '.fury' > .gitignore
 fury layer init
-fury schema add -n platform
 fury project add -n scala
 fury module add -n compiler -t compiler
 fury module update -C scala-lang.org:scala-compiler:2.12.8
@@ -30,7 +29,7 @@ IPFSREF=$(fury layer share --raw)
 
 cd ../app
 fury layer init
-fury layer import -l $IPFSREF --name platform --import platform
+fury layer import -l $IPFSREF --name platform
 IPFSREF=
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld

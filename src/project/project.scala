@@ -32,8 +32,7 @@ object ProjectCli {
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
     layer        <- Layer.read(layout)
-    cli          <- cli.hint(SchemaArg, layer.schemas)
-    optSchemaArg <- ~cli.peek(SchemaArg)
+    optSchemaArg <- ~Some(SchemaId.default)
   } yield new MenuContext(cli, layout, layer, optSchemaArg)
 
   def select(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {

@@ -39,11 +39,10 @@ object RepoCli {
   def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli       <- ctx.cli.hint(SchemaArg, ctx.layer.schemas.map(_.id))
       cli       <- cli.hint(RawArg)
       call     <- cli.call()
       raw       <- ~call(RawArg).isSuccess
-      schemaArg <- ~call(SchemaArg).toOption.getOrElse(ctx.layer.main)
+      schemaArg <- ~SchemaId.default
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
@@ -55,8 +54,7 @@ object RepoCli {
   def unfork(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg <- ~SchemaId.default
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       call      <- cli.call()
@@ -73,8 +71,7 @@ object RepoCli {
   def fork(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg <- ~SchemaId.default
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(DirArg)
       cli       <- cli.hint(RepoArg, schema.repos)
@@ -107,9 +104,8 @@ object RepoCli {
   def pull(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli       <- cli.hint(HttpsArg)
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg <- ~SchemaId.default
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       cli       <- cli.hint(AllArg, List[String]())
@@ -145,7 +141,6 @@ object RepoCli {
   def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli            <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli            <- cli.hint(UrlArg, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(HttpsArg)
@@ -160,7 +155,7 @@ object RepoCli {
 
       cli            <- cli.hint(RefSpecArg, versions)
       call          <- cli.call()
-      optSchemaArg   <- ~call(SchemaArg).toOption
+      optSchemaArg   <- ~Some(SchemaId.default)
       schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
       schema         <- layer.schemas.findBy(schemaArg)
       dir            <- ~call(DirArg).toOption
@@ -185,18 +180,17 @@ object RepoCli {
   def update(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli         <- cli.hint(SchemaArg, layer.schemas.map(_.id))
       cli         <- cli.hint(DirArg)
       cli         <- cli.hint(UrlArg)
       cli         <- cli.hint(ForceArg)
-      schemaArg   <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg   <- ~SchemaId.default
       schema      <- layer.schemas.findBy(schemaArg)
       cli         <- cli.hint(RepoArg, schema.repos)
       optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
       refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
       cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
       call        <- cli.call()
-      optSchemaId <- ~call(SchemaArg).toOption
+      optSchemaId <- ~Some(SchemaId.default)
       schemaArg   <- ~optSchemaId.getOrElse(layer.main)
       schema      <- layer.schemas.findBy(schemaArg)
       repoArg     <- call(RepoArg)
@@ -221,8 +215,7 @@ object RepoCli {
   def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      cli       <- cli.hint(SchemaArg, layer.schemas.map(_.id))
-      schemaArg <- ~cli.peek(SchemaArg).getOrElse(layer.main)
+      schemaArg <- ~SchemaId.default
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RepoArg, schema.repos)
       call     <- cli.call()

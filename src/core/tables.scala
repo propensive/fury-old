@@ -37,8 +37,8 @@ case class Tables() {
     if(raw) rows.map(main).map { e => implicitly[MsgShow[S]].show(e).string(Theme.NoColor) }
     else table.tabulate(cols, rows, Some(theme.gray()))
 
-  def contextString(layer: Layer, showSchema: Boolean, elements: UserMsg*): UserMsg =
-    (if(showSchema) elements else elements.tail).foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
+  def contextString(layer: Layer, elements: UserMsg*): UserMsg =
+    elements.tail.foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
 
   implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.id.key).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)
@@ -160,22 +160,12 @@ case class Tables() {
     Heading("Version", _.version)
   )
 
-  def imports(current: Option[SchemaId]): Tabulation[(SchemaRef, Try[Schema])] = Tabulation(
-    Heading("", s => Some(s._1.schema.key) == current),
+  val imports: Tabulation[(SchemaRef, Try[Schema])] = Tabulation(
     Heading("ID", _._1.id),
     Heading("Ref", _._1.layerRef),
-    Heading("Schema", _._1.schema),
     Heading("Projects", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),
     Heading("Repos", s => s._2.toOption.map { s => bar(s.sourceRepoIds.size) }.getOrElse(msg"-")),
     Heading("Imports", s => s._2.toOption.map { s => bar(s.imports.size) }.getOrElse(msg"-"))
-  )
-
-  def schemas(current: Option[SchemaId]): Tabulation[Schema] = Tabulation(
-    Heading("", s => Some(s.id) == current),
-    Heading("Schema", _.id),
-    Heading("Projects", s => bar(s.projects.size)),
-    Heading("Repos", s => bar(s.sourceRepoIds.size)),
-    Heading("Imports", s => bar(s.imports.size))
   )
 
   def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation[Project](

@@ -54,7 +54,6 @@ object Args {
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
   val ImportArg = CliParam[String]('l', 'layer, "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
-  val ImportSchemaArg = CliParam[SchemaId]('i', Symbol("import"), "specify the external schema to import")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
       "specify if this dependency should not be included transitively")
@@ -92,7 +91,6 @@ object Args {
   
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
-  val SchemaArg = CliParam[SchemaId]('s', 'schema, "specify a schema")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
   val ServiceArg = CliParam[String]('S', 'service, "specify the default remote layer service")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
