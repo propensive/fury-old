@@ -12,6 +12,6 @@ Successfully compiled module hello-world/app
 Saving JAR file out/hello-world-app.jar
 Archive:  out/hello-world-app.jar
   inflating: META-INF/MANIFEST.MF    
-  inflating: HelloWorld$.class       
   inflating: HelloWorld.class        
   inflating: readme.txt              
+  inflating: HelloWorld$.class       
