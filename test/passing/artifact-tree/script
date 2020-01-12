@@ -1,0 +1,18 @@
+fury layer init 
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n example
+fury module add -n one -c scala/compiler -a one
+fury source add -d src/one
+fury module add -n two -c scala/compiler
+fury source add -d src/two
+fury dependency add -l example/one
+fury module add -n three -c scala/compiler -a three
+fury source add -d src/three
+fury dependency add -l example/two
+fury build run -d out --output linear
+ls out
+unzip out/three.jar
+cat META-INF/MANIFEST.MF

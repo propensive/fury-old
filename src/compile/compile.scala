@@ -185,7 +185,7 @@ object Compilation {
     policy      <- ~Policy.read(log)
     compilation <- fromUniverse(universe, ref, layout, session)
     _           <- policy.checkAll(compilation.requiredPermissions)
-    _           <- compilation.generateFiles(layout, session)
+    _           <- compilation.generateFiles(layout)
   } yield compilation
 
   def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout, session: Session)(implicit log: Log): Try[Compilation] = {
@@ -399,7 +399,7 @@ case class Compilation(graph: Target.Graph,
   def checkoutAll(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
     checkouts.checkouts.traverse(_.get(layout, https)).map{ _ => ()}
 
-  def generateFiles(layout: Layout, session: Session)(implicit log: Log): Try[Iterable[Path]] = synchronized {
+  def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout, session).waive)
   }
 
@@ -636,14 +636,13 @@ case class Compilation(graph: Target.Graph,
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
-              pipelining: Boolean,
-              session: Session)(implicit log: Log)
+              pipelining: Boolean)(implicit log: Log)
   : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
-      else compile(dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining, session)
+      else compile(dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))

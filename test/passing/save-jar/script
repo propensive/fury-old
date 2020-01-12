@@ -22,7 +22,7 @@ fury source add -d src/app
 echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write(Constants.text); close() } }' > src/app/hw.scala
 mkdir -p out
 fury module update --artifact app
-fury build save --dir out --output linear
+fury build run --dir out --output linear
 echo $?
 ls out
 jar tf out/app.jar | sort --ignore-case
