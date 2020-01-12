@@ -181,8 +181,6 @@ object LayerRef {
 
 case class LayerRef(key: String) extends Key(msg"layer")
 
-case class Session(id: Int)
-
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
                   undoBuffer: Int = 5,
