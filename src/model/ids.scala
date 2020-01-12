@@ -55,6 +55,17 @@ object ProjectId {
 
 case class ProjectId(key: String) extends Key(msg"project")
 
+object ArtifactId {
+  implicit val msgShow: MsgShow[ArtifactId] = p => UserMsg(_.binary(p.key))
+  implicit val stringShow: StringShow[ArtifactId] = _.key
+  implicit val diff: Diff[ArtifactId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[ArtifactId] = unapply(_)
+
+  def unapply(name: String): Option[ArtifactId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ArtifactId(name) }
+}
+
+case class ArtifactId(key: String) extends Key(msg"artifact")
+
 object ModuleId {
   implicit val msgShow: MsgShow[ModuleId] = m => UserMsg(_.module(m.key))
   implicit val stringShow: StringShow[ModuleId] = _.key

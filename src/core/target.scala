@@ -44,7 +44,8 @@ object Target {
                     environment: Map[String, String],
                     properties: Map[String, String],
                     optDefs: Set[OptDef],
-                    resources: List[Source]) {
+                    resources: List[Source],
+                    artifact: Option[ArtifactId]) {
   
     def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
     def impliedCompiler: ModuleRef = if(kind == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)

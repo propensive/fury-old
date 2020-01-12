@@ -95,6 +95,7 @@ case class Tables() {
     Heading("Dependencies", (m: Module) => m.dependencies, width = FlexibleWidth)(refinedModuleDep(projectId)),
     Heading("Sources", _.sources),
     Heading("Binaries", m => bar(m.allBinaries.size)),
+    Heading("Artifact", _.artifact),
     Heading("Compiler", _.compiler),
     Heading("Options", m => bar(m.opts.size)),
     Heading("Type", _.kind),

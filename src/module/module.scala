@@ -91,6 +91,7 @@ object ModuleCli {
     val defaultCompiler = ModuleRef.JavaRef
     for {
       cli            <- cli.hint(ModuleNameArg)
+      cli            <- cli.hint(ArtifactArg)
       cli            <- cli.hint(HiddenArg, List("on", "off"))
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
@@ -119,6 +120,8 @@ object ModuleCli {
 
       module         <- ~call(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
       module         <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
+      module         <- ~call(ArtifactArg).toOption.map(Some(_).filterNot(_.key.isEmpty)).map { a =>
+                            module.copy(artifact = a) }.getOrElse(module)
       
       module         <- ~call(MainArg).toOption.fold(module) { m => module.copy(main = if(m.key.isEmpty) None else
                             Some(m)) }
@@ -187,6 +190,7 @@ object ModuleCli {
     import ctx._
     for {
       cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      cli         <- cli.hint(ArtifactArg)
       cli         <- cli.hint(HiddenArg, List("on", "off"))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
@@ -222,6 +226,7 @@ object ModuleCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(ctx, _)).map(_.headOption)
       hidden      <- ~call(HiddenArg).toOption
+      artifact    <- ~call(ArtifactArg).toOption.map(Some(_).filterNot(_.key.isEmpty))
       mainClass   <- ~cli.peek(MainArg)
       pluginName  <- ~cli.peek(PluginArg)
       newId       <- ~call(ModuleNameArg).toOption
@@ -240,6 +245,9 @@ object ModuleCli {
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).hidden)) =
                          hidden
+
+      layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).artifact)) =
+                         artifact
 
       layer       <- focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).bloopSpec)) =
                          bloopSpec.map(Some(_))

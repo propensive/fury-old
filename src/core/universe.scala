@@ -58,7 +58,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module.environment.map { e => (e.key, e.value) }.toMap,
       module.properties.map { p => (p.key, p.value) }.toMap,
       module.optDefs,
-      module.resources.to[List]
+      module.resources.to[List],
+      module.artifact
     )
 
   def checkout(ref: ModuleRef, layout: Layout): Try[Checkouts] = for {
