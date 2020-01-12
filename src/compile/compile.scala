@@ -531,10 +531,10 @@ case class Compilation(graph: Target.Graph,
     path     = dest / str"${artifactId.key}.jar"
     _       <- ~log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
     dir     <- aggregateCompileResults(ref, classes, layout)
-    _       <- ~ress.foreach(_.copyTo(checkouts, layout, dir))
-    _       <- Shell(layout.env).jar(path, dir.children.filterNot(_.contains("META-INF")).map(dir / _).to[Set], manifest)
     _       <- if(fatJar) bins.traverse(Zipper.unpack(_, dir))
                else bins.traverse { bin => bin.copyTo(dest / bin.name) }
+    _       <- ~ress.foreach(_.copyTo(checkouts, layout, dir))
+    _       <- Shell(layout.env).jar(path, dir.children.filterNot(_.contains("META-INF")).map(dir / _).to[Set], manifest)
   } yield ()
 
   /*def saveJars(artifactId: ArtifactId,
