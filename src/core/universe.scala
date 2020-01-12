@@ -25,27 +25,27 @@ import scala.util._
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
-  def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
+  def findEntity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
-  def makeTarget(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Target] =
+  def makeTarget(ref: ModuleRef, layout: Layout, session: Session)(implicit log: Log): Try[Target] =
     for {
-      resolvedProject <- entity(ref.projectId)
-      module          <- resolvedProject.project(ref.moduleId)
-      compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
-                         else makeTarget(module.compiler, layout).map(Some(_))
-      binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
-      dependencies    <- module.dependencies.traverse { dep => for {
-                           origin <- entity(dep.projectId)
-                         } yield TargetId(origin.schema.id, dep)}
-      checkouts       <- checkout(ref, layout)
-      sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
+      entity       <- findEntity(ref.projectId)
+      module       <- entity.project(ref.moduleId)
+      compiler     <- if(module.compiler == ModuleRef.JavaRef) Success(None)
+                      else makeTarget(module.compiler, layout, session).map(Some(_))
+      binaries     <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
+      dependencies <- module.dependencies.traverse { dep => for {
+                        origin <- findEntity(dep.projectId)
+                      } yield TargetId(origin.schema.id, dep, session)}
+      checkouts    <- checkout(ref, layout)
+      sources      <- module.sources.map(_.dir(checkouts, layout)).sequence
     } yield Target(
-      ref,
-      resolvedProject.schema.id,
+      entity,
+      module,
       module.kind,
       module.main,
       module.plugin,
-      resolvedProject.schema.repos.map(_.repo).to[List],
+      entity.schema.repos.map(_.repo).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],
       dependencies.to[List],
@@ -59,11 +59,12 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module.properties.map { p => (p.key, p.value) }.toMap,
       module.optDefs,
       module.resources.to[List],
-      module.artifact
+      module.artifact,
+      session
     )
 
   def checkout(ref: ModuleRef, layout: Layout): Try[Checkouts] = for {
-    entity <- entity(ref.projectId)
+    entity <- findEntity(ref.projectId)
     module <- entity.project(ref.moduleId)
     repos  <- (module.externalSources ++ module.externalResources).to[List]
                   .groupBy(_.repoId).map { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }.sequence
@@ -78,7 +79,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout):
       Try[Set[ModuleRef]] = for {
-    entity   <- entity(ref.projectId)
+    entity   <- findEntity(ref.projectId)
     module   <- entity.project(ref.moduleId)
     deps     =  module.dependencies ++ module.compilerDependencies
     repeated =  deps.intersect(forbidden)
@@ -90,7 +91,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
   def getMod(ref: ModuleRef): Try[Module] = for {
-    entity <- entity(ref.projectId)
+    entity <- findEntity(ref.projectId)
     module <- entity.project(ref.moduleId)
   } yield module
 }

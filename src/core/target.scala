@@ -26,8 +26,8 @@ object Target {
     }
   }
   
-  case class Target(ref: ModuleRef,
-                    schemaId: SchemaId,
+  case class Target(entity: Entity,
+                    module: Module,
                     kind: Kind,
                     main: Option[ClassRef],
                     plugin: Option[PluginId],
@@ -45,9 +45,10 @@ object Target {
                     properties: Map[String, String],
                     optDefs: Set[OptDef],
                     resources: List[Source],
-                    artifact: Option[ArtifactId]) {
-  
-    def id: TargetId = TargetId(schemaId, ref.projectId, ref.moduleId)
+                    artifact: Option[ArtifactId],
+                    session: Session) {
+    def ref: ModuleRef = module.ref(entity.project)
+    def id: TargetId = TargetId(ref.projectId, ref.moduleId, session)
     def impliedCompiler: ModuleRef = if(kind == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
   }
   

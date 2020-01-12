@@ -204,7 +204,7 @@ object BuildCli {
 
   def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
              (ctx: MenuContext)
-             (implicit log: Log): Try[ExitStatus] = {
+             (implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._
     for {
       cli          <- cli.hint(HttpsArg)
@@ -228,10 +228,10 @@ object BuildCli {
       globalPolicy <- ~Policy.read(log)
       reporter     =  call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch        =  call(WatchArg).isSuccess
-      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
       r            =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
                          compileOnce(compilation, schema, module.ref(project), layout,
-                           globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
+                           globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https, session)
                       }
       future       <- if(watch) Try(r.start()).flatten else r.action()
     } yield {
@@ -267,7 +267,7 @@ object BuildCli {
     _      <- ~log.raw(msg)
   } yield log.await()
 
-  def save(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def save(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._
     for {
       cli            <- cli.hint(HttpsArg)
@@ -293,11 +293,11 @@ object BuildCli {
       globalPolicy   <- ~Policy.read(log)
       reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  call(WatchArg).isSuccess
-      compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
+      compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
       r              =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
         for {
           task <- compileOnce(compilation, schema, module.ref(project), layout,
-            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
+            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https, session)
         } yield {
           task.transform { completed =>
             for{
@@ -336,7 +336,7 @@ object BuildCli {
     }
   }
 
-  def install(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def install(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._
     for {
       cli          <- cli.hint(HttpsArg)
@@ -357,8 +357,7 @@ object BuildCli {
       optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module       <- optModule.ascribe(UnspecifiedModule())
       
-      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                          https)
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
       
       _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
@@ -371,7 +370,7 @@ object BuildCli {
     } yield log.await()
   }
 
-  def console(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def console(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._
     for {
       cli          <- cli.hint(HttpsArg)
@@ -389,10 +388,7 @@ object BuildCli {
       singleColumn <- ~call(SingleColumnArg).isSuccess
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
-      
-      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                          https)
-      
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
       classpath    <- ~compilation.classpath(module.ref(project), layout)
       bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
     } yield {
@@ -403,7 +399,7 @@ object BuildCli {
     }
   }
 
-  def classpath(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def classpath(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._
     for {
       cli          <- cli.hint(HttpsArg)
@@ -422,8 +418,7 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
       
-      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                          https)
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
       
       classpath    <- ~compilation.classpath(module.ref(project), layout)
     } yield {
@@ -433,7 +428,7 @@ object BuildCli {
     }
   }
 
-  def describe(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def describe(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._
     for {
       cli          <- cli.hint(HttpsArg)
@@ -450,8 +445,7 @@ object BuildCli {
       project      <- optProject.ascribe(UnspecifiedProject())
       module       <- optModule.ascribe(UnspecifiedModule())
 
-      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                          https)
+      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
       
       _            <- ~Graph.draw(compilation.graph.links, true,
                           Map())(ManagedConfig().theme).foreach(log.info(_))
@@ -468,14 +462,15 @@ object BuildCli {
                                 pipelining: Boolean,
                                 reporter: Reporter,
                                 theme: Theme,
-                                https: Boolean)
+                                https: Boolean,
+                                session: Session)
                                (implicit log: Log): Try[Future[CompileResult]] = {
     for {
       _            <- compilation.checkoutAll(layout, https)
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
       val future = compilation.compile(moduleRef, multiplexer, Map(), layout,
-        globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
+        globalPolicy, compileArgs, pipelining, session).apply(TargetId(schema.id, moduleRef, session)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes

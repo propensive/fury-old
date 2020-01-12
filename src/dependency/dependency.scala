@@ -287,7 +287,7 @@ object PermissionCli {
     }
   }
 
-  def obviate(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
+  def obviate(ctx: Context)(implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._
     for {
       cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -300,7 +300,7 @@ object PermissionCli {
       schema        <- layer.schemas.findBy(layer.main)
       hierarchy     <- schema.hierarchy(layout)
       universe      <- hierarchy.universe
-      compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
+      compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout, session)
       permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
       force         =  call(ForceArg).isSuccess
       layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.policy(_, project.id,
@@ -328,7 +328,7 @@ object PermissionCli {
     } yield log.await()
   }
 
-  def grant(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
+  def grant(ctx: Context)(implicit log: Log): Try[ExitStatus] = ctx.layout.session { session =>
     import ctx._ 
     
     for {
@@ -343,7 +343,7 @@ object PermissionCli {
       schema        <- layer.schemas.findBy(layer.main)
       hierarchy     <- schema.hierarchy(layout)
       universe      <- hierarchy.universe
-      compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
+      compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout, session)
       permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
       policy        =  Policy.read(log)
       newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)

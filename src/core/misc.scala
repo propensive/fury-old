@@ -16,7 +16,9 @@
 */
 package fury.core
 
-import fury.model._, Graph.DiagnosticMessage, fury.io._, fury.ogdl._
+import fury.model._, Graph.DiagnosticMessage, fury.io._, fury.ogdl._, fury.strings._
+
+import kaleidoscope._
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 
@@ -24,7 +26,6 @@ import scala.collection.JavaConverters._
 import scala.util._
 
 import java.net.URI
-
 
 case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
 
@@ -57,9 +58,16 @@ case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends Compile
 
 case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: ScalacOptionsResult) {
   def isSuccessful: Boolean = bspCompileResult.getStatusCode == StatusCode.OK
-  def classDirectories: Set[Path] = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
-    Path(new URI(x.getClassDirectory))
-  }
+  
+  def classDirectories: Map[ModuleRef, Path] = scalacOptions.getItems.asScala.map { item: ScalacOptionsItem =>
+    val ref = item.getTarget().getUri.only {
+      case r".*\?id=$project@([^_]+)_$module@([^_]+)_.*" =>
+        ModuleRef(ProjectId(project), ModuleId(module))
+    }
+
+    ref.map { (_, Path(new URI(item.getClassDirectory))) }
+  }.flatten.toMap
+
   def asTry: Try[CompileResult] = if(isSuccessful) Success(this) else Failure(CompilationFailure())
   def failed: CompileResult = {
     val updatedResult = new BspCompileResult(StatusCode.ERROR)

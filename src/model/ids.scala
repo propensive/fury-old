@@ -181,6 +181,8 @@ object LayerRef {
 
 case class LayerRef(key: String) extends Key(msg"layer")
 
+case class Session(id: Int)
+
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
                   undoBuffer: Int = 5,
@@ -192,11 +194,11 @@ case class Config(showContext: Boolean = true,
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
   
-  def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
-    TargetId(str"${schemaId}_${projectId}_${moduleId}")
+  def apply(projectId: ProjectId, moduleId: ModuleId, session: Session): TargetId =
+    TargetId(str"${projectId}_${moduleId}_${session.id}")
   
-  def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
-    TargetId(schemaId, ref.projectId, ref.moduleId)
+  def apply(schemaId: SchemaId, ref: ModuleRef, session: Session): TargetId =
+    TargetId(ref.projectId, ref.moduleId, session)
 }
 
 object Pid {

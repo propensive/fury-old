@@ -86,10 +86,10 @@ object Bsp {
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean)(implicit log: Log): java.util.concurrent.Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean)(implicit log: Log): java.util.concurrent.Future[Void] = layout.session { session =>
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel, https)
+    val server = new FuryBuildServer(layout, cancel, https, session)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -108,7 +108,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, session: Session) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _
@@ -126,7 +126,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
                           for {
                             ds   <- universe.dependencies(ref, layout)
-                            arts <- (ds + ref).map { d => universe.makeTarget(d, layout) }.sequence
+                            arts <- (ds + ref).map { d => universe.makeTarget(d, layout, session) }.sequence
                           } yield arts.map { a =>
                             (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
                                 .map(_.ref.hide): Option[ModuleRef]))
@@ -135,7 +135,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
       targets       <- graph.keys.map { key =>
-                         universe.makeTarget(key, layout).map(key -> _)
+                         universe.makeTarget(key, layout, session).map(key -> _)
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
@@ -146,7 +146,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
       layer          <- Layer.read(layout)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(schema, module, layout, https = true)
+      compilation    <- Compilation.syncCompilation(schema, module, layout, https = true, session)
     } yield compilation
   }
   
@@ -287,7 +287,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
         val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-        val compilationTasks = compilation.compile(moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val compilationTasks = compilation.compile(moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false, session)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
         reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)

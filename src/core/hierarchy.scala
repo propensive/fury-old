@@ -30,7 +30,7 @@ case class Hierarchy(schema: Schema, inherited: Set[Hierarchy]) {
       potentialConflictIds  = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
 
       conflictIds           = potentialConflictIds.filter { id =>
-                                projects.entity(id).map(_.spec) != nextProjects.entity(id).map(_.spec)
+                                projects.findEntity(id).map(_.spec) != nextProjects.findEntity(id).map(_.spec)
                               }
 
       allProjects          <- conflictIds match {

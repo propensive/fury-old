@@ -400,7 +400,7 @@ object OptionCli {
 
     } yield ParamCtx(ctx.copy(cli = cli), optModule)
 
-  def list(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+  def list(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = ctx.moduleCtx.layout.session { session =>
     import ctx._, moduleCtx._
     for {
       cli         <- cli.hint(RawArg)
@@ -410,7 +410,7 @@ object OptionCli {
       module      <- optModule.ascribe(UnspecifiedModule())
       compiler    <- ~module.compiler
       schema      <- defaultSchema
-      compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true)
+      compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true, session)
       rows        <- compilation.aggregatedOpts(module.ref(project), layout)
       showRows    <- ~rows.to[List].filter(_.compiler == compiler)
       table       <- ~Tables().show(Tables().opts, cli.cols, showRows, raw)(_.value.id)
@@ -487,7 +487,7 @@ object OptionCli {
     } yield log.await()
   }
 
-  def add(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+  def add(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = ctx.moduleCtx.layout.session { session =>
     import ctx._, moduleCtx._
     for {
       optDefs  <- ~(for {
@@ -495,7 +495,7 @@ object OptionCli {
                     module      <- optModule
                     schema      <- defaultSchema.toOption
                     compilation <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                                       true).toOption
+                                       true, session).toOption
                     optDefs     <- compilation.aggregatedOptDefs(module.ref(project)).toOption
                   } yield optDefs.map(_.value.id)).getOrElse(Set())
       

@@ -24,8 +24,28 @@ import guillotine._
 import java.util.{List => _, _}
 
 import scala.util._
+import scala.collection.mutable.HashSet
 
 import language.higherKinds
+
+case class Session(dir: Path, id: Int)
+
+object Sessions {
+  private val active: HashSet[Session] = new HashSet()
+  def assign[T](dir: Path)(action: Session => T): T = {
+    val session: Session = synchronized {
+      val session = Stream.from(0).map(Session(dir, _)).find(!active.contains(_)).get
+      active += session
+
+      session
+    }
+    
+    val result = action(session)
+    synchronized { active -= session }
+
+    result
+  }
+}
 
 object Layout {
   def find(home: Path, pwd: Path, env: Environment): Try[Layout] = findBase(pwd).map(Layout(home, pwd, env, _))
@@ -161,7 +181,9 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val workDir: Path = (furyDir / "work").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
-  
+ 
+  def session[T](action: Session => T) = Sessions.assign(baseDir)(action)
+
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
   def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()
