@@ -365,7 +365,8 @@ case class Compilation(graph: Target.Graph,
                        universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
-  lazy val allDependencies: Set[Target] = targets.values.to[Set]
+  
+  //lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   lazy val deepDependencies: Map[TargetId, Set[TargetId]] = {
     @tailrec
@@ -399,8 +400,6 @@ case class Compilation(graph: Target.Graph,
   def dependencyGraph(ref: ModuleRef) = {
     type AMap = Map[Option[ArtifactId], Set[ModuleRef]]
 
-    def mkBase(target: Target): AMap = Map(target.artifact -> Set(target.ref))
-
     def applyFold(base: AMap, inherited: List[AMap]): AMap = {
       val artifact: Option[ArtifactId] = base.head._1
       
@@ -412,7 +411,7 @@ case class Compilation(graph: Target.Graph,
       }
     }
 
-    aggregate(mkBase)(applyFold)(ref)
+    aggregate { t => Map(t.artifact -> (Set(t.ref) ++ t.compiler.map(_.ref))) } (applyFold)(ref)
   }
 
   def persistentOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
@@ -426,10 +425,12 @@ case class Compilation(graph: Target.Graph,
 
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
+
     pOpts       <- ~(if(target.kind == Plugin) Set(
                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
                    ) else Set())
+
   } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
       _.value.id)
 
@@ -457,7 +458,8 @@ case class Compilation(graph: Target.Graph,
   }
  
   def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[Plugin]]] = {
-    def mkBase(t: Target) = t.plugin.map { m => Provenance(Plugin(m, t.ref, t.main.get), t.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin) }.to[Set]
+    def mkBase(t: Target) = t.plugin.map { m => Provenance(Plugin(m, t.ref, t.main.get),
+        t.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin) }.to[Set]
 
     aggregate(mkBase)(_ ++ _.flatten.to[Set])(ref)
   }
@@ -469,14 +471,13 @@ case class Compilation(graph: Target.Graph,
     val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
     }
+
     val compilerClasspath = targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
     compilerClasspath ++ requiredPlugins
   }
 
-  private def requiredTargets(ref: ModuleRef): Set[Target] = {
-    val requiredIds = deepDependencies(targets(ref).id)
-    requiredIds.map(targetIndex.apply)
-  }
+  private def requiredTargets(ref: ModuleRef): Set[Target] =
+    deepDependencies(targets(ref).id).map(targetIndex.apply)
 
   def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
 
@@ -528,10 +529,12 @@ case class Compilation(graph: Target.Graph,
     manifest = Manifest(bins.map(_.name), main.map(_.key))
     dest     = destination.extant()
     path     = dest / str"${artifactId.key}.jar"
+    _       <- ~log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
     dir     <- aggregateCompileResults(ref, classes, layout)
     _       <- ~ress.foreach(_.copyTo(checkouts, layout, dir))
     _       <- Shell(layout.env).jar(path, dir.children.filterNot(_.contains("META-INF")).map(dir / _).to[Set], manifest)
-    _       <- if(!fatJar) bins.traverse(Zipper.unpack(_, dir)) else Success(())
+    _       <- if(fatJar) bins.traverse(Zipper.unpack(_, dir))
+               else bins.traverse { bin => bin.copyTo(dest / bin.name) }
   } yield ()
 
   /*def saveJars(artifactId: ArtifactId,

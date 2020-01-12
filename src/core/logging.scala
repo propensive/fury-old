@@ -116,7 +116,7 @@ object Log {
     LogStyle(get, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
   }
 
-  def log(pid: Pid): Log = new Log(global, pid)
+  def log(pid: Pid = Pid(0)): Log = new Log(global, pid)
 }
 
 class Log(private[this] val output: LogStyle, pid: Pid) {

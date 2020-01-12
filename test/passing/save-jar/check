@@ -19,9 +19,9 @@ Starting compilation of module foo/lib
 Successfully compiled module foo/lib
 Starting compilation of module foo/app
 Successfully compiled module foo/app
-Saving JAR file out/foo-app.jar
+Saving JAR file out/app.jar
 0
-foo-app.jar
+app.jar
 scala-compiler-2.12.8.jar
 scala-library-2.12.8.jar
 scala-reflect-2.12.8.jar
