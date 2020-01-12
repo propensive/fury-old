@@ -202,44 +202,6 @@ object BuildCli {
                                  |""".stripMargin)
     } yield log.await()
 
-  def compile(optSchema: Option[SchemaId], moduleRef: Option[ModuleRef])
-             (ctx: MenuContext)
-             (implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli          <- cli.hint(HttpsArg)
-      schemaArg    <- ~SchemaId.default
-      schema       <- layer.schemas.findBy(schemaArg)
-      cli          <- cli.hint(ProjectArg, schema.projects)
-      cli          <- cli.hint(PipeliningArg, List("on", "off"))
-      optProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
-      optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
-      cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-      cli          <- cli.hint(WatchArg)
-      cli          <- cli.hint(ReporterArg, Reporter.all)
-      cli          <- cli.hint(DebugArg, optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
-      call         <- cli.call()
-      project      <- optProject.ascribe(UnspecifiedProject())
-      optModuleId  <- ~call(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
-      optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
-      https        <- ~call(HttpsArg).isSuccess
-      module       <- optModule.ascribe(UnspecifiedModule())
-      pipelining   <- ~call(PipeliningArg).toOption
-      globalPolicy <- ~Policy.read(log)
-      reporter     =  call(ReporterArg).toOption.getOrElse(GraphReporter)
-      watch        =  call(WatchArg).isSuccess
-      compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
-      r            =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
-                         compileOnce(compilation, schema, module.ref(project), layout,
-                           globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining),reporter, ManagedConfig().theme, https)
-                      }
-      future       <- if(watch) Try(r.start()).flatten else r.action()
-    } yield {
-      val result = Await.result(future, duration.Duration.Inf)
-      log.await(result.isSuccessful)
-    }
-  }
-
   def getPrompt(layer: Layer, theme: Theme)(implicit log: Log): Try[String] = for {
     schemaId     <- ~layer.main
     schema       <- layer.schemas.findBy(schemaId)
@@ -267,14 +229,14 @@ object BuildCli {
     _      <- ~log.raw(msg)
   } yield log.await()
 
-  def save(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+  def compile(moduleRef: Option[ModuleRef])(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
       cli            <- cli.hint(HttpsArg)
       schemaArg      <- ~SchemaId.default
       schema         <- layer.schemas.findBy(schemaArg)
       cli            <- cli.hint(ProjectArg, schema.projects)
-      optProjectId   <- ~cli.peek(ProjectArg).orElse(schema.main)
+      optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
       cli            <- cli.hint(PipeliningArg, List("on", "off"))
       optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli            <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
@@ -282,10 +244,10 @@ object BuildCli {
       cli            <- cli.hint(FatJarArg)
       cli            <- cli.hint(ReporterArg, Reporter.all)
       call           <- cli.call()
-      dir            <- call(DirArg)
+      dir            <- ~call(DirArg).toOption
       https          <- ~call(HttpsArg).isSuccess
       project        <- optProject.ascribe(UnspecifiedProject())
-      optModuleId    <- ~call(ModuleArg).toOption.orElse(project.main)
+      optModuleId    <- ~call(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
       optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
       module         <- optModule.ascribe(UnspecifiedModule())
       pipelining     <- ~call(PipeliningArg).toOption
@@ -303,8 +265,9 @@ object BuildCli {
             for{
               compileResult  <- completed
               compileSuccess <- compileResult.asTry
-              _              <- compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
+              _              <- ~(dir.foreach { dir => compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
                                     dir in layout.pwd, layout, fatJar)
+                                })
             } yield compileSuccess
           }
         }
