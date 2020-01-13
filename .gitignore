@@ -19,6 +19,7 @@ target
 lib
 test-lib
 .bsp
+.sandbox
 .metals/
 out/**/*
 .*.bak
