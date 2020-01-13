@@ -79,9 +79,9 @@ trait Source {
   def copyTo(checkouts: Checkouts, layout: Layout, destination: Path)(implicit log: Log): Try[Unit] = for {
     baseDir  <- dir(checkouts, layout)
     allFiles <- files(checkouts, layout)
-    _        <- allFiles.to[List].map { f =>
+    _        <- allFiles.to[List].traverse { f =>
                   f.relativizeTo(baseDir).in(destination).mkParents().map(f.copyTo(_))
-                }.sequence
+                }
   } yield ()
 }
 

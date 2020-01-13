@@ -116,14 +116,14 @@ object RepoCli {
       optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
                        schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
-      repos     <- optRepos.map(schema.repo(_, layout)).sequence
+      repos     <- optRepos.traverse(schema.repo(_, layout))
       succeeded <- ~repos.map(_.pull(layout, https)).forall(_.isSuccess)
       lens      <- ~Lenses.layer.repos(schema.id)
 
-      newRepos  <- repos.map { repo => for {
+      newRepos  <- repos.traverse { repo => for {
                       commit  <- repo.repo.getCommitFromTag(layout, repo.track)
                       newRepo = repo.copy(commit = commit)
-                   } yield (newRepo, repo) }.sequence
+                   } yield (newRepo, repo) }
 
       newLayer   = newRepos.foldLeft(layer) { (layer, repoDiff) => repoDiff match {
                      case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
@@ -187,7 +187,7 @@ object RepoCli {
       schema      <- layer.schemas.findBy(schemaArg)
       cli         <- cli.hint(RepoArg, schema.repos)
       optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
-      refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
+      refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).traverse(Shell(layout.env).git.showRefs(_))
       cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
       call        <- cli.call()
       optSchemaId <- ~Some(SchemaId.default)

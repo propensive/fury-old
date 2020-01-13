@@ -60,7 +60,7 @@ object Layer {
   
     def loadDir(dir: Path, layout: Layout)(implicit log: Log): Try[LayerRef] =
       for {
-        _      <- (dir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
+        _      <- (dir / "layers").childPaths.traverse { f => f.moveTo(Installation.layersPath / f.name) }
         bases  <- ~(dir / "bases").childPaths
         _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
         _      <- moveFuryConfIfNecessary(dir)
@@ -70,9 +70,9 @@ object Layer {
     def loadFile(file: Path, layout: Layout)(implicit log: Log): Try[LayerRef] =
       Installation.tmpDir { tmpDir => for {
         _      <- TarGz.extract(file, tmpDir)
-        _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
+        _      <- (tmpDir / "layers").childPaths.traverse { f => f.moveTo(Installation.layersPath / f.name) }
         bases  <- ~(tmpDir / "bases").childPaths
-        _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
+        _      <- bases.traverse { b => b.moveTo(layout.basesDir / b.name)}
         _      <- moveFuryConfIfNecessary(tmpDir)
         conf   <- Ogdl.read[FuryConf](tmpDir / ".fury.conf", identity(_))
       } yield conf.layerRef }
@@ -135,7 +135,7 @@ object Layer {
       layerRef  <- saveLayer(layer)
       schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
       layerRefs <- collectLayerRefs(schemaRef, layout)
-      filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
+      filesMap  <- ~layerRefs.asMap({ ref => Path(str"layers/${ref}") }, Installation.layersPath / _.key)
       _         <- TarGz.store(filesMap.updated(Path(".fury.conf"), layout.confFile), path)
     } yield path
   

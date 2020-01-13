@@ -41,7 +41,7 @@ case class Schema(id: SchemaId,
   def apply(id: ProjectId) = projects.findBy(id)
   def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
-  def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
+  def mainProject: Try[Option[Project]] = main.to[List].traverse(projects.findBy(_)).map(_.headOption)
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
   def duplicate(id: String) = copy(id = SchemaId(id))
 

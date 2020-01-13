@@ -230,11 +230,11 @@ object ModuleCli {
       mainClass   <- ~cli.peek(MainArg)
       pluginName  <- ~cli.peek(PluginArg)
       newId       <- ~call(ModuleNameArg).toOption
-      name        <- newId.to[List].map(project.modules.unique(_)).sequence.map(_.headOption)
+      name        <- newId.to[List].traverse(project.modules.unique(_)).map(_.headOption)
       
-      bloopSpec   <- cli.peek(BloopSpecArg).to[List].map { v =>
+      bloopSpec   <- cli.peek(BloopSpecArg).to[List].traverse { v =>
                        BloopSpec.unapply(v).ascribe(InvalidValue(v))
-                     }.sequence.map(_.headOption)
+                     }.map(_.headOption)
 
       force       <- ~call(ForceArg).isSuccess
       focus       <- ~Lenses.focus(optSchemaId, force)

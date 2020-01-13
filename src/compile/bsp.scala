@@ -123,21 +123,21 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, sessio
       hierarchy      <- schema.hierarchy(layout)
       universe       <- hierarchy.universe
       projects       <- layer.projects
-      graph          <- projects.flatMap(_.moduleRefs).map { ref =>
+      graph          <- projects.flatMap(_.moduleRefs).to[List].traverse { ref =>
                           for {
                             ds   <- universe.dependencies(ref, layout)
-                            arts <- (ds + ref).map { d => universe.makeTarget(d, layout, session) }.sequence
+                            arts <- (ds + ref).traverse { d => universe.makeTarget(d, layout, session) }
                           } yield arts.map { a =>
                             (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
                                 .map(_.ref.hide): Option[ModuleRef]))
                           }
-                        }.sequence.map(_.flatten.toMap)
+                        }.map(_.flatten.toMap)
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
-      targets       <- graph.keys.map { key =>
+      targets       <- graph.keys.traverse { key =>
                          universe.makeTarget(key, layout, session).map(key -> _)
-                       }.sequence.map(_.toMap)
-      checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
+                       }.map(_.toMap)
+      checkouts     <- graph.keys.traverse(universe.checkout(_, layout))
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
 
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {

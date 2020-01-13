@@ -34,7 +34,7 @@ case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
 case class Entity(project: Project, schema: Schema) {
   def spec: ProjectSpec = {
     val repoIds = project.allRepoIds
-    ProjectSpec(project, schema.repos.to[List].filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
+    ProjectSpec(project, schema.repos.to[List].filter(repoIds contains _.id).asMap(_.id, identity))
   }
 }
 

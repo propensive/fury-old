@@ -198,7 +198,7 @@ object Compilation {
       requiredTargets <- requiredModules.traverse(makeTarget(_, layout, session))
     } yield {
       val targetGraph = (requiredTargets + target).map { t => t.id -> directDependencies(t) }
-      Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
+      Target.Graph(targetGraph.toMap, requiredTargets.asMap(_.id, identity))
     }
 
     def canAffectBuild(target: Target): Boolean = Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.module.kind)
@@ -264,7 +264,7 @@ class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compila
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val repos = compilation.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
+    val repos = compilation.checkouts.checkouts.asMap(_.path.value, _.repoId)
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
@@ -331,7 +331,9 @@ ${'|'} ${highlightedLine}
 
   // FIXME: We should implement this using a regular expression
   private[this] def getTargetId(bspUri: String): TargetId = {
-    val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
+    val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { array =>
+      array(0) -> array(1)
+    }.toMap
 
     TargetId(uriQuery("id"))
   }

@@ -33,12 +33,12 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module       <- entity.project(ref.moduleId)
       compiler     <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                       else makeTarget(module.compiler, layout, session).map(Some(_))
-      binaries     <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
+      binaries     <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
       dependencies <- module.dependencies.traverse { dep => for {
                         origin <- findEntity(dep.projectId)
                       } yield TargetId(origin.schema.id, dep, session)}
       checkouts    <- checkout(ref, layout)
-      sources      <- module.sources.map(_.dir(checkouts, layout)).sequence
+      sources      <- module.sources.traverse(_.dir(checkouts, layout))
     } yield Target(
       entity,
       module,
@@ -56,7 +56,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     entity <- findEntity(ref.projectId)
     module <- entity.project(ref.moduleId)
     repos  <- (module.externalSources ++ module.externalResources).to[List]
-                  .groupBy(_.repoId).map { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }.sequence
+                  .groupBy(_.repoId).traverse { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }
   } yield Checkouts(repos.map { case (repo, paths) =>
     Checkout(repo.id, repo.repo, repo.localDir(layout), repo.commit, repo.track, paths.map(_.dir).to[List])
   }.to[Set])
@@ -73,8 +73,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     deps     =  module.dependencies ++ module.compilerDependencies
     repeated =  deps.intersect(forbidden)
     _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
-    tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _,
-                    layout).filter(!_.contains(ref))).sequence
+    tDeps    <- deps.to[List].traverse(resolveTransitiveDependencies(forbidden + ref, _,
+                    layout).filter(!_.contains(ref)))
   } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit

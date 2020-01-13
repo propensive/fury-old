@@ -59,11 +59,11 @@ object Coursier {
       val paths = for {
         _     <- ~tmpDir.mkdir()
         paths <- mkRequest(binary)
-        _     <- paths.map { file =>
+        _     <- paths.traverse { file =>
                    val dest = tmpDir / file.name
                    dest.mkParents()
                    file.hardLink(dest)
-                 }.sequence
+                 }
         _     <- dir.mkParents()
         _     <- tmpDir.moveTo(dir)
       } yield paths

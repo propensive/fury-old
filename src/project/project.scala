@@ -82,9 +82,9 @@ object ProjectCli {
       call           <- cli.call()
       compilerId     <- ~cli.peek(DefaultCompilerArg)
       
-      optCompilerRef <- compilerId.to[List].map { v =>
+      optCompilerRef <- compilerId.to[List].traverse { v =>
                           ModuleRef.parseFull(v, true).ascribe(InvalidValue(v))
-                        }.sequence.map(_.headOption)
+                        }.map(_.headOption)
 
       projectId      <- call(ProjectNameArg)
       license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))

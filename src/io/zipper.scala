@@ -36,7 +36,7 @@ import scala.collection.JavaConverters._
 object Zipper {
 
   def pack(root: Path, destination: Path, creator: ParallelScatterZipCreator): Try[Path] = {
-    val tree = root.walkTree.map { path => path.relativizeTo(root.parent).value -> path }.toMap
+    val tree = root.walkTree.asMap(_.relativizeTo(root.parent).value, identity)
     packfs(Zip(tree), destination, creator)
   }
 

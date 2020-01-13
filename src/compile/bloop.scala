@@ -33,18 +33,17 @@ import language.higherKinds
 
 object Bloop {
   def clean(layout: Layout): Try[Boolean] =
-    layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
+    layout.bloopDir.findChildren(_.endsWith(".json")).traverse(_.delete()).map(_.contains(true))
 
   def generateFiles(compilation: Compilation, layout: Layout, session: Session)
                    (implicit log: Log)
-                   : Try[Iterable[Path]] =
-    new CollOps(compilation.targets.values.map { target =>
-      for {
-        path       <- layout.bloopConfig(target.id).mkParents()
-        jsonString <- makeConfig(target, compilation, layout)
-        _          <- ~path.writeSync(jsonString)
-      } yield List(path)
-    }).sequence.map(_.flatten)
+                   : Try[Iterable[Path]] = compilation.targets.values.traverse { target =>
+    for {
+      path       <- layout.bloopConfig(target.id).mkParents()
+      jsonString <- makeConfig(target, compilation, layout)
+      _          <- ~path.writeSync(jsonString)
+    } yield List(path)
+  }.map(_.flatten)
 
   private def makeConfig(target: Target, compilation: Compilation, layout: Layout)(implicit log: Log): Try[String] = {
     compilation.writePlugin(target.ref, layout)
