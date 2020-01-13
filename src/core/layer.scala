@@ -233,7 +233,7 @@ object Layer {
     private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
       val version = Try(ogdl.version().toInt).getOrElse(1)
       if(version < CurrentVersion) {
-        log.info(msg"Migrating layer file from version $version to ${version + 1}")
+        log.note(msg"Migrating layer file from version $version to ${version + 1}")
         migrate((version match {
           case 0 | 1 | 2 =>
             log.fail(msg"Cannot migrate from layers earlier than version 3")
