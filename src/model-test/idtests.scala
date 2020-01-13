@@ -29,7 +29,8 @@ object IdTests extends TestApp {
     test("binary ids") {
       BinaryId.unapply("foo.bar:baz-quux_2.12:1.2.3-RC4").isEmpty &&
       BinaryId.unapply("foo.bar:baz-quux_2.12").isEmpty &&
-      BinaryId.unapply("baz-quux_2.12").isDefined
+      //BinaryId.unapply("baz-quux_2.12").isEmpty &&
+      BinaryId.unapply("baz-quux").isDefined
     }.assert(_ == true)
 
     test("binary specs") {
@@ -39,7 +40,9 @@ object IdTests extends TestApp {
     }.assert(_ == true)
 
     test("repo ids") {
-      RepoId.unapply("foo").isEmpty
+      RepoId.unapply("foo").isDefined &&
+      RepoId.unapply("foo-bar-baz").isDefined &&
+      RepoId.unapply("foo-bar_baz").isEmpty
     }.assert(_ == true)
 
   }
