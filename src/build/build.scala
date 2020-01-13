@@ -279,7 +279,7 @@ object BuildCli {
     }
   }
 
-  private def repeater[T](sources: Set[Path])(f: Unit => T): Repeater[T] = new Repeater[T]{
+  private def repeater[T](sources: Set[Path])(f: Unit => T)(implicit log: Log): Repeater[T] = new Repeater[T]{
     private val watcher = new SourceWatcher(sources)
     override def repeatCondition(): Boolean = watcher.hasChanges
 

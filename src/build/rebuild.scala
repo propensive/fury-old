@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import _root_.io.methvin.better.files.RecursiveFileMonitor
 import better.files.File
+import fury.core.Log
 import fury.io.Path
 import fury.utils.Threads
 
@@ -40,7 +41,7 @@ trait Repeater[Res]{
   }
 }
 
-class SourceWatcher(sources: Set[Path]){
+class SourceWatcher(sources: Set[Path])(implicit log: Log){
   private val executor = java.util.concurrent.Executors.newCachedThreadPool(Threads.factory("file-watcher", daemon = true))
   private val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
   private[this] val changed = new AtomicBoolean(true)
@@ -67,9 +68,18 @@ class SourceWatcher(sources: Set[Path]){
   def clear(): Unit = changed.set(false)
 
   private[this] lazy val watchers = directories.map( src => new RecursiveFileMonitor(src) {
-    override def onCreate(file: File, count: Int) = onChange(file)
-    override def onModify(file: File, count: Int) = onChange(file)
-    override def onDelete(file: File, count: Int) = onChange(file)
+    override def onCreate(file: File, count: Int) = {
+      log.info(s"> $count Created! ${file.toString}")
+      onChange(file)
+    }
+    override def onModify(file: File, count: Int) = {
+      log.info(s"> $count Modified! ${file.toString}")
+      onChange(file)
+    }
+    override def onDelete(file: File, count: Int) = {
+      log.info(s"> $count Deleted! ${file.toString}")
+      onChange(file)
+    }
     override def start()(implicit ec: ExecutionContext) : Unit = {
       Future{ watcher.watch() }(ec)
     }
