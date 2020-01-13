@@ -24,6 +24,8 @@ import mercator._
 
 import scala.util._
 
+import language.higherKinds
+
 object Source {
   implicit val stringShow: StringShow[Source] = _.description
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME

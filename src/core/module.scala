@@ -21,6 +21,8 @@ import fury.model._, fury.strings._, fury.io._
 import scala.util._
 import scala.collection.immutable._
 
+import language.higherKinds
+
 object Module {
   implicit val msgShow: MsgShow[Module] = v => UserMsg(_.module(v.id.key))
   implicit val stringShow: StringShow[Module] = _.id.key

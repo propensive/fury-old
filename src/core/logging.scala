@@ -113,7 +113,7 @@ object Log {
       printWriter
     }
     
-    LogStyle(get, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
+    LogStyle(get _, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
   }
 
   def log(pid: Pid = Pid(0)): Log = new Log(global, pid)

@@ -256,7 +256,7 @@ object BuildCli {
       reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  call(WatchArg).isSuccess
       compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
-      r              =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
+      repetition     =  repeater[Try[Future[CompileResult]]](compilation.allSources) {
         for {
           task <- compileOnce(compilation, schema, module.ref(project), layout,
             globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https, session)
@@ -274,31 +274,29 @@ object BuildCli {
           }
         }
       }
-      future        <- if(watch) Try(r.start()).flatten else r.action()
+      future        <- if(watch) Try(repetition.start()).flatten else repetition.action()
     } yield {
       val result = Await.result(future, duration.Duration.Inf)
       log.await(result.isSuccessful)
     }
   }
 
-  private def repeater[T](sources: Set[Path])(f: Unit => T): Repeater[T] = new Repeater[T]{
+  private def repeater[T](sources: Set[Path])(block: => T): Repeater[T] = new Repeater[T]{
     private val watcher = new SourceWatcher(sources)
     override def repeatCondition(): Boolean = watcher.hasChanges
 
     override def start(): T = {
-      try{
+      try {
         watcher.start()
         super.start()
       } catch {
         case NonFatal(e) => throw e
         case x: Throwable => throw new Exception("Fatal exception inside watcher", x)
-      } finally {
-        watcher.stop
-      }
+      } finally watcher.stop()
     }
     override def action(): T = {
       watcher.clear()
-      f()
+      block
     }
   }
 
@@ -445,7 +443,6 @@ object BuildCli {
       future
     }
   }
-
 }
 
 object LayerCli {
@@ -494,7 +491,7 @@ object LayerCli {
 
   def verifyLayers(path: ImportPath, list: List[ImportPath]): Try[Unit] =
     if (list.map(_.path).contains(path.path))
-      Success()
+      Success(())
     else
       Failure(LayersFailure(path))
 

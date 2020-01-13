@@ -42,24 +42,13 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     } yield Target(
       entity,
       module,
-      module.kind,
-      module.main,
-      module.plugin,
       entity.schema.repos.map(_.repo).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],
       dependencies.to[List],
       compiler,
-      module.bloopSpec,
-      module.opts.to[List],
-      module.policy.to[List],
       ref.intransitive,
       sources.to[List],
-      module.environment.map { e => (e.key, e.value) }.toMap,
-      module.properties.map { p => (p.key, p.value) }.toMap,
-      module.optDefs,
-      module.resources.to[List],
-      module.artifact,
       session
     )
 

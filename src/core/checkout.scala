@@ -23,6 +23,8 @@ import guillotine._
 
 import scala.util._
 
+import language.higherKinds
+
 case class Checkouts(checkouts: Set[Checkout]) {
   def apply(repoId: RepoId): Try[Checkout] =
     checkouts.find(_.repoId == repoId).ascribe(UnknownRepo(repoId))

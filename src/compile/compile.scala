@@ -201,7 +201,7 @@ object Compilation {
       Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
     }
 
-    def canAffectBuild(target: Target): Boolean = Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.kind)
+    def canAffectBuild(target: Target): Boolean = Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.module.kind)
 
     for {
       target              <- makeTarget(ref, layout, session)
@@ -213,7 +213,7 @@ object Compilation {
                              }
 
       requiredTargets     =  targetIndex.unzip._2
-      requiredPermissions =  requiredTargets.flatMap(_.permissions)
+      requiredPermissions =  requiredTargets.flatMap(_.module.policy)
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
@@ -357,7 +357,7 @@ ${'|'} ${highlightedLine}
       val targetId: TargetId = getTargetId(report.getTarget.getUri)
       val ref = targetId.ref
       multiplexer(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
-      if(!compilation.targets(ref).kind.needsExecution) multiplexer(ref) = StopRun(ref)
+      if(!compilation.targets(ref).module.kind.needsExecution) multiplexer(ref) = StopRun(ref)
       else multiplexer(ref) = StartRun(ref)
   }
 }
@@ -424,23 +424,23 @@ case class Compilation(graph: Target.Graph,
     }
 
     aggregate { t =>
-      Map(t.artifact -> (Set[Dependency](ModuleDependency(t.ref)) ++ t.compiler.map(_.ref).map(ModuleDependency(_))))
+      Map(t.module.artifact -> (Set[Dependency](ModuleDependency(t.ref)) ++ t.compiler.map(_.ref).map(ModuleDependency(_))))
     } (applyFold)(ref)
   }
 
   def persistentOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
     target      <- apply(ref)
 
-    compileOpts <- ~target.compiler.to[Set].flatMap { c => c.optDefs.filter(_.persistent).map(_.opt(c.ref,
+    compileOpts <- ~target.compiler.to[Set].flatMap { c => c.module.optDefs.filter(_.persistent).map(_.opt(c.ref,
                        Origin.Compiler)) }
 
-    refParams   <- ~target.params.filter(_.persistent).map(Provenance(_, target.compiler.map(_.ref).getOrElse(
+    refParams   <- ~target.module.opts.filter(_.persistent).map(Provenance(_, target.compiler.map(_.ref).getOrElse(
                        ModuleRef.JavaRef), Origin.Module(target.ref)))
 
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
 
-    pOpts       <- ~(if(target.kind == Plugin) Set(
+    pOpts       <- ~(if(target.module.kind == Plugin) Set(
                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
                    ) else Set())
@@ -452,7 +452,7 @@ case class Compilation(graph: Target.Graph,
     target      <- apply(ref)
     optCompiler <- ~target.compiler
     
-    tmpParams   <- ~target.params.filter(!_.persistent).map(Provenance(_, optCompiler.map(_.ref).getOrElse(
+    tmpParams   <- ~target.module.opts.filter(!_.persistent).map(Provenance(_, optCompiler.map(_.ref).getOrElse(
                        ModuleRef.JavaRef), Origin.Local))
 
     removals    <- ~tmpParams.filter(_.value.remove).map(_.value.id)
@@ -465,24 +465,24 @@ case class Compilation(graph: Target.Graph,
   } yield fold(mkBase(target), deps)
    
   def aggregatedOptDefs(ref: ModuleRef): Try[Set[Provenance[OptDef]]] = {
-    def mkBase(t: Target) = t.optDefs.map(Provenance(_, t.impliedCompiler, Origin.Module(t.ref))) ++
-        t.compiler.to[Set].flatMap { c => c.optDefs.map(Provenance(_, c.ref, Origin.Compiler)) }
+    def mkBase(t: Target) = t.module.optDefs.map(Provenance(_, t.impliedCompiler, Origin.Module(t.ref))) ++
+        t.compiler.to[Set].flatMap { c => c.module.optDefs.map(Provenance(_, c.ref, Origin.Compiler)) }
 
     aggregate(mkBase)(_ ++ _.flatten.to[Set])(ref)
   }
  
   def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[Plugin]]] = {
-    def mkBase(t: Target) = t.plugin.map { m => Provenance(Plugin(m, t.ref, t.main.get),
+    def mkBase(t: Target) = t.module.plugin.map { m => Provenance(Plugin(m, t.ref, t.module.main.get),
         t.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin) }.to[Set]
 
     aggregate(mkBase)(_ ++ _.flatten.to[Set])(ref)
   }
 
   def aggregatedResources(ref: ModuleRef): Try[Set[Source]] =
-    aggregate(_.resources.to[Set])(_ ++ _.flatten.to[Set])(ref)
+    aggregate(_.module.resources.to[Set])(_ ++ _.flatten.to[Set])(ref)
 
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
-    val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
+    val requiredPlugins = requiredTargets(ref).filter(_.module.kind == Plugin).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
     }
 
@@ -497,12 +497,12 @@ case class Compilation(graph: Target.Graph,
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
-    if(target.kind == Plugin) {
+    if(target.module.kind == Plugin) {
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
-      target.main.foreach { main =>
+      target.module.main.foreach { main =>
         file.writeSync(str"""|<plugin>
-                             | <name>${target.plugin.fold("plugin")(_.key)}</name>
+                             | <name>${target.module.plugin.fold("plugin")(_.key)}</name>
                              | <classname>${main}</classname>
                              |</plugin>""".stripMargin)
       }
@@ -521,11 +521,11 @@ case class Compilation(graph: Target.Graph,
                  : Try[Unit] = for {
     artifacts  <- dependencyGraph(ref)
     target     <- apply(ref)
-    artifactId <- ~target.artifact.getOrElse(ArtifactId(str"${ref.projectId.key}-${ref.moduleId.key}"))
+    artifactId <- ~target.module.artifact.getOrElse(ArtifactId(str"${ref.projectId.key}-${ref.moduleId.key}"))
     _          <- ~log.info("Before: "+artifacts.toString)
     artifacts  <- ~artifacts.get(None).fold(artifacts)((artifacts - None).updated(Some(artifactId), _))
     _          <- ~log.info("After: "+artifacts.toString)
-    _          <- artifacts.traverse { case (a, v) => saveJars(ref, destination, target.main, a.get, v,
+    _          <- artifacts.traverse { case (a, v) => saveJars(ref, destination, target.module.main, a.get, v,
                       classDirs, layout, fatJar) }
   } yield ()
 
@@ -543,7 +543,7 @@ case class Compilation(graph: Target.Graph,
     targets <- refs.collect { case ModuleDependency(ref) => ref }.traverse(apply(_))
     bins    <- ~targets.flatMap(_.binaries)
     _       <- ~log.info(msg"Outputting binaries: ${bins.toString}")
-    ress    <- ~targets.flatMap(_.resources)
+    ress    <- ~targets.flatMap(_.module.resources)
     manifest = Manifest(bins.map(_.name), main.map(_.key))
     dest     = destination.extant()
     path     = dest / str"${artifactId.key}.jar"
@@ -617,7 +617,7 @@ case class Compilation(graph: Target.Graph,
 
       result.get
     }.map {
-      case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
+      case compileResult if compileResult.isSuccessful && target.module.kind.needsExecution =>
         val classDirectories = compileResult.classDirectories
         val runSuccess = run(target, classDirectories.values.to[Set], multiplexer, layout, globalPolicy, args) == 0
         if(runSuccess) compileResult else compileResult.failed
@@ -669,7 +669,7 @@ case class Compilation(graph: Target.Graph,
 
   private def run(target: Target, classDirectories: Set[Path], multiplexer: Multiplexer[ModuleRef, CompileEvent],
                   layout: Layout, globalPolicy: Policy, args: List[String]): Int = layout.session { session =>
-    if (target.kind == Benchmarks) {
+    if (target.module.kind == Benchmarks) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
         val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
@@ -682,10 +682,10 @@ case class Compilation(graph: Target.Graph,
     }
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.fold("")(_.key),
-      securePolicy = target.kind == Application,
-      env = target.environment,
-      properties = target.properties,
+      if (target.module.kind == Benchmarks) "org.openjdk.jmh.Main" else target.module.main.fold("")(_.key),
+      securePolicy = target.module.kind == Application,
+      env = target.module.environment.asMap(_.key, _.value),
+      properties = target.module.properties.asMap(_.key, _.value),
       policy = globalPolicy.forContext(layout, target.ref.projectId),
       layout = layout,
       args

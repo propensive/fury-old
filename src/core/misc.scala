@@ -27,6 +27,8 @@ import scala.util._
 
 import java.net.URI
 
+import language.higherKinds
+
 case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
 
 case class Entity(project: Project, schema: Schema) {

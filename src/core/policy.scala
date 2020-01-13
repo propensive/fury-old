@@ -21,6 +21,8 @@ import fury.ogdl._, fury.io._, fury.strings._, fury.model._
 import scala.collection.immutable._
 import scala.util._
 
+import language.higherKinds
+
 object Policy {
   val CurrentVersion = 1
   def read(implicit log: Log): Policy =

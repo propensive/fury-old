@@ -24,6 +24,8 @@ import scala.collection.immutable._
 import scala.util._
 import scala.annotation.tailrec
 
+import language.higherKinds
+
 object Schema {
   implicit val msgShow: MsgShow[Schema] = v => UserMsg(_.schema(v.id.key))
   implicit val stringShow: StringShow[Schema] = _.id.key

@@ -25,6 +25,8 @@ import kaleidoscope._
 import scala.util._
 import scala.collection.immutable._
 
+import language.higherKinds
+
 case class Layer(version: Int,
                  schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
                  main: SchemaId = SchemaId.default,

@@ -23,6 +23,8 @@ import mercator._
 import scala.util._
 import scala.collection.immutable._
 
+import language.higherKinds
+
 object Project {
   implicit val msgShow: MsgShow[Project]       = v => UserMsg(_.project(v.id.key))
   implicit val stringShow: StringShow[Project] = _.id.key

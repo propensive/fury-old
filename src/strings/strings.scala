@@ -37,6 +37,11 @@ object `package` {
   implicit class Only[T](value: T) {
     def only[S](pf: PartialFunction[T, S]): Option[S] = Some(value).collect(pf)
   }
+  
+  implicit class AsMap[T](traversable: Traversable[T]) {
+    def asMap[K, V](key: T => K, value: T => V): Map[K, V] =
+      traversable.map { elem => (key(elem), value(elem)) }.toMap
+  }
 }
 
 object Parser {

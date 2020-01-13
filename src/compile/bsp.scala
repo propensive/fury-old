@@ -328,11 +328,11 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, sessio
   private[this] def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure): Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
       val art = struct.targets(ref)
-      val params = art.params.map(_.parameter)
+      val params = art.module.opts.map(_.parameter)
       val paths = art.binaries.map(_.javaPath.toUri.toString)
       val classesDir = layout.classesDir.javaPath.toAbsolutePath.toUri.toString
       
-      new ScalacOptionsItem(target, params.asJava, paths.asJava, classesDir)
+      new ScalacOptionsItem(target, params.to[List].asJava, paths.asJava, classesDir)
     }
 
   override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams)
@@ -391,9 +391,9 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.kind, target.main, target.plugin, target.checkouts, target.binaries, target.dependencies,
-            target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
-            graph(ref).map(hash)).digest[Md5]
+        ref, (target.module.kind, target.module.main, target.module.plugin, target.checkouts, target.binaries,
+            target.dependencies, target.compiler.map { c => hash(c.ref) }, target.module.opts.to[List], target.intransitive,
+            target.sourcePaths, graph(ref).map(hash)).digest[Md5]
       )
     }
 
@@ -417,7 +417,7 @@ object FuryBuildServer {
   private def toTarget(target: Target, struct: Structure) = {
     val ref = target.ref
     val id = struct.buildTarget(target.ref)
-    val tags = List(moduleKindToBuildTargetTag(target.kind))
+    val tags = List(moduleKindToBuildTargetTag(target.module.kind))
     val languageIds = List("java", "scala") // TODO get these from somewhere?
     val dependencies = target.dependencies.map(_.ref).map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
@@ -427,7 +427,7 @@ object FuryBuildServer {
 
     for {
       compiler <- target.compiler
-      bs       <- compiler.bloopSpec
+      bs       <- compiler.module.bloopSpec
                if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava

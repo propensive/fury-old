@@ -29,6 +29,8 @@ import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 import scala.util._
 import scala.util.control.NonFatal
 
+import language.higherKinds
+
 object Bloop {
   def clean(layout: Layout): Try[Boolean] =
     layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
@@ -58,7 +60,7 @@ object Bloop {
     
       val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
     val compilerOpt = target.compiler.map { compilerTarget =>
-      val spec = compilerTarget.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))
+      val spec = compilerTarget.module.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))
       Json.of(
         organization = spec.org,
         name = spec.name,
@@ -84,7 +86,7 @@ object Bloop {
         jvmPlatform = Json.of(
           name = "jvm",
           config = Json.of(home = "", options = Nil),
-          mainClass = target.main.to[List]
+          mainClass = target.module.main.to[List]
         ),
         resolution = Json.of(modules = Nil)
       )

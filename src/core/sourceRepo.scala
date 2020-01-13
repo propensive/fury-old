@@ -20,6 +20,8 @@ import fury.model._, fury.io._, fury.strings._, fury.ogdl._
 
 import scala.util._
 
+import language.higherKinds
+
 object SourceRepo {
   implicit val msgShow: MsgShow[SourceRepo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[SourceRepo] = _.id.key

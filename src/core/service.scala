@@ -22,6 +22,8 @@ import euphemism._
 
 import scala.util._
 
+import language.higherKinds
+
 object Service {
   def catalog(service: String): Try[List[Artifact]] = {
     val url = Https(Path(service) / "catalog")
