@@ -529,8 +529,16 @@ case class Compilation(graph: Target.Graph,
                     layout: Layout,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
   : Future[Boolean] = Future.fromTry {
-    val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
-    val params = new CleanCacheParams(List(new BuildTargetIdentifier(uri)).asJava)
+   // val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+    val furyTargetIds = deepDependencies(target.id).toList
+
+    val bspTargetIds = furyTargetIds.map { dep =>
+      new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
+    }
+    bspTargetIds.foreach{ xxx =>
+      log.info(s"Cleaning: ${xxx.getUri.toString}")
+    }
+    val params = new CleanCacheParams(bspTargetIds.asJava)
     BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout) { conn =>
       val result: Try[CleanCacheResult] = {
         for {
