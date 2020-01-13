@@ -434,7 +434,7 @@ object BuildCli {
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
       val future = compilation.compile(moduleRef, multiplexer, Map(), layout,
-        globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef, session)).andThen {
+        globalPolicy, compileArgs, pipelining).apply(TargetId(moduleRef, session)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes

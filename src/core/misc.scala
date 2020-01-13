@@ -29,14 +29,7 @@ import java.net.URI
 
 import language.higherKinds
 
-case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
-
-case class Entity(project: Project, schema: Schema) {
-  def spec: ProjectSpec = {
-    val repoIds = project.allRepoIds
-    ProjectSpec(project, schema.repos.to[List].filter(repoIds contains _.id).asMap(_.id, identity))
-  }
-}
+case class Entity(project: Project, repos: Map[RepoId, SourceRepo])
 
 object Counter {
   private var count: Int = 0

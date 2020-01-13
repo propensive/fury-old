@@ -195,8 +195,7 @@ object TargetId {
   def apply(projectId: ProjectId, moduleId: ModuleId, session: Session): TargetId =
     TargetId(str"${projectId}_${moduleId}_${session.id}")
   
-  def apply(schemaId: SchemaId, ref: ModuleRef, session: Session): TargetId =
-    TargetId(ref.projectId, ref.moduleId, session)
+  def apply(ref: ModuleRef, session: Session): TargetId = TargetId(ref.projectId, ref.moduleId, session)
 }
 
 object Pid {

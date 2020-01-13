@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._
+import fury.model._, fury.strings._
 
 import scala.util._
 
@@ -30,7 +30,7 @@ case class Hierarchy(schema: Schema, inherited: Set[Hierarchy]) {
       potentialConflictIds  = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
 
       conflictIds           = potentialConflictIds.filter { id =>
-                                projects.findEntity(id).map(_.spec) != nextProjects.findEntity(id).map(_.spec)
+                                projects.findEntity(id) != nextProjects.findEntity(id)
                               }
 
       allProjects          <- conflictIds match {
@@ -41,9 +41,9 @@ case class Hierarchy(schema: Schema, inherited: Set[Hierarchy]) {
 
     val empty: Try[Universe] = Success(Universe())
 
-    for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
-      val schemaEntities = schema.projects.map { project => project.id -> Entity(project, schema) }
-      allInherited ++ Universe(schemaEntities.toMap)
-    }
+    inherited.foldLeft(Try(Universe()))(merge).map(_ ++ Universe(schema.projects.asMap(_.id, { p =>
+        Entity(p, schema.repos.to[List].filter(p.allRepoIds contains _.id).asMap(_.id, identity))
+      }))
+    )
   }
 }

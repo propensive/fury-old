@@ -36,13 +36,13 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       binaries     <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
       dependencies <- module.dependencies.traverse { dep => for {
                         origin <- findEntity(dep.projectId)
-                      } yield TargetId(origin.schema.id, dep, session)}
+                      } yield TargetId(dep, session)}
       checkouts    <- checkout(ref, layout)
       sources      <- module.sources.traverse(_.dir(checkouts, layout))
     } yield Target(
       entity,
       module,
-      entity.schema.repos.map(_.repo).to[List],
+      entity.repos.values.map(_.repo).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],
       dependencies.to[List],
@@ -56,7 +56,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     entity <- findEntity(ref.projectId)
     module <- entity.project(ref.moduleId)
     repos  <- (module.externalSources ++ module.externalResources).to[List]
-                  .groupBy(_.repoId).traverse { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }
+                  .groupBy(_.repoId).traverse { case (repoId, v) => entity.repos.get(repoId).map(_ -> v).ascribe(UnknownRepo(repoId)) }
   } yield Checkouts(repos.map { case (repo, paths) =>
     Checkout(repo.id, repo.repo, repo.localDir(layout), repo.commit, repo.track, paths.map(_.dir).to[List])
   }.to[Set])
