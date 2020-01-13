@@ -525,6 +525,25 @@ case class Compilation(graph: Target.Graph,
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
+  def cleanCaches(target: Target,
+                    layout: Layout,
+                    multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+  : Future[Boolean] = Future.fromTry {
+    val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+    val params = new CleanCacheParams(List(new BuildTargetIdentifier(uri)).asJava)
+    BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout) { conn =>
+      val result: Try[CleanCacheResult] = {
+        for {
+          res <- wrapServerErrors(conn.server.buildTargetCleanCache(params))
+        } yield {
+          log.info(s"Clean cache returned ${res.toString}")
+          res
+        }
+      }
+      result.map(_.getCleaned.booleanValue)
+    }.flatten
+  }
+
   def compileModule(target: Target,
                     layout: Layout,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
@@ -610,7 +629,11 @@ case class Compilation(graph: Target.Graph,
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           Future.successful(required)
-        } else compileModule(target, layout, multiplexer, pipelining, globalPolicy, args)
+        } else {
+          cleanCaches(target, layout, multiplexer).flatMap{ _ =>
+            compileModule(target, layout, multiplexer, pipelining, globalPolicy, args)
+          }
+        }
       }
     }
 
