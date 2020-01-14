@@ -72,8 +72,7 @@ object DependencyCli {
       table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                     project, module)))
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
 
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
@@ -177,8 +176,7 @@ object EnvCli {
       table   <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                     project, module)))
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
 
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
@@ -321,8 +319,7 @@ object PermissionCli {
       table   <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                     project, module)))
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
 
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
@@ -399,8 +396,7 @@ object PropertyCli {
       table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                     project, module)))
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
 
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
