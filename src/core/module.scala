@@ -50,9 +50,9 @@ case class Module(id: ModuleId,
                   hidden: Boolean = false,
                   optDefs: SortedSet[OptDef] = TreeSet(),
                   deterministic: Boolean = false,
-                  artifact: Option[ArtifactId] = None) {
+                  artifact: Option[ArtifactId] = None) { module =>
 
-  def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
+  def allBinaries: SortedSet[Binary] = if(is(Benchmarks)) binaries + Binary.Jmh else binaries
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, hidden = hidden)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
@@ -71,4 +71,6 @@ case class Module(id: ModuleId,
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }
   }
+
+  def is(kind: Kind): Boolean = module.kind == kind
 }

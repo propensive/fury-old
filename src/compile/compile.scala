@@ -415,13 +415,13 @@ case class Compilation(graph: Target.Graph,
     type AMap = Map[Option[ArtifactId], Set[Dependency]]
 
     def applyFold(base: AMap, inherited: List[AMap]): AMap = {
-      val (artifact, _) = base.head
+      val (current, _) = base.head
       
-      inherited.foldLeft(base) { (aggregation, next) =>
-        next.foldLeft(aggregation) {
-          case (map, (None, elems)) => map.updated(artifact, elems)
-          case (map, (key, elems))  => map.updated(key, map.getOrElse(key, Set()) ++ elems)
-        }
+      inherited.foldLeft(base) { (aggregation, subtree) =>
+        subtree.foldLeft(aggregation) { case (aggregation, (key, dependencies)) => key match {
+          case None => aggregation.updated(current, dependencies)
+          case key  => aggregation.updated(key, map.getOrElse(key, Set()) ++ elems)
+        } }
       }
     }
 
@@ -442,7 +442,7 @@ case class Compilation(graph: Target.Graph,
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
 
-    pOpts       <- ~(if(target.module.kind == Plugin) Set(
+    pOpts       <- ~(if(target.module.is(Plugin)) Set(
                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
                    ) else Set())
@@ -484,7 +484,7 @@ case class Compilation(graph: Target.Graph,
     aggregate(_.module.resources.to[Set])(_ ++ _.flatten.to[Set])(ref)
 
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
-    val requiredPlugins = requiredTargets(ref).filter(_.module.kind == Plugin).flatMap { target =>
+    val requiredPlugins = requiredTargets(ref).filter(_.module.is(Plugin)).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
     }
 
@@ -499,7 +499,7 @@ case class Compilation(graph: Target.Graph,
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
-    if(target.module.kind == Plugin) {
+    if(target.module.is(Plugin)) {
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
       target.module.main.foreach { main =>
@@ -599,12 +599,10 @@ case class Compilation(graph: Target.Graph,
 
     BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout) { conn =>
       
-      val result: Try[CompileResult] = {
-        for {
-          res <- wrapServerErrors(conn.server.buildTargetCompile(params))
-          opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
-        } yield CompileResult(res, opts)
-      }
+      val result: Try[CompileResult] = for {
+        res <- wrapServerErrors(conn.server.buildTargetCompile(params))
+        opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
+      } yield CompileResult(res, opts)
 
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
         val bti = soi.getTarget
@@ -631,15 +629,16 @@ case class Compilation(graph: Target.Graph,
   private[this] def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
     Outcome.rescue[ExecutionException] { e: ExecutionException => BuildServerError(e.getCause) } (f.get)
 
-
   def compile(moduleRef: ModuleRef,
               multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
-              pipelining: Boolean)(implicit log: Log)
-  : Map[TargetId, Future[CompileResult]] = {
+              pipelining: Boolean)
+             (implicit log: Log)
+             : Map[TargetId, Future[CompileResult]] = {
+
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
@@ -671,7 +670,7 @@ case class Compilation(graph: Target.Graph,
 
   private def run(target: Target, classDirectories: Set[Path], multiplexer: Multiplexer[ModuleRef, CompileEvent],
                   layout: Layout, globalPolicy: Policy, args: List[String]): Int = layout.session { session =>
-    if (target.module.kind == Benchmarks) {
+    if (target.module.is(Benchmarks)) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
         val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
@@ -684,8 +683,8 @@ case class Compilation(graph: Target.Graph,
     }
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (target.module.kind == Benchmarks) "org.openjdk.jmh.Main" else target.module.main.fold("")(_.key),
-      securePolicy = target.module.kind == Application,
+      if (target.module.is(Benchmarks)) "org.openjdk.jmh.Main" else target.module.main.fold("")(_.key),
+      securePolicy = target.module.is(Application),
       env = target.module.environment.asMap(_.key, _.value),
       properties = target.module.properties.asMap(_.key, _.value),
       policy = globalPolicy.forContext(layout, target.ref.projectId),
@@ -704,5 +703,4 @@ case class Compilation(graph: Target.Graph,
 
     exitCode
   }
-
 }

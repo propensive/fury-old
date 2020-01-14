@@ -323,7 +323,7 @@ object BuildCli {
       
       compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout, https, session)
       
-      _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
+      _            <- if(module.is(Application)) Success(()) else Failure(InvalidKind(Application))
       main         <- module.main.ascribe(UnspecifiedMain(module.id))
       _            <- ~log.info(msg"Building native image for $exec")
       _            <- compilation.saveNative(module.ref(project), Installation.usrDir, layout, main)
