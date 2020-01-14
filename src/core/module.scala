@@ -29,7 +29,7 @@ object Module {
   implicit val diff: Diff[Module] = Diff.gen[Module]
 
   def available(id: ModuleId, project: Project): Try[ModuleId] =
-    project.modules.find(_.id == id).fold(Try(id)) { module => Failure(ModuleAlreadyExists(module.id)) }
+    project.modules.find(_.id == id).fold(Try(id)) { module => Failure(NotUnique(module.id)) }
 }
 
 case class Module(id: ModuleId,

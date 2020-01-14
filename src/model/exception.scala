@@ -47,13 +47,11 @@ case class IpfsNotOnPath() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
 case class MissingCommand() extends FuryException
-case class ModuleAlreadyExists(module: ModuleId) extends FuryException
 case class NoLatestVersion() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
 case class NoSourcesError(repoId: RepoId, commit: Commit, sources: UserMsg) extends FuryException
 case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException
-case class ProjectAlreadyExists(project: ProjectId) extends FuryException
 case class ProjectConflict(ids: Set[ProjectId]/*, h1: Hierarchy, h2: Hierarchy*/) extends FuryException
 case class RepoNotForked(repo: RepoId) extends FuryException
 case class SchemaDifferences() extends FuryException

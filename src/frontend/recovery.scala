@@ -132,10 +132,6 @@ You can grant these permissions with,
               msg"An error occurred while running: ${e.command}${"\n"}${e.stdout}${"\n"}${e.stderr}")
         case e: CompilationFailure =>
           cli.abort(msg"One of the compile or run tasks failed. Check the logs for details.")
-        case e: ModuleAlreadyExists =>
-          cli.abort(msg"The module '${e.module}' already exists.")
-        case e: ProjectAlreadyExists =>
-          cli.abort(msg"The project '${e.project}' already exists.")
         case e: AlreadyInitialized =>
           cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
         case CyclesInDependencies(refs) =>
