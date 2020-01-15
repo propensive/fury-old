@@ -28,7 +28,7 @@ watch:
 	@echo
 	@echo "in another terminal to run an integration test upon a successful build"
 	@echo
-	fury build save -w -d dist/bundle/lib --output linear
+	fury build run -w -d dist/bundle/lib --output linear
 
 publish: dist/install.sh
 	git tag "v$(VERSION)" -m "Version $(VERSION)"

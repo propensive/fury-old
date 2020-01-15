@@ -28,19 +28,18 @@ import scala.collection.mutable.HashSet
 
 import language.higherKinds
 
-case class Session(dir: Path, id: Int)
-
 object Sessions {
+  case class Session(dir: Path, id: SessionId)
   private val active: HashSet[Session] = new HashSet()
-  def assign[T](dir: Path)(action: Session => T): T = {
+  def assign[T](dir: Path)(action: SessionId => T): T = {
     val session: Session = synchronized {
-      val session = Stream.from(0).map(Session(dir, _)).find(!active.contains(_)).get
+      val session = Stream.from(0).map(SessionId(_)).map(Session(dir, _)).find(!active.contains(_)).get
       active += session
 
       session
     }
     
-    val result = action(session)
+    val result = action(session.id)
     synchronized { active -= session }
 
     result
@@ -182,7 +181,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
  
-  def session[T](action: Session => T) = Sessions.assign(baseDir)(action)
+  def session[T](action: SessionId => T) = Sessions.assign(baseDir)(action)
 
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()

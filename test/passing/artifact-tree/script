@@ -1,4 +1,9 @@
+echo Running on $FURY_PORT
+netstat -ln
+which fury
+fury about
 fury layer init 
+echo $?
 fury project add -n scala
 fury module add -n compiler -t compiler
 fury module update -C scala-lang.org:scala-compiler:2.12.8

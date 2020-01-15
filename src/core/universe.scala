@@ -27,7 +27,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
   def findEntity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
-  def makeTarget(ref: ModuleRef, layout: Layout, session: Session)(implicit log: Log): Try[Target] =
+  def makeTarget(ref: ModuleRef, layout: Layout, session: SessionId)(implicit log: Log): Try[Target] =
     for {
       entity       <- findEntity(ref.projectId)
       module       <- entity.project(ref.moduleId)

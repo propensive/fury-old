@@ -95,7 +95,9 @@ object BloopServer {
             multiplexer.start()
           case r"Waiting.*" => None
           case r"Starting thread.*" => None
-          case r"Deduplicating compilation of .*" => None
+          case r"Deduplicating compilation of ${TargetId(target)}@([^\s]*) from.*" =>
+            //multiplexer(targetId.ref) = NoCompile(targetId)
+            None
           case r"No server running at .*" =>
             log.info("Could not detect a BSP server running locally")
           case r"Command: .*" => None
@@ -177,7 +179,7 @@ object Compilation {
                     ref: ModuleRef,
                     layout: Layout,
                     https: Boolean,
-                    session: Session)(implicit log: Log)
+                    session: SessionId)(implicit log: Log)
   : Try[Compilation] = for {
 
     hierarchy   <- schema.hierarchy(layout)
@@ -188,7 +190,9 @@ object Compilation {
     _           <- compilation.generateFiles(layout)
   } yield compilation
 
-  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout, session: Session)(implicit log: Log): Try[Compilation] = {
+  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout, session: SessionId)
+                  (implicit log: Log)
+                  : Try[Compilation] = {
     import universe._
 
     def directDependencies(target: Target): Set[TargetId] = (target.dependencies ++ target.compiler.map(_.id)).to[Set]
@@ -245,7 +249,7 @@ object Compilation {
                       ref: ModuleRef,
                       layout: Layout,
                       https: Boolean,
-                      session: Session)(implicit log: Log): Try[Compilation] = {
+                      session: SessionId)(implicit log: Log): Try[Compilation] = {
     val compilation = mkCompilation(schema, ref, layout, https, session)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
@@ -329,13 +333,13 @@ ${'|'} ${highlightedLine}
     report
   }
 
-  // FIXME: We should implement this using a regular expression
   private[this] def getTargetId(bspUri: String): TargetId = {
     val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { array =>
       array(0) -> array(1)
     }.toMap
 
-    TargetId(uriQuery("id"))
+    // FIXME: This might break
+    TargetId.unapply(uriQuery("id")).get
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
@@ -376,7 +380,7 @@ case class Compilation(graph: Target.Graph,
                        targetIndex: Map[TargetId, Target],
                        requiredPermissions: Set[Permission],
                        universe: Universe,
-                       session: Session) {
+                       session: SessionId) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   
@@ -411,22 +415,26 @@ case class Compilation(graph: Target.Graph,
     } ++ targets(ref).binaries
   }
 
-  def dependencyGraph(ref: ModuleRef) = {
+  def dependencyGraph(ref: ModuleRef)(implicit log: Log) = {
     type AMap = Map[Option[ArtifactId], Set[Dependency]]
 
     def applyFold(base: AMap, inherited: List[AMap]): AMap = {
       val (current, _) = base.head
       
+      log.info(msg"Current = ${current.toString}")
       inherited.foldLeft(base) { (aggregation, subtree) =>
         subtree.foldLeft(aggregation) { case (aggregation, (key, dependencies)) => key match {
           case None => aggregation.updated(current, dependencies)
-          case key  => aggregation.updated(key, map.getOrElse(key, Set()) ++ elems)
+          case key  => aggregation.updated(key, aggregation.getOrElse(key, Set()) ++ dependencies)
         } }
       }
     }
 
     aggregate { t =>
-      Map(t.module.artifact -> (Set[Dependency](ModuleDependency(t.ref)) ++ t.compiler.map(_.ref).map(ModuleDependency(_))))
+      val x = Map(t.module.artifact -> (Set[Dependency](ModuleDependency(t.ref)) ++
+          t.compiler.map(_.ref).map(ModuleDependency(_))))
+      log.info("Building... "+x)
+      x
     } (applyFold)(ref)
   }
 
@@ -681,6 +689,7 @@ case class Compilation(graph: Target.Graph,
           javaSources.map(_.value).to[List])
       }
     }
+
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
       if (target.module.is(Benchmarks)) "org.openjdk.jmh.Main" else target.module.main.fold("")(_.key),
@@ -690,9 +699,7 @@ case class Compilation(graph: Target.Graph,
       policy = globalPolicy.forContext(layout, target.ref.projectId),
       layout = layout,
       args
-    ) { ln =>
-      multiplexer(target.ref) = Print(target.ref, ln)
-    }.await()
+    ) { ln => multiplexer(target.ref) = Print(target.ref, ln) }.await()
 
     deepDependencies(target.id).foreach { targetId =>
       multiplexer(targetId.ref) = NoCompile(targetId.ref)

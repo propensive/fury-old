@@ -35,7 +35,7 @@ object Bloop {
   def clean(layout: Layout): Try[Boolean] =
     layout.bloopDir.findChildren(_.endsWith(".json")).traverse(_.delete()).map(_.contains(true))
 
-  def generateFiles(compilation: Compilation, layout: Layout, session: Session)
+  def generateFiles(compilation: Compilation, layout: Layout, session: SessionId)
                    (implicit log: Log)
                    : Try[Iterable[Path]] = compilation.targets.values.traverse { target =>
     for {

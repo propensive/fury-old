@@ -29,9 +29,10 @@ object `package` {
   implicit def userMsg[T: MsgShow](value: T): UserMsg =
     implicitly[MsgShow[T]].show(value)
 
-  implicit class StringExtensions(str: String) {
-    def urlEncode: String = java.net.URLEncoder.encode(str, "UTF-8")
-    def bytes: Array[Byte] = str.getBytes("UTF-8")
+  implicit class StringExtensions(string: String) {
+    def urlEncode: String = java.net.URLEncoder.encode(string, "UTF-8")
+    def bytes: Array[Byte] = string.getBytes("UTF-8")
+    def as[T: Parser]: Option[T] = implicitly[Parser[T]].parse(string)
   }
 
   implicit class Only[T](value: T) {

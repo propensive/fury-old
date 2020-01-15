@@ -108,7 +108,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, session: Session) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, session: SessionId) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _

@@ -35,7 +35,7 @@ object Target {
                     compiler: Option[Target],
                     intransitive: Boolean,
                     sourcePaths: List[Path],
-                    session: Session) {
+                    session: SessionId) {
     def ref: ModuleRef = module.ref(entity.project)
     def id: TargetId = TargetId(ref.projectId, ref.moduleId, session)
     def impliedCompiler: ModuleRef = if(module.is(Compiler)) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)

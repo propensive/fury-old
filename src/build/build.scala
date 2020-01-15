@@ -267,7 +267,7 @@ object BuildCli {
               compileSuccess <- compileResult.asTry
               _              <- ~(dir.foreach { dir => compilation.saveJars(module.ref(project),
                                     dir in layout.pwd, module.main, module.artifact.getOrElse(
-                                    ArtifactId(str"${module.id.key}-${project.id.key}")), Set(), compileSuccess.classDirectories,
+                                    ArtifactId(str"${project.id.key}-${module.id.key}")), Set(), compileSuccess.classDirectories,
                                     layout, fatJar)
                                 })
             } yield compileSuccess
@@ -427,7 +427,7 @@ object BuildCli {
                                 reporter: Reporter,
                                 theme: Theme,
                                 https: Boolean,
-                                session: Session)
+                                session: SessionId)
                                (implicit log: Log): Try[Future[CompileResult]] = {
     for {
       _            <- compilation.checkoutAll(layout, https)
