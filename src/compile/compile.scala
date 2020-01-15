@@ -53,7 +53,7 @@ object BloopServer {
  
   private var lock: Promise[Unit] = Promise.successful(())
   private var connections: List[Connection] = Nil
-  private val bloopVersion = "1.4.0-RC1"
+  private val bloopVersion = "1.4.0-RC1+9-e94b10c3"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
     val newLock: Promise[Unit] = Promise()
