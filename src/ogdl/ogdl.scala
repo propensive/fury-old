@@ -28,7 +28,7 @@ import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.language.dynamics
 
-import scala.util.Try
+import scala.util._
 
 import java.util.NoSuchElementException
 
