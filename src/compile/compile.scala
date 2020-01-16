@@ -577,7 +577,7 @@ case class Compilation(graph: Target.Graph,
   }
 
   private[this] def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
-    Try(f.get).recoverWith { case e: ExecutionException => BuildServerError(e.getCause) }
+    Try(f.get).recoverWith { case e: ExecutionException => Failure(BuildServerError(e.getCause)) }
 
 
   def compile(moduleRef: ModuleRef,

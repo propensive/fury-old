@@ -97,7 +97,7 @@ object Ogdl {
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
       sb.append('\n')
       path.writeSync(sb.toString)
-    }.recoverWith { case e: Exception => FileWriteError(path, e) }
+    }.recoverWith { case e: Exception => Failure(FileWriteError(path, e)) }
 
   def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
     val buffer = ByteBuffer.wrap(string.bytes)
@@ -112,7 +112,7 @@ object Ogdl {
       val ogdl   = OgdlParser.parse(buffer)
 
       implicitly[OgdlReader[T]].read(preprocessor(ogdl))
-    }.recoverWith { case e: Exception => FileNotFound(path) }
+    }.recoverWith { case e: Exception => Failure(FileNotFound(path)) }
 
   private[this] def readToBuffer(path: Path): ByteBuffer = {
     val inChannel = FileChannel.open(path.javaPath)
