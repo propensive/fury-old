@@ -45,7 +45,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/compile	src/compile
-						binaries	
+						binaries	commons-io:commons-io:2.6	binRepo	central
+								group	commons-io
+								artifact	commons-io
+								version	2.6
 						resources	
 						bloopSpec	None
 						environment	
