@@ -287,7 +287,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
         val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-        val compilationTasks = compilation.compile(moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val compilationTasks = compilation.compile(moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false, bspTrace = None)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
         reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)

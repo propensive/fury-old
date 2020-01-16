@@ -243,6 +243,7 @@ object BuildCli {
       cli            <- cli.hint(DirArg)
       cli            <- cli.hint(FatJarArg)
       cli            <- cli.hint(ReporterArg, Reporter.all)
+      cli            <- cli.hint(TraceArg)
       call           <- cli.call()
       dir            <- ~call(DirArg).toOption
       https          <- ~call(HttpsArg).isSuccess
@@ -255,11 +256,12 @@ object BuildCli {
       globalPolicy   <- ~Policy.read(log)
       reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
       watch          =  call(WatchArg).isSuccess
+      bspTrace       =  call(TraceArg).toOption
       compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
       r              =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
         for {
           task <- compileOnce(compilation, schema, module.ref(project), layout,
-            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
+            globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https, bspTrace)
         } yield {
           task.transform { completed =>
             for{
@@ -432,14 +434,15 @@ object BuildCli {
                                 pipelining: Boolean,
                                 reporter: Reporter,
                                 theme: Theme,
-                                https: Boolean)
+                                https: Boolean,
+                                bspTrace: Option[Path])
                                (implicit log: Log): Try[Future[CompileResult]] = {
     for {
       _            <- compilation.checkoutAll(layout, https)
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
       val future = compilation.compile(moduleRef, multiplexer, Map(), layout,
-        globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
+        globalPolicy, compileArgs, pipelining, bspTrace).apply(TargetId(schema.id, moduleRef)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes

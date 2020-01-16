@@ -154,7 +154,8 @@ object BloopServer {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
+  def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout, bspTrace: Option[Path])(fn: Connection => T)(implicit log: Log): Try[T] = {
+    //FIXME a connection will inherit the trace destination (or lack thereof) from its first usage
     val conn = BloopServer.synchronized {
       connections match {
         case head :: tail =>
@@ -163,7 +164,7 @@ object BloopServer {
         case Nil =>
           None
       }
-    }.getOrElse(Await.result(connect(dir, multiplexer, compilation, targetId, layout), Duration.Inf))
+    }.getOrElse(Await.result(connect(dir, multiplexer, compilation, targetId, layout, bspTrace), Duration.Inf))
 
     try {
       val result = fn(conn)
@@ -539,7 +540,8 @@ case class Compilation(graph: Target.Graph,
                     multiplexer: Multiplexer[ModuleRef, CompileEvent],
                     pipelining: Boolean,
                     globalPolicy: Policy,
-                    args: List[String])(implicit log: Log)
+                    args: List[String],
+                    bspTrace: Option[Path])(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
@@ -554,7 +556,7 @@ case class Compilation(graph: Target.Graph,
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-    BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout) { conn =>
+    BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout, bspTrace) { conn =>
       
       val result: Try[CompileResult] = {
         for {
@@ -595,13 +597,14 @@ case class Compilation(graph: Target.Graph,
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
-              pipelining: Boolean)(implicit log: Log)
+              pipelining: Boolean,
+              bspTrace: Option[Path])(implicit log: Log)
   : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
-      else compile(dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
+      else compile(dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining, bspTrace)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -619,7 +622,7 @@ case class Compilation(graph: Target.Graph,
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           Future.successful(required)
-        } else compileModule(target, layout, multiplexer, pipelining, globalPolicy, args)
+        } else compileModule(target, layout, multiplexer, pipelining, globalPolicy, args, bspTrace)
       }
     }
 
