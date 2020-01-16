@@ -34,6 +34,7 @@ import fury.utils._
 import gastronomy._
 import kaleidoscope._
 import mercator._
+import org.apache.commons.io.output.TeeOutputStream
 import org.eclipse.lsp4j.jsonrpc.Launcher
 
 import scala.annotation.tailrec
@@ -67,14 +68,22 @@ object BloopServer {
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      compilation: Compilation, targetId: TargetId, layout: Layout)(implicit log: Log): Future[Connection] =
+      compilation: Compilation, targetId: TargetId, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
     singleTasking { promise =>
+
+      val traceOut = trace.map{ path => new FileOutputStream(path.javaFile, true) }
       val serverIoPipe = Pipe.open()
       val serverIn = Channels.newInputStream(serverIoPipe.source())
-      val clientOut = Channels.newOutputStream(serverIoPipe.sink())
+      val clientOut = {
+        val out = Channels.newOutputStream(serverIoPipe.sink())
+        traceOut.fold(out)(new TeeOutputStream(out, _))
+      }
       val clientIoPipe = Pipe.open()
       val clientIn = Channels.newInputStream(clientIoPipe.source())
-      val serverOut = Channels.newOutputStream(clientIoPipe.sink())
+      val serverOut = {
+        val out = Channels.newOutputStream(clientIoPipe.sink())
+        traceOut.fold(out)(new TeeOutputStream(out, _))
+      }
 
       val logging: PrintStream = log.stream { str =>
         (if(str.indexOf("[D]") == 9) str.drop(17) else str) match {
