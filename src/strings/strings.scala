@@ -39,6 +39,8 @@ object `package` {
   }
 }
 
+trait FuryException extends Exception
+
 object Parser {
   implicit val string: Parser[String] = Some(_)
   implicit val int: Parser[Int] = str => Try(str.toInt).toOption
