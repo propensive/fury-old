@@ -175,6 +175,7 @@ case class Config(showContext: Boolean = true,
                   undoBuffer: Int = 5,
                   timestamps: Boolean = true,
                   pipelining: Boolean = false,
+                  trace: Boolean = false,
                   service: String = "furore.dev",
                   token: String = "")
 

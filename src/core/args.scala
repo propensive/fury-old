@@ -95,7 +95,7 @@ object Args {
   val ServiceArg = CliParam[String]('S', 'service, "specify the default remote layer service")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
   val TransformArg = CliParam[Unit]('t', 'transform, "transform the option into the parameters following --")
-  val TraceArg = CliParam[Path]('t', Symbol("bsp-trace"), "Write the BSP communication trace to a file")
+  val TraceArg = CliParam[Boolean]('D', Symbol("bsp-trace"), "Write the BSP communication trace to a file")
   val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
   val NoGrantArg = CliParam[String]('0', Symbol("no-grant"), "do not grant the permission automatically")
   val TagArg = CliParam[String]('t', 'tag, "git tag")
