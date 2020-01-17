@@ -99,7 +99,7 @@ case class Path(input: String) {
 
   def touch(): Try[Unit] = Try {
     if(!exists()) new java.io.FileOutputStream(javaFile).close()
-    else javaFile.setLastModified(System.currentTimeMillis())
+    else javaFile.setLastModified(System.currentTimeMillis()).unit
   }.recoverWith { case e => Failure(FileWriteError(this, e)) }
 
   def extant(): Path = {

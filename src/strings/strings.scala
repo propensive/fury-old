@@ -36,6 +36,7 @@ object `package` {
 
   implicit class Only[T](value: T) {
     def only[S](pf: PartialFunction[T, S]): Option[S] = Some(value).collect(pf)
+    def unit: Unit = ()
   }
 }
 
