@@ -11,6 +11,5 @@ mkdir -p src
 fury permission require -C java.lang.RuntimePermission -T accessClassInPackage.sun.misc
 fury permission require -C java.lang.RuntimePermission -T accessDeclaredMembers
 fury permission require -C java.lang.reflect.ReflectPermission -T suppressAccessChecks
-fury build run --output quiet >> /dev/null
 fury build run --output linear
 echo $?
