@@ -34,7 +34,6 @@ import fury.utils._
 import gastronomy._
 import kaleidoscope._
 import mercator._
-import org.apache.commons.io.output.TeeOutputStream
 import org.eclipse.lsp4j.jsonrpc.Launcher
 
 import scala.annotation.tailrec
