@@ -67,14 +67,22 @@ object BloopServer {
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent],
-      compilation: Compilation, targetId: TargetId, layout: Layout)(implicit log: Log): Future[Connection] =
+      compilation: Compilation, targetId: TargetId, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
     singleTasking { promise =>
+
+      val traceOut = trace.map{ path => new FileOutputStream(path.javaFile, true) }
       val serverIoPipe = Pipe.open()
       val serverIn = Channels.newInputStream(serverIoPipe.source())
-      val clientOut = Channels.newOutputStream(serverIoPipe.sink())
+      val clientOut = {
+        val out = Channels.newOutputStream(serverIoPipe.sink())
+        traceOut.fold(out)(new TeeOutputStream(out, _))
+      }
       val clientIoPipe = Pipe.open()
       val clientIn = Channels.newInputStream(clientIoPipe.source())
-      val serverOut = Channels.newOutputStream(clientIoPipe.sink())
+      val serverOut = {
+        val out = Channels.newOutputStream(clientIoPipe.sink())
+        traceOut.fold(out)(new TeeOutputStream(out, _))
+      }
 
       val logging: PrintStream = log.stream { str =>
         (if(str.indexOf("[D]") == 9) str.drop(17) else str) match {
@@ -154,7 +162,12 @@ object BloopServer {
         case Nil =>
           None
       }
-    }.getOrElse(Await.result(connect(dir, multiplexer, compilation, targetId, layout), Duration.Inf))
+    }.getOrElse{
+      val tracePath: Option[Path] = if(ManagedConfig().trace) {
+        Some(layout.logsDir / str"${java.time.LocalDateTime.now().toString}.log")
+      } else None
+      Await.result(connect(dir, multiplexer, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+    }
 
     try {
       val result = fn(conn)
