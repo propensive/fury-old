@@ -17,9 +17,6 @@ Starting compilation of module hello-wildcards/app
 Successfully compiled module hello-wildcards/app
 capture.log check description output script src
 0
-Starting the BSP launcher...
-Opening a BSP server connection
-BSP server is listening for incoming connections
 Starting compilation of module hello-wildcards/app
 Successfully compiled module hello-wildcards/app
 *

@@ -18,16 +18,10 @@ package fury.core
 
 import fury.io._, fury.strings._, fury.model._
 
-import java.net._
-
-import gastronomy._
-import guillotine._
 import mercator._
 import euphemism._
 
-import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 import scala.util._
-import scala.util.control.NonFatal
 
 object Bloop {
   def clean(layout: Layout): Try[Boolean] =

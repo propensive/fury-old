@@ -46,13 +46,16 @@ import scala.concurrent.duration.Duration
 import scala.language.higherKinds
 import scala.reflect.{ClassTag, classTag}
 import scala.util._
+import scala.util.control.NonFatal
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-object BloopServer {
+object BloopServer extends Lifecycle.Shutdown {
+  
+  Lifecycle.bloopServer.complete(Success(this))
  
   private var lock: Promise[Unit] = Promise.successful(())
-  private var connections: List[Connection] = Nil
+  private var connections: Map[Path, Connection] = Map.empty
   private val bloopVersion = "1.4.0-RC1"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
@@ -155,32 +158,37 @@ object BloopServer {
 
   def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
     val conn = BloopServer.synchronized {
-      connections match {
-        case head :: tail =>
-          connections = tail
-          Some(head)
-        case Nil =>
-          None
-      }
+      connections.get(dir)
     }.getOrElse{
       val tracePath: Option[Path] = if(ManagedConfig().trace) {
         Some(layout.logsDir / str"${java.time.LocalDateTime.now().toString}.log")
       } else None
-      Await.result(connect(dir, multiplexer, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+      val newConnection = Await.result(connect(dir, multiplexer, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+      connections += dir -> newConnection
+      newConnection
     }
 
-    try {
-      val result = fn(conn)
-      BloopServer.synchronized{
-        conn.server.buildShutdown().get()
-        conn.server.onBuildExit()
+    Try {
+      conn.synchronized{
+        conn.client.multiplexer = multiplexer
+        fn(conn)
       }
-      //BloopServer.synchronized(connections ::= conn)
-      Success(result)
-    } catch {
-      case e: Exception =>
-        //conn.terminate()
-        Failure(e)
+    }
+  }
+  
+  def workDirectories: Set[Path] = connections.keySet
+
+  override def shutdown(): Unit = {
+    BloopServer.synchronized {
+      connections.foreach { case(dir, conn) =>
+        conn.synchronized(try {
+          conn.server.buildShutdown().get()
+          conn.server.onBuildExit()
+        } catch {
+          case NonFatal(e) => println(s"Error while closing the connection for $dir. Cause: ${e.getMessage}")
+        })
+      }
+      connections = Map.empty
     }
   }
 }
@@ -262,7 +270,7 @@ object Compilation {
   }
 }
 
-class FuryBuildClient(multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation,
+class FuryBuildClient(var multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation,
     targetId: TargetId, layout: Layout) extends BuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit =
