@@ -532,7 +532,7 @@ schemas	default	id	default
 						hidden	false
 					test-model	id	test-model
 						kind	Application
-						main	Some	fury.ImportPathTests
+						main	Some	fury.Tests
 						plugin	None
 						manifest	
 						compiler	projectId	scala
