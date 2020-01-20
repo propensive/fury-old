@@ -36,8 +36,11 @@ object `package` {
 
   implicit class Only[T](value: T) {
     def only[S](pf: PartialFunction[T, S]): Option[S] = Some(value).collect(pf)
+    def unit: Unit = ()
   }
 }
+
+trait FuryException extends Exception
 
 object Parser {
   implicit val string: Parser[String] = Some(_)

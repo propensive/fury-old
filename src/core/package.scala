@@ -39,7 +39,6 @@ object `package` {
 
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
-  implicit class Unitize[T](t: T) { def unit: Unit = ()         }
   implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
   implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
 
