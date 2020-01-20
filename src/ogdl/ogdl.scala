@@ -97,7 +97,7 @@ object Ogdl {
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
       sb.append('\n')
       path.writeSync(sb.toString)
-    }.recoverWith { case e: Exception => Failure(FileWriteError(path, e)) }
+    }.flatten.recoverWith { case e: Exception => Failure(FileWriteError(path, e)) }
 
   def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
     val buffer = ByteBuffer.wrap(string.bytes)

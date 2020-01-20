@@ -148,7 +148,7 @@ case class Path(input: String) {
     def delete(file: JavaFile): Boolean =
       if(file.isDirectory) file.listFiles.forall(delete(_)) && file.delete() else file.delete()
 
-    Try(delete(javaFile).unit).recoverWith { case e => Failure(FileWriteError(this, e)) }
+    Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
   def writeSync(content: String): Try[Unit] = Try {
