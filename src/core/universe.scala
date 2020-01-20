@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._
+import fury.model._, fury.strings._
 
 import mercator._
 

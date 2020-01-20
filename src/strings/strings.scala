@@ -37,6 +37,7 @@ object `package` {
 
   implicit class Only[T](value: T) {
     def only[S](pf: PartialFunction[T, S]): Option[S] = Some(value).collect(pf)
+    def unit: Unit = ()
   }
   
   implicit class AsMap[T](traversable: Traversable[T]) {
@@ -44,6 +45,8 @@ object `package` {
       traversable.map { elem => (key(elem), value(elem)) }.toMap
   }
 }
+
+trait FuryException extends Exception
 
 object Parser {
   implicit val string: Parser[String] = Some(_)

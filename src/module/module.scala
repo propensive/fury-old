@@ -79,8 +79,7 @@ object ModuleCli {
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                     project)))
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project)))
 
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
@@ -301,8 +300,7 @@ object BinaryCli {
       schema  <- defaultSchema
       table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(_.id)
 
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                     project, module)))
+      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
 
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
@@ -415,8 +413,7 @@ object OptionCli {
       showRows    <- ~rows.to[List].filter(_.compiler == compiler)
       table       <- ~Tables().show(Tables().opts, cli.cols, showRows, raw)(_.value.id)
 
-      _           <- ~(if(!raw) log.info(Tables().contextString(layer, layer.showSchema, schema,
-                         project, module)))
+      _           <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
 
       _           <- ~log.rawln(table.mkString("\n"))
     } yield log.await()

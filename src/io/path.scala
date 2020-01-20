@@ -97,10 +97,10 @@ case class Path(input: String) {
     case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
   }
 
-  def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this, _)) {
+  def touch(): Try[Unit] = Try {
     if(!exists()) new java.io.FileOutputStream(javaFile).close()
-    else javaFile.setLastModified(System.currentTimeMillis())
-  }
+    else javaFile.setLastModified(System.currentTimeMillis()).unit
+  }.recoverWith { case e => Failure(FileWriteError(this, e)) }
 
   def extant(): Path = {
     mkdir()
@@ -119,10 +119,10 @@ case class Path(input: String) {
   def resolve(rel: Path) = Path(javaPath.resolve(rel.javaPath))
 
   def moveTo(path: Path): Try[Unit] =
-    Outcome.rescue[java.io.IOException](FileWriteError(this, _)){
+    Try {
       path.parent.extant()
-      Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING)
-    }
+      Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING).unit
+    }.recoverWith { case e => Failure(FileWriteError(this, e)) }
 
   def relativeSubdirsContaining(pred: String => Boolean): Set[Path] =
     findSubdirsContaining(pred).map { p => Path(p.value.drop(value.length + 1)) }
@@ -146,9 +146,9 @@ case class Path(input: String) {
 
   def delete(): Try[Boolean] = {
     def delete(file: JavaFile): Boolean =
-      if(file.isDirectory) file.listFiles.forall(delete) && file.delete() else file.delete()
+      if(file.isDirectory) file.listFiles.forall(delete(_)) && file.delete() else file.delete()
 
-    Outcome.rescue[java.io.IOException](FileWriteError(this, _))(delete(javaFile))
+    Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
   def writeSync(content: String): Try[Unit] = Try {
@@ -182,10 +182,10 @@ case class Path(input: String) {
   def rename(fn: String => String): Path = parent / fn(name)
   
   def mkParents(): Try[Path] =
-    Outcome.rescue[java.io.IOException](FileWriteError(parent, _)) {
+    Try {
       Path.createDirectories(parent.javaPath)
       this
-    }
+    }.recoverWith { case e: Exception => Failure(FileWriteError(parent, e)) }
 
   def linksTo(target: Path): Try[Path] = Try {
     Files.createSymbolicLink(javaPath, target.javaPath)

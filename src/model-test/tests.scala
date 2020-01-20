@@ -14,26 +14,15 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.strings
+package fury
 
-import scala.reflect._
-import scala.util._
+import probably.TestApp
 
-trait FuryException extends Exception
+object Tests {
+  private val testSuites = List[TestApp](
+    ImportPathTests,
+    IdTests
+  )
 
-object Outcome {
-
-  class Rescue[E <: Exception](val error: E => FuryException) {
-
-    def apply[T](fn: => T)(implicit classTag: ClassTag[E]): Try[T] =
-      try Success(fn)
-      catch { case e: E => Failure(error(e)) }
-  }
-
-  def rescue[E <: Exception](error: E => FuryException): Rescue[E] = new Rescue[E](error)
-
-  def rescue[E <: Exception](error: FuryException): Rescue[E] =
-    new Rescue[E]({ e: Exception =>
-      error
-    })
+  def main(args: Array[String]): Unit = testSuites.foreach(_.execute())
 }

@@ -14,41 +14,23 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury.utils
 
-import fury.strings._, fury.io._
-
-import escritoire._
-import gastronomy._
-
-import scala.collection.immutable.SortedSet
-import scala.language.implicitConversions
+import java.io._
 import scala.util._
 
-object `package` {
-  implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
-
-  implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
-    implicitly[MsgShow[T]].show(_).string(theme)
-
-  implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] = xs =>
-    UserMsg { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
-
-  implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
-    Ordering.String.on(implicitly[StringShow[T]].show(_))
-
-  implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
-  implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
-  implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
-  implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
-
-  implicit class TryExtensions[T](t: Try[T]) {
-    def pacify(alternative: => Option[T]): Try[T] = t match {
-      case Success(v) => t
-      case Failure(e) => alternative match {
-        case Some(v) => Success(v)
-        case None => t
-      }
-    }
-  }
+/**
+  * Classic splitter of {@link OutputStream}. Named after the Unix 'tee' command. It allows a stream to be
+  * branched off into more than one stream.
+  * 
+  * Based on the TeeOutputStream from Apache Commons IO.
+  */
+class TeeOutputStream(streams: OutputStream*) extends OutputStream {
+  override def write(b: Array[Byte], off: Int, len: Int): Unit =
+    synchronized(streams.foreach(_.write(b, off, len)))
+  
+  override def write(b: Array[Byte]): Unit = synchronized(streams.foreach(_.write(b)))
+  override def write(b: Int): Unit = synchronized(streams.foreach(_.write(b)))
+  override def flush(): Unit = streams.foreach(_.flush())
+  override def close(): Unit = streams.map { stream => Try(stream.close()) }
 }

@@ -183,6 +183,8 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
  
   def session[T](action: SessionId => T) = Sessions.assign(baseDir)(action)
 
+  lazy val bspLogsDir: Path = (logsDir / "bsp").extant()
+  
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
   def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()

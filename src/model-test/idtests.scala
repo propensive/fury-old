@@ -14,41 +14,36 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.core
+package fury
 
-import fury.strings._, fury.io._
+import fury.model._
+import probably._
 
-import escritoire._
-import gastronomy._
-
-import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions
-import scala.util._
+import scala.util.{Success, Try}
 
-object `package` {
-  implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
+object IdTests extends TestApp {
 
-  implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
-    implicitly[MsgShow[T]].show(_).string(theme)
+  override def tests(): Unit = {
 
-  implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] = xs =>
-    UserMsg { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
+    test("binary ids") {
+      BinaryId.unapply("foo.bar:baz-quux_2.12:1.2.3-RC4").isEmpty &&
+      BinaryId.unapply("foo.bar:baz-quux_2.12").isEmpty &&
+      //BinaryId.unapply("baz-quux_2.12").isEmpty &&
+      BinaryId.unapply("baz-quux").isDefined
+    }.assert(_ == true)
 
-  implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
-    Ordering.String.on(implicitly[StringShow[T]].show(_))
+    test("binary specs") {
+      BinSpec.unapply("foo.bar:baz-quux_2.12:1.2.3-RC4").isDefined &&
+      BinSpec.unapply("foo.bar:baz-quux_2.12").isEmpty &&
+      BinSpec.unapply("baz-quux_2.12").isEmpty
+    }.assert(_ == true)
 
-  implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
-  implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
-  implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
-  implicit class AutoRight[T](t: T) { def unary_~ : Try[T] = Success(t) }
+    test("repo ids") {
+      RepoId.unapply("foo").isDefined &&
+      RepoId.unapply("foo-bar-baz").isDefined &&
+      RepoId.unapply("foo-bar_baz").isEmpty
+    }.assert(_ == true)
 
-  implicit class TryExtensions[T](t: Try[T]) {
-    def pacify(alternative: => Option[T]): Try[T] = t match {
-      case Success(v) => t
-      case Failure(e) => alternative match {
-        case Some(v) => Success(v)
-        case None => t
-      }
-    }
   }
 }
