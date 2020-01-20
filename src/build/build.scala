@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.ogdl._, fury.model._, fury.io._, fury.utils._
+import fury.strings._, fury.core._, fury.model._, fury.io._
 
 import exoskeleton._
 import euphemism._
@@ -299,7 +299,7 @@ object BuildCli {
     }
     override def action(): T = {
       watcher.clear()
-      f()
+      f(())
     }
   }
 

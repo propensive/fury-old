@@ -51,7 +51,11 @@ object Main {
       System.out,
       System.err,
       args,
-      System.exit(_),
+      {
+        i =>
+        Lifecycle.shutdown()
+        System.exit(i)
+      },
       Environment(System.getenv.asScala.toMap, Option(System.getenv("PWD")))
   )
 
