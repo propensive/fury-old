@@ -173,7 +173,10 @@ object BloopServer {
 
     try {
       val result = fn(conn)
-      BloopServer.synchronized(conn.server.buildShutdown().get())
+      BloopServer.synchronized{
+        conn.server.buildShutdown().get()
+        conn.server.onBuildExit()
+      }
       //BloopServer.synchronized(connections ::= conn)
       Success(result)
     } catch {
