@@ -19,6 +19,7 @@ package fury.core
 import fury.io._, fury.strings._, fury.model._
 
 import guillotine._
+import mercator._
 import euphemism._
 
 import scala.util._
@@ -106,6 +107,7 @@ case class Shell(environment: Environment) {
                _ <- sh"git -C ${dir.value} checkout -b $refSpec".exec[Try[String]]
                _ <- sh"git -C ${dir.value} fetch".exec[Try[String]]
                _ <- sh"git -C ${dir.value} branch -u origin/$refSpec".exec[Try[String]]
+               _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
              } yield () }
       _   <- ~(dir / ".done").touch()
     } yield str
