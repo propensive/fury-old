@@ -40,6 +40,8 @@ object FuryMenu {
             Action('classpath, msg"show a classpath for a module", BuildCli.classpath),
             Action('console, msg"launch the console for this build", BuildCli.console),
             Action('run, msg"compile a module", BuildCli.compile(None)),
+            // FIXME: This should be retained only temporarily
+            Action('save, msg"save a module", BuildCli.compile(None)),
             Action('describe, msg"describe the build for a module", BuildCli.describe),
             Action('install, msg"install an application locally", BuildCli.install)
         ),
