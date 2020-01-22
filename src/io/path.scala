@@ -19,6 +19,7 @@ package fury.io
 import fury.strings._
 
 import kaleidoscope._
+import mercator._
 
 import scala.language.experimental.macros
 import scala.language.higherKinds
@@ -91,6 +92,10 @@ case class Path(input: String) {
     val filesStream = Files.walk(javaPath)
     try filesStream.allMatch(p => Files.isDirectory(p))
     finally filesStream.close()
+  }
+
+  def setReadOnly(): Try[Unit] = childPaths.traverse(_.setReadOnly()).flatMap { _ =>
+    Try(javaFile.setReadOnly().unit)
   }
 
   def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
@@ -171,7 +176,7 @@ case class Path(input: String) {
   def walkTree: Stream[Path] =
     if(directory) Stream(this) ++: childPaths.to[Stream].flatMap(_.walkTree) else Stream(this)
 
-  def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
+  def children: List[String] = if(exists()) Option(javaFile.listFiles).to[List].flatten.map(_.getName) else Nil
   def childPaths: List[Path] = children.map(this / _)
   def exists(): Boolean = Files.exists(javaPath)
   def ifExists(): Option[Path] = if(exists) Some(this) else None
