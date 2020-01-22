@@ -143,8 +143,9 @@ case class PublishedLayer(url: Uri, major: Int, minor: Int) {
 
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {
-    case FuryConf(ref, path, None)      => msg"$ref/$path"
-    case FuryConf(ref, path, Some(pub)) => msg"$pub${'@'}$ref${'/'}$path"
+    case FuryConf(ref, path, None)                 => msg"$ref/$path"
+    case FuryConf(ref, ImportPath.Root, Some(pub)) => msg"$pub${'@'}$ref"
+    case FuryConf(ref, path, Some(pub))            => msg"$pub${'@'}$ref${'/'}$path"
   }
 }
 
