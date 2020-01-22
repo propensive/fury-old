@@ -176,7 +176,7 @@ case class Path(input: String) {
   def walkTree: Stream[Path] =
     if(directory) Stream(this) ++: childPaths.to[Stream].flatMap(_.walkTree) else Stream(this)
 
-  def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
+  def children: List[String] = if(exists()) Option(javaFile.listFiles).to[List].flatten.map(_.getName) else Nil
   def childPaths: List[Path] = children.map(this / _)
   def exists(): Boolean = Files.exists(javaPath)
   def ifExists(): Option[Path] = if(exists) Some(this) else None
