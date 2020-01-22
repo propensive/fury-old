@@ -87,8 +87,9 @@ object AliasCli {
   def context(cli: Cli[CliParam[_]])(implicit log: Log) =
     for {
       layout <- cli.layout
-      layer  <- Layer.read(layout)
-    } yield new MenuContext(cli, layout, layer)
+      conf   <- Layer.readFuryConf(layout)
+      layer  <- Layer.read(layout, conf)
+    } yield new MenuContext(cli, layout, layer, conf)
 
   def list(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -98,7 +99,7 @@ object AliasCli {
       raw   <- ~call(RawArg).isSuccess
       rows  <- ~layer.aliases.to[List]
       table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
-      _     <- ~(if(!raw) log.info(Tables().contextString(layer)))
+      _     <- ~log.infoWhen(!raw)(conf.focus())
       _     <- ~log.rawln(table.join("\n"))
     } yield log.await()
   }
@@ -150,8 +151,9 @@ object BuildCli {
 
   def context(cli: Cli[CliParam[_]])(implicit log: Log): Try[MenuContext] = for {
     layout <- cli.layout
-    layer  <- Layer.read(layout)
-  } yield new MenuContext(cli, layout, layer)
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+  } yield new MenuContext(cli, layout, layer, conf)
 
   def notImplemented(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = Success(Abort)
 
@@ -226,7 +228,8 @@ object BuildCli {
 
   def prompt(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout <- cli.layout
-    layer  <- ~Layer.read(layout).toOption
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- ~Layer.read(layout, conf).toOption
     msg    <- layer.fold(Try(Prompt.empty(ManagedConfig().theme)))(getPrompt(_, ManagedConfig().theme))
     call   <- cli.call()
     _      <- ~log.raw(msg)
@@ -457,7 +460,8 @@ object LayerCli {
 
   def projects(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout    <- cli.layout
-    layer     <- Layer.read(layout)
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
     cli       <- cli.hint(HttpsArg)
     schemaArg <- ~SchemaId.default
     schema    <- layer.schemas.findBy(schemaArg)
@@ -467,14 +471,15 @@ object LayerCli {
     https     <- ~call(HttpsArg).isSuccess
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
-    _         <- ~(if(!raw) log.info(Tables().contextString(layer)))
+    _         <- ~log.infoWhen(!raw)(conf.focus())
     _         <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
   def select(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout       <- cli.layout
     baseLayer    <- Layer.base(layout)
-    layer        <- Layer.read(layout)
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
     baseSchema   <- baseLayer.mainSchema
     schema       <- layer.mainSchema
     focus        <- Layer.readFuryConf(layout)
@@ -535,7 +540,8 @@ object LayerCli {
     cli           <- cli.hint(RawArg)
     cli           <- cli.hint(BreakingArg)
     call          <- cli.call()
-    layer         <- Layer.read(layout)
+    conf          <- Layer.readFuryConf(layout)
+    layer         <- Layer.read(layout, conf)
     path          <- call(RemoteLayerArg)
     breaking      <- ~call(BreakingArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
@@ -554,7 +560,8 @@ object LayerCli {
   def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(RawArg)
-    layer         <- Layer.read(layout)
+    conf          <- Layer.readFuryConf(layout)
+    layer         <- Layer.read(layout, conf)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(layer, layout, raw)
@@ -564,7 +571,8 @@ object LayerCli {
   def export(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(FileArg)
-    layer         <- Layer.read(layout)
+    conf          <- Layer.readFuryConf(layout)
+    layer         <- Layer.read(layout, conf)
     call          <- cli.call()
     pwd           <- cli.pwd
     destination   <- call(FileArg).map(pwd.resolve(_))
@@ -572,52 +580,51 @@ object LayerCli {
     _             <- ~log.info(msg"Saved layer file ${destination}")
   } yield log.await()
 
-  def addImport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = {
-    for {
-      layout        <- cli.layout
-      layer         <- Layer.read(layout)
-      cli           <- cli.hint(ImportNameArg)
-      schemaArg     <- ~Some(SchemaId.default)
-      defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-     
-      cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
-      layerImport   <- ~cli.peek(ImportArg)
-      layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(_, layout)).toOption)
-      maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
-      call          <- cli.call()
-      layerImport   <- call(ImportArg)
-      layerInput    <- Layer.parse(layerImport, layout)
-      nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
-      layerRef      <- Layer.load(layerInput, layout)
-      schemaRef     <- ~SchemaRef(nameArg, layerRef, SchemaId.default)
-      layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
-                           schemaRef.copy(id = nameArg)))
-      
-      _             <- ~Layer.save(layer, layout)
-    } yield log.await()
-  }
+  def addImport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+    layout        <- cli.layout
+    conf          <- Layer.readFuryConf(layout)
+    layer         <- Layer.read(layout, conf)
+    cli           <- cli.hint(ImportNameArg)
+    schemaArg     <- ~Some(SchemaId.default)
+    defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+    
+    cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
+    layerImport   <- ~cli.peek(ImportArg)
+    layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(_, layout)).toOption)
+    maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
+    call          <- cli.call()
+    layerImport   <- call(ImportArg)
+    layerInput    <- Layer.parse(layerImport, layout)
+    nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
+    layerRef      <- Layer.load(layerInput, layout)
+    schemaRef     <- ~SchemaRef(nameArg, layerRef, SchemaId.default)
+    layer         <- Lenses.updateSchemas(schemaArg, layer, true)(Lenses.layer.imports(_))(_.modify(_)(_ +
+                          schemaRef.copy(id = nameArg)))
+    
+    _             <- ~Layer.save(layer, layout)
+  } yield log.await()
 
-  def unimport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = {
-    for {
-      layout    <- cli.layout
-      layer     <- Layer.read(layout)
-      schemaArg <- ~Some(SchemaId.default)
-      dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-      cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
-      call      <- cli.call()
-      schemaId  <- ~SchemaId.default
-      importArg <- call(ImportIdArg)
-      schema    <- layer.schemas.findBy(schemaId)
-      lens      <- ~Lenses.layer.imports(schema.id)
-      layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
-      _         <- ~Layer.save(layer, layout)
-    } yield log.await()
-  }
+  def unimport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf          <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
+    schemaArg <- ~Some(SchemaId.default)
+    dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+    cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
+    call      <- cli.call()
+    schemaId  <- ~SchemaId.default
+    importArg <- call(ImportIdArg)
+    schema    <- layer.schemas.findBy(schemaId)
+    lens      <- ~Lenses.layer.imports(schema.id)
+    layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
+    _         <- ~Layer.save(layer, layout)
+  } yield log.await()
 
   def list(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = {
     for {
       layout    <- cli.layout
-      layer     <- Layer.read(layout)
+      conf      <- Layer.readFuryConf(layout)
+      layer     <- Layer.read(layout, conf)
       cli       <- cli.hint(HttpsArg)
       schemaArg <- ~SchemaId.default
       schema    <- layer.schemas.findBy(schemaArg)
@@ -626,13 +633,8 @@ object LayerCli {
       raw       <- ~call(RawArg).isSuccess
       https     <- ~call(HttpsArg).isSuccess
       rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, layout, https)) }
-      
-      table     <- ~Tables().show(Tables().imports, cli.cols, rows,
-                       raw)(_._1.schema.key)
-      
-      _         <- ~(if(!raw) log.info(Tables().contextString(layer))
-                       else log)
-      
+      table     <- ~Tables().show(Tables().imports, cli.cols, rows, raw)(_._1.schema.key)
+      _         <- ~log.infoWhen(!raw)(conf.focus())
       _         <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }

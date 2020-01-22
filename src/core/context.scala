@@ -37,9 +37,11 @@ object Dns {
     } yield txts.getAll.asScala.to[List].map(_.toString)
   }
 }
+
 class MenuContext(val cli: Cli[CliParam[_]],
                   val layout: Layout,
                   val layer: Layer,
+                  val conf: FuryConf,
                   val optSchemaId: Option[SchemaId] = None) {
   implicit def implicitLayout: Layout   = layout
   implicit def implicitShell: Shell     = Shell(cli.env)

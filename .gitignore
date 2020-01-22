@@ -23,3 +23,6 @@ test-lib
 .metals/
 out/**/*
 .*.bak
+.sandbox/
+.vscode/
+.fury.conf

@@ -28,18 +28,15 @@ object SourceCli {
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
                      override val layer: Layer,
-                     optSchema: Option[Schema],
+                     override val conf: FuryConf,
                      optProject: Option[Project],
                      optModule: Option[Module])
-             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
-
-    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
-  }
+             extends MenuContext(cli, layout, layer, conf)
 
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(layout)
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
     schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -54,7 +51,7 @@ object SourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield new Context(cli, layout, layer, schema, optProject, optModule)
+  } yield new Context(cli, layout, layer, conf, optProject, optModule)
 
   def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -66,10 +63,7 @@ object SourceCli {
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.sources.to[List]
       table   <- ~Tables().show(Tables().sources, cli.cols, rows, raw)(_.repoIdentifier)
-      schema  <- defaultSchema
-      
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
-
+      _       <- ~log.info(conf.focus(project.id, module.id))
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
@@ -91,20 +85,18 @@ object SourceCli {
                          module.id))(_(_) --= sourceToDel)
       
       _           <- ~Layer.save(layer, layout)
-
-      _           <- ~optSchema.foreach(Compilation.asyncCompilation(_, module.ref(project), layout,
-                         false))
-
+      schema      <- layer.schemas.findBy(SchemaId.default)
+      _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
     } yield log.await()
   }
 
   def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      repos      <- defaultSchema.map(_.repos)
+      schema     <- layer.schemas.findBy(SchemaId.default)
 
       extSrcs    <- optProject.to[List].flatMap { project =>
-                     repos.map(_.sourceCandidates(layout, false) { n =>
+                     schema.repos.map(_.sourceCandidates(layout, false) { n =>
                        n.endsWith(".scala") || n.endsWith(".java")
                      })
                    }.sequence.map(_.flatten)
@@ -128,10 +120,8 @@ object SourceCli {
                         module.id))(_(_) ++= source)
       
       _          <- ~Layer.save(layer, layout)
-
-      _          <- ~optSchema.foreach(Compilation.asyncCompilation(_, module.ref(project), layout,
-                        false))
-
+      schema      <- layer.schemas.findBy(SchemaId.default)
+      _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
     } yield log.await()
   }
 }
@@ -141,18 +131,15 @@ object ResourceCli {
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
                      override val layer: Layer,
-                     optSchema: Option[Schema],
+                     override val conf: FuryConf,
                      optProject: Option[Project],
                      optModule: Option[Module])
-             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
-
-    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
-  }
+             extends MenuContext(cli, layout, layer, conf)
 
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(layout)
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
     schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
@@ -166,7 +153,7 @@ object ResourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield new Context(cli, layout, layer, schema, optProject, optModule)
+  } yield new Context(cli, layout, layer, conf, optProject, optModule)
 
   def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -178,10 +165,7 @@ object ResourceCli {
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.resources.to[List]
       table   <- ~Tables().show(Tables().resources, cli.cols, rows, raw)(_.repoIdentifier)
-      schema  <- defaultSchema
-      
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
-
+      _       <- ~log.info(conf.focus(project.id, module.id))
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
@@ -203,17 +187,14 @@ object ResourceCli {
                            module.id))(_(_) --= resourceToDel)
       
       _             <- ~Layer.save(layer, layout)
-
-      _             <- ~optSchema.foreach(Compilation.asyncCompilation(_, module.ref(project), layout,
-                           false))
-
+      schema        <- layer.schemas.findBy(SchemaId.default)
+      _             <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
     } yield log.await()
   }
 
   def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
     for {
-      repos       <- defaultSchema.map(_.repos)
       cli         <- cli.hint(SourceArg)
       call        <- cli.call()
       project     <- optProject.ascribe(UnspecifiedProject())
@@ -225,7 +206,8 @@ object ResourceCli {
                          module.id))(_(_) ++= resource)
       
       _           <- ~Layer.save(layer, layout)
-      _           <- ~optSchema.foreach(Compilation.asyncCompilation(_, module.ref(project), layout, false))
+      schema      <- layer.schemas.findBy(SchemaId.default)
+      _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
     } yield log.await()
   }
 }

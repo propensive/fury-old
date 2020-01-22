@@ -31,10 +31,10 @@ object DependencyCli {
       override val cli: Cli[CliParam[_]],
       override val layout: Layout,
       override val layer: Layer,
-      optSchema: Option[Schema],
+      override val conf: FuryConf,
       optProject: Option[Project],
       optModule: Option[Module])
-      extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
+      extends MenuContext(cli, layout, layer, conf) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -43,7 +43,8 @@ object DependencyCli {
   def context(cli: Cli[CliParam[_]])(implicit log: Log) =
     for {
       layout       <- cli.layout
-      layer        <- Layer.read(layout)
+      conf         <- Layer.readFuryConf(layout)
+      layer        <- Layer.read(layout, conf)
       schemaArg    <- ~Some(SchemaId.default)
       schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
       cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -58,7 +59,7 @@ object DependencyCli {
                         module   <- project.modules.findBy(moduleId).toOption
                       } yield module }
 
-    } yield new Context(cli, layout, layer, schema, optProject, optModule)
+    } yield new Context(cli, layout, layer, conf, optProject, optModule)
 
   def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -71,9 +72,7 @@ object DependencyCli {
       rows    <- ~module.dependencies.to[List].sorted
       table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
-
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
-
+      _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
@@ -138,10 +137,10 @@ object EnvCli {
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
                      override val layer: Layer,
-                     optSchema: Option[Schema],
+                     override val conf: FuryConf,
                      optProject: Option[Project],
                      optModule: Option[Module])
-             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
+             extends MenuContext(cli, layout, layer, conf) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -149,7 +148,8 @@ object EnvCli {
 
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(layout)
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
     schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -162,7 +162,7 @@ object EnvCli {
                       moduleId <- optModuleId
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
-  } yield new Context(cli, layout, layer, schema, optProject, optModule)
+  } yield new Context(cli, layout, layer, conf, optProject, optModule)
 
   def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -175,9 +175,7 @@ object EnvCli {
       rows    <- ~module.environment.to[List].sorted
       table   <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
-
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
-
+      _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
@@ -228,18 +226,15 @@ object PermissionCli {
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
                      override val layer: Layer,
-                     optSchema: Option[Schema],
+                     override val conf: FuryConf,
                      optProject: Option[Project],
                      optModule: Option[Module])
-             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
-
-    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
-  }
+             extends MenuContext(cli, layout, layer, conf)
 
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(layout)
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
     schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -254,7 +249,7 @@ object PermissionCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield Context(cli, layout, layer, schema, optProject, optModule)
+  } yield Context(cli, layout, layer, conf, optProject, optModule)
 
   def require(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -317,10 +312,7 @@ object PermissionCli {
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.policyEntries.to[List].sortBy(_.hash.key)
       table   <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
-      schema  <- defaultSchema
-
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
-
+      _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
@@ -356,18 +348,15 @@ object PropertyCli {
       override val cli: Cli[CliParam[_]],
       override val layout: Layout,
       override val layer: Layer,
-      optSchema: Option[Schema],
+      override val conf: FuryConf,
       optProject: Option[Project],
       optModule: Option[Module])
-      extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
-
-    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
-    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
-  }
+      extends MenuContext(cli, layout, layer, conf)
 
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(layout)
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
     schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -382,7 +371,7 @@ object PropertyCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield Context(cli, layout, layer, schema, optProject, optModule)
+  } yield Context(cli, layout, layer, conf, optProject, optModule)
 
   def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -394,10 +383,7 @@ object PropertyCli {
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.properties.to[List].sorted
       table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
-      schema  <- defaultSchema
-
-      _       <- ~(if(!raw) log.info(Tables().contextString(layer, project, module)))
-
+      _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
       _       <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
