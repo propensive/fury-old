@@ -132,12 +132,42 @@ case class ImportPath(path: String) {
   }
 }
 
+object PublishedLayer {
+  implicit val msgShow: MsgShow[PublishedLayer] =
+    publishedLayer => UserMsg { theme => theme.layer(publishedLayer.url.path.value)}
+}
+
 case class PublishedLayer(url: Uri, major: Int, minor: Int) {
   def version: String = str"$major.$minor"
 }
 
+object FuryConf {
+  implicit val msgShow: MsgShow[FuryConf] = {
+    case FuryConf(ref, path, None)      => msg"$ref/$path"
+    case FuryConf(ref, path, Some(pub)) => msg"$pub${'@'}$ref${'/'}$path"
+  }
+}
+
 case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
-    published: Option[PublishedLayer] = None)
+    published: Option[PublishedLayer] = None) {
+
+  def focus(): Focus = Focus(layerRef, path, None)
+  def focus(projectId: ProjectId): Focus = Focus(layerRef, path, Some((projectId, None)))
+
+  def focus(projectId: ProjectId, moduleId: ModuleId): Focus =
+    Focus(layerRef, path, Some((projectId, Some(moduleId))))
+}
+
+object Focus {
+  implicit val msgShow: MsgShow[Focus] = {
+    case Focus(ref, ImportPath.Root, None)               => msg"$ref"
+    case Focus(ref, path, None)                          => msg"$ref${'/'}$path"
+    case Focus(ref, path, Some((project, None)))         => msg"$ref${'/'}$path${'#'}$project"
+    case Focus(ref, path, Some((project, Some(module)))) => msg"$ref${'/'}$path${'#'}$project${'/'}$module"
+  }
+}
+
+case class Focus(layerRef: LayerRef, path: ImportPath, focus: Option[(ProjectId, Option[ModuleId])])
 
 object AsIpfsRef {
   def unapply(str: String): Option[IpfsRef] = str.only { case r"fury:\/\/$hash@(.{46})" => IpfsRef(hash) }

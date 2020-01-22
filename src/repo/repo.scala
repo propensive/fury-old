@@ -29,12 +29,13 @@ import Lenses._
 
 object RepoCli {
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer)
+  case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer, conf: FuryConf)
   
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout <- cli.layout
-    layer  <- Layer.read(layout)
-  } yield Context(cli, layout, layer)
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+  } yield Context(cli, layout, layer, conf)
 
   def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -46,7 +47,7 @@ object RepoCli {
       schema    <- ctx.layer.schemas.findBy(schemaArg)
       rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
       table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.info(Tables().contextString(layer)))
+      _         <- ~log.infoWhen(!raw)(conf.focus())
       _         <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
