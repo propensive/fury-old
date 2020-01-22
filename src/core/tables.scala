@@ -38,7 +38,7 @@ case class Tables() {
     else table.tabulate(cols, rows, Some(theme.gray()))
 
   def contextString(layer: Layer, elements: UserMsg*): UserMsg =
-    elements.tail.foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
+    elements.foldLeft(msg"${'/'}${'/'}$layer") { (l, r) => msg"$l${'/'}$r" }
 
   implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.id.key).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)
