@@ -107,8 +107,8 @@ case class Shell(environment: Environment) {
                _ <- sh"git -C ${dir.value} checkout -b $refSpec".exec[Try[String]]
                _ <- sh"git -C ${dir.value} fetch".exec[Try[String]]
                _ <- sh"git -C ${dir.value} branch -u origin/$refSpec".exec[Try[String]]
-               _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
              } yield () }
+      _   <- sources.map(_.in(dir)).traverse(_.setReadOnly())
       _   <- ~(dir / ".done").touch()
     } yield str
 
