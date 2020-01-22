@@ -1,4 +1,4 @@
-<img src="doc/logo/standard.svg" alt="Fury" width="20%">
+<img src="doc/logo/render_github.png" alt="Fury">
 
 ### About
 Fury is an experimental dependency manager and build tool for Scala. It is
