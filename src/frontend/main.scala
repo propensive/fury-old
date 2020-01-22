@@ -34,7 +34,11 @@ object Main {
 
   def invoke(cli: Cli[CliParam[_]])(implicit log: Log): ExitStatus = {
 
-    val layer = for(layout <- cli.layout; layer  <- Layer.read(layout)) yield layer
+    val layer = for {
+      layout <- cli.layout
+      conf   <- Layer.readFuryConf(layout)
+      layer  <- Layer.read(layout, conf)
+    } yield layer
 
     val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
         def action(cli: Cli[CliParam[_]]) =

@@ -31,9 +31,10 @@ object ProjectCli {
 
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
     layout       <- cli.layout
-    layer        <- Layer.read(layout)
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
     optSchemaArg <- ~Some(SchemaId.default)
-  } yield new MenuContext(cli, layout, layer, optSchemaArg)
+  } yield new MenuContext(cli, layout, layer, conf, optSchemaArg)
 
   def select(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
     import ctx._
@@ -64,7 +65,7 @@ object ProjectCli {
       schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
       rows   <- ~schema.projects.to[List]
       table  <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
-      _      <- ~(if(!raw) log.info(Tables().contextString(layer)))
+      _      <- ~log.infoWhen(!raw)(conf.focus())
       _      <- ~log.rawln(table.mkString("\n"))
     } yield log.await()
   }
