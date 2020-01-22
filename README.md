@@ -1,4 +1,4 @@
-![Fury](https://storage.googleapis.com/revivalist/images/furybuild/furylogo.png)
+<img src="doc/logo/standard.svg" alt="Fury" width="20%">
 
 ### About
 Fury is an experimental dependency manager and build tool for Scala. It is
