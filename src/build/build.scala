@@ -83,6 +83,78 @@ object ConfigCli {
   }
 }
 
+object AboutCli {
+
+  private def resources: String = {
+    val runtime = Runtime.getRuntime
+    val df: DecimalFormat = new DecimalFormat("0.0")
+
+    def magnitude(value: Double, scale: List[String] = List("", "k", "M", "G", "T")): String =
+      if(value < 1024) s"${df.format(value)}${scale.head}"
+      else magnitude(value/1024, scale.tail)
+
+    val free = magnitude(runtime.freeMemory)
+    val total = magnitude(runtime.totalMemory)
+    val used = magnitude(runtime.totalMemory - runtime.freeMemory)
+    val max = magnitude(runtime.maxMemory)
+
+    (str"""    CPUs: ${runtime.availableProcessors}
+          |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max
+          |""").stripMargin
+  }
+
+  private val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.00")
+  private def since(start: Long): String = str"${formatter.format((System.currentTimeMillis - start)/1000.0)}s"
+
+  private def tasks: String = Lifecycle.sessions.map { session =>
+    str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
+  }.mkString("\n")
+
+  private def connections: String = BloopServer.workDirectories.map { dir =>
+    str"$dir"
+  }.mkString("\n")
+
+  private def withTemplate(content: String): String = {
+    str"""|     _____
+          |    / ___/__ __ ____ __ __
+          |   / __/ / // // ._// // /
+          |  /_/    \_._//_/  _\_. /
+          |                   \___/
+          |
+          |Fury build tool for Scala, version ${FuryVersion.current}.
+          |This software is provided under the Apache 2.0 License.
+          |Fury depends on Bloop, Coursier, Git and Nailgun.
+          |© Copyright 2018-19 Jon Pretty, Propensive OÜ.
+          |
+          |See the Fury website at https://fury.build/, or follow @propensive on Twitter
+          |for more information.
+          |
+          |${content}
+          |
+          |For help on using Fury, run: fury help
+          |""".stripMargin
+  }
+
+  def resources(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+    cli.call().map{ _ =>
+      log.raw(withTemplate(resources))
+      log.await()
+    }
+
+  def tasks(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+    cli.call().map{ _ =>
+      log.raw(withTemplate(tasks))
+      log.await()
+    }
+
+  def connections(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+    cli.call().map{ _ =>
+      log.raw(withTemplate(connections))
+      log.await()
+    }
+
+}
+
 object AliasCli {
   def context(cli: Cli[CliParam[_]])(implicit log: Log) =
     for {
@@ -156,56 +228,6 @@ object BuildCli {
   } yield new MenuContext(cli, layout, layer, conf)
 
   def notImplemented(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = Success(Abort)
-
-  def status: String = {
-    val runtime = Runtime.getRuntime
-    val df: DecimalFormat = new DecimalFormat("0.0")
-
-    def magnitude(value: Double, scale: List[String] = List("", "k", "M", "G", "T")): String =
-      if(value < 1024) s"${df.format(value)}${scale.head}"
-      else magnitude(value/1024, scale.tail)
-
-    val free = magnitude(runtime.freeMemory)
-    val total = magnitude(runtime.totalMemory)
-    val used = magnitude(runtime.totalMemory - runtime.freeMemory)
-    val max = magnitude(runtime.maxMemory)
-
-    (str"""    CPUs: ${runtime.availableProcessors}
-         |  Memory: ${used}B used, ${free}B free, ${total}B total, ${max}B max
-         |""").stripMargin
-  }
-
-  private val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.00")
-  def since(start: Long): String = str"${formatter.format((System.currentTimeMillis - start)/1000.0)}s"
-
-  def builds: String = Lifecycle.sessions.map { session =>
-    str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
-  }.mkString("\n")
-
-  def about(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
-    for {
-      call  <- cli.call()
-      _     <- ~log.raw(str"""|     _____ 
-                                 |    / ___/__ __ ____ __ __
-                                 |   / __/ / // // ._// // /
-                                 |  /_/    \_._//_/  _\_. /
-                                 |                   \___/
-                                 |
-                                 |Fury build tool for Scala, version ${FuryVersion.current}.
-                                 |This software is provided under the Apache 2.0 License.
-                                 |Fury depends on Bloop, Coursier, Git and Nailgun.
-                                 |© Copyright 2018-19 Jon Pretty, Propensive OÜ.
-                                 |
-                                 |See the Fury website at https://fury.build/, or follow @propensive on Twitter
-                                 |for more information.
-                                 |
-                                 |${status}
-                                 |
-                                 |${builds}
-                                 |
-                                 |For help on using Fury, run: fury help
-                                 |""".stripMargin)
-    } yield log.await()
 
   def getPrompt(layer: Layer, theme: Theme)(implicit log: Log): Try[String] = for {
     schemaId     <- ~layer.main
