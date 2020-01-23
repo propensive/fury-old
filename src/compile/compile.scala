@@ -419,7 +419,7 @@ case class Compilation(graph: Target.Graph,
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def checkoutAll(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
-    checkouts.checkouts.traverse(_.get(layout, https)).map{ _ => ()}
+    checkouts.checkouts.traverse(_.get(layout, https)).map(_.unit)
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout, session).waive)
@@ -432,6 +432,8 @@ case class Compilation(graph: Target.Graph,
   }
 
   def dependencyGraph(ref: ModuleRef)(implicit log: Log) = {
+
+    log.info("Calling dependencyGraph")
     type AMap = Map[Option[ArtifactId], Set[Dependency]]
 
     def applyFold(base: AMap, inherited: List[AMap]): AMap = {
@@ -541,19 +543,6 @@ case class Compilation(graph: Target.Graph,
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main.key)
     } yield ()
-
-  def saveAllJars(destination: Path, ref: ModuleRef, classDirs: Map[ModuleRef, Path], layout: Layout, fatJar: Boolean)
-                 (implicit log: Log)
-                 : Try[Unit] = for {
-    artifacts  <- dependencyGraph(ref)
-    target     <- apply(ref)
-    artifactId <- ~target.module.artifact.getOrElse(ArtifactId(str"${ref.projectId.key}-${ref.moduleId.key}"))
-    _          <- ~log.info("Before: "+artifacts.toString)
-    artifacts  <- ~artifacts.get(None).fold(artifacts)((artifacts - None).updated(Some(artifactId), _))
-    _          <- ~log.info("After: "+artifacts.toString)
-    _          <- artifacts.traverse { case (a, v) => saveJars(ref, destination, target.module.main, a.get, v,
-                      classDirs, layout, fatJar) }
-  } yield ()
 
   def saveJars(ref: ModuleRef,
                destination: Path,
