@@ -240,7 +240,7 @@ object Compilation {
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
         TargetId(ref, session)).connections
-      Compilation(graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
+      Compilation(ref, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
         moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe, session)
     }
   }
@@ -389,7 +389,8 @@ case class ModuleDependency(ref: ModuleRef) extends Dependency(None)
 case class ArtifactDependency(ref: ArtifactId) extends Dependency(Some(ref))
 case class BinaryDependency(ref: Binary) extends Dependency(Some(ref.artifactId))
 
-case class Compilation(graph: Target.Graph,
+case class Compilation(ref: ModuleRef,
+                       graph: Target.Graph,
                        subgraphs: Map[TargetId, Set[TargetId]],
                        checkouts: Checkouts,
                        targets: Map[ModuleRef, Target],
@@ -537,25 +538,24 @@ case class Compilation(graph: Target.Graph,
     }
   }
 
-  def saveNative(ref: ModuleRef, dest: Path, layout: Layout, main: ClassRef)(implicit log: Log): Try[Unit] =
+  def saveNative(dest: Path, layout: Layout, main: ClassRef)(implicit log: Log): Try[Unit] =
     for {
       dest <- Try(dest.extant())
       cp   = runtimeClasspath(ref, layout).to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main.key)
     } yield ()
 
-  def saveJars(ref: ModuleRef,
-               destination: Path,
+  def saveJars(destination: Path,
                main: Option[ClassRef],
                artifactId: ArtifactId,
-               refs: Set[Dependency],
                classDirs: Map[ModuleRef, Path],
                layout: Layout,
                fatJar: Boolean)
               (implicit log: Log)
               : Try[Unit] = for {
-
-    targets <- refs.collect { case ModuleDependency(ref) => ref }.traverse(apply(_))
+    deps    <- dependencyGraph(ref)
+    target  <- apply(ref)
+    targets <- deps(target.module.artifact).collect { case ModuleDependency(ref) => ref }.traverse(apply(_))
     bins    <- ~targets.flatMap(_.binaries)
     _       <- ~log.info(msg"Outputting binaries: ${bins.toString}")
     ress    <- ~targets.flatMap(_.module.resources)
@@ -563,7 +563,7 @@ case class Compilation(graph: Target.Graph,
     dest     = destination.extant()
     path     = dest / str"${artifactId.key}.jar"
     _       <- ~log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
-    classes <- ~(classDirs.collect { case (k, v) if refs.contains(ModuleDependency(k)) => v })
+    classes <- ~(classDirs.collect { case (k, v) if deps.contains(ModuleDependency(k)) => v })
     dir     <- aggregateCompileResults(ref, classes.to[Set], layout)
     _       <- ~log.info(msg"For $ref, using dirs ${classes.toString}")
     _       <- if(fatJar) bins.traverse(Zipper.unpack(_, dir))

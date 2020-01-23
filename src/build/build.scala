@@ -266,18 +266,16 @@ object BuildCli {
         for {
           task <- compileOnce(compilation, schema, module.ref(project), layout,
             globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https, session)
-        } yield {
-          task.transform { completed =>
-            for{
-              compileResult  <- completed
-              compileSuccess <- compileResult.asTry
-              _              <- ~(dir.foreach { dir => compilation.saveJars(module.ref(project),
-                                    dir in layout.pwd, module.main, module.artifact.getOrElse(
-                                    ArtifactId(str"${project.id.key}-${module.id.key}")), Set(), compileSuccess.classDirectories,
-                                    layout, fatJar)
-                                })
-            } yield compileSuccess
-          }
+        } yield task.transform { completed =>
+          for {
+            compileResult  <- completed
+            compileSuccess <- compileResult.asTry
+            _              <- ~(dir.foreach { dir => compilation.saveJars(module.ref(project),
+                                  dir in layout.pwd, module.main, module.artifact.getOrElse(
+                                  ArtifactId(str"${project.id.key}-${module.id.key}")), compileSuccess.classDirectories,
+                                  layout, fatJar)
+                              })
+          } yield compileSuccess
         }
       }
       future        <- if(watch) Try(repetition.start()).flatten else repetition.action()
