@@ -15,3 +15,90 @@
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
 package fury.task
+
+import fury.strings._, fury.model._, fury.io._
+
+import scala.collection.mutable._
+import scala.concurrent._
+
+abstract class Task(id: UserMsg) {
+  type Point
+  type Result
+  def init(inputs: Seq[Task]): Option[Point]
+  def run(point: Point): Result
+  def cancel(point: Point): Unit
+  def progress(value: Double): Unit
+}
+
+case class Channel(id: Int)
+
+object TaskManager {
+  private val tasks: HashMap[Task, Process[_]] = HashMap()
+  private val channels: HashMap[Path, Set[Channel]] = HashMap()
+ 
+  def session(pwd: Path, channel: Channel, pid: Pid): Session = synchronized {
+    val currentChannels = channels.getOrElseUpdate(pwd, Set())
+    val channel = Iterator.from(0).map(Channel(_)).find(!currentChannels.contains(_)).get
+  
+    Session(channel, pwd, pid, Map())
+  }
+
+  def run(task: Task): Process[task.Result] = {
+    
+  }
+
+  def close(session: Session) = synchronized {
+    channels(session.pwd) -= session.channel
+    sessions(session.pid) -= session
+  }
+
+  def terminate(pid: Pid) = sessions.get(pid).foreach { session =>
+  
+  }
+  
+  case class Session(channel: Channel, pwd: Path, pid: Pid, dependencies: Map[Task, Set[Task]]) {
+    def active: List[Task]
+    def dependencies(task: Task): Set[Task]
+    case class Process() 
+  }
+}
+
+class Process[Result](future: Future[Result]) {
+  def apply(): Result = Await.result(future, duration.Duration.Inf)
+}
+
+
+/*
+case class DownloadBinary(binary: Binary) extends Task(msg"$binary") {
+
+}
+
+case class StartIpfs() extends Task(msg"Starting IPFS") {
+
+}
+
+case class IpfsDownload(ref: IpfsRef) extends Task(msg"$ref")
+
+case class BloopCompile(target: Target) extends Task(msg"$target") {
+
+}
+
+case class GitClone() extends Task(msg"") {
+
+}
+
+case class GitCheckout() extends Task(msg"") {
+
+}
+
+case class BuildJar() extends Task(msg"") {
+
+}
+
+// The ref should be based on the sources if it's a deterministic module, or something random otherwise
+case class RunJava(ref: Hash) extends Task(msg"") {
+
+}
+
+case class ShareLayer()
+*/
