@@ -24,7 +24,11 @@ object FuryMenu {
 
   def menu(aliases: List[Action[Cli[CliParam[_]]]])(implicit log: Log): Menu[Cli[CliParam[_]], _] =
     Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)(List(
-        Action('about, msg"about Fury", BuildCli.about),
+        Menu('about, msg"inspect resource usage, current tasks etc.", (x: Cli[CliParam[_]]) => Success(x), 'resources)(
+            Action('resources, msg"add a command alias to the layer", AboutCli.resources),
+            Action('tasks, msg"remove a command alias from the layer", AboutCli.tasks),
+            Action('connections, msg"list command aliases", AboutCli.connections)
+        ),
         Menu('alias, msg"view and edit command aliases", AliasCli.context, 'list)(
             Action('add, msg"add a command alias to the layer", AliasCli.add),
             Action('remove, msg"remove a command alias from the layer", AliasCli.remove),
