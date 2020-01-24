@@ -22,6 +22,7 @@ import scala.util._
 
 object CleanCli {
 <<<<<<< HEAD
+<<<<<<< HEAD
   def cleanAll(cli: Cli): Try[ExitStatus] = for {
     _ <- cleanBloop(cli)
     _ <- cleanClasses(cli)
@@ -38,6 +39,10 @@ object CleanCli {
 =======
   case class Context(cli: Cli[CliParam[_]], layout: Layout)
   def context(cli: Cli[CliParam[_]]) = cli.layout.map(Context(cli, _))
+=======
+  case class Context(cli: Cli[CliParam], layout: Layout)
+  def context(cli: Cli[CliParam]) = cli.layout.map(Context(cli, _))
+>>>>>>> parent of 1036380... More verbosity before cleanup
   
   def cleanAll(ctx: Context): Try[ExitStatus] =
     for {
@@ -47,23 +52,19 @@ object CleanCli {
       _ <- cleanRepos(ctx)
       _ <- cleanSources(ctx)
     } yield Done
+<<<<<<< HEAD
 >>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
+=======
+>>>>>>> parent of 1036380... More verbosity before cleanup
 
-  def cleanClasses(cli: Cli): Try[ExitStatus] = for {
-    layout <- cli.layout
-    _      <- layout.classesDir.delete()
-  } yield Done
+  def cleanBloop(ctx: Context): Try[ExitStatus] =
+    for {
+      _ <- ctx.layout.bloopDir.delete()
+      _ <- ctx.layout.analysisDir.delete()
+    } yield Done
 
-  def cleanLogs(cli: Cli): Try[ExitStatus] = for {
-    layout <- cli.layout
-    _      <- layout.logsDir.delete()
-  } yield Done
-  
-  def cleanRepos(cli: Cli): Try[ExitStatus] = for {
-    _ <- Installation.reposDir.delete()
-  } yield Done
-  
-  def cleanSources(cli: Cli): Try[ExitStatus] = for {
-    _ <- Installation.srcsDir.delete()
-  } yield Done
+  def cleanClasses(ctx: Context): Try[ExitStatus] = ctx.layout.classesDir.delete().map(Done.waive)
+  def cleanLogs(ctx: Context): Try[ExitStatus] = ctx.layout.logsDir.delete().map(Done.waive)
+  def cleanRepos(ctx: Context): Try[ExitStatus] = Installation.reposDir.delete().map(Done.waive)
+  def cleanSources(ctx: Context): Try[ExitStatus] = Installation.srcsDir.delete().map(Done.waive)
 }

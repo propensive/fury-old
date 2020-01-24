@@ -30,6 +30,7 @@ object ProjectCli {
   import Args._
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   def select(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
@@ -114,6 +115,9 @@ object ProjectCli {
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.projects(_))(_.modify(_)((_:
 =======
   def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+=======
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
+>>>>>>> parent of 1036380... More verbosity before cleanup
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -198,54 +202,57 @@ object ProjectCli {
       force     <- ~call(ForceArg).isSuccess
 
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(_.modify(_)((_:
+<<<<<<< HEAD
 >>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
+=======
+>>>>>>> parent of 1036380... More verbosity before cleanup
                        SortedSet[Project]).filterNot(_.id == project.id)))
-   
-    layer       <- Lenses.updateSchemas(layer)(Lenses.layer.mainProject(_)) { (lens, ws) =>
+
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                        if(lens(ws) == Some(projectId))(lens(ws) = None) else ws }
-   
-    _           <- ~Layer.save(layer, layout)(log)
-  } yield log.await()
 
-  def update(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
-    layout         <- cli.layout
-    conf           <- Layer.readFuryConf(layout)
-    layer          <- Layer.read(layout, conf)
-    optSchemaId    <- ~Some(SchemaId.default)
-    dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
-    cli            <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
-    cli            <- cli.hint(DescriptionArg)
+      _         <- ~Layer.save(layer, layout)(log)
+    } yield log.await()
+  }
 
-    cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
-                          _.compilerRefs(layout, false)))
-    
-    cli            <- cli.hint(ForceArg)
-    projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
-    cli            <- cli.hint(LicenseArg, License.standardLicenses)
-    cli            <- cli.hint(ProjectNameArg, ProjectId(layout.baseDir.name) :: projectId.to[List])
-    call           <- cli.call()
-    projectId      <- projectId.ascribe(UnspecifiedProject())
-    schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-    project        <- schema.projects.findBy(projectId)
-    force          <- ~call(ForceArg).isSuccess
-    focus          <- ~Lenses.focus()
-    licenseArg     <- ~call(LicenseArg).toOption
-    layer          <- ~(focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg)
-    descriptionArg <- ~call(DescriptionArg).toOption
-    layer          <- ~(focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg)
-    compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true))
-    layer          <- ~(focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_)))
-    nameArg        <- ~call(ProjectNameArg).toOption
-    newId          <- ~nameArg.flatMap(schema.projects.unique(_).toOption)
-    layer          <- ~(focus(layer, _.lens(_.projects(on(project.id)).id)) = newId)
-    
-    layer          <- if(newId.isEmpty || schema.main != Some(project.id)) ~layer
-                      else ~(focus(layer, _.lens(_.main)) = Some(newId))
+  def update(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
+      cli            <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
+      cli            <- cli.hint(DescriptionArg)
 
-    newSchema      <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
-    lens           <- ~Lenses.layer.schemas
-    layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
-    layer          <- ~lens.modify(layer)(_ + newSchema)
-    _              <- ~Layer.save(layer, layout)
-  } yield log.await()
+      cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
+                            _.compilerRefs(layout, false)))
+      
+      cli            <- cli.hint(ForceArg)
+      projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
+      cli            <- cli.hint(LicenseArg, License.standardLicenses)
+      cli            <- cli.hint(ProjectNameArg, ProjectId(layout.baseDir.name) :: projectId.to[List])
+      call           <- cli.call()
+      projectId      <- projectId.ascribe(UnspecifiedProject())
+      schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      project        <- schema.projects.findBy(projectId)
+      force          <- ~call(ForceArg).isSuccess
+      focus          <- ~Lenses.focus(optSchemaId, force)
+      licenseArg     <- ~call(LicenseArg).toOption
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).license)) = licenseArg
+      descriptionArg <- ~call(DescriptionArg).toOption
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).description)) = descriptionArg
+      compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true))
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).compiler)) = compilerArg.map(Some(_))
+      nameArg        <- ~call(ProjectNameArg).toOption
+      newId          <- ~nameArg.flatMap(schema.projects.unique(_).toOption)
+      layer          <- focus(layer, _.lens(_.projects(on(project.id)).id)) = newId
+     
+      layer          <- if(newId.isEmpty || schema.main != Some(project.id)) ~layer
+                        else focus(layer, _.lens(_.main)) = Some(newId)
+
+      newSchema      <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      lens           <- ~Lenses.layer.schemas
+      layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
+      layer          <- ~lens.modify(layer)(_ + newSchema)
+      _              <- ~Layer.save(layer, layout)
+    } yield log.await()
+  }
 }

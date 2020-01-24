@@ -74,10 +74,14 @@ object Bsp {
     )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   def startServer(cli: Cli)(implicit log: Log): Try[ExitStatus] =
 =======
   def startServer(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
 >>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
+=======
+  def startServer(cli: Cli[CliParam])(implicit log: Log): Try[ExitStatus] =
+>>>>>>> parent of 1036380... More verbosity before cleanup
     for {
       layout  <- cli.layout
       cli     <- cli.hint(Args.HttpsArg)

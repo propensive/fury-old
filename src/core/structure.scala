@@ -20,35 +20,40 @@ import fury.strings._, fury.model._
 
 import scala.util._
 
-sealed trait MenuStructure {
+sealed trait MenuStructure[T] {
   def command: Symbol
   def description: UserMsg
   def show: Boolean
   def shortcut: Char
 }
 
-case class Action(
+case class Action[T](
     command: Symbol,
     description: UserMsg,
-    action: Cli => Try[ExitStatus],
+    action: T => Try[ExitStatus],
     show: Boolean = true,
     shortcut: Char = '\u0000')
-    extends MenuStructure
+    extends MenuStructure[T]
 
-case class Menu(
+case class Menu[T, S](
     command: Symbol,
     description: UserMsg,
+    action: T => Try[S],
     default: Symbol,
     show: Boolean = true,
     shortcut: Char = '\u0000'
-  )(val items: MenuStructure*)
-    extends MenuStructure {
+  )(val items: MenuStructure[S]*)
+    extends MenuStructure[T] {
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   def apply(cli: Cli, ctx: Cli): Try[ExitStatus] =
 =======
   def apply(cli: Cli[CliParam[_]], ctx: T): Try[ExitStatus] =
 >>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
+=======
+  def apply(cli: Cli[CliParam], ctx: T): Try[ExitStatus] =
+>>>>>>> parent of 1036380... More verbosity before cleanup
     cli.args.prefix.headOption match {
       case None =>
         if(cli.completion) cli.completeCommand(this)
@@ -63,10 +68,10 @@ case class Menu(
           case None =>
             if(cli.completion) cli.completeCommand(this)
             else Failure(UnknownCommand(next.value))
-          case Some(item @ Menu(_, _, _, _, _)) =>
-            item(cli.tail, cli)
+          case Some(item @ Menu(_, _, _, _, _, _)) =>
+            action(ctx).flatMap(item(cli.tail, _))
           case Some(item @ Action(_, _, _, _, _)) =>
-            item.action(cli)
+            action(ctx).flatMap(item.action)
         }
     }
 
@@ -82,10 +87,10 @@ case class Menu(
 
     val shownItems = items.filter(_.show)
     val width      = 12
-    shownItems.sortBy { case _: Action => 0; case _ => 1 }.flatMap {
-      case item: Action =>
+    shownItems.sortBy { case _: Action[_] => 0; case _ => 1 }.flatMap {
+      case item: Action[_] =>
         List(msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme))
-      case item: Menu =>
+      case item: Menu[_, _] =>
         "" +: msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme) +:
           item.reference.map("  " + _)
     }

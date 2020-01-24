@@ -32,10 +32,14 @@ object Lifecycle {
   val bloopServer = Promise[Shutdown]
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   case class Session(cli: Cli, thread: Thread) {
 =======
   case class Session(cli: Cli[CliParam[_]], thread: Thread) {
 >>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
+=======
+  case class Session(cli: Cli[CliParam], thread: Thread) {
+>>>>>>> parent of 1036380... More verbosity before cleanup
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
   }
@@ -50,10 +54,14 @@ object Lifecycle {
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int = {
 =======
   def trackThread(cli: Cli[CliParam[_]], whitelisted: Boolean)(action: => Int): Int = {
 >>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
+=======
+  def trackThread(cli: Cli[CliParam], whitelisted: Boolean)(action: => Int): Int = {
+>>>>>>> parent of 1036380... More verbosity before cleanup
     val alreadyLaunched = running.find(_.pid == cli.pid)
     alreadyLaunched match {
       case Some(session) =>

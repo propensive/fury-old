@@ -39,10 +39,14 @@ object Dns {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 class MenuContext(val cli: Cli,
 =======
 class MenuContext(val cli: Cli[CliParam[_]],
 >>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
+=======
+class MenuContext(val cli: Cli[CliParam],
+>>>>>>> parent of 1036380... More verbosity before cleanup
                   val layout: Layout,
                   val layer: Layer,
                   val conf: FuryConf,
