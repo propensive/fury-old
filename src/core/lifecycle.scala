@@ -16,22 +16,31 @@
 */
 package fury.core
 
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
+
+import fury.model.Pid
 
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
 import scala.concurrent.Promise
-import scala.util.Try
+import scala.util.{Success, Try}
 
 object Lifecycle {
   
   trait Shutdown {
     def shutdown(): Unit
   }
+
+  private var bspRequests: List[(Pid, CompletableFuture[_])] = List.empty
+
+  def register(pid: Pid, bspRequest: CompletableFuture[_]) = synchronized{
+    bspRequests = (pid -> bspRequest) :: bspRequests
+  }
   
   val bloopServer = Promise[Shutdown]
 
-  case class Session(cli: Cli[CliParam], thread: Thread) {
+  case class Session(cli: Cli[CliParam], thread: Thread, cancelled: Promise[Unit] = Promise[Unit]) {
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
   }
@@ -45,10 +54,24 @@ object Lifecycle {
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
 
+  def isCancelled(pid: Pid): Boolean = {
+    val alreadyLaunched = running.find(_.pid == pid)
+    alreadyLaunched.exists(_.cancelled.future.isCompleted)
+  }
+
   def trackThread(cli: Cli[CliParam], whitelisted: Boolean)(action: => Int): Int = {
     val alreadyLaunched = running.find(_.pid == cli.pid)
     alreadyLaunched match {
       case Some(session) =>
+        val terminate = synchronized {
+          val x = bspRequests.filter{case (pid, _) => pid == cli.pid}
+          val keep = bspRequests.filterNot{case (pid, _) => pid == cli.pid}
+          bspRequests = keep
+          x
+        }
+        terminate.map{ case (_, task) =>
+          task.cancel(true)
+        }
         session.thread.interrupt()
         running.synchronized { running -= session }
         0
