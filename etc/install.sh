@@ -121,8 +121,8 @@ checkJava() {
 }
 
 tryCompilingNailgun() {
-  cc "${DESTINATION}/bin/ng.c" -o "${DESTINATION}/bin/ng" && \
-      cc "${DESTINATION}/bin/procname.c" -Wall -Werror -fPIC -shared -o "${DESTINATION}/bin/libprocname.so" &&
+  cc "${DESTINATION}/bin/ng.c" -o "${DESTINATION}/bin/ng" > /dev/null 2> /dev/null && \
+      cc "${DESTINATION}/bin/procname.c" -Wall -Werror -fPIC -shared -o "${DESTINATION}/bin/libprocname.so" > /dev/null 2> /dev/null &&
       chmod 644 "${DESTINATION}/bin/libprocname.so" || \
       usePythonNailgun
 }
