@@ -37,7 +37,11 @@ nailgun() {
   if ! sh -c "${FHOME}/bin/ng --nailgun-version > /dev/null 2>&1" || [[ "1" -eq "$USE_NG_PY" ]] ; then 
 	"${FHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
   else
-	"${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+  	if [ -f "${FHOME}/bin/libprocname.so" ]; then
+		LD_PRELOAD="${FHOME}/bin/libprocname.so" "${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+	else
+		"${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+	fi
   fi
 }
 
