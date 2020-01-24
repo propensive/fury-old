@@ -34,6 +34,7 @@ import language.higherKinds
 import scala.util.control.NonFatal
 
 object ConfigCli {
+<<<<<<< HEAD
   def set(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     cli      <- cli.hint(ThemeArg, Theme.all)
     cli      <- cli.hint(TimestampsArg, List("on", "off"))
@@ -54,6 +55,53 @@ object ConfigCli {
     config   <- ~trace.map { t => config.copy(trace = t) }.getOrElse(config)
     _        <- ~ManagedConfig.write(config)
   } yield log.await()
+=======
+  case class Context(cli: Cli[CliParam[_]])
+
+  def context(cli: Cli[CliParam[_]])(implicit log: Log): Try[Context] = Try(new Context(cli))
+
+  def set(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli      <- cli.hint(ThemeArg, Theme.all)
+      cli      <- cli.hint(TimestampsArg, List("on", "off"))
+      cli      <- cli.hint(PipeliningArg, List("on", "off"))
+      cli      <- cli.hint(TraceArg, List("on", "off"))
+      cli      <- cli.hint(ServiceArg, List("furore.dev"))
+      call     <- cli.call()
+      newTheme <- ~call(ThemeArg).toOption
+      timestamps <- ~call(TimestampsArg).toOption
+      pipelining <- ~call(PipeliningArg).toOption
+      trace    <- ~call(TraceArg).toOption
+      service  <- ~call(ServiceArg).toOption
+      config   <- ~ManagedConfig()
+      config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
+      config   <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
+      config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
+      config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
+      config   <- ~trace.map { t => config.copy(trace = t) }.getOrElse(config)
+      _        <- ~ManagedConfig.write(config)
+    } yield log.await()
+  }
+
+  def auth(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      call     <- cli.call()
+      code     <- ~Rnd.token(18)
+      // These futures should be managed in the session
+      uri      <- ~Https(Path(ManagedConfig().service) / str"await?code=$code")
+      _        <- ~log.info(msg"Please visit $uri to log in.")
+      future   <- ~Future(blocking(Http.get(uri, Map("code" -> code), Set())))
+      _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
+      response <- Await.result(future, Duration.Inf)
+      json     <- ~Json.parse(new String(response, "UTF-8")).get
+      token    <- ~json.token.as[String].get
+      config   <- ~ManagedConfig().copy(token = token)
+      _        <- ~ManagedConfig.write(config)
+      _        <- ~log.info("You are now authenticated")
+    } yield log.await()
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
   def auth(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     call     <- cli.call()
@@ -124,19 +172,31 @@ object AboutCli {
           |""".stripMargin
   }
 
+<<<<<<< HEAD
   def resources(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+=======
+  def resources(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     cli.call().map{ _ =>
       log.raw(withTemplate(resources))
       log.await()
     }
 
+<<<<<<< HEAD
   def tasks(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+=======
+  def tasks(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     cli.call().map{ _ =>
       log.raw(withTemplate(tasks))
       log.await()
     }
 
+<<<<<<< HEAD
   def connections(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+=======
+  def connections(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     cli.call().map{ _ =>
       log.raw(withTemplate(connections))
       log.await()
@@ -145,6 +205,7 @@ object AboutCli {
 }
 
 object AliasCli {
+<<<<<<< HEAD
   def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
@@ -157,6 +218,27 @@ object AliasCli {
     _      <- ~log.infoWhen(!raw)(conf.focus())
     _      <- ~log.rawln(table.join("\n"))
   } yield log.await()
+=======
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) =
+    for {
+      layout <- cli.layout
+      conf   <- Layer.readFuryConf(layout)
+      layer  <- Layer.read(layout, conf)
+    } yield new MenuContext(cli, layout, layer, conf)
+
+  def list(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli   <- cli.hint(RawArg)
+      call  <- cli.call()
+      raw   <- ~call(RawArg).isSuccess
+      rows  <- ~layer.aliases.to[List]
+      table <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
+      _     <- ~log.infoWhen(!raw)(conf.focus())
+      _     <- ~log.rawln(table.join("\n"))
+    } yield log.await()
+  }
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
   def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -203,7 +285,17 @@ object AliasCli {
 
 object BuildCli {
 
+<<<<<<< HEAD
   def notImplemented(cli: Cli)(implicit log: Log): Try[ExitStatus] = Success(Abort)
+=======
+  def context(cli: Cli[CliParam[_]])(implicit log: Log): Try[MenuContext] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+  } yield new MenuContext(cli, layout, layer, conf)
+
+  def notImplemented(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = Success(Abort)
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
   def getPrompt(layer: Layer, theme: Theme)(implicit log: Log): Try[String] = for {
     schemaId     <- ~layer.main
@@ -214,10 +306,14 @@ object BuildCli {
     optModule    <- ~optModuleId.flatMap { mId => optProject.flatMap(_.modules.findBy(mId).toOption) }
   } yield Prompt.zsh(layer, optProject, optModule)(theme)
 
+<<<<<<< HEAD
   def upgrade(cli: Cli)(implicit log: Log): Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
+=======
+  def upgrade(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout        <- cli.layout
     call          <- cli.call()
     records       <- Dns.lookup(ManagedConfig().service)
@@ -227,10 +323,14 @@ object BuildCli {
     _             <- TarGz.extract(file, Installation.upgradeDir)
   } yield log.await() }
 
+<<<<<<< HEAD
   def prompt(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
+=======
+  def prompt(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- ~Layer.read(layout, conf).toOption
@@ -462,13 +562,21 @@ object BuildCli {
 }
 
 object LayerCli {
+<<<<<<< HEAD
   def init(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def init(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout <- cli.newLayout
     call   <- cli.call()
     _      <- Layer.init(layout)
   } yield log.await()
 
+<<<<<<< HEAD
   def projects(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def projects(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout    <- cli.layout
     conf      <- Layer.readFuryConf(layout)
     layer     <- Layer.read(layout, conf)
@@ -485,7 +593,11 @@ object LayerCli {
     _         <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
+<<<<<<< HEAD
   def select(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def select(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout       <- cli.layout
     baseLayer    <- Layer.base(layout)
     conf         <- Layer.readFuryConf(layout)
@@ -513,7 +625,11 @@ object LayerCli {
     else
       Failure(LayersFailure(path))
 
+<<<<<<< HEAD
   def extract(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def extract(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     cli      <- cli.hint(DirArg)
     cli      <- cli.hint(FileArg)
     call     <- cli.call()
@@ -525,7 +641,11 @@ object LayerCli {
     _        <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout)
   } yield log.await()
 
+<<<<<<< HEAD
   def clone(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def clone(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     cli           <- cli.hint(DirArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
@@ -544,7 +664,11 @@ object LayerCli {
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
 
+<<<<<<< HEAD
   def publish(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def publish(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout        <- cli.layout
     cli           <- cli.hint(RemoteLayerArg)
     cli           <- cli.hint(RawArg)
@@ -567,7 +691,11 @@ object LayerCli {
 
   } yield log.await()
 
+<<<<<<< HEAD
   def share(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def share(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout        <- cli.layout
     cli           <- cli.hint(RawArg)
     conf          <- Layer.readFuryConf(layout)
@@ -578,7 +706,11 @@ object LayerCli {
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
+<<<<<<< HEAD
   def export(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def export(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout        <- cli.layout
     cli           <- cli.hint(FileArg)
     conf          <- Layer.readFuryConf(layout)
@@ -590,7 +722,11 @@ object LayerCli {
     _             <- ~log.info(msg"Saved layer file ${destination}")
   } yield log.await()
 
+<<<<<<< HEAD
   def addImport(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def addImport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.read(layout, conf)
@@ -614,7 +750,11 @@ object LayerCli {
     _             <- ~Layer.save(layer, layout)
   } yield log.await()
 
+<<<<<<< HEAD
   def unimport(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def unimport(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout    <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer     <- Layer.read(layout, conf)
@@ -630,7 +770,11 @@ object LayerCli {
     _         <- ~Layer.save(layer, layout)
   } yield log.await()
 
+<<<<<<< HEAD
   def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = {
+=======
+  def list(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] = {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     for {
       layout    <- cli.layout
       conf      <- Layer.readFuryConf(layout)

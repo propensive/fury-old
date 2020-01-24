@@ -32,7 +32,11 @@ import scala.util._
 
 object Main {
 
+<<<<<<< HEAD
   def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
+=======
+  def invoke(cli: Cli[CliParam[_]])(implicit log: Log): ExitStatus = {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
     val layer = for {
       layout <- cli.layout
@@ -41,10 +45,17 @@ object Main {
     } yield layer
 
     val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
+<<<<<<< HEAD
         def action(cli: Cli) =
           BuildCli.compile(Some(alias.module))(cli)
 
         Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli) => action(cli))
+=======
+        def action(cli: Cli[CliParam[_]]) =
+          AliasCli.context(cli).flatMap(BuildCli.compile(Some(alias.module)))
+
+        Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli[CliParam[_]]) => action(cli))
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
       }
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))

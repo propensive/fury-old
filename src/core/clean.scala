@@ -21,6 +21,7 @@ import fury.model._
 import scala.util._
 
 object CleanCli {
+<<<<<<< HEAD
   def cleanAll(cli: Cli): Try[ExitStatus] = for {
     _ <- cleanBloop(cli)
     _ <- cleanClasses(cli)
@@ -34,6 +35,19 @@ object CleanCli {
     _      <- layout.bloopDir.delete()
     _      <- layout.analysisDir.delete()
   } yield Done
+=======
+  case class Context(cli: Cli[CliParam[_]], layout: Layout)
+  def context(cli: Cli[CliParam[_]]) = cli.layout.map(Context(cli, _))
+  
+  def cleanAll(ctx: Context): Try[ExitStatus] =
+    for {
+      _ <- cleanBloop(ctx)
+      _ <- cleanClasses(ctx)
+      _ <- cleanLogs(ctx)
+      _ <- cleanRepos(ctx)
+      _ <- cleanSources(ctx)
+    } yield Done
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
   def cleanClasses(cli: Cli): Try[ExitStatus] = for {
     layout <- cli.layout

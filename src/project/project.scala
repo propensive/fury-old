@@ -29,6 +29,7 @@ import scala.collection.immutable.SortedSet
 object ProjectCli {
   import Args._
 
+<<<<<<< HEAD
   def select(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
@@ -111,6 +112,93 @@ object ProjectCli {
     force       <- ~call(ForceArg).isSuccess
    
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.projects(_))(_.modify(_)((_:
+=======
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
+    optSchemaArg <- ~Some(SchemaId.default)
+  } yield new MenuContext(cli, layout, layer, conf, optSchemaArg)
+
+  def select(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      cli       <- cli.hint(ProjectArg, dSchema.projects)
+      cli       <- cli.hint(ForceArg)
+      call      <- cli.call()
+      projectId <- ~cli.peek(ProjectArg)
+      projectId <- projectId.ascribe(UnspecifiedProject())
+      force     <- ~call(ForceArg).isSuccess
+      schemaId  <- ~optSchemaId.getOrElse(layer.main)
+      schema    <- layer.schemas.findBy(schemaId)
+      _         <- schema(projectId)
+      focus     <- ~Lenses.focus(optSchemaId, force)
+      layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
+      _         <- ~Layer.save(layer, layout)
+
+    } yield log.await()
+  }
+
+  def list(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli    <- cli.hint(RawArg)
+      call   <- cli.call()
+      raw    <- ~call(RawArg).isSuccess
+      schema <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      rows   <- ~schema.projects.to[List]
+      table  <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
+      _      <- ~log.infoWhen(!raw)(conf.focus())
+      _      <- ~log.rawln(table.mkString("\n"))
+    } yield log.await()
+  }
+
+  def add(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli            <- cli.hint(ProjectNameArg, List(layout.baseDir.name))
+      cli            <- cli.hint(LicenseArg, License.standardLicenses)
+      dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+
+      cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
+                            layout, false))
+
+      call           <- cli.call()
+      compilerId     <- ~cli.peek(DefaultCompilerArg)
+      
+      optCompilerRef <- compilerId.to[List].map { v =>
+                          ModuleRef.parseFull(v, true).ascribe(InvalidValue(v))
+                        }.sequence.map(_.headOption)
+
+      projectId      <- call(ProjectNameArg)
+      license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))
+      project        <- ~Project(projectId, license = license, compiler = optCompilerRef)
+
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.projects(_))(
+                            _.modify(_)((_: SortedSet[Project]) + project))
+
+      layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(_(_) =
+                            Some(project.id))
+
+      _              <- ~Layer.save(layer, layout)
+      _              <- ~log.info(msg"Set current project to ${project.id}")
+    } yield log.await()
+  }
+
+  def remove(ctx: MenuContext)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      dSchema   <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
+      cli       <- cli.hint(ProjectArg, dSchema.projects)
+      cli       <- cli.hint(ForceArg)
+      call      <- cli.call()
+      projectId <- call(ProjectArg)
+      project   <- dSchema.projects.findBy(projectId)
+      force     <- ~call(ForceArg).isSuccess
+
+      layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.projects(_))(_.modify(_)((_:
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
                        SortedSet[Project]).filterNot(_.id == project.id)))
    
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.mainProject(_)) { (lens, ws) =>

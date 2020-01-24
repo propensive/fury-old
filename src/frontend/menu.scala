@@ -22,9 +22,15 @@ import scala.util._
 
 object FuryMenu {
 
+<<<<<<< HEAD
   def menu(aliases: List[Action])(implicit log: Log): Menu =
     Menu('main, "main menu", 'build)(List(
         Menu('about, msg"inspect resource usage, current tasks etc.", 'resources)(
+=======
+  def menu(aliases: List[Action[Cli[CliParam[_]]]])(implicit log: Log): Menu[Cli[CliParam[_]], _] =
+    Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)(List(
+        Menu('about, msg"inspect resource usage, current tasks etc.", (x: Cli[CliParam[_]]) => Success(x), 'resources)(
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
             Action('resources, msg"add a command alias to the layer", AboutCli.resources),
             Action('tasks, msg"remove a command alias from the layer", AboutCli.tasks),
             Action('connections, msg"list command aliases", AboutCli.connections)
@@ -118,8 +124,13 @@ object FuryMenu {
             Action('remove, msg"remove a source directory from the module", SourceCli.remove, shortcut = 'r'),
             Action('list, msg"list sources for the module", SourceCli.list, shortcut = 'l')
         ),
+<<<<<<< HEAD
         Action('stop, msg"gracefully shut down the Fury server", ((_: Cli) => Lifecycle.shutdown())),
         Menu('repo, msg"manage source repositories for the schema", 'list, shortcut = 'r')(
+=======
+        Action('stop, msg"gracefully shut down the Fury server", ((_: Cli[CliParam[_]]) => Lifecycle.shutdown())),
+        Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list, shortcut = 'r')(
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
             Action('add, msg"add a source repository to the schema", RepoCli.add, shortcut = 'a'),
             Action('update, msg"update a source repository", RepoCli.update, shortcut = 'u'),
             Action('remove, msg"remove a source repository from the schema", RepoCli.remove, shortcut = 'r'),
@@ -133,7 +144,11 @@ object FuryMenu {
         ),
         Action('upgrade, msg"upgrade to the latest version of Fury", BuildCli.upgrade),
         //Action('undo, msg"undo the previous modification", BuildCli.undo),
+<<<<<<< HEAD
         Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l')(
+=======
+        Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects, shortcut = 'l')(
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
             Action('clone, msg"clone an external layer", LayerCli.clone, shortcut = 'c'),
             Action('export, msg"export a layer to a file", LayerCli.export, shortcut = 'e'),
             Action('extract, msg"extract a layer file", LayerCli.extract),
@@ -148,7 +163,11 @@ object FuryMenu {
         )
     ) ::: aliases: _*)
 
+<<<<<<< HEAD
   def help(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+=======
+  def help(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     for {
       call  <- cli.call()
       _     <- ~log.raw(s"""|Usage: fury <command> [<subcommands>] [<args>]

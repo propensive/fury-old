@@ -27,6 +27,7 @@ import scala.util._
 
 object DependencyCli {
 
+<<<<<<< HEAD
   def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
@@ -44,6 +45,57 @@ object DependencyCli {
                       moduleId <- optModuleId
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
+=======
+  case class Context(
+      override val cli: Cli[CliParam[_]],
+      override val layout: Layout,
+      override val layer: Layer,
+      override val conf: FuryConf,
+      optProject: Option[Project],
+      optModule: Option[Module])
+      extends MenuContext(cli, layout, layer, conf) {
+
+    def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
+    def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
+  }
+
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) =
+    for {
+      layout       <- cli.layout
+      conf         <- Layer.readFuryConf(layout)
+      layer        <- Layer.read(layout, conf)
+      schemaArg    <- ~Some(SchemaId.default)
+      schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+      cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
+      optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
+      optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+      cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+      optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+
+      optModule    <- Success { for {
+                        project  <- optProject
+                        moduleId <- optModuleId
+                        module   <- project.modules.findBy(moduleId).toOption
+                      } yield module }
+
+    } yield new Context(cli, layout, layer, conf, optProject, optModule)
+
+  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._
+    for {
+      cli     <- cli.hint(RawArg)
+      call    <- cli.call()
+      raw     <- ~call(RawArg).isSuccess
+      project <- optProject.ascribe(UnspecifiedProject())
+      module  <- optModule.ascribe(UnspecifiedModule())
+      rows    <- ~module.dependencies.to[List].sorted
+      table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
+      schema  <- defaultSchema
+      _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
+      _       <- ~log.rawln(table.mkString("\n"))
+    } yield log.await()
+  }
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
     cli     <- cli.hint(RawArg)
     call    <- cli.call()
@@ -87,18 +139,32 @@ object DependencyCli {
     moduleRef <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
     force     <- ~call(ForceArg).isSuccess
 
+<<<<<<< HEAD
     layer     <- Lenses.updateSchemas(layer)(Lenses.layer.dependencies(_, project.id,
                       module.id))(_(_) -= moduleRef)
+=======
+  case class Context(override val cli: Cli[CliParam[_]],
+                     override val layout: Layout,
+                     override val layer: Layer,
+                     override val conf: FuryConf,
+                     optProject: Option[Project],
+                     optModule: Option[Module])
+             extends MenuContext(cli, layout, layer, conf) {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
     _         <- ~Layer.save(layer, layout)
     optSchema <- ~layer.mainSchema.toOption
 
+<<<<<<< HEAD
     _         <- ~optSchema.foreach(Compilation.asyncCompilation(_, moduleRef, layout,
                       https))
 
   } yield log.await()
 
   def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -239,7 +305,11 @@ object EnvCli {
 
 object PermissionCli {
   
+<<<<<<< HEAD
   case class Context(override val cli: Cli,
+=======
+  case class Context(override val cli: Cli[CliParam[_]],
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
                      override val layout: Layout,
                      override val layer: Layer,
                      override val conf: FuryConf,
@@ -247,7 +317,11 @@ object PermissionCli {
                      optModule: Option[Module])
              extends MenuContext(cli, layout, layer, conf)
 
+<<<<<<< HEAD
   def context(cli: Cli)(implicit log: Log) = for {
+=======
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -425,6 +499,7 @@ object PropertyCli {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
 
+<<<<<<< HEAD
     optModule    =  { for {
                       project  <- optProject
                       moduleId <- optModuleId
@@ -443,6 +518,18 @@ object PropertyCli {
   } yield log.await()
 
   def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  case class Context(
+      override val cli: Cli[CliParam[_]],
+      override val layout: Layout,
+      override val layer: Layer,
+      override val conf: FuryConf,
+      optProject: Option[Project],
+      optModule: Option[Module])
+      extends MenuContext(cli, layout, layer, conf)
+
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)

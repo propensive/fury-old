@@ -38,7 +38,11 @@ object Dns {
   }
 }
 
+<<<<<<< HEAD
 class MenuContext(val cli: Cli,
+=======
+class MenuContext(val cli: Cli[CliParam[_]],
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
                   val layout: Layout,
                   val layer: Layer,
                   val conf: FuryConf,

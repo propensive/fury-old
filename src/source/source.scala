@@ -71,6 +71,7 @@ object SourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
+<<<<<<< HEAD
     cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
     cli         <- cli.hint(ForceArg)
     call        <- cli.call()
@@ -90,6 +91,17 @@ object SourceCli {
   } yield log.await()
 
   def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  case class Context(override val cli: Cli[CliParam[_]],
+                     override val layout: Layout,
+                     override val layer: Layer,
+                     override val conf: FuryConf,
+                     optProject: Option[Project],
+                     optModule: Option[Module])
+             extends MenuContext(cli, layout, layer, conf)
+
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -141,6 +153,7 @@ object SourceCli {
 
 object ResourceCli {
 
+<<<<<<< HEAD
   def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
@@ -205,6 +218,17 @@ object ResourceCli {
   } yield log.await()
 
   def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  case class Context(override val cli: Cli[CliParam[_]],
+                     override val layout: Layout,
+                     override val layer: Layer,
+                     override val conf: FuryConf,
+                     optProject: Option[Project],
+                     optModule: Option[Module])
+             extends MenuContext(cli, layout, layer, conf)
+
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)

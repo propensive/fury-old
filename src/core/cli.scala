@@ -32,7 +32,11 @@ case object Done  extends ExitStatus(0)
 case object Abort extends ExitStatus(1)
 case object Continuation extends ExitStatus(91)
 
+<<<<<<< HEAD
 object NoCommand { def unapply(cli: Cli): Boolean = cli.args.isEmpty }
+=======
+object NoCommand { def unapply(cli: Cli[CliParam[_]]): Boolean = cli.args.isEmpty }
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
 abstract class Cmd(val cmd: String, val description: String) {
 
@@ -45,24 +49,13 @@ abstract class Cmd(val cmd: String, val description: String) {
   def default: Option[Cmd]   = None
 }
 
-object CliParam {
-  def apply[T: Param.Extractor]
-           (shortName: Char, longName: Symbol, description: String)
-           : CliParam { type Type = T } =
-    new CliParam(shortName, longName, description) {
-      type Type = T
-      def extractor: Param.Extractor[Type] = implicitly[Param.Extractor[T]]
-    }
-}
-
-abstract class CliParam(val shortName: Char, val longName: Symbol, val description: String) {
-  type Type
-  implicit def extractor: Param.Extractor[Type]
-  val param: SimpleParam[Type] = Param[Type](shortName, longName)
+case class CliParam[T: Param.Extractor](shortName: Char, longName: Symbol, description: String) {
+  val param: SimpleParam[T] = Param[T](shortName, longName)
 }
 
 object Cli {
 
+<<<<<<< HEAD
   def apply[H <: CliParam](stdout: java.io.PrintWriter,
                            args: ParamMap,
                            command: Option[Int],
@@ -72,6 +65,9 @@ object Cli {
     new Cli(stdout, args, command, optCompletions, env, pid) { type Hinted <: H }
 
   def asCompletion[H <: CliParam](menu: => Menu)(cli: Cli) = {
+=======
+  def asCompletion[H <: CliParam[_]](menu: => Menu[Cli[H], _])(cli: Cli[H]) = {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     val newCli = Cli[H](
       cli.stdout,
       ParamMap(cli.args.suffix.map(_.value).tail: _*),
@@ -99,7 +95,7 @@ object Cli {
     }
   }
 
-  case class OptCompletion[T](arg: CliParam, hints: String) extends Completion {
+  case class OptCompletion[T](arg: CliParam[_], hints: String) extends Completion {
     def output: List[String] = List(
       str"--${arg.longName.name}[${arg.description}]:${arg.longName.name}:$hints",
       str"-${arg.shortName}[${arg.description}]:${arg.longName.name}:$hints"
@@ -129,6 +125,7 @@ trait Descriptor[T] {
   }
 }
 
+<<<<<<< HEAD
 class Cli(val stdout: java.io.PrintWriter,
           val args: ParamMap,
           val command: Option[Int],
@@ -137,9 +134,17 @@ class Cli(val stdout: java.io.PrintWriter,
           val pid: Pid) { cli =>
 
   type Hinted <: CliParam
+=======
+case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
+                                       args: ParamMap,
+                                       command: Option[Int],
+                                       optCompletions: List[Cli.OptCompletion[_]],
+                                       env: Environment,
+                                       pid: Pid) {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
   class Call private[Cli] () {
-    def apply[T](param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] = args.get(param.param)
+    def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
@@ -156,7 +161,7 @@ class Cli(val stdout: java.io.PrintWriter,
     }
   }
 
-  def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
+  def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).toOption
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
 
@@ -175,7 +180,7 @@ class Cli(val stdout: java.io.PrintWriter,
     Cli(stdout, newArgs, command, optCompletions, env, pid)
   }
   
-  def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] = Success(args(param.param).toOption)
+  def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).toOption)
 
   def abort(msg: UserMsg)(implicit log: Log): ExitStatus = {
     if(!completion) log.fail(msg)
@@ -193,15 +198,24 @@ class Cli(val stdout: java.io.PrintWriter,
   }
 
   def hint[T: StringShow: Descriptor]
+<<<<<<< HEAD
           (arg: CliParam, hints: Traversable[T])
           : Try[Cli { type Hinted <: cli.Hinted with arg.type }] = {
+=======
+          (arg: CliParam[_], hints: Traversable[T])
+          : Try[Cli[Hinted with arg.type]] = {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     val newHints = Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
     Success(Cli(stdout, args, command, newHints :: optCompletions, env, pid)) 
   }
 
+<<<<<<< HEAD
   def hint(arg: CliParam) =
     Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
+=======
+  def hint(arg: CliParam[_]) = Success(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
   private[this] def write(msg: UserMsg): Unit = {
     stdout.println(msg.string(ManagedConfig().theme))
@@ -225,11 +239,11 @@ class Cli(val stdout: java.io.PrintWriter,
 }
 
 case class Completions(completions: List[Cli.OptCompletion[_]] = Nil) {
-  def hint[T: StringShow: Descriptor](arg: CliParam, hints: Traversable[T]): Completions = {
+  def hint[T: StringShow: Descriptor](arg: CliParam[_], hints: Traversable[T]): Completions = {
     val newHints = Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
     copy(completions = newHints :: completions)
   }
 
-  def hint(arg: CliParam): Completions = copy(completions = Cli.OptCompletion(arg, "()") :: completions)
+  def hint(arg: CliParam[_]): Completions = copy(completions = Cli.OptCompletion(arg, "()") :: completions)
 }

@@ -29,7 +29,13 @@ import Lenses._
 
 object RepoCli {
 
+<<<<<<< HEAD
   def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+=======
+  case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer, conf: FuryConf)
+  
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)

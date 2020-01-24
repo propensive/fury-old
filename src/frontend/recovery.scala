@@ -25,7 +25,11 @@ import scala.util._
 
 object Recovery {
 
+<<<<<<< HEAD
   def recover(cli: Cli)(result: Try[ExitStatus])(implicit log: Log): ExitStatus = result match {
+=======
+  def recover(cli: Cli[CliParam[_]])(result: Try[ExitStatus])(implicit log: Log): ExitStatus = result match {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     case Success(exitStatus) =>
       exitStatus
     case Failure(err) =>

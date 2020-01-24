@@ -29,14 +29,22 @@ import Lenses.on
 
 object ModuleCli {
 
+<<<<<<< HEAD
   case class Context(override val cli: Cli,
+=======
+  case class Context(override val cli: Cli[CliParam[_]],
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
                      override val layout: Layout,
                      override val layer: Layer,
                      override val conf: FuryConf,
                      optProject: Option[Project])
              extends MenuContext(cli, layout, layer, conf)
 
+<<<<<<< HEAD
   def context(cli: Cli)(implicit log: Log) = for {
+=======
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -273,6 +281,7 @@ object BinaryCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
+<<<<<<< HEAD
     cli         <- cli.hint(RawArg)
     call        <- cli.call()
     raw         <- ~call(RawArg).isSuccess
@@ -294,6 +303,12 @@ object BinaryCli {
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+=======
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+    ctx         <- ModuleCli.context(cli)
+    cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
+    optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 
     optModule   <- Success { for {
                       project  <- optProject
@@ -540,6 +555,7 @@ object OptionCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
+<<<<<<< HEAD
     optDefs  <- ~(for {
                   project     <- optProject
                   module      <- optModule
@@ -565,4 +581,132 @@ object OptionCli {
     schema   <- layer.schemas.findBy(SchemaId.default)
     _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
+=======
+  case class ParamCtx(moduleCtx: ModuleCli.Context, optModule: Option[Module])
+
+  def context(cli: Cli[CliParam[_]])(implicit log: Log) =
+    for {
+      ctx         <- ModuleCli.context(cli)
+      cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
+      optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
+
+      optModule   <- Success { for {
+                       project  <- ctx.optProject
+                       moduleId <- optModuleId
+                       module   <- project.modules.findBy(moduleId).toOption
+                     } yield module }
+
+    } yield ParamCtx(ctx.copy(cli = cli), optModule)
+
+  def list(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      cli         <- cli.hint(RawArg)
+      call        <- cli.call()
+      raw         <- ~call(RawArg).isSuccess
+      project     <- optProject.ascribe(UnspecifiedProject())
+      module      <- optModule.ascribe(UnspecifiedModule())
+      compiler    <- ~module.compiler
+      schema      <- layer.schemas.findBy(SchemaId.default)
+      compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true)
+      rows        <- compilation.aggregatedOpts(module.ref(project), layout)
+      showRows    <- ~rows.to[List].filter(_.compiler == compiler)
+      _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
+      table       <- ~Tables().show(Tables().opts, cli.cols, showRows, raw)(_.value.id)
+      _           <- ~log.rawln(table.mkString("\n"))
+    } yield log.await()
+  }
+
+  def remove(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      cli      <- cli.hint(OptArg, optModule.to[List].flatMap(_.opts))
+      cli      <- cli.hint(PersistentArg)
+      call     <- cli.call()
+      paramArg <- call(OptArg)
+      persist  <- ~call(PersistentArg).isSuccess
+      project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- optModule.ascribe(UnspecifiedModule())
+      opt      <- ~module.opts.find(_.id == paramArg)
+
+      layer    <- opt.fold(Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.opts(_, project.id, module.id))(_(_) += Opt(paramArg, persist, true))) { o =>
+                    Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.opts(_, project.id, module.id))(_(_) -= o)
+                  }
+
+      _        <- ~Layer.save(layer, layout)
+      schema   <- layer.schemas.findBy(SchemaId.default)
+      _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    } yield log.await()
+  }
+
+  def define(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      cli         <- cli.hint(OptArg)
+      cli         <- cli.hint(DescriptionArg)
+      cli         <- cli.hint(TransformArg)
+      cli         <- cli.hint(PersistentArg)
+      call        <- cli.call()
+      option      <- call(OptArg)
+      module      <- optModule.ascribe(UnspecifiedModule())
+      project     <- optProject.ascribe(UnspecifiedProject())
+      description <- ~call(DescriptionArg).getOrElse("")
+      persist     <- ~call(PersistentArg).isSuccess
+      transform   <- ~call.suffix
+      optDef      <- ~OptDef(option, description, transform, persist)
+
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optDefs(_, project.id,
+                         module.id))(_(_) += optDef)
+      
+      _           <- ~Layer.save(layer, layout)
+    } yield log.await()
+  }
+
+  def undefine(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      cli         <- cli.hint(OptArg)
+      call        <- cli.call()
+      option      <- call(OptArg)
+      module      <- optModule.ascribe(UnspecifiedModule())
+      project     <- optProject.ascribe(UnspecifiedProject())
+      optDef      <- module.optDefs.findBy(option)
+      
+      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.optDefs(_, project.id,
+                         module.id))(_(_) -= optDef)
+
+      _           <- ~Layer.save(layer, layout)
+    } yield log.await()
+  }
+
+  def add(ctx: ParamCtx)(implicit log: Log): Try[ExitStatus] = {
+    import ctx._, moduleCtx._
+    for {
+      optDefs  <- ~(for {
+                    project     <- optProject
+                    module      <- optModule
+                    schema      <- layer.schemas.findBy(SchemaId.default).toOption
+                    compilation <- Compilation.syncCompilation(schema, module.ref(project), layout,
+                                       true).toOption
+                    optDefs     <- compilation.aggregatedOptDefs(module.ref(project)).toOption
+                  } yield optDefs.map(_.value.id)).getOrElse(Set())
+      
+      cli      <- cli.hint(OptArg, optDefs)
+      cli      <- cli.hint(PersistentArg)
+      call     <- cli.call()
+      project  <- optProject.ascribe(UnspecifiedProject())
+      module   <- optModule.ascribe(UnspecifiedModule())
+      paramArg <- call(OptArg)
+      persist  <- ~call(PersistentArg).isSuccess
+      param    <- ~Opt(paramArg, persist, remove = false)
+
+      layer    <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.opts(_, project.id, module.id))(
+                     _(_) += param)
+
+      _        <- ~Layer.save(layer, layout)
+      schema   <- layer.schemas.findBy(SchemaId.default)
+      _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    } yield log.await()
+  }
+>>>>>>> parent of 0d77017... Changed `CliParam[T]` to `CliParam { type Type = T }` everywhere (#973)
 }
