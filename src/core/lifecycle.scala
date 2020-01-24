@@ -31,7 +31,7 @@ object Lifecycle {
   
   val bloopServer = Promise[Shutdown]
 
-  case class Session(cli: Cli[CliParam[_]], thread: Thread) {
+  case class Session(cli: Cli[CliParam], thread: Thread) {
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
   }
@@ -45,7 +45,7 @@ object Lifecycle {
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
 
-  def trackThread(cli: Cli[CliParam[_]], whitelisted: Boolean)(action: => Int): Int = {
+  def trackThread(cli: Cli[CliParam], whitelisted: Boolean)(action: => Int): Int = {
     val alreadyLaunched = running.find(_.pid == cli.pid)
     alreadyLaunched match {
       case Some(session) =>

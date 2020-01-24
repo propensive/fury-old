@@ -45,7 +45,7 @@ case class Menu[T, S](
   )(val items: MenuStructure[S]*)
     extends MenuStructure[T] {
 
-  def apply(cli: Cli[CliParam[_]], ctx: T): Try[ExitStatus] =
+  def apply(cli: Cli[CliParam], ctx: T): Try[ExitStatus] =
     cli.args.prefix.headOption match {
       case None =>
         if(cli.completion) cli.completeCommand(this)

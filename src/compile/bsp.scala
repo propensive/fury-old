@@ -73,7 +73,7 @@ object Bsp {
         languages = List("java", "scala")
     )
 
-  def startServer(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+  def startServer(cli: Cli[CliParam])(implicit log: Log): Try[ExitStatus] =
     for {
       layout  <- cli.layout
       cli     <- cli.hint(Args.HttpsArg)

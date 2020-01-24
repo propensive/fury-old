@@ -25,7 +25,7 @@ import scala.util._
 
 object SourceCli {
 
-  case class Context(override val cli: Cli[CliParam[_]],
+  case class Context(override val cli: Cli[CliParam],
                      override val layout: Layout,
                      override val layer: Layer,
                      override val conf: FuryConf,
@@ -33,7 +33,7 @@ object SourceCli {
                      optModule: Option[Module])
              extends MenuContext(cli, layout, layer, conf)
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -128,7 +128,7 @@ object SourceCli {
 
 object ResourceCli {
 
-  case class Context(override val cli: Cli[CliParam[_]],
+  case class Context(override val cli: Cli[CliParam],
                      override val layout: Layout,
                      override val layer: Layer,
                      override val conf: FuryConf,
@@ -136,7 +136,7 @@ object ResourceCli {
                      optModule: Option[Module])
              extends MenuContext(cli, layout, layer, conf)
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)

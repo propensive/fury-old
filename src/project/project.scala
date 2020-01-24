@@ -29,7 +29,7 @@ import scala.collection.immutable.SortedSet
 object ProjectCli {
   import Args._
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
