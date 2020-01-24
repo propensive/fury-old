@@ -38,7 +38,7 @@ object Dns {
   }
 }
 
-class MenuContext(val cli: Cli[CliParam],
+class MenuContext(val cli: Cli,
                   val layout: Layout,
                   val layer: Layer,
                   val conf: FuryConf,

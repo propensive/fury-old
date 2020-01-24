@@ -20,32 +20,31 @@ import fury.strings._, fury.model._
 
 import scala.util._
 
-sealed trait MenuStructure[T] {
+sealed trait MenuStructure {
   def command: Symbol
   def description: UserMsg
   def show: Boolean
   def shortcut: Char
 }
 
-case class Action[T](
+case class Action(
     command: Symbol,
     description: UserMsg,
-    action: T => Try[ExitStatus],
+    action: Cli => Try[ExitStatus],
     show: Boolean = true,
     shortcut: Char = '\u0000')
-    extends MenuStructure[T]
+    extends MenuStructure
 
-case class Menu[T, S](
+case class Menu(
     command: Symbol,
     description: UserMsg,
-    action: T => Try[S],
     default: Symbol,
     show: Boolean = true,
     shortcut: Char = '\u0000'
-  )(val items: MenuStructure[S]*)
-    extends MenuStructure[T] {
+  )(val items: MenuStructure*)
+    extends MenuStructure {
 
-  def apply(cli: Cli[CliParam], ctx: T): Try[ExitStatus] =
+  def apply(cli: Cli, ctx: Cli): Try[ExitStatus] =
     cli.args.prefix.headOption match {
       case None =>
         if(cli.completion) cli.completeCommand(this)
@@ -60,10 +59,10 @@ case class Menu[T, S](
           case None =>
             if(cli.completion) cli.completeCommand(this)
             else Failure(UnknownCommand(next.value))
-          case Some(item @ Menu(_, _, _, _, _, _)) =>
-            action(ctx).flatMap(item(cli.tail, _))
+          case Some(item @ Menu(_, _, _, _, _)) =>
+            item(cli.tail, cli)
           case Some(item @ Action(_, _, _, _, _)) =>
-            action(ctx).flatMap(item.action)
+            item.action(cli)
         }
     }
 
@@ -79,10 +78,10 @@ case class Menu[T, S](
 
     val shownItems = items.filter(_.show)
     val width      = 12
-    shownItems.sortBy { case _: Action[_] => 0; case _ => 1 }.flatMap {
-      case item: Action[_] =>
+    shownItems.sortBy { case _: Action => 0; case _ => 1 }.flatMap {
+      case item: Action =>
         List(msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme))
-      case item: Menu[_, _] =>
+      case item: Menu =>
         "" +: msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme) +:
           item.reference.map("  " + _)
     }
