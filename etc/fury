@@ -121,7 +121,11 @@ startNailgun() {
     if [ "$1" = "prompt" ]; then
       message 'Starting Fury daemon...'
     fi
-    java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+    if [ -f "${FHOME}/bin/libprocname.so" ]; then
+	LD_PRELOAD="${FHOME}/bin/libprocname.so" java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+    else
+	java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+    fi
     until (alive); do
       if [ "$1" = "prompt" ]; then
         message '.'
