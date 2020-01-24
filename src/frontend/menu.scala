@@ -22,9 +22,9 @@ import scala.util._
 
 object FuryMenu {
 
-  def menu(aliases: List[Action[Cli[CliParam[_]]]])(implicit log: Log): Menu[Cli[CliParam[_]], _] =
-    Menu('main, "main menu", (x: Cli[CliParam[_]]) => Success(x), 'build)(List(
-        Menu('about, msg"inspect resource usage, current tasks etc.", (x: Cli[CliParam[_]]) => Success(x), 'resources)(
+  def menu(aliases: List[Action[Cli[CliParam]]])(implicit log: Log): Menu[Cli[CliParam], _] =
+    Menu('main, "main menu", (x: Cli[CliParam]) => Success(x), 'build)(List(
+        Menu('about, msg"inspect resource usage, current tasks etc.", (x: Cli[CliParam]) => Success(x), 'resources)(
             Action('resources, msg"add a command alias to the layer", AboutCli.resources),
             Action('tasks, msg"remove a command alias from the layer", AboutCli.tasks),
             Action('connections, msg"list command aliases", AboutCli.connections)
@@ -119,7 +119,7 @@ object FuryMenu {
             Action('remove, msg"remove a source directory from the module", SourceCli.remove, shortcut = 'r'),
             Action('list, msg"list sources for the module", SourceCli.list, shortcut = 'l')
         ),
-        Action('stop, msg"gracefully shut down the Fury server", ((_: Cli[CliParam[_]]) => Lifecycle.shutdown())),
+        Action('stop, msg"gracefully shut down the Fury server", ((_: Cli[CliParam]) => Lifecycle.shutdown())),
         Menu('repo, msg"manage source repositories for the schema", RepoCli.context, 'list, shortcut = 'r')(
             Action('add, msg"add a source repository to the schema", RepoCli.add, shortcut = 'a'),
             Action('update, msg"update a source repository", RepoCli.update, shortcut = 'u'),
@@ -134,7 +134,7 @@ object FuryMenu {
         ),
         Action('upgrade, msg"upgrade to the latest version of Fury", BuildCli.upgrade),
         //Action('undo, msg"undo the previous modification", BuildCli.undo),
-        Menu('layer, msg"view and edit the layer", (t: Cli[CliParam[_]]) => Try(t), 'projects, shortcut = 'l')(
+        Menu('layer, msg"view and edit the layer", (t: Cli[CliParam]) => Try(t), 'projects, shortcut = 'l')(
             Action('clone, msg"clone an external layer", LayerCli.clone, shortcut = 'c'),
             Action('export, msg"export a layer to a file", LayerCli.export, shortcut = 'e'),
             Action('extract, msg"extract a layer file", LayerCli.extract),
@@ -149,7 +149,7 @@ object FuryMenu {
         )
     ) ::: aliases: _*)
 
-  def help(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+  def help(cli: Cli[CliParam])(implicit log: Log): Try[ExitStatus] =
     for {
       call  <- cli.call()
       _     <- ~log.raw(s"""|Usage: fury <command> [<subcommands>] [<args>]

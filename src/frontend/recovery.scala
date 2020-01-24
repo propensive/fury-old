@@ -25,7 +25,7 @@ import scala.util._
 
 object Recovery {
 
-  def recover(cli: Cli[CliParam[_]])(result: Try[ExitStatus])(implicit log: Log): ExitStatus = result match {
+  def recover(cli: Cli[CliParam])(result: Try[ExitStatus])(implicit log: Log): ExitStatus = result match {
     case Success(exitStatus) =>
       exitStatus
     case Failure(err) =>

@@ -29,14 +29,14 @@ import Lenses.on
 
 object ModuleCli {
 
-  case class Context(override val cli: Cli[CliParam[_]],
+  case class Context(override val cli: Cli[CliParam],
                      override val layout: Layout,
                      override val layer: Layer,
                      override val conf: FuryConf,
                      optProject: Option[Project])
              extends MenuContext(cli, layout, layer, conf)
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -242,7 +242,7 @@ object BinaryCli {
 
   case class BinariesCtx(moduleCtx: ModuleCli.Context, optModule: Option[Module])
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     ctx         <- ModuleCli.context(cli)
     cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))
     optModuleId <- ~cli.peek(ModuleArg).orElse(ctx.optProject.flatMap(_.main))
@@ -340,7 +340,7 @@ object OptionCli {
 
   case class ParamCtx(moduleCtx: ModuleCli.Context, optModule: Option[Module])
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) =
+  def context(cli: Cli[CliParam])(implicit log: Log) =
     for {
       ctx         <- ModuleCli.context(cli)
       cli         <- cli.hint(ModuleArg, ctx.optProject.to[List].flatMap(_.modules))

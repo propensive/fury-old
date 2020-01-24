@@ -32,7 +32,7 @@ import scala.util._
 
 object Main {
 
-  def invoke(cli: Cli[CliParam[_]])(implicit log: Log): ExitStatus = {
+  def invoke(cli: Cli[CliParam])(implicit log: Log): ExitStatus = {
 
     val layer = for {
       layout <- cli.layout
@@ -41,10 +41,10 @@ object Main {
     } yield layer
 
     val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
-        def action(cli: Cli[CliParam[_]]) =
+        def action(cli: Cli[CliParam]) =
           AliasCli.context(cli).flatMap(BuildCli.compile(Some(alias.module)))
 
-        Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli[CliParam[_]]) => action(cli))
+        Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli[CliParam]) => action(cli))
       }
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))

@@ -21,8 +21,8 @@ import fury.model._
 import scala.util._
 
 object CleanCli {
-  case class Context(cli: Cli[CliParam[_]], layout: Layout)
-  def context(cli: Cli[CliParam[_]]) = cli.layout.map(Context(cli, _))
+  case class Context(cli: Cli[CliParam], layout: Layout)
+  def context(cli: Cli[CliParam]) = cli.layout.map(Context(cli, _))
   
   def cleanAll(ctx: Context): Try[ExitStatus] =
     for {

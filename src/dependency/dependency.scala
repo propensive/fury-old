@@ -28,7 +28,7 @@ import scala.util._
 object DependencyCli {
 
   case class Context(
-      override val cli: Cli[CliParam[_]],
+      override val cli: Cli[CliParam],
       override val layout: Layout,
       override val layer: Layer,
       override val conf: FuryConf,
@@ -40,7 +40,7 @@ object DependencyCli {
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) =
+  def context(cli: Cli[CliParam])(implicit log: Log) =
     for {
       layout       <- cli.layout
       conf         <- Layer.readFuryConf(layout)
@@ -134,7 +134,7 @@ object DependencyCli {
 
 object EnvCli {
 
-  case class Context(override val cli: Cli[CliParam[_]],
+  case class Context(override val cli: Cli[CliParam],
                      override val layout: Layout,
                      override val layer: Layer,
                      override val conf: FuryConf,
@@ -146,7 +146,7 @@ object EnvCli {
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
   }
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -223,7 +223,7 @@ object EnvCli {
 
 object PermissionCli {
   
-  case class Context(override val cli: Cli[CliParam[_]],
+  case class Context(override val cli: Cli[CliParam],
                      override val layout: Layout,
                      override val layer: Layer,
                      override val conf: FuryConf,
@@ -231,7 +231,7 @@ object PermissionCli {
                      optModule: Option[Module])
              extends MenuContext(cli, layout, layer, conf)
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -345,7 +345,7 @@ object PermissionCli {
 object PropertyCli {
 
   case class Context(
-      override val cli: Cli[CliParam[_]],
+      override val cli: Cli[CliParam],
       override val layout: Layout,
       override val layer: Layer,
       override val conf: FuryConf,
@@ -353,7 +353,7 @@ object PropertyCli {
       optModule: Option[Module])
       extends MenuContext(cli, layout, layer, conf)
 
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)

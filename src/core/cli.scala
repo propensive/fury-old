@@ -32,7 +32,7 @@ case object Done  extends ExitStatus(0)
 case object Abort extends ExitStatus(1)
 case object Continuation extends ExitStatus(91)
 
-object NoCommand { def unapply(cli: Cli[CliParam[_]]): Boolean = cli.args.isEmpty }
+object NoCommand { def unapply(cli: Cli[CliParam]): Boolean = cli.args.isEmpty }
 
 abstract class Cmd(val cmd: String, val description: String) {
 
@@ -44,13 +44,25 @@ abstract class Cmd(val cmd: String, val description: String) {
   def default: Option[Cmd]   = None
 }
 
-case class CliParam[T: Param.Extractor](shortName: Char, longName: Symbol, description: String) {
-  val param: SimpleParam[T] = Param[T](shortName, longName)
+object CliParam {
+  def apply[T: Param.Extractor]
+           (shortName: Char, longName: Symbol, description: String)
+           : CliParam { type Type = T } =
+    new CliParam(shortName, longName, description) {
+      type Type = T
+      def extractor: Param.Extractor[Type] = implicitly[Param.Extractor[T]]
+    }
+}
+
+abstract class CliParam(val shortName: Char, val longName: Symbol, val description: String) {
+  type Type
+  implicit def extractor: Param.Extractor[Type]
+  val param: SimpleParam[Type] = Param[Type](shortName, longName)
 }
 
 object Cli {
 
-  def asCompletion[H <: CliParam[_]](menu: => Menu[Cli[H], _])(cli: Cli[H]) = {
+  def asCompletion[H <: CliParam](menu: => Menu[Cli[H], _])(cli: Cli[H]) = {
     val newCli = Cli[H](
       cli.stdout,
       ParamMap(cli.args.suffix.map(_.value).tail: _*),
@@ -78,7 +90,7 @@ object Cli {
     }
   }
 
-  case class OptCompletion[T](arg: CliParam[_], hints: String) extends Completion {
+  case class OptCompletion[T](arg: CliParam, hints: String) extends Completion {
     def output: List[String] = List(
       str"--${arg.longName.name}[${arg.description}]:${arg.longName.name}:$hints",
       str"-${arg.shortName}[${arg.description}]:${arg.longName.name}:$hints"
@@ -108,7 +120,7 @@ trait Descriptor[T] {
   }
 }
 
-case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
+case class Cli[+Hinted <: CliParam](stdout: java.io.PrintWriter,
                                        args: ParamMap,
                                        command: Option[Int],
                                        optCompletions: List[Cli.OptCompletion[_]],
@@ -116,7 +128,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
                                        pid: Pid) {
 
   class Call private[Cli] () {
-    def apply[T](param: CliParam[T])(implicit ev: Hinted <:< param.type): Try[T] = args.get(param.param)
+    def apply[T](param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] = args.get(param.param)
     def suffix: List[String] = args.suffix.to[List].map(_.value)
   }
 
@@ -133,7 +145,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
     }
   }
 
-  def peek[T](param: CliParam[T]): Option[T] = args.get(param.param).toOption
+  def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
 
@@ -149,7 +161,7 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
     if(args.headOption.map(_.length) == Some(2)) copy(args = ParamMap(args.args.head.tail +: args.args.tail: _*))
     else copy(args = args.tail)
   
-  def opt[T: Default](param: CliParam[T]): Try[Option[T]] = Success(args(param.param).toOption)
+  def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] = Success(args(param.param).toOption)
 
   def abort(msg: UserMsg)(implicit log: Log): ExitStatus = {
     if(!completion) log.fail(msg)
@@ -167,14 +179,14 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
   }
 
   def hint[T: StringShow: Descriptor]
-          (arg: CliParam[_], hints: Traversable[T])
+          (arg: CliParam, hints: Traversable[T])
           : Try[Cli[Hinted with arg.type]] = {
     val newHints = Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
     Success(copy(optCompletions = newHints :: optCompletions))
   }
 
-  def hint(arg: CliParam[_]) = Success(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
+  def hint(arg: CliParam) = Success(copy(optCompletions = Cli.OptCompletion(arg, "()") :: optCompletions))
 
   private[this] def write(msg: UserMsg): Unit = {
     stdout.println(msg.string(ManagedConfig().theme))
@@ -198,11 +210,11 @@ case class Cli[+Hinted <: CliParam[_]](stdout: java.io.PrintWriter,
 }
 
 case class Completions(completions: List[Cli.OptCompletion[_]] = Nil) {
-  def hint[T: StringShow: Descriptor](arg: CliParam[_], hints: Traversable[T]): Completions = {
+  def hint[T: StringShow: Descriptor](arg: CliParam, hints: Traversable[T]): Completions = {
     val newHints = Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
     copy(completions = newHints :: completions)
   }
 
-  def hint(arg: CliParam[_]): Completions = copy(completions = Cli.OptCompletion(arg, "()") :: completions)
+  def hint(arg: CliParam): Completions = copy(completions = Cli.OptCompletion(arg, "()") :: completions)
 }

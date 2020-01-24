@@ -29,9 +29,9 @@ import Lenses._
 
 object RepoCli {
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer, conf: FuryConf)
+  case class Context(cli: Cli[CliParam], layout: Layout, layer: Layer, conf: FuryConf)
   
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def context(cli: Cli[CliParam])(implicit log: Log) = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
