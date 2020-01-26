@@ -121,14 +121,15 @@ checkJava() {
 }
 
 tryCompilingNailgun() {
-  if [ gcc ${DESTINATION}/bin/ng.c -O0 ${DESTINATION}/bin/ng ]
-  then
-	  message "Native Nailgun client was compiled successfully"
-  else
-	  warn "Native Nailgun client compilation failed"
-	  message "Python Nailgun client will be used"
-  fi
-  exit 0
+  cc "${DESTINATION}/bin/ng.c" -o "${DESTINATION}/bin/ng" > /dev/null 2> /dev/null && \
+      cc "${DESTINATION}/bin/procname.c" -Wall -Werror -fPIC -shared -o "${DESTINATION}/bin/libprocname.so" > /dev/null 2> /dev/null &&
+      chmod 644 "${DESTINATION}/bin/libprocname.so" || \
+      usePythonNailgun
+}
+
+usePythonNailgun() {
+  warn "Native Nailgun client compilation failed"
+  message "Python Nailgun client will be used"
 }
 
 findConfigFile() {
@@ -234,7 +235,7 @@ completion() {
   echo ""
 }
 
-prepare && checkJava && untarPayload && resolveScala && updateShells && restartFury && completion
+prepare && checkJava && untarPayload && resolveScala && tryCompilingNailgun && updateShells && restartFury && completion
 
 exit 0
 

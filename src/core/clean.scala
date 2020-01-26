@@ -21,26 +21,35 @@ import fury.model._
 import scala.util._
 
 object CleanCli {
-  case class Context(cli: Cli[CliParam[_]], layout: Layout)
-  def context(cli: Cli[CliParam[_]]) = cli.layout.map(Context(cli, _))
+  def cleanAll(cli: Cli): Try[ExitStatus] = for {
+    _ <- cleanBloop(cli)
+    _ <- cleanClasses(cli)
+    _ <- cleanLogs(cli)
+    _ <- cleanRepos(cli)
+    _ <- cleanSources(cli)
+  } yield Done
+
+  def cleanBloop(cli: Cli): Try[ExitStatus] = for {
+    layout <- cli.layout
+    _      <- layout.bloopDir.delete()
+    _      <- layout.analysisDir.delete()
+  } yield Done
+
+  def cleanClasses(cli: Cli): Try[ExitStatus] = for {
+    layout <- cli.layout
+    _      <- layout.classesDir.delete()
+  } yield Done
+
+  def cleanLogs(cli: Cli): Try[ExitStatus] = for {
+    layout <- cli.layout
+    _      <- layout.logsDir.delete()
+  } yield Done
   
-  def cleanAll(ctx: Context): Try[ExitStatus] =
-    for {
-      _ <- cleanBloop(ctx)
-      _ <- cleanClasses(ctx)
-      _ <- cleanLogs(ctx)
-      _ <- cleanRepos(ctx)
-      _ <- cleanSources(ctx)
-    } yield Done
-
-  def cleanBloop(ctx: Context): Try[ExitStatus] =
-    for {
-      _ <- ctx.layout.bloopDir.delete()
-      _ <- ctx.layout.analysisDir.delete()
-    } yield Done
-
-  def cleanClasses(ctx: Context): Try[ExitStatus] = ctx.layout.classesDir.delete().map(Done.waive)
-  def cleanLogs(ctx: Context): Try[ExitStatus] = ctx.layout.logsDir.delete().map(Done.waive)
-  def cleanRepos(ctx: Context): Try[ExitStatus] = Installation.reposDir.delete().map(Done.waive)
-  def cleanSources(ctx: Context): Try[ExitStatus] = Installation.srcsDir.delete().map(Done.waive)
+  def cleanRepos(cli: Cli): Try[ExitStatus] = for {
+    _ <- Installation.reposDir.delete()
+  } yield Done
+  
+  def cleanSources(cli: Cli): Try[ExitStatus] = for {
+    _ <- Installation.srcsDir.delete()
+  } yield Done
 }

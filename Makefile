@@ -44,6 +44,9 @@ publish: dist/install.sh
 opt:
 	mkdir -p opt
 
+dist/bundle/bin/procname.c:
+	cp etc/procname.c $@
+
 opt/fury-$(FURYSTABLE).sh: opt
 	curl -C - -s -o $@ "http://downloads.furore.dev/fury-$(FURYSTABLE).sh"
 
@@ -106,7 +109,7 @@ dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% co
 	mkdir -p ${@D}
 	touch ${@D}/.dir
 
-dist/bundle/bin/fury: dist/bundle/bin/.dir $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
+dist/bundle/bin/fury: dist/bundle/bin/.dir dist/bundle/bin/ng.c dist/bundle/bin/procname.c dist/bundle/bin/coursier
 	cp etc/fury $@
 	chmod +x $@
 
@@ -118,7 +121,7 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v2.0.0-RC5-3/coursier
 	chmod +x $@
 
-dist/bundle/bin/ng.c: bootstrap/ng/.dir
+dist/bundle/bin/ng.c:
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
 
 dist/bundle/bin/ng.py: dist/bundle/bin/.dir

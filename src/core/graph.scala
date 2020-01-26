@@ -33,13 +33,24 @@ object Graph {
       extends DiagnosticMessage
   case class OtherMessage(msg: UserMsg) extends DiagnosticMessage
 
-  case class CompilationInfo(state: CompileState, messages: List[DiagnosticMessage])
+  case class CompilationInfo(state: CompileState, msgs: List[DiagnosticMessage]) {
+    def failed(): CompilationInfo = CompilationInfo(Failed, msgs)
+    
+    def progress(n: Double): CompilationInfo =
+      if(state == Failed) this else CompilationInfo(Compiling(n), msgs)
+    
+    def skipped: CompilationInfo =
+      if(state == Failed) this else CompilationInfo(Skipped, msgs)
+    
+    def successful: CompilationInfo =
+      if(state == Failed) this else CompilationInfo(Successful(None), msgs)
+  }
 
   sealed trait CompileState
   case class Compiling(progress: Double)         extends CompileState
   case object AlreadyCompiled                    extends CompileState
   case class Successful(content: Option[String]) extends CompileState
-  case class Failed(output: String)              extends CompileState
+  case object Failed                             extends CompileState
   case object Skipped                            extends CompileState
   case object Executing                          extends CompileState
 
@@ -49,8 +60,8 @@ object Graph {
                         compilationLogs: Map[ModuleRef, CompilationInfo])(implicit log: Log) {
 
     def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
-      val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), messages = List.empty))
-      this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)))
+      val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), msgs = Nil))
+      this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)), changed = true)
     }
   }
 
@@ -73,31 +84,32 @@ object Graph {
           graphState.copy(changed = false)
 
         case CompilationProgress(ref, progress) =>
-          graphState.updateCompilationLog(ref, _.copy(state = Compiling(progress))).copy(changed = true)
+          graphState.updateCompilationLog(ref, _.progress(progress))
         case StartCompile(ref) =>
-          graphState.updateCompilationLog(ref, _.copy(state = Compiling(0))).copy(changed = true)
+          graphState.updateCompilationLog(ref, _.progress(0))
         case DiagnosticMsg(ref, msg) =>
-          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ msg)).copy(changed = false)
+          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.msgs).modify(_)(_ :+ msg)).copy(changed = false)
         case NoCompile(ref) =>
-          val newState = compilationLogs.getOrElse(ref, CompilationInfo(state = AlreadyCompiled, messages = List.empty))
-          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
+          val newState = compilationLogs.getOrElse(ref, CompilationInfo(state = AlreadyCompiled, msgs = List.empty))
+          graphState.updateCompilationLog(ref, newState.waive)
         case StopCompile(ref, success) =>
-          val msgs = compilationLogs(ref).messages
-          val newState = CompilationInfo(if (success) Successful(None) else Failed(""), msgs)
-          graphState.updateCompilationLog(ref, _ => newState).copy(changed = true)
+          val msgs = compilationLogs(ref).msgs
+          val newState = CompilationInfo(if(success) Successful(None) else Failed, msgs)
+          graphState.updateCompilationLog(ref, newState.waive)
         case Print(ref, line) =>
-          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.messages).modify(_)(_ :+ OtherMessage(line))).copy(changed = false)
+          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.msgs).modify(_)(_ :+ OtherMessage(line)))
         case StopRun(ref) =>
-          graphState.updateCompilationLog(ref, _.copy(state = Successful(None))).copy(changed = true)
-        case StartRun(ref) => graphState.updateCompilationLog(ref, _.copy(state = Executing)).copy(changed = true)
+          graphState.updateCompilationLog(ref, _.successful)
+        case StartRun(ref) =>
+          graphState.updateCompilationLog(ref, _.copy(state = Executing))
         case SkipCompile(ref) =>
-          graphState.updateCompilationLog(ref, _.copy(state = Skipped)).copy(changed = true)
+          graphState.updateCompilationLog(ref, _.skipped).copy(changed = true)
       }
       live(newState)
     } else {
       log.raw(Ansi.showCursor())
       val output = compilationLogs.collect {
-        case (_, CompilationInfo(Failed(_), out)) => out.map(_.msg)
+        case (_, CompilationInfo(Failed, out)) => out.map(_.msg)
         case (_, CompilationInfo(Successful(_), out)) => out.map(_.msg)
       }.flatten
 
@@ -105,7 +117,7 @@ object Graph {
       
       compilationLogs.foreach { case (ref, info) =>
         info match {
-          case CompilationInfo(Failed(_) | Successful(_), out) if !out.isEmpty =>
+          case CompilationInfo(Failed | Successful(_), out) if !out.isEmpty =>
             log.info(UserMsg { theme =>
               List(
                 msg"Output from ",
@@ -173,9 +185,9 @@ object Graph {
           else theme.projectDark(p) + theme.gray("/") + theme.moduleDark(m)
 
         val errors = state.get(moduleRef) match {
-          case Some(CompilationInfo(Failed(_), msgs)) =>
-            val plural = if(msgs.length == 1) "" else "s"
-            theme.failure(s"${msgs.size} error${plural}".padTo(10, ' '))
+          case Some(CompilationInfo(Failed, msgs)) =>
+            val count = str"${msgs.size}"
+            theme.failure(str"${"■"*((9 - count.length)/2)} ${count} ${"■"*((8 - count.length)/2)}")
           case Some(CompilationInfo(Successful(_), msgs)) =>
             theme.success("■"*10)
           case Some(CompilationInfo(Compiling(progress), msgs)) =>
@@ -189,7 +201,7 @@ object Graph {
           case _ => theme.bold(theme.failure("          "))
         }
         val name = if(state.get(moduleRef) == Some(Skipped)) theme.strike(text) else text
-        val errorsAnsi = if(describe) msg"   " else msg" ${theme.gray("[")}$errors${theme.gray("]")}"
+        val errorsAnsi = if(describe) msg"   " else msg" ${'['}$errors${']'}"
         (msg"${chs.filter(_ != '.').mkString} $name ", errorsAnsi, p.length + m.length + 4)
     }
 

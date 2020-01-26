@@ -14,44 +14,23 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.utils;
+package fury.utils
 
-import java.io.OutputStream
+import java.io._
+import scala.util._
 
 /**
-  * Classic splitter of {@link OutputStream}. Named after the Unix 'tee' command. It allows a stream to be branched off so there
-  * are now two streams.
+  * Classic splitter of {@link OutputStream}. Named after the Unix 'tee' command. It allows a stream to be
+  * branched off into more than one stream.
   * 
   * Based on the TeeOutputStream from Apache Commons IO.
   */
-class TeeOutputStream(out: OutputStream, branch: OutputStream) extends OutputStream {
-
-  override def write(b: Array[Byte]): Unit = synchronized {
-    out.write(b)
-    branch.write(b)
-  }
-
-  override def write(b: Array[Byte], off: Int, len: Int): Unit = synchronized {
-    out.write(b, off, len)
-    branch.write(b, off, len)
-  }
-
-  override def write(b: Int): Unit = synchronized {
-    out.write(b)
-    branch.write(b)
-  }
-
-  override def flush(): Unit = {
-    out.flush()
-    branch.flush()
-  }
-
-  override def close(): Unit = {
-    try {
-      out.close()
-    } finally {
-      branch.close()
-    }
-  }
-
+class TeeOutputStream(streams: OutputStream*) extends OutputStream {
+  override def write(b: Array[Byte], off: Int, len: Int): Unit =
+    synchronized(streams.foreach(_.write(b, off, len)))
+  
+  override def write(b: Array[Byte]): Unit = synchronized(streams.foreach(_.write(b)))
+  override def write(b: Int): Unit = synchronized(streams.foreach(_.write(b)))
+  override def flush(): Unit = streams.foreach(_.flush())
+  override def close(): Unit = streams.map { stream => Try(stream.close()) }
 }

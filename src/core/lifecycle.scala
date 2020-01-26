@@ -20,11 +20,18 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
+import scala.concurrent.Promise
 import scala.util.Try
 
 object Lifecycle {
+  
+  trait Shutdown {
+    def shutdown(): Unit
+  }
+  
+  val bloopServer = Promise[Shutdown]
 
-  case class Session(cli: Cli[CliParam[_]], thread: Thread) {
+  case class Session(cli: Cli, thread: Thread) {
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
   }
@@ -38,7 +45,7 @@ object Lifecycle {
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
 
-  def trackThread(cli: Cli[CliParam[_]], whitelisted: Boolean)(action: => Int): Int = {
+  def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int = {
     val alreadyLaunched = running.find(_.pid == cli.pid)
     alreadyLaunched match {
       case Some(session) =>
@@ -62,7 +69,10 @@ object Lifecycle {
   def shutdown(previous: Int = -1): Try[ExitStatus] = {
     terminating.set(true)
     busy() match {
-      case None => util.Success(Done)
+      case None => {
+        bloopServer.future.value.map(_.get.shutdown())
+        util.Success(Done)
+      }
       case Some(count) =>
         if(previous > count) {
           val plural = if(count > 1) "s" else ""

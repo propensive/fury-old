@@ -35,7 +35,7 @@ case class Layer(version: Int,
   def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
 
-  def hash: String = Layer.digestLayer(this).key.take(10)
+  def hash: String = Layer.digestLayer(this).key.take(6).toLowerCase
 }
 
 object Layer {
@@ -142,8 +142,7 @@ object Layer {
       layer    <- read(conf.layerRef, layout)
     } yield layer
   
-    def read(layout: Layout)(implicit log: Log): Try[Layer] = for {
-      conf     <- readFuryConf(layout)
+    def read(layout: Layout, conf: FuryConf)(implicit log: Log): Try[Layer] = for {
       layer    <- read(conf.layerRef, layout)
       newLayer <- resolveSchema(layout, layer, conf.path)
     } yield newLayer
@@ -168,12 +167,12 @@ object Layer {
         url      <- Try(conf.published.get)
         ref      <- parse(url.url.key, layout)
         layer    <- Layer.load(ref, layout)
-        _        <- saveFuryConf(FuryConf(layer, conf.path, conf.published), layout)
+        conf     <- saveFuryConf(FuryConf(layer, conf.path, conf.published), layout)
         _        <- ~log.info(msg"Initialized layer ${layer}")
       } yield () } else { for {
         _        <- layout.confFile.mkParents()
         layerRef <- saveLayer(Layer(CurrentVersion))
-        _        <- saveFuryConf(FuryConf(layerRef), layout)
+        conf     <- saveFuryConf(FuryConf(layerRef), layout)
         _        <- ~log.info(msg"Initialized an empty layer")
       } yield () }
     }
@@ -206,8 +205,8 @@ object Layer {
       _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
     } yield layerRef
   
-    def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] =
-      saveFuryConf(conf, layout.confFile)
+    def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] =
+      saveFuryConf(conf, layout.confFile).map(conf.waive)
   
     private final val confComments: String =
       str"""# This is a Fury configuration file. It contains significant
@@ -225,10 +224,10 @@ object Layer {
       str"""# vim: set noai ts=12 sw=12:
            |""".stripMargin
   
-    def saveFuryConf(conf: FuryConf, path: Path)(implicit log: Log): Try[Unit] = for {
+    def saveFuryConf(conf: FuryConf, path: Path)(implicit log: Log): Try[FuryConf] = for {
       confStr  <- ~Ogdl.serialize(Ogdl(conf))
       _        <- path.writeSync(confComments+confStr+vimModeline)
-    } yield ()
+    } yield conf
   
     private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
       val version = Try(ogdl.version().toInt).getOrElse(1)

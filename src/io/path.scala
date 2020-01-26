@@ -19,6 +19,7 @@ package fury.io
 import fury.strings._
 
 import kaleidoscope._
+import mercator._
 
 import scala.language.experimental.macros
 import scala.language.higherKinds
@@ -93,14 +94,18 @@ case class Path(input: String) {
     finally filesStream.close()
   }
 
+  def setReadOnly(): Try[Unit] = childPaths.traverse(_.setReadOnly()).flatMap { _ =>
+    Try(javaFile.setReadOnly().unit)
+  }
+
   def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
     case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
   }
 
-  def touch(): Try[Unit] = Outcome.rescue[java.io.IOException](FileWriteError(this, _)) {
+  def touch(): Try[Unit] = Try {
     if(!exists()) new java.io.FileOutputStream(javaFile).close()
-    else javaFile.setLastModified(System.currentTimeMillis())
-  }
+    else javaFile.setLastModified(System.currentTimeMillis()).unit
+  }.recoverWith { case e => Failure(FileWriteError(this, e)) }
 
   def extant(): Path = {
     mkdir()
@@ -119,10 +124,10 @@ case class Path(input: String) {
   def resolve(rel: Path) = Path(javaPath.resolve(rel.javaPath))
 
   def moveTo(path: Path): Try[Unit] =
-    Outcome.rescue[java.io.IOException](FileWriteError(this, _)){
+    Try {
       path.parent.extant()
-      Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING)
-    }
+      Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING).unit
+    }.recoverWith { case e => Failure(FileWriteError(this, e)) }
 
   def relativeSubdirsContaining(pred: String => Boolean): Set[Path] =
     findSubdirsContaining(pred).map { p => Path(p.value.drop(value.length + 1)) }
@@ -146,9 +151,9 @@ case class Path(input: String) {
 
   def delete(): Try[Boolean] = {
     def delete(file: JavaFile): Boolean =
-      if(file.isDirectory) file.listFiles.forall(delete) && file.delete() else file.delete()
+      if(file.isDirectory) file.listFiles.forall(delete(_)) && file.delete() else file.delete()
 
-    Outcome.rescue[java.io.IOException](FileWriteError(this, _))(delete(javaFile))
+    Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
   def writeSync(content: String): Try[Unit] = Try {
@@ -171,7 +176,7 @@ case class Path(input: String) {
   def walkTree: Stream[Path] =
     if(directory) Stream(this) ++: childPaths.to[Stream].flatMap(_.walkTree) else Stream(this)
 
-  def children: List[String] = if(exists()) javaFile.listFiles.to[List].map(_.getName) else Nil
+  def children: List[String] = if(exists()) Option(javaFile.listFiles).to[List].flatten.map(_.getName) else Nil
   def childPaths: List[Path] = children.map(this / _)
   def exists(): Boolean = Files.exists(javaPath)
   def ifExists(): Option[Path] = if(exists) Some(this) else None
@@ -182,10 +187,10 @@ case class Path(input: String) {
   def rename(fn: String => String): Path = parent / fn(name)
   
   def mkParents(): Try[Path] =
-    Outcome.rescue[java.io.IOException](FileWriteError(parent, _)) {
+    Try {
       Path.createDirectories(parent.javaPath)
       this
-    }
+    }.recoverWith { case e: Exception => Failure(FileWriteError(parent, e)) }
 
   def linksTo(target: Path): Try[Path] = Try {
     Files.createSymbolicLink(javaPath, target.javaPath)

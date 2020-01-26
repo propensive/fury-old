@@ -16,82 +16,34 @@
 */
 package fury
 
-import fury.core._, fury.strings._, fury.model._
+import fury.model._
+import probably._
 
-import com.facebook.nailgun.NGContext
-import exoskeleton._
-import guillotine._
-import scala.collection.JavaConverters._
-import scala.collection.mutable.HashSet
+import scala.language.implicitConversions
+import scala.util.{Success, Try}
 
-import annotation.tailrec
-import java.util.concurrent.atomic.AtomicBoolean
-import scala.concurrent._, duration._
+object IdTests extends TestApp {
 
-import scala.util._
+  override def tests(): Unit = {
 
-object Main {
+    test("binary ids") {
+      BinaryId.unapply("foo.bar:baz-quux_2.12:1.2.3-RC4").isEmpty &&
+      BinaryId.unapply("foo.bar:baz-quux_2.12").isEmpty &&
+      //BinaryId.unapply("baz-quux_2.12").isEmpty &&
+      BinaryId.unapply("baz-quux").isDefined
+    }.assert(_ == true)
 
-  def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
+    test("binary specs") {
+      BinSpec.unapply("foo.bar:baz-quux_2.12:1.2.3-RC4").isDefined &&
+      BinSpec.unapply("foo.bar:baz-quux_2.12").isEmpty &&
+      BinSpec.unapply("baz-quux_2.12").isEmpty
+    }.assert(_ == true)
 
-    val layer = for {
-      layout <- cli.layout
-      conf   <- Layer.readFuryConf(layout)
-      layer  <- Layer.read(layout, conf)
-    } yield layer
+    test("repo ids") {
+      RepoId.unapply("foo").isDefined &&
+      RepoId.unapply("foo-bar-baz").isDefined &&
+      RepoId.unapply("foo-bar_baz").isEmpty
+    }.assert(_ == true)
 
-    val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
-        def action(cli: Cli) =
-          BuildCli.compile(Some(alias.module))(cli)
-
-        Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli) => action(cli))
-      }
-
-    Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
   }
-
-  def main(args: Array[String]): Unit = run(
-      System.in,
-      System.out,
-      System.err,
-      args,
-      {
-        i =>
-        Lifecycle.shutdown()
-        System.exit(i)
-      },
-      Environment(System.getenv.asScala.toMap, Option(System.getenv("PWD")))
-  )
-
-  def nailMain(ctx: NGContext): Unit = run(
-      ctx.in,
-      ctx.out,
-      ctx.err,
-      ctx.getArgs,
-      ctx.exit(_),
-      Environment(ctx.getEnv.stringPropertyNames.asScala.map { k =>
-        (k, ctx.getEnv.getProperty(k))
-      }.toMap, Option(ctx.getWorkingDirectory))
-  )
-
-  def run(
-      in: java.io.InputStream,
-      out: java.io.PrintStream,
-      err: java.io.PrintStream,
-      args: Seq[String],
-      exit: Int => Unit,
-      env: Environment
-    ) =
-    exit {
-      val pid = Pid(args.head.toInt)
-      implicit val log: Log = Log.log(pid)
-      val cli = Cli(new java.io.PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, pid)
-      Lifecycle.trackThread(cli, args.lift(1).exists(Set("about", "help")(_))) {
-        val end = invoke(cli).code
-        out.flush()
-        err.flush()
-        end
-      }
-    }
-
 }

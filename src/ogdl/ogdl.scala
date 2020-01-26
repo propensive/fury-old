@@ -28,7 +28,7 @@ import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.language.dynamics
 
-import scala.util.Try
+import scala.util._
 
 import java.util.NoSuchElementException
 
@@ -90,14 +90,14 @@ object Ogdl {
   }
 
   def write[T: OgdlWriter](value: T, path: Path): Try[Unit] =
-    Outcome.rescue[IOException](FileWriteError(path, _)) {
+    Try {
       val bak = path.rename { f => s".$f.bak" }
       if(path.exists()) path.copyTo(bak)
       val sb = new StringBuilder()
       Ogdl.serialize(sb, implicitly[OgdlWriter[T]].write(value))
       sb.append('\n')
       path.writeSync(sb.toString)
-    }
+    }.flatten.recoverWith { case e: Exception => Failure(FileWriteError(path, e)) }
 
   def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
     val buffer = ByteBuffer.wrap(string.bytes)
@@ -107,14 +107,12 @@ object Ogdl {
   }
 
   def read[T: OgdlReader](path: Path, preprocessor: Ogdl => Ogdl): Try[T] =
-    Outcome.rescue[IOException] { _: IOException =>
-      FileNotFound(path)
-    } {
+    Try {
       val buffer = readToBuffer(path)
       val ogdl   = OgdlParser.parse(buffer)
 
       implicitly[OgdlReader[T]].read(preprocessor(ogdl))
-    }
+    }.recoverWith { case e: Exception => Failure(FileNotFound(path)) }
 
   private[this] def readToBuffer(path: Path): ByteBuffer = {
     val inChannel = FileChannel.open(path.javaPath)

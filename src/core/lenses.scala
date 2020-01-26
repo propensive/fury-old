@@ -25,47 +25,26 @@ import scala.util._
 
 object Lenses {
 
-  def updateSchemas[A](
-      schemaId: Option[SchemaId],
-      layer: Layer,
-      force: Boolean
-    )(lens: SchemaId => Lens[Layer, A, A]
-    )(modify: (Lens[Layer, A, A], Layer) => Layer
-    ): Try[Layer] = {
-    val lenses = schemaId match {
-      case Some(schemaId) => List(lens(schemaId))
-      case None           => layer.schemas.map(_.id).to[List].map(lens(_))
-    }
+  def updateSchemas[A]
+                   (layer: Layer)
+                   (lens: SchemaId => Lens[Layer, A, A])
+                   (modify: (Lens[Layer, A, A], Layer) => Layer)
+                   : Try[Layer] = Try(modify(lens(SchemaId.default), layer))
 
-    for (lenses <- if(force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
-                  else Failure(SchemaDifferences()))
-      yield lenses.foldLeft(layer) { case (layer, lens) => modify(lens, layer) }
-  }
+  def focus() = new Focus()
 
-  def focus(schemaId: Option[SchemaId], force: Boolean) = new Focus(schemaId, force)
-
-  class Focus(schemaId: Option[SchemaId], force: Boolean) {
+  class Focus() {
 
     def update[A](
         layer: Layer,
         partialLens: Lens.Partial[Schema] => Lens[Schema, A, A],
         value: Option[A]
-      ): Try[Layer] = value match {
-      case None => Success(layer)
-      case Some(value) =>
-        val lenses = schemaId match {
-          case Some(schemaId) =>
-            List(Optic.identity.compose(Lenses.layer.schema(schemaId), partialLens(Lenses.schema)))
-          case None =>
-            layer.schemas.map(_.id).to[List].map { s =>
-              Optic.identity.compose(Lenses.layer.schema(s), partialLens(Lenses.schema))
-            }
-        }
-
-        for (lenses <- if(force || lenses.map(_(layer)).to[Set].size == 1) Success(lenses)
-                      else Failure(SchemaDifferences()))
-          yield lenses.foldLeft(layer) { case (layer, lens) => lens(layer) = value }
-    }
+      ): Layer = value match {
+        case None => layer
+        case Some(value) =>
+          val lens = Optic.identity.compose(Lenses.layer.schema(SchemaId.default), partialLens(Lenses.schema))
+          lens(layer) = value
+      }
   }
 
   object on {
