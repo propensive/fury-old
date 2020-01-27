@@ -94,6 +94,8 @@ case class Path(input: String) {
     finally filesStream.close()
   }
 
+  def size: ByteSize = ByteSize(javaFile.length)
+
   def setReadOnly(): Try[Unit] = childPaths.traverse(_.setReadOnly()).flatMap { _ =>
     Try(javaFile.setReadOnly().unit)
   }
@@ -218,6 +220,13 @@ case class Glob(pattern: String) {
     b.result
   }
 }
+
+object ByteSize {
+  implicit val msgShow: MsgShow[ByteSize] = fs => UserMsg(_.number(str"${Strings.magnitude(fs.bytes, "B")}"))
+  implicit val stringShow: StringShow[ByteSize] = fs => str"${Strings.magnitude(fs.bytes, "B")}"
+}
+
+case ByteSize(bytes: Long)
 
 case class FileNotFound(path: Path)      extends FuryException
 case class FileWriteError(path: Path, e: Throwable) extends FuryException
