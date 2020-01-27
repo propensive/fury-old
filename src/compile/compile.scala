@@ -70,13 +70,15 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
     }
   }
 
+  def subscribers(bspClient: FuryBuildClient): List[Session] = usages.synchronized {
+    usages.collect { case (session, connection) if connection.client == bspClient => session }.to[List]
+  }
+
   override def acquire(session: Session, connection: Connection): Unit = usages.synchronized {
     usages += session -> connection
-    connection.client.session = session
   }
 
   override def release(session: Session): Unit = usages.synchronized {
-    //TODO consider unsetting reference to session in connection.client
     usages -= session
   }
 
@@ -143,7 +145,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
       thread.start()
       
-      val client = new FuryBuildClient(Lifecycle.currentSession, compilation, targetId, layout)
+      val client = new FuryBuildClient(compilation, targetId, layout)
         
       val bspServer = new Launcher.Builder[FuryBspServer]()
         .setRemoteInterface(classOf[FuryBspServer])
@@ -281,16 +283,18 @@ object Compilation {
   }
 }
 
-class FuryBuildClient(@volatile var session: Session, compilation: Compilation,
+class FuryBuildClient(compilation: Compilation,
     targetId: TargetId, layout: Layout) extends BuildClient {
 
-
+  private def broadcast(f: Multiplexer[ModuleRef, CompileEvent] => Unit): Unit = {
+    BloopServer.subscribers(this).map(_.multiplexer).foreach(f)
+  }
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit =
-    session.multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
+    broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
 
   override def onBuildLogMessage(params: LogMessageParams): Unit =
-    session.multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
+    broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
@@ -331,7 +335,7 @@ class FuryBuildClient(@volatile var session: Session, compilation: Compilation,
         case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
       } }
 
-      session.multiplexer(targetId.ref) = DiagnosticMsg(
+      broadcast(_(targetId.ref) = DiagnosticMsg(
         targetId.ref,
         CompilerDiagnostic(
           msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum + 1).toString}
@@ -346,7 +350,7 @@ ${'|'} ${highlightedLine}
           lineNo,
           charNum
         )
-      )
+      ))
     }
   }
 
@@ -370,15 +374,15 @@ ${'|'} ${highlightedLine}
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
-    session.multiplexer(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
+    broadcast(_(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal))
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId: TargetId = getTargetId(report.getTarget.getUri)
-    session.multiplexer(targetId.ref) = StartCompile(targetId.ref)
+    broadcast(_(targetId.ref) = StartCompile(targetId.ref))
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      session.multiplexer(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
+      broadcast(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
     }
   }
 
@@ -387,9 +391,9 @@ ${'|'} ${highlightedLine}
       val report = convertDataTo[CompileReport](params.getData)
       val targetId: TargetId = getTargetId(report.getTarget.getUri)
       val ref = targetId.ref
-      session.multiplexer(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
-      if(!compilation.targets(ref).kind.needsExecution) session.multiplexer(ref) = StopRun(ref)
-      else session.multiplexer(ref) = StartRun(ref)
+      broadcast(_(ref) = StopCompile(ref, params.getStatus == StatusCode.OK))
+      if(!compilation.targets(ref).kind.needsExecution) broadcast(_(ref) = StopRun(ref))
+      else broadcast(_(ref) = StartRun(ref))
   }
 }
 
