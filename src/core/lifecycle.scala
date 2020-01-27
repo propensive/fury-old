@@ -31,8 +31,14 @@ object Lifecycle {
   trait Shutdown {
     def shutdown(): Unit
   }
+
+  trait ResourceHolder {
+    type Resource
+    def acquire(session: Session, resource: Resource)
+    def release(session: Session)
+  }
   
-  val bloopServer = Promise[Shutdown]
+  val bloopServer = Promise[Shutdown with ResourceHolder]
 
   case class Session(cli: Cli, thread: Thread) {
     val pid = cli.pid
@@ -47,6 +53,11 @@ object Lifecycle {
   private[this] def busy(): Option[Int] =
     running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
+  private[this] def close(session: Session) = running.synchronized {
+    bloopServer.future.value.map(_.map(_.release(session)))
+    running -= session
+  }
+
   def busyCount: Int = busy().getOrElse(0)
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
@@ -60,7 +71,7 @@ object Lifecycle {
     alreadyLaunched match {
       case Some(session) =>
         session.thread.interrupt()
-        running.synchronized { running -= session }
+        close(session)
         0
       case None if terminating.get && !whitelisted =>
         println("New tasks cannot be started while Fury is shutting down.")
@@ -69,7 +80,7 @@ object Lifecycle {
         val session = Session(cli, Thread.currentThread)
         running.synchronized(running += session)
         try action
-        finally { running.synchronized(running -= session) }
+        finally { close(session) }
     }
   }
 

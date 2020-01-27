@@ -51,7 +51,8 @@ import scala.util.control.NonFatal
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
-object BloopServer extends Lifecycle.Shutdown {
+object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
+  override type Resource = Connection
   
   Lifecycle.bloopServer.complete(Success(this))
  
@@ -67,6 +68,16 @@ object BloopServer extends Lifecycle.Shutdown {
       lock = newLock
       future
     }
+  }
+
+  override def acquire(session: Session, connection: Connection): Unit = usages.synchronized {
+    usages += session -> connection
+    connection.client.session = session
+  }
+
+  override def release(session: Session): Unit = usages.synchronized {
+    //TODO consider unsetting reference to session in connection.client
+    usages -= session
   }
 
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
@@ -170,8 +181,7 @@ object BloopServer extends Lifecycle.Shutdown {
 
     Try {
       conn.synchronized{
-        usages += Lifecycle.currentSession -> conn
-        conn.client.session = Lifecycle.currentSession
+        acquire(Lifecycle.currentSession, conn)
         fn(conn)
       }
     }
