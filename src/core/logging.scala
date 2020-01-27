@@ -119,7 +119,7 @@ object Log {
   def log(pid: Pid): Log = new Log(global, pid)
 }
 
-class Log(private[this] val output: LogStyle, pid: Pid) {
+class Log(private[this] val output: LogStyle, val pid: Pid) {
 
   private[this] var writers: List[LogStyle] = List(output)
 
