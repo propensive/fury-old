@@ -103,7 +103,6 @@ object BloopServer extends Lifecycle.Shutdown {
             log.info("Instantiating a new instance of the Scala compiler")
           case r"The server is listening for incoming connections.*" =>
             log.info(msg"BSP server is listening for incoming connections")
-            multiplexer.start()
           case r"Waiting.*" => None
           case r"Starting thread.*" => None
           case r"Deduplicating compilation of .*" => None
@@ -165,6 +164,7 @@ object BloopServer extends Lifecycle.Shutdown {
       } else None
       val newConnection = Await.result(connect(dir, multiplexer, compilation, targetId, layout, trace = tracePath), Duration.Inf)
       connections += dir -> newConnection
+      multiplexer.start()
       newConnection
     }
 
