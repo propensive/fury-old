@@ -26,10 +26,10 @@ import Lenses.on
 
 import scala.collection.immutable.SortedSet
 
-object ProjectCli {
+case class ProjectCli(cli: Cli)(implicit log: Log) {
   import Args._
 
-  def select(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def select: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.read(layout, conf)
@@ -49,7 +49,7 @@ object ProjectCli {
     _           <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.read(layout, conf)
@@ -64,7 +64,7 @@ object ProjectCli {
     _           <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.read(layout, conf)
@@ -97,7 +97,7 @@ object ProjectCli {
     _              <- ~log.info(msg"Set current project to ${project.id}")
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.read(layout, conf)
@@ -119,7 +119,7 @@ object ProjectCli {
     _           <- ~Layer.save(layer, layout)(log)
   } yield log.await()
 
-  def update(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def update: Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.read(layout, conf)

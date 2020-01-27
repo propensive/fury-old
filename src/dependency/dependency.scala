@@ -25,9 +25,9 @@ import Args._
 import scala.collection.immutable.SortedSet
 import scala.util._
 
-object DependencyCli {
+case class DependencyCli(cli: Cli)(implicit log: Log) {
 
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -57,7 +57,7 @@ object DependencyCli {
     _       <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -98,7 +98,7 @@ object DependencyCli {
 
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -140,8 +140,8 @@ object DependencyCli {
   } yield log.await()
 }
 
-object EnvCli {
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class EnvCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -168,7 +168,7 @@ object EnvCli {
     _            <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -202,7 +202,7 @@ object EnvCli {
     optSchema    <- ~layer.mainSchema.toOption
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout          <- cli.layout
     conf            <- Layer.readFuryConf(layout)
     layer           <- Layer.read(layout, conf)
@@ -237,37 +237,9 @@ object EnvCli {
   } yield log.await()
 }
 
-object PermissionCli {
+case class PermissionCli(cli: Cli)(implicit log: Log) {
   
-  case class Context(override val cli: Cli,
-                     override val layout: Layout,
-                     override val layer: Layer,
-                     override val conf: FuryConf,
-                     optProject: Option[Project],
-                     optModule: Option[Module])
-             extends MenuContext(cli, layout, layer, conf)
-
-  def context(cli: Cli)(implicit log: Log) = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-
-    optModule    <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
-
-  } yield Context(cli, layout, layer, conf, optProject, optModule)
-
-  def require(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def require: Try[ExitStatus] = for {
     layout          <- cli.layout
     conf            <- Layer.readFuryConf(layout)
     layer           <- Layer.read(layout, conf)
@@ -310,7 +282,7 @@ object PermissionCli {
     log.await()
   }
 
-  def obviate(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def obviate: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.read(layout, conf)
@@ -346,7 +318,7 @@ object PermissionCli {
     _             <- Layer.save(layer, layout)
   } yield log.await()
   
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.read(layout, conf)
@@ -375,7 +347,7 @@ object PermissionCli {
     _             <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def grant(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def grant: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.read(layout, conf)
@@ -412,8 +384,8 @@ object PermissionCli {
   } yield log.await()
 }
 
-object PropertyCli {
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class PropertyCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -442,7 +414,7 @@ object PropertyCli {
     _       <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -475,7 +447,7 @@ object PropertyCli {
     _         <- Layer.save(layer, layout)
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)

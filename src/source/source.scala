@@ -23,8 +23,8 @@ import mercator._
 import Args._
 import scala.util._
 
-object SourceCli {
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class SourceCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -53,7 +53,7 @@ object SourceCli {
     _       <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -89,7 +89,7 @@ object SourceCli {
     _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -139,9 +139,9 @@ object SourceCli {
   } yield log.await()
 }
 
-object ResourceCli {
+case class ResourceCli(cli: Cli)(implicit log: Log) {
 
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -169,7 +169,7 @@ object ResourceCli {
     _       <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -204,7 +204,7 @@ object ResourceCli {
     _             <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)

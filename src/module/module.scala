@@ -27,26 +27,8 @@ import scala.util._
 
 import Lenses.on
 
-object ModuleCli {
-
-  case class Context(override val cli: Cli,
-                     override val layout: Layout,
-                     override val layer: Layer,
-                     override val conf: FuryConf,
-                     optProject: Option[Project])
-             extends MenuContext(cli, layout, layer, conf)
-
-  def context(cli: Cli)(implicit log: Log) = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-  } yield Context(cli, layout, layer, conf, optProject)
-
-  def select(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class ModuleCli(cli: Cli)(implicit log: Log) {
+  def select: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -65,7 +47,7 @@ object ModuleCli {
     _            <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -83,7 +65,7 @@ object ModuleCli {
     _            <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -150,7 +132,7 @@ object ModuleCli {
     _                  <- if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -176,7 +158,7 @@ object ModuleCli {
     _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
 
-  def update(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def update: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -255,8 +237,8 @@ object ModuleCli {
   } yield log.await()
 }
 
-object BinaryCli {
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class BinaryCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -284,7 +266,7 @@ object BinaryCli {
     _           <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def update(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def update: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -319,7 +301,7 @@ object BinaryCli {
 
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -351,7 +333,7 @@ object BinaryCli {
     _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -389,8 +371,8 @@ object BinaryCli {
   } yield log.await()
 }
 
-object OptionCli {
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class OptionCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -422,7 +404,7 @@ object OptionCli {
     _           <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -457,7 +439,7 @@ object OptionCli {
     _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
 
-  def define(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def define: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -493,7 +475,7 @@ object OptionCli {
     _           <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def undefine(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def undefine: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -523,7 +505,7 @@ object OptionCli {
     _           <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)

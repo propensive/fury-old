@@ -33,8 +33,8 @@ import fury.utils.Multiplexer
 import language.higherKinds
 import scala.util.control.NonFatal
 
-object ConfigCli {
-  def set(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class ConfigCli(cli: Cli)(implicit log: Log) {
+  def set: Try[ExitStatus] = for {
     cli      <- cli.hint(ThemeArg, Theme.all)
     cli      <- cli.hint(TimestampsArg, List("on", "off"))
     cli      <- cli.hint(PipeliningArg, List("on", "off"))
@@ -55,7 +55,7 @@ object ConfigCli {
     _        <- ~ManagedConfig.write(config)
   } yield log.await()
 
-  def auth(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def auth: Try[ExitStatus] = for {
     call     <- cli.call()
     code     <- ~Rnd.token(18)
     // These futures should be managed in the session
@@ -72,9 +72,9 @@ object ConfigCli {
   } yield log.await()
 }
 
-object AboutCli {
+case class AboutCli(cli: Cli)(implicit log: Log) {
 
-  private def resources: String = {
+  private def resourcesString: String = {
     val runtime = Runtime.getRuntime
     val df: DecimalFormat = new DecimalFormat("0.0")
 
@@ -95,11 +95,11 @@ object AboutCli {
   private val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.00")
   private def since(start: Long): String = str"${formatter.format((System.currentTimeMillis - start)/1000.0)}s"
 
-  private def tasks: String = Lifecycle.sessions.map { session =>
+  private def tasksString: String = Lifecycle.sessions.map { session =>
     str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
   }.mkString("\n")
 
-  private def connections: String = BloopServer.workDirectories.map { dir =>
+  private def connectionsString: String = BloopServer.workDirectories.map { dir =>
     str"$dir"
   }.mkString("\n")
 
@@ -124,28 +124,28 @@ object AboutCli {
           |""".stripMargin
   }
 
-  def resources(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+  def resources: Try[ExitStatus] =
     cli.call().map{ _ =>
-      log.raw(withTemplate(resources))
+      log.raw(withTemplate(resourcesString))
       log.await()
     }
 
-  def tasks(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+  def tasks: Try[ExitStatus] =
     cli.call().map{ _ =>
-      log.raw(withTemplate(tasks))
+      log.raw(withTemplate(tasksString))
       log.await()
     }
 
-  def connections(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+  def connections: Try[ExitStatus] =
     cli.call().map{ _ =>
-      log.raw(withTemplate(connections))
+      log.raw(withTemplate(connectionsString))
       log.await()
     }
 
 }
 
-object AliasCli {
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class AliasCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -158,7 +158,7 @@ object AliasCli {
     _      <- ~log.rawln(table.join("\n"))
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout     <- cli.layout
     conf       <- Layer.readFuryConf(layout)
     layer      <- Layer.read(layout, conf)
@@ -170,7 +170,7 @@ object AliasCli {
     _          <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout           <- cli.layout
     conf             <- Layer.readFuryConf(layout)
     layer            <- Layer.read(layout, conf)
@@ -201,9 +201,9 @@ object AliasCli {
   } yield log.await()
 }
 
-object BuildCli {
+case class BuildCli(cli: Cli)(implicit log: Log) {
 
-  def notImplemented(cli: Cli)(implicit log: Log): Try[ExitStatus] = Success(Abort)
+  def notImplemented: Try[ExitStatus] = Success(Abort)
 
   def getPrompt(layer: Layer, theme: Theme)(implicit log: Log): Try[String] = for {
     schemaId     <- ~layer.main
@@ -214,7 +214,7 @@ object BuildCli {
     optModule    <- ~optModuleId.flatMap { mId => optProject.flatMap(_.modules.findBy(mId).toOption) }
   } yield Prompt.zsh(layer, optProject, optModule)(theme)
 
-  def upgrade(cli: Cli)(implicit log: Log): Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
+  def upgrade: Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -227,7 +227,7 @@ object BuildCli {
     _             <- TarGz.extract(file, Installation.upgradeDir)
   } yield log.await() }
 
-  def prompt(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def prompt: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -239,7 +239,7 @@ object BuildCli {
     _      <- ~log.raw(msg)
   } yield log.await()
 
-  def compile(moduleRef: Option[ModuleRef])(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def compile(moduleRef: Option[ModuleRef]): Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.read(layout, conf)
@@ -310,7 +310,7 @@ object BuildCli {
     }
   }
 
-  def install(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def install: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -345,7 +345,7 @@ object BuildCli {
     _            <- ~log.info(msg"Installed $exec executable")
   } yield log.await()
 
-  def console(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def console: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -377,7 +377,7 @@ object BuildCli {
     cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp -Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true scala.tools.nsc.MainGenericRunner""")
   }
 
-  def classpath(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def classpath: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -407,7 +407,7 @@ object BuildCli {
     log.await()
   }
 
-  def describe(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def describe: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -461,14 +461,14 @@ object BuildCli {
 
 }
 
-object LayerCli {
-  def init(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+case class LayerCli(cli: Cli)(implicit log: Log) {
+  def init: Try[ExitStatus] = for {
     layout <- cli.newLayout
     call   <- cli.call()
     _      <- Layer.init(layout)
   } yield log.await()
 
-  def projects(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def projects: Try[ExitStatus] = for {
     layout    <- cli.layout
     conf      <- Layer.readFuryConf(layout)
     layer     <- Layer.read(layout, conf)
@@ -485,7 +485,7 @@ object LayerCli {
     _         <- ~log.rawln(table.mkString("\n"))
   } yield log.await()
 
-  def select(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def select: Try[ExitStatus] = for {
     layout       <- cli.layout
     baseLayer    <- Layer.base(layout)
     conf         <- Layer.readFuryConf(layout)
@@ -513,7 +513,7 @@ object LayerCli {
     else
       Failure(LayersFailure(path))
 
-  def extract(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def extract: Try[ExitStatus] = for {
     cli      <- cli.hint(DirArg)
     cli      <- cli.hint(FileArg)
     call     <- cli.call()
@@ -525,7 +525,7 @@ object LayerCli {
     _        <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout)
   } yield log.await()
 
-  def clone(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def cloneLayer: Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
@@ -544,7 +544,7 @@ object LayerCli {
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
 
-  def publish(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def publish: Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(RemoteLayerArg)
     cli           <- cli.hint(RawArg)
@@ -567,7 +567,7 @@ object LayerCli {
 
   } yield log.await()
 
-  def share(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def share: Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(RawArg)
     conf          <- Layer.readFuryConf(layout)
@@ -578,7 +578,7 @@ object LayerCli {
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
-  def export(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def export: Try[ExitStatus] = for {
     layout        <- cli.layout
     cli           <- cli.hint(FileArg)
     conf          <- Layer.readFuryConf(layout)
@@ -590,7 +590,7 @@ object LayerCli {
     _             <- ~log.info(msg"Saved layer file ${destination}")
   } yield log.await()
 
-  def addImport(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def addImport: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.read(layout, conf)
@@ -614,7 +614,7 @@ object LayerCli {
     _             <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def unimport(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def unimport: Try[ExitStatus] = for {
     layout    <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer     <- Layer.read(layout, conf)
@@ -630,7 +630,7 @@ object LayerCli {
     _         <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = {
+  def list: Try[ExitStatus] = {
     for {
       layout    <- cli.layout
       conf      <- Layer.readFuryConf(layout)
