@@ -18,6 +18,9 @@ package fury.core
 
 import java.util.concurrent.atomic.AtomicBoolean
 
+import fury.model.ModuleRef
+import fury.utils.Multiplexer
+
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
 import scala.concurrent.Promise
@@ -34,6 +37,9 @@ object Lifecycle {
   case class Session(cli: Cli, thread: Thread) {
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
+    private var _multiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(List.empty)
+    def multiplexer = synchronized{ _multiplexer }
+    def multiplexer_=(m: Multiplexer[ModuleRef, CompileEvent]) = synchronized{ _multiplexer = m }
   }
 
   private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
@@ -44,6 +50,10 @@ object Lifecycle {
   def busyCount: Int = busy().getOrElse(0)
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
+
+  def currentSession(implicit log: Log): Session = {
+    sessions.find(_.pid == log.pid).get
+  }
 
   def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int = {
     val alreadyLaunched = running.find(_.pid == cli.pid)

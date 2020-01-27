@@ -27,6 +27,7 @@ import bloop.launcher.LauncherStatus._
 import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
 import fury.core.Graph.CompilerDiagnostic
+import fury.core.Lifecycle.Session
 import fury.io._
 import fury.model._
 import fury.strings._
@@ -56,6 +57,7 @@ object BloopServer extends Lifecycle.Shutdown {
  
   private var lock: Promise[Unit] = Promise.successful(())
   private var connections: Map[Path, Connection] = Map.empty
+  private var usages: Map[Session, Connection] = Map.empty
   private val bloopVersion = "1.4.0-RC1"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
@@ -69,7 +71,7 @@ object BloopServer extends Lifecycle.Shutdown {
 
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
-  private def connect(dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent],
+  private def connect(dir: Path,
       compilation: Compilation, targetId: TargetId, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
     singleTasking { promise =>
 
@@ -130,10 +132,9 @@ object BloopServer extends Lifecycle.Shutdown {
 
       thread.start()
       
-      val client = new FuryBuildClient(multiplexer, compilation, targetId, layout)
+      val client = new FuryBuildClient(Lifecycle.currentSession, compilation, targetId, layout)
         
       val bspServer = new Launcher.Builder[FuryBspServer]()
-        //.traceMessages(log)
         .setRemoteInterface(classOf[FuryBspServer])
         .setExecutorService(Threads.bsp)
         .setInput(clientIn)
@@ -155,22 +156,22 @@ object BloopServer extends Lifecycle.Shutdown {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
+  def borrow[T](dir: Path, compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
     val conn = BloopServer.synchronized {
       connections.get(dir)
     }.getOrElse{
       val tracePath: Option[Path] = if(ManagedConfig().trace) {
         Some(layout.logsDir / str"${java.time.LocalDateTime.now().toString}.log")
       } else None
-      val newConnection = Await.result(connect(dir, multiplexer, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+      val newConnection = Await.result(connect(dir, compilation, targetId, layout, trace = tracePath), Duration.Inf)
       connections += dir -> newConnection
-      multiplexer.start()
       newConnection
     }
 
     Try {
       conn.synchronized{
-        conn.client.multiplexer = multiplexer
+        usages += Lifecycle.currentSession -> conn
+        conn.client.session = Lifecycle.currentSession
         fn(conn)
       }
     }
@@ -270,14 +271,16 @@ object Compilation {
   }
 }
 
-class FuryBuildClient(var multiplexer: Multiplexer[ModuleRef, CompileEvent], compilation: Compilation,
+class FuryBuildClient(@volatile var session: Session, compilation: Compilation,
     targetId: TargetId, layout: Layout) extends BuildClient {
 
+
+
   override def onBuildShowMessage(params: ShowMessageParams): Unit =
-    multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
+    session.multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
 
   override def onBuildLogMessage(params: LogMessageParams): Unit =
-    multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
+    session.multiplexer(targetId.ref) = Print(targetId.ref, params.getMessage)
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
@@ -318,7 +321,7 @@ class FuryBuildClient(var multiplexer: Multiplexer[ModuleRef, CompileEvent], com
         case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
       } }
 
-      multiplexer(targetId.ref) = DiagnosticMsg(
+      session.multiplexer(targetId.ref) = DiagnosticMsg(
         targetId.ref,
         CompilerDiagnostic(
           msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum + 1).toString}
@@ -357,15 +360,15 @@ ${'|'} ${highlightedLine}
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId = getTargetId(report.getTarget.getUri)
-    multiplexer(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
+    session.multiplexer(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal)
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId: TargetId = getTargetId(report.getTarget.getUri)
-    multiplexer(targetId.ref) = StartCompile(targetId.ref)
+    session.multiplexer(targetId.ref) = StartCompile(targetId.ref)
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      multiplexer(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
+      session.multiplexer(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref)
     }
   }
 
@@ -374,9 +377,9 @@ ${'|'} ${highlightedLine}
       val report = convertDataTo[CompileReport](params.getData)
       val targetId: TargetId = getTargetId(report.getTarget.getUri)
       val ref = targetId.ref
-      multiplexer(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
-      if(!compilation.targets(ref).kind.needsExecution) multiplexer(ref) = StopRun(ref)
-      else multiplexer(ref) = StartRun(ref)
+      session.multiplexer(ref) = StopCompile(ref, params.getStatus == StatusCode.OK)
+      if(!compilation.targets(ref).kind.needsExecution) session.multiplexer(ref) = StopRun(ref)
+      else session.multiplexer(ref) = StartRun(ref)
   }
 }
 
@@ -553,7 +556,6 @@ case class Compilation(graph: Target.Graph,
 
   def compileModule(target: Target,
                     layout: Layout,
-                    multiplexer: Multiplexer[ModuleRef, CompileEvent],
                     pipelining: Boolean,
                     globalPolicy: Policy,
                     args: List[String])(implicit log: Log)
@@ -571,7 +573,7 @@ case class Compilation(graph: Target.Graph,
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-    BloopServer.borrow(layout.baseDir, multiplexer, this, target.id, layout) { conn =>
+    BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
       
       val result: Try[CompileResult] = {
         for {
@@ -595,7 +597,7 @@ case class Compilation(graph: Target.Graph,
     }.map {
       case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
         val classDirectories = compileResult.classDirectories
-        val runSuccess = run(target, classDirectories, multiplexer, layout, globalPolicy, args) == 0
+        val runSuccess = run(target, classDirectories, layout, globalPolicy, args) == 0
         if(runSuccess) compileResult else compileResult.failed
       case otherResult =>
         otherResult
@@ -607,7 +609,6 @@ case class Compilation(graph: Target.Graph,
 
 
   def compile(moduleRef: ModuleRef,
-              multiplexer: Multiplexer[ModuleRef, CompileEvent],
               futures: Map[TargetId, Future[CompileResult]] = Map(),
               layout: Layout,
               globalPolicy: Policy,
@@ -618,10 +619,13 @@ case class Compilation(graph: Target.Graph,
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
-      else compile(dependencyTarget.ref, multiplexer, futures, layout, globalPolicy, args, pipelining)
+      else compile(dependencyTarget.ref, futures, layout, globalPolicy, args, pipelining)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
+
+    val multiplexer = Lifecycle.currentSession.multiplexer
+    multiplexer.start()
 
     val future = dependencyFutures.map(CompileResult.merge).flatMap { required =>
       if(!required.isSuccessful) {
@@ -636,15 +640,16 @@ case class Compilation(graph: Target.Graph,
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           Future.successful(required)
-        } else compileModule(target, layout, multiplexer, pipelining, globalPolicy, args)
+        } else compileModule(target, layout, pipelining, globalPolicy, args)
       }
     }
 
     newFutures.updated(target.id, future)
   }
 
-  private def run(target: Target, classDirectories: Set[Path], multiplexer: Multiplexer[ModuleRef, CompileEvent],
-                  layout: Layout, globalPolicy: Policy, args: List[String]): Int = {
+  private def run(target: Target, classDirectories: Set[Path],
+                  layout: Layout, globalPolicy: Policy, args: List[String])(implicit log: Log): Int = {
+    val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.kind == Benchmarks) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))

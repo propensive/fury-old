@@ -448,7 +448,8 @@ object BuildCli {
       _            <- compilation.checkoutAll(layout, https)
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-      val future = compilation.compile(moduleRef, multiplexer, Map(), layout,
+      Lifecycle.currentSession.multiplexer = multiplexer
+      val future = compilation.compile(moduleRef, Map(), layout,
         globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
         case compRes =>
           multiplexer.closeAll()
