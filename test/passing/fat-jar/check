@@ -17,6 +17,7 @@ Starting compilation of module bar/app
 Successfully compiled module bar/app
 Hello World
 Saving JAR file out/bar-app.jar
+Wrote 18.8MiB to out/bar-app.jar
 0
 bar-app.jar
 scala/math/Ordering$OptionOrdering.class
