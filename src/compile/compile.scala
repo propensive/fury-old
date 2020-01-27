@@ -528,8 +528,8 @@ case class Compilation(graph: Target.Graph,
       _                <- Shell(layout.env).jar(path, stagingDirectory.children.filterNot(_.contains("META-INF")).map(stagingDirectory / _).to[Set],
         manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
-      _                 = if(fatJar) log.info(msg"Wrote a JAR file to ${path.relativizeTo(layout.baseDir)}")
-                          else log.info(msg"Wrote ${bins.size + 1} JAR files to ${path.relativizeTo(layout.baseDir)}")
+      _                 = if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
+                          else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
 
     } yield ()
   }

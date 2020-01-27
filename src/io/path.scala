@@ -226,7 +226,9 @@ object ByteSize {
   implicit val stringShow: StringShow[ByteSize] = fs => str"${Strings.magnitude(fs.bytes, "B")}"
 }
 
-case ByteSize(bytes: Long)
+case class ByteSize(bytes: Long) {
+  def +(that: ByteSize): ByteSize = ByteSize(bytes + that.bytes)
+}
 
 case class FileNotFound(path: Path)      extends FuryException
 case class FileWriteError(path: Path, e: Throwable) extends FuryException
