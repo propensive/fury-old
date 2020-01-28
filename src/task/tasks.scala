@@ -27,6 +27,7 @@ import scala.util._
 abstract class Task(id: UserMsg) {
   type Point
   type Result
+  def internet: Option[Boolean]
   def dependencies: List[Task]
   def init(inputs: Seq[Task]): Option[Point]
   def run(point: Point): Try[Result]
@@ -40,14 +41,14 @@ object TaskManager {
   private val channels: HashMap[Path, Set[Channel]] = HashMap()
  
   def session(pwd: Path, channel: Channel, pid: Pid): Session = synchronized {
-    val currentChannels = channels.getOrElseUpdate(pwd, Set())
-    val channel = Iterator.from(0).map(Channel(_)).find(!currentChannels.contains(_)).get
+    val current = channels.getOrElseUpdate(pwd, Set())
+    val channel = Stream.from(0).map(Channel(_)).find(!current.contains(_)).get
   
     Session(channel, pwd, pid, Map())
   }
 
   def run(task: Task): Process = {
-    task.dependencies.traverse(run(_))
+    task.dependencies.traverse(run(_).future).flatMap(task.future)
   }
 
   def close(session: Session) = synchronized {
