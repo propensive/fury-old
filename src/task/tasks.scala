@@ -18,19 +18,22 @@ package fury.task
 
 import fury.strings._, fury.model._, fury.io._
 
+import mercator._
+
 import scala.collection.mutable._
 import scala.concurrent._
+import scala.util._
 
 abstract class Task(id: UserMsg) {
   type Point
   type Result
+  def dependencies: List[Task]
   def init(inputs: Seq[Task]): Option[Point]
-  def run(point: Point): Result
+  def run(point: Point): Try[Result]
   def cancel(point: Point): Unit
-  def progress(value: Double): Unit
 }
 
-case class Channel(id: Int)
+final case class Channel(id: Int) extends AnyVal
 
 object TaskManager {
   private val tasks: HashMap[Task, Process[_]] = HashMap()
@@ -43,8 +46,8 @@ object TaskManager {
     Session(channel, pwd, pid, Map())
   }
 
-  def run(task: Task): Process[task.Result] = {
-    
+  def run(task: Task): Process = {
+    task.dependencies.traverse(run(_))
   }
 
   def close(session: Session) = synchronized {
@@ -52,19 +55,19 @@ object TaskManager {
     sessions(session.pid) -= session
   }
 
-  def terminate(pid: Pid) = sessions.get(pid).foreach { session =>
-  
-  }
+  def terminate(pid: Pid) = sessions.get(pid).foreach { session => }
   
   case class Session(channel: Channel, pwd: Path, pid: Pid, dependencies: Map[Task, Set[Task]]) {
     def active: List[Task]
     def dependencies(task: Task): Set[Task]
-    case class Process() 
   }
-}
 
-class Process[Result](future: Future[Result]) {
-  def apply(): Result = Await.result(future, duration.Duration.Inf)
+  private[task] class Process(block: => Result) {
+    type Point
+    type Result
+    lazy val future: Future[Result] = Future(blocking(block))
+    def apply(): Result = Await.result(future, duration.Duration.Inf)
+  }
 }
 
 
