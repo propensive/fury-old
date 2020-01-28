@@ -100,18 +100,10 @@ You can grant these permissions with,
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
-        case e: UnspecifiedProject =>
-          cli.abort(msg"The project has not been specified.")
-        case e: UnspecifiedRepo =>
-          cli.abort(msg"The repository has not been specified.")
-        case e: UnspecifiedModule =>
-          cli.abort(msg"The module has not been specified.")
-        case e: UnspecifiedLayer =>
-          cli.abort(msg"The layer has not been specified.")
+        case Unspecified(kind) =>
+          cli.abort(msg"The $kind has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>
           cli.abort(msg"The module reference $moduleRef could not be resolved.")
-        case UnknownRepo(repoId: RepoId) =>
-          cli.abort(msg"The repository reference $repoId could not be resolved.")
         case UnspecifiedMain(moduleId: ModuleId) =>
           cli.abort(msg"Main class not defined for module '${moduleId}'.")
         case GraalVMError(message: String) =>

@@ -20,6 +20,7 @@ import fury.strings._, fury.io._
 
 import escritoire._
 import gastronomy._
+import mercator._
 
 import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions
@@ -50,5 +51,38 @@ object `package` {
         case None => t
       }
     }
+  }
+
+  implicit class FlatMap[F[_]: Monadic, T](monad: F[T]) {
+    def >>=[S](that: T => F[S]): F[S] = monad.flatMap(that(_))
+    def >>[S](that: T => S): F[S] = monad.map(that(_))
+  }
+  
+  implicit class FlatMapPair[F[_]: Monadic, T1, T2](monadPair: (F[T1], F[T2])) {
+    def >>=[S](that: (T1, T2) => F[S]): F[S] = for {
+      t1 <- monadPair._1
+      t2 <- monadPair._2
+      s  <- that(t1, t2)
+    } yield s
+    
+    def >>[S](that: (T1, T2) => S): F[S] = for {
+      t1 <- monadPair._1
+      t2 <- monadPair._2
+    } yield that(t1, t2)
+  }
+  
+  implicit class FlatMapTriple[F[_]: Monadic, T1, T2, T3](monadTriple: (F[T1], F[T2], F[T3])) {
+    def >>=[S](that: (T1, T2, T3) => F[S]): F[S] = for {
+      t1 <- monadTriple._1
+      t2 <- monadTriple._2
+      t3 <- monadTriple._3
+      s  <- that(t1, t2, t3)
+    } yield s
+    
+    def >>[S](that: (T1, T2, T3) => S): F[S] = for {
+      t1 <- monadTriple._1
+      t2 <- monadTriple._2
+      t3 <- monadTriple._3
+    } yield that(t1, t2, t3)
   }
 }

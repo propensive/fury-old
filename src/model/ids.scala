@@ -49,6 +49,7 @@ object ProjectId {
   implicit val stringShow: StringShow[ProjectId] = _.key
   implicit val diff: Diff[ProjectId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[ProjectId] = unapply(_)
+  implicit val keyName: KeyName[ProjectId] = () => msg"project"
 
   def unapply(name: String): Option[ProjectId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ProjectId(name) }
 }
@@ -60,6 +61,8 @@ object ModuleId {
   implicit val stringShow: StringShow[ModuleId] = _.key
   implicit val diff: Diff[ModuleId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[ModuleId] = unapply(_)
+  implicit val keyName: KeyName[ModuleId] = () => msg"module"
+
   final val Core: ModuleId = ModuleId("core")
 
   def unapply(name: String): Option[ModuleId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ModuleId(name) }
@@ -382,6 +385,7 @@ object BloopSpec {
   implicit val stringShow: StringShow[BloopSpec] = bs => str"${bs.org}:${bs.name}"
   implicit val diff: Diff[BloopSpec] = Diff.gen[BloopSpec]
   implicit val parser: Parser[BloopSpec] = unapply(_)
+  implicit val keyName: KeyName[BloopSpec] = () => msg"compiler specification"
 
   def unapply(str: String): Option[BloopSpec] = str.only {
     case r"$org@([a-z][a-z0-9_\-\.]*):$id@([a-z][a-z0-9_\-\.]*):$version@([0-9a-z][A-Za-z0-9_\-\.]*)" =>

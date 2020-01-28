@@ -30,12 +30,12 @@ case class Tables() {
 
   def show[T, S: MsgShow](table: Tabulation[T],
                           cols: Int,
-                          rows: Seq[T],
+                          rows: Traversable[T],
                           raw: Boolean)
                          (main: T => S)
-                         : Seq[String] =
-    if(raw) rows.map(main).map { e => implicitly[MsgShow[S]].show(e).string(Theme.NoColor) }
-    else table.tabulate(cols, rows, Some(theme.gray()))
+                         : String =
+    if(raw) rows.map(main).map(implicitly[MsgShow[S]].show(_).string(Theme.NoColor)).join("\n")
+    else table.tabulate(cols, rows.to[Seq], Some(theme.gray())).join("\n")
 
   implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.id.key).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)

@@ -39,7 +39,7 @@ object Args {
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
   val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
-  val SourceArg = CliParam[String]('d', 'source, "specify a source directory")
+  val SourceArg = CliParam[Source]('d', 'source, "specify a source directory")
   val DirArg = CliParam[Path]('d', 'dir, "specify the new repository destination directory")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")

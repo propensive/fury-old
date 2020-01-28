@@ -48,13 +48,13 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     cli     <- cli.hint(RawArg)
     call    <- cli.call()
     raw     <- ~call(RawArg).isSuccess
-    project <- optProject.ascribe(UnspecifiedProject())
-    module  <- optModule.ascribe(UnspecifiedModule())
+    project <- optProject.asTry
+    module  <- optModule.asTry
     rows    <- ~module.dependencies.to[List].sorted
     table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
     schema  <- layer.schemas.findBy(SchemaId.default)
     _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _       <- ~log.rawln(table.mkString("\n"))
+    _       <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -82,8 +82,8 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     call      <- cli.call()
     https     <- ~call(HttpsArg).isSuccess
     linkArg   <- call(LinkArg)
-    project   <- optProject.ascribe(UnspecifiedProject())
-    module    <- optModule.ascribe(UnspecifiedModule())
+    project   <- optProject.asTry
+    module    <- optModule.asTry
     moduleRef <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
     force     <- ~call(ForceArg).isSuccess
 
@@ -123,8 +123,8 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
     cli              <- cli.hint(IntransitiveArg)
     call             <- cli.call()
-    project          <- optProject.ascribe(UnspecifiedProject())
-    module           <- optModule.ascribe(UnspecifiedModule())
+    project          <- optProject.asTry
+    module           <- optModule.asTry
     intransitive     <- ~call(IntransitiveArg).isSuccess
     linkArg          <- call(LinkArg)
     moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
@@ -160,12 +160,12 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(RawArg)
     call         <- cli.call()
     raw          <- ~call(RawArg).isSuccess
-    project      <- optProject.ascribe(UnspecifiedProject())
-    module       <- optModule.ascribe(UnspecifiedModule())
+    project      <- optProject.asTry
+    module       <- optModule.asTry
     rows         <- ~module.environment.to[List].sorted
     table        <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
     _            <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _            <- ~log.rawln(table.mkString("\n"))
+    _            <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -191,8 +191,8 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ForceArg)
     call         <- cli.call()
     envArg       <- call(EnvArg)
-    project      <- optProject.ascribe(UnspecifiedProject())
-    module       <- optModule.ascribe(UnspecifiedModule())
+    project      <- optProject.asTry
+    module       <- optModule.asTry
     force        <- ~call(ForceArg).isSuccess
     
     layer        <- Lenses.updateSchemas(layer)(Lenses.layer.environment(_, project.id,
@@ -226,8 +226,8 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     allModules       = allSchemas.map(_.moduleRefs).flatten
     cli             <- cli.hint(EnvArg)
     call            <- cli.call()
-    project         <- optProject.ascribe(UnspecifiedProject())
-    module          <- optModule.ascribe(UnspecifiedModule())
+    project         <- optProject.asTry
+    module          <- optModule.asTry
     envArg          <- call(EnvArg)
 
     layer           <- Lenses.updateSchemas(layer)(Lenses.layer.environment(_, project.id,
@@ -264,8 +264,8 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
     call            <- cli.call()
     scopeId         =  call(ScopeArg).getOrElse(ScopeId.Project)
-    project         <- optProject.ascribe(UnspecifiedProject())
-    module          <- optModule.ascribe(UnspecifiedModule())
+    project         <- optProject.asTry
+    module          <- optModule.asTry
     classArg        <- call(ClassArg)
     targetArg       <- call(PermissionTargetArg)
     actionArg       =  call(ActionArg).toOption
@@ -305,8 +305,8 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(ForceArg)
     call          <- cli.call()
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
-    project       <- optProject.ascribe(UnspecifiedProject())
-    module        <- optModule.ascribe(UnspecifiedModule())
+    project       <- optProject.asTry
+    module        <- optModule.asTry
     schema        <- layer.schemas.findBy(layer.main)
     hierarchy     <- schema.hierarchy(layout)
     universe      <- hierarchy.universe
@@ -339,12 +339,12 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(RawArg)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
-    project       <- optProject.ascribe(UnspecifiedProject())
-    module        <- optModule.ascribe(UnspecifiedModule())
+    project       <- optProject.asTry
+    module        <- optModule.asTry
     rows          <- ~module.policyEntries.to[List].sortBy(_.hash.key)
     table         <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
     _             <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _             <- ~log.rawln(table.mkString("\n"))
+    _             <- ~log.rawln(table)
   } yield log.await()
 
   def grant: Try[ExitStatus] = for {
@@ -370,8 +370,8 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(PermissionArg, optModule.to[List].flatMap(_.policyEntries))
     call          <- cli.call()
     scopeId       =  call(ScopeArg).getOrElse(ScopeId.Project)
-    project       <- optProject.ascribe(UnspecifiedProject())
-    module        <- optModule.ascribe(UnspecifiedModule())
+    project       <- optProject.asTry
+    module        <- optModule.asTry
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
     schema        <- layer.schemas.findBy(layer.main)
     hierarchy     <- schema.hierarchy(layout)
@@ -406,12 +406,12 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     cli     <- cli.hint(RawArg)
     call    <- cli.call()
     raw     <- ~call(RawArg).isSuccess
-    project <- optProject.ascribe(UnspecifiedProject())
-    module  <- optModule.ascribe(UnspecifiedModule())
+    project <- optProject.asTry
+    module  <- optModule.asTry
     rows    <- ~module.properties.to[List].sorted
     table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
     _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _       <- ~log.rawln(table.mkString("\n"))
+    _       <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -437,8 +437,8 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     cli       <- cli.hint(ForceArg)
     call      <- cli.call()
     propArg   <- call(PropArg)
-    project   <- optProject.ascribe(UnspecifiedProject())
-    module    <- optModule.ascribe(UnspecifiedModule())
+    project   <- optProject.asTry
+    module    <- optModule.asTry
     force     <- ~call(ForceArg).isSuccess
 
     layer     <- Lenses.updateSchemas(layer)(Lenses.layer.properties(_, project.id,
@@ -487,8 +487,8 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
     cli             <- cli.hint(PropArg)
     call            <- cli.call()
-    project         <- optProject.ascribe(UnspecifiedProject())
-    module          <- optModule.ascribe(UnspecifiedModule())
+    project         <- optProject.asTry
+    module          <- optModule.asTry
     propArg         <- call(PropArg)
 
     layer           <- Lenses.updateSchemas(layer)(Lenses.layer.properties(_, project.id,

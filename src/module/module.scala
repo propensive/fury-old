@@ -25,8 +25,6 @@ import Args._
 import scala.collection.immutable.SortedSet
 import scala.util._
 
-import Lenses.on
-
 case class ModuleCli(cli: Cli)(implicit log: Log) {
   def select: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -38,9 +36,9 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     call         <- cli.call()
-    project      <- optProject.ascribe(UnspecifiedProject())
+    project      <- optProject.asTry
     moduleId     <- ~call(ModuleArg).toOption
-    moduleId     <- moduleId.ascribe(UnspecifiedModule())
+    moduleId     <- moduleId.asTry
     _            <- project(moduleId)
     focus        <- ~Lenses.focus()
     layer        <- ~(focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId)))
@@ -55,14 +53,14 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    project      <- optProject.ascribe(UnspecifiedProject())
+    project      <- optProject.asTry
     cli          <- cli.hint(RawArg)
     call         <- cli.call()
     raw          <- ~call(RawArg).isSuccess
     rows         <- ~project.modules.to[List]
     table        <- ~Tables().show(Tables().modules(project.id, project.main), cli.cols, rows, raw)(_.id)
     _            <- ~log.infoWhen(!raw)(conf.focus(project.id))
-    _            <- ~log.rawln(table.mkString("\n"))
+    _            <- ~log.rawln(table)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -90,7 +88,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                       }
 
     call           <- cli.call()
-    project        <- optProject.ascribe(UnspecifiedProject())
+    project        <- optProject.asTry
     moduleArg      <- call(ModuleNameArg)
     moduleId       <- project.modules.unique(moduleArg)
     compilerId     <- ~call(CompilerArg).toOption
@@ -126,7 +124,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, reference: String)(implicit log: Log): Try[ModuleRef] = for {
-    project            <- optProject.ascribe(UnspecifiedProject())
+    project            <- optProject.asTry
     moduleRef          <- ModuleRef.parse(project.id, reference, true).ascribe(InvalidValue(reference))
     availableCompilers  = layer.schemas.flatMap(_.compilerRefs(layout, https = true))
     _                  <- if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
@@ -145,7 +143,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(CompilerArg, schema.compilerRefs( layout, true))
     call     <- cli.call()
     moduleId <- call(ModuleArg)
-    project  <- optProject.ascribe(UnspecifiedProject())
+    project  <- optProject.asTry
     module   <- project.modules.findBy(moduleId)
 
     layer    <- Lenses.updateSchemas(layer)(Lenses.layer.modules(_, project.id)) {
@@ -171,7 +169,6 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     schema      <- layer.schemas.findBy(SchemaId.default)
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: schema.compilerRefs(layout, true))
     cli         <- cli.hint(KindArg, Kind.all)
-    cli         <- cli.hint(ForceArg)
     optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
 
     optModule   <- Success { for {
@@ -196,20 +193,15 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
 
     call        <- cli.call()
     compilerId  <- ~call(CompilerArg).toOption
-    project     <- optProject.ascribe(UnspecifiedProject())
-    module      <- optModule.ascribe(UnspecifiedModule())
+    project     <- optProject.asTry
+    module      <- optModule.asTry
     compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
     hidden      <- ~call(HiddenArg).toOption
     mainClass   <- ~cli.peek(MainArg)
     pluginName  <- ~cli.peek(PluginArg)
     newId       <- ~call(ModuleNameArg).toOption
     name        <- newId.to[List].map(project.modules.unique(_)).sequence.map(_.headOption)
-    
-    bloopSpec   <- cli.peek(BloopSpecArg).to[List].map { v =>
-                      BloopSpec.unapply(v).ascribe(InvalidValue(v))
-                    }.sequence.map(_.headOption)
-
-    force       <- ~call(ForceArg).isSuccess
+    bloopSpec   <- cli.peek(BloopSpecArg).to[List].map(_.as[BloopSpec]).sequence.map(_.headOption)
     focus       <- ~Lenses.focus()
     layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).kind)) = optKind)
 
@@ -258,12 +250,12 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(RawArg)
     call        <- cli.call()
     raw         <- ~call(RawArg).isSuccess
-    project     <- optProject.ascribe(UnspecifiedProject())
-    module      <- optModule.ascribe(UnspecifiedModule())
+    project     <- optProject.asTry
+    module      <- optModule.asTry
     rows        <- ~module.allBinaries.to[List]
     table       <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(_.id)
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _           <- ~log.rawln(table.mkString("\n"))
+    _           <- ~log.rawln(table)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
@@ -288,8 +280,8 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     call        <- cli.call()
     binaryArg   <- call(BinaryArg)
     versionArg  <- call(VersionArg)
-    project     <- optProject.ascribe(UnspecifiedProject())
-    module      <- optModule.ascribe(UnspecifiedModule())
+    project     <- optProject.asTry
+    module      <- optModule.asTry
     binary      <- module.binaries.findBy(binaryArg)
     
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.binaries(_, project.id,
@@ -321,8 +313,8 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
     call        <- cli.call()
     binaryArg   <- call(BinaryArg)
-    project     <- optProject.ascribe(UnspecifiedProject())
-    module      <- optModule.ascribe(UnspecifiedModule())
+    project     <- optProject.asTry
+    module      <- optModule.asTry
     binaryToDel <- module.binaries.findBy(binaryArg)
     
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.binaries(_, project.id,
@@ -354,8 +346,8 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli        <- cli.hint(BinaryNameArg)
     cli        <- cli.hint(BinaryRepoArg, List(RepoId("central")))
     call       <- cli.call()
-    project    <- optProject.ascribe(UnspecifiedProject())
-    module     <- optModule.ascribe(UnspecifiedModule())
+    project    <- optProject.asTry
+    module     <- optModule.asTry
     binSpecArg <- call(BinSpecArg)
     binName    <- ~call(BinaryNameArg).toOption
     repoId     <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
@@ -392,8 +384,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(RawArg)
     call        <- cli.call()
     raw         <- ~call(RawArg).isSuccess
-    project     <- optProject.ascribe(UnspecifiedProject())
-    module      <- optModule.ascribe(UnspecifiedModule())
+    project     <- optProject.asTry
+    module      <- optModule.asTry
     compiler    <- ~module.compiler
     schema      <- layer.schemas.findBy(SchemaId.default)
     compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true)
@@ -401,7 +393,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     showRows    <- ~rows.to[List].filter(_.compiler == compiler)
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     table       <- ~Tables().show(Tables().opts, cli.cols, showRows, raw)(_.value.id)
-    _           <- ~log.rawln(table.mkString("\n"))
+    _           <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -426,8 +418,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     call     <- cli.call()
     paramArg <- call(OptArg)
     persist  <- ~call(PersistentArg).isSuccess
-    project  <- optProject.ascribe(UnspecifiedProject())
-    module   <- optModule.ascribe(UnspecifiedModule())
+    project  <- optProject.asTry
+    module   <- optModule.asTry
     opt      <- ~module.opts.find(_.id == paramArg)
 
     layer    <- opt.fold(Lenses.updateSchemas(layer)(Lenses.layer.opts(_, project.id, module.id))(_(_) += Opt(paramArg, persist, true))) { o =>
@@ -462,8 +454,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(PersistentArg)
     call        <- cli.call()
     option      <- call(OptArg)
-    module      <- optModule.ascribe(UnspecifiedModule())
-    project     <- optProject.ascribe(UnspecifiedProject())
+    module      <- optModule.asTry
+    project     <- optProject.asTry
     description <- ~call(DescriptionArg).getOrElse("")
     persist     <- ~call(PersistentArg).isSuccess
     transform   <- ~call.suffix
@@ -495,8 +487,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(OptArg)
     call        <- cli.call()
     option      <- call(OptArg)
-    module      <- optModule.ascribe(UnspecifiedModule())
-    project     <- optProject.ascribe(UnspecifiedProject())
+    module      <- optModule.asTry
+    project     <- optProject.asTry
     optDef      <- module.optDefs.findBy(option)
     
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.optDefs(_, project.id,
@@ -534,8 +526,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(OptArg, optDefs)
     cli      <- cli.hint(PersistentArg)
     call     <- cli.call()
-    project  <- optProject.ascribe(UnspecifiedProject())
-    module   <- optModule.ascribe(UnspecifiedModule())
+    project  <- optProject.asTry
+    module   <- optModule.asTry
     paramArg <- call(OptArg)
     persist  <- ~call(PersistentArg).isSuccess
     param    <- ~Opt(paramArg, persist, remove = false)

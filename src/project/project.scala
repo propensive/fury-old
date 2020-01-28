@@ -22,7 +22,6 @@ import guillotine._
 import optometry._
 import mercator._
 import scala.util._
-import Lenses.on
 
 import scala.collection.immutable.SortedSet
 
@@ -39,7 +38,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(ForceArg)
     call        <- cli.call()
     projectId   <- ~cli.peek(ProjectArg)
-    projectId   <- projectId.ascribe(UnspecifiedProject())
+    projectId   <- projectId.asTry
     force       <- ~call(ForceArg).isSuccess
     schemaId    <- ~optSchemaId.getOrElse(layer.main)
     schema      <- layer.schemas.findBy(schemaId)
@@ -61,7 +60,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     rows        <- ~schema.projects.to[List]
     table       <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
     _           <- ~log.infoWhen(!raw)(conf.focus())
-    _           <- ~log.rawln(table.mkString("\n"))
+    _           <- ~log.rawln(table)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -136,7 +135,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(LicenseArg, License.standardLicenses)
     cli            <- cli.hint(ProjectNameArg, ProjectId(layout.baseDir.name) :: projectId.to[List])
     call           <- cli.call()
-    projectId      <- projectId.ascribe(UnspecifiedProject())
+    projectId      <- projectId.asTry
     schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
     project        <- schema.projects.findBy(projectId)
     force          <- ~call(ForceArg).isSuccess

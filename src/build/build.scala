@@ -155,7 +155,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     rows   <- ~layer.aliases.to[List]
     table  <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
     _      <- ~log.infoWhen(!raw)(conf.focus())
-    _      <- ~log.rawln(table.join("\n"))
+    _      <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -190,7 +190,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     cli              <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     call             <- cli.call()
     moduleArg        <- call(ModuleArg)
-    project          <- optProject.ascribe(UnspecifiedProject())
+    project          <- optProject.asTry
     module           <- project.modules.findBy(moduleArg)
     moduleRef        <- ~module.ref(project)
     aliasArg         <- call(AliasArg)
@@ -257,10 +257,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call           <- cli.call()
     dir            <- ~call(DirArg).toOption
     https          <- ~call(HttpsArg).isSuccess
-    project        <- optProject.ascribe(UnspecifiedProject())
+    project        <- optProject.asTry
     optModuleId    <- ~call(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
     optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
-    module         <- optModule.ascribe(UnspecifiedModule())
+    module         <- optModule.asTry
     pipelining     <- ~call(PipeliningArg).toOption
     fatJar         =  call(FatJarArg).isSuccess
     globalPolicy   <- ~Policy.read(log)
@@ -327,10 +327,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     exec         <- call(ExecNameArg)
     //dir          <- call(DirArg)
     https        <- ~call(HttpsArg).isSuccess
-    project      <- optProject.ascribe(UnspecifiedProject())
+    project      <- optProject.asTry
     optModuleId  <- ~call(ModuleArg).toOption.orElse(project.main)
     optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
-    module       <- optModule.ascribe(UnspecifiedModule())
+    module       <- optModule.asTry
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https)
@@ -362,8 +362,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
     singleColumn <- ~call(SingleColumnArg).isSuccess
-    project      <- optProject.ascribe(UnspecifiedProject())
-    module       <- optModule.ascribe(UnspecifiedModule())
+    project      <- optProject.asTry
+    module       <- optModule.asTry
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https)
@@ -394,8 +394,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
     singleColumn <- ~call(SingleColumnArg).isSuccess
-    project      <- optProject.ascribe(UnspecifiedProject())
-    module       <- optModule.ascribe(UnspecifiedModule())
+    project      <- optProject.asTry
+    module       <- optModule.asTry
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https)
@@ -422,8 +422,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     https        <- ~call(HttpsArg).isSuccess
     optModuleId  <- ~call(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
     optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
-    project      <- optProject.ascribe(UnspecifiedProject())
-    module       <- optModule.ascribe(UnspecifiedModule())
+    project      <- optProject.asTry
+    module       <- optModule.asTry
 
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https)
@@ -482,7 +482,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     projects  <- schema.allProjects(layout, https)
     table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
     _         <- ~log.infoWhen(!raw)(conf.focus())
-    _         <- ~log.rawln(table.mkString("\n"))
+    _         <- ~log.rawln(table)
   } yield log.await()
 
   def select: Try[ExitStatus] = for {
@@ -645,7 +645,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, layout, https)) }
       table     <- ~Tables().show(Tables().imports, cli.cols, rows, raw)(_._1.schema.key)
       _         <- ~log.infoWhen(!raw)(conf.focus())
-      _         <- ~log.rawln(table.mkString("\n"))
+      _         <- ~log.rawln(table)
     } yield log.await()
   }
 }

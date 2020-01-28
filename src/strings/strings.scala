@@ -16,7 +16,7 @@
 */
 package fury.strings
 
-import scala.util.Try
+import scala.util._
 import language.implicitConversions
 
 object `package` {
@@ -29,18 +29,29 @@ object `package` {
   implicit def userMsg[T: MsgShow](value: T): UserMsg =
     implicitly[MsgShow[T]].show(value)
 
-  implicit class StringExtensions(str: String) {
-    def urlEncode: String = java.net.URLEncoder.encode(str, "UTF-8")
-    def bytes: Array[Byte] = str.getBytes("UTF-8")
+  implicit class StringExtensions(string: String) {
+    def urlEncode: String = java.net.URLEncoder.encode(string, "UTF-8")
+    def bytes: Array[Byte] = string.getBytes("UTF-8")
+    def as[T: Parser: KeyName]: Try[T] = implicitly[Parser[T]].parse(string).asTry
   }
 
   implicit class Only[T](value: T) {
     def only[S](pf: PartialFunction[T, S]): Option[S] = Some(value).collect(pf)
     def unit: Unit = ()
   }
+  
+  implicit class OptionExtensions[T](value: Option[T]) {
+    def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
+    def asTry(implicit keyName: KeyName[T]): Try[T] = value.ascribe(Unspecified[T]())
+  }
 }
 
+trait KeyName[T] { def apply(): UserMsg }
+
 trait FuryException extends Exception
+
+case class Unspecified(kind: UserMsg) extends FuryException
+object Unspecified { def apply[T: KeyName](): Unspecified = Unspecified(implicitly[KeyName[T]].apply()) }
 
 object Parser {
   implicit val string: Parser[String] = Some(_)
@@ -103,20 +114,18 @@ case class StringContexts(context: StringContext) extends AnyVal {
 }
 
 case class Joinable(values: Traversable[String]) extends AnyVal {
-  def join: String                    = values.mkString
+  def join: String = values.mkString
   def join(separator: String): String = values.mkString(separator)
-
-  def join(left: String, separator: String, right: String): String =
-    values.mkString(left, separator, right)
+  def join(left: String, separator: String, right: String): String = values.mkString(left, separator, right)
 }
 
 case class StringPart(string: String) extends AnyVal
 
 object StringShow {
   implicit val string: StringShow[String] = identity
-  implicit val char: StringShow[Char]     = _.toString
-  implicit val long: StringShow[Long]     = _.toString
-  implicit val int: StringShow[Int]       = _.toString
+  implicit val char: StringShow[Char] = _.toString
+  implicit val long: StringShow[Long] = _.toString
+  implicit val int: StringShow[Int] = _.toString
 }
 
 trait StringShow[-T] { def show(value: T): String }
@@ -132,10 +141,8 @@ object Compare {
     for (i <- 1 to m) {
       dist(0) = oldDist(0) + 1
 
-      for (j <- 1 to n)
-        dist(j) = (oldDist(j - 1) + (if(from(i - 1) == to(j - 1)) 0 else 1))
-          .min(oldDist(j) + 1)
-          .min(dist(j - 1) + 1)
+      for (j <- 1 to n) dist(j) = (oldDist(j - 1) + (if(from(i - 1) == to(j - 1)) 0 else 1)).min(oldDist(j) +
+          1).min(dist(j - 1) + 1)
 
       for (j <- 0 to n) oldDist(j) = dist(j)
     }

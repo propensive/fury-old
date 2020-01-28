@@ -25,9 +25,11 @@ import mercator._
 import scala.util._
 
 object Source {
-  implicit val stringShow: StringShow[Source] = _.description
+  implicit val stringShow: StringShow[Source] = _.key
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
-  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.description)
+  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.key)
+  implicit val parser: Parser[Source] = unapply(_)
+  implicit val keyName: KeyName[Source] = () => msg"source"
 
   implicit val sourceDiff: Diff[Source] =
     (l, r) => if(l == r) Nil else List(Difference(msg"source", msg"", msg"$l", msg"$r"))
@@ -61,8 +63,8 @@ object Source {
   def repoId(src: Source): Option[RepoId] = src.only { case ExternalSource(repoId, _, _) => repoId }
 }
 
-trait Source {
-  def description: String
+sealed abstract class Source extends Key(msg"source") {
+  def key: String
   def hash(schema: Schema, layout: Layout): Try[Digest]
   def dir: Path
   def glob: Glob
@@ -84,7 +86,7 @@ trait Source {
 }
 
 case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
-  def description: String = str"${repoId}:${dir.value}//$glob"
+  def key: String = str"${repoId}:${dir.value}//$glob"
   def repoIdentifier: RepoId = repoId
   def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((dir, _).digest[Md5])
   
@@ -93,14 +95,14 @@ case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source 
 }
 
 case class SharedSource(dir: Path, glob: Glob) extends Source {
-  def description: String = str"shared:${dir}//$glob"
+  def key: String = str"shared:${dir}//$glob"
   def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-2, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("shared")
   def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.sharedDir)
 }
 
 case class LocalSource(dir: Path, glob: Glob) extends Source {
-  def description: String = str"${dir.value}//$glob"
+  def key: String = str"${dir.value}//$glob"
   def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("local")
   def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.baseDir)

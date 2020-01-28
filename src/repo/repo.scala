@@ -41,7 +41,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
     table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
     _         <- ~log.infoWhen(!raw)(conf.focus())
-    _         <- ~log.rawln(table.mkString("\n"))
+    _         <- ~log.rawln(table)
   } yield log.await()
 
   def unfork: Try[ExitStatus] = for {

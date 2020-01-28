@@ -24,9 +24,10 @@ import scala.util._
 import scala.collection.immutable._
 
 object Project {
-  implicit val msgShow: MsgShow[Project]       = v => UserMsg(_.project(v.id.key))
+  implicit val msgShow: MsgShow[Project] = v => UserMsg(_.project(v.id.key))
   implicit val stringShow: StringShow[Project] = _.id.key
-  implicit def diff: Diff[Project]             = Diff.gen[Project]
+  implicit val diff: Diff[Project] = Diff.gen[Project]
+  implicit val keyName: KeyName[Project] = () => msg"project"
 
   def available(projectId: ProjectId, layer: Layer): Boolean =
     !layer.projects.toOption.to[List].flatten.findBy(projectId).isSuccess
