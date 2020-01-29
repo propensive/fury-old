@@ -467,6 +467,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layout <- cli.newLayout
     call   <- cli.call()
     _      <- Layer.init(layout)
+    _      <- Bsp.createConfig(layout)
   } yield log.await()
 
   def projects: Try[ExitStatus] = for {
@@ -522,6 +523,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     file     <- call(FileArg).map(pwd.resolve(_))
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
     layout   <- cli.newLayout.map(_.copy(baseDir = dir))
+    _        <- Bsp.createConfig(layout)
     layerRef <- Layer.loadFile(file, layout)
     _        <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout)
   } yield log.await()
@@ -530,18 +532,18 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(DirArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
-    layout        <- cli.newLayout
+    fakeLayout    <- cli.newLayout
     layerImport   <- call(ImportArg)
-    resolved      <- Layer.parse(layerImport, layout)
-    layerRef      <- Layer.load(resolved, layout)
+    resolved      <- Layer.parse(layerImport, fakeLayout)
+    layerRef      <- Layer.load(resolved, fakeLayout)
     dir           <- call(DirArg).pacify(resolved.suggestedName.map { n => Path(n.key) })
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
-
     _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, resolved.publishedLayer),
                          dir / ".fury.conf")
-
+    layout        =  fakeLayout.copy(baseDir = dir)
+    _             <- Bsp.createConfig(layout)
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
 
