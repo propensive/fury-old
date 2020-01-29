@@ -64,7 +64,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           val rows = perms.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }.to[List]
           
           val permissions = Tables().show(Tables().permissions, cli.cols, rows,
-              false)(identity(_)).mkString("\n")
+              false)(identity(_))
 
           cli.abort(msg"""The following permissions are required to run the build:
 ${permissions}

@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.model._
+import fury.model._, fury.strings._
 import probably._
 
 import scala.language.implicitConversions
@@ -35,8 +35,8 @@ object IdTests extends TestApp {
 
     test("binary specs") {
       "foo.bar:baz-quux_2.12:1.2.3-RC4".as[BinSpec].isSuccess &&
-      "foo.bar:baz-quux_2.12").as[BinSpec].isFailure &&
-      "baz-quux_2.12").as[BinSpec].isFailure
+      "foo.bar:baz-quux_2.12".as[BinSpec].isFailure &&
+      "baz-quux_2.12".as[BinSpec].isFailure
     }.assert(_ == true)
 
     test("repo ids") {

@@ -476,7 +476,8 @@ object BinaryId {
   implicit val stringShow: StringShow[BinaryId] = _.key
   implicit val diff: Diff[BinaryId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[BinaryId] = unapply(_)
-
+  implicit val keyName: KeyName[BinaryId] = () => msg"binary"
+  
   def unapply(name: String): Option[BinaryId] = name.only { case r"[a-z]([_\-\.]?[a-z0-9]+)*" => BinaryId(name) }
 }
 
@@ -487,6 +488,7 @@ object BinSpec {
   implicit val stringShow: StringShow[BinSpec] = _.string
   implicit val diff: Diff[BinSpec] = (l, r) => Diff.stringDiff.diff(l.string, r.string)
   implicit val parser: Parser[BinSpec] = unapply(_)
+  implicit val keyName: KeyName[BinSpec] = () => msg"binary specification"
 
   // FIXME: Parse content better
   def unapply(name: String): Option[BinSpec] = name.only { case r"([^:]+):([^:]+):([^:]+)" => BinSpec(name) }
@@ -600,6 +602,7 @@ object RepoId {
   implicit val msgShow: MsgShow[RepoId]       = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
   implicit val parser: Parser[RepoId] = unapply(_)
+  implicit val keyName: KeyName[RepoId] = () => msg"repo"
   
   def unapply(name: String): Option[RepoId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => RepoId(name) }
 }
