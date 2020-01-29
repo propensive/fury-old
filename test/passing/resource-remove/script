@@ -1,0 +1,8 @@
+fury layer init 
+fury project add -n project
+fury module add -n module
+fury resource list --raw
+fury resource add -d res
+fury resource list --raw
+fury resource remove -d res
+fury resource list --raw
