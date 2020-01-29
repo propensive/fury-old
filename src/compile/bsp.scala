@@ -108,12 +108,10 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implicit log: Log) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _
-
-  private implicit val log = new Log(LogStyle(new java.io.PrintWriter(System.err), debug = true), Pid(0))
 
   private def structure: Try[Structure] =
     for {

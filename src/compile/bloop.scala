@@ -25,7 +25,7 @@ import scala.util._
 
 object Bloop {
   def clean(layout: Layout): Try[Boolean] =
-    layout.bloopDir.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true))
+    layout.bloopDir.ifExists().fold[Try[Boolean]](Success(false))(_.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true)))
 
   def generateFiles(compilation: Compilation, layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     new CollOps(compilation.targets.values.map { target =>
