@@ -23,8 +23,25 @@ import scala.collection.immutable.SortedSet
 
 import scala.util._
 
+object on {
+  type Id[T] = T
+
+  def apply[A, AId](id: AId)(implicit resolver: Resolver[A, AId]): Optic[SortedSet, Id, A] =
+    new Optic[SortedSet, Id, A]("focus") {
+      def map[B](v: SortedSet[A])(fn: A => B): B     = fn(v.find(resolver.matchOn(id, _)).get)
+      def comap(f: SortedSet[A], g: A): SortedSet[A] = f.filterNot(resolver.matchOn(id, _)) + g
+    }
+}
+
 object Lenses {
 
+  def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
+
+  def project(projectId: ProjectId) = Lens[Layer](_.schemas(on(SchemaId.default)).projects(on(projectId)))
+
+  def module(projectId: ProjectId, moduleId: ModuleId) =
+    Lens[Layer](_.schemas(on(SchemaId.default)).projects(on(projectId)).modules(on(moduleId)))
+  
   def updateSchemas[A]
                    (layer: Layer)
                    (lens: SchemaId => Lens[Layer, A, A])
@@ -44,16 +61,6 @@ object Lenses {
         case Some(value) =>
           val lens = Optic.identity.compose(Lenses.layer.schema(SchemaId.default), partialLens(Lenses.schema))
           lens(layer) = value
-      }
-  }
-
-  object on {
-    type Id[T] = T
-
-    def apply[A, AId](id: AId)(implicit resolver: Resolver[A, AId]): Optic[SortedSet, Id, A] =
-      new Optic[SortedSet, Id, A]("focus") {
-        def map[B](v: SortedSet[A])(fn: A => B): B     = fn(v.find(resolver.matchOn(id, _)).get)
-        def comap(f: SortedSet[A], g: A): SortedSet[A] = f.filterNot(resolver.matchOn(id, _)) + g
       }
   }
 

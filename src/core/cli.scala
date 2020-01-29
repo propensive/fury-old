@@ -37,8 +37,8 @@ object NoCommand { def unapply(cli: Cli): Boolean = cli.args.isEmpty }
 abstract class Cmd(val cmd: String, val description: String) {
 
   def unapply(cli: Cli): Option[Cli] = cli.args.headOption.flatMap { head =>
-    if(head == cmd) Some(Cli(cli.stdout, cli.args.tail, cli.command, cli.optCompletions, cli.env, cli.pid)) 
-    else None
+    if(head == cmd) Some(Cli(cli.stdout, cli.args.tail, cli.command, cli.optCompletions, cli.env,
+        cli.pid)) else None
   }
 
   def completions: List[Cmd] = Nil
@@ -55,10 +55,25 @@ object CliParam {
     }
 }
 
-abstract class CliParam(val shortName: Char, val longName: Symbol, val description: String) {
+
+
+abstract class CliParam(val shortName: Char,
+                        val longName: Symbol,
+                        val description: String) { cliParam =>
+  
+  case class Hinter(hints: Traversable[Type])
+  
   type Type
+  
   implicit def extractor: Param.Extractor[Type]
+  
   val param: SimpleParam[Type] = Param[Type](shortName, longName)
+
+  def hint(hints: Traversable[Type]): Hinter = Hinter(hints)
+  def hint(hints: Try[Traversable[Type]]): Hinter = Hinter(hints.getOrElse(Traversable.empty))
+  def hint(hints: Type*): Hinter = Hinter(hints)
+
+  def apply()(implicit call: C#Call forSome { type C <: Cli { type Hinted <: cliParam.type } }) = call(this)
 }
 
 object Cli {
@@ -66,7 +81,7 @@ object Cli {
   def apply[H <: CliParam](stdout: java.io.PrintWriter,
                            args: ParamMap,
                            command: Option[Int],
-                           optCompletions: List[Cli.OptCompletion[_]],
+                           optCompletions: List[Cli.OptCompletion],
                            env: Environment,
                            pid: Pid) =
     new Cli(stdout, args, command, optCompletions, env, pid) { type Hinted <: H }
@@ -99,7 +114,7 @@ object Cli {
     }
   }
 
-  case class OptCompletion[T](arg: CliParam, hints: String) extends Completion {
+  case class OptCompletion(arg: CliParam, hints: String) extends Completion {
     def output: List[String] = List(
       str"--${arg.longName.name}[${arg.description}]:${arg.longName.name}:$hints",
       str"-${arg.shortName}[${arg.description}]:${arg.longName.name}:$hints"
@@ -132,7 +147,7 @@ trait Descriptor[T] {
 class Cli(val stdout: java.io.PrintWriter,
           val args: ParamMap,
           val command: Option[Int],
-          val optCompletions: List[Cli.OptCompletion[_]],
+          val optCompletions: List[Cli.OptCompletion],
           val env: Environment,
           val pid: Pid) { cli =>
 
@@ -156,7 +171,10 @@ class Cli(val stdout: java.io.PrintWriter,
     }
   }
 
+  def action(blk: Call => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap(blk)
+
   def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
+  def preview(param: CliParam): Try[param.Type] = args.get(param.param)
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
 
@@ -200,6 +218,13 @@ class Cli(val stdout: java.io.PrintWriter,
     Success(Cli(stdout, args, command, newHints :: optCompletions, env, pid)) 
   }
 
+  def -<(arg: CliParam)
+        (implicit hinter: arg.Hinter, stringShow: StringShow[arg.Type], descriptor: Descriptor[arg.Type])
+        : Cli { type Hinted <: cli.Hinted with arg.type } = {
+    val newHints = Cli.OptCompletion(arg, descriptor.wrap(stringShow, hinter.hints))
+    Cli(stdout, args, command, newHints :: optCompletions, env, pid)
+  }
+
   def hint(arg: CliParam) =
     Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
 
@@ -224,7 +249,7 @@ class Cli(val stdout: java.io.PrintWriter,
 
 }
 
-case class Completions(completions: List[Cli.OptCompletion[_]] = Nil) {
+case class Completions(completions: List[Cli.OptCompletion] = Nil) {
   def hint[T: StringShow: Descriptor](arg: CliParam, hints: Traversable[T]): Completions = {
     val newHints = Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 

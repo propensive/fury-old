@@ -20,36 +20,36 @@ import fury.model._
 
 import scala.util._
 
-object CleanCli {
-  def cleanAll(cli: Cli): Try[ExitStatus] = for {
-    _ <- cleanBloop(cli)
-    _ <- cleanClasses(cli)
-    _ <- cleanLogs(cli)
-    _ <- cleanRepos(cli)
-    _ <- cleanSources(cli)
+case class CleanCli(cli: Cli)(implicit log: Log) {
+  def cleanAll: Try[ExitStatus] = for {
+    _ <- cleanBloop
+    _ <- cleanClasses
+    _ <- cleanLogs
+    _ <- cleanRepos
+    _ <- cleanSources
   } yield Done
 
-  def cleanBloop(cli: Cli): Try[ExitStatus] = for {
+  def cleanBloop: Try[ExitStatus] = for {
     layout <- cli.layout
     _      <- layout.bloopDir.delete()
     _      <- layout.analysisDir.delete()
   } yield Done
 
-  def cleanClasses(cli: Cli): Try[ExitStatus] = for {
+  def cleanClasses: Try[ExitStatus] = for {
     layout <- cli.layout
     _      <- layout.classesDir.delete()
   } yield Done
 
-  def cleanLogs(cli: Cli): Try[ExitStatus] = for {
+  def cleanLogs: Try[ExitStatus] = for {
     layout <- cli.layout
     _      <- layout.logsDir.delete()
   } yield Done
   
-  def cleanRepos(cli: Cli): Try[ExitStatus] = for {
+  def cleanRepos: Try[ExitStatus] = for {
     _ <- Installation.reposDir.delete()
   } yield Done
   
-  def cleanSources(cli: Cli): Try[ExitStatus] = for {
+  def cleanSources: Try[ExitStatus] = for {
     _ <- Installation.srcsDir.delete()
   } yield Done
 }

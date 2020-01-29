@@ -27,9 +27,9 @@ import scala.util._
 
 import Lenses._
 
-object RepoCli {
+case class RepoCli(cli: Cli)(implicit log: Log) {
 
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -41,10 +41,10 @@ object RepoCli {
     rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
     table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
     _         <- ~log.infoWhen(!raw)(conf.focus())
-    _         <- ~log.rawln(table.mkString("\n"))
+    _         <- ~log.rawln(table)
   } yield log.await()
 
-  def unfork(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def unfork: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -61,7 +61,7 @@ object RepoCli {
     _         <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def fork(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def fork: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -94,7 +94,7 @@ object RepoCli {
     _         <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def pull(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def pull: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -131,7 +131,7 @@ object RepoCli {
 
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -170,7 +170,7 @@ object RepoCli {
     _              <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def update(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def update: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
@@ -205,7 +205,7 @@ object RepoCli {
     _           <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)

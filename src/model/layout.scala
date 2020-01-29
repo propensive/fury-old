@@ -38,7 +38,7 @@ object Layout {
     val parentsWithinFs = parents.takeWhile(Option(_).exists(getFileStore(_) == fileSystem))
     val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve(".fury.conf")) }.map(Path(_))
     
-    optParent.ascribe(UnspecifiedProject())
+    optParent.ascribe(Unspecified[ProjectId])
   }
 }
 

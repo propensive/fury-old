@@ -22,14 +22,13 @@ import guillotine._
 import optometry._
 import mercator._
 import scala.util._
-import Lenses.on
 
 import scala.collection.immutable.SortedSet
 
-object ProjectCli {
+case class ProjectCli(cli: Cli)(implicit log: Log) {
   import Args._
 
-  def select(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def select: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.read(layout, conf)
@@ -39,7 +38,7 @@ object ProjectCli {
     cli         <- cli.hint(ForceArg)
     call        <- cli.call()
     projectId   <- ~cli.peek(ProjectArg)
-    projectId   <- projectId.ascribe(UnspecifiedProject())
+    projectId   <- projectId.asTry
     force       <- ~call(ForceArg).isSuccess
     schemaId    <- ~optSchemaId.getOrElse(layer.main)
     schema      <- layer.schemas.findBy(schemaId)
@@ -49,7 +48,7 @@ object ProjectCli {
     _           <- ~Layer.save(layer, layout)
   } yield log.await()
 
-  def list(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.read(layout, conf)
@@ -61,10 +60,10 @@ object ProjectCli {
     rows        <- ~schema.projects.to[List]
     table       <- ~Tables().show(Tables().projects(schema.main), cli.cols, rows, raw)(_.id)
     _           <- ~log.infoWhen(!raw)(conf.focus())
-    _           <- ~log.rawln(table.mkString("\n"))
+    _           <- ~log.rawln(table)
   } yield log.await()
 
-  def add(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def add: Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.read(layout, conf)
@@ -97,7 +96,7 @@ object ProjectCli {
     _              <- ~log.info(msg"Set current project to ${project.id}")
   } yield log.await()
 
-  def remove(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def remove: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.read(layout, conf)
@@ -119,7 +118,7 @@ object ProjectCli {
     _           <- ~Layer.save(layer, layout)(log)
   } yield log.await()
 
-  def update(cli: Cli)(implicit log: Log): Try[ExitStatus] = for {
+  def update: Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.read(layout, conf)
@@ -136,7 +135,7 @@ object ProjectCli {
     cli            <- cli.hint(LicenseArg, License.standardLicenses)
     cli            <- cli.hint(ProjectNameArg, ProjectId(layout.baseDir.name) :: projectId.to[List])
     call           <- cli.call()
-    projectId      <- projectId.ascribe(UnspecifiedProject())
+    projectId      <- projectId.asTry
     schema         <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
     project        <- schema.projects.findBy(projectId)
     force          <- ~call(ForceArg).isSuccess
