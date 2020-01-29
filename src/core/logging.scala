@@ -103,7 +103,7 @@ object Log {
     def create(date: LocalDate) =
       new PrintWriter(new BufferedWriter(new FileWriter(path(date).javaFile, true)))
     
-    def path(date: LocalDate) = Installation.logsDir / str"${date.toString}.log"
+    def path(date: LocalDate) = Installation.logsDir.extant() / str"${date.toString}.log"
     var printWriter: PrintWriter = create(initDate)
     def update(date: LocalDate): Unit = printWriter = create(date)
 
