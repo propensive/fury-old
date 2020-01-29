@@ -18,6 +18,7 @@ package fury.strings
 
 import scala.util._
 import language.implicitConversions
+import java.text.DecimalFormat
 
 object `package` {
   implicit def joinable(values: Traversable[String]): Joinable   = Joinable(values)
@@ -111,6 +112,16 @@ case class StringContexts(context: StringContext) extends AnyVal {
       .zip(context.parts.tail)
       .map { case (l, r) => s"$l$r" }
       .mkString
+}
+
+object Strings {
+  def magnitude(value: Double,
+                units: String,
+                base: Int = 1024,
+                scale: List[String] = List("", "ki", "Mi", "Gi", "Ti", "Pi"),
+                format: DecimalFormat = new DecimalFormat("0.0")): String =
+      if(value < base) s"${format.format(value)}${scale.head}${units}"
+      else magnitude(value/base, units, base, scale.tail, format)
 }
 
 case class Joinable(values: Traversable[String]) extends AnyVal {

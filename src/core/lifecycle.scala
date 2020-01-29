@@ -18,6 +18,9 @@ package fury.core
 
 import java.util.concurrent.atomic.AtomicBoolean
 
+import fury.model.ModuleRef
+import fury.utils.Multiplexer
+
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
 import scala.concurrent.Promise
@@ -28,12 +31,21 @@ object Lifecycle {
   trait Shutdown {
     def shutdown(): Unit
   }
+
+  trait ResourceHolder {
+    type Resource
+    def acquire(session: Session, resource: Resource)
+    def release(session: Session)
+  }
   
-  val bloopServer = Promise[Shutdown]
+  val bloopServer = Promise[Shutdown with ResourceHolder]
 
   case class Session(cli: Cli, thread: Thread) {
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
+    private var _multiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(List.empty)
+    def multiplexer = synchronized{ _multiplexer }
+    def multiplexer_=(m: Multiplexer[ModuleRef, CompileEvent]) = synchronized{ _multiplexer = m }
   }
 
   private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
@@ -41,16 +53,25 @@ object Lifecycle {
   private[this] def busy(): Option[Int] =
     running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
+  private[this] def close(session: Session) = running.synchronized {
+    bloopServer.future.value.map(_.map(_.release(session)))
+    running -= session
+  }
+
   def busyCount: Int = busy().getOrElse(0)
 
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
+
+  def currentSession(implicit log: Log): Session = {
+    sessions.find(_.pid == log.pid).get
+  }
 
   def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int = {
     val alreadyLaunched = running.find(_.pid == cli.pid)
     alreadyLaunched match {
       case Some(session) =>
         session.thread.interrupt()
-        running.synchronized { running -= session }
+        close(session)
         0
       case None if terminating.get && !whitelisted =>
         println("New tasks cannot be started while Fury is shutting down.")
@@ -59,7 +80,7 @@ object Lifecycle {
         val session = Session(cli, Thread.currentThread)
         running.synchronized(running += session)
         try action
-        finally { running.synchronized(running -= session) }
+        finally { close(session) }
     }
   }
 
