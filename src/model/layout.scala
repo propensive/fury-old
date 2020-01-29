@@ -66,10 +66,12 @@ object Xdg {
 }
 
 object Os {
+  case class Unknown(description: String)(machine: Machine) extends Os
   implicit val stringShow: StringShow[Os] = {
     case Windows(m) => str"Windows ($m)"
     case Linux(m)   => str"Linux ($m)"
     case MacOs(m)   => str"Mac OS X ($m)"
+    case Unknown(description) => description
   }
 
   implicit val userMsg: MsgShow[Os] = os => UserMsg { implicit theme =>
@@ -83,9 +85,11 @@ case class Linux(machine: Machine) extends Os
 case class MacOs(machine: Machine) extends Os
 
 object Machine {
+  case class Unknown(description: String) extends Machine
   implicit val stringShow: StringShow[Machine] = {
     case X64 => "64-bit x86"
     case X86 => "32-bit x86"
+    case Unknown(description) => description
   }
 }
 sealed trait Machine
@@ -94,19 +98,19 @@ case object X86 extends Machine
 
 object Installation {
 
-  lazy val system: Option[Os] = {
+  lazy val system: Try[Os] = {
     import environments.enclosing
-    val machine: Option[Machine] = sh"uname -m".exec[Try[String]] match {
-      case Success("x86_64" | "amd64") => Some(X64)
-      case Success("i386" | "i686")    => Some(X86)
-      case _                           => None
+    val machine: Try[Machine] = sh"uname -m".exec[Try[String]].map {
+      case "x86_64" | "amd64" => X64
+      case "i386" | "i686"    => X86
+      case other => Machine.Unknown(other)
     }
 
-    sh"uname".exec[Try[String]] match {
-      case Success("Darwin")   => machine.map(MacOs(_))
-      case Success("Linux")    => machine.map(Linux(_))
-      case Success(r"MINGW.*") => machine.map(Windows(_))
-      case _                   => None
+    sh"uname".exec[Try[String]].flatMap {
+      case "Darwin"   => machine.map(MacOs(_))
+      case "Linux"    => machine.map(Linux(_))
+      case r"MINGW.*" => machine.map(Windows(_))
+      case other => machine.map(Os.Unknown(other)(_))
     }
   }
 

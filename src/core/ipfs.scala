@@ -131,16 +131,16 @@ object Ipfs {
     }.map(IpfsApi(_))
   }
 
-  private def distBinary: Option[Uri] = {
+  private def distBinary: Try[Uri] = {
     def url(sys: String) = Https(Path("dist.ipfs.io") / "go-ipfs" / "v0.4.22" /
         str"go-ipfs_v0.4.22_$sys.tar.gz")
     
     Installation.system.flatMap {
-      case Windows(_)   => None
-      case Linux(X86)   => Some(url("linux-386"))
-      case Linux(X64)   => Some(url("linux-amd64"))
-      case MacOs(X86)   => Some(url("darwin-386"))
-      case MacOs(X64)   => Some(url("darwin-amd64"))
+      case Linux(X86)   => Success(url("linux-386"))
+      case Linux(X64)   => Success(url("linux-amd64"))
+      case MacOs(X86)   => Success(url("darwin-386"))
+      case MacOs(X64)   => Success(url("darwin-amd64"))
+      case other => Failure(UnknownOs(other.toString))
     }
   }
 }
