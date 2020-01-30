@@ -129,7 +129,7 @@ object Ipfs {
         for {
           ipfs <- find().orElse(install().map(_ => Installation.ipfsBin.value))
           _    <- init(ipfs)
-          _    <- Await.ready(handleAsync(ipfs), 120.seconds).value.get
+          _    <- Await.ready(handleAsync(ipfs), 500.seconds).value.get
           api  <- getHandle()
         } yield api
     }.map(IpfsApi(_))

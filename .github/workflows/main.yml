@@ -53,7 +53,7 @@ jobs:
       run: |
         etc/integration || touch integration.failed
         ! ls -1 integration.failed 2> /dev/null
-      timeout-minutes: 5
+      timeout-minutes: 10
     - name: Package integration logs
       run: find test -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1
