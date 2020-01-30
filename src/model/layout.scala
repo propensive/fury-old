@@ -56,6 +56,7 @@ object Xdg {
   val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
   val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
   val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
+  val ipfsRepo: Path = Var("IPFS_PATH").path.getOrElse(home / ".ipfs")
 
   def findData(filename: Path): Option[Path] = (dataHome :: dataDirs).map(filename in _).find(_.exists)
   def findConfig(filename: Path): Option[Path] = (configHome :: configDirs).map(filename in _).find(_.exists)
