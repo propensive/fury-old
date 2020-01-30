@@ -25,10 +25,12 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.HashSet
 
 import annotation.tailrec
-import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent._, duration._
 
 import scala.util._
+
+import java.util.concurrent.atomic.AtomicBoolean
+import java.io._
 
 object Main {
 
@@ -48,11 +50,18 @@ object Main {
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
   }
+  
+  private val discard: OutputStream = _ => ()
 
-  def main(args: Array[String]): Unit = run(
+  def main(args: Array[String]): Unit = {
+    val stdout = System.out
+    val stderr = System.out
+    System.setOut(new PrintStream(discard))
+    System.setErr(new PrintStream(discard))
+    val result = run(
       System.in,
-      System.out,
-      System.err,
+      stdout,
+      stderr,
       args,
       {
         i =>
@@ -60,9 +69,15 @@ object Main {
         System.exit(i)
       },
       Environment(System.getenv.asScala.toMap, Option(System.getenv("PWD")))
-  )
+    )
+    System.setOut(stdout)
+    System.setErr(stderr)
 
-  def nailMain(ctx: NGContext): Unit = run(
+    result
+  }
+
+  def nailMain(ctx: NGContext): Unit = {
+    run(
       ctx.in,
       ctx.out,
       ctx.err,
@@ -71,16 +86,15 @@ object Main {
       Environment(ctx.getEnv.stringPropertyNames.asScala.map { k =>
         (k, ctx.getEnv.getProperty(k))
       }.toMap, Option(ctx.getWorkingDirectory))
-  )
+    )
+  }
 
-  def run(
-      in: java.io.InputStream,
-      out: java.io.PrintStream,
-      err: java.io.PrintStream,
-      args: Seq[String],
-      exit: Int => Unit,
-      env: Environment
-    ) =
+  def run(in: java.io.InputStream,
+          out: java.io.PrintStream,
+          err: java.io.PrintStream,
+          args: Seq[String],
+          exit: Int => Unit,
+          env: Environment) =
     exit {
       val pid = Pid(args.head.toInt)
       implicit val log: Log = Log.log(pid)

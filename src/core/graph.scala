@@ -46,13 +46,13 @@ object Graph {
       if(state == Failed) this else CompilationInfo(Successful(None), msgs)
   }
 
-  sealed trait CompileState
-  case class Compiling(progress: Double)         extends CompileState
-  case object AlreadyCompiled                    extends CompileState
-  case class Successful(content: Option[String]) extends CompileState
-  case object Failed                             extends CompileState
-  case object Skipped                            extends CompileState
-  case object Executing                          extends CompileState
+  sealed abstract class CompileState(val completion: Double)
+  case class Compiling(progress: Double)         extends CompileState(progress)
+  case object AlreadyCompiled                    extends CompileState(1.0)
+  case class Successful(content: Option[String]) extends CompileState(1.0)
+  case object Failed                             extends CompileState(0.0)
+  case object Skipped                            extends CompileState(1.0)
+  case object Executing                          extends CompileState(1.0)
 
   private case class GraphState(changed: Boolean,
                         graph: Map[ModuleRef, Set[ModuleRef]],
@@ -79,6 +79,15 @@ object Graph {
             log.raw("\n")
             log.raw(Ansi.up(graph.size + 1)())
             log.raw("\n")
+            val completion = graphState.compilationLogs.values.map(_.state.completion).sum/graphState.compilationLogs.size
+            
+            val current = graphState.compilationLogs.collect { case (r, s) if s.state.isInstanceOf[Compiling] =>
+                str"$r" }.to[List].sorted.join(", ")
+
+            log.raw { Ansi.title {
+              if(!current.isEmpty) str"Fury: Building ${(completion*100).toInt}% ($current)" else str"Fury"
+            } }
+
             log.flush()
           }
           graphState.copy(changed = false)

@@ -43,6 +43,8 @@ object Ansi {
   val reverse: AnsiCode   = AnsiCode("7m")
   val wipe: AnsiCode      = AnsiCode("2K")
 
+  def title(string: String) = str"\u001b]0;${string}\u0007"
+
   val hideCursor = AnsiCode("?25l")
   val showCursor = AnsiCode("?25h")
 
