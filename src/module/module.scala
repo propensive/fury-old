@@ -329,6 +329,8 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
+    binSpecs     <- ~cli.peek(PartialBinSpecArg).to[Set].flatMap(MavenCentral.search(_).toOption.to[Set].flatten)
+    cli          <- cli.hint(BinSpecArg, binSpecs)
     schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
@@ -342,7 +344,6 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-    cli        <- cli.hint(BinaryArg)
     cli        <- cli.hint(BinaryNameArg)
     cli        <- cli.hint(BinaryRepoArg, List(RepoId("central")))
     call       <- cli.call()

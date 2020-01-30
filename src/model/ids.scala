@@ -471,6 +471,17 @@ object ImportId {
 
 case class ImportId(key: String) extends Key("import")
 
+object PartialBinSpec {
+  implicit val parser: Parser[PartialBinSpec] = unapply(_)
+  def unapply(value: String): Option[PartialBinSpec] = value.only {
+    case r"$g@([^:]+)"                       => PartialBinSpec(g, None, None)
+    case r"$g@([^:]+):$a@([^:]*)"            => PartialBinSpec(g, Some(a), None)
+    case r"$g@([^:]+):$a@([^:]*):$v@([^:]*)" => PartialBinSpec(g, Some(a), Some(v))
+  }
+}
+
+case class PartialBinSpec(group: String, artifact: Option[String], version: Option[String])
+
 object BinaryId {
   implicit val msgShow: MsgShow[BinaryId] = b => UserMsg(_.binary(b.key))
   implicit val stringShow: StringShow[BinaryId] = _.key
