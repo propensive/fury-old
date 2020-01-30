@@ -647,7 +647,7 @@ case class Compilation(graph: Target.Graph,
         multiplexer.close(target.ref)
         Future.successful(required)
       } else {
-        val noCompilation = target.sourcePaths.isEmpty
+        val noCompilation = target.sourcePaths.isEmpty && !target.kind.needsExecution
 
         if(noCompilation) {
           deepDependencies(target.id).foreach { targetId =>

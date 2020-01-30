@@ -24,9 +24,9 @@ object FuryMenu {
 
   def menu(aliases: List[Action])(implicit log: Log): Menu = Menu('main, "main menu", 'build)(List(
     Menu('about, msg"inspect resource usage, current tasks etc.", 'resources, needsLayer = false)(
-      Action('resources, msg"add a command alias to the layer", AboutCli(_).resources),
-      Action('tasks, msg"remove a command alias from the layer", AboutCli(_).tasks),
-      Action('connections, msg"list command aliases", AboutCli(_).connections)
+      Action('resources, msg"add a command alias to the layer", AboutCli(_).resources, needsLayer = false),
+      Action('tasks, msg"remove a command alias from the layer", AboutCli(_).tasks, needsLayer = false),
+      Action('connections, msg"list command aliases", AboutCli(_).connections, needsLayer = false)
     ),
     Menu('alias, msg"view and edit command aliases", 'list)(
       Action('add, msg"add a command alias to the layer", AliasCli(_).add),
@@ -49,17 +49,17 @@ object FuryMenu {
       Action('install, msg"install an application locally", BuildCli(_).install)
     ),
     Menu('clean, msg"clean fury workspace", 'all, needsLayer = false)(
-      Action('all, msg"clean all", CleanCli(_).cleanAll),
-      Action('bloop, msg"clean bloop artifacts", CleanCli(_).cleanBloop),
-      Action('classes, msg"clean compiled classes", CleanCli(_).cleanClasses),
-      Action('logs, msg"clean logs", CleanCli(_).cleanLogs),
-      Action('repositories, msg"clean repositories", CleanCli(_).cleanRepos),
-      Action('sources, msg"clean checked out sources", CleanCli(_).cleanSources)
+      Action('all, msg"clean all", CleanCli(_).cleanAll, needsLayer = false),
+      Action('bloop, msg"clean bloop artifacts", CleanCli(_).cleanBloop, needsLayer = false),
+      Action('classes, msg"clean compiled classes", CleanCli(_).cleanClasses, needsLayer = false),
+      Action('logs, msg"clean logs", CleanCli(_).cleanLogs, needsLayer = false),
+      Action('repositories, msg"clean repositories", CleanCli(_).cleanRepos, needsLayer = false),
+      Action('sources, msg"clean checked out sources", CleanCli(_).cleanSources, needsLayer = false)
     ),
     Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), show = false),
     Menu('config, msg"change system configuration options", 'set, needsLayer = false)(
-      Action('set, msg"change a settings", ConfigCli(_).set),
-      Action('auth, msg"authenticate using the distribution service", ConfigCli(_).auth)
+      Action('set, msg"change a settings", ConfigCli(_).set, needsLayer = false),
+      Action('auth, msg"authenticate using the distribution service", ConfigCli(_).auth, needsLayer = false)
     ),
     Menu('dependency, msg"manage dependencies for the module", 'list, shortcut = 'd')(
       Action('add, msg"add a dependency on another module", DependencyCli(_).add, shortcut = 'a'),
@@ -144,7 +144,7 @@ object FuryMenu {
       Action('select, msg"select a layer", LayerCli(_).select, shortcut = 's'),
       Action('share, msg"share this layer", LayerCli(_).share),
     )
-    ) ::: aliases: _*)
+  ) ::: aliases: _*)
 
   def help(cli: Cli)(implicit log: Log): Try[ExitStatus] =
     for {
