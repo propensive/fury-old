@@ -19,26 +19,5 @@ package fury.core
 import fury.strings._
 
 object Prompt {
-
-  private def escape(code: AnsiCode): String = s"%{${code()}%}"
-
-  def zsh(
-      layer: Layer,
-      optProject: Option[Project],
-      optModule: Option[Module]
-    )(implicit theme: Theme
-    ): String = {
-    val layerId = layer.hash
-    val projectId = optProject.map(_.id.key).getOrElse("-")
-    val moduleId  = optModule.map(_.id.key).getOrElse("-")
-
-    msg"${escape(Ansi.reset)}${escape(theme.gray)}//${escape(theme.layer)}$layerId${escape(theme.gray)}#${escape(theme.project)}$projectId${escape(theme.gray)}/${escape(
-        theme.module)}$moduleId${escape(theme.gray)}${escape(Ansi.reset)}".string(theme)
-  }
-
-  def empty(implicit theme: Theme) = {
-    val config = ManagedConfig()
-    msg" ${escape(config.theme.gray)}[${escape(config.theme.schema)}+${escape(config.theme.gray)}]${escape(
-        Ansi.reset)}".string(theme)
-  }
+  def rewrite(string: String): String = string.replaceAll("\u001b\\[[0-9;]*[a-z]", "%{$0%}")
 }
