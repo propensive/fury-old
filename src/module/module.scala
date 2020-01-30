@@ -329,9 +329,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
-    //_            <- ~Log.log(cli.pid).note(cli.peek(PartialBinSpecArg).map(MavenCentral.search(_)).toString)
     binSpecs     <- ~cli.peek(PartialBinSpecArg).to[Set].flatMap(MavenCentral.search(_).toOption.to[Set].flatten)
-    _            <- ~log.note("Binspecs: "+binSpecs)
     cli          <- cli.hint(BinSpecArg, binSpecs)
     schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))

@@ -27,11 +27,9 @@ object MavenCentral {
 
   def search(binSpec: PartialBinSpec)(implicit log: Log): Try[Set[String]] = {
     val query = binSpec match {
-      case PartialBinSpec(g, None, None)        => str"""g:%22$g%22"""
-      case PartialBinSpec(g, Some(""), None)    => str"""g:%22$g%22"""
-      case PartialBinSpec(g, Some(a), None)     => str"""g:%22$g%22"""
-      case PartialBinSpec(g, Some(a), Some("")) => str"""g:%22$g%22+AND+a:%22$a%22"""
-      case PartialBinSpec(g, Some(a), Some(v))  => str"""g:%22$g%22+AND+a:%22$a%22"""
+      case PartialBinSpec(g, None | Some(""), None) => str"""g:%22$g%22"""
+      case PartialBinSpec(g, Some(a), None)         => str"""g:%22$g%22"""
+      case PartialBinSpec(g, Some(a), Some(_))      => str"""g:%22$g%22+AND+a:%22$a%22"""
     }
     
     for {
@@ -46,7 +44,14 @@ object MavenCentral {
           docs.flatMap { r => Set(str"${r.g}:", str"${r.g}:_") }
         case PartialBinSpec(g, Some(a), None)  =>
           val prefix = str"$g:$a"
-          docs.map { r => str"${r.g}:${r.a}:${r.v}" }.filter(_.startsWith(prefix))
+          
+          val opts = List(
+            docs.map { r => str"${r.g}:${r.a.split("_").head}${if(r.a contains "_") "_" else ""}" },
+            docs.map { r => str"${r.g}:${r.a}:" },
+            docs.map { r => str"${r.g}:${r.a}:${r.v}" }
+          ).map(_.filter(_.startsWith(prefix)))
+          
+          opts.find(_.size > 1).getOrElse(opts.last)
         case PartialBinSpec(_, _, Some(v)) =>
           docs.filter(_.v startsWith v).map(_.id)
       }
