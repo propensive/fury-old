@@ -25,6 +25,7 @@ sealed trait MenuStructure {
   def description: UserMsg
   def show: Boolean
   def shortcut: Char
+  def needsLayer: Boolean
 }
 
 case class Action(
@@ -32,7 +33,8 @@ case class Action(
     description: UserMsg,
     action: Cli => Try[ExitStatus],
     show: Boolean = true,
-    shortcut: Char = '\u0000')
+    shortcut: Char = '\u0000',
+    needsLayer: Boolean = true)
     extends MenuStructure
 
 case class Menu(
@@ -40,14 +42,16 @@ case class Menu(
     description: UserMsg,
     default: Symbol,
     show: Boolean = true,
-    shortcut: Char = '\u0000'
+    shortcut: Char = '\u0000',
+    needsLayer: Boolean = true,
   )(val items: MenuStructure*)
     extends MenuStructure {
 
-  def apply(cli: Cli, ctx: Cli): Try[ExitStatus] =
+  def apply(cli: Cli, ctx: Cli): Try[ExitStatus] = {
+    val hasLayer: Boolean = cli.layout.map(_.confFile.exists).getOrElse(false)
     cli.args.prefix.headOption match {
       case None =>
-        if(cli.completion) cli.completeCommand(this)
+        if(cli.completion) cli.completeCommand(this, hasLayer)
         else apply(cli.prefix(default.name), ctx)
       case Some(next) =>
         val cmd = items.find(_.command.name == next.value).orElse {
@@ -57,14 +61,15 @@ case class Menu(
 
         cmd match {
           case None =>
-            if(cli.completion) cli.completeCommand(this)
+            if(cli.completion) cli.completeCommand(this, hasLayer)
             else Failure(UnknownCommand(next.value))
-          case Some(item @ Menu(_, _, _, _, _)) =>
+          case Some(item @ Menu(_, _, _, _, _, _)) =>
             item(cli.tail, cli)
-          case Some(item @ Action(_, _, _, _, _)) =>
+          case Some(item @ Action(_, _, _, _, _, _)) =>
             item.action(cli)
         }
     }
+  }
 
   def reference(implicit theme: Theme): Seq[String] = {
 
