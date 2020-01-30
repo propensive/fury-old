@@ -70,9 +70,15 @@ object Ipfs {
 
     def getHandle(): Try[IPFS] = Try{ new IPFS("localhost", 5001) }
 
-    def handleAsync(path: String): Future[Unit] = {
+    def init(ipfs: String): Try[Unit] = {
+      Xdg.ipfsRepo.ifExists().map(_ => Success(())).getOrElse{
+        sh"$ipfs init".exec[Try[String]]().map(_ => ())
+      }
+    }
+
+    def handleAsync(ipfs: String): Future[Unit] = {
       val ready = Promise[Unit]
-      Future(blocking{ sh"$path daemon".async(
+      Future(blocking{ sh"$ipfs daemon".async(
         stdout = {
           case r".*Daemon is ready.*" =>
             log.infoWhen(!quiet)(msg"IPFS daemon has started")
@@ -121,12 +127,10 @@ object Ipfs {
       case e: RuntimeException if e.getMessage.contains("Couldn't connect to IPFS daemon") =>
         log.infoWhen(!quiet)(msg"Couldn't connect to IPFS daemon")
         for {
-          ipfsPath <- find().orElse(install().map(_ => Installation.ipfsBin.value))
-          _        <- {
-            val task = handleAsync(ipfsPath)
-            Await.ready(task, 120.seconds).value.get
-          }
-          api      <- getHandle()
+          ipfs <- find().orElse(install().map(_ => Installation.ipfsBin.value))
+          _    <- init(ipfs)
+          _    <- Await.ready(handleAsync(ipfs), 120.seconds).value.get
+          api  <- getHandle()
         } yield api
     }.map(IpfsApi(_))
   }
