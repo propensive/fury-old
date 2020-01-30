@@ -175,7 +175,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
     def list: Try[ExitStatus] = {
       (cli -< ProjectArg -< RawArg -< ModuleArg).action { implicit call =>
         val raw = RawArg().isSuccess
-        (conf, projectId, moduleId) >> (_.focus(_, _)) >> (log.info(_))
+        if(!raw) (conf, projectId, moduleId) >> (_.focus(_, _)) >> (log.info(_))
         
         resources >> (Tables().show(Tables().resources, cli.cols, _, raw)(_.repoIdentifier)) >>
             (log.rawln(_)) >> finish
