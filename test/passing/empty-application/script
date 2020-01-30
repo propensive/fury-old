@@ -8,7 +8,14 @@ fury project add -n hello-world
 fury module add -n library -c scala/compiler
 fury source add -d src
 mkdir -p src
-echo 'object HelloWorld { println("Hello world!") }' > src/hello.scala
+cat << EOF >  src/hello.scala
+object HelloWorld {
+  def main(args: Array[String]): Unit = {
+    println("Hello world!")
+  }
+}
+EOF
+
 
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury dependency add -l library
