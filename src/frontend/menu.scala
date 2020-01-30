@@ -22,9 +22,8 @@ import scala.util._
 
 object FuryMenu {
 
-  def menu(aliases: List[Action])(implicit log: Log): Menu =
-    Menu('main, "main menu", 'build)(List(
-    Menu('about, msg"inspect resource usage, current tasks etc.", 'resources)(
+  def menu(aliases: List[Action])(implicit log: Log): Menu = Menu('main, "main menu", 'build)(List(
+    Menu('about, msg"inspect resource usage, current tasks etc.", 'resources, needsLayer = false)(
       Action('resources, msg"add a command alias to the layer", AboutCli(_).resources),
       Action('tasks, msg"remove a command alias from the layer", AboutCli(_).tasks),
       Action('connections, msg"list command aliases", AboutCli(_).connections)
@@ -34,7 +33,7 @@ object FuryMenu {
       Action('remove, msg"remove a command alias from the layer", AliasCli(_).remove),
       Action('list, msg"list command aliases", AliasCli(_).list)
     ),
-    Action('bsp, msg"start BSP server", Bsp.startServer, false),
+    Action('bsp, msg"start BSP server", Bsp.startServer, show = false),
     Menu('binary, msg"manage binary dependencies for the module", 'list, shortcut = 'b')(
       Action('add, msg"add a binary dependency to the module", BinaryCli(_).add, shortcut = 'a'),
       Action('remove, msg"remove a binary dependency from the module", BinaryCli(_).remove, shortcut = 'r'),
@@ -49,7 +48,7 @@ object FuryMenu {
       Action('describe, msg"describe the build for a module", BuildCli(_).describe),
       Action('install, msg"install an application locally", BuildCli(_).install)
     ),
-    Menu('clean, msg"clean fury workspace", 'all)(
+    Menu('clean, msg"clean fury workspace", 'all, needsLayer = false)(
       Action('all, msg"clean all", CleanCli(_).cleanAll),
       Action('bloop, msg"clean bloop artifacts", CleanCli(_).cleanBloop),
       Action('classes, msg"clean compiled classes", CleanCli(_).cleanClasses),
@@ -57,8 +56,8 @@ object FuryMenu {
       Action('repositories, msg"clean repositories", CleanCli(_).cleanRepos),
       Action('sources, msg"clean checked out sources", CleanCli(_).cleanSources)
     ),
-    Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), false),
-    Menu('config, msg"change system configuration options", 'set)(
+    Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), show = false),
+    Menu('config, msg"change system configuration options", 'set, needsLayer = false)(
       Action('set, msg"change a settings", ConfigCli(_).set),
       Action('auth, msg"authenticate using the distribution service", ConfigCli(_).auth)
     ),
@@ -72,7 +71,7 @@ object FuryMenu {
       Action('remove, msg"remove an environment variable", EnvCli(_).remove, shortcut = 'r'),
       Action('list, msg"list environment variable", EnvCli(_).list, shortcut = 'l')
     ),
-    Action('help, msg"help on using Fury", help),
+    Action('help, msg"help on using Fury", help, needsLayer = false),
     Menu('module, msg"view and edit modules", 'list, shortcut = 'm')(
       Action('add, msg"add a new module to the project", ModuleCli(_).add, shortcut = 'a'),
       Action('remove, msg"remove a module from the project", ModuleCli(_).remove, shortcut = 'r'),
@@ -100,7 +99,7 @@ object FuryMenu {
       Action('select, msg"select the current project", ProjectCli(_).select, shortcut = 's'),
       Action('update, msg"update a project", ProjectCli(_).update, shortcut = 'u')
     ),
-    Action('prompt, msg"show a context prompt", BuildCli(_).prompt, false),
+    Action('prompt, msg"show a context prompt", BuildCli(_).prompt, show = false),
     Menu('property, msg"manage application -D properties", 'list)(
       Action('add, msg"add a -D property", PropertyCli(_).add),
       Action('remove, msg"remove a -D property", PropertyCli(_).remove),
@@ -108,16 +107,22 @@ object FuryMenu {
     ),
     Menu('resource, msg"manage resources for the module", 'list, shortcut = 's')(
       Action('add, msg"add a resource directory to the module", FrontEnd(_).Resources.add, shortcut = 'a'),
-      Action('remove, msg"remove a resource directory from the module", FrontEnd(_).Resources.remove, shortcut = 'r'),
+      
+      Action('remove, msg"remove a resource directory from the module", FrontEnd(_).Resources.remove,
+          shortcut = 'r'),
+      
       Action('list, msg"list resources for the module", FrontEnd(_).Resources.list, shortcut = 'l')
     ),
-    Action('restart, msg"restart the Fury server", BuildCli(_).notImplemented),
+    Action('restart, msg"restart the Fury server", BuildCli(_).notImplemented, needsLayer = false),
     Menu('source, msg"manage sources for the module", 'list, shortcut = 's')(
       Action('add, msg"add a source directory to the module", SourceCli(_).add, shortcut = 'a'),
       Action('remove, msg"remove a source directory from the module", SourceCli(_).remove, shortcut = 'r'),
       Action('list, msg"list sources for the module", SourceCli(_).list, shortcut = 'l')
     ),
-    Action('stop, msg"gracefully shut down the Fury server", ((_: Cli) => Lifecycle.shutdown())),
+    
+    Action('stop, msg"gracefully shut down the Fury server", ((_: Cli) => Lifecycle.shutdown()),
+        needsLayer = false),
+    
     Menu('repo, msg"manage source repositories for the schema", 'list, shortcut = 'r')(
       Action('add, msg"add a source repository to the schema", RepoCli(_).add, shortcut = 'a'),
       Action('update, msg"update a source repository", RepoCli(_).update, shortcut = 'u'),
@@ -127,14 +132,14 @@ object FuryMenu {
       Action('list, msg"list source repositories", RepoCli(_).list, shortcut = 'l'),
       Action('pull, msg"pull the latest remote version of the source repo", RepoCli(_).pull, shortcut = 'p')
     ),
-    Action('upgrade, msg"upgrade to the latest version of Fury", BuildCli(_).upgrade),
+    Action('upgrade, msg"upgrade to the latest version of Fury", BuildCli(_).upgrade, needsLayer = false),
     //Action('undo, msg"undo the previous modification", BuildCli(_).undo),
-    Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l')(
-      Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c'),
+    Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
+      Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
       Action('export, msg"export a layer to a file", LayerCli(_).export, shortcut = 'e'),
-      Action('extract, msg"extract a layer file", LayerCli(_).extract),
+      Action('extract, msg"extract a layer file", LayerCli(_).extract, needsLayer = false),
       Action('import, msg"import an external layer", LayerCli(_).addImport, shortcut = 'i'),
-      Action('init, msg"initialize a new Fury layer", LayerCli(_).init),
+      Action('init, msg"initialize a new Fury layer", LayerCli(_).init, needsLayer = false),
       Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
       Action('projects, msg"show all available projects", LayerCli(_).projects),
       Action('publish, msg"publish a layer", LayerCli(_).publish, shortcut = 'p'),

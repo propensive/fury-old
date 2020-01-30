@@ -233,12 +233,12 @@ class Cli(val stdout: java.io.PrintWriter,
     stdout.flush()
   }
 
-  def completeCommand(cmd: MenuStructure): Try[Nothing] =
+  def completeCommand(cmd: MenuStructure, hasLayer: Boolean): Try[Nothing] =
     command.map { no =>
       val name = if(no == 1) "Command" else "Subcommand"
       val optCompletions = List(Cli.CmdCompletion(no - 1, name, cmd match {
         case act: Action => Nil
-        case menu: Menu  => menu.items.filter(_.show).to[List]
+        case menu: Menu  => menu.items.filter(_.show).filter(!_.needsLayer || hasLayer).to[List]
       }))
       stdout.println(optCompletions.flatMap(_.output).mkString("\n"))
       stdout.flush()
