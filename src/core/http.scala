@@ -55,14 +55,17 @@ object Http {
 
   def apply(path: Path): Uri = Uri("http", path)
 
-  def post[T: Postable](url: Uri, content: T, headers: Set[HttpHeader]): Try[Array[Byte]] =
+  def post[T: Postable](url: Uri, content: T, headers: Set[HttpHeader])(implicit log: Log): Try[Array[Byte]] =
     request[T](url, content, "POST", headers)
 
-  def get(url: Uri, params: Map[String, String], headers: Set[HttpHeader]): Try[Array[Byte]] =
+  def get(url: Uri, params: Map[String, String], headers: Set[HttpHeader])
+         (implicit log: Log)
+         : Try[Array[Byte]] =
     request(url, params, "GET", headers)
 
   private def request[T: Postable]
                      (url: Uri, content: T, method: String, headers: Set[HttpHeader])
+                     (implicit log: Log)
                      : Try[Array[Byte]] = {
     requestStream[T](url, content, method, headers).flatMap { in =>
       val data = new ByteArrayOutputStream()
@@ -75,7 +78,7 @@ object Http {
           data.write(buf, 0, bytes)
           read()
         }
-      }
+      }  
       
       Try(read())
     }
@@ -87,7 +90,10 @@ object Http {
     new URL(url.key).openConnection match {
       case conn: HttpURLConnection =>
         conn.setRequestMethod(method)
-        conn.setRequestProperty("Content-Type", implicitly[Postable[T]].contentType)
+        
+        if(method == "POST" || method == "PUT")
+          conn.setRequestProperty("Content-Type", implicitly[Postable[T]].contentType)
+        
         conn.setRequestProperty("User-Agent", str"Fury ${FuryVersion.current}")
         headers.foreach { case HttpHeader(key, value) => conn.setRequestProperty(key, value) }
         

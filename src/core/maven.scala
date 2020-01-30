@@ -16,39 +16,40 @@
 */
 package fury.core
 
-import fury.io._, fury.model._, fury.strings._
+import fury.model._, fury.io._, fury.strings._
 
 import euphemism._
 
 import scala.util._
 
-object Service {
-  def catalog(service: String)(implicit log: Log): Try[List[Artifact]] = {
-    val url = Https(Path(service) / "catalog")
+object MavenCentral {
+  case class Doc(g: String, a: String, v: String, id: String)
+
+  def search(binSpec: PartialBinSpec)(implicit log: Log): Try[Set[String]] = {
+    val query = binSpec match {
+      case PartialBinSpec(g, None, None)        => str"""g:%22$g%22"""
+      case PartialBinSpec(g, Some(""), None)    => str"""g:%22$g%22"""
+      case PartialBinSpec(g, Some(a), None)     => str"""g:%22$g%22"""
+      case PartialBinSpec(g, Some(a), Some("")) => str"""g:%22$g%22+AND+a:%22$a%22"""
+      case PartialBinSpec(g, Some(a), Some(v))  => str"""g:%22$g%22+AND+a:%22$a%22"""
+    }
     
     for {
-      bytes <- Http.get(url, Map(), Set())
-      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
-      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
-    } yield artifacts
-  }
+      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / 
+                     str"select?q=$query&core=gav&wt=json&rows=100"), Map(), Set())
 
-  def publish(hash: String, path: String, quiet: Boolean, breaking: Boolean)
-             (implicit log: Log)
-             : Try[PublishedLayer] = {
-
-    val url = Https(Path(ManagedConfig().service) / "publish")
-    case class Request(path: String, token: String, hash: String, breaking: Boolean)
-    case class Response(output: String)
-    for {
-      ipfs <- Ipfs.daemon(quiet)
-      id   <- Try(ipfs.id().get)
-      out  <- Http.post(url, Json(Request(path, ManagedConfig().token, hash, breaking)), headers = Set())
-      str  <- Success(new String(out, "UTF-8"))
-      json <- Try(Json.parse(str).get)
-      res  <- Try(json.as[Response].get)
-      // FIXME: Get major and minor version numbers
-    } yield PublishedLayer(Uri("fury", Path(str"${ManagedConfig().service}/${path}")), 0, 0)
+      json   <- Try(Json.parse(new String(string, "UTF-8")).get)
+      docs   <- Try(json.response.docs.as[Set[Doc]].get)
+    } yield {
+      binSpec match {
+        case PartialBinSpec(_, None, None) =>
+          docs.flatMap { r => Set(str"${r.g}:", str"${r.g}:_") }
+        case PartialBinSpec(g, Some(a), None)  =>
+          val prefix = str"$g:$a"
+          docs.map { r => str"${r.g}:${r.a}:${r.v}" }.filter(_.startsWith(prefix))
+        case PartialBinSpec(_, _, Some(v)) =>
+          docs.filter(_.v startsWith v).map(_.id)
+      }
+    }
   }
 }
-  
