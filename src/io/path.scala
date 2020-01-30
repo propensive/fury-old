@@ -207,7 +207,7 @@ object Glob {
   implicit val stringShow: StringShow[Glob] = _.pattern
   implicit val diff: Diff[Glob] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
 
-  val All = Glob("**/*")
+  val All = Glob("**")
 }
 
 case class Glob(pattern: String) {
