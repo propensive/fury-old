@@ -205,15 +205,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 
   def notImplemented: Try[ExitStatus] = Success(Abort)
 
-  def getPrompt(layer: Layer, theme: Theme)(implicit log: Log): Try[String] = for {
-    schemaId     <- ~layer.main
-    schema       <- layer.schemas.findBy(schemaId)
-    optProjectId <- ~schema.main
-    optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
-    optModuleId  <- ~optProject.flatMap(_.main)
-    optModule    <- ~optModuleId.flatMap { mId => optProject.flatMap(_.modules.findBy(mId).toOption) }
-  } yield Prompt.zsh(layer, optProject, optModule)(theme)
-
   def upgrade: Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
@@ -228,15 +219,14 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   } yield log.await() }
 
   def prompt: Try[ExitStatus] = for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.read(layout, conf)
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- ~Layer.read(layout, conf).toOption
-    msg    <- layer.fold(Try(Prompt.empty(ManagedConfig().theme)))(getPrompt(_, ManagedConfig().theme))
-    call   <- cli.call()
-    _      <- ~log.raw(msg)
+    layout  <- cli.layout
+    conf    <- Layer.readFuryConf(layout)
+    call    <- cli.call()
+    layer   <- Layer.read(layout, conf)
+    schema  <- layer.schemas.findBy(SchemaId.default)
+    project <- schema.mainProject
+    module  <- ~project.flatMap(_.main)
+    _       <- ~log.raw(Prompt.rewrite(conf.focus(project.fold(ProjectId("?"))(_.id), module.getOrElse(ModuleId("?"))).string(ManagedConfig().theme)))
   } yield log.await()
 
   def compile(moduleRef: Option[ModuleRef]): Try[ExitStatus] = for {

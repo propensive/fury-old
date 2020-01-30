@@ -163,11 +163,15 @@ case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
 }
 
 object Focus {
-  implicit val msgShow: MsgShow[Focus] = {
-    case Focus(ref, ImportPath.Root, None)               => msg"$ref"
-    case Focus(ref, path, None)                          => msg"$ref${'/'}$path"
-    case Focus(ref, path, Some((project, None)))         => msg"$ref${'/'}$path${'#'}$project"
-    case Focus(ref, path, Some((project, Some(module)))) => msg"$ref${'/'}$path${'#'}$project${'/'}$module"
+  implicit val msgShow: MsgShow[Focus] = { focus =>
+    (focus.path match {
+      case ImportPath.Root => msg"${'/'}${'/'}${focus.layerRef}"
+      case path            => msg"${'/'}${'/'}${focus.layerRef}$path"
+    }) + (focus.focus match {
+      case None                          => msg""
+      case Some((project, None))         => msg"${'#'}$project"
+      case Some((project, Some(module))) => msg"${'#'}$project${'/'}$module"
+    })
   }
 }
 
