@@ -158,15 +158,9 @@ case class Path(input: String) {
     Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
-  def writeSync(content: String): Try[Unit] = Try {
-    val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
+  def writeSync(content: String, append: Boolean = false): Try[Unit] = Try {
+    val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append))
     writer.write(content)
-    Success(writer.close())
-  }.transform(identity, e => Failure(FileWriteError(this, e)))
-
-  def appendSync(content: String): Try[Unit] = Try {
-    val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
-    writer.append(content)
     Success(writer.close())
   }.transform(identity, e => Failure(FileWriteError(this, e)))
 
@@ -199,6 +193,7 @@ case class Path(input: String) {
     this
   }.recover { case e: java.io.IOException => this }
 
+  //TODO considder wrapping into a buffered stream
   def inputStream(): InputStream = Files.newInputStream(javaPath)
 }
 

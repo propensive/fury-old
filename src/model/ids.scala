@@ -203,7 +203,7 @@ object LayerRef {
   implicit val stringShow: StringShow[LayerRef] = _.key
   implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
-  def unapply(value: String): Option[LayerRef] = value.only { case r"[a-f0-9]{64}" => LayerRef(value) }
+  def unapply(value: String): Option[LayerRef] = value.only { case r"[A-F0-9]{64}" => LayerRef(value) }
 }
 
 case class LayerRef(key: String) extends Key(msg"layer")
