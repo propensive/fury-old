@@ -136,6 +136,10 @@ You can grant these permissions with,
           cli.abort(msg"Binary not found.")
         case UnspecifiedBinary(possibleBinaries) =>
           cli.abort(msg"Unable to identify target binary: ${"\n\t"}${possibleBinaries.mkString("\n\t")}")
+        case HistoryMissing() =>
+          cli.abort(msg"The history of changes is missing.")
+        case HistoryCorrupt() =>
+          cli.abort(msg"The history of changes is corrupt.")
         case HttpBadRequest(url) =>
           cli.abort(msg"HTTP error 401 (Bad Request) when attempting to access $url.")
         case HttpUnauthorized(url) => 

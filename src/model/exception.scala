@@ -27,6 +27,8 @@ case class DnsLookupFailure(domain: String) extends FuryException
 case class DnsResolutionFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
 case class GraalVMError(message: String) extends FuryException
+case class HistoryMissing() extends FuryException
+case class HistoryCorrupt() extends FuryException
 case class HttpBadGateway(uri: Uri) extends FuryException
 case class HttpBadRequest(uri: Uri) extends FuryException
 case class HttpError(code: Int, uri: Uri) extends FuryException

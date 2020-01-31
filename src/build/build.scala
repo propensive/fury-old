@@ -530,9 +530,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
     _             <- ~dir.mkdir()
-    _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, resolved.publishedLayer),
-                         dir / ".fury.conf")
     layout        =  fakeLayout.copy(baseDir = dir)
+    _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, resolved.publishedLayer), layout)
     _             <- Bsp.createConfig(layout)
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
   } yield log.await()
@@ -551,13 +550,9 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     ref           <- Layer.share(layer, layout, raw)
     pub           <- Service.publish(ref.key, path, raw, breaking)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
-
     _             <- if(raw) ~log.rawln(str"${pub.url}")
                      else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
-
-    _             <- Layer.saveFuryConf(FuryConf(Layer.digestLayer(layer), ImportPath.Root, Some(pub)),
-                         layout.confFile)
-
+    _             <- Layer.saveFuryConf(FuryConf(Layer.digestLayer(layer), ImportPath.Root, Some(pub)), layout)
   } yield log.await()
 
   def share: Try[ExitStatus] = for {
@@ -621,6 +616,12 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     lens      <- ~Lenses.layer.imports(schema.id)
     layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
     _         <- ~Layer.save(layer, layout)
+  } yield log.await()
+
+  def undo: Try[ExitStatus] = for {
+    call      <- cli.call()
+    layout    <- cli.layout
+    _         <- Layer.undo(layout)
   } yield log.await()
 
   def list: Try[ExitStatus] = {

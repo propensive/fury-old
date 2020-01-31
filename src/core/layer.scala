@@ -181,9 +181,17 @@ object Layer {
       conf         <- readFuryConf(layout)
       currentLayer <- read(conf.layerRef, layout)
       layerRef     <- saveSchema(layout, newLayer, conf.path, currentLayer)
+      _            <- pushToHistory(conf.layerRef, layout)
       _            <- saveFuryConf(conf.copy(layerRef = layerRef), layout)
     } yield layerRef
-  
+
+    def undo(layout: Layout)(implicit log: Log): Try[Unit] = for {
+      conf         <- readFuryConf(layout)
+      lastLayer    <- popFromHistory(layout)
+      _            <- saveFuryConf(conf.copy(layerRef = lastLayer), layout)
+      _            <- ~log.info(msg"Reverted to layer $lastLayer")
+    } yield ()
+
     private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)
                           (implicit log: Log)
                           : Try[LayerRef] =
@@ -199,15 +207,12 @@ object Layer {
                          newSchema)
         newLayerRef <- saveLayer(newLayer)
       } yield newLayerRef
-  
+
     private def saveLayer(layer: Layer): Try[LayerRef] = for {
       layerRef <- ~digestLayer(layer)
       _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
     } yield layerRef
-  
-    def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] =
-      saveFuryConf(conf, layout.confFile).map(conf.waive)
-  
+
     private final val confComments: String =
       str"""# This is a Fury configuration file. It contains significant
            |# whitespace and is not intended to be human-editable.
@@ -219,15 +224,35 @@ object Layer {
            |# For more information, please visit https://propensive.com/fury/
            |#
            |""".stripMargin
-    
+
     private final val vimModeline: String =
       str"""# vim: set noai ts=12 sw=12:
            |""".stripMargin
-  
-    def saveFuryConf(conf: FuryConf, path: Path)(implicit log: Log): Try[FuryConf] = for {
+
+    def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] = for {
       confStr  <- ~Ogdl.serialize(Ogdl(conf))
-      _        <- path.writeSync(confComments+confStr+vimModeline)
+      _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
     } yield conf
+
+    def pushToHistory(layerRef: LayerRef, layout: Layout)(implicit log: Log): Try[Unit] = {
+      layout.undoStack.writeSync(layerRef.key + "\n", append = true)
+    }
+
+    def popFromHistory(layout: Layout)(implicit log: Log): Try[LayerRef] = {
+      val history = layout.undoStack
+      if(history.exists()) {
+        val reader = scala.io.Source.fromFile(history.javaFile)
+        val content = Try(reader.getLines().toList)
+        reader.close()
+        for {
+          lines      <- content
+          entries    <- lines.traverse(LayerRef.unapply(_).ascribe(HistoryCorrupt()))
+          last       <- entries.lastOption.ascribe(HistoryMissing())
+          newEntries =  entries.dropRight(1).map(_.key)
+          _          <- layout.undoStack.writeSync(newEntries.mkString("\n"))
+        } yield last
+      } else Failure(HistoryMissing())
+    }
   
     private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
       val version = Try(ogdl.version().toInt).getOrElse(1)

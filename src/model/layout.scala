@@ -166,7 +166,8 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val workDir: Path = (furyDir / "work").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
-  
+  lazy val undoStack: Path = (furyDir / "history").extantParents()
+
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
   def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()
