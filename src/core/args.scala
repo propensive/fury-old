@@ -33,6 +33,7 @@ object Args {
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[BinaryId]('b', 'binary, "specify a binary")
+  val ColumnArg = CliParam[String]('c', 'column, "specify the column")
   val PartialBinSpecArg = CliParam[PartialBinSpec]('b', 'binary, "specify a binary")
   val BinaryNameArg = CliParam[BinaryId]('n', 'binary, "specify the name for the binary")
   val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")

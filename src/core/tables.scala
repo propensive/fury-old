@@ -28,14 +28,29 @@ case class Tables() {
 
   implicit val theme: Theme = ManagedConfig().theme
 
-  def show[T, S: MsgShow](table: Tabulation[T],
-                          cols: Int,
-                          rows: Traversable[T],
-                          raw: Boolean)
-                         (main: T => S)
-                         : String =
-    if(raw) rows.map(main).map(implicitly[MsgShow[S]].show(_).string(Theme.NoColor)).join("\n")
-    else table.tabulate(cols, rows.to[Seq], Some(theme.gray())).join("\n")
+  def show[T, S: StringShow](table: Tabulation[T],
+                             cols: Int,
+                             rows: Traversable[T],
+                             raw: Boolean,
+                             column: Option[String] = None,
+                             row: Option[S] = None,
+                             main: String = "id")
+                            : String = {
+
+    val mainHeading = table.headings.find(_.name.toLowerCase == main).get
+    val showRows = row.fold(rows) { row => rows.filter(mainHeading.get(_) == row) }
+    val showTable = column.fold(table) { col =>
+      Tabulation(table.headings.filter(_.name.toLowerCase == col.toLowerCase): _*)
+    }
+    
+    if(raw) {
+      val col = column.flatMap { col =>
+        table.headings.find(_.name.toLowerCase == col.toLowerCase)
+      }.getOrElse(mainHeading)
+
+      showRows.map(col.get).join("\n")
+    } else showTable.tabulate(cols, showRows.to[Seq], Some(theme.gray())).join("\n")
+  }
 
   implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.id.key).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)

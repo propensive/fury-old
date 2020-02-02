@@ -348,10 +348,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
     optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
-    cli          <- cli.hint(SingleColumnArg)
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
-    singleColumn <- ~call(SingleColumnArg).isSuccess
     project      <- optProject.asTry
     module       <- optModule.asTry
     
@@ -361,9 +359,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     classpath    <- ~compilation.classpath(module.ref(project), layout)
     bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
   } yield {
-    val separator = if(singleColumn) "\n" else ":"
-    val cp = classpath.map(_.value).join(separator)
-    val bcp = bootCp.map(_.value).join(separator)
+    val cp = classpath.map(_.value).join(":")
+    val bcp = bootCp.map(_.value).join(":")
     cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp -Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true scala.tools.nsc.MainGenericRunner""")
   }
 

@@ -54,11 +54,16 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     project      <- optProject.asTry
+    cli          <- cli.hint(ModuleArg, project.modules.map(_.id))
+    table        <- ~Tables().modules(project.id, project.main)
+    cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     cli          <- cli.hint(RawArg)
     call         <- cli.call()
+    moduleId     <- ~cli.peek(ModuleArg)
+    col          <- ~cli.peek(ColumnArg)
     raw          <- ~call(RawArg).isSuccess
     rows         <- ~project.modules.to[List]
-    table        <- ~Tables().show(Tables().modules(project.id, project.main), cli.cols, rows, raw)(_.id)
+    table        <- ~Tables().show(table, cli.cols, rows, raw, col, moduleId, "module")
     _            <- ~log.infoWhen(!raw)(conf.focus(project.id))
     _            <- ~log.rawln(table)
   } yield log.await()
@@ -248,12 +253,17 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                     } yield module }
 
     cli         <- cli.hint(RawArg)
+    table       <- ~Tables().binaries
+    cli         <- cli.hint(BinaryArg, optModule.map(_.binaries).getOrElse(Nil).map(_.id))
+    cli         <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call        <- cli.call()
+    col         <- ~cli.peek(ColumnArg)
+    binaryId    <- ~cli.peek(BinaryArg)
     raw         <- ~call(RawArg).isSuccess
     project     <- optProject.asTry
     module      <- optModule.asTry
     rows        <- ~module.allBinaries.to[List]
-    table       <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(_.id)
+    table       <- ~Tables().show(table, cli.cols, rows, raw, col, binaryId, "binary")
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _           <- ~log.rawln(table)
   } yield log.await()
@@ -383,7 +393,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
                     } yield module }
 
     cli         <- cli.hint(RawArg)
+    table       <- ~Tables().opts
+    cli         <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli         <- cli.hint(OptArg, optModule.map(_.opts).getOrElse(Nil))
     call        <- cli.call()
+    opt         <- ~cli.peek(OptArg)
+    col         <- ~cli.peek(ColumnArg)
     raw         <- ~call(RawArg).isSuccess
     project     <- optProject.asTry
     module      <- optModule.asTry
@@ -393,7 +408,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     rows        <- compilation.aggregatedOpts(module.ref(project), layout)
     showRows    <- ~rows.to[List].filter(_.compiler == compiler)
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    table       <- ~Tables().show(Tables().opts, cli.cols, showRows, raw)(_.value.id)
+    table       <- ~Tables().show(table, cli.cols, showRows, raw, col, opt, "param")
     _           <- ~log.rawln(table)
   } yield log.await()
 
