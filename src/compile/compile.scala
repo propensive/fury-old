@@ -26,7 +26,7 @@ import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
 import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
-import fury.core.Graph.CompilerDiagnostic
+import fury.core.UiGraph.CompilerDiagnostic
 import fury.core.Lifecycle.Session
 import fury.io._
 import fury.model._
