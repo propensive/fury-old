@@ -42,7 +42,7 @@ object GraphReporter extends Reporter("graph") {
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
     log.info(msg"Starting build")
-    Graph.live(graph.links, multiplexer.stream(50, Some(Tick)))(log, theme)
+    UiGraph.live(graph.links, multiplexer.stream(50, Some(Tick)))(log, theme)
     log.info(msg"Build completed")
   }
 }

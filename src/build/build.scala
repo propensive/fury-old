@@ -420,7 +420,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https)
     
-    _            <- ~Graph.draw(compilation.graph.links, true,
+    _            <- ~UiGraph.draw(compilation.graph.links, true,
                         Map())(ManagedConfig().theme).foreach(log.info(_))
 
   } yield log.await()

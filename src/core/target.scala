@@ -20,8 +20,8 @@ import fury.model._, fury.io._
 
 object Target {
     case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
-      def links: Map[ModuleRef, Set[ModuleRef]] = dependencies.map { case (k, ds) =>
-        (k.ref, ds.map { d => d.ref.copy(hidden = targets(d).kind == Compiler) })
+      def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (k, ds) =>
+        (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, targets(d).kind == Compiler) })
       }.toMap
     }
   }
