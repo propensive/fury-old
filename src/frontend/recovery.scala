@@ -63,8 +63,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           val prefixLength = Compare.uniquePrefixLength(perms.map(_.hash)).max(3)
           val rows = perms.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }.to[List]
           
-          val permissions = Tables().show(Tables().permissions, cli.cols, rows,
-              false)(identity(_))
+          val permissions = Tables().show[PermissionEntry, PermissionEntry](Tables().permissions, cli.cols, rows,
+              false, None, None, "hash")
 
           cli.abort(msg"""The following permissions are required to run the build:
 ${permissions}

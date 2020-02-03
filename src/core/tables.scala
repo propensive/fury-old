@@ -29,13 +29,30 @@ case class Tables() {
   implicit val theme: Theme = ManagedConfig().theme
 
   def show[T, S: MsgShow](table: Tabulation[T],
-                          cols: Int,
-                          rows: Traversable[T],
-                          raw: Boolean)
-                         (main: T => S)
-                         : String =
-    if(raw) rows.map(main).map(implicitly[MsgShow[S]].show(_).string(Theme.NoColor)).join("\n")
-    else table.tabulate(cols, rows.to[Seq], Some(theme.gray())).join("\n")
+                             cols: Int,
+                             rows: Traversable[T],
+                             raw: Boolean,
+                             column: Option[String] = None,
+                             row: Option[S] = None,
+                             main: String = "id")
+                            : String = {
+
+    val mainHeading = table.headings.find(_.name.toLowerCase == main.toLowerCase).getOrElse(table.headings(0))
+    val showRows = row.fold(rows) { row => rows.filter { r =>
+      mainHeading.get(r) == implicitly[MsgShow[S]].show(row).string(theme)
+    } }
+    val showTable = column.fold(table) { col =>
+      Tabulation(table.headings.filter(_.name.toLowerCase == col.toLowerCase): _*)
+    }
+    
+    if(raw) {
+      val col = column.flatMap { col =>
+        table.headings.find(_.name.toLowerCase == col.toLowerCase)
+      }.getOrElse(mainHeading)
+
+      showRows.map(col.get).join("\n")
+    } else showTable.tabulate(cols, showRows.to[Seq], Some(theme.gray())).join("\n")
+  }
 
   implicit private val parameter: AnsiShow[SortedSet[Opt]] = _.map(_.id.key).map {
     case s @ r"X.*" => Ansi.brightYellow("-" + s)
@@ -109,8 +126,8 @@ case class Tables() {
   )
 
   val dependencies: Tabulation[ModuleRef] = Tabulation[ModuleRef](
-    Heading("Project", _.projectId),
-    Heading("Module", _.moduleId)
+    Heading("Dependency", identity),
+    Heading("Intransitive", _.intransitive)
   )
 
   val sources: Tabulation[Source] = Tabulation(

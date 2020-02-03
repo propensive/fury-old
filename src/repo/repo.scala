@@ -30,16 +30,21 @@ import Lenses._
 case class RepoCli(cli: Cli)(implicit log: Log) {
 
   def list: Try[ExitStatus] = for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.read(layout, conf)
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
     cli       <- cli.hint(RawArg)
-    call     <- cli.call()
-    raw       <- ~call(RawArg).isSuccess
+    table     <- ~Tables().repositories(layout)
+    cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     schemaArg <- ~SchemaId.default
     schema    <- layer.schemas.findBy(schemaArg)
+    cli       <- cli.hint(RepoArg, schema.repos.map(_.id))
+    call      <- cli.call()
+    raw       <- ~call(RawArg).isSuccess
+    repoId    <- ~cli.peek(RepoArg)
+    col       <- ~cli.peek(ColumnArg)
     rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
-    table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
+    table     <- ~Tables().show(table, cli.cols, rows, raw, col, repoId, "repo")
     _         <- ~log.infoWhen(!raw)(conf.focus())
     _         <- ~log.rawln(table)
   } yield log.await()

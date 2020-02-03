@@ -48,12 +48,17 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
                     } yield module }
 
     cli     <- cli.hint(RawArg)
+    table   <- ~Tables().sources
+    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli     <- cli.hint(SourceArg, optModule.map(_.sources).getOrElse(Nil))
     call    <- cli.call()
+    source  <- ~cli.peek(SourceArg)
+    col     <- ~cli.peek(ColumnArg)
     raw     <- ~call(RawArg).isSuccess
     project <- optProject.asTry
     module  <- optModule.asTry
     rows    <- ~module.sources.to[List]
-    table   <- ~Tables().show(Tables().sources, cli.cols, rows, raw)(_.repoIdentifier)
+    table   <- ~Tables().show(table, cli.cols, rows, raw, col, source, "repo")
     _       <- ~log.info(conf.focus(project.id, module.id))
     _       <- ~log.rawln(table)
   } yield log.await()
@@ -156,6 +161,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   implicit val moduleHints: ModuleArg.Hinter = ModuleArg.hint(project >> (_.modules.map(_.id)))
   implicit val sourceHints: SourceArg.Hinter = SourceArg.hint(module >> (_.resources))
   implicit val rawHints: RawArg.Hinter = RawArg.hint(())
+
   implicit val showUnit: StringShow[Unit] = _ => "*"
 
   lazy val resources: Try[SortedSet[Source]] = module >> (_.resources)
@@ -172,12 +178,17 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   private def finish[T](result: T): ExitStatus = log.await()
 
   object Resources {
+    lazy val table = Tables().resources
+    implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(~table.headings.map(_.name.toLowerCase))
+    
     def list: Try[ExitStatus] = {
-      (cli -< ProjectArg -< RawArg -< ModuleArg).action { implicit call =>
+      (cli -< ProjectArg -< RawArg -< ModuleArg -< ColumnArg -< SourceArg).action { implicit call =>
         val raw = RawArg().isSuccess
+        val column = ColumnArg().toOption
         if(!raw) (conf, projectId, moduleId) >> (_.focus(_, _)) >> (log.info(_))
+
         
-        resources >> (Tables().show(Tables().resources, cli.cols, _, raw)(_.repoIdentifier)) >>
+        resources >> (Tables().show(table, cli.cols, _, raw, column, resource.toOption, "source")) >>
             (log.rawln(_)) >> finish
       }
     }

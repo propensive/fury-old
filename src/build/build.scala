@@ -150,10 +150,15 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
     cli    <- cli.hint(RawArg)
+    table  <- ~Tables().aliases
+    cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli    <- cli.hint(AliasArg, layer.aliases)
     call   <- cli.call()
+    col    <- ~cli.peek(ColumnArg)
+    alias  <- ~cli.peek(AliasArg)
     raw    <- ~call(RawArg).isSuccess
     rows   <- ~layer.aliases.to[List]
-    table  <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
+    table  <- ~Tables().show(table, cli.cols, rows, raw, col, alias, "alias")
     _      <- ~log.infoWhen(!raw)(conf.focus())
     _      <- ~log.rawln(table)
   } yield log.await()
@@ -348,10 +353,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
     optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
-    cli          <- cli.hint(SingleColumnArg)
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
-    singleColumn <- ~call(SingleColumnArg).isSuccess
     project      <- optProject.asTry
     module       <- optModule.asTry
     
@@ -361,9 +364,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     classpath    <- ~compilation.classpath(module.ref(project), layout)
     bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
   } yield {
-    val separator = if(singleColumn) "\n" else ":"
-    val cp = classpath.map(_.value).join(separator)
-    val bcp = bootCp.map(_.value).join(separator)
+    val cp = classpath.map(_.value).join(":")
+    val bcp = bootCp.map(_.value).join(":")
     cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp -Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true scala.tools.nsc.MainGenericRunner""")
   }
 
@@ -468,11 +470,16 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     schemaArg <- ~SchemaId.default
     schema    <- layer.schemas.findBy(schemaArg)
     cli       <- cli.hint(RawArg)
+    cli       <- cli.hint(ProjectArg, schema.projects.map(_.id))
+    table     <- ~Tables().projects(None)
+    cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call      <- cli.call()
+    col       <- ~cli.peek(ColumnArg)
+    projectId <- ~cli.peek(ProjectArg)
     raw       <- ~call(RawArg).isSuccess
     https     <- ~call(HttpsArg).isSuccess
     projects  <- schema.allProjects(layout, https)
-    table     <- ~Tables().show(Tables().projects(None), cli.cols, projects.distinct, raw)(_.id)
+    table     <- ~Tables().show(table, cli.cols, projects.distinct, raw, col, projectId, "project")
     _         <- ~log.infoWhen(!raw)(conf.focus())
     _         <- ~log.rawln(table)
   } yield log.await()
@@ -633,11 +640,16 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       schemaArg <- ~SchemaId.default
       schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
+      table     <- ~Tables().imports
+      cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+      cli       <- cli.hint(ImportArg, schema.imports.map(_.id))
       call      <- cli.call()
+      col       <- ~cli.peek(ColumnArg)
+      importId  <- ~cli.peek(ImportArg)
       raw       <- ~call(RawArg).isSuccess
       https     <- ~call(HttpsArg).isSuccess
       rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, layout, https)) }
-      table     <- ~Tables().show(Tables().imports, cli.cols, rows, raw)(_._1.schema.key)
+      table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
       _         <- ~log.infoWhen(!raw)(conf.focus())
       _         <- ~log.rawln(table)
     } yield log.await()
