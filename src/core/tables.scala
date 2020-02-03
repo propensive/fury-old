@@ -28,7 +28,7 @@ case class Tables() {
 
   implicit val theme: Theme = ManagedConfig().theme
 
-  def show[T, S: StringShow](table: Tabulation[T],
+  def show[T, S: MsgShow](table: Tabulation[T],
                              cols: Int,
                              rows: Traversable[T],
                              raw: Boolean,
@@ -37,8 +37,10 @@ case class Tables() {
                              main: String = "id")
                             : String = {
 
-    val mainHeading = table.headings.find(_.name.toLowerCase == main).get
-    val showRows = row.fold(rows) { row => rows.filter(mainHeading.get(_) == row) }
+    val mainHeading = table.headings.find(_.name.toLowerCase == main.toLowerCase).getOrElse(table.headings(0))
+    val showRows = row.fold(rows) { row => rows.filter { r =>
+      mainHeading.get(r) == implicitly[MsgShow[S]].show(row)
+    } }
     val showTable = column.fold(table) { col =>
       Tabulation(table.headings.filter(_.name.toLowerCase == col.toLowerCase): _*)
     }
