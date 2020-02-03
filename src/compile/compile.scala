@@ -21,6 +21,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.channels._
 import java.util.concurrent.{CompletableFuture, ExecutionException}
+import java.util.concurrent.atomic.AtomicInteger
 
 import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
@@ -53,7 +54,7 @@ trait FuryBspServer extends BuildServer with ScalaBuildServer
 
 object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   override type Resource = Connection
-  
+
   Lifecycle.bloopServer.complete(Success(this))
  
   private var lock: Promise[Unit] = Promise.successful(())
@@ -281,6 +282,12 @@ object Compilation {
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
+
+  private val originIdCounter = new AtomicInteger(1)
+  def nextOriginId()(implicit log: Log): String = {
+    s"${log.pid.pid}-${originIdCounter.getAndIncrement}"
+  }
+
 }
 
 class FuryBuildClient(compilation: Compilation,
@@ -428,7 +435,7 @@ case class Compilation(graph: Target.Graph,
     checkouts.checkouts.traverse(_.get(layout, https)).map{ _ => ()}
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
-    Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout).waive)
+    Bloop.generateFiles(this, layout)
   }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
@@ -588,9 +595,11 @@ case class Compilation(graph: Target.Graph,
                     globalPolicy: Policy,
                     args: List[String])(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
+    val originId = Compilation.nextOriginId()
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+    params.setOriginId(originId)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
     val furyTargetIds = deepDependencies(target.id).toList
     
@@ -602,12 +611,17 @@ case class Compilation(graph: Target.Graph,
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
     BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
-      
+
       val result: Try[CompileResult] = {
         for {
           res <- wrapServerErrors(conn.server.buildTargetCompile(params))
           opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
         } yield CompileResult(res, opts)
+      }
+
+      val responseOriginId = result.get.bspCompileResult.getOriginId
+      if(responseOriginId != originId){
+        log.warn(s"buildTarget/compile: Expected $originId, but got $responseOriginId")
       }
 
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
