@@ -154,7 +154,7 @@ findConfigFile() {
       message "The configuration for ${SH} will be written to ${RCFILE}."
       ;;
     *)
-      fail "This release of Fury requires ZSH."
+      fail "This release of Fury requires ZSH. Later versions will support Bash and Fish."
       ;;
   esac
 }
