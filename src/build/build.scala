@@ -150,10 +150,15 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
     cli    <- cli.hint(RawArg)
+    table  <- ~Tables().aliases
+    cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli    <- cli.hint(AliasArg, layer.aliases)
     call   <- cli.call()
+    col    <- ~cli.peek(ColumnArg)
+    alias  <- ~cli.peek(AliasArg)
     raw    <- ~call(RawArg).isSuccess
     rows   <- ~layer.aliases.to[List]
-    table  <- ~Tables().show(Tables().aliases, cli.cols, rows, raw)(identity(_))
+    table  <- ~Tables().show(table, cli.cols, rows, raw, col, alias, "alias")
     _      <- ~log.infoWhen(!raw)(conf.focus())
     _      <- ~log.rawln(table)
   } yield log.await()

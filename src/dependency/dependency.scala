@@ -46,12 +46,17 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
                     } yield module }
 
     cli     <- cli.hint(RawArg)
+    table   <- ~Tables().dependencies
+    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli     <- cli.hint(LinkArg, optModule.map(_.dependencies).getOrElse(Nil))
     call    <- cli.call()
+    col     <- ~cli.peek(ColumnArg)
+    dep     <- ~cli.peek(LinkArg)
     raw     <- ~call(RawArg).isSuccess
     project <- optProject.asTry
     module  <- optModule.asTry
     rows    <- ~module.dependencies.to[List].sorted
-    table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
+    table   <- ~Tables().show(table, cli.cols, rows, raw, col, dep, "dependency")
     schema  <- layer.schemas.findBy(SchemaId.default)
     _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _       <- ~log.rawln(table)
@@ -158,12 +163,17 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
     cli          <- cli.hint(RawArg)
+    table        <- ~Tables().envs
+    cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli          <- cli.hint(EnvArg, optModule.map(_.environment).getOrElse(Nil))
     call         <- cli.call()
+    col          <- ~cli.peek(ColumnArg)
+    env          <- ~cli.peek(EnvArg)
     raw          <- ~call(RawArg).isSuccess
     project      <- optProject.asTry
     module       <- optModule.asTry
     rows         <- ~module.environment.to[List].sorted
-    table        <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
+    table        <- ~Tables().show(table, cli.cols, rows, raw, col, env, "id")
     _            <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _            <- ~log.rawln(table)
   } yield log.await()
@@ -337,12 +347,15 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
                      } yield module }
     
     cli           <- cli.hint(RawArg)
+    table         <- ~Tables().permissions
+    cli           <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call          <- cli.call()
+    col           <- ~cli.peek(ColumnArg)
     raw           <- ~call(RawArg).isSuccess
     project       <- optProject.asTry
     module        <- optModule.asTry
     rows          <- ~module.policyEntries.to[List].sortBy(_.hash.key)
-    table         <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
+    table         <- ~Tables().show[PermissionEntry, PermissionEntry](table, cli.cols, rows, raw, col, None, "hash")
     _             <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _             <- ~log.rawln(table)
   } yield log.await()
@@ -404,12 +417,17 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
                     } yield module }
 
     cli     <- cli.hint(RawArg)
+    table   <- ~Tables().props
+    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli     <- cli.hint(PropArg, optModule.map(_.properties).getOrElse(Nil))
     call    <- cli.call()
     raw     <- ~call(RawArg).isSuccess
+    col     <- ~cli.peek(ColumnArg)
+    prop    <- ~cli.peek(PropArg)
     project <- optProject.asTry
     module  <- optModule.asTry
     rows    <- ~module.properties.to[List].sorted
-    table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
+    table   <- ~Tables().show(table, cli.cols, rows, raw, col, prop, "property")
     _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _       <- ~log.rawln(table)
   } yield log.await()

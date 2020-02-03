@@ -39,7 +39,7 @@ case class Tables() {
 
     val mainHeading = table.headings.find(_.name.toLowerCase == main.toLowerCase).getOrElse(table.headings(0))
     val showRows = row.fold(rows) { row => rows.filter { r =>
-      mainHeading.get(r) == implicitly[MsgShow[S]].show(row)
+      mainHeading.get(r) == implicitly[MsgShow[S]].show(row).string(theme)
     } }
     val showTable = column.fold(table) { col =>
       Tabulation(table.headings.filter(_.name.toLowerCase == col.toLowerCase): _*)
@@ -126,8 +126,8 @@ case class Tables() {
   )
 
   val dependencies: Tabulation[ModuleRef] = Tabulation[ModuleRef](
-    Heading("Project", _.projectId),
-    Heading("Module", _.moduleId)
+    Heading("Dependency", identity),
+    Heading("Intransitive", _.intransitive)
   )
 
   val sources: Tabulation[Source] = Tabulation(
