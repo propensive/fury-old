@@ -122,7 +122,8 @@ case class Tables() {
   val aliases: Tabulation[Alias] = Tabulation(
     Heading("Alias", _.cmd),
     Heading("Description", _.description),
-    Heading("Module", _.module)
+    Heading("Module", _.module),
+    Heading("Arguments", _.args.mkString("'", "', '", "'"))
   )
 
   val dependencies: Tabulation[ModuleRef] = Tabulation[ModuleRef](
