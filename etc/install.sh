@@ -70,8 +70,8 @@ fail() {
 restartFury() {
   message "Checking for currently-active Fury daemon..."
   type -p fury > /dev/null && \
-  fury stop 2> /dev/null > /dev/null
-  message "Starting new version of Fury..."
+  fury stop 2> /dev/null && \
+  message "Starting new version of Fury..." && \
   ${DESTINATION}/bin/fury start
 }
 
@@ -136,6 +136,23 @@ findConfigFile() {
   FILE=""
   RCFILE=""
   case $SH in
+    bash)
+      for FILE in ".bash_profile" ".bashrc" ".profile"
+      do
+        RCFILE="${HOME}/${FILE}"
+        if [ -e "${RCFILE}" ]; then
+          break
+        fi
+      done
+      if [ -z "${RCFILE}" ]; then
+        if [[ "${OSTYPE}" == *"darwin"* ]]; then
+          RCFILE="${HOME}/.bash_profile"
+        else
+          RCFILE="${HOME}/.bashrc"
+        fi
+      fi
+      echo "The configuration for ${SH} will be written to ${RCFILE}."
+      ;;
     zsh)
       for FILE in ".zprofile" ".zshrc"
       do
@@ -151,10 +168,10 @@ findConfigFile() {
           RCFILE="${HOME}/.zshrc"
         fi
       fi
-      message "The configuration for ${SH} will be written to ${RCFILE}."
+      echo "The configuration for ${SH} will be written to ${RCFILE}."
       ;;
     *)
-      fail "This release of Fury requires ZSH. Later versions will support Bash and Fish."
+      echo "Could not recognize the shell: $SH"
       ;;
   esac
 }
@@ -183,23 +200,18 @@ updateFish() {
 }
 
 updateShells() {
-  case "$SHELL" in
-    "/bin/zsh")
-      if [ "$BATCH" -eq "0" ]
-      then
-        message "Updating shell configuration"
-        mkdir -p "${CONFIG}"
-        cp "${DESTINATION}/etc/aliases" "${CONFIG}/aliases"
-    
-        which zsh >> /dev/null && updateShell "zsh" || true
-      else
-        message "Not updating shell configurations for batch-mode installation"
-      fi
-      ;;
-    *)
-      fail "This release of Fury requires ZSH."
-      ;;
-  esac
+  if [ "$BATCH" -eq "0" ]
+  then
+    message "Updating shell configuration"
+    mkdir -p "${CONFIG}"
+    cp "${DESTINATION}/etc/aliases" "${CONFIG}/aliases"
+
+    which bash && updateShell "bash" || true
+    which zsh && updateShell "zsh" || true
+    which fish && updateFish || true
+  else
+    message "Not updating shell configurations for batch-mode installation"
+  fi
 }
 
 untarPayload() {
