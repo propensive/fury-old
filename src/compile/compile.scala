@@ -88,7 +88,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       compilation: Compilation, targetId: TargetId, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
     singleTasking { promise =>
 
-      val traceOut = trace.map{ path => new FileOutputStream(path.javaFile, true) }
+      val traceOut = trace.map{ path => new RecoveringFileOutputStream(path, append = true) }
       val serverIoPipe = Pipe.open()
       val serverIn = Channels.newInputStream(serverIoPipe.source())
       val clientOut = {
