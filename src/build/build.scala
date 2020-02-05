@@ -200,7 +200,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     moduleRef        <- ~module.ref(project)
     aliasArg         <- call(AliasArg)
     description      <- call(DescriptionArg)
-    alias            <- ~Alias(aliasArg, description, optSchemaArg, moduleRef)
+    alias            <- ~Alias(aliasArg, description, moduleRef, call.suffix)
     layer            <- Lenses.updateSchemas(layer) { s => Lenses.layer.aliases } (_(_) += alias)
     _                <- ~Layer.save(layer, layout)
   } yield log.await()
@@ -234,7 +234,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _       <- ~log.raw(Prompt.rewrite(conf.focus(project.fold(ProjectId("?"))(_.id), module.getOrElse(ModuleId("?"))).string(ManagedConfig().theme)))
   } yield log.await()
 
-  def compile(moduleRef: Option[ModuleRef]): Try[ExitStatus] = for {
+  def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.read(layout, conf)
@@ -265,7 +265,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     r              =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
       for {
         task <- compileOnce(compilation, schema, module.ref(project), layout,
-          globalPolicy, call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
+          globalPolicy, if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
       } yield {
         task.transform { completed =>
           for{
