@@ -46,10 +46,12 @@ case class CleanCli(cli: Cli)(implicit log: Log) {
   } yield Done
   
   def cleanRepos: Try[ExitStatus] = for {
+    _ <- Installation.reposDir.setWritable()
     _ <- Installation.reposDir.delete()
   } yield Done
   
   def cleanSources: Try[ExitStatus] = for {
+    _ <- Installation.srcsDir.setWritable()
     _ <- Installation.srcsDir.delete()
   } yield Done
 }
