@@ -417,7 +417,7 @@ object Alias {
   implicit val stringShow: StringShow[Alias] = _.cmd.key
 }
 
-case class Alias(cmd: AliasCmd, description: String, module: ModuleRef, args: List[String])
+case class Alias(cmd: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
 
 object SchemaRef {
   implicit val msgShow: MsgShow[SchemaRef] = v =>
