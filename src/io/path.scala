@@ -100,6 +100,10 @@ case class Path(input: String) {
     Try(javaFile.setReadOnly().unit)
   }
 
+  def setWritable(): Try[Unit] = Try(javaFile.setWritable(true).unit).flatMap { _ =>
+    childPaths.traverse(_.setWritable()).map(_.unit)
+  }
+
   def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
     case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
   }
