@@ -459,7 +459,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layout <- cli.newLayout
     call   <- cli.call()
     _      <- Layer.init(layout)
-    _      <- Bsp.createConfig(layout)
+    _      =  Bsp.createConfig(layout)
   } yield log.await()
 
   def projects: Try[ExitStatus] = for {
@@ -520,7 +520,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     file     <- call(FileArg).map(pwd.resolve(_))
     dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
     layout   <- cli.newLayout.map(_.copy(baseDir = dir))
-    _        <- Bsp.createConfig(layout)
+    _        =  Bsp.createConfig(layout)
     layerRef <- Layer.loadFile(file, layout)
     _        <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout)
   } yield log.await()
