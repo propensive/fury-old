@@ -7,6 +7,7 @@ NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 NATIVEJARS=dist/bundle/lib/fury-frontend.jar $(NAILGUNJARPATH) bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
 DOCKER_TAG=fury-ci
 INIT_CGROUP=$(shell cat /proc/1/cgroup 2> /dev/null || echo '' | tail -n1 | cut -d: -f3)
+export FURY_PORT=8466
 ifeq ($(INIT_CGROUP),"/")
 	FURY_OUTPUT=graph
 else
@@ -91,14 +92,13 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/build.fury bootstrap/bin .version $(wildcard src/**/*.scala)
-	export FURY_PORT=8466
 	PATH=$(PATH):opt/fury-$(FURYSTABLE)/bin $(FURYLOCAL) layer extract -f bootstrap/build.fury
 	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
 	$(FURYLOCAL) layer select -l /platform/jawn
 	$(FURYLOCAL) permission grant --module ast --project jawn -P b7a
 	$(FURYLOCAL) layer select -l /
 	$(FURYLOCAL) build save --https --output $(FURY_OUTPUT) --project fury --module frontend --dir $<
-	kill $(shell lsof -i:$FURY_PORT -t)
+	lsof -i :$(FURY_PORT) -i :$ 8212 -t | xargs kill
 	jar -uf $@ .version
 
 dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% compile
