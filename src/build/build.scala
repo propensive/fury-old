@@ -20,6 +20,7 @@ import fury.strings._, fury.core._, fury.model._, fury.io._
 
 import exoskeleton._
 import euphemism._
+import guillotine._
 
 import Args._
 
@@ -141,6 +142,20 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
       log.raw(withTemplate(connectionsString))
       log.await()
     }
+
+  def colors: Try[ExitStatus] = {
+    implicit val env = environments.enclosing
+    for {
+      cli <- cli.call()
+    } yield {
+      log.info(s"$$TERM is ${env.variables.get("TERM")}")
+      log.info(s"$$COLORTERM is ${env.variables.get("COLORTERM")}")
+      val bgcolor = sh"getbgcolor.sh".exec[Try[String]]()
+      if(bgcolor.isFailure) bgcolor.failed.get.printStackTrace()
+      log.info(s"Background color is ${bgcolor}")
+      log.await()
+    }
+  }
 
 }
 

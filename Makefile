@@ -58,7 +58,7 @@ dist/install.sh: dist/fury-$(VERSION).tar.gz dist/bundle/etc
 	LC_ALL=C sed -i.bak "s/FURY_VERSION=test/FURY_VERSION=$(VERSION)/" dist/install.sh && rm dist/install.sh.bak
 	chmod +x dist/install.sh
 
-dist/fury-$(VERSION).tar.gz: dist/bundle/lib/fury-frontend.jar dist/bundle/bin/fury dist/bundle/etc dist/bundle/bin/upgrade
+dist/fury-$(VERSION).tar.gz: dist/bundle/lib/fury-frontend.jar dist/bundle/bin/fury dist/bundle/etc dist/bundle/bin/upgrade dist/bundle/bin/getbgcolor.sh
 	cp .version dist/bundle/
 	tar czf $@ -C dist/bundle . 2> /dev/null
 
@@ -110,6 +110,10 @@ dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% co
 
 dist/bundle/bin/fury: dist/bundle/bin/.dir dist/bundle/bin/ng.c dist/bundle/bin/procname.c dist/bundle/bin/coursier
 	cp etc/fury $@
+	chmod +x $@
+
+dist/bundle/bin/getbgcolor.sh: dist/bundle/bin/.dir
+	cp etc/getbgcolor.sh $@
 	chmod +x $@
 
 dist/bundle/bin/upgrade: dist/bundle/bin/.dir

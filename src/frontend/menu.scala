@@ -26,7 +26,8 @@ object FuryMenu {
     Menu('about, msg"inspect resource usage, current tasks etc.", 'resources, needsLayer = false)(
       Action('resources, msg"display information about available CPUs and memory usage", AboutCli(_).resources, needsLayer = false),
       Action('tasks, msg"list the tasks that are being executed", AboutCli(_).tasks, needsLayer = false),
-      Action('connections, msg"list open BSP connections", AboutCli(_).connections, needsLayer = false)
+      Action('connections, msg"list open BSP connections", AboutCli(_).connections, needsLayer = false),
+      Action('colors, msg"show the color settings of the terminal", AboutCli(_).colors, needsLayer = false)
     ),
     Menu('alias, msg"view and edit command aliases", 'list)(
       Action('add, msg"add a command alias to the layer", AliasCli(_).add),

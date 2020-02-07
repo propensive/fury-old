@@ -1,0 +1,5 @@
+tty
+TTY=$(tty)
+[[ -r $TTY ]] || echo "Cannot read from $TTY"
+[[ -w $TTY ]] || echo "Cannot write to $TTY"
+fury about colors
