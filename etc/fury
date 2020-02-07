@@ -84,7 +84,9 @@ coursier() {
 }
 
 stopFury() {
-  nailgun "${FURY_MAIN}" "$$" "stop" && killall fury
+  nailgun "${FURY_MAIN}" "$$" "stop" 2> /dev/null
+  nailgun ng-stop 2> /dev/null
+  ! pkill -f "(java -Dfury.home)|(bloop)"
 }
 
 alive() {
@@ -140,7 +142,7 @@ case "$1" in
     startFuryStandalone "${@:2}"
     ;;
   "stop")
-    silently stopFury
+    stopFury
     ;;
   "upgrade")
     silently fury "$@"
