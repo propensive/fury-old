@@ -69,10 +69,11 @@ fail() {
 
 restartFury() {
   message "Checking for currently-active Fury daemon..."
-  type -p fury > /dev/null && \
-  fury stop 2> /dev/null && \
-  message "Starting new version of Fury..." && \
-  ${DESTINATION}/bin/fury start
+  type -p fury > /dev/null && {
+    fury stop 2> /dev/null
+    message "Starting new version of Fury..."
+    ${DESTINATION}/bin/fury start
+  }
 }
 
 # Remove an existing installation, if there is one.
