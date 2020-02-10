@@ -234,6 +234,37 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _       <- ~log.raw(Prompt.rewrite(conf.focus(project.fold(ProjectId("?"))(_.id), module.getOrElse(ModuleId("?"))).string(ManagedConfig().theme)))
   } yield log.await()
 
+  def clean: Try[ExitStatus] = for {
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
+    schemaArg    <- ~SchemaId.default
+    schema       <- layer.schemas.findBy(schemaArg)
+    cli          <- cli.hint(ProjectArg, schema.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
+    optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+    cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
+    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
+    call         <- cli.call()
+    project      <- optProject.asTry
+    module       <- optModule.asTry
+    moduleRef    =  module.ref(project)
+
+    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false)
+
+    result    <- compilation.cleanCache(moduleRef, layout)
+  } yield {
+    Option(result.getMessage()).foreach(log.info(_))
+    val success = result.getCleaned()
+    if(success){
+      log.note(msg"Cleaned compiler caches for $moduleRef and its dependencies")
+    } else {
+      log.warn(msg"Compiler caches for $moduleRef and its dependencies were not cleaned")
+    }
+    log.await(success)
+  }
+
   def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
