@@ -84,9 +84,9 @@ coursier() {
 }
 
 stopFury() {
-  nailgun "${FURY_MAIN}" "$$" "stop" 2> /dev/null
-  nailgun ng-stop 2> /dev/null
-  ! pkill -f "(java -Dfury.home)|(bloop)"
+  nailgun "${FURY_MAIN}" "$$" "stop" 
+  nailgun ng-stop 
+  # ! pkill -f "(java -Dfury.home)|(bloop)"
 }
 
 alive() {
