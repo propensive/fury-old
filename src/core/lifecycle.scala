@@ -24,7 +24,7 @@ import fury.utils.Multiplexer
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
 import scala.concurrent.Promise
-import scala.util.Try
+import scala.util.{ Failure, Try }
 
 object Lifecycle {
   
@@ -86,19 +86,23 @@ object Lifecycle {
 
   @tailrec
   def shutdown(previous: Int = -1): Try[ExitStatus] = {
-    terminating.set(true)
-    busy() match {
-      case None => {
-        bloopServer.future.value.map(_.get.shutdown())
-        util.Success(Done)
-      }
-      case Some(count) =>
-        if(previous > count) {
-          val plural = if(count > 1) "s" else ""
-          println(s"Waiting for $count active task$plural to complete...")
+    if(!terminating.get()){
+      terminating.set(true)
+      busy() match {
+        case None => {
+          bloopServer.future.value.map(_.get.shutdown())
+          util.Success(Done)
         }
-        Thread.sleep(10)
-        shutdown(count)
+        case Some(count) =>
+          if(previous > count) {
+            val plural = if(count > 1) "s" else ""
+            println(s"Waiting for $count active task$plural to complete...")
+          }
+          Thread.sleep(10)
+          shutdown(count)
+      }
+    } else {
+      Failure(new Exception("Shutdown already triggered"))
     }
   }
   

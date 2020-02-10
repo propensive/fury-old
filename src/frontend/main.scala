@@ -87,4 +87,15 @@ object FuryServer {
       }
     }
 
+  Runtime.getRuntime().addShutdownHook(new Thread {
+    val createdAt = System.currentTimeMillis()
+    println("Adding a shutdown hook!")
+
+    override def run(): Unit = {
+      Lifecycle.shutdown().foreach{ _ =>
+        println(s"Bye! Lived for ${System.currentTimeMillis() - createdAt} ms")
+      }
+    }
+  })
+
 }
