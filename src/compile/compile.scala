@@ -568,6 +568,20 @@ case class Compilation(graph: Target.Graph,
       Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
     } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
 
+  def cleanCache(moduleRef: ModuleRef, layout: Layout)(implicit log: Log): Try[CleanCacheResult] = {
+    val target = targets(moduleRef)
+    val furyTargetIds = deepDependencies(target.id).toList
+    val bspTargetIds = furyTargetIds.map { dep =>
+      new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
+    }
+    val params = new CleanCacheParams(bspTargetIds.asJava)
+
+    BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
+      val result: Try[CleanCacheResult] = wrapServerErrors(conn.server.buildTargetCleanCache(params))
+      result.get
+    }
+  }
+
   def compileModule(target: Target,
                     layout: Layout,
                     pipelining: Boolean,
