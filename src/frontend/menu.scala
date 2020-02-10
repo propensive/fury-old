@@ -24,9 +24,9 @@ object FuryMenu {
 
   def menu(aliases: List[Action])(implicit log: Log): Menu = Menu('main, "main menu", 'build)(List(
     Menu('about, msg"inspect resource usage, current tasks etc.", 'resources, needsLayer = false)(
-      Action('resources, msg"add a command alias to the layer", AboutCli(_).resources, needsLayer = false),
-      Action('tasks, msg"remove a command alias from the layer", AboutCli(_).tasks, needsLayer = false),
-      Action('connections, msg"list command aliases", AboutCli(_).connections, needsLayer = false)
+      Action('resources, msg"display information about available CPUs and memory usage", AboutCli(_).resources, needsLayer = false),
+      Action('tasks, msg"list the tasks that are being executed", AboutCli(_).tasks, needsLayer = false),
+      Action('connections, msg"list open BSP connections", AboutCli(_).connections, needsLayer = false)
     ),
     Menu('alias, msg"view and edit command aliases", 'list)(
       Action('add, msg"add a command alias to the layer", AliasCli(_).add),
