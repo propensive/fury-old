@@ -82,11 +82,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
     usages -= session
   }
 
-  case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread, streams: List[Closeable]){
-    def close(): Unit = {
-      streams.foreach(x => Try{x.close()})
-    }
-  }
+  case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path,
       compilation: Compilation, targetId: TargetId, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
@@ -170,7 +166,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       proxy.buildInitialize(initParams).get
       proxy.onBuildInitialized()
       
-      Connection(proxy, client, thread, List(serverIn, serverOut, clientIn, clientOut))
+      Connection(proxy, client, thread)
     }
 
   def borrow[T](dir: Path, compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
@@ -201,7 +197,6 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
         conn.synchronized(try {
           conn.server.buildShutdown().get()
           conn.server.onBuildExit()
-          conn.close()
         } catch {
           case NonFatal(e) => println(s"Error while closing the connection for $dir. Cause: ${e.getMessage}")
         })
