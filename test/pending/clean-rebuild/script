@@ -1,0 +1,23 @@
+timeout --signal=INT 120 fury layer clone -l fury://QmZHVKoUo6reZ1eNSeWhruRrh9SnWAPnNE3ahtgdtvh3vP -d platform || exit 1
+cd platform
+fury layer select -l euphemism
+fury project select -p euphemism
+
+fury clean
+echo $?
+
+/usr/bin/time -f '%e' fury --output linear
+
+/usr/bin/time -f '%e' fury --output linear
+
+fury layer select -l ../mercator
+fury clean
+echo $?
+
+fury layer select -l ../euphemism
+/usr/bin/time -f '%e' fury --output linear
+
+fury clean
+echo $?
+
+/usr/bin/time -f '%e' fury --output linear
