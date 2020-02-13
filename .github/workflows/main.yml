@@ -33,7 +33,7 @@ jobs:
       if: failure()
     - name: Run unit tests
       run: |
-        make test || touch unittests.failed
+        make -k test || touch unittests.failed
         ! ls -1 unittests.failed 2> /dev/null
       timeout-minutes: 5
     - name: Package unit test logs

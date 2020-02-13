@@ -25,5 +25,5 @@ object Tests {
       OgdlSerializerTest
   )
 
-  def main(args: Array[String]): Unit = testSuites.foreach(_.execute())
+  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
 }
