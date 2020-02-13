@@ -162,11 +162,12 @@ case class Path(input: String) {
     Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
-  def writeSync(content: String, append: Boolean = false): Try[Unit] = Try {
-    val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append))
-    writer.write(content)
-    Success(writer.close())
-  }.transform(identity, e => Failure(FileWriteError(this, e)))
+  def writeSync(content: String, append: Boolean = false): Try[Unit] = {
+    val writer = Try { new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append)) }
+    val result = writer.flatMap{ w => Try(w.write(content)) }
+    writer.foreach(_.close())
+    result.recoverWith { case e => Failure(FileWriteError(this, e)) }
+  }
 
   def copyTo(path: Path): Try[Path] = Try {
     Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
@@ -197,7 +198,7 @@ case class Path(input: String) {
     this
   }.recover { case e: java.io.IOException => this }
 
-  //TODO considder wrapping into a buffered stream
+  //TODO consider wrapping into a buffered stream
   def inputStream(): InputStream = Files.newInputStream(javaPath)
 }
 
@@ -230,6 +231,8 @@ case class ByteSize(bytes: Long) {
 }
 
 case class FileNotFound(path: Path)      extends FuryException
-case class FileWriteError(path: Path, e: Throwable) extends FuryException
+case class FileWriteError(path: Path, e: Throwable) extends FuryException {
+  override def getCause: Throwable = e
+}
 case class ConfigFormatError(path: Path) extends FuryException
 case class ZipfileEntry(name: String, inputStream: () => java.io.InputStream)
