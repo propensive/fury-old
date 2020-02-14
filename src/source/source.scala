@@ -91,7 +91,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id,
                         module.id))(_(_) --= sourceToDel)
     
-    _           <- ~Layer.save(layer, layout)
+    _           <- Layer.save(layer, layout)
     schema      <- layer.schemas.findBy(SchemaId.default)
     _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
@@ -139,7 +139,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     layer      <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id, 
                       module.id))(_(_) ++= Some(source))
     
-    _          <- ~Layer.save(layer, layout)
+    _          <- Layer.save(layer, layout)
     schema      <- layer.schemas.findBy(SchemaId.default)
     _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
