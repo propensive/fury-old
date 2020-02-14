@@ -172,7 +172,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     aliasArg   <- call(AliasArg)
     aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
     layer      <- Lenses.updateSchemas(layer) { s => Lenses.layer.aliases } (_(_) --= aliasToDel)
-    _          <- ~Layer.save(layer, layout)
+    _          <- Layer.save(layer, layout)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -202,7 +202,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     description      <- call(DescriptionArg)
     alias            <- ~Alias(aliasArg, description, moduleRef, call.suffix)
     layer            <- Lenses.updateSchemas(layer) { s => Lenses.layer.aliases } (_(_) += alias)
-    _                <- ~Layer.save(layer, layout)
+    _                <- Layer.save(layer, layout)
   } yield log.await()
 }
 
@@ -637,7 +637,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer         <- Lenses.updateSchemas(layer)(Lenses.layer.imports(_))(_.modify(_)(_ +
                           schemaRef.copy(id = nameArg)))
     
-    _             <- ~Layer.save(layer, layout)
+    _             <- Layer.save(layer, layout)
   } yield log.await()
 
   def unimport: Try[ExitStatus] = for {
@@ -653,7 +653,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     schema    <- layer.schemas.findBy(schemaId)
     lens      <- ~Lenses.layer.imports(schema.id)
     layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
-    _         <- ~Layer.save(layer, layout)
+    _         <- Layer.save(layer, layout)
   } yield log.await()
 
   def undo: Try[ExitStatus] = for {

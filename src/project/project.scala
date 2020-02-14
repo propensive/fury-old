@@ -45,7 +45,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     _           <- schema(projectId)
     focus       <- ~Lenses.focus()
     layer       <- ~(focus(layer, _.lens(_.main)) = Some(Some(projectId)))
-    _           <- ~Layer.save(layer, layout)
+    _           <- Layer.save(layer, layout)
   } yield log.await()
 
   def list: Try[ExitStatus] = for {
@@ -98,7 +98,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer          <- Lenses.updateSchemas(layer)(Lenses.layer.mainProject(_))(_(_) =
                           Some(project.id))
 
-    _              <- ~Layer.save(layer, layout)
+    _              <- Layer.save(layer, layout)
     _              <- ~log.info(msg"Set current project to ${project.id}")
   } yield log.await()
 
@@ -121,7 +121,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                        if(lens(ws) == Some(projectId))(lens(ws) = None) else ws }
    
-    _           <- ~Layer.save(layer, layout)(log)
+    _           <- Layer.save(layer, layout)(log)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
@@ -163,6 +163,6 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     lens           <- ~Lenses.layer.schemas
     layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
     layer          <- ~lens.modify(layer)(_ + newSchema)
-    _              <- ~Layer.save(layer, layout)
+    _              <- Layer.save(layer, layout)
   } yield log.await()
 }

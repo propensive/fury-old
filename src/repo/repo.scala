@@ -63,7 +63,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     newRepo   <- repo.unfork(layout, true)
     lens      <- ~Lenses.layer.repos(schema.id)
     layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-    _         <- ~Layer.save(layer, layout)
+    _         <- Layer.save(layer, layout)
   } yield log.await()
 
   def fork: Try[ExitStatus] = for {
@@ -96,7 +96,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     newRepo   <- ~repo.copy(local = Some(absPath))
     lens      <- ~Lenses.layer.repos(schema.id)
     layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-    _         <- ~Layer.save(layer, layout)
+    _         <- Layer.save(layer, layout)
   } yield log.await()
 
   def pull: Try[ExitStatus] = for {
@@ -128,7 +128,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
                     case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
                   }
 
-    _         <- ~Layer.save(newLayer, layout)
+    _         <- Layer.save(newLayer, layout)
 
     _         <- ~newRepos.foreach { case (newRepo, _) =>
                     log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
@@ -172,7 +172,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     sourceRepo     <- ~SourceRepo(nameArg, repo, refSpec, commit, dir)
     lens           <- ~Lenses.layer.repos(schema.id)
     layer          <- ~(lens.modify(layer)(_ + sourceRepo))
-    _              <- ~Layer.save(layer, layout)
+    _              <- Layer.save(layer, layout)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
@@ -207,7 +207,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     layer       <- ~(focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg)
     commit      <- refSpec.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
     layer       <- ~(focus(layer, _.lens(_.repos(on(repo.id)).commit)) = Some(commit))
-    _           <- ~Layer.save(layer, layout)
+    _           <- Layer.save(layer, layout)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -222,6 +222,6 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     repo      <- schema.repos.findBy(repoId)
     lens      <- ~Lenses.layer.repos(schema.id)
     layer     <- ~(lens(layer) -= repo)
-    _         <- ~Layer.save(layer, layout)
+    _         <- Layer.save(layer, layout)
   } yield log.await()
 }

@@ -95,7 +95,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layer     <- Lenses.updateSchemas(layer)(Lenses.layer.dependencies(_, project.id,
                       module.id))(_(_) -= moduleRef)
 
-    _         <- ~Layer.save(layer, layout)
+    _         <- Layer.save(layer, layout)
     optSchema <- ~layer.mainSchema.toOption
 
     _         <- ~optSchema.foreach(Compilation.asyncCompilation(_, moduleRef, layout,
@@ -137,7 +137,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layer            <- Lenses.updateSchemas(layer)(Lenses.layer.dependencies(_,
                             project.id, module.id))(_(_) += moduleRef)
 
-    _                <- ~Layer.save(layer, layout)
+    _                <- Layer.save(layer, layout)
 
     _                <- ~optSchema.foreach(Compilation.asyncCompilation(_, moduleRef, layout,
                             false))
@@ -208,7 +208,7 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     layer        <- Lenses.updateSchemas(layer)(Lenses.layer.environment(_, project.id,
                         module.id))(_(_) -= envArg)
 
-    _            <- ~Layer.save(layer, layout)
+    _            <- Layer.save(layer, layout)
     optSchema    <- ~layer.mainSchema.toOption
   } yield log.await()
 
@@ -243,7 +243,7 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     layer           <- Lenses.updateSchemas(layer)(Lenses.layer.environment(_, project.id,
                             module.id))(_(_) += envArg)
 
-    _               <- ~Layer.save(layer, layout)
+    _               <- Layer.save(layer, layout)
   } yield log.await()
 }
 
