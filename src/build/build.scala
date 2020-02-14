@@ -145,24 +145,34 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
 
   def colors: Try[ExitStatus] = {
     implicit val env = environments.enclosing
+    val console = Option(System.console())
     for {
       cli <- cli.call()
-      foo = Try{ getBgColor }
     } yield {
+      val backgroundRgb = console.fold[Try[(String, String, String)]](Failure(new Exception("Console is not attached")))(getBgColor)
       log.info(s"$$TERM is ${env.variables.get("TERM")}")
       log.info(s"$$COLORTERM is ${env.variables.get("COLORTERM")}")
-      foo.failed.foreach(_.printStackTrace)
-      log.info(s"Background color is ${foo}")
+      log.info(s"System.console() is ${System.console()}")
+      backgroundRgb.failed.foreach(_.printStackTrace)
+      log.info(s"Background color is ${backgroundRgb}")
       log.await()
     }
   }
 
-  private def getBgColor(implicit env: Environment) = {
+  private def getBgColor(console: java.io.Console)(implicit env: Environment): Try[(String, String, String)] = {
+    import kaleidoscope._
     val esc = 27.toChar
-    val str = s"${esc}]11;?${esc}\\"
-    import sys.process._
-    val command = Seq("printf",  str) ### Seq("sleep", "1") ### Seq("read", "-r", "-d", "foobar") ### Seq("echo", "$foobar") #| Seq("xxd", "-p")
-    command.!!
+    val osc = s"$esc]"
+    val st = s"$esc\\"
+    val ps = "11"
+    val str = s"${osc}${ps};?${st}"
+    console.writer.println(str)
+    console.writer.println("Press Enter...")
+    val magic = console.readLine()
+    magic match {
+      case r".*rgb:$red@([0-9a-f]{4})\/$green@([0-9a-f]{4})\/$blue@([0-9a-f]{4}).*" => Success((red, green, blue))
+      case str => Failure(new IllegalStateException(str))
+    }
   }
 
 }
