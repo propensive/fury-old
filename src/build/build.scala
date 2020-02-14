@@ -147,10 +147,11 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
     implicit val env = environments.enclosing
     for {
       cli <- cli.call()
-      foo <- Try{ getBgColor }
+      foo = Try{ getBgColor }
     } yield {
       log.info(s"$$TERM is ${env.variables.get("TERM")}")
       log.info(s"$$COLORTERM is ${env.variables.get("COLORTERM")}")
+      foo.failed.foreach(_.printStackTrace)
       log.info(s"Background color is ${foo}")
       log.await()
     }
@@ -158,9 +159,9 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
 
   private def getBgColor(implicit env: Environment) = {
     val esc = 27.toChar
-    val str = s""""${esc}]11;?${esc}\\""""
+    val str = s"${esc}]11;?${esc}\\"
     import sys.process._
-    val command = Seq("printf",  str) ### Seq("read", "-r", "-d", "foobar") ### Seq("echo", "$foobar") #| "hexdump"
+    val command = Seq("printf",  str) ### Seq("sleep", "1") ### Seq("read", "-r", "-d", "foobar") ### Seq("echo", "$foobar") #| Seq("xxd", "-p")
     command.!!
   }
 
