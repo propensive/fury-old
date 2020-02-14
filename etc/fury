@@ -37,7 +37,11 @@ nailgun() {
   if ! sh -c "${FHOME}/bin/ng --nailgun-version > /dev/null 2>&1" || [[ "1" -eq "$USE_NG_PY" ]] ; then 
 	"${FHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
   else
-	"${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+  	if [ -f "${FHOME}/bin/libprocname.so" ]; then
+		LD_PRELOAD="${FHOME}/bin/libprocname.so" "${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+	else
+		"${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+	fi
   fi
 }
 
@@ -79,30 +83,10 @@ coursier() {
   "${FHOME}/bin/coursier" "$@"
 }
 
-killFury() {
-  case "$1" in
-    "--force"|"-F")
-      forceKill &
-      ;;
-    *)
-      nailgun ng-stop 2> /dev/null && message 'Fury daemon has shut down\n'
-      ;;
-  esac
-}
-
-forceKill() {
-  BLPORT="8212" 
-  bash <<END
-    printf "Killing processes that listen on ports $PORT and $BLPORT\n"
-    lsof -i :"$PORT" -i :"$BLPORT" -t | xargs kill
-    printf 'Killing everything that looks like fury or bloop...'
-    pkill -9 -f '(fury)|(bloop)'
-    pgrep -f '(fury)|(bloop)' && printf '\nProcesses with these PIDs have survived.\n' || printf 'done\n'
-END
-}
-
 stopFury() {
-  nailgun "${FURY_MAIN}" "$$" "stop" && killFury
+  nailgun "${FURY_MAIN}" "$$" "stop" 
+  nailgun ng-stop 
+  # ! pkill -f "(java -Dfury.home)|(bloop)"
 }
 
 alive() {
@@ -117,7 +101,11 @@ startNailgun() {
     if [ "$1" = "prompt" ]; then
       message 'Starting Fury daemon...'
     fi
-    java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+    if [ -f "${FHOME}/bin/libprocname.so" ]; then
+	LD_PRELOAD="${FHOME}/bin/libprocname.so" java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+    else
+	java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+    fi
     until (alive); do
       if [ "$1" = "prompt" ]; then
         message '.'
@@ -153,15 +141,12 @@ case "$1" in
   "standalone")
     startFuryStandalone "${@:2}"
     ;;
-  "kill")
-    silently killFury "${@:2}"
-    ;;
   "stop")
-    silently stopFury
+    stopFury
     ;;
   "upgrade")
     silently fury "$@"
-    silently killFury
+    killall fury > /dev/null
     ;;
   "restart")
     silently restartFury

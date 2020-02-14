@@ -25,6 +25,7 @@ object Module {
   implicit val msgShow: MsgShow[Module] = v => UserMsg(_.module(v.id.key))
   implicit val stringShow: StringShow[Module] = _.id.key
   implicit val diff: Diff[Module] = Diff.gen[Module]
+  implicit val keyName: KeyName[Module] = () => msg"module"
 
   def available(id: ModuleId, project: Project): Try[ModuleId] =
     project.modules.find(_.id == id).fold(Try(id)) { module => Failure(ModuleAlreadyExists(module.id)) }

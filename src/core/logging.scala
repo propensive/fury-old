@@ -103,7 +103,7 @@ object Log {
     def create(date: LocalDate) =
       new PrintWriter(new BufferedWriter(new FileWriter(path(date).javaFile, true)))
     
-    def path(date: LocalDate) = Installation.logsDir / str"${date.toString}.log"
+    def path(date: LocalDate) = Installation.logsDir.extant() / str"${date.toString}.log"
     var printWriter: PrintWriter = create(initDate)
     def update(date: LocalDate): Unit = printWriter = create(date)
 
@@ -119,7 +119,7 @@ object Log {
   def log(pid: Pid): Log = new Log(global, pid)
 }
 
-class Log(private[this] val output: LogStyle, pid: Pid) {
+class Log(private[this] val output: LogStyle, val pid: Pid) {
 
   private[this] var writers: List[LogStyle] = List(output)
 

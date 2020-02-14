@@ -14,49 +14,47 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.tests
+package fury.core
 
-import guillotine._, environments.enclosing
+import fury.model._, fury.io._, fury.strings._
 
-sealed trait Op[-E <: Exception]
+import euphemism._
 
-case class Container(id: String) {
-  case class Dir(dir: String) {
+import scala.util._
 
-    def run(cmd: Command): String = {
-      val shellCmd = sh"docker exec --workdir $dir $id sh -c ${cmd}"
-      shellCmd
-        .exec[Try[String]]
-        .recover(
-            on[ShellFailure].map { case ShellFailure(cmd, out, error) => s"$out\n$error" }
-        )
+object MavenCentral {
+  case class Doc(g: String, a: String, v: String, id: String)
+
+  def search(binSpec: PartialBinSpec)(implicit log: Log): Try[Set[String]] = {
+    val query = binSpec match {
+      case PartialBinSpec(g, None | Some(""), None) => str"""g:%22$g%22"""
+      case PartialBinSpec(g, Some(a), None)         => str"""g:%22$g%22"""
+      case PartialBinSpec(g, Some(a), Some(_))      => str"""g:%22$g%22+AND+a:%22$a%22"""
+    }
+    
+    for {
+      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / 
+                     str"select?q=$query&core=gav&wt=json&rows=100"), Map(), Set())
+
+      json   <- Try(Json.parse(new String(string, "UTF-8")).get)
+      docs   <- Try(json.response.docs.as[Set[Doc]].get)
+    } yield {
+      binSpec match {
+        case PartialBinSpec(_, None, None) =>
+          docs.flatMap { r => Set(str"${r.g}:", str"${r.g}:_") }
+        case PartialBinSpec(g, Some(a), None)  =>
+          val prefix = str"$g:$a"
+          
+          val opts = List(
+            docs.map { r => str"${r.g}:${r.a.split("_").head}${if(r.a contains "_") "_" else ""}" },
+            docs.map { r => str"${r.g}:${r.a}:" },
+            docs.map { r => str"${r.g}:${r.a}:${r.v}" }
+          ).map(_.filter(_.startsWith(prefix)))
+          
+          opts.find(_.size > 1).getOrElse(opts.last)
+        case PartialBinSpec(_, _, Some(v)) =>
+          docs.filter(_.v startsWith v).map(_.id)
+      }
     }
   }
-
-  lazy val alpha   = Dir("/work/alpha")
-  lazy val beta    = Dir("/work/beta")
-  lazy val gamma   = Dir("/work/gamma")
-  lazy val delta   = Dir("/work/delta")
-  lazy val epsilon = Dir("/work/epsilon")
-  lazy val zeta    = Dir("/work/zeta")
-  lazy val eta     = Dir("/work/eta")
-  lazy val theta   = Dir("/work/theta")
-  lazy val iota    = Dir("/work/iota")
-  lazy val kappa   = Dir("/work/kappa")
-
-  def stop(): Try[Unit] =
-    for {
-      killed  <- sh"docker kill $id".exec[Try[String]]
-      removed <- sh"docker rm $id".exec[Try[String]]
-    } yield ()
-}
-
-object Docker {
-
-  def start(): Try[Container] =
-    sh"docker run --detach fury:latest".exec[Try[String]].map(Container(_))
-
-  def prune(): Try[String] =
-    sh"docker system prune --force".exec[Try[String]]
-
 }

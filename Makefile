@@ -1,6 +1,5 @@
 VERSION=${shell sh -c 'cat .version 2> /dev/null || git --git-dir git/fury/.git describe --exact-match --tags 2> /dev/null || git --git-dir git/fury/.git rev-parse --short HEAD'}
-BLOOPVERSION=1.3.5
-FURYSTABLE=0.7.14
+FURYSTABLE=0.8.2
 FURYLOCAL=opt/fury-$(FURYSTABLE)/bin/fury
 BINDEPS=coursier ng.py ng
 NAILGUNJAR=nailgun-server-1.0.0.jar
@@ -43,6 +42,9 @@ publish: dist/install.sh
 
 opt:
 	mkdir -p opt
+
+dist/bundle/bin/procname.c:
+	cp etc/procname.c $@
 
 opt/fury-$(FURYSTABLE).sh: opt
 	curl -C - -s -o $@ "http://downloads.furore.dev/fury-$(FURYSTABLE).sh"
@@ -89,7 +91,7 @@ dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
 dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/build.fury bootstrap/bin .version src/**/*.scala
-	$(FURYLOCAL) layer extract -f bootstrap/build.fury
+	PATH=$(PATH):opt/fury-$(FURYSTABLE)/bin $(FURYLOCAL) layer extract -f bootstrap/build.fury
 	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
 	$(FURYLOCAL) layer select -l /platform/jawn
 	$(FURYLOCAL) permission grant --module ast --project jawn -P b7a
@@ -106,7 +108,7 @@ dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% co
 	mkdir -p ${@D}
 	touch ${@D}/.dir
 
-dist/bundle/bin/fury: dist/bundle/bin/.dir $(foreach D, $(BINDEPS), dist/bundle/bin/$(D))
+dist/bundle/bin/fury: dist/bundle/bin/.dir dist/bundle/bin/ng.c dist/bundle/bin/procname.c dist/bundle/bin/coursier
 	cp etc/fury $@
 	chmod +x $@
 
@@ -118,7 +120,7 @@ dist/bundle/bin/coursier: dist/bundle/bin/.dir
 	curl -s -L -o $@ https://github.com/coursier/coursier/releases/download/v2.0.0-RC5-3/coursier
 	chmod +x $@
 
-dist/bundle/bin/ng.c: bootstrap/ng/.dir
+dist/bundle/bin/ng.c:
 	curl -s -L -o $@ https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
 
 dist/bundle/bin/ng.py: dist/bundle/bin/.dir
@@ -129,13 +131,15 @@ dist/bundle/bin/ng.py: dist/bundle/bin/.dir
 fury-native: dist/bundle/lib/fury-frontend.jar
 	native-image -cp $(shell bash -c "ls $(NATIVEJARS) | paste -s -d: -") fury.Main
 
-test: bootstrap/build.fury
+test: test-setup test-strings test-ogdl test-model test-core test-io
+
+test-setup: bootstrap/build.fury
 	fury layer extract -f $<
 	fury permission grant --project fury --module test-core -P 228 4a8 538 7f0 c0d c2e f90 00b b7a
-	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
-	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-ogdl
-	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-model
-	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-core
+	fury permission grant --project fury --module test-io -P aa7
+
+test-%: test-setup
+	fury build run --https --output $(FURY_OUTPUT) --project fury --module $@
 
 integration:
 	etc/integration
@@ -172,4 +176,4 @@ install: dist/install.sh
 revise:
 	etc/revise
 
-.PHONY: all bootstrap/build.fury publish pre-compile clean-dist clean test ci clean-ci test-isolated integration-isolated integration community-isolated community download install revise
+.PHONY: all bootstrap/build.fury publish pre-compile clean-dist clean test ci clean-ci test-isolated test-% integration-isolated integration community-isolated community download install revise

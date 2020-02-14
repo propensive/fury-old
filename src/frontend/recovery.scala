@@ -25,7 +25,7 @@ import scala.util._
 
 object Recovery {
 
-  def recover(cli: Cli[CliParam[_]])(result: Try[ExitStatus])(implicit log: Log): ExitStatus = result match {
+  def recover(cli: Cli)(result: Try[ExitStatus])(implicit log: Log): ExitStatus = result match {
     case Success(exitStatus) =>
       exitStatus
     case Failure(err) =>
@@ -63,8 +63,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           val prefixLength = Compare.uniquePrefixLength(perms.map(_.hash)).max(3)
           val rows = perms.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }.to[List]
           
-          val permissions = Tables().show(Tables().permissions, cli.cols, rows,
-              false)(identity(_)).mkString("\n")
+          val permissions = Tables().show[PermissionEntry, PermissionEntry](Tables().permissions, cli.cols, rows,
+              false, None, None, "hash")
 
           cli.abort(msg"""The following permissions are required to run the build:
 ${permissions}
@@ -100,18 +100,10 @@ You can grant these permissions with,
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
-        case e: UnspecifiedProject =>
-          cli.abort(msg"The project has not been specified.")
-        case e: UnspecifiedRepo =>
-          cli.abort(msg"The repository has not been specified.")
-        case e: UnspecifiedModule =>
-          cli.abort(msg"The module has not been specified.")
-        case e: UnspecifiedLayer =>
-          cli.abort(msg"The layer has not been specified.")
+        case Unspecified(kind) =>
+          cli.abort(msg"The $kind has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>
           cli.abort(msg"The module reference $moduleRef could not be resolved.")
-        case UnknownRepo(repoId: RepoId) =>
-          cli.abort(msg"The repository reference $repoId could not be resolved.")
         case UnspecifiedMain(moduleId: ModuleId) =>
           cli.abort(msg"Main class not defined for module '${moduleId}'.")
         case GraalVMError(message: String) =>
@@ -144,6 +136,10 @@ You can grant these permissions with,
           cli.abort(msg"Binary not found.")
         case UnspecifiedBinary(possibleBinaries) =>
           cli.abort(msg"Unable to identify target binary: ${"\n\t"}${possibleBinaries.mkString("\n\t")}")
+        case HistoryMissing() =>
+          cli.abort(msg"The history of changes is missing.")
+        case HistoryCorrupt() =>
+          cli.abort(msg"The history of changes is corrupt.")
         case HttpBadRequest(url) =>
           cli.abort(msg"HTTP error 401 (Bad Request) when attempting to access $url.")
         case HttpUnauthorized(url) => 

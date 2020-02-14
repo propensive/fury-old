@@ -70,9 +70,15 @@ object Ipfs {
 
     def getHandle(): Try[IPFS] = Try{ new IPFS("localhost", 5001) }
 
-    def handleAsync(path: String): Future[Unit] = {
+    def init(ipfs: String): Try[Unit] = {
+      Xdg.ipfsRepo.ifExists().map(_ => Success(())).getOrElse{
+        sh"$ipfs init".exec[Try[String]]().map(_ => ())
+      }
+    }
+
+    def handleAsync(ipfs: String): Future[Unit] = {
       val ready = Promise[Unit]
-      Future(blocking{ sh"$path daemon".async(
+      Future(blocking{ sh"$ipfs daemon".async(
         stdout = {
           case r".*Daemon is ready.*" =>
             log.infoWhen(!quiet)(msg"IPFS daemon has started")
@@ -121,26 +127,24 @@ object Ipfs {
       case e: RuntimeException if e.getMessage.contains("Couldn't connect to IPFS daemon") =>
         log.infoWhen(!quiet)(msg"Couldn't connect to IPFS daemon")
         for {
-          ipfsPath <- find().orElse(install().map(_ => Installation.ipfsBin.value))
-          _        <- {
-            val task = handleAsync(ipfsPath)
-            Await.ready(task, 120.seconds).value.get
-          }
-          api      <- getHandle()
+          ipfs <- find().orElse(install().map(_ => Installation.ipfsBin.value))
+          _    <- init(ipfs)
+          _    <- Await.ready(handleAsync(ipfs), 120.seconds).value.get
+          api  <- getHandle()
         } yield api
     }.map(IpfsApi(_))
   }
 
-  private def distBinary: Option[Uri] = {
+  private def distBinary: Try[Uri] = {
     def url(sys: String) = Https(Path("dist.ipfs.io") / "go-ipfs" / "v0.4.22" /
         str"go-ipfs_v0.4.22_$sys.tar.gz")
     
     Installation.system.flatMap {
-      case Windows(_)   => None
-      case Linux(X86)   => Some(url("linux-386"))
-      case Linux(X64)   => Some(url("linux-amd64"))
-      case MacOs(X86)   => Some(url("darwin-386"))
-      case MacOs(X64)   => Some(url("darwin-amd64"))
+      case Linux(X86)   => Success(url("linux-386"))
+      case Linux(X64)   => Success(url("linux-amd64"))
+      case MacOs(X86)   => Success(url("darwin-386"))
+      case MacOs(X64)   => Success(url("darwin-amd64"))
+      case other => Failure(UnknownOs(other.toString))
     }
   }
 }

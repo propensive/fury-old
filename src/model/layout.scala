@@ -38,7 +38,7 @@ object Layout {
     val parentsWithinFs = parents.takeWhile(Option(_).exists(getFileStore(_) == fileSystem))
     val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve(".fury.conf")) }.map(Path(_))
     
-    optParent.ascribe(UnspecifiedProject())
+    optParent.ascribe(Unspecified[ProjectId])
   }
 }
 
@@ -56,6 +56,7 @@ object Xdg {
   val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
   val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
   val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
+  val ipfsRepo: Path = Var("IPFS_PATH").path.getOrElse(home / ".ipfs")
 
   def findData(filename: Path): Option[Path] = (dataHome :: dataDirs).map(filename in _).find(_.exists)
   def findConfig(filename: Path): Option[Path] = (configHome :: configDirs).map(filename in _).find(_.exists)
@@ -66,10 +67,12 @@ object Xdg {
 }
 
 object Os {
+  case class Unknown(description: String)(machine: Machine) extends Os
   implicit val stringShow: StringShow[Os] = {
     case Windows(m) => str"Windows ($m)"
     case Linux(m)   => str"Linux ($m)"
     case MacOs(m)   => str"Mac OS X ($m)"
+    case Unknown(description) => description
   }
 
   implicit val userMsg: MsgShow[Os] = os => UserMsg { implicit theme =>
@@ -83,9 +86,11 @@ case class Linux(machine: Machine) extends Os
 case class MacOs(machine: Machine) extends Os
 
 object Machine {
+  case class Unknown(description: String) extends Machine
   implicit val stringShow: StringShow[Machine] = {
     case X64 => "64-bit x86"
     case X86 => "32-bit x86"
+    case Unknown(description) => description
   }
 }
 sealed trait Machine
@@ -94,19 +99,19 @@ case object X86 extends Machine
 
 object Installation {
 
-  lazy val system: Option[Os] = {
+  lazy val system: Try[Os] = {
     import environments.enclosing
-    val machine: Option[Machine] = sh"uname -m".exec[Try[String]] match {
-      case Success("x86_64" | "amd64") => Some(X64)
-      case Success("i386" | "i686")    => Some(X86)
-      case _                           => None
+    val machine: Try[Machine] = sh"uname -m".exec[Try[String]].map {
+      case "x86_64" | "amd64" => X64
+      case "i386" | "i686"    => X86
+      case other => Machine.Unknown(other)
     }
 
-    sh"uname".exec[Try[String]] match {
-      case Success("Darwin")   => machine.map(MacOs(_))
-      case Success("Linux")    => machine.map(Linux(_))
-      case Success(r"MINGW.*") => machine.map(Windows(_))
-      case _                   => None
+    sh"uname".exec[Try[String]].flatMap {
+      case "Darwin"   => machine.map(MacOs(_))
+      case "Linux"    => machine.map(Linux(_))
+      case r"MINGW.*" => machine.map(Windows(_))
+      case other => machine.map(Os.Unknown(other)(_))
     }
   }
 
@@ -150,6 +155,8 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   
   lazy val furyDir: Path = (baseDir / ".fury").extant()
   lazy val bspDir: Path = (baseDir / ".bsp").extant()
+  lazy val bspConfig: Path = bspDir / "fury.json"
+
   lazy val bloopDir: Path = (baseDir / ".bloop").extant()
   lazy val confFile: Path = baseDir / ".fury.conf"
 
@@ -161,8 +168,8 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val workDir: Path = (furyDir / "work").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
-  lazy val bspLogsDir: Path = (logsDir / "bsp").extant()
-  
+  lazy val undoStack: Path = (furyDir / "history").extantParents()
+
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
   def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()

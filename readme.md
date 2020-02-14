@@ -21,6 +21,7 @@ still under active development.
     * If Fury cannot detect a running IPFS daemon, a new one will be started. 
     * Fury will also download the IPFS distribution if an installed one cannot be found.
 * Tab completion for shell commands works only in Zsh. 
+    * If you're a new user, it is strongly recommended to use Fury with Zsh and make use of the command completion,
     * Support for Bash and [Fish](https://fishshell.com) may appear in the future.
     
 ### Installing latest version from source

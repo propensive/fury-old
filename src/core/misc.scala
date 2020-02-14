@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, Graph.DiagnosticMessage, fury.io._, fury.ogdl._
+import fury.model._, UiGraph.DiagnosticMessage, fury.io._, fury.ogdl._
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 

@@ -20,6 +20,7 @@ Successfully compiled module foo/lib
 Starting compilation of module foo/app
 Successfully compiled module foo/app
 Saving JAR file out/foo-app.jar
+Wrote 5 JAR files (total 19.0MiB) to out
 0
 foo-app.jar
 scala-compiler-2.12.8.jar
@@ -35,6 +36,6 @@ META-INF/MANIFEST.MF
 Manifest-Version: 1.0
 Class-Path: scala-compiler-2.12.8.jar scala-library-2.12.8.jar scala-r
  eflect-2.12.8.jar scala-xml_2.12-1.0.6.jar
-Created-By: Fury 0.8.0
+Created-By: Fury 0.8.2
 Main-Class: HelloWorld
 

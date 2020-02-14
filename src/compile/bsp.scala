@@ -43,37 +43,25 @@ object Bsp {
 
   val bspVersion = "2.0.0-M4"
 
-  def createConfig(layout: Layout): Try[Unit] = {
-    val bspDir    = layout.bspDir.extant()
-    val bspConfig = bspDir / "fury.json"
+  def createConfig(layout: Layout): Try[Unit] =
+    layout.bspConfig.writeSync(bspConfigJson(whichFury(layout)).toString)
 
-    for {
-      // FIXME we should use fury launch jar directly with java here
-      fury   <- whichFury(layout)
-      config = bspConfigJson(fury)
-      _      <- bspConfig.writeSync(config.toString)
-    } yield ()
-  }
-
-  private def whichFury(layout: Layout): Try[Path] = {
-    implicit val env = layout.env
-    sh"which fury".exec[Try[String]].map(Path.apply)
-  }
+  private def whichFury(layout: Layout): Path = Path(System.getProperty("fury.home")) / "bin" / "fury"
 
   private def bspConfigJson(fury: Path): Json =
     Json.of(
-        name = "Fury",
-        argv = List(
-            fury.javaPath.toAbsolutePath.toString,
-            "standalone",
-            "bsp"
-        ),
-        version = FuryVersion.current,
-        bspVersion = bspVersion,
-        languages = List("java", "scala")
+      name = "Fury",
+      argv = List(
+          fury.javaPath.toAbsolutePath.toString,
+          "standalone",
+          "bsp"
+      ),
+      version = FuryVersion.current,
+      bspVersion = bspVersion,
+      languages = List("java", "scala")
     )
 
-  def startServer(cli: Cli[CliParam[_]])(implicit log: Log): Try[ExitStatus] =
+  def startServer(cli: Cli)(implicit log: Log): Try[ExitStatus] =
     for {
       layout  <- cli.layout
       cli     <- cli.hint(Args.HttpsArg)
@@ -108,12 +96,10 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implicit log: Log) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _
-
-  private implicit val log = new Log(LogStyle(new java.io.PrintWriter(System.err), debug = true), Pid(0))
 
   private def structure: Try[Structure] =
     for {
@@ -288,7 +274,9 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
         val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
-        val compilationTasks = compilation.compile(moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val session = Lifecycle.currentSession(log)
+        session.multiplexer = multiplexer
+        val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
         reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)

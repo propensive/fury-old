@@ -20,20 +20,16 @@ import fury.strings._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
 import mercator._
+import optometry._
+
 import Args._
+
 import scala.util._
+import scala.collection.immutable._
 
-object SourceCli {
 
-  case class Context(override val cli: Cli[CliParam[_]],
-                     override val layout: Layout,
-                     override val layer: Layer,
-                     override val conf: FuryConf,
-                     optProject: Option[Project],
-                     optModule: Option[Module])
-             extends MenuContext(cli, layout, layer, conf)
-
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+case class SourceCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
@@ -51,96 +47,28 @@ object SourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield new Context(cli, layout, layer, conf, optProject, optModule)
+    cli     <- cli.hint(RawArg)
+    table   <- ~Tables().sources
+    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli     <- cli.hint(SourceArg, optModule.map(_.sources).getOrElse(Nil))
+    call    <- cli.call()
+    source  <- ~cli.peek(SourceArg)
+    col     <- ~cli.peek(ColumnArg)
+    raw     <- ~call(RawArg).isSuccess
+    project <- optProject.asTry
+    module  <- optModule.asTry
+    rows    <- ~module.sources.to[List]
+    table   <- ~Tables().show(table, cli.cols, rows, raw, col, source, "repo")
+    _       <- ~log.info(conf.focus(project.id, module.id))
+    _       <- ~log.rawln(table)
+  } yield log.await()
 
-  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli     <- cli.hint(RawArg)
-      call    <- cli.call()
-      raw     <- ~call(RawArg).isSuccess
-      project <- optProject.ascribe(UnspecifiedProject())
-      module  <- optModule.ascribe(UnspecifiedModule())
-      rows    <- ~module.sources.to[List]
-      table   <- ~Tables().show(Tables().sources, cli.cols, rows, raw)(_.repoIdentifier)
-      _       <- ~log.info(conf.focus(project.id, module.id))
-      _       <- ~log.rawln(table.mkString("\n"))
-    } yield log.await()
-  }
-
-  def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
-      cli         <- cli.hint(ForceArg)
-      call        <- cli.call()
-      sourceArg   <- call(SourceArg)
-      source      <- ~Source.unapply(sourceArg)
-      project     <- optProject.ascribe(UnspecifiedProject())
-      module      <- optModule.ascribe(UnspecifiedModule())
-      sourceToDel <- ~module.sources.find(Some(_) == source)
-      force       <- ~call(ForceArg).isSuccess
-
-      layer       <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.sources(_, project.id,
-                         module.id))(_(_) --= sourceToDel)
-      
-      _           <- ~Layer.save(layer, layout)
-      schema      <- layer.schemas.findBy(SchemaId.default)
-      _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
-    } yield log.await()
-  }
-
-  def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      schema     <- layer.schemas.findBy(SchemaId.default)
-
-      extSrcs    <- optProject.to[List].flatMap { project =>
-                     schema.repos.map(_.sourceCandidates(layout, false) { n =>
-                       n.endsWith(".scala") || n.endsWith(".java")
-                     })
-                   }.sequence.map(_.flatten)
-      
-      compiler   <- ~optModule.map(_.compiler).getOrElse(ModuleRef.JavaRef)
-
-      localSrcs  <- ~layout.pwd.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(".java")
-                        }.map(LocalSource(_, Glob.All))
-
-      sharedSrcs <- ~layout.sharedDir.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(
-                        ".java") }.map(SharedSource(_, Glob.All))
-
-      cli        <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
-      call       <- cli.call()
-      project    <- optProject.ascribe(UnspecifiedProject())
-      module     <- optModule.ascribe(UnspecifiedModule())
-      sourceArg  <- call(SourceArg)
-      source     <- ~Source.unapply(sourceArg)
-
-      layer      <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.sources(_, project.id, 
-                        module.id))(_(_) ++= source)
-      
-      _          <- ~Layer.save(layer, layout)
-      schema      <- layer.schemas.findBy(SchemaId.default)
-      _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
-    } yield log.await()
-  }
-}
-
-object ResourceCli {
-
-  case class Context(override val cli: Cli[CliParam[_]],
-                     override val layout: Layout,
-                     override val layer: Layer,
-                     override val conf: FuryConf,
-                     optProject: Option[Project],
-                     optModule: Option[Module])
-             extends MenuContext(cli, layout, layer, conf)
-
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
+    schemaArg    <- ~Some(SchemaId.default)
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
@@ -153,61 +81,133 @@ object ResourceCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield new Context(cli, layout, layer, conf, optProject, optModule)
+    cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
+    call        <- cli.call()
+    source      <- call(SourceArg)
+    project     <- optProject.asTry
+    module      <- optModule.asTry
+    sourceToDel <- ~module.sources.find(_ == source)
 
-  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli     <- cli.hint(RawArg)
-      call    <- cli.call()
-      raw     <- ~call(RawArg).isSuccess
-      project <- optProject.ascribe(UnspecifiedProject())
-      module  <- optModule.ascribe(UnspecifiedModule())
-      rows    <- ~module.resources.to[List]
-      table   <- ~Tables().show(Tables().resources, cli.cols, rows, raw)(_.repoIdentifier)
-      _       <- ~log.info(conf.focus(project.id, module.id))
-      _       <- ~log.rawln(table.mkString("\n"))
-    } yield log.await()
-  }
+    layer       <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id,
+                        module.id))(_(_) --= sourceToDel)
+    
+    _           <- Layer.save(layer, layout)
+    schema      <- layer.schemas.findBy(SchemaId.default)
+    _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+  } yield log.await()
 
-  def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli           <- cli.hint(SourceArg, optModule.to[List].flatMap(_.resources))
-      cli           <- cli.hint(ForceArg)
-      call          <- cli.call()
-      resourceArg   <- call(SourceArg)
-      resource      <- ~Source.unapply(resourceArg)
-      project       <- optProject.ascribe(UnspecifiedProject())
-      module        <- optModule.ascribe(UnspecifiedModule())
-      resourceToDel <- ~module.resources.find(Some(_) == resource)
-      force         <- ~call(ForceArg).isSuccess
+  def add: Try[ExitStatus] = for {
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.read(layout, conf)
+    schemaArg    <- ~Some(SchemaId.default)
+    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
+    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
+    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
+    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    
+    optModule    <- Success { for {
+                      project  <- optProject
+                      moduleId <- optModuleId
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module }
 
-      layer         <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.resources(_, project.id,
-                           module.id))(_(_) --= resourceToDel)
-      
-      _             <- ~Layer.save(layer, layout)
-      schema        <- layer.schemas.findBy(SchemaId.default)
-      _             <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
-    } yield log.await()
-  }
+    schema     <- layer.schemas.findBy(SchemaId.default)
 
-  def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli         <- cli.hint(SourceArg)
-      call        <- cli.call()
-      project     <- optProject.ascribe(UnspecifiedProject())
-      module      <- optModule.ascribe(UnspecifiedModule())
-      resourceArg <- call(SourceArg)
-      resource    <- ~Source.unapply(resourceArg)
+    extSrcs    <- optProject.to[List].flatMap { project =>
+                    schema.repos.map(_.sourceCandidates(layout, false) { n =>
+                      n.endsWith(".scala") || n.endsWith(".java")
+                    })
+                  }.sequence.map(_.flatten)
+    
+    compiler   <- ~optModule.map(_.compiler).getOrElse(ModuleRef.JavaRef)
 
-      layer       <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.resources(_, project.id, 
-                         module.id))(_(_) ++= resource)
-      
-      _           <- ~Layer.save(layer, layout)
-      schema      <- layer.schemas.findBy(SchemaId.default)
-      _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
-    } yield log.await()
+    localSrcs  <- ~layout.pwd.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(".java")
+                      }.map(LocalSource(_, Glob.All))
+
+    sharedSrcs <- ~layout.sharedDir.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(
+                      ".java") }.map(SharedSource(_, Glob.All))
+
+    cli        <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
+    call       <- cli.call()
+    project    <- optProject.asTry
+    module     <- optModule.asTry
+    source     <- call(SourceArg)
+
+    layer      <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id, 
+                      module.id))(_(_) ++= Some(source))
+    
+    _          <- Layer.save(layer, layout)
+    schema      <- layer.schemas.findBy(SchemaId.default)
+    _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+  } yield log.await()
+}
+
+case class FrontEnd(cli: Cli)(implicit log: Log) {
+ 
+  lazy val layout: Try[Layout] = cli.layout
+  lazy val conf: Try[FuryConf] = layout >>= Layer.readFuryConf
+  lazy val layer: Try[Layer] = (layout, conf) >>= Layer.read
+  lazy val schema: Try[Schema] = layer >>= (_.schemas.findBy(SchemaId.default))
+
+  lazy val projectId: Try[ProjectId] = schema >>= (cli.preview(ProjectArg) orElse _.main.asTry)
+  lazy val project: Try[Project] = (schema, projectId) >>= (_.projects findBy _)
+  lazy val moduleId: Try[ModuleId] = project >>= (cli.preview(ModuleArg) orElse _.main.asTry)
+  lazy val module: Try[Module] = (project, moduleId) >>= (_.modules findBy _)
+
+  implicit val projectHints: ProjectArg.Hinter = ProjectArg.hint(schema >> (_.projects.map(_.id)))
+  implicit val moduleHints: ModuleArg.Hinter = ModuleArg.hint(project >> (_.modules.map(_.id)))
+  implicit val sourceHints: SourceArg.Hinter = SourceArg.hint(module >> (_.resources))
+  implicit val rawHints: RawArg.Hinter = RawArg.hint(())
+
+  implicit val showUnit: StringShow[Unit] = _ => "*"
+
+  lazy val resources: Try[SortedSet[Source]] = module >> (_.resources)
+
+  def resourcesLens(projectId: ProjectId, moduleId: ModuleId) =
+    Lens[Layer](_.schemas(on(SchemaId.default)).projects(on(projectId)).modules(on(moduleId)).resources)
+
+  lazy val resource: Try[Source] = cli.preview(SourceArg)
+
+  
+
+  private def removeFromSet[T](items: SortedSet[T], item: T): SortedSet[T] = items - item
+  private def addToSet[T](items: SortedSet[T], item: T): SortedSet[T] = items + item
+  private def finish[T](result: T): ExitStatus = log.await()
+
+  object Resources {
+    lazy val table = Tables().resources
+    implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(~table.headings.map(_.name.toLowerCase))
+    
+    def list: Try[ExitStatus] = {
+      (cli -< ProjectArg -< RawArg -< ModuleArg -< ColumnArg -< SourceArg).action { implicit call =>
+        val raw = RawArg().isSuccess
+        val column = ColumnArg().toOption
+        if(!raw) (conf, projectId, moduleId) >> (_.focus(_, _)) >> (log.info(_))
+
+        
+        resources >> (Tables().show(table, cli.cols, _, raw, column, resource.toOption, "source")) >>
+            (log.rawln(_)) >> finish
+      }
+    }
+
+    def remove: Try[ExitStatus] = {
+      implicit val sourceHints: SourceArg.Hinter = SourceArg.hint()
+      (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
+        val lens = (projectId, moduleId) >> resourcesLens
+        (resources, SourceArg()) >> removeFromSet >>= { resources =>
+          ((layer, lens) >> Lenses.set(resources), layout) >> Layer.save >> finish
+        }
+      }
+    }
+
+    def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
+      val lens = (projectId, moduleId) >> resourcesLens
+      (resources, SourceArg()) >> addToSet >>= { resources =>
+        ((layer, lens) >> Lenses.set(resources), layout) >> Layer.save >> finish
+      }
+    }
   }
 }

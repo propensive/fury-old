@@ -26,8 +26,4 @@ package object model {
   
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
-  
-  implicit class Ascribe[T](value: Option[T]) {
-    def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
-  }
 }

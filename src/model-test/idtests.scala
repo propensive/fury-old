@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.model._
+import fury.model._, fury.strings._
 import probably._
 
 import scala.language.implicitConversions
@@ -27,22 +27,22 @@ object IdTests extends TestApp {
   override def tests(): Unit = {
 
     test("binary ids") {
-      BinaryId.unapply("foo.bar:baz-quux_2.12:1.2.3-RC4").isEmpty &&
-      BinaryId.unapply("foo.bar:baz-quux_2.12").isEmpty &&
-      //BinaryId.unapply("baz-quux_2.12").isEmpty &&
-      BinaryId.unapply("baz-quux").isDefined
+      "foo.bar:baz-quux_2.12:1.2.3-RC4".as[BinaryId].isFailure &&
+      "foo.bar:baz-quux_2.12".as[BinaryId].isFailure &&
+      //"baz-quux_2.12".as[BinaryId].isFailure &&
+      "baz-quux".as[BinaryId].isSuccess
     }.assert(_ == true)
 
     test("binary specs") {
-      BinSpec.unapply("foo.bar:baz-quux_2.12:1.2.3-RC4").isDefined &&
-      BinSpec.unapply("foo.bar:baz-quux_2.12").isEmpty &&
-      BinSpec.unapply("baz-quux_2.12").isEmpty
+      "foo.bar:baz-quux_2.12:1.2.3-RC4".as[BinSpec].isSuccess &&
+      "foo.bar:baz-quux_2.12".as[BinSpec].isFailure &&
+      "baz-quux_2.12".as[BinSpec].isFailure
     }.assert(_ == true)
 
     test("repo ids") {
-      RepoId.unapply("foo").isDefined &&
-      RepoId.unapply("foo-bar-baz").isDefined &&
-      RepoId.unapply("foo-bar_baz").isEmpty
+      "foo".as[RepoId].isSuccess &&
+      "foo-bar-baz".as[RepoId].isSuccess &&
+      "foo-bar_baz".as[RepoId].isFailure
     }.assert(_ == true)
 
   }

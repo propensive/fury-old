@@ -21,7 +21,7 @@ import fury.strings._, fury.io._, fury.model._
 import annotation.tailrec
 import optometry.Lens
 
-object Graph {
+object UiGraph {
   final private val North = 8
   final private val East  = 4
   final private val South = 2
@@ -46,20 +46,48 @@ object Graph {
       if(state == Failed) this else CompilationInfo(Successful(None), msgs)
   }
 
-  sealed trait CompileState
-  case class Compiling(progress: Double)         extends CompileState
-  case object AlreadyCompiled                    extends CompileState
-  case class Successful(content: Option[String]) extends CompileState
-  case object Failed                             extends CompileState
-  case object Skipped                            extends CompileState
-  case object Executing                          extends CompileState
+  object Key {
+    implicit def apply[T: MsgShow: StringShow](v: T): Key = apply(v, false)
+    def apply[T: MsgShow: StringShow](v: T, hide: Boolean = false): Key = new Key {
+      protected type Type = T
+      protected val value: Type = v
+      protected val show: StringShow[Type] = implicitly
+      protected val msgShow: MsgShow[Type] = implicitly
+      val hidden = hide
+    }
+  }
+
+  trait Key {
+    protected type Type
+    protected val value: Type
+    protected val show: StringShow[Type]
+    protected val msgShow: MsgShow[Type]
+    def userMsg: UserMsg = msgShow.show(value)
+    def string: String = show.show(value)
+    def hidden: Boolean
+
+    override def equals(that: Any): Boolean = that match {
+      case that: Key => that.value == value
+      case _              => false
+    }
+    
+    override def hashCode: Int = value.hashCode
+  }
+
+  sealed abstract class CompileState(val completion: Double)
+  case class Compiling(progress: Double)         extends CompileState(progress)
+  case object AlreadyCompiled                    extends CompileState(1.0)
+  case class Successful(content: Option[String]) extends CompileState(1.0)
+  case object Failed                             extends CompileState(0.0)
+  case object Skipped                            extends CompileState(1.0)
+  case object Executing                          extends CompileState(1.0)
 
   private case class GraphState(changed: Boolean,
-                        graph: Map[ModuleRef, Set[ModuleRef]],
+                        graph: Map[Key, Set[Key]],
                         stream: Iterator[CompileEvent],
-                        compilationLogs: Map[ModuleRef, CompilationInfo])(implicit log: Log) {
+                        compilationLogs: Map[Key, CompilationInfo])(implicit log: Log) {
 
-    def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
+    def updateCompilationLog(ref: Key, f: CompilationInfo => CompilationInfo): GraphState = {
       val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), msgs = Nil))
       this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)), changed = true)
     }
@@ -79,6 +107,15 @@ object Graph {
             log.raw("\n")
             log.raw(Ansi.up(graph.size + 1)())
             log.raw("\n")
+            val completion = graphState.compilationLogs.values.map(_.state.completion).sum/graphState.compilationLogs.size
+            
+            val current = graphState.compilationLogs.collect { case (r, s) if s.state.isInstanceOf[Compiling] =>
+                str"${r.string}" }.to[List].sorted.join(", ")
+
+            log.raw { Ansi.title {
+              if(!current.isEmpty) str"Fury: Building ${(completion*100).toInt}% ($current)" else str"Fury"
+            } }
+
             log.flush()
           }
           graphState.copy(changed = false)
@@ -120,10 +157,7 @@ object Graph {
           case CompilationInfo(Failed | Successful(_), out) if !out.isEmpty =>
             log.info(UserMsg { theme =>
               List(
-                msg"Output from ",
-                msg"${ref.projectId}",
-                msg"${'/'}",
-                msg"${ref.moduleId}"
+                msg"Output from ${ref.userMsg}",
               ).map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
             out.foreach { msg => log.info(msg.msg) }
@@ -134,25 +168,25 @@ object Graph {
   }
 
 
-  def live(graph: Map[ModuleRef, Set[ModuleRef]],
+  def live(graph: Map[Key, Set[Key]],
            stream: Iterator[CompileEvent])
           (implicit log: Log, theme: Theme)
           : Unit = {
     live(GraphState(changed = true, graph, stream, Map()))
   }
 
-  def draw(graph: Map[ModuleRef, Set[ModuleRef]],
+  def draw(graph: Map[Key, Set[Key]],
            describe: Boolean,
-           state: Map[ModuleRef, CompilationInfo] = Map())
+           state: Map[Key, CompilationInfo] = Map())
           (implicit theme: Theme)
           : Vector[String] = {
-    def sort(todo: Map[ModuleRef, Set[ModuleRef]], done: List[ModuleRef]): List[ModuleRef] =
+    def sort(todo: Map[Key, Set[Key]], done: List[Key]): List[Key] =
       if(todo.isEmpty) done else {
         val node = todo.find { case (k, v) => (v -- done).isEmpty }.get._1
         sort((todo - node).mapValues(_.filter(_ != node)), node :: done)
       }
 
-    val nodes: List[(ModuleRef, Int)] = sort(graph, Nil).reverse.zipWithIndex
+    val nodes: List[(Key, Int)] = sort(graph, Nil).reverse.zipWithIndex
 
     val array: Array[Array[Char]] =
       Array.range(0, nodes.length).map { len =>
@@ -177,14 +211,10 @@ object Graph {
     }
 
     val namedLines = array.zip(nodes).map {
-      case (chs, (moduleRef, _)) =>
-        val ModuleRef(ProjectId(p), ModuleId(m), _, hidden) = moduleRef
-        val text =
-          if(describe || state.get(moduleRef).exists(_.state.isInstanceOf[Compiling]))
-            theme.project(p) + theme.gray("/") + theme.module(m)
-          else theme.projectDark(p) + theme.gray("/") + theme.moduleDark(m)
+      case (chs, (key, _)) =>
+        val text: UserMsg = key.userMsg
 
-        val errors = state.get(moduleRef) match {
+        val errors = state.get(key) match {
           case Some(CompilationInfo(Failed, msgs)) =>
             val count = str"${msgs.size}"
             theme.failure(str"${"■"*((9 - count.length)/2)} ${count} ${"■"*((8 - count.length)/2)}")
@@ -200,9 +230,9 @@ object Graph {
             theme.gray("■"*10)
           case _ => theme.bold(theme.failure("          "))
         }
-        val name = if(state.get(moduleRef) == Some(Skipped)) theme.strike(text) else text
+        val name = if(state.get(key) == Some(Skipped)) theme.strike(text.string(theme)) else text.string(theme)
         val errorsAnsi = if(describe) msg"   " else msg" ${'['}$errors${']'}"
-        (msg"${chs.filter(_ != '.').mkString} $name ", errorsAnsi, p.length + m.length + 4)
+        (msg"${chs.filter(_ != '.').mkString} $name ", errorsAnsi, text.length + 3)
     }
 
     val maxStrippedLength = namedLines.zipWithIndex.map { case ((_, _, len), idx) => len + idx*2 }.max + 4

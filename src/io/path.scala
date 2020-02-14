@@ -94,8 +94,14 @@ case class Path(input: String) {
     finally filesStream.close()
   }
 
+  def size: ByteSize = ByteSize(javaFile.length)
+
   def setReadOnly(): Try[Unit] = childPaths.traverse(_.setReadOnly()).flatMap { _ =>
     Try(javaFile.setReadOnly().unit)
+  }
+
+  def setWritable(): Try[Unit] = Try(javaFile.setWritable(true).unit).flatMap { _ =>
+    childPaths.traverse(_.setWritable()).map(_.unit)
   }
 
   def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
@@ -156,17 +162,12 @@ case class Path(input: String) {
     Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
-  def writeSync(content: String): Try[Unit] = Try {
-    val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
-    writer.write(content)
-    Success(writer.close())
-  }.transform(identity, e => Failure(FileWriteError(this, e)))
-
-  def appendSync(content: String): Try[Unit] = Try {
-    val writer = new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile))
-    writer.append(content)
-    Success(writer.close())
-  }.transform(identity, e => Failure(FileWriteError(this, e)))
+  def writeSync(content: String, append: Boolean = false): Try[Unit] = {
+    val writer = Try { new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append)) }
+    val result = writer.flatMap{ w => Try(w.write(content)) }
+    writer.foreach(_.close())
+    result.recoverWith { case e => Failure(FileWriteError(this, e)) }
+  }
 
   def copyTo(path: Path): Try[Path] = Try {
     Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))
@@ -197,6 +198,7 @@ case class Path(input: String) {
     this
   }.recover { case e: java.io.IOException => this }
 
+  //TODO consider wrapping into a buffered stream
   def inputStream(): InputStream = Files.newInputStream(javaPath)
 }
 
@@ -205,7 +207,7 @@ object Glob {
   implicit val stringShow: StringShow[Glob] = _.pattern
   implicit val diff: Diff[Glob] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
 
-  val All = Glob("**/*")
+  val All = Glob("**")
 }
 
 case class Glob(pattern: String) {
@@ -219,7 +221,18 @@ case class Glob(pattern: String) {
   }
 }
 
+object ByteSize {
+  implicit val msgShow: MsgShow[ByteSize] = fs => UserMsg(_.number(str"${Strings.magnitude(fs.bytes, "B")}"))
+  implicit val stringShow: StringShow[ByteSize] = fs => str"${Strings.magnitude(fs.bytes, "B")}"
+}
+
+case class ByteSize(bytes: Long) {
+  def +(that: ByteSize): ByteSize = ByteSize(bytes + that.bytes)
+}
+
 case class FileNotFound(path: Path)      extends FuryException
-case class FileWriteError(path: Path, e: Throwable) extends FuryException
+case class FileWriteError(path: Path, e: Throwable) extends FuryException {
+  override def getCause: Throwable = e
+}
 case class ConfigFormatError(path: Path) extends FuryException
 case class ZipfileEntry(name: String, inputStream: () => java.io.InputStream)

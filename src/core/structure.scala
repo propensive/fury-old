@@ -20,35 +20,38 @@ import fury.strings._, fury.model._
 
 import scala.util._
 
-sealed trait MenuStructure[T] {
+sealed trait MenuStructure {
   def command: Symbol
   def description: UserMsg
   def show: Boolean
   def shortcut: Char
+  def needsLayer: Boolean
 }
 
-case class Action[T](
+case class Action(
     command: Symbol,
     description: UserMsg,
-    action: T => Try[ExitStatus],
+    action: Cli => Try[ExitStatus],
     show: Boolean = true,
-    shortcut: Char = '\u0000')
-    extends MenuStructure[T]
+    shortcut: Char = '\u0000',
+    needsLayer: Boolean = true)
+    extends MenuStructure
 
-case class Menu[T, S](
+case class Menu(
     command: Symbol,
     description: UserMsg,
-    action: T => Try[S],
     default: Symbol,
     show: Boolean = true,
-    shortcut: Char = '\u0000'
-  )(val items: MenuStructure[S]*)
-    extends MenuStructure[T] {
+    shortcut: Char = '\u0000',
+    needsLayer: Boolean = true,
+  )(val items: MenuStructure*)
+    extends MenuStructure {
 
-  def apply(cli: Cli[CliParam[_]], ctx: T): Try[ExitStatus] =
+  def apply(cli: Cli, ctx: Cli): Try[ExitStatus] = {
+    val hasLayer: Boolean = cli.layout.map(_.confFile.exists).getOrElse(false)
     cli.args.prefix.headOption match {
       case None =>
-        if(cli.completion) cli.completeCommand(this)
+        if(cli.completion) cli.completeCommand(this, hasLayer)
         else apply(cli.prefix(default.name), ctx)
       case Some(next) =>
         val cmd = items.find(_.command.name == next.value).orElse {
@@ -58,14 +61,15 @@ case class Menu[T, S](
 
         cmd match {
           case None =>
-            if(cli.completion) cli.completeCommand(this)
+            if(cli.completion) cli.completeCommand(this, hasLayer)
             else Failure(UnknownCommand(next.value))
           case Some(item @ Menu(_, _, _, _, _, _)) =>
-            action(ctx).flatMap(item(cli.tail, _))
-          case Some(item @ Action(_, _, _, _, _)) =>
-            action(ctx).flatMap(item.action)
+            item(cli.tail, cli)
+          case Some(item @ Action(_, _, _, _, _, _)) =>
+            item.action(cli)
         }
     }
+  }
 
   def reference(implicit theme: Theme): Seq[String] = {
 
@@ -79,10 +83,10 @@ case class Menu[T, S](
 
     val shownItems = items.filter(_.show)
     val width      = 12
-    shownItems.sortBy { case _: Action[_] => 0; case _ => 1 }.flatMap {
-      case item: Action[_] =>
+    shownItems.sortBy { case _: Action => 0; case _ => 1 }.flatMap {
+      case item: Action =>
         List(msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme))
-      case item: Menu[_, _] =>
+      case item: Menu =>
         "" +: msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme) +:
           item.reference.map("  " + _)
     }

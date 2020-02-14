@@ -27,204 +27,201 @@ import scala.util._
 
 import Lenses._
 
-object RepoCli {
+case class RepoCli(cli: Cli)(implicit log: Log) {
 
-  case class Context(cli: Cli[CliParam[_]], layout: Layout, layer: Layer, conf: FuryConf)
-  
-  def context(cli: Cli[CliParam[_]])(implicit log: Log) = for {
+  def list: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
+    cli       <- cli.hint(RawArg)
+    table     <- ~Tables().repositories(layout)
+    cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    schemaArg <- ~SchemaId.default
+    schema    <- layer.schemas.findBy(schemaArg)
+    cli       <- cli.hint(RepoArg, schema.repos.map(_.id))
+    call      <- cli.call()
+    raw       <- ~call(RawArg).isSuccess
+    repoId    <- ~cli.peek(RepoArg)
+    col       <- ~cli.peek(ColumnArg)
+    rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
+    table     <- ~Tables().show(table, cli.cols, rows, raw, col, repoId, "repo")
+    _         <- ~log.infoWhen(!raw)(conf.focus())
+    _         <- ~log.rawln(table)
+  } yield log.await()
+
+  def unfork: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.read(layout, conf)
-  } yield Context(cli, layout, layer, conf)
+    schemaArg <- ~SchemaId.default
+    schema    <- layer.schemas.findBy(schemaArg)
+    cli       <- cli.hint(RepoArg, schema.repos)
+    call      <- cli.call()
+    repoId    <- call(RepoArg)
+    repo      <- schema.repos.findBy(repoId)
+    _         <- repo.isForked()
+    newRepo   <- repo.unfork(layout, true)
+    lens      <- ~Lenses.layer.repos(schema.id)
+    layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+    _         <- Layer.save(layer, layout)
+  } yield log.await()
 
-  def list(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli       <- cli.hint(RawArg)
-      call     <- cli.call()
-      raw       <- ~call(RawArg).isSuccess
-      schemaArg <- ~SchemaId.default
-      schema    <- ctx.layer.schemas.findBy(schemaArg)
-      rows      <- ~schema.allRepos(layout).to[List].sortBy(_.id)
-      table     <- ~Tables().show(Tables().repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~log.infoWhen(!raw)(conf.focus())
-      _         <- ~log.rawln(table.mkString("\n"))
-    } yield log.await()
-  }
+  def fork: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+    schemaArg <- ~SchemaId.default
+    schema    <- layer.schemas.findBy(schemaArg)
+    cli       <- cli.hint(DirArg)
+    cli       <- cli.hint(RepoArg, schema.repos)
+    cli       <- cli.hint(HttpsArg)
+    call     <- cli.call()
+    repoId    <- call(RepoArg)
+    repo      <- schema.repos.findBy(repoId)
+    dir       <- call(DirArg)
+    https     <- ~call(HttpsArg).isSuccess
+    bareRepo  <- repo.repo.fetch(layout, https)
+    absPath   <- { for {
+                    absPath <- ~(layout.pwd.resolve(dir))
+                    _       <- Try(absPath.mkdir())
 
-  def unfork(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      schemaArg <- ~SchemaId.default
-      schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(RepoArg, schema.repos)
-      call      <- cli.call()
-      repoId    <- call(RepoArg)
-      repo      <- schema.repos.findBy(repoId)
-      _         <- repo.isForked()
-      newRepo   <- repo.unfork(layout, true)
-      lens      <- ~Lenses.layer.repos(schema.id)
-      layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(layer, layout)
-    } yield log.await()
-  }
+                    _       <- if(absPath.empty) Success(())
+                              else Failure(new Exception("Non-empty dir exists"))
 
-  def fork(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      schemaArg <- ~SchemaId.default
-      schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(DirArg)
-      cli       <- cli.hint(RepoArg, schema.repos)
-      cli       <- cli.hint(HttpsArg)
-      call     <- cli.call()
-      repoId    <- call(RepoArg)
-      repo      <- schema.repos.findBy(repoId)
-      dir       <- call(DirArg)
-      https     <- ~call(HttpsArg).isSuccess
-      bareRepo  <- repo.repo.fetch(layout, https)
-      absPath   <- { for {
-                     absPath <- ~(layout.pwd.resolve(dir))
-                     _       <- Try(absPath.mkdir())
+                  } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
-                     _       <- if(absPath.empty) Success(())
-                                else Failure(new Exception("Non-empty dir exists"))
+    _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
+                      repo.commit.id, Some(repo.repo.universal(false)))
 
-                   } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+    newRepo   <- ~repo.copy(local = Some(absPath))
+    lens      <- ~Lenses.layer.repos(schema.id)
+    layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+    _         <- Layer.save(layer, layout)
+  } yield log.await()
 
-      _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
-                       repo.commit.id, Some(repo.repo.universal(false)))
+  def pull: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+    cli       <- cli.hint(HttpsArg)
+    schemaArg <- ~SchemaId.default
+    schema    <- layer.schemas.findBy(schemaArg)
+    cli       <- cli.hint(RepoArg, schema.repos)
+    cli       <- cli.hint(AllArg, List[String]())
+    call      <- cli.call()
+    https     <- ~call(HttpsArg).isSuccess
+    all       <- ~call(AllArg).toOption
+    
+    optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
+                      schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
 
-      newRepo   <- ~repo.copy(local = Some(absPath))
-      lens      <- ~Lenses.layer.repos(schema.id)
-      layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(layer, layout)
-    } yield log.await()
-  }
+    repos     <- optRepos.map(schema.repo(_, layout)).sequence
+    succeeded <- ~repos.map(_.pull(layout, https)).forall(_.isSuccess)
+    lens      <- ~Lenses.layer.repos(schema.id)
 
-  def pull(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli       <- cli.hint(HttpsArg)
-      schemaArg <- ~SchemaId.default
-      schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(RepoArg, schema.repos)
-      cli       <- cli.hint(AllArg, List[String]())
-      call      <- cli.call()
-      https     <- ~call(HttpsArg).isSuccess
-      all       <- ~call(AllArg).toOption
-      
-      optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
-                       schema.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
+    newRepos  <- repos.map { repo => for {
+                    commit  <- repo.repo.getCommitFromTag(layout, repo.track)
+                    newRepo = repo.copy(commit = commit)
+                  } yield (newRepo, repo) }.sequence
 
-      repos     <- optRepos.map(schema.repo(_, layout)).sequence
-      succeeded <- ~repos.map(_.pull(layout, https)).forall(_.isSuccess)
-      lens      <- ~Lenses.layer.repos(schema.id)
+    newLayer   = newRepos.foldLeft(layer) { (layer, repoDiff) => repoDiff match {
+                    case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
+                  }
 
-      newRepos  <- repos.map { repo => for {
-                      commit  <- repo.repo.getCommitFromTag(layout, repo.track)
-                      newRepo = repo.copy(commit = commit)
-                   } yield (newRepo, repo) }.sequence
+    _         <- Layer.save(newLayer, layout)
 
-      newLayer   = newRepos.foldLeft(layer) { (layer, repoDiff) => repoDiff match {
-                     case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
-                   }
+    _         <- ~newRepos.foreach { case (newRepo, _) =>
+                    log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
+                  }
 
-      _         <- ~Layer.save(newLayer, layout)
+  } yield log.await()
 
-      _         <- ~newRepos.foreach { case (newRepo, _) =>
-                     log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
-                   }
+  def add: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+    cli            <- cli.hint(UrlArg, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
+    cli            <- cli.hint(DirArg)
+    cli            <- cli.hint(HttpsArg)
+    projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)
+    cli            <- cli.hint(RepoNameArg, projectNameOpt)
+    remoteOpt      <- ~cli.peek(UrlArg)
+    repoOpt        <- ~remoteOpt.map(Repo(_))
+    
+    versions       <- repoOpt.map { repo =>
+                        Shell(layout.env).git.lsRemote(Repo.fromString(repo.ref, true))
+                      }.to[List].sequence.map(_.flatten).recover { case e => Nil }
 
-    } yield log.await()
-  }
+    cli            <- cli.hint(RefSpecArg, versions)
+    call          <- cli.call()
+    optSchemaArg   <- ~Some(SchemaId.default)
+    schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
+    schema         <- layer.schemas.findBy(schemaArg)
+    dir            <- ~call(DirArg).toOption
+    https          <- ~call(HttpsArg).isSuccess
+    refSpec        <- ~call(RefSpecArg).toOption.getOrElse(RefSpec.master)
+    urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
+    repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+    suggested      <- repo.projectName
+    _              <- repo.fetch(layout, https)
 
-  def add(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli            <- cli.hint(UrlArg, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
-      cli            <- cli.hint(DirArg)
-      cli            <- cli.hint(HttpsArg)
-      projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)
-      cli            <- cli.hint(RepoNameArg, projectNameOpt)
-      remoteOpt      <- ~cli.peek(UrlArg)
-      repoOpt        <- ~remoteOpt.map(Repo(_))
-      
-      versions       <- repoOpt.map { repo =>
-                          Shell(layout.env).git.lsRemote(Repo.fromString(repo.ref, true))
-                        }.to[List].sequence.map(_.flatten).recover { case e => Nil }
+    commit         <- repo.getCommitFromTag(layout, refSpec).toOption.ascribe(
+                          exoskeleton.InvalidArgValue("refspec", refSpec.id))
 
-      cli            <- cli.hint(RefSpecArg, versions)
-      call          <- cli.call()
-      optSchemaArg   <- ~Some(SchemaId.default)
-      schemaArg      <- ~optSchemaArg.getOrElse(layer.main)
-      schema         <- layer.schemas.findBy(schemaArg)
-      dir            <- ~call(DirArg).toOption
-      https          <- ~call(HttpsArg).isSuccess
-      refSpec        <- ~call(RefSpecArg).toOption.getOrElse(RefSpec.master)
-      urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
-      repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
-      suggested      <- repo.projectName
-      _              <- repo.fetch(layout, https)
+    nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
+    sourceRepo     <- ~SourceRepo(nameArg, repo, refSpec, commit, dir)
+    lens           <- ~Lenses.layer.repos(schema.id)
+    layer          <- ~(lens.modify(layer)(_ + sourceRepo))
+    _              <- Layer.save(layer, layout)
+  } yield log.await()
 
-      commit         <- repo.getCommitFromTag(layout, refSpec).toOption.ascribe(
-                            exoskeleton.InvalidArgValue("refspec", refSpec.id))
+  def update: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+    cli         <- cli.hint(DirArg)
+    cli         <- cli.hint(UrlArg)
+    cli         <- cli.hint(ForceArg)
+    schemaArg   <- ~SchemaId.default
+    schema      <- layer.schemas.findBy(schemaArg)
+    cli         <- cli.hint(RepoArg, schema.repos)
+    optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
+    refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
+    cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
+    call        <- cli.call()
+    optSchemaId <- ~Some(SchemaId.default)
+    schemaArg   <- ~optSchemaId.getOrElse(layer.main)
+    schema      <- layer.schemas.findBy(schemaArg)
+    repoArg     <- call(RepoArg)
+    repo        <- schema.repos.findBy(repoArg)
+    dir         <- ~call(DirArg).toOption
+    refSpec     <- ~call(RefSpecArg).toOption
+    remoteArg   <- ~call(UrlArg).toOption
+    remote      <- ~remoteArg.map(Repo(_))
+    nameArg     <- ~call(RepoNameArg).toOption
+    force       <- ~call(ForceArg).isSuccess
+    focus       <- ~Lenses.focus()
+    layer       <- ~(focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote)
+    layer       <- ~(focus(layer, _.lens(_.repos(on(repo.id)).track)) = refSpec)
+    layer       <- ~(focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_)))
+    layer       <- ~(focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg)
+    commit      <- refSpec.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
+    layer       <- ~(focus(layer, _.lens(_.repos(on(repo.id)).commit)) = Some(commit))
+    _           <- Layer.save(layer, layout)
+  } yield log.await()
 
-      nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
-      sourceRepo     <- ~SourceRepo(nameArg, repo, refSpec, commit, dir)
-      lens           <- ~Lenses.layer.repos(schema.id)
-      layer          <- ~(lens.modify(layer)(_ + sourceRepo))
-      _              <- ~Layer.save(layer, layout)
-    } yield log.await()
-  }
-
-  def update(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      cli         <- cli.hint(DirArg)
-      cli         <- cli.hint(UrlArg)
-      cli         <- cli.hint(ForceArg)
-      schemaArg   <- ~SchemaId.default
-      schema      <- layer.schemas.findBy(schemaArg)
-      cli         <- cli.hint(RepoArg, schema.repos)
-      optRepo     <- ~cli.peek(RepoArg).flatMap(schema.repos.findBy(_).toOption)
-      refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
-      cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
-      call        <- cli.call()
-      optSchemaId <- ~Some(SchemaId.default)
-      schemaArg   <- ~optSchemaId.getOrElse(layer.main)
-      schema      <- layer.schemas.findBy(schemaArg)
-      repoArg     <- call(RepoArg)
-      repo        <- schema.repos.findBy(repoArg)
-      dir         <- ~call(DirArg).toOption
-      refSpec     <- ~call(RefSpecArg).toOption
-      remoteArg   <- ~call(UrlArg).toOption
-      remote      <- ~remoteArg.map(Repo(_))
-      nameArg     <- ~call(RepoNameArg).toOption
-      force       <- ~call(ForceArg).isSuccess
-      focus       <- ~Lenses.focus(optSchemaId, force)
-      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).repo)) = remote
-      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = refSpec
-      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
-      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      commit      <- refSpec.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
-      layer       <- focus(layer, _.lens(_.repos(on(repo.id)).commit)) = Some(commit)
-      _           <- ~Layer.save(layer, layout)
-    } yield log.await()
-  }
-
-  def remove(ctx: Context)(implicit log: Log): Try[ExitStatus] = {
-    import ctx._
-    for {
-      schemaArg <- ~SchemaId.default
-      schema    <- layer.schemas.findBy(schemaArg)
-      cli       <- cli.hint(RepoArg, schema.repos)
-      call     <- cli.call()
-      repoId    <- call(RepoArg)
-      repo      <- schema.repos.findBy(repoId)
-      lens      <- ~Lenses.layer.repos(schema.id)
-      layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(layer, layout)
-    } yield log.await()
-  }
+  def remove: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+    schemaArg <- ~SchemaId.default
+    schema    <- layer.schemas.findBy(schemaArg)
+    cli       <- cli.hint(RepoArg, schema.repos)
+    call      <- cli.call()
+    repoId    <- call(RepoArg)
+    repo      <- schema.repos.findBy(repoId)
+    lens      <- ~Lenses.layer.repos(schema.id)
+    layer     <- ~(lens(layer) -= repo)
+    _         <- Layer.save(layer, layout)
+  } yield log.await()
 }
