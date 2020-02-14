@@ -17,7 +17,6 @@
 package fury.io
 
 import fury.strings._
-
 import kaleidoscope._
 import mercator._
 
@@ -25,13 +24,11 @@ import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.util._
 import scala.collection.generic.CanBuildFrom
-
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath,
-    FileSystems}
+import java.nio.file.{ FileSystems, FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath }
 import java.nio.file.StandardCopyOption._
-import java.io.{InputStream, File => JavaFile}
+import java.io.{ Closeable, InputStream, File => JavaFile }
 
 object Path {
 
@@ -163,10 +160,9 @@ case class Path(input: String) {
   }
 
   def writeSync(content: String, append: Boolean = false): Try[Unit] = {
-    val writer = Try { new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append)) }
-    val result = writer.flatMap{ w => Try(w.write(content)) }
-    writer.foreach(_.close())
-    result.recoverWith { case e => Failure(FileWriteError(this, e)) }
+    tryWith(new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append))){ writer =>
+      writer.write(content)
+    }.recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
   def copyTo(path: Path): Try[Path] = Try {
@@ -200,6 +196,13 @@ case class Path(input: String) {
 
   //TODO consider wrapping into a buffered stream
   def inputStream(): InputStream = Files.newInputStream(javaPath)
+
+  private def tryWith[R <: Closeable, T](resource: => R)(f: R => T): Try[T] = {
+    val res = Try { resource }
+    val result = res.flatMap{ r => Try(f(r)) }
+    val closed = res.flatMap{ r => Try(r.close()) }
+    List(res, closed, result).sequence.map(_ => result.get)
+  }
 }
 
 object Glob {
