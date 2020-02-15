@@ -20,63 +20,103 @@ import fury.strings._, fury.model._, fury.io._
 
 import mercator._
 
-import scala.collection.mutable._
+import scala.collection.mutable.HashMap
 import scala.concurrent._
 import scala.util._
 
-abstract class Task(id: UserMsg) {
+case class TaskId(id: UserMsg)
+
+abstract class Task() {
   type Point
   type Result
-  def internet: Option[Boolean]
+  def network: Option[Boolean]
   def dependencies: List[Task]
   def init(inputs: Seq[Task]): Option[Point]
-  def run(point: Point): Try[Result]
-  def cancel(point: Point): Unit
+  def run(point: TaskContext[Point]): Try[Result]
+  def cancel(): Unit = TaskManager.cancel(this)
+  def subgraph: Map[TaskId, Set[TaskId]] = Map(TaskId(id), Set())
 }
 
-final case class Channel(id: Int) extends AnyVal
+final case class Channel(id: Int) extends AnyVal {
+  def suffix: String = if(id == 0) "" else s"_$id"
+}
+
+case class TaskContext[T](value: T) {
+  private var cancelled: Boolean = false
+  def progress(x: Double): Unit
+  def cancellation(fn: => Unit): Unit
+  def apply(): T = value
+}
 
 object TaskManager {
   private val tasks: HashMap[Task, Process[_]] = HashMap()
+
+  // There can be any number of Channels indexed on a path, 
   private val channels: HashMap[Path, Set[Channel]] = HashMap()
- 
-  def session(pwd: Path, channel: Channel, pid: Pid): Session = synchronized {
-    val current = channels.getOrElseUpdate(pwd, Set())
-    val channel = Stream.from(0).map(Channel(_)).find(!current.contains(_)).get
   
-    Session(channel, pwd, pid, Map())
+  // Sessions are indexed by PID
+  private val sessions: HashMap[Pid, Session] = HashMap()
+
+  private implicit val executionContext: ExecutionContext = ExecutionContext.global
+
+  private def unusedChannelFor(pwd: Path): Channel = synchronized {
+    val current = channels.getOrElseUpdate(pwd, Set())
+    Stream.from(0).map(Channel(_)).find(!current.contains(_)).get
   }
 
-  def run(task: Task): Process = {
+  def cancel(task: Task): Future[Unit] = ()
+
+  def session[T](pwd: Path, pid: Pid)(action: Session => T): T = {
+    val session: Session = Session(pwd, pid, Map())
+    TaskManager.synchronized { sessions(pid) = session }
+    val result: T = action(session)
+    close(session)
+    result
+  }
+
+  def run[T](context: TaskContext[T]): Process[T] =
     task.dependencies.traverse(run(_).future).flatMap(task.future)
-  }
 
-  def close(session: Session) = synchronized {
+  def close(session: Session) = TaskManager.synchronized {
     channels(session.pwd) -= session.channel
-    sessions(session.pid) -= session
+    sessions -= session.pid
   }
 
   def terminate(pid: Pid) = sessions.get(pid).foreach { session => }
-  
-  case class Session(channel: Channel, pwd: Path, pid: Pid, dependencies: Map[Task, Set[Task]]) {
+
+
+  object Session {
+    def apply(pwd: Path, pid: Pid, id: TaskId): Session = Session(pwd, pid, Map(id -> Set()))
+  }
+
+  case class Session(pwd: Path, pid: Pid, dependencies: Map[TaskId, Set[TaskId]]) {
+    
+    lazy val channel: Channel = TaskManager.synchronized {
+      val currentChannels = channels(pwd)
+      Stream.from(0).map(Channel(_)).find(!current.contains(_)).get
+    }
+
     def active: List[Task]
     def dependencies(task: Task): Set[Task]
   }
 
-  private[task] class Process(block: => Result) {
-    type Point
-    type Result
+  private[task] class Process[Result](block: => Result) {
+    val started: Long = System.currentTimeMillis
+    val finished: Promise[Long] = Promise()
     lazy val future: Future[Result] = Future(blocking(block))
+
     def apply(): Result = Await.result(future, duration.Duration.Inf)
   }
 }
 
 
-/*
-case class DownloadBinary(binary: Binary) extends Task(msg"$binary") {
-
+case class DownloadBinary(binary: String) extends Task(id: TaskId) {
+  def run(context: TaskContext): Process[Path] = Process {
+    
+  }
 }
 
+/*
 case class StartIpfs() extends Task(msg"Starting IPFS") {
 
 }
