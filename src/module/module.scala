@@ -285,7 +285,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
+    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries.map(_.id)))
     cli         <- cli.hint(VersionArg)
     call        <- cli.call()
     binaryArg   <- call(BinaryArg)
@@ -320,7 +320,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries))
+    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries.map(_.id)))
     call        <- cli.call()
     binaryArg   <- call(BinaryArg)
     project     <- optProject.asTry
