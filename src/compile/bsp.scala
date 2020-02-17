@@ -286,7 +286,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
     }
     get(allResults.map{ s =>
       toCompletableFuture(Future.successful {
-        CompileResult.merge(s.toList).bspCompileResult
+        CompileResult.merge(s.toList).asBsp
       })
     })
   }
