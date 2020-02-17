@@ -26,7 +26,7 @@ Starting compilation of module hello/core
 | not found: value va
 | object Constants { va x = "Hello World!" }
 Compilation of module hello/core failed
-One of the compile or run tasks failed. Check the logs for details.
+One of the compile tasks failed. Check the logs for details.
 1
 Starting compilation of module hello/core
 Successfully compiled module hello/core

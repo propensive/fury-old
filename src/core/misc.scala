@@ -17,6 +17,7 @@
 package fury.core
 
 import fury.model._, UiGraph.DiagnosticMessage, fury.io._, fury.ogdl._
+import fury.strings.FuryException
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 
@@ -55,24 +56,31 @@ case class StartRun(ref: ModuleRef)                              extends Compile
 case class StopRun(ref: ModuleRef)                               extends CompileEvent
 case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent
 
-case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: ScalacOptionsResult) {
-  def isSuccessful: Boolean = bspCompileResult.getStatusCode == StatusCode.OK
+case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: ScalacOptionsResult, exitCode: Option[Int] = None) {
+  def isSuccessful: Boolean = bspCompileResult.getStatusCode == StatusCode.OK && exitCode.forall(_ == 0)
+
   def classDirectories: Set[Path] = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
     Path(new URI(x.getClassDirectory))
   }
-  def asTry: Try[CompileResult] = if(isSuccessful) Success(this) else Failure(CompilationFailure())
-  def failed: CompileResult = {
-    val updatedResult = new BspCompileResult(StatusCode.ERROR)
-    updatedResult.setOriginId(bspCompileResult.getOriginId)
-    updatedResult.setDataKind(bspCompileResult.getDataKind)
-    updatedResult.setData(bspCompileResult.getData)
-    copy(bspCompileResult = updatedResult)
+
+  def asTry: Try[CompileResult] =
+    if (isSuccessful) Success(this)
+    else Failure(exitCode.fold[FuryException](CompilationFailure())(ExecutionFailure(_)))
+
+  def asBsp: BspCompileResult = {
+    println(bspCompileResult)
+    println(exitCode)
+    val bspResult = new BspCompileResult(if(exitCode.exists(_ != 0)) StatusCode.ERROR else bspCompileResult.getStatusCode)
+    bspResult.setOriginId(bspCompileResult.getOriginId)
+    bspResult.setDataKind(bspCompileResult.getDataKind)
+    bspResult.setData(bspCompileResult.getData)
+    bspResult
   }
 }
 
 object CompileResult {
   def merge(results: Iterable[CompileResult]): CompileResult = {
-    CompileResult(merge(results.map(_.bspCompileResult)), merge(results.map(_.scalacOptions)))
+    CompileResult(merge(results.map(_.bspCompileResult)), merge(results.map(_.scalacOptions)), merge(results.map(_.exitCode)))
   }
 
   private def merge(results: Iterable[BspCompileResult]): BspCompileResult = {
@@ -93,6 +101,12 @@ object CompileResult {
 
   private def merge(results: Iterable[ScalacOptionsResult]): ScalacOptionsResult = {
     new ScalacOptionsResult(results.flatMap(_.getItems.asScala).toList.asJava)
+  }
+
+  private def merge(exitCodes: Iterable[Option[Int]]): Option[Int] = {
+    val allCodes = exitCodes.flatten
+    if (allCodes.isEmpty) None
+    else allCodes.find(_ != 0).orElse(Some(0))
   }
 }
 
