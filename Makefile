@@ -96,7 +96,7 @@ dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/build.
 	$(FURYLOCAL) layer select -l /platform/jawn
 	$(FURYLOCAL) permission grant --module ast --project jawn -P b7a
 	$(FURYLOCAL) layer select -l /
-	$(FURYLOCAL) build save --https --output $(FURY_OUTPUT) --project fury --module frontend --dir $<
+	$(FURYLOCAL) build save --https --output $(FURY_OUTPUT) --project fury --module frontend --fat-jar --dir $<
 	jar -uf $@ .version
 
 dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% compile
