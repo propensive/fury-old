@@ -26,6 +26,7 @@ case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class DnsResolutionFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
+case class ExecutionFailure(exitCode: Int) extends FuryException
 case class GraalVMError(message: String) extends FuryException
 case class HistoryMissing() extends FuryException
 case class HistoryCorrupt() extends FuryException

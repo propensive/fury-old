@@ -625,8 +625,8 @@ case class Compilation(graph: Target.Graph,
     }.map {
       case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
         val classDirectories = compileResult.classDirectories
-        val runSuccess = run(target, classDirectories, layout, globalPolicy, args) == 0
-        if(runSuccess) compileResult else compileResult.failed
+        val exitCode = run(target, classDirectories, layout, globalPolicy, args)
+        compileResult.copy(exitCode = Some(exitCode))
       case otherResult =>
         otherResult
     }

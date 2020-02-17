@@ -123,7 +123,9 @@ You can grant these permissions with,
           cli.abort(
               msg"An error occurred while running: ${e.command}${"\n"}${e.stdout}${"\n"}${e.stderr}")
         case e: CompilationFailure =>
-          cli.abort(msg"One of the compile or run tasks failed. Check the logs for details.")
+          cli.abort(msg"One of the compile tasks failed. Check the logs for details.")
+        case ExecutionFailure(exitCode) =>
+          cli.abort(msg"One of the run tasks failed (exit code $exitCode). Check the logs for details.")
         case e: ModuleAlreadyExists =>
           cli.abort(msg"The module '${e.module}' already exists.")
         case e: ProjectAlreadyExists =>
