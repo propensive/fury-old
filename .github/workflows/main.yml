@@ -25,7 +25,7 @@ jobs:
       timeout-minutes: 5
     - name: Package compilation logs
       if: failure()
-      run: find . -type f -name '*.log' | tar cvzf compilation-logs.tar.gz --files-from -
+      run: find ~ -type f -name '*.log' | tar cvzf compilation-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1.0.0
       with:
         name: compilation-logs-${{ runner.os }}
@@ -37,7 +37,7 @@ jobs:
         ! ls -1 unittests.failed 2> /dev/null
       timeout-minutes: 5
     - name: Package unit test logs
-      run: find . -type f -name '*.log' | tar cvzf unit-test-logs.tar.gz --files-from -
+      run: find ~/.cache/fury/logs -type f -name '*.log' | tar cvzf unit-test-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1.0.0
       with:
         name: unit-test-logs-${{ runner.os }}
@@ -62,7 +62,9 @@ jobs:
         ! ls -1 integration.failed 2> /dev/null
       timeout-minutes: 5
     - name: Package integration logs
-      run: find test -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
+      run: |
+        find test -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
+        find ~/.cache/fury/logs -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1.0.0
       with:
         name: integration-logs-${{ runner.os }}
@@ -73,7 +75,9 @@ jobs:
         ! ls -1 community.failed 2> /dev/null
       timeout-minutes: 10
     - name: Package community logs
-      run: find test -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
+      run: |
+        find test -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
+        find ~/.cache/fury/logs -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1.0.0
       with:
         name: community-logs-${{ runner.os }}
