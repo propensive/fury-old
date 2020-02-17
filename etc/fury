@@ -15,22 +15,11 @@ MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
-SCALA_VERSION="2.12.8"
-NAILGUN_VERSION="1.0.0"
-
-if [ "$XDG_RUNTIME_DIR" = "" ]; then
-  SCRIPT_DIR="/tmp/scripts"
-else
-  SCRIPT_DIR="$XDG_RUNTIME_DIR/scripts"
-fi
-
 
 trap cleanup INT
 
 cleanup() {
-  printf "\e[0m"
-  printf "\e[?25h"
-  silently fury "$$" interrupt
+  fury "$$" interrupt
 }
 
 nailgun() {
@@ -49,34 +38,6 @@ message() {
   if [ "$QUIET" = "0" ]; then
     printf "$1"
   fi
-}
-
-silently() {
-  #See https://unix.stackexchange.com/a/181938
-  #See https://stackoverflow.com/q/3838322
-  #See https://www.gnu.org/software/bash/manual/html_node/Command-Grouping.html
-
-  if [ "$DEBUG" = "1" ]; then
-    TMPFILE=$(mktemp "/tmp/fury.err.XXXXXX")
-    exec 3>"$TMPFILE"
-    exec 4<"$TMPFILE"
-    rm "$TMPFILE"
-    ( $@; ) 2>&3
-    EXITCODE=$?
-    [[ $EXITCODE -ne 0 ]] && (>&2 cat <&4)
-  else
-    "$@";
-    EXITCODE=$?
-  fi
-  case $EXITCODE in
-    0|1)
-      ;;
-    91)
-      source "${SCRIPT_DIR}/exec_$$"
-      rm "${SCRIPT_DIR}/exec_$$"
-      ;;
-  esac
-  exit $EXITCODE
 }
 
 coursier() {
@@ -136,7 +97,7 @@ startFuryStandalone() {
 
 case "$1" in
   "start")
-    silently ngServer
+    ngServer
     ;;
   "standalone")
     startFuryStandalone "${@:2}"
@@ -145,24 +106,24 @@ case "$1" in
     stopFury
     ;;
   "upgrade")
-    silently fury "$@"
+    fury "$@"
     killall fury > /dev/null
     ;;
   "restart")
-    silently restartFury
+    restartFury
     ;;
   "prompt")
-    silently fury "$@" || printf " %{\e[0;30m%}[ ]"
+    fury "$@" || printf " %{\e[0;30m%}[ ]"
     ;;
   "completion")
     QUIET=1
-    silently fury "$@" || printf "1:Command:((start:'start the Fury daemon'))\n"
+    fury "$@" || printf "1:Command:((start:'start the Fury daemon'))\n"
     ;;
   "--help")
-    silently fury "help"
+    fury "help"
     ;;
   *)
-    silently fury "$@"
+    fury "$@"
     res=$?
     cleanup
     exit $res
