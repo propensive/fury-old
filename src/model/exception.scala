@@ -21,6 +21,7 @@ import fury.strings._, fury.io._
 case class AlreadyInitialized() extends FuryException
 case class BspException() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
+case class CantWatchAndWait() extends FuryException
 case class CompilationFailure() extends FuryException
 case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException

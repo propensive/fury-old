@@ -29,14 +29,18 @@ trait Repeater[Res]{
   def repeatCondition(): Boolean
   def action(): Res
 
+  def continue(res: Res): Boolean
+
   def delayMillis: Long = 100
 
   def start(): Res = {
-    val retries = Iterator.iterate[(Boolean, Res)](false -> action()) { case (stopped, prev) =>
+    Iterator.iterate[(Boolean, Res)](false -> action()) { case (stopped, prev) =>
       Thread.sleep(delayMillis)
-      if(!Thread.currentThread.isInterrupted && repeatCondition() && !stopped) false -> action() else stopped -> prev
-    }
-    retries.dropWhile(!_._1).next()._2
+      if(!Thread.currentThread.isInterrupted && repeatCondition() && !stopped) {
+        val result = action()
+        !continue(result) -> result
+      } else stopped -> prev
+    }.dropWhile(!_._1).next()._2
   }
 }
 

@@ -265,11 +265,16 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     log.await(success)
   }
 
+  def onlyOne(watch: Boolean, wait: Boolean): Try[Unit] =
+    if(watch && wait) Failure(CantWatchAndWait()) else Success(())
+
   def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.read(layout, conf)
     cli            <- cli.hint(HttpsArg)
+    cli            <- cli.hint(WaitArg)
+    cli            <- cli.hint(WatchArg)
     schemaArg      <- ~SchemaId.default
     schema         <- layer.schemas.findBy(schemaArg)
     cli            <- cli.hint(ProjectArg, schema.projects)
@@ -292,49 +297,50 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     globalPolicy   <- ~Policy.read(log)
     reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     watch          =  call(WatchArg).isSuccess
+    waiting        =  call(WaitArg).isSuccess
+    _              <- onlyOne(watch, waiting)
     compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
-    r              =  repeater[Try[Future[CompileResult]]](compilation.allSources) { _: Unit =>
+    r              =  repeater(compilation.allSources, waiting) {
       for {
         task <- compileOnce(compilation, schema, module.ref(project), layout,
           globalPolicy, if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
       } yield {
         task.transform { completed =>
-          for{
+          for {
             compileResult  <- completed
             compileSuccess <- compileResult.asTry
-            _              <- ~(dir.foreach { dir => compilation.saveJars(module.ref(project), compileSuccess.classDirectories,
-                                  dir in layout.pwd, layout, fatJar)
+            _              <- ~(dir.foreach { dir => compilation.saveJars(module.ref(project),
+                                  compileSuccess.classDirectories, dir in layout.pwd, layout, fatJar)
                               })
           } yield compileSuccess
         }
       }
     }
-    future        <- if(watch) Try(r.start()).flatten else r.action()
-  } yield {
-    val result = Await.result(future, duration.Duration.Inf)
-    log.await(result.isSuccessful)
-  }
+    future        <- if(watch || waiting) Try(r.start()).flatten else r.action()
+  } yield log.await(Await.result(future, duration.Duration.Inf).isSuccessful)
 
-  private def repeater[T](sources: Set[Path])(f: Unit => T): Repeater[T] = new Repeater[T]{
-    private val watcher = new SourceWatcher(sources)
-    override def repeatCondition(): Boolean = watcher.hasChanges
+  private def repeater(sources: Set[Path], onceOnly: Boolean)
+                      (fn: => Try[Future[CompileResult]])
+                      : Repeater[Try[Future[CompileResult]]] =
+    new Repeater[Try[Future[CompileResult]]] {
+      private[this] val watcher = new SourceWatcher(sources)
+      override def repeatCondition(): Boolean = watcher.hasChanges
 
-    override def start(): T = {
-      try{
+      def continue(res: Try[Future[CompileResult]]) = !onceOnly
+
+      override def start(): Try[Future[CompileResult]] = try {
         watcher.start()
         super.start()
       } catch {
-        case NonFatal(e) => throw e
+        case NonFatal(e)  => throw e
         case x: Throwable => throw new Exception("Fatal exception inside watcher", x)
-      } finally {
-        watcher.stop
+      } finally watcher.stop()
+
+      override def action() = {
+        watcher.clear()
+        fn
       }
     }
-    override def action(): T = {
-      watcher.clear()
-      f(())
-    }
-  }
 
   def install: Try[ExitStatus] = for {
     layout       <- cli.layout

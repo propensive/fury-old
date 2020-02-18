@@ -112,6 +112,7 @@ object Args {
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
   val RefSpecArg = CliParam[RefSpec]('V', 'version, "Git branch, tag or commit")
   val VersionArg = CliParam[Version]('v', 'version, "The published version of the binary")
+  val WaitArg = CliParam[Unit]('W', 'wait, "Wait for the first successful compilation")
   val WatchArg = CliParam[Unit]('w', 'watch, "Watch for file changes")
   val SingleColumnArg = CliParam[Unit]('1', Symbol("single-column"), "Print values in a single column")
   val ParamNoArg = Param[Int](' ', 'paramNo)
