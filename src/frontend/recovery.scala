@@ -50,6 +50,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Could not determine the current latest version of Fury.")
         case IpfsNotOnPath() =>
           cli.abort(msg"The command 'ipfs' was not on the PATH. IPFS must be installed to perform this operation.")
+        case CantWatchAndWait() =>
+          cli.abort(msg"The --watch (-w) and --wait (-W) options cannot be used together.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path, e) =>

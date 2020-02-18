@@ -153,9 +153,9 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   lazy val schema: Try[Schema] = layer >>= (_.schemas.findBy(SchemaId.default))
 
   lazy val projectId: Try[ProjectId] = schema >>= (cli.preview(ProjectArg) orElse _.main.asTry)
-  lazy val project: Try[Project] = (schema, projectId) >>= (_.projects findBy _)
+  lazy val project: Try[Project] = (schema, projectId) >>= (_.projects.findBy(_))
   lazy val moduleId: Try[ModuleId] = project >>= (cli.preview(ModuleArg) orElse _.main.asTry)
-  lazy val module: Try[Module] = (project, moduleId) >>= (_.modules findBy _)
+  lazy val module: Try[Module] = (project, moduleId) >>= (_.modules.findBy(_))
 
   implicit val projectHints: ProjectArg.Hinter = ProjectArg.hint(schema >> (_.projects.map(_.id)))
   implicit val moduleHints: ModuleArg.Hinter = ModuleArg.hint(project >> (_.modules.map(_.id)))
