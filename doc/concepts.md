@@ -4,11 +4,32 @@
 
 Fury builds are modeled as _layers_ which are the atoms of distribution. They may define _projects_ and/or inherit them from imported layers. Projects consist of _modules_, which may depend on other modules forming a directed acyclic graph which can span projects and layers. Modules compile _sources_ which are taken from a _repo_ (repository) using a compiler (which is just another module).
 
-## Build structure
+## How a Fury project definition looks
 
-### Layers
+The topmost entity in the Fury build model is a layer. A layer contains all the information necessary to build itself. 
+It is somewhat similar to the concept of workspace in Eclipse.
 
-#### Layer Imports
+A layer may reference other layers by the mechanism of importing. All entities defined in the imported layer 
+(and also in all the layers it references transitively) become available in the top-level layer.
+
+A layer usually contains one or more definition of projects. A project is a coherent set of sources and dependencies, 
+which usually represents an entire application, library etc. It is similar to the concept of project in Eclipse, IntelliJ or Maven.
+
+A project consists of one or more modules. A module corresponds to a set of tightly coupled sources 
+that are built with a single compiler task. This is the smallest unit of source organization in Fury. It is similar 
+to the concept of module in IntelliJ, Maven or SBT.
+
+Each module may (but doesn't have to) have a set of source directories that are passed to the compiler when the module has to be built. 
+These sources may be located at local paths on the filesystem or at remote repositories (see below).
+
+A module may have binary dependencies, which must be located in remote repositories (e. g. Maven Central or Bintray). When the module is being built, its binary dependencies are downloaded and passed to the compiler. Coursier is used to fetch transitive dependencies and resolve potential version conflicts.
+
+A module may also have dependencies on other modules defined in the layer. These modules are built before the build of the current module may start, and the results (such as `*.class` files) of dependency builds are made available to the compiler. 
+This is similar to the way module dependencies work in Maven or SBT, but the scope of such links is not limited to the project — each module may depend on any module present in the current layer and its imported layers.
+
+Among other things, a layer may contain references to remote source repositories. The layer does not use them directly, 
+but every module in the layer can reference them as source locations. As the module is being built, the repositories 
+it depends on are checked out to the right branch and commit.
 
 #### Navigating Layers
 
