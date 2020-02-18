@@ -85,7 +85,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path,
-      compilation: Compilation, targetId: TargetId, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
+      compilation: Compilation, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
     singleTasking { promise =>
 
       val traceOut = trace.map{ path => new FileOutputStream(path.javaFile, true) }
@@ -145,7 +145,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
       thread.start()
       
-      val client = new FuryBuildClient(compilation, targetId, layout)
+      val client = new FuryBuildClient(compilation, layout)
         
       val bspServer = new Launcher.Builder[FuryBspServer]()
         .setRemoteInterface(classOf[FuryBspServer])
@@ -169,14 +169,14 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
+  def borrow[T](dir: Path, compilation: Compilation, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
     val conn = BloopServer.synchronized {
       connections.get(dir)
     }.getOrElse{
       val tracePath: Option[Path] = if(ManagedConfig().trace) {
         Some(layout.logsDir / str"${java.time.LocalDateTime.now().toString}.log")
       } else None
-      val newConnection = Await.result(connect(dir, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+      val newConnection = Await.result(connect(dir, compilation, layout, trace = tracePath), Duration.Inf)
       connections += dir -> newConnection
       newConnection
     }
@@ -283,18 +283,15 @@ object Compilation {
   }
 }
 
-class FuryBuildClient(compilation: Compilation,
-    targetId: TargetId, layout: Layout) extends BuildClient {
+class FuryBuildClient(compilation: Compilation, layout: Layout) extends BuildClient {
 
   private def broadcast(f: Multiplexer[ModuleRef, CompileEvent] => Unit): Unit = {
     BloopServer.subscribers(this).map(_.multiplexer).foreach(f)
   }
 
-  override def onBuildShowMessage(params: ShowMessageParams): Unit =
-    broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+  override def onBuildShowMessage(params: ShowMessageParams): Unit = {}
 
-  override def onBuildLogMessage(params: LogMessageParams): Unit =
-    broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+  override def onBuildLogMessage(params: LogMessageParams): Unit = {}
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
@@ -381,9 +378,9 @@ ${'|'} ${highlightedLine}
     val report   = convertDataTo[CompileTask](params.getData)
     val targetId: TargetId = getTargetId(report.getTarget.getUri)
     broadcast(_(targetId.ref) = StartCompile(targetId.ref))
-    compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
+    compilation.deepDependencies.get(targetId).foreach(_.foreach { dependencyTargetId =>
       broadcast(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
-    }
+    })
   }
 
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
@@ -392,7 +389,7 @@ ${'|'} ${highlightedLine}
       val targetId: TargetId = getTargetId(report.getTarget.getUri)
       val ref = targetId.ref
       broadcast(_(ref) = StopCompile(ref, params.getStatus == StatusCode.OK))
-      if(!compilation.targets(ref).kind.needsExecution) broadcast(_(ref) = StopRun(ref))
+      if(!compilation.targets.get(ref).exists(_.kind.needsExecution)) broadcast(_(ref) = StopRun(ref))
       else broadcast(_(ref) = StartRun(ref))
   }
 }
@@ -576,7 +573,7 @@ case class Compilation(graph: Target.Graph,
     }
     val params = new CleanCacheParams(bspTargetIds.asJava)
 
-    BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
+    BloopServer.borrow(layout.baseDir, this, layout) { conn =>
       val result: Try[CleanCacheResult] = wrapServerErrors(conn.server.buildTargetCleanCache(params))
       result.get
     }
@@ -601,7 +598,7 @@ case class Compilation(graph: Target.Graph,
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-    BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
+    BloopServer.borrow(layout.baseDir, this, layout) { conn =>
       
       val result: Try[CompileResult] = {
         for {
