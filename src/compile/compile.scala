@@ -146,7 +146,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
       thread.start()
       
-      val client = new FuryBuildClient(compilation, targetId, layout)
+      val client = new FuryBuildClient(targetId, layout)
         
       val bspServer = new Launcher.Builder[FuryBspServer]()
         .setRemoteInterface(classOf[FuryBspServer])
@@ -210,6 +210,8 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
+
+  private val requestOrigins: collection.mutable.Map[String, Compilation] = TrieMap()
 
   def mkCompilation(schema: Schema,
                     ref: ModuleRef,
@@ -285,14 +287,18 @@ object Compilation {
   }
 
   private val originIdCounter = new AtomicInteger(1)
-  def nextOriginId()(implicit log: Log): String = {
-    s"${log.pid.pid}-${originIdCounter.getAndIncrement}"
+
+  def nextOriginId(compilation: Compilation)(implicit log: Log): String = {
+    val originId = s"${log.pid.pid}-${originIdCounter.getAndIncrement}"
+    requestOrigins(originId) = compilation
+    originId
   }
+
+  def findOrigin(originId: String): Option[Compilation] = requestOrigins.get(originId)
 
 }
 
-class FuryBuildClient(compilation: Compilation,
-    targetId: TargetId, layout: Layout) extends BuildClient {
+class FuryBuildClient(targetId: TargetId, layout: Layout) extends BuildClient {
 
   private def broadcast(event: CompileEvent): Unit = {
     val ref = event match {
@@ -311,6 +317,7 @@ class FuryBuildClient(compilation: Compilation,
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
+    val compilation = Compilation.findOrigin(params.getOriginId).get
     val repos = compilation.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
 
     params.getDiagnostics.asScala.foreach { diag =>
@@ -594,7 +601,7 @@ case class Compilation(graph: Target.Graph,
                     args: List[String],
                     noSecurity: Boolean)(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
-    val originId = Compilation.nextOriginId()
+    val originId = Compilation.nextOriginId(this)
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
