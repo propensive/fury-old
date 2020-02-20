@@ -25,3 +25,4 @@ out/**/*
 .sandbox/
 .vscode/
 .fury.conf
+.pinata
