@@ -251,8 +251,7 @@ object Compilation {
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
-      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
-        TargetId(entity.schema.id, ref)).connections
+      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] + TargetId(ref)).connections
       Compilation(graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
         moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
@@ -304,7 +303,7 @@ class FuryBuildClient(compilation: Compilation,
     broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-    val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
+    val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     val repos = compilation.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
 
@@ -371,22 +370,18 @@ ${'|'} ${highlightedLine}
     report
   }
 
-  // FIXME: We should implement this using a regular expression
-  private[this] def getTargetId(bspUri: String): TargetId = {
-    val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
-
-    TargetId(uriQuery("id"))
+  private[this] def getCompileTargetId(taskNotificationData: AnyRef): TargetId = {
+    val report = convertDataTo[CompileTask](taskNotificationData)
+    report.getTarget.getUri.as[TargetId].get
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
-    val report   = convertDataTo[CompileTask](params.getData)
-    val targetId = getTargetId(report.getTarget.getUri)
+    val targetId = getCompileTargetId(params.getData)
     broadcast(_(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal))
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
-    val report   = convertDataTo[CompileTask](params.getData)
-    val targetId: TargetId = getTargetId(report.getTarget.getUri)
+    val targetId = getCompileTargetId(params.getData)
     broadcast(_(targetId.ref) = StartCompile(targetId.ref))
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
       broadcast(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
@@ -395,8 +390,7 @@ ${'|'} ${highlightedLine}
 
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
     case TaskDataKind.COMPILE_REPORT =>
-      val report = convertDataTo[CompileReport](params.getData)
-      val targetId: TargetId = getTargetId(report.getTarget.getUri)
+      val targetId = getCompileTargetId(params.getData)
       val ref = targetId.ref
       broadcast(_(ref) = StopCompile(ref, params.getStatus == StatusCode.OK))
       if(!compilation.targets(ref).kind.needsExecution) broadcast(_(ref) = StopRun(ref))

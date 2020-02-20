@@ -479,7 +479,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
       Lifecycle.currentSession.multiplexer = multiplexer
       val future = compilation.compile(moduleRef, Map(), layout,
-        globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
+        globalPolicy, compileArgs, pipelining).apply(TargetId(moduleRef)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes
