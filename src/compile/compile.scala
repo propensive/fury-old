@@ -300,7 +300,7 @@ object Compilation {
 
 class FuryBuildClient(targetId: TargetId, layout: Layout) extends BuildClient {
 
-  private def broadcast(event: CompileEvent): Unit = {
+  def broadcast(event: CompileEvent): Unit = {
     val ref = event match {
       case e: ModuleCompileEvent => e.ref
       case _ => targetId.ref
@@ -641,13 +641,15 @@ case class Compilation(graph: Target.Graph,
         soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
       }
 
-      result.get
+      (result.get, conn.client)
     }.map {
-      case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
+      case (compileResult, client) if compileResult.isSuccessful && target.kind.needsExecution =>
         val classDirectories = compileResult.classDirectories
+        client.broadcast(StartRun(target.ref))
         val exitCode = run(target, classDirectories, layout, globalPolicy, args, noSecurity)
+        client.broadcast(StopRun(target.ref))
         compileResult.copy(exitCode = Some(exitCode))
-      case otherResult =>
+      case (otherResult, _) =>
         otherResult
     }
   }
