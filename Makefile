@@ -10,7 +10,7 @@ opt:
 	mkdir -pinata "$@"
 
 opt/fury.sh: opt
-	curl -C - -s -o "$@" "http://downloads.furore.dev/fury-$(FURYSTABLE).sh" && \
+	curl -C - -o# "$@" "http://downloads.furore.dev/fury-$(FURYSTABLE).sh" && \
 	chmod +x "$@"
 
 opt/fury/bin/fury: opt/fury.sh
@@ -36,13 +36,21 @@ tmp/bin: tmp
 tmp/bin/fury: etc/fury tmp/bin
 	cp "$<" "$@"
 
+tmp/bin/ng.c: tmp/bin
+	curl -Lso "$@" https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c
+
+tmp/bin/ng.py: tmp/bin
+	curl -Lso "$@" https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py && \
+	sed -i.bak '1 s/$$/2.7/' "$@" && rm "$@.bak" && \
+	chmod +x "$@"
+
 tmp/.url: dist/fury-$(VERSION).tar.gz
 	ipfs add -q "$<" > "$@"
 
 dist:
 	mkdir -p "$@"
 
-dist/fury-$(VERSION).tar.gz: dist tmp/.version tmp/lib/fury.jar tmp/bin/fury
+dist/fury-$(VERSION).tar.gz: dist tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py
 	tar czf "$@" -C tmp .version lib bin
 
 publish: dist/fury-$(VERSION).tar.gz tmp/.url .pinata/apiKey .pinata/secretApiKey
