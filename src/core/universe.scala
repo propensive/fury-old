@@ -34,9 +34,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
                          else makeTarget(module.compiler, layout).map(Some(_))
       binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
-      dependencies    <- module.dependencies.traverse { dep => for {
-                           origin <- entity(dep.projectId)
-                         } yield TargetId(origin.schema.id, dep)}
+      dependencies    =  module.dependencies.map { dep => TargetId(dep) }
       checkouts       <- checkout(ref, layout)
       sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
     } yield Target(

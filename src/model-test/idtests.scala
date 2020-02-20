@@ -45,5 +45,9 @@ object IdTests extends TestApp {
       "foo-bar_baz".as[RepoId].isFailure
     }.assert(_ == true)
 
+    test("build target URIs") {
+      "file:///foo/bar/baz/fury_model?id=fury_model".as[TargetId]
+    }.assert(_ == Success(TargetId("fury_model")))
+
   }
 }

@@ -220,11 +220,21 @@ case class Config(showContext: Boolean = true,
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
   
-  def apply(schemaId: SchemaId, projectId: ProjectId, moduleId: ModuleId): TargetId =
-    TargetId(str"${schemaId}_${projectId}_${moduleId}")
+  def apply(projectId: ProjectId, moduleId: ModuleId): TargetId =
+    TargetId(str"${projectId}_${moduleId}")
   
-  def apply(schemaId: SchemaId, ref: ModuleRef): TargetId =
-    TargetId(schemaId, ref.projectId, ref.moduleId)
+  def apply(ref: ModuleRef): TargetId =
+    TargetId(ref.projectId, ref.moduleId)
+
+  implicit val keyName: KeyName[TargetId] = () => msg"foobar"
+
+  implicit val uriParser: Parser[TargetId] = parse(_)
+
+  private[this] def parse(bspUri: String): Option[TargetId] = {
+    val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
+    uriQuery.get("id").map(TargetId(_))
+  }
+
 }
 
 object Pid {
@@ -236,9 +246,8 @@ object Pid {
 case class Pid(pid: Int)
 
 case class TargetId(key: String) extends AnyVal {
-  def moduleId: ModuleId = ModuleId(key.split("_")(2))
-  def projectId: ProjectId = ProjectId(key.split("_")(1))
-  def schemaId: SchemaId = SchemaId(key.split("_")(0))
+  def moduleId: ModuleId = ModuleId(key.split("_")(1))
+  def projectId: ProjectId = ProjectId(key.split("_")(0))
   def ref: ModuleRef = ModuleRef(projectId, moduleId)
 }
 
