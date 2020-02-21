@@ -26,7 +26,7 @@ installFury() {
 
   [ -f "${downloadFile}" ] || \
       curl -Lso "${downloadFile}" "${downloadUrl}" || \
-      printf "Could not download Fury version ${version}" && exit 1
+      (printf "Could not download Fury version ${version}" && exit 1)
 
   printf "done\n"
 
@@ -36,7 +36,7 @@ installFury() {
 
   mkdir -p "${installDir}" && \
       tar xf "${downloadFile}" -C "${installDir}" || \
-      printf "Could not extract Fury\n" && exit 1
+      (printf "Could not extract Fury\n" && exit 1)
 
   printf "done\n"
 }

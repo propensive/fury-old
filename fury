@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 # This is the Fury launcher script, which will download and run Fury in "standalone" mode
-version="0.9.0"
-ipfsHash="QmbhowxyspYRqXUVo7efhjrfcmSBei2pXLoakc35HEZ3wr"
+version="0.9.0-1-g3064d1f"
+ipfsHash="QmU9tp7dw2jb3b3uzZg6FwXqe1Zin7G68aRDSCxXEhEC3x"
 startTime="$(($(date +"%s * 1000 + %-N / 1000000")))"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
@@ -26,7 +26,7 @@ installFury() {
 
   [ -f "${downloadFile}" ] || \
       curl -Lso "${downloadFile}" "${downloadUrl}" || \
-      printf "Could not download Fury version ${version}" && exit 1
+      (printf "Could not download Fury version ${version}" && exit 1)
 
   printf "done\n"
 
@@ -36,7 +36,7 @@ installFury() {
 
   mkdir -p "${installDir}" && \
       tar xf "${downloadFile}" -C "${installDir}" || \
-      printf "Could not extract Fury\n" && exit 1
+      (printf "Could not extract Fury\n" && exit 1)
 
   printf "done\n"
 }
