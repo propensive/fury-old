@@ -2,7 +2,7 @@
 #
 # This is the Fury launcher script, which will download and run Fury in "standalone" mode
 version="0.9.0-1-g3064d1f"
-ipfsHash="QmU9tp7dw2jb3b3uzZg6FwXqe1Zin7G68aRDSCxXEhEC3x"
+ipfsHash="QmZunsDJwcg9L3KybU5DV2hgWrsoXmB1VpvQHFtXFjhHqS"
 startTime="$(($(date +"%s * 1000 + %-N / 1000000")))"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
