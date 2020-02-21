@@ -39,6 +39,7 @@ object Args {
   val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
+  val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
   val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
   val SourceArg = CliParam[Source]('d', 'source, "specify a source directory")

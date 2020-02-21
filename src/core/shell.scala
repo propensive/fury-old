@@ -40,7 +40,8 @@ case class Shell(environment: Environment) {
               properties: Map[String, String],
               policy: Policy,
               layout: Layout,
-              args: List[String])
+              args: List[String],
+              noSecurity: Boolean)
              (output: String => Unit)
              : Running = {
     layout.sharedDir.mkdir()
@@ -51,9 +52,12 @@ case class Shell(environment: Environment) {
     val policyFile = Installation.policyDir.extant() / UUID.randomUUID().toString
     policy.save(policyFile).get
 
-    val allProperties: Map[String, String] =
-      properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)
-          .updated("fury.sharedDir", layout.sharedDir.value)
+    val allProperties: Map[String, String] = {
+      val withPolicy = if(noSecurity) properties else
+          properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)
+      
+      withPolicy.updated("fury.sharedDir", layout.sharedDir.value)
+    }
 
     val propArgs = allProperties.map { case (k, v) => if(v.isEmpty) str"-D$k" else str"-D$k=$v" }.to[List]
 

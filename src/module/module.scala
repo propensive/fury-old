@@ -404,7 +404,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     module      <- optModule.asTry
     compiler    <- ~module.compiler
     schema      <- layer.schemas.findBy(SchemaId.default)
-    compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true)
+    compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true, false)
     rows        <- compilation.aggregatedOpts(module.ref(project), layout)
     showRows    <- ~rows.to[List].filter(_.compiler == compiler)
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
@@ -535,7 +535,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
                   module      <- optModule
                   schema      <- layer.schemas.findBy(SchemaId.default).toOption
                   compilation <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                                      true).toOption
+                                      true, false).toOption
                   optDefs     <- compilation.aggregatedOptDefs(module.ref(project)).toOption
                 } yield optDefs.map(_.value.id)).getOrElse(Set())
     
