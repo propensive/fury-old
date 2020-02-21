@@ -57,9 +57,9 @@ case class Policy(version: Int, policy: SortedSet[Grant] = TreeSet()) {
   def obviate(scope: Scope, permissions: List[Permission]): Policy =
     copy(policy = policy.filterNot(permissions.contains))
 
-  def checkAll(permissions: Iterable[Permission]): Try[Unit] = {
+  def checkAll(permissions: Iterable[Permission], noSecurity: Boolean): Try[Unit] = {
     val missing = permissions.to[Set] -- policy.map(_.permission)
-    if(missing.isEmpty) Success(()) else Failure(NoPermissions(missing))
+    if(noSecurity || missing.isEmpty) Success(()) else Failure(NoPermissions(missing))
   }
 
   def save(file: Path): Try[Unit] = file.writeSync {

@@ -21,6 +21,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.channels._
 import java.util.concurrent.{CompletableFuture, ExecutionException}
+import java.util.concurrent.atomic.AtomicInteger
 
 import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
@@ -53,7 +54,7 @@ trait FuryBspServer extends BuildServer with ScalaBuildServer
 
 object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   override type Resource = Connection
-  
+
   Lifecycle.bloopServer.complete(Success(this))
  
   private var lock: Promise[Unit] = Promise.successful(())
@@ -213,14 +214,15 @@ object Compilation {
   def mkCompilation(schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
-                    https: Boolean)(implicit log: Log)
+                    https: Boolean,
+                    noSecurity: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
     hierarchy   <- schema.hierarchy(layout)
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
     compilation <- fromUniverse(universe, ref, layout)
-    _           <- policy.checkAll(compilation.requiredPermissions)
+    _           <- policy.checkAll(compilation.requiredPermissions, noSecurity)
     _           <- compilation.generateFiles(layout)
   } yield compilation
 
@@ -250,8 +252,7 @@ object Compilation {
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
-      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
-        TargetId(entity.schema.id, ref)).connections
+      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] + TargetId(ref)).connections
       Compilation(graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
         moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
@@ -263,7 +264,7 @@ object Compilation {
                        https: Boolean)(implicit log: Log)
   : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(schema, ref, layout, https))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(schema, ref, layout, https, false))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -276,11 +277,18 @@ object Compilation {
   def syncCompilation(schema: Schema,
                       ref: ModuleRef,
                       layout: Layout,
-                      https: Boolean)(implicit log: Log): Try[Compilation] = {
-    val compilation = mkCompilation(schema, ref, layout, https)
+                      https: Boolean,
+                      noSecurity: Boolean)(implicit log: Log): Try[Compilation] = {
+    val compilation = mkCompilation(schema, ref, layout, https, noSecurity)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
+
+  private val originIdCounter = new AtomicInteger(1)
+  def nextOriginId()(implicit log: Log): String = {
+    s"${log.pid.pid}-${originIdCounter.getAndIncrement}"
+  }
+
 }
 
 class FuryBuildClient(compilation: Compilation,
@@ -297,7 +305,7 @@ class FuryBuildClient(compilation: Compilation,
     broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-    val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
+    val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     val repos = compilation.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
 
@@ -364,22 +372,18 @@ ${'|'} ${highlightedLine}
     report
   }
 
-  // FIXME: We should implement this using a regular expression
-  private[this] def getTargetId(bspUri: String): TargetId = {
-    val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
-
-    TargetId(uriQuery("id"))
+  private[this] def getCompileTargetId(taskNotificationData: AnyRef): TargetId = {
+    val report = convertDataTo[CompileTask](taskNotificationData)
+    report.getTarget.getUri.as[TargetId].get
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
-    val report   = convertDataTo[CompileTask](params.getData)
-    val targetId = getTargetId(report.getTarget.getUri)
+    val targetId = getCompileTargetId(params.getData)
     broadcast(_(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal))
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
-    val report   = convertDataTo[CompileTask](params.getData)
-    val targetId: TargetId = getTargetId(report.getTarget.getUri)
+    val targetId = getCompileTargetId(params.getData)
     broadcast(_(targetId.ref) = StartCompile(targetId.ref))
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
       broadcast(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
@@ -388,8 +392,7 @@ ${'|'} ${highlightedLine}
 
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
     case TaskDataKind.COMPILE_REPORT =>
-      val report = convertDataTo[CompileReport](params.getData)
-      val targetId: TargetId = getTargetId(report.getTarget.getUri)
+      val targetId = getCompileTargetId(params.getData)
       val ref = targetId.ref
       broadcast(_(ref) = StopCompile(ref, params.getStatus == StatusCode.OK))
       if(!compilation.targets(ref).kind.needsExecution) broadcast(_(ref) = StopRun(ref))
@@ -428,7 +431,7 @@ case class Compilation(graph: Target.Graph,
     checkouts.checkouts.traverse(_.get(layout, https)).map{ _ => ()}
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
-    Bloop.clean(layout).flatMap(Bloop.generateFiles(this, layout).waive)
+    Bloop.generateFiles(this, layout)
   }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
@@ -586,11 +589,14 @@ case class Compilation(graph: Target.Graph,
                     layout: Layout,
                     pipelining: Boolean,
                     globalPolicy: Policy,
-                    args: List[String])(implicit log: Log)
+                    args: List[String],
+                    noSecurity: Boolean)(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
+    val originId = Compilation.nextOriginId()
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+    params.setOriginId(originId)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
     val furyTargetIds = deepDependencies(target.id).toList
     
@@ -602,12 +608,17 @@ case class Compilation(graph: Target.Graph,
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
     BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
-      
+
       val result: Try[CompileResult] = {
         for {
           res <- wrapServerErrors(conn.server.buildTargetCompile(params))
           opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
         } yield CompileResult(res, opts)
+      }
+
+      val responseOriginId = result.get.bspCompileResult.getOriginId
+      if(responseOriginId != originId){
+        log.warn(s"buildTarget/compile: Expected $originId, but got $responseOriginId")
       }
 
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
@@ -625,7 +636,7 @@ case class Compilation(graph: Target.Graph,
     }.map {
       case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
         val classDirectories = compileResult.classDirectories
-        val exitCode = run(target, classDirectories, layout, globalPolicy, args)
+        val exitCode = run(target, classDirectories, layout, globalPolicy, args, noSecurity)
         compileResult.copy(exitCode = Some(exitCode))
       case otherResult =>
         otherResult
@@ -641,13 +652,14 @@ case class Compilation(graph: Target.Graph,
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
-              pipelining: Boolean)(implicit log: Log)
+              pipelining: Boolean,
+              noSecurity: Boolean)(implicit log: Log)
   : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
-      else compile(dependencyTarget.ref, futures, layout, globalPolicy, args, pipelining)
+      else compile(dependencyTarget.ref, futures, layout, globalPolicy, args, pipelining, noSecurity)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -668,15 +680,16 @@ case class Compilation(graph: Target.Graph,
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           Future.successful(required)
-        } else compileModule(target, layout, pipelining, globalPolicy, args)
+        } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity)
       }
     }
 
     newFutures.updated(target.id, future)
   }
 
-  private def run(target: Target, classDirectories: Set[Path],
-                  layout: Layout, globalPolicy: Policy, args: List[String])(implicit log: Log): Int = {
+  private def run(target: Target, classDirectories: Set[Path], layout: Layout, globalPolicy: Policy,
+                  args: List[String], noSecurity: Boolean)
+                 (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.kind == Benchmarks) {
       classDirectories.foreach { classDirectory =>
@@ -697,7 +710,8 @@ case class Compilation(graph: Target.Graph,
       properties = target.properties,
       policy = globalPolicy.forContext(layout, target.ref.projectId),
       layout = layout,
-      args
+      args,
+      noSecurity
     ) { ln =>
       multiplexer(target.ref) = Print(target.ref, ln)
     }.await()

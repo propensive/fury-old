@@ -251,7 +251,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- optModule.asTry
     moduleRef    =  module.ref(project)
 
-    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false)
+    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false, noSecurity = false)
 
     result    <- compilation.cleanCache(moduleRef, layout)
   } yield {
@@ -274,6 +274,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layer          <- Layer.read(layout, conf)
     cli            <- cli.hint(HttpsArg)
     cli            <- cli.hint(WaitArg)
+    cli            <- cli.hint(NoSecurityArg)
     cli            <- cli.hint(WatchArg)
     schemaArg      <- ~SchemaId.default
     schema         <- layer.schemas.findBy(schemaArg)
@@ -298,12 +299,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     watch          =  call(WatchArg).isSuccess
     waiting        =  call(WaitArg).isSuccess
+    noSecurity     =  call(NoSecurityArg).isSuccess
     _              <- onlyOne(watch, waiting)
-    compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https)
+    compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https, noSecurity)
     r              =  repeater(compilation.allSources, waiting) {
       for {
         task <- compileOnce(compilation, schema, module.ref(project), layout,
-          globalPolicy, if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https)
+          globalPolicy, if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https, noSecurity)
       } yield {
         task.transform { completed =>
           for {
@@ -365,7 +367,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- optModule.asTry
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                        https)
+                        https, false)
     
     _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
     main         <- module.main.ascribe(UnspecifiedMain(module.id))
@@ -382,6 +384,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.read(layout, conf)
     cli          <- cli.hint(HttpsArg)
+    cli          <- cli.hint(NoSecurityArg)
     schemaArg    <- ~SchemaId.default
     schema       <- layer.schemas.findBy(schemaArg)
     cli          <- cli.hint(ProjectArg, schema.projects)
@@ -392,11 +395,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
+    noSecurity   <- ~call(NoSecurityArg).isSuccess
     project      <- optProject.asTry
     module       <- optModule.asTry
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                        https)
+                        https, noSecurity)
     
     classpath    <- ~compilation.classpath(module.ref(project), layout)
     bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
@@ -427,7 +431,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- optModule.asTry
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                        https)
+                        https, false)
     
     classpath    <- ~compilation.classpath(module.ref(project), layout)
   } yield {
@@ -455,7 +459,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- optModule.asTry
 
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                        https)
+                        https, false)
     
     _            <- ~UiGraph.draw(compilation.graph.links, true,
                         Map())(ManagedConfig().theme).foreach(log.info(_))
@@ -471,7 +475,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 pipelining: Boolean,
                                 reporter: Reporter,
                                 theme: Theme,
-                                https: Boolean)
+                                https: Boolean,
+                                noSecurity: Boolean)
                                (implicit log: Log): Try[Future[CompileResult]] = {
     for {
       _            <- compilation.checkoutAll(layout, https)
@@ -479,7 +484,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
       Lifecycle.currentSession.multiplexer = multiplexer
       val future = compilation.compile(moduleRef, Map(), layout,
-        globalPolicy, compileArgs, pipelining).apply(TargetId(schema.id, moduleRef)).andThen {
+        globalPolicy, compileArgs, pipelining, noSecurity).apply(TargetId(moduleRef)).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes
