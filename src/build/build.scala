@@ -113,7 +113,7 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
           |Fury build tool for Scala, version ${FuryVersion.current}.
           |This software is provided under the Apache 2.0 License.
           |Fury depends on Bloop, Coursier, Git and Nailgun.
-          |© Copyright 2018-19 Jon Pretty, Propensive OÜ.
+          |© Copyright 2018-20 Jon Pretty, Propensive OÜ.
           |
           |See the Fury website at https://fury.build/, or follow @propensive on Twitter
           |for more information.
