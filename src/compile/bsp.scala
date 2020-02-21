@@ -133,7 +133,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
       layer          <- Layer.read(layout, conf)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(schema, module, layout, https = true)
+      compilation    <- Compilation.syncCompilation(schema, module, layout, https = true, noSecurity = false)
     } yield compilation
   }
   
@@ -276,7 +276,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
         val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
         val session = Lifecycle.currentSession(log)
         session.multiplexer = multiplexer
-        val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
+        val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty, pipelining = false, noSecurity = false)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
         reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)

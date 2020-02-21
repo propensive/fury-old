@@ -214,14 +214,15 @@ object Compilation {
   def mkCompilation(schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
-                    https: Boolean)(implicit log: Log)
+                    https: Boolean,
+                    noSecurity: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
     hierarchy   <- schema.hierarchy(layout)
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
     compilation <- fromUniverse(universe, ref, layout)
-    _           <- policy.checkAll(compilation.requiredPermissions)
+    _           <- policy.checkAll(compilation.requiredPermissions, noSecurity)
     _           <- compilation.generateFiles(layout)
   } yield compilation
 
@@ -263,7 +264,7 @@ object Compilation {
                        https: Boolean)(implicit log: Log)
   : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(schema, ref, layout, https))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(schema, ref, layout, https, false))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -276,8 +277,9 @@ object Compilation {
   def syncCompilation(schema: Schema,
                       ref: ModuleRef,
                       layout: Layout,
-                      https: Boolean)(implicit log: Log): Try[Compilation] = {
-    val compilation = mkCompilation(schema, ref, layout, https)
+                      https: Boolean,
+                      noSecurity: Boolean)(implicit log: Log): Try[Compilation] = {
+    val compilation = mkCompilation(schema, ref, layout, https, noSecurity)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
@@ -587,7 +589,8 @@ case class Compilation(graph: Target.Graph,
                     layout: Layout,
                     pipelining: Boolean,
                     globalPolicy: Policy,
-                    args: List[String])(implicit log: Log)
+                    args: List[String],
+                    noSecurity: Boolean)(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
     val originId = Compilation.nextOriginId()
 
@@ -633,7 +636,7 @@ case class Compilation(graph: Target.Graph,
     }.map {
       case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
         val classDirectories = compileResult.classDirectories
-        val exitCode = run(target, classDirectories, layout, globalPolicy, args)
+        val exitCode = run(target, classDirectories, layout, globalPolicy, args, noSecurity)
         compileResult.copy(exitCode = Some(exitCode))
       case otherResult =>
         otherResult
@@ -649,13 +652,14 @@ case class Compilation(graph: Target.Graph,
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
-              pipelining: Boolean)(implicit log: Log)
+              pipelining: Boolean,
+              noSecurity: Boolean)(implicit log: Log)
   : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
       if(futures.contains(dependencyTarget)) futures
-      else compile(dependencyTarget.ref, futures, layout, globalPolicy, args, pipelining)
+      else compile(dependencyTarget.ref, futures, layout, globalPolicy, args, pipelining, noSecurity)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
@@ -676,15 +680,16 @@ case class Compilation(graph: Target.Graph,
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           Future.successful(required)
-        } else compileModule(target, layout, pipelining, globalPolicy, args)
+        } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity)
       }
     }
 
     newFutures.updated(target.id, future)
   }
 
-  private def run(target: Target, classDirectories: Set[Path],
-                  layout: Layout, globalPolicy: Policy, args: List[String])(implicit log: Log): Int = {
+  private def run(target: Target, classDirectories: Set[Path], layout: Layout, globalPolicy: Policy,
+                  args: List[String], noSecurity: Boolean)
+                 (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.kind == Benchmarks) {
       classDirectories.foreach { classDirectory =>
@@ -705,7 +710,8 @@ case class Compilation(graph: Target.Graph,
       properties = target.properties,
       policy = globalPolicy.forContext(layout, target.ref.projectId),
       layout = layout,
-      args
+      args,
+      noSecurity
     ) { ln =>
       multiplexer(target.ref) = Print(target.ref, ln)
     }.await()
