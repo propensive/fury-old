@@ -6,30 +6,27 @@ Fury builds are modeled as _layers_ which are the atoms of distribution. They ma
 
 ## How a Fury project definition looks
 
-The topmost entity in the Fury build model is a layer. A layer contains all the information necessary to build itself. 
-It is somewhat similar to the concept of workspace in Eclipse.
+The topmost entity in the Fury build model is a layer. A layer contains all of the information necessary to build something, and is somewhat similar to the concept of workspace in Eclipse.
 
-A layer may reference other layers by the mechanism of importing. All entities defined in the imported layer 
-(and also in all the layers it references transitively) become available in the top-level layer.
+A layer may reference other layers by _importing_ them. All projects defined in the imported layer 
+(and also in any layers it references transitively) become available in your layer to inspect, use and even edit.
 
-A layer usually contains one or more definition of projects. A project is a coherent set of sources and dependencies, 
-which usually represents an entire application, library etc. It is similar to the concept of project in Eclipse, IntelliJ or Maven.
+A layer usually contains one or more _project_ definitions. A project is a set of sources and dependencies, which usually represents an entire application or library with a single name, license. It is similar to the concept of project in Eclipse, IntelliJ or Maven, and will usually correspond to a single Git repository, though this isn't enforced.
 
 A project consists of one or more modules. A module corresponds to a set of tightly coupled sources 
-that are built with a single compiler task. This is the smallest unit of source organization in Fury. It is similar 
+that are built with a single compiler task. This is the smallest unit of source organization in Fury, and is similar 
 to the concept of module in IntelliJ, Maven or SBT.
 
-Each module may (but doesn't have to) have a set of source directories that are passed to the compiler when the module has to be built. 
-These sources may be located at local paths on the filesystem or at remote repositories (see below).
+Each module may (but doesn't have to) reference a set of source directories that are passed to the compiler when the module is built. These sources may be located in remote Git repositories, or on the local file system, though a layer which refers to local files may not be shared with other users.
 
-A module may have binary dependencies, which must be located in remote repositories (e. g. Maven Central or Bintray). When the module is being built, its binary dependencies are downloaded and passed to the compiler. Coursier is used to fetch transitive dependencies and resolve potential version conflicts.
+A module may also have binary dependencies, which must be located in remote repositories (e. g. Maven Central or Bintray). When the module is being built, its binary dependencies are downloaded and passed to the compiler. Coursier is used to fetch transitive dependencies and resolve potential version conflicts.
 
-A module may also have dependencies on other modules defined in the layer. These modules are built before the build of the current module may start, and the results (such as `*.class` files) of dependency builds are made available to the compiler. 
-This is similar to the way module dependencies work in Maven or SBT, but the scope of such links is not limited to the project — each module may depend on any module present in the current layer and its imported layers.
+A module may also have dependencies on other modules defined in the layer (or its imported layers). These modules are built prior to the current module, and their outputs (such as `*.class` files) passed to the compiler. 
+This is similar to how module dependencies work in Maven or SBT, but the scope of such links is not limited to the project; each module may depend on any module accessible in the current layer and its imported layers.
 
 Among other things, a layer may contain references to remote source repositories. The layer does not use them directly, 
 but every module in the layer can reference them as source locations. As the module is being built, the repositories 
-it depends on are checked out to the right branch and commit.
+it depends on are checked out to a specific commit. Repositories may also be configured to "track" a branch, but this is merely a convenience to make it easier to manually update a repository to a newer commit; for repeatability of builds, source references are always precisely defined by commit hashes.
 
 #### Navigating Layers
 
