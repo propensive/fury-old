@@ -43,9 +43,8 @@ object LogStyle {
 
 
 case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean], logLevel: Boolean,
-    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean) {
-
-  private[this] val startTime: Long = System.currentTimeMillis
+    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean,
+    startTime: Long = System.currentTimeMillis) {
 
   private[this] def paddedTime(time: Long): String = timestamps match {
     case None        => ""

@@ -166,7 +166,8 @@ class Cli(val stdout: java.io.PrintWriter,
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
-      log.attach(LogStyle(stdout, debug = false))
+      val startTime = env.variables.get("START_TIME").map(_.toLong).getOrElse(System.currentTimeMillis)
+      log.attach(LogStyle(stdout, debug = false, startTime = startTime))
       Success(new Call())
     }
   }
