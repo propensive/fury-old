@@ -55,6 +55,13 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     _        <- ~ManagedConfig.write(config)
   } yield log.await()
 
+  def install: Try[ExitStatus] = for {
+    cli   <- cli.hint(ForceArg)
+    call  <- cli.call()
+    force <- ~call(ForceArg).isSuccess
+    _     <- Install(cli.env, force)
+  } yield log.await()
+
   def auth: Try[ExitStatus] = for {
     call     <- cli.call()
     code     <- ~Rnd.token(18)

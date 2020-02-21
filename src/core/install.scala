@@ -16,12 +16,49 @@
 */
 package fury.model
 
-import fury.io._, fury.strings._
+import fury._, io._, strings._, ogdl._
+
+import gastronomy._
+import kaleidoscope._
+import guillotine._, environments.enclosing
+import java.util.{List => _, _}
+
+import scala.util._
+import scala.io._
 
 object Install {
-  private val zshrc = List("autoload -Uz compinit", "fpath=($FURYHOME/completion/zsh $fpath)")
-  private val bashrc = List()
-  private val fishrc = List()
-  def alias(name: String, dir: Path, module: ModuleRef): String = str"alias $name='fury --layer=$dir '"
-}
+  
+  def apply(env: Environment, force: Boolean): Try[Unit] = for {
+    _ <- cCompile(Installation.binDir / "procname.c", Installation.binDir / "libprocname.so", env, " -Wall",
+             "-Werror", "-fPIC", "-shared")
 
+    _ <- cCompile(Installation.binDir / "ng.c", Installation.binDir / "ng", env)
+    _ <- zshrcInstall(env, force)
+    _ <- bashrcInstall(env, force)
+  } yield ()
+
+  def findExecutable(executable: String, env: Environment): Try[Path] =
+    env.variables.get("PATH").map(Path(_)).ascribe(EnvPathNotSet())
+
+  final val furyTag: String = "# Added by Fury"
+  final def setPathLine(paths: List[Path]): String = str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag"
+  
+  final val zshCompletions = List(str"autoload -Uz compinit $furyTag",
+      str"fpath=($$FURYHOME/completion/zsh $$fpath) $furyTag")
+
+  def zshrcInstall(env: Environment, force: Boolean) = for {
+    file  <- Try(Xdg.home / ".zshrc")
+    lines <- Try(Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag)))
+    _     <- file.writeSync((lines.to[List] :+ setPathLine(List(Installation.binDir,
+                 Installation.usrDir))).join("\n"))
+  } yield ()
+
+  def bashrcInstall(env: Environment, force: Boolean) = for {
+    file <- Try(Xdg.home / ".bashrc")
+  } yield ()
+
+  def cCompile(src: Path, dest: Path, env: Environment, args: String*): Try[Unit] = for {
+    cc  <- findExecutable("cc", env)
+    out <- sh"${cc.value} ${src.value} $args -o ${dest.value}".exec[Try[String]]
+  } yield ()
+}

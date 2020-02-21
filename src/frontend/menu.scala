@@ -80,6 +80,9 @@ object FuryMenu {
       Action('select, msg"select the current module", ModuleCli(_).select, shortcut = 's'),
       Action('update, msg"update the module", ModuleCli(_).update, shortcut = 'u')
     ),
+    Menu('system, msg"manage Fury and its dependencies", 'list, needsLayer = false)(
+      Action('install, msg"install Fury on this computer", ConfigCli(_).install)
+    ),
     Menu('option, msg"manage compiler options for the module", 'list)(
       Action('add, msg"add a compiler option to the module", OptionCli(_).add),
       Action('define, msg"introduce a new compiler option for dependents", OptionCli(_).define),
