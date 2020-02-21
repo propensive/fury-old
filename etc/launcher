@@ -3,7 +3,7 @@
 # This is the Fury launcher script, which will download and run Fury in "standalone" mode
 version="%VERSION%"
 ipfsHash="%HASH%"
-startTime="$(($(date +"%s * 1000 + %-N / 1000000"))"
+startTime="$(($(date +"%s * 1000 + %-N / 1000000")))"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
