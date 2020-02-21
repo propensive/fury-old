@@ -1,4 +1,5 @@
 VERSION="${shell git describe --tags 2> /dev/null}"
+LAYER_REF="QmfJSMCAtA1CR9uDubPQQsB8b32vrMJpJrrFY3u49n4tpb"
 
 publish-launcher: tmp/.launcher.ipfs
 	@echo -n "Sending $(shell tput sitm)addHashToPinQueue$(shell tput sgr0) request to Pinata..."
@@ -36,6 +37,7 @@ tmp/.version: tmp
 
 tmp/lib/fury.jar: fury tmp/lib $(wildcard **/*.scala) tmp/.version
 	@echo "Compiling Fury from source..."
+	@./fury layer clone -d . -l fury://$(LAYER_REF)
 	@./fury build run --project fury --module frontend --dir tmp/lib --fat-jar --disable-security-manager && \
 		mv tmp/lib/fury-frontend.jar "$@" && \
 		jar uf "$@" -C tmp .version && \
@@ -79,7 +81,7 @@ dist:
 		echo "done"
 
 dist/fury-$(VERSION).tar.gz: dist tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py
-	@echo -n "Creating TAR GZIP file..."
+	@echo -n "Creating bundle file..."
 	@tar czf "$@" -C tmp .version lib bin && \
 		echo "done"
 
@@ -100,4 +102,4 @@ clean:
 	@rm -rf tmp dist && \
 		echo "done"
 
-.PHONY: publish clean
+.PHONY: publish publish-launcher publish-layer clean

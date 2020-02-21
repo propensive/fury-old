@@ -3,56 +3,48 @@
 # This is the Fury launcher script, which will download and run Fury in "standalone" mode
 version="%VERSION%"
 ipfsHash="%HASH%"
-startTime="$(($(date "+%s%N")/1000000))"
+startTime="$(($(date +"%s * 1000 + %-N / 1000000"))"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
 furyDir="${xdgHome}/fury"
 furyUsr="${furyDir}/usr"
 currentDir="${furyUsr}/current"
-installedVersion="$(cat "${currentDir}/.version" 2> /dev/null || echo "")"
+currentVersion="$(cat "${currentDir}/.version" 2> /dev/null || echo "")"
 downloadDir="${furyDir}/downloads"
 downloadFile="${downloadDir}/fury-${version}.tar.gz"
 ipfsGateway="https://gateway.pinata.cloud/ipfs"
 downloadUrl="${ipfsGateway}/${ipfsHash}"
-installDir="${furyUsr}/$([ "${installedVersion}" = "${version}" ] && echo "current" || echo "${version}")"
+installDir="${furyUsr}/$([ "${currentVersion}" = "${version}" ] && echo "current" || echo "${version}")"
 args="$@"
 
-stderrEcho() {
-  printf "$1\n" >&2
-}
-
-fail() {
-  message="$1"
-  stderrEcho "${message}" && exit 1
-}
-
-downloadFuryTar() {
+installFury() {
   mkdir -p "${downloadDir}"
-  stderrEcho "Downloading Fury ${version}"
+  printf "Downloading Fury ${version}..."
+  
+  command -v curl > /dev/null || (printf "fail\nCould not find `curl` to download Fury\n" && exit 1)
 
   [ -f "${downloadFile}" ] || \
-      curl -# -Lso "${downloadFile}" "${downloadUrl}" || \
-      fail "Could not download Fury version ${version}"
+      curl -Lso "${downloadFile}" "${downloadUrl}" || \
+      printf "Could not download Fury version ${version}" && exit 1
 
-  stderrEcho "Download complete"
-}
+  printf "done\n"
 
-untarFury() {
-  stderrEcho "Extracting Fury ${version} into ${installDir}"
+  printf "Extracting Fury ${version} into ${installDir}..."
+
+  command -v tar > /dev/null || (printf "fail\nCould not find `tar` to extract Fury\n" && exit 1)
+
   mkdir -p "${installDir}" && \
       tar xf "${downloadFile}" -C "${installDir}" || \
-      fail "Could not extract Fury"
-}
+      printf "Could not extract Fury\n" && exit 1
 
-installFury() {
-  [ "${currentVersion}" = "${version}" ] || \
-      (downloadFuryTar && untarFury)
+  printf "done\n"
 }
 
 runFury() {
+  printf "Launching Fury in standalone mode...\n"
   FURY_HOME="${installDir}" START_TIME="${startTime}" \
       "${installDir}/bin/fury" standalone ${args}
 }
 
-([ -d "${installDir}" ] || installFury) && runFury
+([ -d "${installDir}" ] || [ "${currentVersion}" = "${version}" ] || installFury) && runFury
