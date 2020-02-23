@@ -22,6 +22,35 @@ Layers form a tree
 
 ### Modules
 
+Modules define units of compilation, and dependencies between them. Each represents a collection of sources
+which should be compiled to produce a collection of outputs, but they are _unitary_ in the sense that
+compilation will either succeed completely, or fail (producing no output).
+
+For Scala, however, if a successfuly compilation has already completed, the compiler may cache the reuse the
+earlier output, performing an _incremental compilation_. As far as Fury is concerned, this is an implementation
+detail, and the only observable difference should be that compilation will sometimes be faster.
+
+Fury users will not typically _see_ the outputs (such as class files) from a compilation in the form of files
+on disk. They do exist within Fury's cache, but usually, while developing software it is sufficient just to
+know whether compilation succeeded or failed (with error messages), or to see the output from running the
+tests. JAR files can be saved to disk from a successful compilation.
+
+Each module must define a compiler, which will be invoked to convert some source files to some outputs, but
+different types of modules may have additional behavior. Most modules will be _library_ modules, which do this
+and nothing more. _Application_ modules may additionally have a `main` method in one of their objects which is
+_run_ after compilation.
+
+This makes application modules suitable for operations which happen at the end of a build, such as running
+tests or launching a web server. But they may also run during earlier stages of the build, performing tasks like
+source-code generation or bytecode analysis.
+
+_Plugin_ modules may be used to define Scala compiler plugins. Any other module depending on a plugin module
+will be compiled with that plugin enabled.
+
+_Benchmark_ modules are similar to application modules, but integrate with
+[`jmh`](https://openjdk.java.net/projects/code-tools/jmh/) to instrument the compiled bytecode, and then run the
+benchmarks in isolation
+
 #### Application modules
 
 #### Benchmarks
