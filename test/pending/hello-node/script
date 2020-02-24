@@ -1,0 +1,21 @@
+fury layer init
+fury project add -n hello-node
+fury module add -n app
+fury repo add -u gh:left-pad/left-pad
+fury repo list
+fury source add -d left-pad:
+fury source list
+echo $?
+fury build describe
+echo $?
+fury source add -d src
+npm init --yes
+fury repo fork -r left-pad -d left-pad
+cat << EOF >  index.js
+var greeting = "Hello Javascript!";
+var leftPad = require("./left-pad/index.js");
+var padded = leftPad(greeting, 25, ".");
+console.log(padded);
+EOF
+node index.js
+
