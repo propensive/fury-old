@@ -116,11 +116,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
 
     schema     <- layer.schemas.findBy(SchemaId.default)
 
-    extSrcs    <- optProject.to[List].flatMap { project =>
-                    schema.repos.map(_.sourceCandidates(layout, false) { n =>
-                      n.endsWith(".scala") || n.endsWith(".java")
-                    })
-                  }.sequence.map(_.flatten)
+    extSrcs    =  optProject.to[List].flatMap { project => schema.repos.map(possibleSourceDirectories(_, layout)) }.flatten
     
     compiler   <- ~optModule.map(_.compiler).getOrElse(ModuleRef.JavaRef)
 
@@ -143,6 +139,11 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     schema      <- layer.schemas.findBy(SchemaId.default)
     _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
+
+  private[this] def possibleSourceDirectories(sourceRepo: SourceRepo, layout: Layout) = {
+    val sourceFileExtensions = Seq(".scala", ".java")
+    sourceRepo.sourceCandidates(layout, false)(n => sourceFileExtensions.exists(n.endsWith)).getOrElse(Set.empty)
+  }
 }
 
 case class FrontEnd(cli: Cli)(implicit log: Log) {
