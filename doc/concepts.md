@@ -6,20 +6,20 @@ Fury builds are modeled as _layers_ which are the atoms of distribution. They ma
 
 ## How a Fury project definition looks
 
-The topmost entity in the Fury build model is a layer. A layer contains all of the information necessary to build something, and is somewhat similar to the concept of workspace in Eclipse.
+The topmost entity in the Fury build model is a layer. A layer contains all of the information necessary to build something, and is somewhat similar to the concept of workspace in [Eclipse](https://www.eclipse.org/eclipseide).
 
 A layer may reference other layers by _importing_ them. All projects defined in the imported layer 
 (and also in any layers it references transitively) become available in your layer to inspect, use and even edit.
 
-A layer usually contains one or more _project_ definitions. A project is a set of sources and dependencies, which usually represents an entire application or library with a single name, license. It is similar to the concept of project in Eclipse, IntelliJ or Maven, and will usually correspond to a single Git repository, though this isn't enforced.
+A layer usually contains one or more _project_ definitions. A project is a set of sources and dependencies, which usually represents an entire application or library with a single name, license. It is similar to the concept of project in Eclipse, [IntelliJ](https://www.jetbrains.com/idea) or [Maven](http://maven.apache.org), and will usually correspond to a single [Git](https://git-scm.com) repository, though this isn't enforced.
 
 A project consists of one or more modules. A module corresponds to a set of tightly coupled sources 
 that are built with a single compiler task. This is the smallest unit of source organization in Fury, and is similar 
-to the concept of module in IntelliJ, Maven or SBT.
+to the concept of module in IntelliJ, Maven or [SBT](https://www.scala-sbt.org/1.x/docs).
 
 Each module may (but doesn't have to) reference a set of source directories that are passed to the compiler when the module is built. These sources may be located in remote Git repositories, or on the local file system, though a layer which refers to local files may not be shared with other users.
 
-A module may also have binary dependencies, which must be located in remote repositories (e. g. Maven Central or Bintray). When the module is being built, its binary dependencies are downloaded and passed to the compiler. Coursier is used to fetch transitive dependencies and resolve potential version conflicts.
+A module may also have binary dependencies, which must be located in remote repositories (e. g. [Maven Central](https://mvnrepository.com/repos/central) or [Bintray](https://jfrog.com/bintray)). When the module is being built, its binary dependencies are downloaded and passed to the compiler. [Coursier](https://get-coursier.io) is used to fetch transitive dependencies and resolve potential version conflicts.
 
 A module may also have dependencies on other modules defined in the layer (or its imported layers). These modules are built prior to the current module, and their outputs (such as `*.class` files) passed to the compiler. 
 This is similar to how module dependencies work in Maven or SBT, but the scope of such links is not limited to the project; each module may depend on any module accessible in the current layer and its imported layers.
@@ -88,8 +88,8 @@ any catalogs.
 Publishing attaches a name of your choice to a shared layer, and optionally adds it to a catalog to make it
 discoverable. Publishing requires a third-party catalog service, whose job is to aggregate published layers
 and make them available for users to view or search. Different catalog services can choose different criteria
-for publishing layers, but Fury comes bootstrapped to use the `furore.dev` catalog service, which can be
-freely used by anyone with a GitHub account. A shared layer hash is an immutable reference to a full
+for publishing layers, but Fury comes bootstrapped to use the [`furore.dev` catalog service](https://furore.dev/catalog), which can be
+freely used by anyone with a [GitHub](https://github.com) account. A shared layer hash is an immutable reference to a full
 specification of the build, and is intended to produce the same binary outputs today or in ten years' time. A
 published layer name, however, is mutable and can refer to different (though hopefully not wildly different)
 definitions at different times. You should use the published name to get the latest or best version of a
@@ -155,7 +155,7 @@ Publishing Fury layers so that other users can see an up-to-date catalog and acc
 
 A single source of truth implies, unfortunately, a single point of failure, and it would not be satisfactory to assume that any server running the catalog service would have 100% uptime, or would be accessible continuously from any location around the world. Fury, as the only client to the catalog service, will fall back to an alternative solution if the catalog server is unavailable for whatever reason.
 
-If an HTTP request to the catalog service fails, Fury will attempt to access a DNS record associated with the catalog service's domain name, which will point to an IPFS hash of a recent version of the layer catalog. DNS is inherently distributed, and IPFS is a peer-to-peer network, so both will continue to function during while the catalog service is unavailable. It will not be possible to publish a layer during any period of unavailability, or access the definitive most-recent catalog, but the architecture is designed to degrade gracefully in the event of failure. Even though _publishing_ a layer will be temporarily impossible, _sharing_ a layer will continue to work.
+If an HTTP request to the catalog service fails, Fury will attempt to access a DNS record associated with the catalog service's domain name, which will point to an [IPFS](https://ipfs.io) hash of a recent version of the layer catalog. DNS is inherently distributed, and IPFS is a peer-to-peer network, so both will continue to function during while the catalog service is unavailable. It will not be possible to publish a layer during any period of unavailability, or access the definitive most-recent catalog, but the architecture is designed to degrade gracefully in the event of failure. Even though _publishing_ a layer will be temporarily impossible, _sharing_ a layer will continue to work.
 
 ### Furore
 
