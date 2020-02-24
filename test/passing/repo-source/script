@@ -1,0 +1,31 @@
+mkdir app
+mkdir library
+
+cd library
+git init -q
+echo 'object Constants { val x = "Hello World!" }' > constants.scala
+git add .
+git commit -m 'version 1' -q
+
+cd ../app
+fury layer init
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury repo add -n library -u ../library
+fury source add -d library:
+echo $?
+mkdir -p src/app
+fury source add -d src/app
+echo 'object HelloWorld extends App{ val y = Constants.x; println(y) }' > src/app/HelloWorld.scala
+fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.version.number -A read
+fury permission require -C java.util.PropertyPermission -T scala.time -A read
+fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
+fury permission require -C java.util.PropertyPermission -T test.property -A read
+fury build run --output linear
+echo $?
+
