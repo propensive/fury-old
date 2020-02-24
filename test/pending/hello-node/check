@@ -1,7 +1,8 @@
 Initialized an empty layer
-Set current project to scala
-Set current module to compiler
-Set current project to hello-world
-Setting default compiler for project hello-world to scala/compiler
+Set current project to javascript
+Set current module to node
+Set current project to hello-node
+Setting default compiler for project hello-node to javascript/node
 Set current module to app
+
 ........Hello Javascript!

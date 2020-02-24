@@ -537,6 +537,7 @@ object ModuleRef {
   implicit val parser: Parser[ModuleRef] = parseFull(_, false)
   
   val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
+  val NodeJsRef = ModuleRef(ProjectId("javascript"), ModuleId("node"), false)
 
   implicit val diff: Diff[ModuleRef] =
     (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))

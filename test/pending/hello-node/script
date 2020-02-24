@@ -1,6 +1,9 @@
 fury layer init
+fury project add -n javascript
+fury module add -n node -t compiler
 fury project add -n hello-node
-fury module add -n app
+fury module add -n app -c javascript/node
+fury module list
 fury repo add -u gh:left-pad/left-pad
 fury repo list
 fury source add -d left-pad:
@@ -9,7 +12,8 @@ echo $?
 fury build describe
 echo $?
 fury source add -d src
-npm init --yes
+#npm init --yes
+fury build classpath
 fury repo fork -r left-pad -d left-pad
 cat << EOF >  index.js
 var greeting = "Hello Javascript!";
@@ -18,4 +22,5 @@ var padded = leftPad(greeting, 25, ".");
 console.log(padded);
 EOF
 node index.js
+cat package.json
 

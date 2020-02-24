@@ -223,7 +223,10 @@ object Compilation {
     policy      <- ~Policy.read(log)
     compilation <- fromUniverse(universe, ref, layout)
     _           <- policy.checkAll(compilation.requiredPermissions, noSecurity)
-    _           <- compilation.generateFiles(layout)
+    _           <- {
+      if(compilation.targets.values.exists(_.compiler.exists(_.ref == ModuleRef.NodeJsRef))) compilation.generateNpmFiles(layout)
+      else compilation.generateFiles(layout)
+    }
   } yield compilation
 
   def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Compilation] = {
@@ -432,6 +435,10 @@ case class Compilation(graph: Target.Graph,
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.generateFiles(this, layout)
+  }
+
+  def generateNpmFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
+    NodeJs.generateFiles(this, layout)
   }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
