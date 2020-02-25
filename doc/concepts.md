@@ -7,16 +7,36 @@ them from imported layers. Projects consist of _modules_, which may depend on ot
 acyclic graph which can span projects and layers. Modules compile _sources_ which are taken from a _repo_
 (repository) using a compiler (which is just another module).
 
-## Motivation
+## Motivation and approach
 
-The problem which Fury attempts to solve is to make the challenge of maintaining a continually-evolving
-ecosystem manageable. This is inherently difficult: an ecosystem will have many different stakeholders, with
-different availability and areas of interest. 
+Fury attempts to make the challenge of coordinating the maintenance of different parts of a constantly-evolving
+ecosystem more manageable. This is inherently difficult: an ecosystem will have many different stakeholders,
+with different availability and areas of interest, and while each maintainer will be aware of other projects
+they depend on, they will often be blind to the projects which exist downstream of theirs, and the impact of
+changes they may choose to make.
 
-- Reduce the friction for publishing, forking
-- Remove the requirement for project maintainers to publish builds
+This is at least partially a social problem: communication and coordination between maintainers is a necessary
+part of the maintenance process. But there is a tension amongst project maintainers between keeping a
+consistent API unchanging to minimize the burden of maintenance on downstream projects, and introducing new
+features and enhancements which may break compatibility. This is a tension between _stability_ and _progress_.
 
-## How a Fury project definition looks
+Fury does not pretend to have a clever trick to magically resolve this tension, but it seeks to mitigate the
+_incidental_ problems so that users can focus on solving the _inherent_ problems. In particular, Fury:
+
+- reduces the friction of publishing and forking libraries
+- crowdsources the development and maintenance of builds
+- distinguishes between breaking and nonbreaking changes
+- distributes the burden of maintaining coherency across the ecosystem
+
+### Easier publishing and forking
+
+### 
+
+### Semantic versioning of builds
+
+###
+
+## Anatomy of a Fury build
 
 The topmost entity in the Fury build model is a layer. A layer contains all of the information necessary to
 build something, and is somewhat similar to the concept of workspace in 
@@ -261,4 +281,34 @@ repository.
 If Fury detects that its working directory is a Git repository, and furthermore, is one of the repositories
 defined in the layer (which Fury will work out from its remote URL), it will use the working directory as a
 "forked" version of the repository, instead of checking out a separate repository to Fury's cache.
+
+This means that you can work on the sources for any of the repositories referenced by your current layer, from
+the same working directory, and the build will automatically use your current version of the sources for that
+repository.
+
+Fury can also automatically check out a Git repository into its current working directory. This is a
+special-case of forking, where the repository is will be forked into the current working directory.
+
+#### Forking a repository
+
+To fork a repository, run the command,
+```
+fury repo fork -r <repo id> -d <destination>
+```
+
+This will create a checkout of the repository with the id `<repo id>` into the directory `<destination>`,
+creating it if necessary. Both the `-r`/`--repo` and `-d`/`--dir` options are required.
+
+#### Checking out a repository
+
+You can check out a repository into your working directory if you do not already have a repository checked out,
+or if the repository you currently have checked out does not have any uncommitted or unpushed changes. This is
+because there can be at most one repository checked out in the working directory at a time, so checking out a
+new repository requires that the old repository be _checked in_ first, in such a way that the layer can
+continue to refer to the same checked-out sources, by means of a remote URL and a commit hash.
+
+If this condition is met, a repository can be checked out with,
+```
+fury repo checkout -r <repo id>
+```
 
