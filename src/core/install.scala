@@ -37,8 +37,10 @@ object Install {
     _ <- bashrcInstall(env, force)
   } yield ()
 
-  def findExecutable(executable: String, env: Environment): Try[Path] =
-    env.variables.get("PATH").map(Path(_)).ascribe(EnvPathNotSet())
+  def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
+    paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
+    execPath <- paths.find(_.children.exists(_ == name.key)).ascribe(NotOnPath(name))
+  } yield execPath / name.key
 
   final val furyTag: String = "# Added by Fury"
   final def setPathLine(paths: List[Path]): String = str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag"
@@ -58,7 +60,7 @@ object Install {
   } yield ()
 
   def cCompile(src: Path, dest: Path, env: Environment, args: String*): Try[Unit] = for {
-    cc  <- findExecutable("cc", env)
+    cc  <- findExecutable(ExecName("cc"), env)
     out <- sh"${cc.value} ${src.value} $args -o ${dest.value}".exec[Try[String]]
   } yield ()
 }
