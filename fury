@@ -1,8 +1,11 @@
 #!/bin/bash
 #
-# This is the Fury launcher script, which will download and run Fury in "standalone" mode
-version="0.9.2"
-ipfsHash="QmfWTT5MpGdi2NihrPnuA4NCEvJNLP6AH9uceBA3VvjjiM"
+# This is the Fury launcher script, which will download and run Fury in "standalone" mode. You can
+# distribute this file in a Git repository to make it easier for users to run Fury.
+#
+
+version="0.9.3"
+ipfsHash="QmbVimWw4bP59LcAg34Tr9JiMhKTLMuKfJzqEN4583dCCg"
 startTime="$(($(date +"%s * 1000 + %-N / 1000000")))"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
@@ -21,30 +24,29 @@ args="$@"
 installFury() {
   mkdir -p "${downloadDir}"
   printf "Downloading Fury ${version}..."
-  
-  command -v curl > /dev/null || (printf "fail\nCould not find `curl` to download Fury\n" && exit 1)
-
-  [ -f "${downloadFile}" ] || \
-      curl -Lso "${downloadFile}" "${downloadUrl}" || \
-      (printf "Could not download Fury version ${version}" && exit 1)
-
+  command -v curl > /dev/null || fail curl
+  [ -f "${downloadFile}" ] || curl -Lso "${downloadFile}" "${downloadUrl}" || fail download
   printf "done\n"
-
   printf "Extracting Fury ${version} into ${installDir}..."
-
-  command -v tar > /dev/null || (printf "fail\nCould not find `tar` to extract Fury\n" && exit 1)
-
-  mkdir -p "${installDir}" && \
-      tar xf "${downloadFile}" -C "${installDir}" || \
-      (printf "Could not extract Fury\n" && exit 1)
-
+  command -v tar > /dev/null || fail tar
+  mkdir -p "${installDir}" && tar xf "${downloadFile}" -C "${installDir}" || fail extract
   printf "done\n"
 }
 
 runFury() {
-  printf "Launching Fury in standalone mode...\n"
-  FURY_HOME="${installDir}" START_TIME="${startTime}" \
-      "${installDir}/bin/fury" standalone ${args}
+  printf "Launching Fury ${version} in standalone mode...\n"
+  FURY_HOME="${installDir}" START_TIME="${startTime}" "${installDir}/bin/fury" standalone ${args}
+}
+
+fail() {
+  printf "fail\n"
+  case "$1" in
+    curl)     printf "Could not find `curl` to download Fury\n" ;;
+    download) printf "Could not download Fury version ${version}\n" ;;
+    tar)      printf "Could not find `tar` to extract Fury\n" ;;
+    extract)  printf "Could not extract Fury\n" ;;
+  esac
+  exit 1
 }
 
 ([ -d "${installDir}" ] || [ "${currentVersion}" = "${version}" ] || installFury) && runFury
