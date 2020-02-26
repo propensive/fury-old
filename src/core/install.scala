@@ -54,9 +54,9 @@ object Install {
   private final val furyTag: String = "# Added by Fury"
   
   private final def setPathLine(paths: List[Path]): List[String] =
-    List(str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag")
+    List("", str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag")
   
-  private final val zshCompletions: List[String] = List(str"autoload -Uz compinit $furyTag",
+  private final val zshCompletions: List[String] = List("", str"autoload -Uz compinit $furyTag",
       str"fpath=($$FURYHOME/completion/zsh $$fpath) $furyTag")
 
   private def rcInstall(env: Environment, force: Boolean, file: Path, shell: ExecName, extra: List[String])
@@ -67,7 +67,7 @@ object Install {
              }
     
     _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.binDir,
-                 Installation.usrDir)) ++ extra).join("\n", "\n", "\n"))
+                 Installation.usrDir)) ++ extra).join("", "\n", "\n"))
     
     _     <- Try(log.info(msg"Updated ${file} to include ${ExecName("fury")} on the PATH"))
   } yield () }.recover { case e =>

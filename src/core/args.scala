@@ -47,6 +47,7 @@ object Args {
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
+  val EditorArg = CliParam[Unit]('e', 'edit, "open the layer in your editor")
   val EnvArg = CliParam[EnvVar]('e', 'env, "specify the environment variable in the form KEY=value")
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
   val PersistentArg = CliParam[Unit]('P', 'persistent, "this option change should apply to all dependants")

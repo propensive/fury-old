@@ -173,7 +173,7 @@ case class Tables() {
     Heading("Name", _.description),
     Heading("Version", _.version(env)),
     Heading("Website", _.website),
-    Heading("Path", _.path(env)),
+    Heading("Path", _.path(env))
   )
 
   val binaries: Tabulation[Binary] = Tabulation(

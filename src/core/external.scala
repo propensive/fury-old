@@ -117,7 +117,7 @@ object Ipfs {
 
 object Software {
   def all: List[Software] = List(FurySoftware, IpfsSoftware, JavaSoftware, VsCodeSoftware, GitSoftware,
-      CcSoftware)
+      CcSoftware, GraalVmSoftware)
 }
 
 abstract class Software(val name: ExecName) {
@@ -143,7 +143,7 @@ abstract class Installable(name: ExecName) extends Software(name) {
       _   <- ~log.infoWhen(!quiet)(msg"Downloading $bin...")
       in  <- Http.requestStream(bin, Map[String, String](), "GET", Set())
       _   <- TarGz.extract(in, base)
-      _   <- ~path(env).map(_.setExecutable(true))
+      _   <- ~managedPath.setExecutable(true)
     } yield {
       log.infoWhen(!quiet)(msg"Installed ${name} to ${Installation.ipfsInstallDir}")
     }
@@ -201,14 +201,26 @@ object VsCodeSoftware extends Installable(ExecName("code")) {
   def installVersion = "1.42.1"
   def description = "Visual Studio Code"
   def website = Https(Path("code.visualstudio.com"))
-  def managedPath: Path = Installation.usrDir / "code" / "bin" / "code"
+
+  private def osDir(base: Path): Try[Path] = Installation.system.flatMap {
+    case Linux(_) => Success(base / "VSCode-linux-x64" / "bin" / "code")
+    case MacOs(_) => Success(base / "Visual Studio Code.app" / "Contents" / "Resources" / "app" / "bin" / "code")
+    case other    => Failure(UnknownOs(other.toString))
+  }
+
+  def managedPath: Path = osDir(Installation.usrDir / "code").get
 
   def version(env: Environment): Option[String] =
     sh"${activePath(env).value} --version".exec[Try[String]].map(_.split("\n").head.split(" ").last).toOption
   
-  def tarGz: Try[Uri] =
-    Success(Https(Path("github.com") / "microsoft" / "vscode" / "archive" / str"$installVersion.tar.gz"))
-  
+  def tarGz: Try[Uri] = {
+    Installation.system.flatMap {
+      case Linux(X64) => Success(Https(Path("go.microsoft.com") / "fwlink" / "?LinkID=620884"))
+      case MacOs(X64) => Success(Https(Path("go.microsoft.com") / "fwlink" / "?LinkID=620882"))
+      case other      => Failure(UnknownOs(other.toString))
+    }
+  }
+
   override def install(env: Environment, quiet: Boolean)(implicit log: Log): Try[Unit] = for {
     _ <- super.install(env, quiet)
     _ <- sh"${managedPath.value} --install-extension scalameta.metals".exec[Try[String]]: Try[String]
@@ -231,6 +243,30 @@ object CcSoftware extends Software(ExecName("cc")) {
   def version(env: Environment): Option[String] = path(env).flatMap { execPath =>
     sh"${execPath.value} --version".exec[Try[String]].map(_.split("\n").head.split(" ").last).toOption
   }
+}
+
+object GraalVmSoftware extends Installable(ExecName("native-image")) {
+  def website = Https(Path("www.graalvm.org"))
+  def description = "GraalVM Native Image"
+  def installVersion = "20.0.0"
+
+  def version(env: Environment): Option[String] = path(env).flatMap { execPath =>
+    sh"${execPath.value} --version".exec[Try[String]].map(_.drop(16)).toOption
+  }
+
+  def tarGz: Try[Uri] = {
+    def url(sys: String) = Https(Path("github.com") / "graalvm" / "graalvm-ce-builds" / "releases" /
+        "download" / str"vm-$installVersion" / str"graalvm-ce-java8-${sys}-amd64-$installVersion.tar.gz")
+    
+    Installation.system.flatMap {
+      case Linux(X64) => Success(url("linux"))
+      case MacOs(X64) => Success(url("darwin"))
+      case other => Failure(UnknownOs(other.toString))
+    }
+  }
+  
+  def managedPath = Installation.usrDir / "graalvm" / "graalvm-ce-java8-$installedVersion" / "bin" /
+      "native-image"
 }
 
 object FurySoftware extends Software(ExecName("fury")) {

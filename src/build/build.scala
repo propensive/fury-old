@@ -16,10 +16,11 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.model._, fury.io._
+import fury.strings._, fury.core._, fury.model._, fury.io._, fury.utils._
 
 import exoskeleton._
 import euphemism._
+import guillotine._
 
 import Args._
 
@@ -27,8 +28,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._, duration._
 import scala.util._
 import java.text.DecimalFormat
-
-import fury.utils.Multiplexer
 
 import language.higherKinds
 import scala.util.control.NonFatal
@@ -593,8 +592,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
   def cloneLayer: Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
+    cli           <- cli.hint(EditorArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
+    edit          <- ~call(EditorArg).isSuccess
     fakeLayout    <- cli.newLayout
     layerImport   <- call(ImportArg)
     resolved      <- Layer.parse(layerImport, fakeLayout)
@@ -607,6 +608,12 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, resolved.publishedLayer), layout)
     _             <- Bsp.createConfig(layout)
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
+    
+    _             <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
+                       implicit val env: Environment = cli.env
+                       sh"${path.value} ${dir.value}".exec[Try[String]]
+                     }
+                     else Success(())
   } yield log.await()
 
   def publish: Try[ExitStatus] = for {
