@@ -48,11 +48,6 @@ object Install {
     _ <- ~log.info(msg"Compiled the native Nailgun client and ${ExecName("fury")} process name wrapper")
   } yield ()
 
-  private def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
-    paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
-    execPath <- paths.find(_.children.exists(_ == name.key)).ascribe(NotOnPath(name))
-  } yield execPath / name.key
-
   private def fishInstall(env: Environment)(implicit log: Log): Try[Unit] =
     Try(log.warn(msg"Installation for ${ExecName("fish")} is not yet supported"))
 
@@ -80,12 +75,10 @@ object Install {
   }
 
   private def cCompile(src: Path, dest: Path, env: Environment, args: String*): Try[Unit] = for {
-    cc  <- findExecutable(ExecName("cc"), env)
+    cc  <- Installation.findExecutable(ExecName("cc"), env)
     out <- sh"${cc.value} ${src.value} $args -o ${dest.value}".exec[Try[String]]
   } yield ()
 
   private def getShell(env: Environment): Option[ExecName] =
     env.variables.get("SHELL").map(_.split("/").last).map(ExecName(_))
-
-  
 }

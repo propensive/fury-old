@@ -77,9 +77,31 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     _        <- ~ManagedConfig.write(config)
     _        <- ~log.info("You are now authenticated")
   } yield log.await()
+  
+  def software: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.read(layout, conf)
+    cli    <- cli.hint(RawArg)
+    table  <- ~Tables().software(cli.env)
+    cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    call   <- cli.call()
+    col    <- ~cli.peek(ColumnArg)
+    raw    <- ~call(RawArg).isSuccess
+    rows   <- ~Software.all
+    table  <- ~Tables().show[Software, Boolean](table, cli.cols, rows, raw, col)
+    _      <- ~log.infoWhen(!raw)(conf.focus())
+    _      <- ~log.rawln(table)
+  } yield log.await()
+
 }
 
 case class AboutCli(cli: Cli)(implicit log: Log) {
+
+  def version: Try[ExitStatus] = for {
+    call <- cli.call()
+    _    <- ~log.raw(str"fury version ${FuryVersion.current}")
+  } yield log.await()
 
   private def resourcesString: String = {
     val runtime = Runtime.getRuntime
@@ -104,11 +126,9 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
 
   private def tasksString: String = Lifecycle.sessions.map { session =>
     str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
-  }.mkString("\n")
+  }.join("\n")
 
-  private def connectionsString: String = BloopServer.workDirectories.map { dir =>
-    str"$dir"
-  }.mkString("\n")
+  private def connectionsString: String = BloopServer.workDirectories.map { dir => str"$dir" }.join("\n")
 
   private def withTemplate(content: String): String = {
     str"""|     _____
@@ -131,23 +151,20 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
           |""".stripMargin
   }
 
-  def resources: Try[ExitStatus] =
-    cli.call().map{ _ =>
-      log.raw(withTemplate(resourcesString))
-      log.await()
-    }
+  def resources: Try[ExitStatus] = cli.call().map { _ =>
+    log.raw(withTemplate(resourcesString))
+    log.await()
+  }
 
-  def tasks: Try[ExitStatus] =
-    cli.call().map{ _ =>
-      log.raw(withTemplate(tasksString))
-      log.await()
-    }
+  def tasks: Try[ExitStatus] = cli.call().map{ _ =>
+    log.raw(withTemplate(tasksString))
+    log.await()
+  }
 
-  def connections: Try[ExitStatus] =
-    cli.call().map{ _ =>
-      log.raw(withTemplate(connectionsString))
-      log.await()
-    }
+  def connections: Try[ExitStatus] = cli.call().map{ _ =>
+    log.raw(withTemplate(connectionsString))
+    log.await()
+  }
 
 }
 
@@ -225,7 +242,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call          <- cli.call()
     records       <- Dns.lookup(ManagedConfig().service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
-    ipfs          <- Ipfs.daemon(false)
+    ipfs          <- Ipfs.daemon(cli.env, false)
     file          <- ipfs.get(latestRef, tmpFile)
     _             <- TarGz.extract(file, Installation.upgradeDir)
   } yield log.await() }
@@ -507,7 +524,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   def init: Try[ExitStatus] = for {
     layout <- cli.newLayout
     call   <- cli.call()
-    _      <- Layer.init(layout)
+    _      <- Layer.init(cli.env, layout)
     _      =  Bsp.createConfig(layout)
   } yield log.await()
 
@@ -581,7 +598,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     fakeLayout    <- cli.newLayout
     layerImport   <- call(ImportArg)
     resolved      <- Layer.parse(layerImport, fakeLayout)
-    layerRef      <- Layer.load(resolved, fakeLayout)
+    layerRef      <- Layer.load(cli.env, resolved, fakeLayout)
     dir           <- call(DirArg).pacify(resolved.suggestedName.map { n => Path(n.key) })
     pwd           <- cli.pwd
     dir           <- ~pwd.resolve(dir)
@@ -603,8 +620,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     path          <- call(RemoteLayerArg)
     breaking      <- ~call(BreakingArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, raw)
-    pub           <- Service.publish(ref.key, path, raw, breaking)
+    ref           <- Layer.share(cli.env, layer, layout, raw)
+    pub           <- Service.publish(cli.env, ref.key, path, raw, breaking)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
     _             <- if(raw) ~log.rawln(str"${pub.url}")
                      else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
@@ -618,7 +635,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer         <- Layer.read(layout, conf)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
-    ref           <- Layer.share(layer, layout, raw)
+    ref           <- Layer.share(cli.env, layer, layout, raw)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
   } yield log.await()
 
@@ -644,13 +661,16 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     layerImport   <- ~cli.peek(ImportArg)
-    layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(_, layout)).toOption)
+
+    layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(cli.env, _,
+                         layout)).toOption)
+
     maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
     call          <- cli.call()
     layerImport   <- call(ImportArg)
     layerInput    <- Layer.parse(layerImport, layout)
     nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
-    layerRef      <- Layer.load(layerInput, layout)
+    layerRef      <- Layer.load(cli.env, layerInput, layout)
     schemaRef     <- ~SchemaRef(nameArg, layerRef, SchemaId.default)
     layer         <- Lenses.updateSchemas(layer)(Lenses.layer.imports(_))(_.modify(_)(_ +
                           schemaRef.copy(id = nameArg)))

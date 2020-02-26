@@ -24,6 +24,7 @@ import kaleidoscope._
 
 import scala.util._
 import scala.collection.immutable._
+import guillotine._
 
 case class Layer(version: Int,
                  schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
@@ -43,9 +44,11 @@ object Layer {
     implicit val msgShow: MsgShow[Layer] = r => UserMsg(_.layer(r.hash))
     implicit val stringShow: StringShow[Layer] = _.hash
   
-    def loadFromIpfs(layerRef: IpfsRef, layout: Layout, quiet: Boolean)(implicit log: Log): Try[LayerRef] =
+    def loadFromIpfs(env: Environment, layerRef: IpfsRef, layout: Layout, quiet: Boolean)
+                    (implicit log: Log)
+                    : Try[LayerRef] =
       Installation.tmpDir { dir => for {
-        ipfs <- Ipfs.daemon(quiet)
+        ipfs <- Ipfs.daemon(env, quiet)
         file <- ipfs.get(layerRef, dir)
         ref  <- loadDir(file, layout)
       } yield ref }
@@ -75,7 +78,7 @@ object Layer {
         conf   <- Ogdl.read[FuryConf](tmpDir / ".fury.conf", identity(_))
       } yield conf.layerRef }
   
-    def share(layer: Layer, layout: Layout, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
+    def share(env: Environment, layer: Layer, layout: Layout, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
       Installation.tmpDir { tmp => for {
         layerRef  <- saveLayer(layer)
         schemaRef =  SchemaRef(ImportId(""), layerRef, layer.main)
@@ -85,7 +88,7 @@ object Layer {
                        (tmp / "layers" / ref.key, Installation.layersPath / ref.key)
                      }.toMap.updated(tmp / ".fury.conf", layout.confFile)
         _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest) }
-        ipfs      <- Ipfs.daemon(quiet)
+        ipfs      <- Ipfs.daemon(env, quiet)
         ref       <- ipfs.add(tmp)
       } yield ref }
   
@@ -106,14 +109,14 @@ object Layer {
       }
     }
   
-    def load(input: LayerInput, layout: Layout)(implicit log: Log): Try[LayerRef] =
+    def load(env: Environment, input: LayerInput, layout: Layout)(implicit log: Log): Try[LayerRef] =
       input match {
         case FuryUri(domain, path) => for {
                                         entries <- Service.catalog(domain)
                                         ipfsRef <- Try(entries.find(_.path == path).get)
-                                        ref     <- loadFromIpfs(IpfsRef(ipfsRef.ref), layout, false)
+                                        ref     <- loadFromIpfs(env, IpfsRef(ipfsRef.ref), layout, false)
                                       } yield ref
-        case ref@IpfsRef(_)        => loadFromIpfs(ref, layout, false)
+        case ref@IpfsRef(_)        => loadFromIpfs(env, ref, layout, false)
         case FileInput(file)       => loadFile(file, layout)
       }
   
@@ -161,12 +164,12 @@ object Layer {
     def digestLayer(layer: Layer): LayerRef =
       LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
   
-    def init(layout: Layout)(implicit log: Log): Try[Unit] = {
+    def init(env: Environment, layout: Layout)(implicit log: Log): Try[Unit] = {
       if(layout.confFile.exists) { for {
         conf     <- readFuryConf(layout)
         url      <- Try(conf.published.get)
         ref      <- parse(url.url.key, layout)
-        layer    <- Layer.load(ref, layout)
+        layer    <- Layer.load(env, ref, layout)
         conf     <- saveFuryConf(FuryConf(layer, conf.path, conf.published), layout)
         _        <- ~log.info(msg"Initialized layer ${layer}")
       } yield () } else { for {

@@ -3,7 +3,7 @@ LAYER_REF="QmXrEsyVnUw1LXPkHmbQTyuM7x8eJyQYjcEY7DJcjQ39zY"
 
 run: dist/fury tmp/.bundle.ipfs
 
-publish: run pinata fury
+publish: run pinata
 
 fury:
 	@printf "Copying new launcher script to root directory..."
@@ -43,6 +43,11 @@ uninstall:
 	@printf "Removing all previous installations of Fury..."
 	@rm -rf $(HOME)/.local/share/fury && \
 	 printf "done\n"
+
+install: clean uninstall publish dist/fury
+	@printf "Installing Fury using script...\n"
+	@dist/fury system install && \
+	 printf "Done\n"
 
 dist/fury: etc/launcher tmp/.bundle.ipfs
 	@printf "Rewriting Fury launcher script..."
