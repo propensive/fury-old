@@ -14,9 +14,9 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.model
+package fury.core
 
-import fury._, io._, strings._, ogdl._
+import fury._, io._, strings._, ogdl._, model._
 
 import gastronomy._
 import kaleidoscope._
@@ -28,39 +28,64 @@ import scala.io._
 
 object Install {
   
-  def apply(env: Environment, force: Boolean): Try[Unit] = for {
-    _ <- cCompile(Installation.binDir / "procname.c", Installation.binDir / "libprocname.so", env, " -Wall",
-             "-Werror", "-fPIC", "-shared")
-
-    _ <- cCompile(Installation.binDir / "ng.c", Installation.binDir / "ng", env)
-    _ <- zshrcInstall(env, force)
-    _ <- bashrcInstall(env, force)
+  def apply(env: Environment, force: Boolean)(implicit log: Log): Try[Unit] = for {
+    _ <- doCCompilation(env).recover { case e =>
+           log.warn(msg"Could not find a C compiler (${ExecName("cc")}) on the PATH")
+           log.warn(msg"Fury will work, but will be unable to display the ${ExecName("fury")} process name and"+
+               msg" will use the slower Python Nailgun client, instead of a native client")
+         }
+    
+    _ <- rcInstall(env, force, Xdg.home / ".zshrc", ExecName("zsh"), zshCompletions)
+    _ <- rcInstall(env, force, Xdg.home / ".bashrc", ExecName("bash"), Nil)
+    _ <- fishInstall(env)
   } yield ()
 
-  def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
+  private def doCCompilation(env: Environment)(implicit log: Log): Try[Unit] = for {
+    _ <- cCompile(Installation.binDir / "procname.c", Installation.binDir / "libprocname.so",
+                            env, "-Wall", "-Werror", "-fPIC", "-shared")
+
+    _ <- cCompile(Installation.binDir / "ng.c", Installation.binDir / "ng", env)
+    _ <- ~log.info(msg"Compiled the native Nailgun client and ${ExecName("fury")} process name wrapper")
+  } yield ()
+
+  private def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
     paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
     execPath <- paths.find(_.children.exists(_ == name.key)).ascribe(NotOnPath(name))
   } yield execPath / name.key
 
-  final val furyTag: String = "# Added by Fury"
-  final def setPathLine(paths: List[Path]): String = str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag"
+  private def fishInstall(env: Environment)(implicit log: Log): Try[Unit] =
+    Try(log.warn(msg"Installation for ${ExecName("fish")} is not yet supported"))
+
+  private final val furyTag: String = "# Added by Fury"
   
-  final val zshCompletions = List(str"autoload -Uz compinit $furyTag",
+  private final def setPathLine(paths: List[Path]): List[String] =
+    List(str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag")
+  
+  private final val zshCompletions: List[String] = List(str"autoload -Uz compinit $furyTag",
       str"fpath=($$FURYHOME/completion/zsh $$fpath) $furyTag")
 
-  def zshrcInstall(env: Environment, force: Boolean) = for {
-    file  <- Try(Xdg.home / ".zshrc")
-    lines <- Try(Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag)))
-    _     <- file.writeSync((lines.to[List] :+ setPathLine(List(Installation.binDir,
-                 Installation.usrDir))).join("\n"))
-  } yield ()
+  private def rcInstall(env: Environment, force: Boolean, file: Path, shell: ExecName, extra: List[String])
+                       (implicit log: Log)
+                       : Try[Unit] = { for {
+    lines <- Try(scala.io.Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag))).recover {
+               case e if(force || shell == getShell(env)) => List("")
+             }
+    
+    _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.binDir,
+                 Installation.usrDir)) ++ extra).join("\n", "\n", "\n"))
+    
+    _     <- Try(log.info(msg"Updated ${file} to include ${ExecName("fury")} on the PATH"))
+  } yield () }.recover { case e =>
+    log.warn(msg"Could not find the file ${file} to install ${ExecName("fury")} on the PATH")
+  }
 
-  def bashrcInstall(env: Environment, force: Boolean) = for {
-    file <- Try(Xdg.home / ".bashrc")
-  } yield ()
-
-  def cCompile(src: Path, dest: Path, env: Environment, args: String*): Try[Unit] = for {
+  private def cCompile(src: Path, dest: Path, env: Environment, args: String*): Try[Unit] = for {
     cc  <- findExecutable(ExecName("cc"), env)
     out <- sh"${cc.value} ${src.value} $args -o ${dest.value}".exec[Try[String]]
   } yield ()
+
+  private def getShell(env: Environment): Option[ExecName] =
+    env.variables.get("SHELL").map(_.split("/").last).map(ExecName(_))
+
+  
 }
