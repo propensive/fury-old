@@ -13,7 +13,7 @@ fury build describe
 echo $?
 fury source add -d src
 #npm init --yes
-fury build classpath
+fury
 fury repo fork -r left-pad -d left-pad
 cat << EOF >  index.js
 var greeting = "Hello Javascript!";

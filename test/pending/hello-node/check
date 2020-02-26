@@ -4,5 +4,6 @@ Set current module to node
 Set current project to hello-node
 Setting default compiler for project hello-node to javascript/node
 Set current module to app
-
+Starting build
+NodeJs module detected, skipping Bloop invocation
 ........Hello Javascript!

@@ -687,6 +687,9 @@ case class Compilation(graph: Target.Graph,
             multiplexer(targetId.ref) = NoCompile(targetId.ref)
           }
           Future.successful(required)
+        } else if (target.compiler.exists(_.ref == ModuleRef.NodeJsRef)) {
+          log.info("NodeJs module detected, skipping Bloop invocation")
+          Future.successful(required)
         } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity)
       }
     }
