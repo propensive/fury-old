@@ -1,7 +1,7 @@
 VERSION="${shell git describe --tags 2> /dev/null}"
 LAYER_REF="QmXrEsyVnUw1LXPkHmbQTyuM7x8eJyQYjcEY7DJcjQ39zY"
 
-run: dist/fury.tar.gz tmp/.bundle.ipfs
+run: dist/fury tmp/.bundle.ipfs
 
 publish: run pinata fury
 

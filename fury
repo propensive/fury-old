@@ -7,7 +7,7 @@
 #
 
 version="0.9.3"
-ipfsHash="QmbVimWw4bP59LcAg34Tr9JiMhKTLMuKfJzqEN4583dCCg"
+ipfsHash="QmWKRWEUWALxWyJkMhmTLjGrQamBCk6Ao3bTFiZqeNtyjV"
 startTime="$(($(date +"%s * 1000 + %-N / 1000000")))"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
