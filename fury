@@ -3,6 +3,8 @@
 # This is the Fury launcher script, which will download and run Fury in "standalone" mode. You can
 # distribute this file in a Git repository to make it easier for users to run Fury.
 #
+# Copyright 2018-20 Jon Pretty, Propensive OÜ.
+#
 
 version="0.9.3"
 ipfsHash="QmbVimWw4bP59LcAg34Tr9JiMhKTLMuKfJzqEN4583dCCg"
