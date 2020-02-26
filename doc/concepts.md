@@ -2,13 +2,80 @@
 
 ## Basic concepts
 
-Fury builds are modeled as _layers_ which are the atoms of distribution. They may define _projects_ and/or inherit them from imported layers. Projects consist of _modules_, which may depend on other modules forming a directed acyclic graph which can span projects and layers. Modules compile _sources_ which are taken from a _repo_ (repository) using a compiler (which is just another module).
+Fury builds are modeled as _layers_ which are the atoms of distribution. They may define _projects_ and inherit
+them from imported layers. Projects consist of _modules_, which may depend on other modules forming a directed
+acyclic graph which can span projects and layers. Modules compile _sources_ which are taken from a _repo_
+(repository) using a compiler (which is just another module).
 
-## Build structure
+## Motivation and approach
 
-### Layers
+Fury attempts to make the challenge of coordinating the maintenance of different parts of a constantly-evolving
+ecosystem more manageable. This is inherently difficult: an ecosystem will have many different stakeholders,
+with different availability and areas of interest, and while each maintainer will be aware of other projects
+they depend on, they will often be blind to the projects which exist downstream of theirs, and the impact of
+changes they may choose to make.
 
-#### Layer Imports
+This is at least partially a social problem: communication and coordination between maintainers is a necessary
+part of the maintenance process. But there is a tension amongst project maintainers between keeping a
+consistent API unchanging to minimize the burden of maintenance on downstream projects, and introducing new
+features and enhancements which may break compatibility. This is a tension between _stability_ and _progress_.
+
+Fury does not pretend to have a clever trick to magically resolve this tension, but it seeks to mitigate the
+_incidental_ problems so that users can focus on solving the _inherent_ problems. In particular, Fury:
+
+- reduces the friction of publishing and forking libraries
+- crowdsources the development and maintenance of builds
+- distinguishes between breaking and nonbreaking changes
+- distributes the burden of maintaining coherency across the ecosystem
+
+### Easier publishing and forking
+
+### 
+
+### Semantic versioning of builds
+
+###
+
+## Anatomy of a Fury build
+
+The topmost entity in the Fury build model is a layer. A layer contains all of the information necessary to
+build something, and is somewhat similar to the concept of workspace in 
+[Eclipse](https://www.eclipse.org/eclipseide).
+
+A layer may reference other layers by _importing_ them. All projects defined in the imported layer 
+(and also in any layers it references transitively) become available in your layer to inspect, use and even
+edit.
+
+A layer usually contains one or more _project_ definitions. A project is a set of sources and dependencies,
+which usually represents an entire application or library with a single name, license. It is similar to the
+concept of project in Eclipse, [IntelliJ](https://www.jetbrains.com/idea) or [Maven](http://maven.apache.org),
+and will usually correspond to a single [Git](https://git-scm.com) repository, though this isn't enforced.
+
+A project consists of one or more modules. A module corresponds to a set of tightly coupled sources that are
+built with a single compiler task. This is the smallest unit of source organization in Fury, and is similar to
+the concept of module in IntelliJ, Maven or [SBT](https://www.scala-sbt.org/1.x/docs).
+
+Each module may (but doesn't have to) reference a set of source directories that are passed to the compiler
+when the module is built. These sources may be located in remote Git repositories, or on the local file system,
+though a layer which refers to local files may not be shared with other users.
+
+A module may also have binary dependencies, which must be located in remote repositories (e. g.
+[Maven Central](https://mvnrepository.com/repos/central) or [Bintray](https://jfrog.com/bintray)). When the
+module is being built, its binary dependencies are downloaded and passed to the compiler.
+[Coursier](https://get-coursier.io) is used to fetch transitive dependencies and resolve potential version
+conflicts.
+
+A module may also have dependencies on other modules defined in the layer (or its imported layers). These
+modules are built prior to the current module, and their outputs (such as `*.class` files) passed to the
+compiler. This is similar to how module dependencies work in Maven or SBT, but the scope of such links is not
+limited to the project; each module may depend on any module accessible in the current layer and its imported
+layers.
+
+Among other things, a layer may contain references to remote source repositories. The layer does not use them
+directly, but every module in the layer can reference them as source locations. As the module is being built,
+the repositories it depends on are checked out to a specific commit. Repositories may also be configured to
+"track" a branch, but this is merely a convenience to make it easier to manually update a repository to a newer
+commit; for repeatability of builds, source references are always precisely defined by commit hashes.
 
 #### Navigating Layers
 
@@ -16,19 +83,64 @@ Layers form a tree
 
 ### Projects
 
+A project is a group of one or more modules which, collectively, are the component parts of a larger entity,
+which (by any reasonable description) would be called a "project". The name of a project is what is typically
+used to uniquely identify it in conversations, documentation and marketing. Fury uses the name of the project to
+work out whether two dependencies from different layers are intended to be the same project or not.
+
+While this grouping may not seem important, it is fundamental to Fury finding coherent build definitions for
+every project the build depends on. If two projects coming from different layers have the same name, but
+different definitions, then Fury considers them to be conflicting variants of the same project, which must be
+resolved before the build may be run (or published).
+
+Fury establishes a one-to-one mapping between project names and project definitions, which it calls a
+_universe_.
+
 #### Conflicts and uniqueness
 
 #### Licenses
 
 ### Modules
 
+Modules define units of compilation, and dependencies between them. Each represents a collection of sources
+which should be compiled to produce a collection of outputs, but they are _unitary_ in the sense that
+compilation will either succeed completely, or fail (producing no output).
+
+For Scala, however, if a successfuly compilation has already completed, the compiler may cache the reuse the
+earlier output, performing an _incremental compilation_. As far as Fury is concerned, this is an implementation
+detail, and the only observable difference should be that compilation will sometimes be faster.
+
+Fury users will not typically _see_ the outputs (such as class files) from a compilation in the form of files
+on disk. They do exist within Fury's cache, but usually, while developing software it is sufficient just to
+know whether compilation succeeded or failed (with error messages), or to see the output from running the
+tests. JAR files can be saved to disk from a successful compilation.
+
+Each module must define a compiler, which will be invoked to convert some source files to some outputs, but
+different types of modules may have additional behavior. Most modules will be _library_ modules, which do this
+and nothing more. _Application_ modules may additionally have a `main` method in one of their objects which is
+_run_ after compilation.
+
+This makes application modules suitable for operations which happen at the end of a build, such as running
+tests or launching a web server. But they may also run during earlier stages of the build, performing tasks like
+source-code generation or bytecode analysis.
+
+_Plugin_ modules may be used to define Scala compiler plugins. Any other module depending on a plugin module
+will be compiled with that plugin enabled.
+
+_Benchmark_ modules are similar to application modules, but integrate with
+[`jmh`](https://openjdk.java.net/projects/code-tools/jmh/) to instrument the compiled bytecode, and then run the
+benchmarks in isolation
+
 #### Application modules
 
 #### Benchmarks
 
-Carrying out benchmarking puts some special requirements on the build: in particular, the build should not be performing any other intensive operations while the benchmarks are being run. Fury provides a special type of module, `benchmarks`, for this purpose.
+Carrying out benchmarking puts some special requirements on the build: in particular, the build should not be
+performing any other intensive operations while the benchmarks are being run. Fury provides a special type of
+module, `benchmarks`, for this purpose.
 
-Currently the only benchmarking tool supported by Fury is [jmh](https://openjdk.java.net/projects/code-tools/jmh/), but later versions make offer alternative options.
+Currently the only benchmarking tool supported by Fury is
+[jmh](https://openjdk.java.net/projects/code-tools/jmh/), but later versions make offer alternative options.
 
 ## Publishing
 
@@ -41,15 +153,16 @@ any catalogs.
 Publishing attaches a name of your choice to a shared layer, and optionally adds it to a catalog to make it
 discoverable. Publishing requires a third-party catalog service, whose job is to aggregate published layers
 and make them available for users to view or search. Different catalog services can choose different criteria
-for publishing layers, but Fury comes bootstrapped to use the `furore.dev` catalog service, which can be
-freely used by anyone with a GitHub account. A shared layer hash is an immutable reference to a full
-specification of the build, and is intended to produce the same binary outputs today or in ten years' time. A
-published layer name, however, is mutable and can refer to different (though hopefully not wildly different)
-definitions at different times. You should use the published name to get the latest or best version of a
-layer, whereas the shared hash should be used to guarantee repeatability. A layer imported into another will
-always be stored using its immutable hash, ensuring that the build is repeatable. However, if a layer is
-imported using a mutable name, this is also stored in the layer to help with maintenance: it's easy to check
-if a newer version of a layer has become available, and to automatically upgrade to the latest version.
+for publishing layers, but Fury comes bootstrapped to use the
+[`furore.dev` catalog service](https://furore.dev/catalog), which can be freely used by anyone with a
+[GitHub](https://github.com) account. A shared layer hash is an immutable reference to a full specification of
+the build, and is intended to produce the same binary outputs today or in ten years' time. A published layer
+name, however, is mutable and can refer to different (though hopefully not wildly different) definitions at
+different times. You should use the published name to get the latest or best version of a layer, whereas the
+shared hash should be used to guarantee repeatability. A layer imported into another will always be stored using
+its immutable hash, ensuring that the build is repeatable. However, if a layer is imported using a mutable name,
+this is also stored in the layer to help with maintenance: it's easy to check if a newer version of a layer has
+become available, and to automatically upgrade to the latest version.
 
 ### Versioning
 
@@ -62,11 +175,13 @@ The distinction between major and minor versions of a layer is intended, without
 indicate whether that change represents a change which is compatible with earlier versions of the build or
 not: compatible changes should be marked as minor version updates, and incompatible changes as major updates.
 
-When publishing, users are given the choice of specifying that a layer update is minor using the `--minor` (`-M`) flag to the `fury layer publish` command. By default, publishing a layer with Fury will assume that the changes are incompatible, and the major version number will be updated.
+When publishing, users are given the choice of specifying that a layer update is minor using the `--minor`
+(`-M`) flag to the `fury layer publish` command. By default, publishing a layer with Fury will assume that the
+changes are incompatible, and the major version number will be updated.
 
 This is important because Fury makes it easy for maintainers of layers which import another layer to update
-the import to the latest *minor* version automatically with just a single command. Updating a layer to a new major version
-is a manual operation.
+the import to the latest *minor* version automatically with just a single command. Updating a layer to a new
+major version is a manual operation.
 
 #### Version numbers
 
@@ -85,16 +200,18 @@ user must first fetch the latest version from the catalog service and reconcile 
 ### Layer references
 
 Fury layers are stored and distributed independently of the source code they build. This approach has the
-benefit that abuild developer or maintainer does not need write-access to the source code repository in order to publish
-a build for it. This works well when users start exploring a project from its Fury layer, perhaps by cloning
-the layer or importing it. But many users will start by cloning a Git repository containing source code, and
-will only later want to start building that source code using Fury.
+benefit that a build developer or maintainer does not need write-access to the source code repository in order
+to publish a build for it. This works well when users start exploring a project from its Fury layer, perhaps by
+cloning the layer or importing it. But many users will start by cloning a Git repository containing source code,
+and will only later want to start building that source code using Fury.
 
 This workflow is accommodated by Fury. If the Git repository contains a `.fury.conf` file, it will contain a
-reference to the layer file which Fury can automatically fetch and use. In doing so, Fury will automatically
-use the latest minor version of the layer referenced in the `.fury.conf` file.
+reference to the layer file which Fury can automatically fetch and use. In doing so, Fury will automatically use
+the latest minor version of the layer referenced in the `.fury.conf` file.
 
-This means that the build associated with a particular Git repository commit may continue to evolve after the source code has been committed and tagged with a version number. As the build describes all the dependencies for the projects defined in the layer
+This means that the build associated with a particular Git repository commit may continue to evolve after the
+source code has been committed and tagged with a version number. As the build describes all the dependencies
+for the projects defined in the layer
 
 That means that 
 
@@ -102,41 +219,96 @@ That means that
 
 ## Catalog services
 
-Publishing Fury layers so that other users can see an up-to-date catalog and access them requires a single source of truth about the catalog, and the layers it contains. Fury's publishing model assumes that a central server, accessible over HTTP at a pre-agreed domain (or IP address), will be used to access the current catalog, and to publish new layers to it. We call this the _catalog service_.
+Publishing Fury layers so that other users can see an up-to-date catalog and access them requires a single
+source of truth about the catalog, and the layers it contains. Fury's publishing model assumes that a central
+server, accessible over HTTP at a pre-agreed domain (or IP address), will be used to access the current
+catalog, and to publish new layers to it. We call this the _catalog service_.
 
 ### Resilience
 
-A single source of truth implies, unfortunately, a single point of failure, and it would not be satisfactory to assume that any server running the catalog service would have 100% uptime, or would be accessible continuously from any location around the world. Fury, as the only client to the catalog service, will fall back to an alternative solution if the catalog server is unavailable for whatever reason.
+A single source of truth implies, unfortunately, a single point of failure, and it would not be satisfactory to
+assume that any server running the catalog service would have 100% uptime, or would be accessible continuously
+from any location around the world. Fury, as the only client to the catalog service, will fall back to an
+alternative solution if the catalog server is unavailable for whatever reason.
 
-If an HTTP request to the catalog service fails, Fury will attempt to access a DNS record associated with the catalog service's domain name, which will point to an IPFS hash of a recent version of the layer catalog. DNS is inherently distributed, and IPFS is a peer-to-peer network, so both will continue to function during while the catalog service is unavailable. It will not be possible to publish a layer during any period of unavailability, or access the definitive most-recent catalog, but the architecture is designed to degrade gracefully in the event of failure. Even though _publishing_ a layer will be temporarily impossible, _sharing_ a layer will continue to work.
+If an HTTP request to the catalog service fails, Fury will attempt to access a DNS record associated with the
+catalog service's domain name, which will point to an [IPFS](https://ipfs.io) hash of a recent version of the
+layer catalog. DNS is inherently distributed, and IPFS is a peer-to-peer network, so both will continue to
+function during while the catalog service is unavailable. It will not be possible to publish a layer during any
+period of unavailability, or access the definitive most-recent catalog, but the architecture is designed to
+degrade gracefully in the event of failure. Even though _publishing_ a layer will be temporarily impossible,
+_sharing_ a layer will continue to work.
 
 ### Furore
 
-[Furore](https://furore.dev/) is a catalog service provided by [Propensive O&Uuml;](https://propensive.com/) for sharing Fury layers, and fresh Fury installations are configured to use Furore as their default catalog service.
+[Furore](https://furore.dev/) is a catalog service provided by [Propensive O&Uuml;](https://propensive.com/)
+for sharing Fury layers, and fresh Fury installations are configured to use Furore as their default catalog
+service.
 
 ### Custom Catalog Services
 
-It may be desirable for developers to develop and host their own catalog service, accessible publicly as _Furore_ is, or restricted to corporate intranet. As well as providing control over the visibility of the catalog service, hosting a custom catalog service enables alternative methods of authentication using [OAuth](https://en.wikipedia.org/wiki/OAuth) and custom business logic for layer verification and the choice of public name.
+It may be desirable for developers to develop and host their own catalog service, accessible publicly as
+_Furore_ is, or restricted to corporate intranet. As well as providing control over the visibility of the
+catalog service, hosting a custom catalog service enables alternative methods of authentication using
+[OAuth](https://en.wikipedia.org/wiki/OAuth) and custom business logic for layer verification and the choice of
+public name.
 
-The API a catalog service must implement in order for Fury to use it is quite simple, but is still evolving and is not yet finalized or published. There are medium-term plans to release the Furore server source code as open source to allow developers to fork and implement their own services, should they want to.
+The API a catalog service must implement in order for Fury to use it is quite simple, but is still evolving and
+is not yet finalized or published. There are medium-term plans to release the Furore server source code as open
+source to allow developers to fork and implement their own services, should they want to.
 
 ## Repositories
 
-A Fury layer will probably have one or more Git repositories associated with it, which modules will use to
-get source code to compile. Repositories are specified as both a Git URL and a commit hash, meaning that the reference in the layer will point to exactly the same code for all time. Additionally, a
-branch or tag may be associated with the reference too, but this only serves as a pointer to be checked for
-updates to the source code, and is not used to determine which commit of the repository to check out and use
-for the build. Were Fury to do so, it would make builds non-repeatable, and worse, unacceptably fragile as
-time passes and branches change.
+A Fury layer will probably have one or more Git repositories associated with it, which modules will use to get
+source code to compile. Repositories are specified as both a Git URL and a commit hash, meaning that the
+reference in the layer will point to exactly the same code for all time. Additionally, a branch or tag may be
+associated with the reference too, but this only serves as a pointer to be checked for updates to the source
+code, and is not used to determine which commit of the repository to check out and use for the build. Were Fury
+to do so, it would make builds non-repeatable, and worse, unacceptably fragile as time passes and branches
+change.
 
 ### Forking
 
-Whenever Fury runs a build referencing Git repositories containing source code, it will need local copies of those repositories. Fury will clone and checkout the referenced sources into its cache directory, as necessary.
+Whenever Fury runs a build referencing Git repositories containing source code, it will need local copies of
+those repositories. Fury will clone and checkout the referenced sources into its cache directory, as necessary.
 
 ### Local repositories
 
-Usually, a developer would be actively working on the source code from a repository at the same time as using or developing a Fury build. The working directory would be the same for both the Fury build and the source repository.
+Usually, a developer would be actively working on the source code from a repository at the same time as using
+or developing a Fury build. The working directory would be the same for both the Fury build and the source
+repository.
 
-If Fury detects that its working directory is a Git repository, and furthermore, is one of the repositories defined in the layer (which Fury will work out from its remote URL), it will use the working directory as a "forked" version of the repository, instead of checking out a separate repository to Fury's cache.
+If Fury detects that its working directory is a Git repository, and furthermore, is one of the repositories
+defined in the layer (which Fury will work out from its remote URL), it will use the working directory as a
+"forked" version of the repository, instead of checking out a separate repository to Fury's cache.
 
+This means that you can work on the sources for any of the repositories referenced by your current layer, from
+the same working directory, and the build will automatically use your current version of the sources for that
+repository.
+
+Fury can also automatically check out a Git repository into its current working directory. This is a
+special-case of forking, where the repository is will be forked into the current working directory.
+
+#### Forking a repository
+
+To fork a repository, run the command,
+```
+fury repo fork -r <repo id> -d <destination>
+```
+
+This will create a checkout of the repository with the id `<repo id>` into the directory `<destination>`,
+creating it if necessary. Both the `-r`/`--repo` and `-d`/`--dir` options are required.
+
+#### Checking out a repository
+
+You can check out a repository into your working directory if you do not already have a repository checked out,
+or if the repository you currently have checked out does not have any uncommitted or unpushed changes. This is
+because there can be at most one repository checked out in the working directory at a time, so checking out a
+new repository requires that the old repository be _checked in_ first, in such a way that the layer can
+continue to refer to the same checked-out sources, by means of a remote URL and a commit hash.
+
+If this condition is met, a repository can be checked out with,
+```
+fury repo checkout -r <repo id>
+```
 
