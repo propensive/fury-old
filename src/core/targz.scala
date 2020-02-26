@@ -24,6 +24,8 @@ import scala.util.Try
 import org.kamranzafar.jtar.{TarEntry, TarInputStream, TarOutputStream}
 
 import java.util.zip._
+import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.PosixFilePermissions
 
 object TarGz {
 
@@ -75,6 +77,7 @@ object TarGz {
       val out = new BufferedOutputStream(fos)
       transfer(tis, out, keepOpen = true)
       out.close()
+      if((entry.getHeader().mode & 64) > 0) path.javaFile.setExecutable(true)
     }
     tis.close()
   }
