@@ -21,6 +21,7 @@ import fury.io._, fury.model._, fury.strings._
 import euphemism._
 
 import scala.util._
+import guillotine._
 
 object Service {
   def catalog(service: String)(implicit log: Log): Try[List[Artifact]] = {
@@ -33,7 +34,7 @@ object Service {
     } yield artifacts
   }
 
-  def publish(hash: String, path: String, quiet: Boolean, breaking: Boolean)
+  def publish(env: Environment, hash: String, path: String, quiet: Boolean, breaking: Boolean)
              (implicit log: Log)
              : Try[PublishedLayer] = {
 
@@ -41,7 +42,7 @@ object Service {
     case class Request(path: String, token: String, hash: String, breaking: Boolean)
     case class Response(output: String)
     for {
-      ipfs <- Ipfs.daemon(quiet)
+      ipfs <- Ipfs.daemon(env, quiet)
       id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json(Request(path, ManagedConfig().token, hash, breaking)), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
