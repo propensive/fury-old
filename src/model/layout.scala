@@ -50,17 +50,19 @@ object Xdg {
   }
   
   val home: Path = Option(System.getenv("HOME")).map(Path(_)).getOrElse(Path("/"))
+  val ipfsRepo: Path = Option(System.getenv("IPFS_PATH")).map(Path(_)).getOrElse(home / ".ipfs")
   val cacheHome: Path = Var("CACHE_HOME").path.getOrElse(home / ".cache")
   val dataHome: Path = Var("DATA_HOME").path.getOrElse(home / ".local" / "share")
   val dataDirs: List[Path] = Var("DATA_DIRS").paths.getOrElse(List(Path("/usr/local/share"), Path("/usr/share")))
   val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
   val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
   val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
-  val ipfsRepo: Path = Var("IPFS_PATH").path.getOrElse(home / ".ipfs")
+
+  val pathEnv: List[Path] = Option(System.getenv("PATH")).map { str => str.split(":").to[List].map(Path(_))
+      }.getOrElse(Nil)
 
   def findData(filename: Path): Option[Path] = (dataHome :: dataDirs).map(filename in _).find(_.exists)
   def findConfig(filename: Path): Option[Path] = (configHome :: configDirs).map(filename in _).find(_.exists)
-
   def data(filename: String): Path = (Path(filename) in dataHome).extantParents()
   def config(filename: String): Path = (Path(filename) in configHome).extantParents()
   def cache(filename: String): Path = (Path(filename) in cacheHome).extantParents()
@@ -115,8 +117,15 @@ object Installation {
     }
   }
 
+  def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
+    paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
+    execPath <- paths.find(_.children.exists(_ == name.key)).ascribe(NotOnPath(name))
+  } yield execPath / name.key
+
+
   val installDir: Path = Path(System.getProperty("fury.home"))
   val usrDir: Path = (installDir / "usr").extant()
+  val binDir: Path = (installDir / "bin").extant()
   val ipfsInstallDir: Path = installDir / "ipfs"
   val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"
 

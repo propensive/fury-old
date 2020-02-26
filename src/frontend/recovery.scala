@@ -48,8 +48,8 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Could not start the bloop server.")
         case NoLatestVersion() =>
           cli.abort(msg"Could not determine the current latest version of Fury.")
-        case IpfsNotOnPath() =>
-          cli.abort(msg"The command 'ipfs' was not on the PATH. IPFS must be installed to perform this operation.")
+        case NotOnPath(name) =>
+          cli.abort(msg"The required executable $name was not found on the PATH.")
         case CantWatchAndWait() =>
           cli.abort(msg"The --watch (-w) and --wait (-W) options cannot be used together.")
         case ImportOnlyFileOrRef() =>
