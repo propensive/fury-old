@@ -33,7 +33,7 @@ object LogStyle {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: => java.io.PrintWriter, debug: Boolean): LogStyle = {
+  def apply(printWriter: => java.io.PrintWriter, debug: Boolean, startTime: Long): LogStyle = {
     val config = ManagedConfig()
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info

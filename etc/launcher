@@ -42,7 +42,7 @@ installFury() {
 }
 
 runFury() {
-  printf "Launching Fury in standalone mode...\n"
+  printf "Launching Fury ${version} in standalone mode...\n"
   FURY_HOME="${installDir}" START_TIME="${startTime}" \
       "${installDir}/bin/fury" standalone ${args}
 }

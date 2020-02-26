@@ -44,10 +44,13 @@ object Ipfs {
 
     def id(): Try[IpfsId] = Try {
       val idInfo = api.id()
+
       IpfsId(
         ID = idInfo.get("ID").toString,
         PublicKey = idInfo.get("PublicKey").toString,
-        Addresses = idInfo.get("Addresses").asInstanceOf[java.util.List[String]].asScala.toList,
+        Addresses = idInfo.get("Addresses") match {
+          case xs: java.util.List[_] => xs.asScala.to[List].map(_.toString)
+        },
         AgentVersion = idInfo.get("AgentVersion").toString,
         ProtocolVersion = idInfo.get("ProtocolVersion").toString
       )
@@ -71,14 +74,14 @@ object Ipfs {
     def getHandle(): Try[IPFS] = Try{ new IPFS("localhost", 5001) }
 
     def init(ipfs: String): Try[Unit] = {
-      Xdg.ipfsRepo.ifExists().map(_ => Success(())).getOrElse{
+      Xdg.ipfsRepo.ifExists().map(Success(()).waive).getOrElse {
         sh"$ipfs init".exec[Try[String]]().map(_ => ())
       }
     }
 
     def handleAsync(ipfs: String): Future[Unit] = {
       val ready = Promise[Unit]
-      Future(blocking{ sh"$ipfs daemon".async(
+      Future(blocking { sh"$ipfs daemon".async(
         stdout = {
           case r".*Daemon is ready.*" =>
             log.infoWhen(!quiet)(msg"IPFS daemon has started")
@@ -94,17 +97,16 @@ object Ipfs {
           case other =>
             log.note(str"[ipfs] $other")
         }
-      ).await()})
+      ).await() })
       log.infoWhen(!quiet)(msg"Waiting for the IPFS daemon...")
       ready.future
     }
 
     def find(): Try[String] = {
       val embedded = Installation.ipfsBin.javaFile
+      
       if(embedded.isFile && embedded.canExecute) Success(Installation.ipfsBin.value)
-      else {
-        sh"which ipfs".exec[Try[String]]()
-      }
+      else sh"which ipfs".exec[Try[String]]()
     }
 
     def install(): Try[Unit] = {
