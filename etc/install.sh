@@ -72,7 +72,7 @@ restartFury() {
   type -p fury > /dev/null && \
   fury stop 2> /dev/null && \
   message "Starting new version of Fury..." && \
-  ${DESTINATION}/bin/fury start
+  "${DESTINATION}/bin/fury" start
 }
 
 # Remove an existing installation, if there is one.
@@ -121,10 +121,12 @@ checkJava() {
 }
 
 tryCompilingNailgun() {
-  cc "${DESTINATION}/bin/ng.c" -o "${DESTINATION}/bin/ng" > /dev/null 2> /dev/null && \
-      cc "${DESTINATION}/bin/procname.c" -Wall -Werror -fPIC -shared -o "${DESTINATION}/bin/libprocname.so" > /dev/null 2> /dev/null &&
-      chmod 644 "${DESTINATION}/bin/libprocname.so" || \
+  pushd "${DESTINATION}"
+  cc bin/ng.c -o bin/ng > /dev/null 2> /dev/null && \
+      cc bin/procname.c -Wall -Werror -fPIC -shared -o bin/libprocname.so > /dev/null 2> /dev/null &&
+      chmod 644 bin/libprocname.so || \
       usePythonNailgun
+  popd
 }
 
 usePythonNailgun() {
