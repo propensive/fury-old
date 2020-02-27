@@ -4,17 +4,20 @@ SCALA_VERSION="2.12.8"
 NAILGUN_VERSION="1.0.0"
 
 resolveScala() {
-  ${FURYHOME}/bin/coursier fetch --classpath "org.scala-lang:scala-reflect:${SCALA_VERSION}" "com.facebook:nailgun-server:${NAILGUN_VERSION}" > ${FURYHOME}/classpath
+  bin/coursier fetch --classpath "org.scala-lang:scala-reflect:${SCALA_VERSION}" "com.facebook:nailgun-server:${NAILGUN_VERSION}" > classpath
 }
 
 doInstall() {
   message "Upgrading from Fury $(cat ${FURYHOME}/.version) to $(cat ${FURYHOME}/upgrade/.version)..."
-  mkdir -p ${FURYHOME}/previous
-  rm -rf ${FURYHOME}/bin ${FURYHOME}/lib ${FURYHOME}/etc ${FURYHOME}/classpath
-  mv ${FURYHOME}/upgrade/* ${FURYHOME}/upgrade/.version ${FURYHOME}/
-  rm -rf ${FURYHOME}/upgrade
-  chmod +x ${FURYHOME}/bin/coursier ${FURYHOME}/bin/fury ${FURYHOME}/bin/ng
+  mkdir -p "${FURYHOME}"
+  pushd "${FURYHOME}"
+  mkdir previous
+  rm -rf bin lib etc classpath
+  mv upgrade/* upgrade/.version ./
+  rm -rf upgrade
+  chmod +x bin/coursier bin/fury bin/ng
   resolveScala
+  popd
   message 'done\n'
 }
 
