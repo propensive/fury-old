@@ -44,12 +44,14 @@ uninstall:
 	@rm -rf $(HOME)/.local/share/fury && \
 	 printf "done\n"
 
-install: clean uninstall publish dist/fury
-	@printf "Installing Fury using script...\n"
-	@dist/fury system install && \
+install: clean uninstall dist/fury dist/fury.tar.gz
+	@printf "Installing Fury...\n"
+	mkdir -p ~/.local/share/fury/usr/$(VERSION)
+	tar xf dist/fury.tar.gz -C ~/.local/share/fury/usr/$(VERSION)
+	dist/fury system install && \
 	 printf "Done\n"
 
-dist/fury: etc/launcher tmp/.bundle.ipfs
+dist/fury: etc/launcher
 	@printf "Rewriting Fury launcher script..."
 	@mkdir -p dist && \
 	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
@@ -103,7 +105,7 @@ tmp/bin/ng.py:
 
 tmp/.bundle.ipfs: dist/fury.tar.gz
 	@printf "Adding $(shell tput sitm)Fury bundle $(VERSION)$(shell tput sgr0) to IPFS..."
-	@ipfs2 add -q "$<" > "$@" && \
+	@ipfs add -q "$<" > "$@" && \
 	 printf "done\n"
 
 tmp/.launcher.ipfs: dist/fury

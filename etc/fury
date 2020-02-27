@@ -8,9 +8,9 @@ fi
 
 ARGS="$@"
 DEFAULT_PORT="8462"
-CLASSPATH="$FHOME/lib/fury.jar"
 PORT="${FURY_PORT:-$DEFAULT_PORT}"
 FHOME="${FURY_HOME:-$DEFAULT_FURY_HOME}"
+CLASSPATH="$FHOME/lib/fury.jar"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.Main"
 QUIET='0'
