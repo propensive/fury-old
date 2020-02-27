@@ -23,6 +23,7 @@ import kaleidoscope._
 
 import scala.collection.immutable.SortedSet
 import scala.util._
+import guillotine.Environment
 
 case class Tables() {
 
@@ -165,6 +166,14 @@ case class Tables() {
   val props: Tabulation[JavaProperty] = Tabulation(
     Heading("Key", _.key),
     Heading("Value", _.value)
+  )
+
+  def software(env: Environment): Tabulation[Software] = Tabulation(
+    Heading("Command", _.name),
+    Heading("Name", _.description),
+    Heading("Version", _.version(env)),
+    Heading("Website", _.website),
+    Heading("Path", _.path(env))
   )
 
   val binaries: Tabulation[Binary] = Tabulation(
