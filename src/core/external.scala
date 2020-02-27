@@ -105,7 +105,8 @@ object Ipfs {
       case e: RuntimeException if e.getMessage.contains("Couldn't connect to IPFS daemon") =>
         log.infoWhen(!quiet)(msg"Couldn't connect to IPFS daemon")
         for {
-          ipfs <- IpfsSoftware.installedPath(env, quiet)
+          _    <- IpfsSoftware.installedPath(env, quiet)
+          ipfs =  IpfsSoftware.activePath(env)
           _    <- init(ipfs)
           _    <- Await.ready(handleAsync(ipfs), 120.seconds).value.get
           api  <- getHandle()
@@ -143,9 +144,9 @@ abstract class Installable(name: ExecName) extends Software(name) {
       _   <- ~log.infoWhen(!quiet)(msg"Downloading $bin...")
       in  <- Http.requestStream(bin, Map[String, String](), "GET", Set())
       _   <- TarGz.extract(in, base)
-      _   <- ~managedPath.setExecutable(true)
+      _   <- managedPath.setExecutable(true)
     } yield {
-      log.infoWhen(!quiet)(msg"Installed ${name} to ${Installation.ipfsInstallDir}")
+      log.infoWhen(!quiet)(msg"Installed ${name} to ${managedPath}")
     }
   }
 
@@ -159,7 +160,7 @@ object IpfsSoftware extends Installable(ExecName("ipfs")) {
   def installVersion = "0.4.22"
   def description: String = "InterPlanetary File System"
   def website = Https(Path("ipfs.io"))
-  def managedPath: Path = base / "go-ipfs" / "bin" / "ipfs"
+  def managedPath: Path = base / "go-ipfs" / "ipfs"
   
   def tarGz: Try[Uri] = {
     def url(sys: String) = Https(Path("dist.ipfs.io") / "go-ipfs" / str"v$installVersion" /
