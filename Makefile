@@ -103,7 +103,7 @@ tmp/bin/ng.py:
 
 tmp/.bundle.ipfs: dist/fury.tar.gz
 	@printf "Adding $(shell tput sitm)Fury bundle $(VERSION)$(shell tput sgr0) to IPFS..."
-	@ipfs add -q "$<" > "$@" && \
+	@ipfs2 add -q "$<" > "$@" && \
 	 printf "done\n"
 
 tmp/.launcher.ipfs: dist/fury
