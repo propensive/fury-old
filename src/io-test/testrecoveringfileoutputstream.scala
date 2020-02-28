@@ -16,13 +16,69 @@
 */
 package fury
 
-import probably.TestApp
+import java.io.{File, PrintStream}
 
-object Tests {
-  private val testSuites = List[TestApp](
-    PathTests,
-    RecoveringFileOutputStreamTests
-  )
+import fury.io._
+import probably._
 
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+import scala.language.implicitConversions
+
+object RecoveringFileOutputStreamTests extends TestApp {
+
+  override def tests(): Unit = {
+    test("File is restored after it has been deleted") {
+      tmpFile{ file =>
+        val out = new PrintStream(new RecoveringFileOutputStream(file))
+        out.print("Hello file!")
+        file.delete().get
+        out.print("I'm back!")
+        out.close()
+        file.exists()
+      }
+    }.assert(_ == true)
+
+    test("File is not restored if nothing is written to it") {
+      tmpFile{ file =>
+        val out = new PrintStream(new RecoveringFileOutputStream(file))
+        out.print("Hello file!")
+        file.delete().get
+        out.close()
+        file.exists()
+      }
+    }.assert(_ == false)
+
+    test("File is restored after its parent directory has been deleted") {
+      tmpFile{ dir =>
+        dir.mkdir()
+        val file = dir / "test.txt"
+        val out = new PrintStream(new RecoveringFileOutputStream(file))
+        out.print("Hello file!")
+        dir.delete().get
+        out.print("I'm back!")
+        out.close()
+        file.exists()
+      }
+    }.assert(_ == true)
+
+    test("File contains only what was written after it has been deleted") {
+      tmpFile{ file =>
+        val out = new PrintStream(new RecoveringFileOutputStream(file))
+        out.print("Hello file!")
+        file.delete().get
+        out.print("I'm back!")
+        out.close()
+        scala.io.Source.fromFile(file.javaFile).getLines().toList
+      }
+    }.assert(_ == List("I'm back!"))
+  }
+
+  private def tmpFile[T](fn: Path => T): T = {
+    val file = Path(File.createTempFile("fury-test", "tmp"))
+    file.mkParents()
+    file.delete()
+    val result = fn(file)
+    file.delete()
+    result
+  }
+
 }
