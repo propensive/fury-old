@@ -1,0 +1,4 @@
+fury layer init
+fury project add -n test
+fury module add -c java-compiler -n test
+
