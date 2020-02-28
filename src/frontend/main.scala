@@ -30,7 +30,7 @@ import scala.concurrent._, duration._
 
 import scala.util._
 
-object Main {
+object FuryServer {
 
   def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
 
