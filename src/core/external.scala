@@ -32,6 +32,11 @@ object Ipfs {
   import io.ipfs.api._
   import io.ipfs.multihash.Multihash
 
+  private val knownGateways = List(
+      "ipfs.io",
+      "gateway.pinata.cloud"
+  )
+
   case class IpfsApi(api: IPFS){
     def add(path: Path): Try[IpfsRef] = Try {
       val file = new NamedStreamable.FileWrapper(path.javaFile)
@@ -40,7 +45,18 @@ object Ipfs {
       IpfsRef(top.hash.toBase58)
     }
 
-    def get(ref: IpfsRef, path: Path): Try[Path] = getFile(Multihash.fromBase58(ref.key), path)
+    def get(ref: IpfsRef, path: Path)(implicit log: Log): Try[Path] = {
+      val hash = Multihash.fromBase58(ref.key)
+      getFile(hash, path).recoverWith { case e =>
+        log.warn("Could not resolve the hash using IPFS daemon")
+        knownGateways.foldLeft[Try[Path]](Failure(e)){
+          case (res@Success(_), _) =>res
+          case (Failure(_), gateway) =>
+            log.warn(s"Could not resolve the hash using $gateway")
+            getFileFromGateway(hash, path)(gateway)
+        }
+      }
+    }
 
     def id(): Try[IpfsId] = Try {
       val idInfo = api.id()
@@ -56,12 +72,23 @@ object Ipfs {
       )
     }
 
-    private def getFile(hash: Multihash, path: Path): Try[Path] = for {
+    private[this] def getFile(hash: Multihash, path: Path): Try[Path] = for {
       _    <- path.mkParents()
       data =  api.get(hash)
       in   =  new ByteArrayInputStream(data)
       _    =  TarGz.untar(in, path)
     } yield path.childPaths.head
+
+    private[this] def getFileFromGateway(hash: Multihash, path: Path)(gateway: String)(implicit log: Log): Try[Path] = {
+      log.info(s"Accessing $gateway to retrieve $hash")
+      val query = Query & ("arg" -> hash.toBase58) & ("archive" -> "true")
+      for {
+        _    <- path.mkParents()
+        data <- Http.get(Https(Path(gateway) / "api" / "v0" / s"get", query), Set.empty)
+        in   =  new ByteArrayInputStream(data)
+        _    =  TarGz.untar(in, path)
+      } yield path.childPaths.head
+    }
 
   }
 
