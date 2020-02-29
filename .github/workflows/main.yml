@@ -36,12 +36,6 @@ jobs:
         make -k test || touch unittests.failed
         ! ls -1 unittests.failed 2> /dev/null
       timeout-minutes: 5
-    - name: Package unit test logs
-      run: find ~/.cache/fury/logs -type f -name '*.log' | tar cvzf unit-test-logs.tar.gz --files-from -
-    - uses: actions/upload-artifact@v1.0.0
-      with:
-        name: unit-test-logs-${{ runner.os }}
-        path: unit-test-logs.tar.gz
     - name: Prepare environment for integration tests
       run: |
         git config --global user.name $USER
@@ -61,27 +55,19 @@ jobs:
         etc/integration || touch integration.failed
         ! ls -1 integration.failed 2> /dev/null
       timeout-minutes: 5
-    - name: Package integration logs
-      run: |
-        find test -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
-        find ~/.cache/fury/logs -type f -name '*.log' | tar cvzf integration-logs.tar.gz --files-from -
-    - uses: actions/upload-artifact@v1.0.0
-      with:
-        name: integration-logs-${{ runner.os }}
-        path: integration-logs.tar.gz
     - name: Run community builds
       run: |
         etc/community || touch community.failed
         ! ls -1 community.failed 2> /dev/null
       timeout-minutes: 10
-    - name: Package community logs
-      run: |
-        find test -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
-        find ~/.cache/fury/logs -type f -name '*.log' | tar cvzf community-logs.tar.gz --files-from -
+    - name: Package logs
+      if: failure()
+      run: find ~ -type f -name '*.log' | tar cvzf logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1.0.0
       with:
-        name: community-logs-${{ runner.os }}
-        path: community-logs.tar.gz
+        name: logs-${{ runner.os }}
+        path: logs.tar.gz
+      if: failure()
     - name: Inspect cache
       if: contains(runner.os, 'ubuntu')
       run: du -h ~/.cache/fury --max-depth 2        

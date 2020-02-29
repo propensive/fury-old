@@ -1,0 +1,57 @@
+Cloned layer a4c86443 into platform
+0
+Starting compilation of module jawn/utils
+Starting compilation of module jawn/parser
+Starting compilation of module mercator/core
+Successfully compiled module jawn/utils
+Successfully compiled module mercator/core
+Starting compilation of module magnolia/core
+Starting compilation of module jawn/ast
+Successfully compiled module jawn/parser
+Successfully compiled module jawn/ast
+Starting compilation of module euphemism/core
+Successfully compiled module magnolia/core
+Successfully compiled module euphemism/core
+13.49
+Starting compilation of module jawn/ast
+Successfully compiled module jawn/ast
+Starting compilation of module jawn/utils
+Successfully compiled module jawn/utils
+Starting compilation of module jawn/parser
+Successfully compiled module jawn/parser
+Starting compilation of module euphemism/core
+Successfully compiled module euphemism/core
+Starting compilation of module mercator/core
+Successfully compiled module mercator/core
+Starting compilation of module magnolia/core
+Successfully compiled module magnolia/core
+0.32
+0
+Starting compilation of module jawn/ast
+Successfully compiled module jawn/ast
+Starting compilation of module jawn/utils
+Successfully compiled module jawn/utils
+Starting compilation of module jawn/parser
+Successfully compiled module jawn/parser
+Starting compilation of module euphemism/core
+Successfully compiled module euphemism/core
+Starting compilation of module mercator/core
+Successfully compiled module mercator/core
+Starting compilation of module magnolia/core
+Successfully compiled module magnolia/core
+1.45
+0
+Starting compilation of module jawn/utils
+Starting compilation of module jawn/parser
+Starting compilation of module mercator/core
+Successfully compiled module jawn/utils
+Successfully compiled module mercator/core
+Starting compilation of module magnolia/core
+Starting compilation of module jawn/ast
+Successfully compiled module jawn/parser
+Successfully compiled module jawn/ast
+Starting compilation of module euphemism/core
+Successfully compiled module magnolia/core
+Successfully compiled module euphemism/core
+5.73
+

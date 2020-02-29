@@ -1,4 +1,4 @@
-export PATH=$PATH:$FURYHOME/bin:$FURYHOME/usr
+export PATH="$PATH:$FURYHOME/bin:$FURYHOME/usr"
 
 # FIXME: Need to include bash completions
 
@@ -9,4 +9,4 @@ else
   CONFIG="${XDG_CONFIG_HOME}/fury"
 fi
 
-source ${CONFIG}/aliases
+source "${CONFIG}/aliases"

@@ -122,7 +122,10 @@ case class Path(input: String) {
     this
   }
 
-  def setExecutable(exec: Boolean): Try[Unit] = Try(javaFile.setExecutable(exec))
+  def setExecutable(exec: Boolean): Try[Unit] = Try(javaFile.setExecutable(exec)).flatMap{
+    case true => Success()
+    case false => Failure(new IllegalStateException(s"Could not ${if (exec) "set" else "unset"} execution permission for ${value}"))
+  }
 
   def resolve(rel: Path) = Path(javaPath.resolve(rel.javaPath))
 

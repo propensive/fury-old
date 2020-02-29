@@ -8,11 +8,11 @@ fi
 
 ARGS="$@"
 DEFAULT_PORT="8462"
-PORT=${FURY_PORT:-$DEFAULT_PORT}
-FHOME=${FURY_HOME:-$DEFAULT_FURY_HOME}
+PORT="${FURY_PORT:-$DEFAULT_PORT}"
+FHOME="${FURY_HOME:-$DEFAULT_FURY_HOME}"
 CLASSPATH="$(cat $FHOME/classpath):$FHOME/lib/*"
 MAIN="com.facebook.nailgun.NGServer"
-FURY_MAIN="fury.Main"
+FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
 
@@ -56,7 +56,7 @@ alive() {
 
 startNailgun() {
   if [ -d "${UPGRADEDIR}" ]; then
-    source "${UPGRADEDIR}/bin/upgrade" && ${FHOME}/bin/fury "$ARGS"
+    source "${UPGRADEDIR}/bin/upgrade" && "${FHOME}/bin/fury" "$ARGS"
     exit $?
   else
     if [ "$1" = "prompt" ]; then
