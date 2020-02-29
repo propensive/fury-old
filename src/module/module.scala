@@ -131,7 +131,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
   private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, reference: String)(implicit log: Log): Try[ModuleRef] = for {
     project            <- optProject.asTry
     moduleRef          <- ModuleRef.parse(project.id, reference, true).ascribe(InvalidValue(reference))
-    availableCompilers  = layer.schemas.flatMap(_.compilerRefs(layout, https = true))
+    availableCompilers  = layer.schemas.flatMap(_.compilerRefs(layout, https = true) :+ ModuleRef.JavaRef)
     _                  <- if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
@@ -143,22 +143,21 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    schema   <- layer.schemas.findBy(SchemaId.default)
-    cli      <- cli.hint(CompilerArg, schema.compilerRefs( layout, true))
-    call     <- cli.call()
-    moduleId <- call(ModuleArg)
-    project  <- optProject.asTry
-    module   <- project.modules.findBy(moduleId)
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    schema       <- layer.schemas.findBy(SchemaId.default)
+    call         <- cli.call()
+    moduleId     <- call(ModuleArg)
+    project      <- optProject.asTry
+    module       <- project.modules.findBy(moduleId)
 
-    layer    <- Lenses.updateSchemas(layer)(Lenses.layer.modules(_, project.id)) {
-                    (lens, ws) => lens.modify(ws)((_: SortedSet[Module]).filterNot(_.id == module.id)) }
+    layer        <- Lenses.updateSchemas(layer)(Lenses.layer.modules(_, project.id)) {
+                        (lens, ws) => lens.modify(ws)((_: SortedSet[Module]).filterNot(_.id == module.id)) }
 
-    layer    <- Lenses.updateSchemas(layer)(Lenses.layer.mainModule(_, project.id)) {
-                    (lens, ws) => if(lens(ws) == Some(moduleId)) lens(ws) = None else ws }
+    layer        <- Lenses.updateSchemas(layer)(Lenses.layer.mainModule(_, project.id)) {
+                        (lens, ws) => if(lens(ws) == Some(moduleId)) lens(ws) = None else ws }
 
-    _        <- Layer.save(layer, layout)
-    _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _            <- Layer.save(layer, layout)
+    _            <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {

@@ -12,7 +12,7 @@ PORT="${FURY_PORT:-$DEFAULT_PORT}"
 FHOME="${FURY_HOME:-$DEFAULT_FURY_HOME}"
 CLASSPATH="$FHOME/lib/fury.jar"
 MAIN="com.facebook.nailgun.NGServer"
-FURY_MAIN="fury.Main"
+FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
 

@@ -31,6 +31,20 @@ object PathTests extends TestApp {
       }
     }.assert(_.isFailure)
 
+    test("mark a file as executable") {
+      tmpDir{ dir =>
+        val file = (dir / "foo")
+        file.touch()
+        file.setExecutable(true)
+      }
+    }.assert(_.isSuccess)
+
+    test("fail to mark a system file as executable") {
+      val file = Path("/etc") / "passwd"
+      file.touch()
+      file.setExecutable(true)
+    }.assert(_.isFailure)
+
   }
 
   def tmpDir[T](fn: Path => T): T = {
