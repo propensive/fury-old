@@ -79,7 +79,42 @@ commit; for repeatability of builds, source references are always precisely defi
 
 #### Navigating Layers
 
-Layers form a tree
+Layers form a hierarchy: each may import projects from other layers, which themselves import projects from yet
+further layers, and so on. And imports are _named_, usually with the same name as the layer's published name. So
+every imported layer can be thought of as accessible at a filesystem-like path, starting from the root (`/`). A
+more deeply-nested layer may be accessible at, for example,
+```
+/ecosystem/typelevel/shapeless/scala
+```
+
+Fury, necessarily, has this full hierarchy of layer definitions available to it. So it becomes very easy to view
+and even edit other layers.
+
+When you start a project, you will begin with a "root" layer, '/'. This one doesn't have a name (at least until
+it is published, and someone imports it!), but every layer it imports, directly or transitivily, will. The
+commands you run, such as listing projects, updating layers or running builds, will operate on this layer,
+reading it, and potentially modifying it.
+
+However it is possible to perform all these actions, just as easily, on any layer in the hierarchy, just by
+navigating to that layer first.
+
+A new layer can be selected with,
+```
+fury layer select --layer <layer path>
+```
+
+Assuming the layer exists, this will switch your context to the new layer, and all subsequent commands will
+operate on the imported layer. You can change dependencies, run builds, or ever publish, as if you were working
+on the imported layer directly.
+
+From this new layer context, Fury will be blind to any _upstream_ layers, i.e. those which are importing your
+layer. However, when you navigate back to the root layer, with,
+```
+fury layer select --layer /
+```
+any changes you had made in the imported layer will be reflected in the root layer.
+
+This makes it very easy to make changes not just to your own build, but to any builds you depend upon.
 
 ### Projects
 
@@ -133,6 +168,52 @@ benchmarks in isolation
 
 #### Application modules
 
+Application modules are a very powerful feature which make it possible to define builds that perform more
+varied tasks than simple compliation. Some possibilities include,
+- source-code generation
+- running tests
+- launching a web-server
+
+An `application` module behaves like a `library` module, but will additionally run a `main` method once it has
+finished compiling. The class which defines the `main` method must be specified in the module, for example,
+```
+fury module update --type application --main com.example.Main
+```
+
+Parameters to the `main` method can also be supplied, following a `--` argument which separates Fury's arguments
+from those to be passed to the application. These may be specified in the module definition, or as parameters to
+the build command, for example,
+```
+fury build run --module <module name> -- arg1 arg2 arg3
+```
+
+Application modules are part of the build, and it is often useful to indicate 
+
+##### Determinism
+
+An application module may perform operations which, for a given set of inputs, always produce the same output.
+These are called _deterministic_, and Fury knows that it can cache the result of a deterministic application
+module without having to run it every time.
+
+The `--deterministic`/`-D` option can be used to indicate whether the result of an application module should
+be cached, or recomputed every time.
+
+Note that even if a module is marked as deterministic, if its classpath, source code, or compiler options
+change, it will be recomputed.
+
+##### Termination
+
+Application modules may be long-lived processes which the user may need to interrupt, and operating systems
+provide a variety of signals which can be used to shutdown a running process, with different degrees of
+forcefulness.
+
+If the process is interrupted while it is running, usually by pressing `Ctrl+C`, Fury will send a termination
+signal to the process. By default, this will be `SIGTERM`, though some applications may need different signals.
+These may be specified with the `--termination`/`-T` option, like so,
+```
+fury module update --termination SIGKILL
+```
+
 #### Benchmarks
 
 Carrying out benchmarking puts some special requirements on the build: in particular, the build should not be
@@ -141,6 +222,14 @@ module, `benchmarks`, for this purpose.
 
 Currently the only benchmarking tool supported by Fury is
 [jmh](https://openjdk.java.net/projects/code-tools/jmh/), but later versions make offer alternative options.
+
+### Aliases
+
+An _alias_ is a shortcut to running a build on a particular module, and will appear in Fury's command menu
+(for the layer it is defined within) to make it easier to run (or just compile) that module.
+
+Aliases are useful for setting up common tasks for the build, such as running unit tests or launching a
+web-server.
 
 ## Publishing
 
@@ -166,10 +255,10 @@ become available, and to automatically upgrade to the latest version.
 
 ### Versioning
 
-Versioning for Fury layers is opaque, automatic, and constrained for simplicity. A layer's version will be a
-pair of integers representing the "major" and "minor" versions of that layer. Version numbers are
-assigned automatically by the catalog service when a layer is published, and will be strictly in increment
-of `1` over the latest major version, or one of the minor versions.
+Versioning for Fury layers is automatic, and constrained for simplicity. A layer's version will be a pair of
+integers representing the "major" and "minor" versions of that layer. Version numbers are assigned
+automatically by the catalog service when a layer is published, and will be strictly in increment of `1` over
+the latest major version, or one of the minor versions.
 
 The distinction between major and minor versions of a layer is intended, without it being enforced, to
 indicate whether that change represents a change which is compatible with earlier versions of the build or
@@ -186,8 +275,8 @@ major version is a manual operation.
 #### Version numbers
 
 Version numbers are associated with every published layer, but are not exposed to users through the user
-interface. This is deliberate: often, too much significance is placed on certain version numbers, while all
-Fury needs to care about is the order of the layers, and whether the differences between them are breaking or
+interface. This is deliberate: often, too much significance is placed on certain version numbers, while the
+only significant detail is the order of the layers, and whether the differences between them are breaking or
 not.
 
 #### Restrictions
@@ -195,7 +284,121 @@ not.
 Fury will not allow a layer to be published unless doing so from the previous major or minor version.
 Normally, for example, if the user has been working from version `7.16` of a layer, then they will be
 permitted to publish version `8.0` or `7.17`. But if version `8.0` or `7.17` has already been published, the
-user must first fetch the latest version from the catalog service and reconcile any differences, before
+user must fetch the latest version from the catalog service and reconcile any differences, before proceeding
+with publishing the new version. This is to ensure that a user does not publish layer which accidentally
+overwrites changes introduced since they last checked the layer.
+
+### Rationale
+
+Fury's builds are designed to be _reproducible_. That is to say, the build should produce the same binary
+artifacts today as it will in ten years' time. Knowing, deterministically, that the build will behave the same
+in the future is hugely beneficial to maintainers.
+
+But this makes it harder to compose builds, that is, to combine two different projects in the same build if
+they share _similar_ but _non-identical_ dependencies. While identical dependencies can be trivially shared
+without either project needing to deviate from its reproducible definition, if a project transitively depends
+upon different versions of the same dependency (which cannot co-exist in the same classpath), one or both
+builds must deviate from their reproducible definition in order to accommodate the other.
+
+By giving the maintainer a choice of publishing a _major_ or _minor_ update to a layer, they are able to decide
+whether existing users of that layer should receive the update semi-automatically, or whether the update should
+require more manual intervention. In practice, users should be able to make "semi-automatic" updates with the
+_expectation_ that their build will continue to work; thus, that they can be made without much thought, whereas
+"manual" updates, where the major version of an imported layer is changed, should come with the expectation
+that additional work may be required to ensure the build continues to work correctly.
+
+The practical difference between a minor and major update to a layer is how (or, how _easily_) and when the
+update may be applied. In all cases, an imported layer may be manually updated to a more recent version using,
+```
+fury layer update --layer <layer-name>
+```
+which will check the catalog service for the most recent revision of the current major version of the layer,
+or,
+```
+fury layer update --increment --layer <layer-name>
+```
+which will increment the layer to the most recent revision of the next major version of the layer, or,
+```
+fury layer update --latest --layer <layer-name>
+```
+which will update the imported layer to the most recent revision of the highest version number of the layer.
+
+You can view all the versions of a particular layer that are available on catalog service with the command,
+```
+fury layer revisions
+```
+
+The `--recursive`/`-r` option may also be used to update each imported layer to its most recent minor version,
+and then to repeat the operation on the imported layers of each, recursively. This should ensure that the layer
+is fully updated to the most recent, _compatible_ version.
+
+#### Semi-automatic updates
+
+#### Note on layer compatibility
+
+Within a hierarchy of layers, it remains possible for different major versions of the same layer to coexist.
+Fury requires only that the set of projects needed to run a build be coherent, but doesn't enforce this
+constraint on layers. However, having fewer different versions of the same layer makes it less likely that there
+would be different versions of the same project within the dependency tree, so keeping layers updated to more
+recent versions is a good approach to avoiding incoherent builds.
+
+#### Deciding to publish major or minor updates
+
+When publishing a new revision of a layer, the nature of the changes since the previous published version of
+that layer will determine whether the update can be a _minor_ update or whether it must be a _major_ update.
+
+The key criterion is whether a project which depended on projects defined in an earlier revision of the layer
+will continue to provide the same functionality as 
+
+- adding a source directory?
+- removing a source directory?
+- adding a module?
+- removing an API call?
+- adding an API call?
+- updating a dependency?
+
+
+#### Rectifying publishing mistakes
+
+Publishing a layer is very easy with Fury, which also makes it easy to publish a layer which contains a mistake.
+While publishing a layer is always final, mistakes can still be rectified. The solution is typically to publish
+again.
+
+If a layer is published as a minor update when it should have been a major update—that is, the layer was
+incorrectly determined to be backwards compatible—then it is sufficient to publish a new minor version which
+_is_ compatible (potentially just reverting back to the previous revision). The incompatible revision will still
+exist as a published layer, but Fury will only ever automatically choose the latest version of a layer.
+
+It remains possible, in the time between an erroneous layer being published, and its replacement layer
+being published, that one or more developers may import it. The layer may also be fully functional if the error
+lies only in its backwards-compatibility. But any such user may run into problems when attempting to update
+the layer to a more recent minor version, expecting compatibility. A method of masking incompatible layer revisions is being considered, to (at least) notify users to expect compatibility issues when this happens.
+
+### Control over layer updates
+
+When importing a layer, different strategies may be used to help Fury decide what changes it should make
+automatically. The _strategy_ is a property of the _import_, which should be chosen when the layer is imported.
+By default, the `auto` strategy will be used, which should be a reasonable strategy for most imports. The other
+available strategies are, `manual`, `defer` and `locked`, and others may be added in the future.
+
+#### `locked` imports
+
+If a layer is imported as `locked`, it cannot change in any way. That includes any layers imported transitively
+by the locked layer. This is a useful strategy for importing large layers which you do not want to change,
+perhaps because you want to retain compatibility with them, such as `scala/ecosystem`. Locked layers cannot be
+changed, either automatically by Fury, or manually by the user.
+
+#### `manual` imports
+
+`manual` imports behave the same as `locked` imports, except that they may be modified by the user.
+
+#### 'defer' imports
+
+Imports using the `defer` strategy will be automatically upgraded to use minor revisions that are used by other
+`locked` or `manual` imports.
+
+#### 'auto' imports
+
 
 ### Layer references
 
@@ -212,8 +415,6 @@ the latest minor version of the layer referenced in the `.fury.conf` file.
 This means that the build associated with a particular Git repository commit may continue to evolve after the
 source code has been committed and tagged with a version number. As the build describes all the dependencies
 for the projects defined in the layer
-
-That means that 
 
 #### 
 
@@ -274,8 +475,8 @@ those repositories. Fury will clone and checkout the referenced sources into its
 
 ### Local repositories
 
-Usually, a developer would be actively working on the source code from a repository at the same time as using
-or developing a Fury build. The working directory would be the same for both the Fury build and the source
+Usually, a developer will be actively working on the source code from a repository at the same time as using or
+developing a Fury build. The working directory would be the same for both the Fury build and the source
 repository.
 
 If Fury detects that its working directory is a Git repository, and furthermore, is one of the repositories
