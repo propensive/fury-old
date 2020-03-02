@@ -58,7 +58,7 @@ object Http {
   def post[T: Postable](url: Uri, content: T, headers: Set[HttpHeader])(implicit log: Log): Try[Array[Byte]] =
     request[T](url, content, "POST", headers)
 
-  def get(uri: Uri, query: Query, headers: Set[HttpHeader])
+  def get(uri: Uri, headers: Set[HttpHeader])
          (implicit log: Log)
          : Try[Array[Byte]] =
     request(uri, Map.empty[String, String], "GET", headers)

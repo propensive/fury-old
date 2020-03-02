@@ -33,7 +33,7 @@ object MavenCentral {
     }
     val httpQuery = Query & "q" -> query & "core" -> "gav" & "wt" -> "json" & "rows" -> "100"
     for {
-      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / "select"), httpQuery, Set())
+      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / "select", httpQuery), Set())
 
       json   <- Try(Json.parse(new String(string, "UTF-8")).get)
       docs   <- Try(json.response.docs.as[Set[Doc]].get)
