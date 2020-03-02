@@ -28,7 +28,7 @@ object Service {
     val url = Https(Path(service) / "catalog")
     
     for {
-      bytes <- Http.get(url, Map(), Set())
+      bytes <- Http.get(url, Query.empty, Set())
       catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
       artifacts <- Try(catalog.entries.as[List[Artifact]].get)
     } yield artifacts

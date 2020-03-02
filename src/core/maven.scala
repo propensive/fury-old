@@ -31,10 +31,9 @@ object MavenCentral {
       case PartialBinSpec(g, Some(a), None)         => str"""g:%22$g%22"""
       case PartialBinSpec(g, Some(a), Some(_))      => str"""g:%22$g%22+AND+a:%22$a%22"""
     }
-    
+    val httpQuery = Query & "q" -> query & "core" -> "gav" & "wt" -> "json" & "rows" -> "100"
     for {
-      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / 
-                     str"select?q=$query&core=gav&wt=json&rows=100"), Map(), Set())
+      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / "select"), httpQuery, Set())
 
       json   <- Try(Json.parse(new String(string, "UTF-8")).get)
       docs   <- Try(json.response.docs.as[Set[Doc]].get)
