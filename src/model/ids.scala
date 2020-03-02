@@ -22,6 +22,8 @@ import kaleidoscope._
 import gastronomy._
 
 import scala.util._
+import scala.collection.immutable.ListMap
+
 
 import language.higherKinds
 
@@ -70,6 +72,18 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
+case class Query(fields: ListMap[String, String]) {
+  override def toString: String = if(isEmpty) "" else fields.map { case (field, value) => field + "=" + value }.mkString("?", "&", "")
+  def isEmpty: Boolean = fields.isEmpty
+  def &(field: (String, String)): Query = copy(fields = fields + field)
+}
+
+object Query {
+  val empty: Query = apply(ListMap.empty)
+  implicit val stringShow: StringShow[Query] = _.toString
+  def &(field: (String, String)): Query = empty & field
+}
+
 object Uri {
   implicit val msgShow: MsgShow[Uri] = uri => UserMsg { theme => theme.uri(theme.underline(uri.key)) }
   implicit val stringShow: StringShow[Uri] = _.key
@@ -82,8 +96,8 @@ object Uri {
   implicit val diff: Diff[Uri] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 }
 
-case class Uri(schema: String, path: Path) extends Key(msg"URI") {
-  def key: String = str"${schema}://${path}"
+case class Uri(schema: String, path: Path, query: Query = Query.empty) extends Key(msg"URI") {
+  def key: String = str"${schema}://${path}${query}"
 }
 
 object ImportPath {
