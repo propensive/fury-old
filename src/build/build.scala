@@ -65,9 +65,9 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     call     <- cli.call()
     code     <- ~Rnd.token(18)
     // These futures should be managed in the session
-    uri      <- ~Https(Path(ManagedConfig().service) / str"await?code=$code")
+    uri      <- ~Https(Path(ManagedConfig().service) / "await", Query & "code" -> code)
     _        <- ~log.info(msg"Please visit $uri to log in.")
-    future   <- ~Future(blocking(Http.get(uri, Map("code" -> code), Set())))
+    future   <- ~Future(blocking(Http.get(uri, Set())))
     _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
     response <- Await.result(future, Duration.Inf)
     json     <- ~Json.parse(new String(response, "UTF-8")).get
