@@ -46,9 +46,9 @@ uninstall:
 
 install: clean uninstall dist/fury dist/fury.tar.gz
 	@printf "Installing Fury...\n"
-	mkdir -p ~/.local/share/fury/usr/$(VERSION)
-	tar xf dist/fury.tar.gz -C ~/.local/share/fury/usr/$(VERSION)
-	dist/fury system install && \
+	@mkdir -p ~/.local/share/fury/usr/$(VERSION)
+	@tar xf dist/fury.tar.gz -C ~/.local/share/fury/usr/$(VERSION)
+	@dist/fury system install && \
 	 printf "Done\n"
 
 dist/fury: etc/launcher
@@ -71,7 +71,7 @@ tmp/lib/fury.jar: fury $(wildcard **/*.scala) tmp/.version
 	 ./fury layer clone -d . -l fury://$(LAYER_REF) && \
 	 printf "Done\n" && \
 	 printf "Compiling Fury from source...\n" && \
-	 ./fury build run --https --project fury --module frontend --output linear --dir tmp/lib --fat-jar --disable-security-manager && \
+	 LANG=en_GB.utf8 ./fury build run --https --project fury --module frontend --output linear --dir tmp/lib --fat-jar --disable-security-manager && \
 	 mv tmp/lib/fury-frontend.jar "$@" && \
 	 jar uf "$@" -C tmp .version && \
 	 touch "$@" && \
