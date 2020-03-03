@@ -36,7 +36,7 @@ case class Layer(version: Int,
   def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
 
-  val hash: String = Layer.digestLayer(this).key.take(6).toLowerCase
+  lazy val hash: String = Layer.digestLayer(this).key.take(6).toLowerCase
 }
 
 object Layer {
@@ -162,10 +162,19 @@ object Layer {
         layer     <- read(schemaRef.layerRef, layout)
       } yield layer.copy(main = schemaRef.schema) }
   
-    def digestLayer(layer: Layer): LayerRef =
-      LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
-  
-    def init(env: Environment, layout: Layout)(implicit log: Log): Try[Unit] = {
+    def digestLayer(layer: Layer): LayerRef = {
+      val dummyLog = new Log(LogStyle(???, false), Pid(-1))
+      val hash = Installation.tmpFile { file =>
+        for {
+          ipfs <- Ipfs.daemon(environments.enclosing, quiet = true)(dummyLog)
+          _ <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
+          ref <- ipfs.hash(file)
+        } yield ref.key
+      }
+      LayerRef(hash.get)
+    }
+
+  def init(env: Environment, layout: Layout)(implicit log: Log): Try[Unit] = {
       if(layout.confFile.exists) { for {
         conf     <- readFuryConf(layout)
         url      <- Try(conf.published.get)

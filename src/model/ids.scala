@@ -217,7 +217,10 @@ object LayerRef {
   implicit val stringShow: StringShow[LayerRef] = _.key
   implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
-  def unapply(value: String): Option[LayerRef] = value.only { case r"[A-F0-9]{64}" => LayerRef(value) }
+  def unapply(value: String): Option[LayerRef] = value.only {
+    case r"[A-F0-9]{64}" => LayerRef(value)
+    case r"Qm[a-zA-Z0-9]+" => LayerRef(value)
+  }
 }
 
 case class LayerRef(key: String) extends Key(msg"layer")
@@ -453,6 +456,8 @@ object SchemaRef {
 
   def unapply(value: String): Option[SchemaRef] = value.only {
     case r"$layer@([a-fA-F0-9]{64}):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
+      SchemaRef(ImportId(""), LayerRef(layer), SchemaId(schema))
+    case r"$layer@(Qm[a-zA-Z0-9]+):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
       SchemaRef(ImportId(""), LayerRef(layer), SchemaId(schema))
   }
 }
