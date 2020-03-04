@@ -101,7 +101,7 @@ object Layer {
           Success(FuryUri(dom, loc))
         case r".*\.fury" =>
           val file = Path(path).in(layout.pwd)
-          if(file.exists) Success(FileInput(file)) else Failure(FileNotFound(file))
+          if(file.exists) Success(FileInput(file)) else Failure(LayerNotFound(file))
         case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
           Success(FuryUri(service, path))
         case name =>

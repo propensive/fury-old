@@ -58,7 +58,7 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"Couldn't write to file $path. Cause: ${e.toString}")
         case FileNotFound(path) =>
           cli.abort(
-              msg"""Could not find the file $path. Run `fury layer init` to create a new layer.""")
+              msg"""Could not find the file at $path.""")
         case MissingArg(param) =>
           cli.abort(msg"The parameter $param was not provided.")
         case NoPermissions(perms) =>
@@ -78,6 +78,9 @@ You can grant these permissions with,
           cli.abort(msg"It was not possible to establish a BSP connection")
         case LauncherFailure(msg) =>
           cli.abort(msg"Bloop did not start successfully: $msg")
+        case LayerNotFound(path) =>
+          cli.abort(
+            msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>
@@ -97,7 +100,9 @@ You can grant these permissions with,
         case e: InvalidValue =>
           cli.abort(msg"'${e.value}' is not a valid value.")
         case OgdlException(error) =>
-          cli.abort(msg"Failed to read OGDL file: $error.")
+          cli.abort(msg"Failed to read OGDL: $error.")
+        case OgdlReadException(path, e) =>
+          cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case e: NotUnique =>
