@@ -7,7 +7,7 @@ publish: run pinata
 
 fury:
 	@printf "Copying new launcher script to root directory..."
-	@cp -u "$<" "$@" && \
+	@cp "$<" "$@" && \
 	 printf "done\n"
 
 pinata-launcher: tmp/.launcher.ipfs
@@ -86,7 +86,7 @@ tmp/bin/fury: etc/fury
 tmp/bin/procname.c: etc/procname.c
 	@printf "Copying Procname C wrapper..."
 	@mkdir -p tmp/bin && \
-	 cp -u "$<" "$@" && \
+	 cp "$<" "$@" && \
 	 printf "done\n"
 
 tmp/bin/ng.c:
