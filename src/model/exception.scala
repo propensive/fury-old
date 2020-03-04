@@ -50,6 +50,7 @@ case class InvalidKind(expected: Kind) extends FuryException
 case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class NotOnPath(name: ExecName) extends FuryException
+case class NotAuthenticated() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
 case class MissingCommand() extends FuryException

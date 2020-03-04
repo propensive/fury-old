@@ -34,21 +34,23 @@ object Service {
     } yield artifacts
   }
 
-  def publish(env: Environment, hash: String, path: String, quiet: Boolean, breaking: Boolean)
+  def publish(env: Environment, hash: String, path: String, quiet: Boolean, breaking: Boolean,
+                  public: Boolean, major: Int, minor: Int, token: String)
              (implicit log: Log)
              : Try[PublishedLayer] = {
 
     val url = Https(Path(ManagedConfig().service) / "publish")
-    case class Request(path: String, token: String, hash: String, breaking: Boolean)
+    case class Request(path: String, token: String, hash: String, breaking: Boolean, public: Boolean,
+        major: Int, minor: Int)
+
     case class Response(output: String)
     for {
       ipfs <- Ipfs.daemon(env, quiet)
       id   <- Try(ipfs.id().get)
-      out  <- Http.post(url, Json(Request(path, ManagedConfig().token, hash, breaking)), headers = Set())
+      out  <- Http.post(url, Json(Request(path, token, hash, breaking, public, major, minor)), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
       res  <- Try(json.as[Response].get)
-      // FIXME: Get major and minor version numbers
     } yield PublishedLayer(Uri("fury", Path(str"${ManagedConfig().service}/${path}")), 0, 0)
   }
 }

@@ -63,6 +63,13 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
 
   def auth: Try[ExitStatus] = for {
     call     <- cli.call()
+    token    <- doAuth
+    config   <- ~ManagedConfig().copy(token = Some(token))
+    _        <- ~ManagedConfig.write(config)
+    _        <- ~log.info("You are now authenticated")
+  } yield log.await()
+
+  def doAuth: Try[String] = for {
     code     <- ~Rnd.token(18)
     // These futures should be managed in the session
     uri      <- ~Https(Path(ManagedConfig().service) / "await", Query & "code" -> code)
@@ -72,11 +79,8 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     response <- Await.result(future, Duration.Inf)
     json     <- ~Json.parse(new String(response, "UTF-8")).get
     token    <- ~json.token.as[String].get
-    config   <- ~ManagedConfig().copy(token = token)
-    _        <- ~ManagedConfig.write(config)
-    _        <- ~log.info("You are now authenticated")
-  } yield log.await()
-  
+  } yield token
+
   def software: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
@@ -621,14 +625,18 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(RemoteLayerArg)
     cli           <- cli.hint(RawArg)
     cli           <- cli.hint(BreakingArg)
+    cli           <- cli.hint(PublicArg)
     call          <- cli.call()
+    token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.read(layout, conf)
     path          <- call(RemoteLayerArg)
     breaking      <- ~call(BreakingArg).isSuccess
+    public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(cli.env, layer, layout, raw)
-    pub           <- Service.publish(cli.env, ref.key, path, raw, breaking)
+    pub           <- Service.publish(cli.env, ref.key, path, raw, breaking, public,
+                         conf.published.fold(0)(_.major), conf.published.fold(0)(_.minor), token)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
     _             <- if(raw) ~log.rawln(str"${pub.url}")
                      else ~log.info(msg"Published version ${pub.version} to ${pub.url}")

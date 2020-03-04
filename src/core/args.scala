@@ -51,6 +51,7 @@ object Args {
   val EnvArg = CliParam[EnvVar]('e', 'env, "specify the environment variable in the form KEY=value")
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
   val PersistentArg = CliParam[Unit]('P', 'persistent, "this option change should apply to all dependants")
+  val PublicArg = CliParam[Unit]('P', 'public, "this layer should be published publicly")
   val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
