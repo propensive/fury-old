@@ -56,8 +56,10 @@ object Install {
   private final def setPathLine(paths: List[Path]): List[String] =
     List("", str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag")
   
-  private final val zshCompletions: List[String] = List("", str"autoload -Uz compinit $furyTag",
-      str"fpath=($$FURYHOME/completion/zsh $$fpath) $furyTag")
+  private final val zshCompletions: List[String] = List(
+    str"fpath=(${Installation.scriptDir} $$fpath) $furyTag",
+    str"compinit $furyTag"
+  )
 
   private def rcInstall(env: Environment, force: Boolean, file: Path, shell: ExecName, extra: List[String])
                        (implicit log: Log)

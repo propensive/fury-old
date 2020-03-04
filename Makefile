@@ -44,12 +44,13 @@ uninstall:
 	@rm -rf $(HOME)/.local/share/fury && \
 	 printf "done\n"
 
-install: clean uninstall dist/fury dist/fury.tar.gz
+install: clean uninstall dist/fury dist/fury.tar.gz 
 	@printf "Installing Fury...\n"
 	@mkdir -p ~/.local/share/fury/usr/$(VERSION)
 	@tar xf dist/fury.tar.gz -C ~/.local/share/fury/usr/$(VERSION)
 	@dist/fury system install && \
 	 printf "Done\n"
+	@fury stop 2> /dev/null
 
 dist/fury: etc/launcher
 	@printf "Rewriting Fury launcher script..."
@@ -83,6 +84,12 @@ tmp/bin/fury: etc/fury
 	 cp "$<" "$@" && \
 	 printf "done\n"
 
+tmp/script/_fury: etc/completion/zsh/_fury
+	@printf "Copying zsh completion script..."
+	@mkdir -p tmp/script && \
+	 cp "$<" "$@" && \
+	 printf "done\n"
+
 tmp/bin/procname.c: etc/procname.c
 	@printf "Copying Procname C wrapper..."
 	@mkdir -p tmp/bin && \
@@ -113,10 +120,10 @@ tmp/.launcher.ipfs: dist/fury
 	@ipfs add -q "$<" > "$@" && \
 	 printf "done\n"
 
-dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c
+dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury
 	@printf "Creating bundle file..."
 	@mkdir -p dist && \
-	 tar czf "$@" -C tmp .version lib bin && \
+	 tar czf "$@" -C tmp .version lib bin script && \
 	 printf "done\n"
 
 .PHONY: run publish pinata pinata-launcher clean uninstall
