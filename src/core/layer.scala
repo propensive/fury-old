@@ -36,7 +36,7 @@ case class Layer(version: Int,
   def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
 
-  def hash: String = Layer.digestLayer(this).key.take(6).toLowerCase
+  val hash: String = Layer.digestLayer(this).key.take(6).toLowerCase
 }
 
 object Layer {
