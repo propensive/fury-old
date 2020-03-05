@@ -1,4 +1,4 @@
 fury layer init
 fury project add -n test
-fury module add -c java/compiler -n test
-
+fury module add -n test
+fury module update -c java/compiler
