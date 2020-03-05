@@ -36,7 +36,11 @@ object Path {
   implicit val diff: Diff[Path] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
   implicit val parser: Parser[Path] = unapply(_)
 
-  def apply(jpath: JavaPath): Path = Path(jpath.toString)
+  def apply(jpath: JavaPath): Path = Path(jpath.toString match {
+    case "" => "."
+    case other => other
+  })
+  
   def apply(file: JavaFile): Path = Path(file.getAbsolutePath)
   def apply(uri: URI): Path = Path(Paths.get(uri))
 
