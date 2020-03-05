@@ -43,15 +43,16 @@ object Service {
     case class Request(path: String, token: String, hash: String, breaking: Boolean, public: Boolean,
         major: Int, minor: Int)
 
-    case class Response(output: String)
+    case class Response(major: Int, minor: Int)
     for {
       ipfs <- Ipfs.daemon(env, quiet)
       id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json(Request(path, token, hash, breaking, public, major, minor)), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
+      _    <- ~log.info(json.toString)
       res  <- Try(json.as[Response].get)
-    } yield PublishedLayer(Uri("fury", Path(str"${ManagedConfig().service}/${path}")), 0, 0)
+    } yield PublishedLayer(Uri("fury", Path(str"${ManagedConfig().service}/${path}")), res.major, res.minor)
   }
 }
   
