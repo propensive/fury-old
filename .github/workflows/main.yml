@@ -46,7 +46,6 @@ jobs:
         if [[ ${{ matrix.os }} =~ macos-[a-zA-Z0-9_] ]]; then IPFS_BUILD=darwin; fi
         curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_$IPFS_BUILD-amd64.tar.gz | tar zxf - go-ipfs/ipfs
         popd
-        $HOME/opt/go-ipfs/ipfs init
         lsof -i :8462 -i :8212 -t | xargs kill
         echo "::add-path::$HOME/opt/go-ipfs"
       timeout-minutes: 2
