@@ -175,6 +175,11 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
   def preview(param: CliParam): Try[param.Type] = args.get(param.param)
+  def previewWithDefault(param: CliParam)(default: Option[param.Type]): Try[Option[param.Type]] = {
+    preview(param).map(Some(_)).recover {
+        case e: exoskeleton.MissingArg => default
+    }
+  }
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
 

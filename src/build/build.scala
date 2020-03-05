@@ -290,18 +290,20 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     schemaArg      <- ~SchemaId.default
     schema         <- layer.schemas.findBy(schemaArg)
     cli            <- cli.hint(ProjectArg, schema.projects)
-    optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
+    autocProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
     cli            <- cli.hint(PipeliningArg, List("on", "off"))
-    optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
-    cli            <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    autocProject   <- ~autocProjectId.flatMap(schema.projects.findBy(_).toOption)
+    cli            <- cli.hint(ModuleArg, autocProject.to[List].flatMap(_.modules))
     cli            <- cli.hint(DirArg)
     cli            <- cli.hint(FatJarArg)
     cli            <- cli.hint(ReporterArg, Reporter.all)
     call           <- cli.call()
     dir            <- ~call(DirArg).toOption
     https          <- ~call(HttpsArg).isSuccess
+    optProjectId   <- cli.previewWithDefault(ProjectArg)(moduleRef.map(_.projectId).orElse(schema.main))
+    optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
     project        <- optProject.asTry
-    optModuleId    <- ~call(ModuleArg).toOption.orElse(moduleRef.map(_.moduleId)).orElse(project.main)
+    optModuleId    <- cli.previewWithDefault(ModuleArg)(moduleRef.map(_.moduleId).orElse(project.main))
     optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
     module         <- optModule.asTry
     pipelining     <- ~call(PipeliningArg).toOption
