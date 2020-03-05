@@ -146,6 +146,7 @@ object Layer {
     } yield layer
   
     def read(layout: Layout, conf: FuryConf)(implicit log: Log): Try[Layer] = for {
+      _        <- Ipfs.daemon(environments.enclosing, quiet = false)
       layer    <- read(conf.layerRef, layout)
       newLayer <- resolveSchema(layout, layer, conf.path)
     } yield newLayer
@@ -211,7 +212,8 @@ object Layer {
         newLayerRef <- saveLayer(newLayer)
       } yield newLayerRef
 
-    private def saveLayer(layer: Layer): Try[LayerRef] = for {
+    private def saveLayer(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
+      _ <- Ipfs.daemon(environments.enclosing, quiet = false)
       layerRef <- ~digestLayer(layer)
       _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
     } yield layerRef
