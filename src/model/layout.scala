@@ -119,7 +119,7 @@ object Installation {
 
   def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
     paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
-    execPath <- paths.find(_.children.exists(_ == name.key)).ascribe(NotOnPath(name))
+    execPath <- paths.find(_.childPaths.exists(f => !f.directory && f.isExecutable && f.name == name.key)).ascribe(NotOnPath(name))
   } yield execPath / name.key
 
 

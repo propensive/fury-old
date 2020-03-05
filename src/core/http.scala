@@ -49,7 +49,7 @@ abstract class Postable[T](val contentType: String) { def content(value: T): Arr
 
 case class HttpHeader(key: String, value: String)
 
-object Https { def apply(path: Path): Uri = Uri("https", path) }
+object Https { def apply(path: Path, query: Query = Query.empty): Uri = Uri("https", path, query) }
 
 object Http {
 
@@ -58,10 +58,10 @@ object Http {
   def post[T: Postable](url: Uri, content: T, headers: Set[HttpHeader])(implicit log: Log): Try[Array[Byte]] =
     request[T](url, content, "POST", headers)
 
-  def get(url: Uri, params: Map[String, String], headers: Set[HttpHeader])
+  def get(uri: Uri, headers: Set[HttpHeader])
          (implicit log: Log)
          : Try[Array[Byte]] =
-    request(url, params, "GET", headers)
+    request(uri, Map.empty[String, String], "GET", headers)
 
   private def request[T: Postable]
                      (url: Uri, content: T, method: String, headers: Set[HttpHeader])
