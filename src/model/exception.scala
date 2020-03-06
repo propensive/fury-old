@@ -53,6 +53,7 @@ case class NotOnPath(name: ExecName) extends FuryException
 case class NotAuthenticated() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
+case class LayerNotFound(path: Path) extends FuryException
 case class MissingCommand() extends FuryException
 case class ModuleAlreadyExists(module: ModuleId) extends FuryException
 case class NoLatestVersion() extends FuryException

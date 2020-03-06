@@ -16,23 +16,25 @@
 */
 package fury.ogdl
 
-import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
 import fury.io._
 import fury.strings._
 
-import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 import scala.language.higherKinds
 import scala.language.dynamics
 
 import scala.util._
+import scala.util.control.NonFatal
 
 import java.util.NoSuchElementException
 
 case class OgdlException(error: String) extends FuryException
+case class OgdlReadException(path: Path, cause: Throwable) extends FuryException {
+  initCause(cause)
+}
 
 final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
   def apply(): String                     = values.head._1
@@ -110,9 +112,10 @@ object Ogdl {
     Try {
       val buffer = readToBuffer(path)
       val ogdl   = OgdlParser.parse(buffer)
-
       implicitly[OgdlReader[T]].read(preprocessor(ogdl))
-    }.recoverWith { case e: Exception => Failure(FileNotFound(path)) }
+    }.recoverWith {
+      case NonFatal(e) => Failure(OgdlReadException(path, e))
+    }
 
   private[this] def readToBuffer(path: Path): ByteBuffer = {
     val inChannel = FileChannel.open(path.javaPath)

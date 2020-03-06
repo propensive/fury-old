@@ -101,7 +101,7 @@ object Layer {
           Success(FuryUri(dom, loc))
         case r".*\.fury" =>
           val file = Path(path).in(layout.pwd)
-          if(file.exists) Success(FileInput(file)) else Failure(FileNotFound(file))
+          if(file.exists) Success(FileInput(file)) else Failure(LayerNotFound(file))
         case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
           Success(FuryUri(service, path))
         case name =>
@@ -146,6 +146,7 @@ object Layer {
     } yield layer
   
     def read(layout: Layout, conf: FuryConf)(implicit log: Log): Try[Layer] = for {
+      _        <- Ipfs.daemon(environments.enclosing, quiet = false)
       layer    <- read(conf.layerRef, layout)
       newLayer <- resolveSchema(layout, layer, conf.path)
     } yield newLayer
@@ -211,7 +212,8 @@ object Layer {
         newLayerRef <- saveLayer(newLayer)
       } yield newLayerRef
 
-    private def saveLayer(layer: Layer): Try[LayerRef] = for {
+    private def saveLayer(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
+      _ <- Ipfs.daemon(environments.enclosing, quiet = false)
       layerRef <- ~digestLayer(layer)
       _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
     } yield layerRef
