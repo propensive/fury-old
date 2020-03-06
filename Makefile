@@ -52,7 +52,7 @@ install: clean uninstall dist/fury dist/fury.tar.gz
 	 printf "Done\n"
 	@fury stop 2> /dev/null
 
-dist/fury: etc/launcher
+dist/fury: etc/launcher tmp/.bundle.ipfs
 	@printf "Rewriting Fury launcher script..."
 	@mkdir -p dist && \
 	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
