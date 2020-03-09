@@ -38,6 +38,7 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(TimestampsArg, List("on", "off"))
     cli      <- cli.hint(PipeliningArg, List("on", "off"))
     cli      <- cli.hint(TraceArg, List("on", "off"))
+    cli      <- cli.hint(NoIpfsArg, List("on", "off"))
     cli      <- cli.hint(ServiceArg, List("furore.dev"))
     call     <- cli.call()
     newTheme <- ~call(ThemeArg).toOption
@@ -45,13 +46,15 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     pipelining <- ~call(PipeliningArg).toOption
     trace    <- ~call(TraceArg).toOption
     service  <- ~call(ServiceArg).toOption
+    noIpfs   <- ~call(NoIpfsArg).toOption
     config   <- ~ManagedConfig()
     config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
     config   <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
     config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
     config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
     config   <- ~trace.map { t => config.copy(trace = t) }.getOrElse(config)
-    _        <- ~ManagedConfig.write(config)
+    config   <- ~noIpfs.map { x => config.copy(skipIpfs = x) }.getOrElse(config)
+    _        <- ManagedConfig.write(config)
   } yield log.await()
 
   def auth: Try[ExitStatus] = for {
