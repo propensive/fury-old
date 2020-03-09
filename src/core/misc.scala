@@ -114,7 +114,7 @@ object ManagedConfig {
   private var config: Config =
     Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
 
-  def write(newConfig: Config) = synchronized {
+  def write(newConfig: Config): Try[Unit] = synchronized {
     config = newConfig
     Ogdl.write(config, Installation.userConfig)
   }

@@ -228,6 +228,7 @@ case class Config(showContext: Boolean = true,
                   timestamps: Boolean = true,
                   pipelining: Boolean = false,
                   trace: Boolean = false,
+                  skipIpfs: Boolean = false,
                   service: String = "furore.dev",
                   token: String = "")
 
