@@ -40,6 +40,7 @@ object Args {
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
+  val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
   val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
   val SourceArg = CliParam[Source]('d', 'source, "specify a source directory")

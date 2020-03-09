@@ -47,13 +47,22 @@ object Ipfs {
 
     def get(ref: IpfsRef, path: Path)(implicit log: Log): Try[Path] = {
       val hash = Multihash.fromBase58(ref.key)
-      getFile(hash, path).recoverWith { case e =>
-        log.warn("Could not resolve the hash using IPFS daemon")
+      val config = ManagedConfig()
+      val getFromIpfs: Try[Path] =
+        if(config.skipIpfs) Failure(new IllegalStateException("Using the IPFS daemon is forbidden by configuration"))
+        else getFile(hash, path)
+      getFromIpfs.failed.foreach{ e =>
+        log.warn(s"Could not resolve the hash using IPFS daemon. Cause: $e")
+      }
+      getFromIpfs.recoverWith { case e =>
         knownGateways.foldLeft[Try[Path]](Failure(e)){
           case (res@Success(_), _) =>res
           case (Failure(_), gateway) =>
-            log.warn(s"Could not resolve the hash using $gateway")
-            getFileFromGateway(hash, path)(gateway)
+            val result = getFileFromGateway(hash, path)(gateway)
+            result.failed.foreach{ e =>
+              log.warn(s"Could not resolve the hash using $gateway. Cause: $e")
+            }
+            result
         }
       }
     }
