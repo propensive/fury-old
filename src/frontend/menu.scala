@@ -147,6 +147,7 @@ object FuryMenu {
       Action('projects, msg"show all available projects", LayerCli(_).projects),
       Action('publish, msg"publish a layer", LayerCli(_).publish, shortcut = 'p'),
       Action('unimport, msg"remove a previously imported layer", LayerCli(_).unimport),
+      Action('update, msg"update the layer to a more recent version", LayerCli(_).update, shortcut = 'u'),
       Action('select, msg"select a layer", LayerCli(_).select, shortcut = 's'),
       Action('share, msg"share this layer", LayerCli(_).share),
     )

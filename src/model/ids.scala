@@ -152,11 +152,34 @@ case class ImportPath(path: String) {
 object PublishedLayer {
   implicit val msgShow: MsgShow[PublishedLayer] =
     publishedLayer => UserMsg { theme => theme.layer(publishedLayer.url.path.value)}
+  
+  implicit val stringShow: StringShow[PublishedLayer] = pl => str"${pl.url}@${pl.version}"
+
+  implicit val keyName: KeyName[PublishedLayer] = () => msg"layer"
+  implicit val diff: Diff[PublishedLayer] = (l, r) => 
+    Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
+  
+  def parse(str: String): Option[PublishedLayer] = str.only {
+    case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)\@${LayerVersion(v)}@(.*)" =>
+      PublishedLayer(FuryUri(d, p), v)
+  }
 }
 
-case class PublishedLayer(url: Uri, major: Int, minor: Int) {
-  def version: String = str"$major.$minor"
+case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.Zero)
+
+object LayerVersion {
+  implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
+  
+  implicit val stringShow: StringShow[LayerVersion] =
+    layerVersion => str"${layerVersion.major}.${layerVersion.minor}"
+    
+  def unapply(str: String): Option[LayerVersion] =
+    str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, minor.toInt) }
+
+  final val Zero: LayerVersion = LayerVersion(0, 0)
 }
+
+case class LayerVersion(major: Int, minor: Int)
 
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {
@@ -210,7 +233,7 @@ object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(path: String, ref: String)
+case class Artifact(path: String, ref: String, version: LayerVersion)
 
 object LayerRef {
   implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.take(8).toLowerCase))
@@ -443,27 +466,27 @@ object Alias {
 
 case class Alias(cmd: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
 
-object SchemaRef {
-  implicit val msgShow: MsgShow[SchemaRef] = v =>
+object Import {
+  implicit val msgShow: MsgShow[Import] = v =>
     UserMsg { theme => msg"${v.layerRef}${':'}${v.schema}".string(theme) }
 
-  implicit val stringShow: StringShow[SchemaRef] = sr => str"${sr.layerRef}:${sr.schema}"
-  implicit val diff: Diff[SchemaRef]             = Diff.gen[SchemaRef]
-  implicit val parser: Parser[SchemaRef] = unapply(_)
+  implicit val stringShow: StringShow[Import] = sr => str"${sr.layerRef}:${sr.schema}"
+  implicit val diff: Diff[Import] = Diff.gen[Import]
+  implicit val parser: Parser[Import] = unapply(_)
 
-  def unapply(value: String): Option[SchemaRef] = value.only {
+  def unapply(value: String): Option[Import] = value.only {
     case r"$layer@([a-fA-F0-9]{64}):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      SchemaRef(ImportId(""), LayerRef(layer), SchemaId(schema))
+      Import(ImportId(""), LayerRef(layer), SchemaId(schema), None)
   }
 }
 
-case class SchemaRef(id: ImportId, layerRef: LayerRef, schema: SchemaId, follow: Option[FuryUri] = None)
+case class Import(id: ImportId, layerRef: LayerRef, schema: SchemaId, remote: Option[PublishedLayer])
 
 sealed trait LayerInput {
   def suggestedName: Option[ImportId]
 
   def publishedLayer: Option[PublishedLayer] =
-    this.only { case FuryUri(domain, path) => PublishedLayer(Uri("fury", Path(str"$domain/$path")), 0, 0) }
+    this.only { case FuryUri(domain, path) => PublishedLayer(FuryUri(domain, path)) }
 }
 
 case class FileInput(path: Path) extends LayerInput {

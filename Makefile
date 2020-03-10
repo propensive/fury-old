@@ -1,5 +1,5 @@
 VERSION="${shell git describe --tags 2> /dev/null}"
-LAYER_REF="QmXrEsyVnUw1LXPkHmbQTyuM7x8eJyQYjcEY7DJcjQ39zY"
+LAYER_REF="QmegLbqVdLgis1wUiB2s5HRxpYZXS9343PkiJ7JPBkBCaJ"
 
 run: dist/fury tmp/.bundle.ipfs
 

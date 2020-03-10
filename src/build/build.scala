@@ -640,7 +640,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(cli.env, layer, layout, raw)
     pub           <- Service.publish(cli.env, ref.key, path, raw, breaking, public,
-                         conf.published.fold(0)(_.major), conf.published.fold(0)(_.minor), token)
+                         conf.published.fold(0)(_.version.major), conf.published.fold(0)(_.version.minor), token)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
     _             <- if(raw) ~log.rawln(str"${pub.url}")
                      else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
@@ -677,20 +677,14 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(ImportNameArg)
     schemaArg     <- ~Some(SchemaId.default)
     defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
-    layerImport   <- ~cli.peek(ImportArg)
-
-    layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(cli.env, _,
-                         layout)).toOption)
-
-    maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
     call          <- cli.call()
     layerImport   <- call(ImportArg)
+    remote        <- ~PublishedLayer.parse(layerImport)
     layerInput    <- Layer.parse(layerImport, layout)
     nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
     layerRef      <- Layer.load(cli.env, layerInput, layout)
-    schemaRef     <- ~SchemaRef(nameArg, layerRef, SchemaId.default)
+    schemaRef     <- ~Import(nameArg, layerRef, SchemaId.default, remote)
     layer         <- Lenses.updateSchemas(layer)(Lenses.layer.imports(_))(_.modify(_)(_ +
                           schemaRef.copy(id = nameArg)))
     
@@ -717,6 +711,26 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     call      <- cli.call()
     layout    <- cli.layout
     _         <- Layer.undo(layout)
+  } yield log.await()
+
+  def update: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
+    cli       <- cli.hint(AllArg)
+    cli       <- cli.hint(RecursiveArg)
+    cli       <- cli.hint(ImportIdArg)
+    call      <- cli.call()
+    recursive <- call(RecursiveArg)
+    all       <- ~call(AllArg).isSuccess
+    importArg <- call(ImportIdArg)
+    imported  <- layer.mainSchema.get.imports.findBy(importArg)
+    published <- imported.remote.ascribe(ImportHasNoRemote())
+    lens      <- ~Lenses.layer.importRemote(SchemaId.default, importArg)
+    artifact  <- Service.latest(published.url.domain, published.url.path, Some(published.version))
+    newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version)
+    layer     <- ~(lens(layer) = Some(newPub))
+    _         <- Layer.save(layer, layout)
   } yield log.await()
 
   def list: Try[ExitStatus] = {

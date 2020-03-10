@@ -34,6 +34,23 @@ object Service {
     } yield artifacts
   }
 
+  def list(service: String, path: String)(implicit log: Log): Try[List[Artifact]] = {
+    val url = Https(Path(service) / "list" / path)
+    
+    for {
+      bytes <- Http.get(url, Set())
+      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
+      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
+    } yield artifacts
+  }
+
+  def latest(service: String, path: String, current: Option[LayerVersion])(implicit log: Log): Try[Artifact] =
+    for {
+      artifacts <- list(service, path)
+      grouped   <- ~artifacts.groupBy(_.version.major)
+      artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
+    } yield artifact
+
   def publish(env: Environment, hash: String, path: String, quiet: Boolean, breaking: Boolean,
                   public: Boolean, major: Int, minor: Int, token: String)
              (implicit log: Log)
@@ -52,7 +69,6 @@ object Service {
       json <- Try(Json.parse(str).get)
       _    <- ~log.info(json.toString)
       res  <- Try(json.as[Response].get)
-    } yield PublishedLayer(Uri("fury", Path(str"${ManagedConfig().service}/${path}")), res.major, res.minor)
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, path), LayerVersion(res.major, res.minor))
   }
 }
-  
