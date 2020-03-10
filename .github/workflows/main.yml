@@ -25,7 +25,7 @@ jobs:
       timeout-minutes: 5
     - name: Package compilation logs
       if: failure()
-      run: find ~ -type f -name '*.log' | tar cvzf compilation-logs.tar.gz --files-from -
+      run: find ~/.cache/fury -type f -name '*.log' | tar cvzf compilation-logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1.0.0
       with:
         name: compilation-logs-${{ runner.os }}
@@ -61,7 +61,7 @@ jobs:
       timeout-minutes: 10
     - name: Package logs
       if: failure()
-      run: find ~ -type f -name '*.log' | tar cvzf logs.tar.gz --files-from -
+      run: find ~/.cache/fury -type f -name '*.log' | tar cvzf logs.tar.gz --files-from -
     - uses: actions/upload-artifact@v1.0.0
       with:
         name: logs-${{ runner.os }}
