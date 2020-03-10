@@ -107,7 +107,7 @@ object Ipfs {
   def daemon(env: Environment, quiet: Boolean)(implicit log: Log): Try[IpfsApi] = {
     log.note("Checking for IPFS daemon")
 
-    def getHandle(): Try[IPFS] = Try(new IPFS("localhost", 5001))
+    def getHandle(): Try[IPFS] = Try(new IPFS("localhost", 5001).timeout(10000))
 
     def init(ipfs: Path): Try[Unit] = Xdg.ipfsRepo.ifExists().map(Success(()).waive).getOrElse {
       sh"${ipfs.value} init".exec[Try[String]]().map(_ => ())
