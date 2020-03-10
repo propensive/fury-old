@@ -99,6 +99,8 @@ You can grant these permissions with,
           cli.abort(msg"The configuration file could not be read.")
         case e: InvalidValue =>
           cli.abort(msg"'${e.value}' is not a valid value.")
+        case e: IpfsTimeout =>
+          cli.abort(msg"An IPFS operation timed out.")
         case OgdlException(error) =>
           cli.abort(msg"Failed to read OGDL: $error.")
         case OgdlReadException(path, e) =>

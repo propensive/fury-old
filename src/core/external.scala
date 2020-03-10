@@ -64,6 +64,9 @@ object Ipfs {
             }
             result
         }
+      }.recoverWith {
+        case e: RuntimeException if e.getMessage matches "timeout \\(.+\\) has been exceeded" => Failure(IpfsTimeout())
+        case _: java.net.SocketTimeoutException => Failure(IpfsTimeout())
       }
     }
 
