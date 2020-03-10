@@ -111,10 +111,10 @@ schemas	default	id	default
 								group	ch.epfl.scala
 								artifact	sockets
 								version	1.4.0-RC1
-							com.github.ipfs:java-ipfs-http-client:v1.2.3	binRepo	jitpack
+							com.github.ipfs:java-ipfs-http-client:b5f6b90	binRepo	jitpack
 								group	com.github.ipfs
 								artifact	java-ipfs-http-client
-								version	v1.2.3
+								version	b5f6b90
 							io.get-coursier:coursier_2.12:2.0.0-RC6-10	binRepo	central
 								group	io.get-coursier
 								artifact	coursier_2.12
