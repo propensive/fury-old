@@ -120,7 +120,7 @@ object Strings {
                 base: Int = 1024,
                 scale: List[String] = List("", "ki", "Mi", "Gi", "Ti", "Pi"),
                 format: DecimalFormat = new DecimalFormat("0.0")): String =
-      if(value < base) s"${format.format(value)}${scale.head}${units}"
+      if(value < base) s"${format.format(value)} ${scale.head}${units}"
       else magnitude(value/base, units, base, scale.tail, format)
 }
 
