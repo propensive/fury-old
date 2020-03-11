@@ -3,14 +3,12 @@ LAYER_REF="QmegLbqVdLgis1wUiB2s5HRxpYZXS9343PkiJ7JPBkBCaJ"
 
 run: dist/fury tmp/.bundle.ipfs
 
-publish: run pinata
-
-fury:
+fury: dist/fury publish
 	@printf "Copying new launcher script to root directory..."
 	@cp "$<" "$@" && \
 	 printf "done\n"
 
-pinata-launcher: tmp/.launcher.ipfs
+publish: tmp/.launcher.ipfs
 	@printf "Sending $(shell tput sitm)addHashToPinQueue$(shell tput sgr0) request to Pinata..."
 	@curl -s \
 	 -X POST \
@@ -66,13 +64,12 @@ tmp/.version:
 	 printf "$(VERSION)" > "$@" && \
 	 printf "done\n"
 
-tmp/lib/fury.jar: fury $(wildcard **/*.scala) tmp/.version
+tmp/lib/fury.jar: $(wildcard **/*.scala) tmp/.version
 	@printf "Cloning the Fury layer over IPFS...\n"
 	@mkdir -p tmp/lib && \
 	 ./fury layer clone -d . -l fury://$(LAYER_REF) && \
 	 printf "Done\n" && \
 	 printf "Compiling Fury from source...\n" && \
-	 echo $(LANG) && \
 	 ./fury build run --https --project fury --module frontend --output linear --dir tmp/lib --fat-jar --disable-security-manager && \
 	 mv tmp/lib/fury-frontend.jar "$@" && \
 	 jar uf "$@" -C tmp .version && \
