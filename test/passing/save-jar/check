@@ -20,7 +20,7 @@ Successfully compiled module foo/lib
 Starting compilation of module foo/app
 Successfully compiled module foo/app
 Saving JAR file out/foo-app.jar using UTF-8
-Wrote 5 JAR files (total 19.0MiB) to out
+Wrote 5 JAR files (total 19.0 MiB) to out
 0
 foo-app.jar
 scala-compiler-2.12.8.jar
