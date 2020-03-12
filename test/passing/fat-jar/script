@@ -23,5 +23,5 @@ jar tf out/bar-app.jar | grep Option | sort --ignore-case
 jar tf out/bar-app.jar | grep Hello | sort --ignore-case
 java -jar out/bar-app.jar
 echo $?
-unzip -qq out/bar-app.jar META-INF/MANIFEST.MF | sort --ignore-case | sed 's/Created-By: Fury.*/Created-By: Fury/'
-cat META-INF/MANIFEST.MF
+unzip -qq out/bar-app.jar META-INF/MANIFEST.MF | sort --ignore-case
+cat META-INF/MANIFEST.MF | sed 's/Created-By: Fury.*/Created-By: Fury/'
