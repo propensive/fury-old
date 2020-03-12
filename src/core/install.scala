@@ -54,7 +54,7 @@ object Install {
   private final val furyTag: String = "# Added by Fury"
   
   private final def setPathLine(paths: List[Path]): List[String] =
-    List(str"PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag")
+    List(str"export PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag")
   
   private final val zshCompletions: List[String] = List(
     str"fpath=(${Installation.scriptDir} $$fpath) $furyTag",
