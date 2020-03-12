@@ -18,9 +18,14 @@ publish: tmp/.launcher.ipfs
 	 -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).sh\"},\"hashToPin\":\"$(shell cat tmp/.launcher.ipfs)\"}" \
 	 "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
 	 printf "done\n" && \
+	 ( echo $(VERSION) | grep -q -v '-' || \
+	   printf "Copying new launcher script to root directory..." && \
+	   cp dist/fury fury && \
+	   printf "done\n"
+	 )
 	 printf "$(shell tput bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput sgr0)\n"
 
-pinata: dist/fury.tar.gz tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
+pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
 	@printf "Sending $(shell tput sitm)addHashToPinQueue$(shell tput sgr0) request to Pinata..."
 	@curl -s \
 	 -X POST \
@@ -113,7 +118,7 @@ tmp/.bundle.ipfs: dist/fury.tar.gz
 	@ipfs add -q "$<" > "$@" && \
 	 printf "done\n"
 
-tmp/.launcher.ipfs: dist/fury
+tmp/.launcher.ipfs: pinata
 	@printf "Adding $(shell tput sitm)Fury launcher $(VERSION)$(shell tput sgr0) to IPFS..."
 	@ipfs add -q "$<" > "$@" && \
 	 printf "done\n"

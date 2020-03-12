@@ -480,7 +480,7 @@ object Import {
   }
 }
 
-case class Import(id: ImportId, layerRef: LayerRef, schema: SchemaId, remote: Option[PublishedLayer])
+case class Import(id: ImportId, layerRef: LayerRef, schema: SchemaId, remote: Option[PublishedLayer] = None)
 
 sealed trait LayerInput {
   def suggestedName: Option[ImportId]
