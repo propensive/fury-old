@@ -8,35 +8,6 @@ fury: dist/fury publish
 	@cp "$<" "$@" && \
 	 printf "done\n"
 
-publish: tmp/.launcher.ipfs
-	@printf "Sending $(shell tput sitm)addHashToPinQueue$(shell tput sgr0) request to Pinata..."
-	@curl -s \
-	 -X POST \
-	 -H "Content-Type: application/json" \
-	 -H "pinata_api_key: $(shell cat .pinata/apiKey)" \
-	 -H "pinata_secret_api_key: $(shell cat .pinata/secretApiKey)" \
-	 -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).sh\"},\"hashToPin\":\"$(shell cat tmp/.launcher.ipfs)\"}" \
-	 "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
-	 printf "done\n" && \
-	 ( echo $(VERSION) | grep -q -v '-' || \
-	   printf "Copying new launcher script to root directory..." && \
-	   cp dist/fury fury && \
-	   printf "done\n"
-	 )
-	 printf "$(shell tput bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput sgr0)\n"
-
-pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
-	@printf "Sending $(shell tput sitm)addHashToPinQueue$(shell tput sgr0) request to Pinata..."
-	@curl -s \
-	 -X POST \
-	 -H "Content-Type: application/json" \
-	 -H "pinata_api_key: $(shell cat .pinata/apiKey)" \
-	 -H "pinata_secret_api_key: $(shell cat .pinata/secretApiKey)" \
-	 -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).tar.gz\"},\"hashToPin\":\"$(shell cat tmp/.bundle.ipfs)\"}" \
-	 "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
-	 printf "done\n" && \
-	 printf "$(shell tput bold)Fury bundle version $(VERSION) published to $(shell cat tmp/.bundle.ipfs)$(shell tput sgr0)\n"
-
 clean:
 	@printf "Cleaning tmp, dist directories..."
 	@rm -rf tmp dist && \
@@ -54,14 +25,6 @@ install: clean uninstall dist/fury dist/fury.tar.gz
 	@dist/fury system install && \
 	 printf "Done\n"
 	@fury stop 2> /dev/null
-
-dist/fury: etc/launcher tmp/.bundle.ipfs
-	@printf "Rewriting Fury launcher script..."
-	@mkdir -p dist && \
-	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
-	 sed "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" "$@.tmp" > "$@" && \
-	 chmod +x "$@" && \
-	 printf "done\n"
 
 tmp/.version:
 	@printf "Writing current version ($(VERSION)) to a file..."
@@ -113,20 +76,59 @@ tmp/bin/ng.py:
 	 chmod +x "$@" && \
 	 printf "done\n"
 
-tmp/.bundle.ipfs: dist/fury.tar.gz
-	@printf "Adding $(shell tput sitm)Fury bundle $(VERSION)$(shell tput sgr0) to IPFS..."
-	@ipfs add -q "$<" > "$@" && \
-	 printf "done\n"
-
-tmp/.launcher.ipfs: pinata
-	@printf "Adding $(shell tput sitm)Fury launcher $(VERSION)$(shell tput sgr0) to IPFS..."
-	@ipfs add -q "$<" > "$@" && \
-	 printf "done\n"
-
 dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury
 	@printf "Creating bundle file..."
 	@mkdir -p dist && \
 	 tar czf "$@" -C tmp .version lib bin script && \
 	 printf "done\n"
+
+tmp/.bundle.ipfs: dist/fury.tar.gz
+	@printf "Adding $(shell tput sitm)Fury bundle $(VERSION)$(shell tput sgr0) to IPFS..."
+	@ipfs add -q "$<" > "$@" && \
+	 printf "done\n"
+
+dist/fury: etc/launcher tmp/.bundle.ipfs
+	@printf "Rewriting Fury launcher script..."
+	@mkdir -p dist && \
+	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
+	 sed "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" "$@.tmp" > "$@" && \
+	 chmod +x "$@" && \
+	 printf "done\n"
+
+tmp/.launcher.ipfs: dist/fury
+	@printf "Adding $(shell tput sitm)Fury launcher $(VERSION)$(shell tput sgr0) to IPFS..."
+	@ipfs add -q "$<" > "$@" && \
+	 printf "done\n"
+
+pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
+	@( echo $(VERSION) | grep -q '-' && printf "Not pinning snapshot release of Fury bundle.\n" ) || \
+	 ( printf "Sending $(shell tput sitm)addHashToPinQueue$(shell tput sgr0) request to Pinata..." && \
+	   curl -s \
+	    -X POST \
+	    -H "Content-Type: application/json" \
+	    -H "pinata_api_key: $(shell cat .pinata/apiKey)" \
+	    -H "pinata_secret_api_key: $(shell cat .pinata/secretApiKey)" \
+	    -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).tar.gz\"},\"hashToPin\":\"$(shell cat tmp/.bundle.ipfs)\"}" \
+	    "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
+	    printf "done\n" \
+	 ) && \
+	 printf "$(shell tput bold)Fury bundle version $(VERSION) published to $(shell cat tmp/.bundle.ipfs)$(shell tput sgr0)\n"
+
+publish: tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
+	@( echo $(VERSION) | grep -q '-' && printf "Not pinning snapshot release of Fury launcher.\n" ) || \
+	 ( printf "Sending $(shell tput sitm)addHashToPinQueue$(shell tput sgr0) request to Pinata..." && \
+	   curl -s \
+	    -X POST \
+	    -H "Content-Type: application/json" \
+	    -H "pinata_api_key: $(shell cat .pinata/apiKey)" \
+	    -H "pinata_secret_api_key: $(shell cat .pinata/secretApiKey)" \
+	    -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).sh\"},\"hashToPin\":\"$(shell cat tmp/.launcher.ipfs)\"}" \
+	    "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
+	    printf "done\n" && \
+	    printf "Copying new launcher script to root directory..." && \
+	    cp dist/fury fury && \
+	    printf "done\n" \
+	 )
+	@printf "$(shell tput bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput sgr0)\n"
 
 .PHONY: run publish pinata pinata-launcher clean uninstall
