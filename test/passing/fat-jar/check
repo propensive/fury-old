@@ -16,7 +16,7 @@ BSP server is listening for incoming connections
 Starting compilation of module bar/app
 Successfully compiled module bar/app
 Hello World
-Saving JAR file out/bar-app.jar
+Saving JAR file out/bar-app.jar using UTF-8
 Wrote 18.8MiB to out/bar-app.jar
 0
 bar-app.jar
@@ -34,6 +34,6 @@ Hello World
 Manifest-Version: 1.0
 Class-Path: scala-compiler-2.12.8.jar scala-library-2.12.8.jar scala-r
  eflect-2.12.8.jar scala-xml_2.12-1.0.6.jar
-Created-By: Fury 0.8.2
+Created-By: Fury
 Main-Class: HelloWorld
 

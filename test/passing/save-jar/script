@@ -25,5 +25,5 @@ fury build run --dir out --output linear
 echo $?
 ls out
 jar tf out/foo-app.jar | sort --ignore-case
-unzip -qq out/foo-app.jar META-INF/MANIFEST.MF | sort --ignore-case
+unzip -qq out/foo-app.jar META-INF/MANIFEST.MF | sort --ignore-case | sed 's/Created-By: Fury.*/Created-By: Fury/'
 cat META-INF/MANIFEST.MF
