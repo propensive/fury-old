@@ -36,13 +36,14 @@ jobs:
         make -k test || touch unittests.failed
         ! ls -1 unittests.failed 2> /dev/null
       timeout-minutes: 5
-    - name: Run integration tests
+    - name: Prepare environment for integration tests
       run: |
-        cat ~/.bashrc
-        source /home/runner/.bashrc
-        echo $PATH
         git config --global user.name $USER
         git config --global user.email johndoe@example.com
+        echo "::add-path::$HOME/.local/share/fury/usr/$(cat tmp/.version)/bin"
+      timeout-minutes: 1
+    - name: Run integration tests
+      run: |
         etc/integration || touch integration.failed
         ! ls -1 integration.failed 2> /dev/null
       timeout-minutes: 5
