@@ -541,12 +541,9 @@ case class Compilation(graph: Target.Graph,
       enc               = System.getProperty("file.encoding")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
-
-      _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
-                          else Success(())
       resources        <- aggregatedResources(ref)
-      _                <- ~resources.foreach(_.copyTo(checkouts, layout, stagingDirectory))
-      _                <- Shell(layout.env).jar(path, stagingDirectory.children.filterNot(_.contains("META-INF")).map(stagingDirectory / _).to[Set],
+      _                <- resources.traverse(_.copyTo(checkouts, layout, stagingDirectory))
+      _                <- Shell(layout.env).jar(path, if(fatJar) bins else Set.empty, stagingDirectory.children.map(stagingDirectory / _).to[Set],
         manifest)
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
       _                 = if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")

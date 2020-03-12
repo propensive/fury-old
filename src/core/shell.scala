@@ -26,6 +26,7 @@ import scala.util._
 import scala.collection.mutable.HashMap
 import java.util.UUID
 import java.util.jar.{JarFile, Manifest => JManifest}
+import java.util.zip.ZipFile
 import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry, ZipArchiveOutputStream}
 
 case class Shell(environment: Environment) {
@@ -178,17 +179,22 @@ case class Shell(environment: Environment) {
       )
   }
 
-  def jar(dest: Path, inputs: Set[Path], manifest: JManifest): Try[Unit] = Try {
+  def jar(dest: Path, jarInputs: Set[Path], pathInputs: Set[Path], manifest: JManifest): Try[Unit] = {
     val zos = new ZipArchiveOutputStream(dest.javaPath.toFile)
     zos.setEncoding("UTF-8")
     zos.putArchiveEntry(new ZipArchiveEntry(JarFile.MANIFEST_NAME))
     manifest.write(zos)
     zos.closeArchiveEntry()
-    
+
     val creator = new ParallelScatterZipCreator
-    inputs.foreach(Zipper.pack(_, dest, creator))
-    creator.writeTo(zos)
+    val ok = for {
+      _ <- jarInputs.traverse { input => Zipper.pack(new ZipFile(input.javaFile), creator)(!_.getName.contains("META-INF")) }
+      _ <- pathInputs.traverse(Zipper.pack(_, creator))
+    } yield {
+      creator.writeTo(zos)
+    }
     zos.close()
+    ok
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
