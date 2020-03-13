@@ -236,11 +236,14 @@ object Artifact {
 case class Artifact(path: String, ref: String, version: LayerVersion)
 
 object LayerRef {
-  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.take(8).toLowerCase))
+  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.drop(2).take(8)))
   implicit val stringShow: StringShow[LayerRef] = _.key
   implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
-  def unapply(value: String): Option[LayerRef] = value.only { case r"[A-F0-9]{64}" => LayerRef(value) }
+  def unapply(value: String): Option[LayerRef] = value.only {
+    case r"[A-F0-9]{64}" => LayerRef(value)
+    case r"Qm[a-zA-Z0-9]{44}" => LayerRef(value)
+  }
 }
 
 case class LayerRef(key: String) extends Key(msg"layer")
@@ -476,6 +479,8 @@ object Import {
 
   def unapply(value: String): Option[Import] = value.only {
     case r"$layer@([a-fA-F0-9]{64}):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
+      Import(ImportId(""), LayerRef(layer), SchemaId(schema), None)
+    case r"$layer@(Qm[a-zA-Z0-9]+):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
       Import(ImportId(""), LayerRef(layer), SchemaId(schema), None)
   }
 }

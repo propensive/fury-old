@@ -38,12 +38,16 @@ object Ipfs {
   )
 
   case class IpfsApi(api: IPFS){
-    def add(path: Path): Try[IpfsRef] = Try {
-      val file = new NamedStreamable.FileWrapper(path.javaFile)
-      val nodes = api.add(file).asScala
-      val top = nodes.last
-      IpfsRef(top.hash.toBase58)
-    }
+
+    def add(path: Path): Try[IpfsRef] =  for{
+      file <- Try(new NamedStreamable.FileWrapper(path.javaFile))
+      ref  <- add(file, wrap = false, onlyHash = false)
+    } yield ref
+
+    def hash(path: Path): Try[IpfsRef] =  for{
+      file <- Try(new NamedStreamable.FileWrapper(path.javaFile))
+      ref  <- add(file, wrap = false, onlyHash = true)
+    } yield ref
 
     def get(ref: IpfsRef, path: Path)(implicit log: Log): Try[Path] = {
       val hash = Multihash.fromBase58(ref.key)
@@ -82,6 +86,12 @@ object Ipfs {
         AgentVersion = idInfo.get("AgentVersion").toString,
         ProtocolVersion = idInfo.get("ProtocolVersion").toString
       )
+    }
+
+    private[this] def add(data: NamedStreamable, wrap: Boolean, onlyHash: Boolean): Try[IpfsRef] = Try {
+      val nodes = api.add(data, wrap, onlyHash).asScala
+      val top = nodes.last
+      IpfsRef(top.hash.toBase58)
     }
 
     private[this] def getFile(hash: Multihash, path: Path): Try[Path] = for {

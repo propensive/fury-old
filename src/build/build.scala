@@ -644,7 +644,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
     _             <- if(raw) ~log.rawln(str"${pub.url}")
                      else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
-    _             <- Layer.saveFuryConf(FuryConf(Layer.digestLayer(layer), ImportPath.Root, Some(pub)), layout)
+    digest        <- Layer.digestLayer(layer)
+    _             <- Layer.saveFuryConf(FuryConf(digest, ImportPath.Root, Some(pub)), layout)
   } yield log.await()
 
   def share: Try[ExitStatus] = for {

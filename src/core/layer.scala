@@ -36,7 +36,7 @@ case class Layer(version: Int,
   def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
   def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
 
-  val hash: String = Layer.digestLayer(this).key.take(6).toLowerCase
+  lazy val hash: String = Layer.digestLayer(this).get.key.take(6).toLowerCase
 }
 
 object Layer {
@@ -162,9 +162,12 @@ object Layer {
         layer     <- read(schemaRef.layerRef, layout)
       } yield layer.copy(main = schemaRef.schema) }
   
-    def digestLayer(layer: Layer): LayerRef =
-      LayerRef(Ogdl.serialize(Ogdl(layer)).digest[Sha256].encoded[Hex])
-  
+    def digestLayer(layer: Layer): Try[LayerRef] = Installation.tmpFile { file => for {
+      ipfs <- Ipfs.daemon(environments.enclosing, quiet = true)(Log.log(Pid(-1)))
+      _    <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
+      ref  <- ipfs.hash(file)
+    } yield LayerRef(ref.key) }
+
     def init(env: Environment, layout: Layout)(implicit log: Log): Try[Unit] = {
       if(layout.confFile.exists) { for {
         conf     <- readFuryConf(layout)
@@ -214,7 +217,7 @@ object Layer {
 
     private def saveLayer(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
       _ <- Ipfs.daemon(environments.enclosing, quiet = false)
-      layerRef <- ~digestLayer(layer)
+      layerRef <- digestLayer(layer)
       _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
     } yield layerRef
 
