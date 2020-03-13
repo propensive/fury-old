@@ -1,0 +1,20 @@
+The command 'proj' was not recognized.
+1
+Initialized an empty layer
+
+0
+Set current project to scala
+scala
+0
+Set current module to compiler
+Set current project to hello-world
+Setting default compiler for project hello-world to scala/compiler
+Set current module to app
+Source foo//** is not defined in hello-world/app.
+1
+The binary logging was not found.
+1
+The module foo was not found.
+1
+The argument 'foo/bar' was not a valid value for the parameter '-m/--module'.
+1
