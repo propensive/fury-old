@@ -57,23 +57,34 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     _        <- ManagedConfig.write(config)
   } yield log.await()
 
+  def install: Try[ExitStatus] = for {
+    cli   <- cli.hint(ForceArg)
+    call  <- cli.call()
+    force <- ~call(ForceArg).isSuccess
+    _     <- Install(cli.env, force)
+  } yield log.await()
+
   def auth: Try[ExitStatus] = for {
     call     <- cli.call()
+    token    <- doAuth
+    config   <- ~ManagedConfig().copy(token = Some(token))
+    _        <- ~ManagedConfig.write(config)
+    _        <- ~log.info("You are now authenticated")
+  } yield log.await()
+
+  def doAuth: Try[String] = for {
     code     <- ~Rnd.token(18)
     // These futures should be managed in the session
     uri      <- ~Https(Path(ManagedConfig().service) / "await", Query & "code" -> code)
     future   <- ~Future(blocking(Http.get(uri, Set())))
     uri      <- ~Https(Path(ManagedConfig().service) / "auth", Query & "code" -> code)
-    _        <- ~log.info(msg"Please visit $uri to log in.")
+    _        <- ~log.info(msg"Please visit $uri to authenticate using GitHub.")
     _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
     response <- Await.result(future, Duration.Inf)
     json     <- ~Json.parse(new String(response, "UTF-8")).get
     token    <- ~json.token.as[String].get
-    config   <- ~ManagedConfig().copy(token = token)
-    _        <- ~ManagedConfig.write(config)
-    _        <- ~log.info("You are now authenticated")
-  } yield log.await()
-  
+  } yield token
+
   def software: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
@@ -93,6 +104,11 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
 }
 
 case class AboutCli(cli: Cli)(implicit log: Log) {
+
+  def version: Try[ExitStatus] = for {
+    call <- cli.call()
+    _    <- ~log.raw(str"fury version ${FuryVersion.current}")
+  } yield log.await()
 
   private def resourcesString: String = {
     val runtime = Runtime.getRuntime
@@ -584,8 +600,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
   def cloneLayer: Try[ExitStatus] = for {
     cli           <- cli.hint(DirArg)
+    cli           <- cli.hint(EditorArg)
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
+    edit          <- ~call(EditorArg).isSuccess
     fakeLayout    <- cli.newLayout
     layerImport   <- call(ImportArg)
     resolved      <- Layer.parse(layerImport, fakeLayout)
@@ -598,6 +616,12 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _             <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, resolved.publishedLayer), layout)
     _             <- Bsp.createConfig(layout)
     _             <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
+    
+    _             <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
+                       implicit val env: Environment = cli.env
+                       sh"${path.value} ${dir.value}".exec[Try[String]]
+                     }
+                     else Success(())
   } yield log.await()
 
   def publish: Try[ExitStatus] = for {
@@ -605,14 +629,18 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(RemoteLayerArg)
     cli           <- cli.hint(RawArg)
     cli           <- cli.hint(BreakingArg)
+    cli           <- cli.hint(PublicArg)
     call          <- cli.call()
+    token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.read(layout, conf)
     path          <- call(RemoteLayerArg)
     breaking      <- ~call(BreakingArg).isSuccess
+    public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
     ref           <- Layer.share(cli.env, layer, layout, raw)
-    pub           <- Service.publish(cli.env, ref.key, path, raw, breaking)
+    pub           <- Service.publish(cli.env, ref.key, path, raw, breaking, public,
+                         conf.published.fold(0)(_.version.major), conf.published.fold(0)(_.version.minor), token)
     _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
     _             <- if(raw) ~log.rawln(str"${pub.url}")
                      else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
@@ -649,20 +677,14 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(ImportNameArg)
     schemaArg     <- ~Some(SchemaId.default)
     defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
-    layerImport   <- ~cli.peek(ImportArg)
-
-    layerRef      <- ~layerImport.flatMap(Layer.parse(_, layout).flatMap(Layer.load(cli.env, _,
-                         layout)).toOption)
-
-    maybeLayer    <- ~layerRef.flatMap(Layer.read(_, layout).toOption)
     call          <- cli.call()
     layerImport   <- call(ImportArg)
+    remote        <- ~PublishedLayer.parse(layerImport)
     layerInput    <- Layer.parse(layerImport, layout)
     nameArg       <- cli.peek(ImportNameArg).orElse(layerInput.suggestedName).ascribe(MissingArg("name"))
     layerRef      <- Layer.load(cli.env, layerInput, layout)
-    schemaRef     <- ~SchemaRef(nameArg, layerRef, SchemaId.default)
+    schemaRef     <- ~Import(nameArg, layerRef, SchemaId.default, remote)
     layer         <- Lenses.updateSchemas(layer)(Lenses.layer.imports(_))(_.modify(_)(_ +
                           schemaRef.copy(id = nameArg)))
     
@@ -689,6 +711,26 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     call      <- cli.call()
     layout    <- cli.layout
     _         <- Layer.undo(layout)
+  } yield log.await()
+
+  def update: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
+    cli       <- cli.hint(AllArg)
+    cli       <- cli.hint(RecursiveArg)
+    cli       <- cli.hint(ImportIdArg)
+    call      <- cli.call()
+    recursive <- call(RecursiveArg)
+    all       <- ~call(AllArg).isSuccess
+    importArg <- call(ImportIdArg)
+    imported  <- layer.mainSchema.get.imports.findBy(importArg)
+    published <- imported.remote.ascribe(ImportHasNoRemote())
+    lens      <- ~Lenses.layer.importRemote(SchemaId.default, importArg)
+    artifact  <- Service.latest(published.url.domain, published.url.path, Some(published.version))
+    newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version)
+    layer     <- ~(lens(layer) = Some(newPub))
+    _         <- Layer.save(layer, layout)
   } yield log.await()
 
   def list: Try[ExitStatus] = {

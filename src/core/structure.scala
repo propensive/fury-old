@@ -43,31 +43,35 @@ case class Menu(
     default: Symbol,
     show: Boolean = true,
     shortcut: Char = '\u0000',
-    needsLayer: Boolean = true,
+    needsLayer: Boolean = true
   )(val items: MenuStructure*)
     extends MenuStructure {
 
   def apply(cli: Cli, ctx: Cli): Try[ExitStatus] = {
     val hasLayer: Boolean = cli.layout.map(_.confFile.exists).getOrElse(false)
-    cli.args.prefix.headOption match {
-      case None =>
-        if(cli.completion) cli.completeCommand(this, hasLayer)
-        else apply(cli.prefix(default.name), ctx)
-      case Some(next) =>
-        val cmd = items.find(_.command.name == next.value).orElse {
-          if(next.value.length <= 2 && !cli.command.exists(_ < 4)) items.find(_.shortcut == next.value(0))
-          else None
-        }
+    if(cli.args.args == Seq("interrupt")) {
+      Success(Done)
+    } else {
+      cli.args.prefix.headOption match {
+        case None =>
+          if (cli.completion) cli.completeCommand(this, hasLayer)
+          else apply(cli.prefix(default.name), ctx)
+        case Some(next) =>
+          val cmd = items.find(_.command.name == next.value).orElse {
+            if (next.value.length <= 2 && !cli.command.exists(_ < 4)) items.find(_.shortcut == next.value(0))
+            else None
+          }
 
-        cmd match {
-          case None =>
-            if(cli.completion) cli.completeCommand(this, hasLayer)
-            else Failure(UnknownCommand(next.value))
-          case Some(item @ Menu(_, _, _, _, _, _)) =>
-            item(cli.tail, cli)
-          case Some(item @ Action(_, _, _, _, _, _)) =>
-            item.action(cli)
-        }
+          cmd match {
+            case None =>
+              if (cli.completion) cli.completeCommand(this, hasLayer)
+              else Failure(UnknownCommand(next.value))
+            case Some(item@Menu(_, _, _, _, _, _)) =>
+              item(cli.tail, cli)
+            case Some(item@Action(_, _, _, _, _, _)) =>
+              item.action(cli)
+          }
+      }
     }
   }
 

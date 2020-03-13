@@ -33,7 +33,7 @@ object Schema {
 case class Schema(id: SchemaId,
                   projects: SortedSet[Project] = TreeSet(),
                   repos: SortedSet[SourceRepo] = TreeSet(),
-                  imports: SortedSet[SchemaRef] = TreeSet(),
+                  imports: SortedSet[Import] = TreeSet(),
                   main: Option[ProjectId] = None) {
 
   def apply(id: ProjectId) = projects.findBy(id)
@@ -88,7 +88,7 @@ case class Schema(id: SchemaId,
     } yield allSchemas.flatMap(_.projects)
   }
 
-  def resolve(ref: SchemaRef, layout: Layout, https: Boolean)(implicit log: Log): Try[Schema] = for {
+  def resolve(ref: Import, layout: Layout, https: Boolean)(implicit log: Log): Try[Schema] = for {
     layer    <- Layer.read(ref.layerRef, layout)
     resolved <- layer.schemas.findBy(ref.schema)
   } yield resolved

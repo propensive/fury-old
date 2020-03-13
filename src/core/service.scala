@@ -34,22 +34,41 @@ object Service {
     } yield artifacts
   }
 
-  def publish(env: Environment, hash: String, path: String, quiet: Boolean, breaking: Boolean)
+  def list(service: String, path: String)(implicit log: Log): Try[List[Artifact]] = {
+    val url = Https(Path(service) / "list" / path)
+    
+    for {
+      bytes <- Http.get(url, Set())
+      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
+      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
+    } yield artifacts
+  }
+
+  def latest(service: String, path: String, current: Option[LayerVersion])(implicit log: Log): Try[Artifact] =
+    for {
+      artifacts <- list(service, path)
+      grouped   <- ~artifacts.groupBy(_.version.major)
+      artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
+    } yield artifact
+
+  def publish(env: Environment, hash: String, path: String, quiet: Boolean, breaking: Boolean,
+                  public: Boolean, major: Int, minor: Int, token: String)
              (implicit log: Log)
              : Try[PublishedLayer] = {
 
     val url = Https(Path(ManagedConfig().service) / "publish")
-    case class Request(path: String, token: String, hash: String, breaking: Boolean)
-    case class Response(output: String)
+    case class Request(path: String, token: String, hash: String, breaking: Boolean, public: Boolean,
+        major: Int, minor: Int)
+
+    case class Response(major: Int, minor: Int)
     for {
       ipfs <- Ipfs.daemon(env, quiet)
       id   <- Try(ipfs.id().get)
-      out  <- Http.post(url, Json(Request(path, ManagedConfig().token, hash, breaking)), headers = Set())
+      out  <- Http.post(url, Json(Request(path, token, hash, breaking, public, major, minor)), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
+      _    <- ~log.info(json.toString)
       res  <- Try(json.as[Response].get)
-      // FIXME: Get major and minor version numbers
-    } yield PublishedLayer(Uri("fury", Path(str"${ManagedConfig().service}/${path}")), 0, 0)
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, path), LayerVersion(res.major, res.minor))
   }
 }
-  

@@ -44,6 +44,7 @@ case class HttpNotFound(uri: Uri) extends FuryException
 case class HttpNotImplemented(uri: Uri) extends FuryException
 case class HttpServiceUnavailable(uri: Uri) extends FuryException
 case class HttpUnauthorized(uri: Uri) extends FuryException
+case class ImportHasNoRemote() extends FuryException
 case class ImportOnlyFileOrRef() extends FuryException
 case class InitFailure() extends FuryException
 case class InvalidKind(expected: Kind) extends FuryException
@@ -51,6 +52,7 @@ case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class IpfsTimeout() extends FuryException
 case class NotOnPath(name: ExecName) extends FuryException
+case class NotAuthenticated() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
 case class LayerNotFound(path: Path) extends FuryException

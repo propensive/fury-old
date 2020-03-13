@@ -10,7 +10,7 @@ ARGS="$@"
 DEFAULT_PORT="8462"
 PORT="${FURY_PORT:-$DEFAULT_PORT}"
 FHOME="${FURY_HOME:-$DEFAULT_FURY_HOME}"
-CLASSPATH="$(cat $FHOME/classpath):$FHOME/lib/*"
+CLASSPATH="$FHOME/lib/fury.jar"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.FuryServer"
 QUIET='0'
@@ -19,7 +19,7 @@ UPGRADEDIR="$FHOME/upgrade"
 trap cleanup INT
 
 cleanup() {
-  fury "$$" interrupt
+  fury interrupt
 }
 
 nailgun() {

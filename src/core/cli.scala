@@ -166,7 +166,8 @@ class Cli(val stdout: java.io.PrintWriter,
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
-      log.attach(LogStyle(stdout, debug = false))
+      val startTime = env.variables.get("START_TIME").map(_.toLong).getOrElse(System.currentTimeMillis)
+      log.attach(LogStyle(stdout, debug = false, startTime = startTime))
       Success(new Call())
     }
   }
@@ -196,7 +197,10 @@ class Cli(val stdout: java.io.PrintWriter,
   def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] = Success(args(param.param).toOption)
 
   def abort(msg: UserMsg)(implicit log: Log): ExitStatus = {
-    if(!completion) log.fail(msg)
+    if(!completion){
+      if(log.writersCount < 2) { log.attach(LogStyle(stdout, debug = false)) }
+      log.fail(msg)
+    }
     Abort
   }
 

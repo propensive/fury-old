@@ -33,7 +33,7 @@ object LogStyle {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: => java.io.PrintWriter, debug: Boolean): LogStyle = {
+  def apply(printWriter: => java.io.PrintWriter, debug: Boolean, startTime: Long): LogStyle = {
     val config = ManagedConfig()
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info
@@ -43,9 +43,8 @@ object LogStyle {
 
 
 case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean], logLevel: Boolean,
-    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean) {
-
-  private[this] val startTime: Long = System.currentTimeMillis
+    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean,
+    startTime: Long = System.currentTimeMillis) {
 
   private[this] def paddedTime(time: Long): String = timestamps match {
     case None        => ""
@@ -156,7 +155,9 @@ class Log(private[this] val output: LogStyle, val pid: Pid) {
       override def write(char: Int): Unit = ()
     })
   }
-  
+
+  def writersCount: Int = writers.size
+
   def flush(force: Boolean = false): Unit = writers.foreach(_.flush(force))
 
   def await(success: Boolean = true): ExitStatus = {
