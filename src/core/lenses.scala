@@ -93,6 +93,9 @@ object Lenses {
     def imports(schemaId: SchemaId) =
       lens(_.schemas(on(schemaId)).imports)
 
+    def importRemote(schemaId: SchemaId, importId: ImportId) =
+      lens(_.schemas(on(schemaId)).imports(on(importId)).remote)
+
     def projects(schemaId: SchemaId) =
       Optic.identity.compose(schema(schemaId), Lenses.schema.projects)
 

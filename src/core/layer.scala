@@ -81,7 +81,7 @@ object Layer {
     def share(env: Environment, layer: Layer, layout: Layout, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
       Installation.tmpDir { tmp => for {
         layerRef  <- saveLayer(layer)
-        schemaRef =  SchemaRef(ImportId(""), layerRef, layer.main)
+        schemaRef =  Import(ImportId(""), layerRef, layer.main, None)
         layerRefs <- collectLayerRefs(schemaRef, layout)
         _         =  (tmp / "layers").mkdir()
         filesMap  =  layerRefs.map { ref =>
@@ -126,7 +126,7 @@ object Layer {
     def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
       Ogdl.read[FuryConf](layout.confFile, identity(_))
   
-    private def collectLayerRefs(ref: SchemaRef, layout: Layout)(implicit log: Log): Try[Set[LayerRef]] = for {
+    private def collectLayerRefs(ref: Import, layout: Layout)(implicit log: Log): Try[Set[LayerRef]] = for {
       layer   <- read(ref.layerRef, layout)
       schema  <- layer.schemas.findBy(ref.schema)
       imports <- schema.imports.map(collectLayerRefs(_, layout)).sequence.map(_.flatten)
@@ -134,7 +134,7 @@ object Layer {
   
     def export(layer: Layer, layout: Layout, path: Path)(implicit log: Log): Try[Path] = for {
       layerRef  <- saveLayer(layer)
-      schemaRef <- ~SchemaRef(ImportId(""), layerRef, layer.main)
+      schemaRef <- ~Import(ImportId(""), layerRef, layer.main, None)
       layerRefs <- collectLayerRefs(schemaRef, layout)
       filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
       _         <- TarGz.store(filesMap.updated(Path(".fury.conf"), layout.confFile), path)
@@ -169,7 +169,7 @@ object Layer {
       if(layout.confFile.exists) { for {
         conf     <- readFuryConf(layout)
         url      <- Try(conf.published.get)
-        ref      <- parse(url.url.key, layout)
+        ref      <- parse(str"$url", layout)
         layer    <- Layer.load(env, ref, layout)
         conf     <- saveFuryConf(FuryConf(layer, conf.path, conf.published), layout)
         _        <- ~log.info(msg"Initialized layer ${layer}")

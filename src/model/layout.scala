@@ -126,6 +126,7 @@ object Installation {
   val installDir: Path = Path(System.getProperty("fury.home"))
   val usrDir: Path = (installDir / "usr").extant()
   val binDir: Path = (installDir / "bin").extant()
+  val scriptDir: Path = (installDir / "script").extant()
   val ipfsInstallDir: Path = installDir / "ipfs"
   val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"
 

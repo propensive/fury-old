@@ -13,6 +13,7 @@ bootstrap/
 **/.#*
 test/tmp/
 log
+tmp
 opt/
 project
 target
@@ -25,3 +26,4 @@ out/**/*
 .sandbox/
 .vscode/
 .fury.conf
+.pinata

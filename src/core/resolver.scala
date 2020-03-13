@@ -25,7 +25,7 @@ object Resolver {
   implicit val projectResolver: Resolver[Project, ProjectId] = _ == _.id
   implicit val schemaResolver: Resolver[Schema, SchemaId] = _ == _.id
   implicit val sourceRepoResolver: Resolver[SourceRepo, RepoId] = _ == _.id
-  implicit val importResolver: Resolver[SchemaRef, ImportId] = _ == _.id
+  implicit val importResolver: Resolver[Import, ImportId] = _ == _.id
   implicit val binaryResolver: Resolver[Binary, BinaryId] = _ == _.id
   implicit val optDefResolver: Resolver[OptDef, OptId] = _ == _.id
   implicit val sourceResolver: Resolver[Source, Source] = _ == _

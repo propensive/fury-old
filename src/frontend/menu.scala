@@ -23,6 +23,7 @@ import scala.util._
 object FuryMenu {
 
   def menu(aliases: List[Action])(implicit log: Log): Menu = Menu('main, "main menu", 'build)(List(
+    Action(Symbol("version"), msg"show the current version number", AboutCli(_).version, show = false),
     Menu('about, msg"inspect resource usage, current tasks etc.", 'resources, needsLayer = false)(
       Action('resources, msg"display information about available CPUs and memory usage", AboutCli(_).resources, needsLayer = false),
       Action('tasks, msg"list the tasks that are being executed", AboutCli(_).tasks, needsLayer = false),
@@ -81,6 +82,7 @@ object FuryMenu {
       Action('update, msg"update the module", ModuleCli(_).update, shortcut = 'u')
     ),
     Menu('system, msg"manage Fury and its dependencies", 'list, needsLayer = false)(
+      Action('install, msg"install Fury on this computer", ConfigCli(_).install),
       Action('software, msg"information about software Fury uses", ConfigCli(_).software)
     ),
     Menu('option, msg"manage compiler options for the module", 'list)(
@@ -145,6 +147,7 @@ object FuryMenu {
       Action('projects, msg"show all available projects", LayerCli(_).projects),
       Action('publish, msg"publish a layer", LayerCli(_).publish, shortcut = 'p'),
       Action('unimport, msg"remove a previously imported layer", LayerCli(_).unimport),
+      Action('update, msg"update the layer to a more recent version", LayerCli(_).update, shortcut = 'u'),
       Action('select, msg"select a layer", LayerCli(_).select, shortcut = 's'),
       Action('share, msg"share this layer", LayerCli(_).share),
     )

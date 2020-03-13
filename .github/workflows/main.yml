@@ -13,15 +13,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2.0.0
+    - run: git fetch --prune --unshallow
     - uses: actions/cache@v1.1.2
       with:
        path: ~/.cache/coursier
        key: ${{ runner.os }}-coursier-${{ hashFiles('layers/*') }}
     - name: Run Makefile
       run: |
+        git describe --tags
         make install
-        lsof -i :8462 -i :8212 -t | xargs kill
-        echo "::add-path::$HOME/.fury/bin"
       timeout-minutes: 5
     - name: Package compilation logs
       if: failure()
@@ -40,15 +40,8 @@ jobs:
       run: |
         git config --global user.name $USER
         git config --global user.email johndoe@example.com
-        mkdir $HOME/opt
-        pushd $HOME/opt
-        IPFS_BUILD=linux
-        if [[ ${{ matrix.os }} =~ macos-[a-zA-Z0-9_] ]]; then IPFS_BUILD=darwin; fi
-        curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_$IPFS_BUILD-amd64.tar.gz | tar zxf - go-ipfs/ipfs
-        popd
-        lsof -i :8462 -i :8212 -t | xargs kill
-        echo "::add-path::$HOME/opt/go-ipfs"
-      timeout-minutes: 2
+        echo "::add-path::$HOME/.local/share/fury/usr/$(cat tmp/.version)/bin"
+      timeout-minutes: 1
     - name: Run integration tests
       run: |
         etc/integration || touch integration.failed
