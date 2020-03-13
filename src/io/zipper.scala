@@ -35,9 +35,9 @@ import scala.collection.JavaConverters._
 
 object Zipper {
 
-  def pack(root: Path, destination: Path, creator: ParallelScatterZipCreator): Try[Path] = {
+  def pack(root: Path, creator: ParallelScatterZipCreator): Try[Unit] = {
     val tree = root.walkTree.map { path => path.relativizeTo(root.parent).value -> path }.toMap
-    packfs(Zip(tree), destination, creator)
+    packfs(Zip(tree), creator)
   }
 
   def unpack(source: Path, destination: Path): Try[Zip] = for {
@@ -46,14 +46,20 @@ object Zipper {
     _       =  zipFile.close()
   } yield Zip(entries.toMap)
 
-  private def packfs(zip: Zip, destination: Path, creator: ParallelScatterZipCreator): Try[Path] = Try {
+  private def packfs(zip: Zip, creator: ParallelScatterZipCreator): Try[Unit] = Try {
     zip.entries.to[List].sortBy(_._1).foreach { case (name, source) =>
       val za = createZipArchiveEntry(name)
       val iss = new InputStreamSupplier() { override def get: InputStream = source.inputStream() }
       if(!source.directory) creator.addArchiveEntry(za, iss)
     }
+  }
 
-    destination
+  def pack(zip: ZipFile, creator: ParallelScatterZipCreator)(filter: ZipEntry => Boolean = _ => true): Try[Unit] = Try {
+    zip.entries.asScala.to[List].sortBy(_.getName).filter(filter).foreach { case entry =>
+      val za = createZipArchiveEntry(entry.getName)
+      val iss = new InputStreamSupplier() { override def get: InputStream = zip.getInputStream(entry) }
+      creator.addArchiveEntry(za, iss)
+    }
   }
 
   private def createZipArchiveEntry(name: String) = {
@@ -65,8 +71,7 @@ object Zipper {
   }
 
   private def unpackEntry(destination: Path, zipFile: ZipFile, entry: ZipEntry): Try[(String, Path)] = Try {
-    val path = Path(entry.getName)
-    val target = destination.resolve(path)
+    val target = destination / java.util.UUID.randomUUID().toString
     if(entry.getName.endsWith("/")) target.mkdir()
     else {
       val in = zipFile.getInputStream(entry)

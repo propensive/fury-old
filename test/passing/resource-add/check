@@ -10,5 +10,5 @@ BSP server is listening for incoming connections
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Saving JAR file out/hello-world-app.jar
-Wrote 5 JAR files (total 19.0MiB) to out
+Wrote 5 JAR files (total 19.0 MiB) to out
   inflating: readme.txt              
