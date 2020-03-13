@@ -19,7 +19,7 @@ UPGRADEDIR="$FHOME/upgrade"
 trap cleanup INT
 
 cleanup() {
-  fury "$$" interrupt
+  fury interrupt
 }
 
 nailgun() {

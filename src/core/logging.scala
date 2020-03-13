@@ -155,7 +155,9 @@ class Log(private[this] val output: LogStyle, val pid: Pid) {
       override def write(char: Int): Unit = ()
     })
   }
-  
+
+  def writersCount: Int = writers.size
+
   def flush(force: Boolean = false): Unit = writers.foreach(_.flush(force))
 
   def await(success: Boolean = true): ExitStatus = {
