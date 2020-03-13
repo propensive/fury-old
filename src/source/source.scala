@@ -86,10 +86,10 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     source      <- call(SourceArg)
     project     <- optProject.asTry
     module      <- optModule.asTry
-    sourceToDel <- ~module.sources.find(_ == source)
+    _           <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project))) else Success(())
 
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id,
-                        module.id))(_(_) --= sourceToDel)
+                        module.id))(_(_) -= source)
     
     _           <- Layer.save(layer, layout)
     schema      <- layer.schemas.findBy(SchemaId.default)

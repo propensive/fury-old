@@ -101,6 +101,8 @@ You can grant these permissions with,
           cli.abort(msg"The configuration file could not be read.")
         case e: InvalidValue =>
           cli.abort(msg"'${e.value}' is not a valid value.")
+        case InvalidSource(source, module) =>
+          cli.abort(msg"Source ${source} is not defined in ${module}.")
         case e: IpfsTimeout =>
           cli.abort(msg"An IPFS operation timed out.")
         case OgdlException(error) =>
