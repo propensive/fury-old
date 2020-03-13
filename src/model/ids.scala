@@ -242,7 +242,7 @@ object LayerRef {
   
   def unapply(value: String): Option[LayerRef] = value.only {
     case r"[A-F0-9]{64}" => LayerRef(value)
-    case r"Qm[a-zA-Z0-9]+" => LayerRef(value)
+    case r"Qm[a-zA-Z0-9]{44}" => LayerRef(value)
   }
 }
 
