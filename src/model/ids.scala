@@ -236,7 +236,7 @@ object Artifact {
 case class Artifact(path: String, ref: String, version: LayerVersion)
 
 object LayerRef {
-  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.take(8).toLowerCase))
+  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.drop(2).take(8)))
   implicit val stringShow: StringShow[LayerRef] = _.key
   implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
