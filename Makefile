@@ -21,8 +21,7 @@ uninstall:
 install: etc/launcher uninstall dist/fury.tar.gz 
 	@( printf "Rewriting Fury launcher script for local use..." && \
 	   mkdir -p dist && \
-	   sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
-	   sed "s/%HASH%//" "$@.tmp" > "tmp/fury" && \
+	   ( sed "s/%VERSION%/$(VERSION)/" "$<" | sed "s/%HASH%//" > "tmp/fury" ) && \
 	   chmod +x "tmp/fury" && \
 	   printf "done\n" || printf "failed\n" \
 	 ) && \
