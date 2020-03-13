@@ -50,6 +50,7 @@ case class InitFailure() extends FuryException
 case class InvalidKind(expected: Kind) extends FuryException
 case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
+case class InvalidSource(source: UserMsg, module: ModuleRef) extends FuryException
 case class IpfsTimeout() extends FuryException
 case class NotOnPath(name: ExecName) extends FuryException
 case class NotAuthenticated() extends FuryException
