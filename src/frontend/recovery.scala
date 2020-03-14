@@ -111,6 +111,8 @@ You can grant these permissions with,
           cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
+        case RepoNotForked(repo) =>
+          cli.abort(msg"The repository ${repo} has not been forked.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
         case Unspecified(kind) =>
