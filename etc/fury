@@ -63,9 +63,9 @@ startNailgun() {
       message 'Starting Fury daemon...'
     fi
     if [ -f "${FHOME}/bin/libprocname.so" ]; then
-	LD_PRELOAD="${FHOME}/bin/libprocname.so" java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+	LD_PRELOAD="${FHOME}/bin/libprocname.so" java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     else
-	java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$MAIN" "$PORT" > /dev/null &
+	java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     fi
     until (alive); do
       if [ "$1" = "prompt" ]; then
