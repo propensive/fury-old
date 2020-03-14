@@ -1,0 +1,1 @@
+jps | grep Fury | cut -d' ' -f2
