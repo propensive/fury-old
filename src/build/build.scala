@@ -320,10 +320,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call           <- cli.call()
     dir            <- ~call(DirArg).toOption
     https          <- ~call(HttpsArg).isSuccess
-    optProjectId   <- cli.previewWithDefault(ProjectArg)(moduleRef.map(_.projectId).orElse(schema.main))
+    optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(schema.main))
     optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
     project        <- optProject.asTry
-    optModuleId    <- cli.previewWithDefault(ModuleArg)(moduleRef.map(_.moduleId).orElse(project.main))
+    optModuleId   <- ~cli.peek(ModuleArg).orElse(moduleRef.map(_.moduleId).orElse(project.main))
     optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
     module         <- optModule.asTry
     pipelining     <- ~call(PipeliningArg).toOption
