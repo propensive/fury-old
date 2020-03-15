@@ -282,7 +282,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- optModule.asTry
     moduleRef    =  module.ref(project)
 
-    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false, noSecurity = false)
+    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false, noSecurity = true)
 
     result    <- compilation.cleanCache(moduleRef, layout)
   } yield {

@@ -13,6 +13,8 @@ fury permission require -0 -C java.util.PropertyPermission -T scala.maven.versio
 fury permission require --no-grant -C java.util.PropertyPermission -T scala.version.number -A read
 fury permission require -C java.util.PropertyPermission -T scala.time -A read -0
 fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read --no-grant
+fury clean
+echo $?
 fury build run --output linear | grep '^ *[A-Za-z0-9]'
 fury permission grant -P 0bc4b2076691e61eb8b1dfac91ad7c0648b21b5e4c097ea4de8e54e91e5ae9d2
 fury permission grant -P 4d1a7232897567622a7ed04de5d3b9
