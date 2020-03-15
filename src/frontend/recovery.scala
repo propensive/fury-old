@@ -117,6 +117,8 @@ You can grant these permissions with,
           cli.abort(msg"The repository ${repo} is already forked to ${dir}.")
         case RepoDirty(repo, changes) =>
           cli.abort(msg"The repository ${repo} has uncommitted changes: $changes")
+        case ConflictingFiles(files) =>
+          cli.abort(msg"The directory contains files which would be overwritten by checking out the repository here.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
         case Unspecified(kind) =>
