@@ -95,8 +95,8 @@ case class Shell(environment: Environment) {
     def sparseCheckout(from: Path,
                        dir: Path,
                        sources: List[Path],
-                       refSpec: String,
-                       commit: String,
+                       refSpec: RefSpec,
+                       commit: Commit,
                        remote: Option[String])
                       : Try[String] = for {
       _   <- sh"git -C ${dir.value} init".exec[Try[String]]
@@ -105,21 +105,26 @@ case class Shell(environment: Environment) {
       _   <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
       _   <- sh"git -C ${dir.value} remote add origin ${from.value}".exec[Try[String]]
       str <- sh"git -C ${dir.value} fetch --all".exec[Try[String]]
-      _   <- sh"git -C ${dir.value} checkout $commit".exec[Try[String]]
+      _   <- sh"git -C ${dir.value} checkout ${commit.id}".exec[Try[String]]
       _   <- ~remote.foreach { url => for {
                _ <- sh"git -C ${dir.value} remote remove origin".exec[Try[String]]
                _ <- sh"git -C ${dir.value} remote add origin $url".exec[Try[String]]
-               _ <- sh"git -C ${dir.value} checkout -b $refSpec".exec[Try[String]]
+               _ <- sh"git -C ${dir.value} checkout -b ${refSpec.id}".exec[Try[String]]
                _ <- sh"git -C ${dir.value} fetch".exec[Try[String]]
-               _ <- sh"git -C ${dir.value} branch -u origin/$refSpec".exec[Try[String]]
+               _ <- sh"git -C ${dir.value} branch -u origin/${refSpec.id}".exec[Try[String]]
              } yield () }
       _   <- sources.map(_.in(dir)).traverse(_.setReadOnly())
       _   <- ~(dir / ".done").touch()
     } yield str
 
-    def lsTree(dir: Path, commit: String): Try[List[Path]] = for {
-      string <- sh"git -C ${dir.value} ls-tree -r --name-only $commit".exec[Try[String]]
+    def lsTree(dir: Path, commit: Commit): Try[List[Path]] = for {
+      string <- sh"git -C ${dir.value} ls-tree -r --name-only ${commit.id}".exec[Try[String]]
       files  <- ~string.split("\n").to[List].map(Path(_))
+    } yield files
+
+    def lsRoot(dir: Path, commit: Commit): Try[List[String]] = for {
+      string <- sh"git -C ${dir.value} ls-tree --name-only ${commit.id}".exec[Try[String]]
+      files  <- ~string.split("\n").to[List]
     } yield files
 
     def showRefs(dir: Path): Try[List[String]] = for {
@@ -143,6 +148,9 @@ case class Shell(environment: Environment) {
           Try[String]].map(_.take(40)))
     }
 
+    def checkRemoteHasCommit(dir: Path, commit: Commit): Try[Boolean] =
+      sh"git -C ${dir.value} rev-list origin".exec[Try[String]].map(_.split("\n").contains(commit.id))
+
     def fetch(dir: Path, refspec: Option[RefSpec]): Try[String] =
       sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
 
@@ -155,11 +163,14 @@ case class Shell(environment: Environment) {
     def getCommit(dir: Path): Try[Commit] =
       sh"git -C ${dir.value} rev-parse HEAD".exec[Try[String]].map(Commit(_))
 
-    def getBranchHead(dir: Path, branch: String): Try[String] =
-      sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]]
+    def getTrackedFiles(dir: Path): Try[List[String]] =
+      sh"git -C ${dir.value} ls-tree --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List])
 
-    def getTag(dir: Path, tag: String): Try[String] =
-      sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]]
+    def getBranchHead(dir: Path, branch: String): Try[Commit] =
+      sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]].map(Commit(_))
+
+    def getTag(dir: Path, tag: String): Try[Commit] =
+      sh"git -C ${dir.value} show-ref -s tags/$tag".exec[Try[String]].map(Commit(_))
     
     def getBranch(dir: Path): Try[String] =
       sh"git -C ${(dir / ".git").value} rev-parse --abbrev-ref HEAD".exec[Try[String]]

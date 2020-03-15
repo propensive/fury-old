@@ -49,6 +49,22 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- ~log.rawln(table)
   } yield log.await()
 
+  def checkout: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
+    schemaArg <- ~SchemaId.default
+    schema    <- layer.schemas.findBy(schemaArg)
+    cli       <- cli.hint(HttpsArg)
+    cli       <- cli.hint(RepoArg, schema.repos.map(_.id))
+    call      <- cli.call()
+    repoId    <- call(RepoArg)
+    repo      <- schema.repos.findBy(repoId)
+    local     <- ~schema.localRepo(layout).toOption
+    https     <- ~call(HttpsArg).isSuccess
+    _         <- repo.checkout(layout, local, https)
+  } yield log.await()
+
   def unfork: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
@@ -67,15 +83,15 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   def fork: Try[ExitStatus] = for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.read(layout, conf)
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.read(layout, conf)
     schemaArg <- ~SchemaId.default
     schema    <- layer.schemas.findBy(schemaArg)
     cli       <- cli.hint(DirArg)
     cli       <- cli.hint(RepoArg, schema.repos)
     cli       <- cli.hint(HttpsArg)
-    call     <- cli.call()
+    call      <- cli.call()
     repoId    <- call(RepoArg)
     repo      <- schema.repos.findBy(repoId)
     dir       <- call(DirArg)
@@ -84,13 +100,10 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     absPath   <- { for {
                     absPath <- ~(layout.pwd.resolve(dir))
                     _       <- Try(absPath.mkdir())
-
-                    _       <- if(absPath.empty) Success(())
-                              else Failure(new Exception("Non-empty dir exists"))
-
+                    _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
                   } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
-    _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track.id, commit =
+    _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track, commit =
                       repo.commit.id, Some(repo.repo.universal(false)))
 
     newRepo   <- ~repo.copy(local = Some(absPath))

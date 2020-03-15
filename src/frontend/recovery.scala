@@ -113,6 +113,10 @@ You can grant these permissions with,
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case RepoNotForked(repo) =>
           cli.abort(msg"The repository ${repo} has not been forked.")
+        case RepoAlreadyForked(repo, dir) =>
+          cli.abort(msg"The repository ${repo} is already forked to ${dir}.")
+        case RepoDirty(repo, changes) =>
+          cli.abort(msg"The repository ${repo} has uncommitted changes: $changes")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
         case Unspecified(kind) =>

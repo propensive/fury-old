@@ -145,6 +145,7 @@ object Installation {
   val upgradeDir: Path = cache / "upgrade"
   val policyDir: Path = cache / "policies"
   val scriptsDir: Path = Xdg.runtimeDir.extant() / "scripts"
+  val safeDir: Path = Xdg.runtimeDir.extant() / "safe"
 
   def tmpDir[T](fn: Path => T): T = tmpFile { path =>
     path.mkdir()
