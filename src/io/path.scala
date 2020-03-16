@@ -26,7 +26,8 @@ import scala.util._
 import scala.collection.generic.CanBuildFrom
 import java.net.URI
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{ FileSystems, FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption, Path => JavaPath }
+import java.nio.file.{ FileSystems, FileVisitResult, Files, Paths, SimpleFileVisitor, StandardCopyOption,
+    DirectoryNotEmptyException, Path => JavaPath }
 import java.nio.file.StandardCopyOption._
 import java.io.{ Closeable, InputStream, File => JavaFile }
 
@@ -141,7 +142,10 @@ case class Path(input: String) {
   def moveTo(path: Path): Try[Unit] = Try {
     path.parent.extant()
     Files.move(javaPath, path.javaPath, StandardCopyOption.REPLACE_EXISTING).unit
-  }.recoverWith { case e => Failure(FileWriteError(this, e)) }
+  }.recoverWith {
+    case e: DirectoryNotEmptyException => copyTo(path).map { _ => delete().unit }
+    case e                             => Failure(FileWriteError(this, e))
+  }
 
   def relativeSubdirsContaining(pred: String => Boolean): Set[Path] =
     findSubdirsContaining(pred).map { p => Path(p.value.drop(value.length + 1)) }
