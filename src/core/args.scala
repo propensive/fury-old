@@ -103,7 +103,7 @@ object Args {
   val TransformArg = CliParam[Unit]('t', 'transform, "transform the option into the parameters following --")
   val TraceArg = CliParam[Boolean]('D', Symbol("bsp-trace"), "Write the BSP communication trace to a file")
   val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
-  val NoGrantArg = CliParam[String]('0', Symbol("no-grant"), "do not grant the permission automatically")
+  val NoGrantArg = CliParam[Unit]('0', Symbol("no-grant"), "do not grant the permission automatically")
   val TagArg = CliParam[String]('t', 'tag, "git tag")
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
