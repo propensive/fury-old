@@ -148,8 +148,11 @@ case class Shell(environment: Environment) {
           Try[String]].map(_.take(40)))
     }
 
-    def checkRemoteHasCommit(dir: Path, commit: Commit): Try[Boolean] =
-      sh"git -C ${dir.value} rev-list origin".exec[Try[String]].map(_.split("\n").contains(commit.id))
+    def checkRemoteHasCommit(dir: Path, commit: Commit, track: RefSpec): Try[Boolean] =
+      sh"git -C ${dir.value} rev-list origin/${track.id}".exec[Try[String]].map(_.split("\n").contains(commit.id))
+    
+    def currentBranch(dir: Path): Try[RefSpec] =
+      sh"git -C ${dir.value} rev-parse --abbrev-ref HEAD".exec[Try[String]].map(RefSpec(_))
 
     def fetch(dir: Path, refspec: Option[RefSpec]): Try[String] =
       sh"git -C ${dir.value} fetch origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
@@ -165,6 +168,9 @@ case class Shell(environment: Environment) {
 
     def getTrackedFiles(dir: Path): Try[List[String]] =
       sh"git -C ${dir.value} ls-tree --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List])
+
+    def getAllTrackedFiles(dir: Path): Try[List[String]] =
+      sh"git -C ${dir.value} ls-tree -r --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List])
 
     def getBranchHead(dir: Path, branch: String): Try[Commit] =
       sh"git -C ${dir.value} show-ref -s heads/$branch".exec[Try[String]].map(Commit(_))

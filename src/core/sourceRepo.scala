@@ -31,13 +31,21 @@ object SourceRepo {
     dirty  <- Shell(layout.env).git.diffShortStat(layout.pwd)
     _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(local.id, dirty))
     commit <- Shell(layout.env).git.getCommit(layout.pwd)
-    _      <- Shell(layout.env).git.checkRemoteHasCommit(layout.pwd, commit)
-    dest   <- Try((Xdg.runtimeDir / local.id.key).lowestNumberedNonexistentDir())
+    branch <- Shell(layout.env).git.currentBranch(layout.pwd)
+    _      <- Shell(layout.env).git.checkRemoteHasCommit(layout.pwd, commit, branch)
+    //name   <- local.repo.projectName
+    //dest   <- Try((Xdg.runtimeDir / name.key).lowestNumberedNonexistentDir())
+    //_      <- ~dest.mkdir()
     files  <- Shell(layout.env).git.getTrackedFiles(layout.pwd)
-    _      <- ~log.info(msg"Moving working directory contents to $dest")
-    _      <- files.traverse { f => (layout.pwd / f).moveTo(dest / f) }
-    _      <- (layout.pwd / ".git").moveTo(dest / ".git")
-    _      <- ~log.info(msg"Moved ${files.length + 1} files and directories to ${dest}")
+    //gitDir <- ~(layout.pwd / ".git").walkTree.map(_.relativizeTo(layout.pwd)).to[List].map(_.value).sortBy(_.length)
+    //_      <- ~log.info(msg"Moving working directory contents to $dest")
+    //_      <- (files ++ gitDir).traverse { f =>
+    //            if((layout.pwd / f).directory) (layout.pwd / f).delete()
+    //            else (layout.pwd / f).moveTo(dest / f)
+    //          }
+    //_      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
+    _      <- files.map(layout.pwd / _).traverse(_.delete())
+    _      <- (layout.pwd / ".git").delete()
   } yield ()
 }
 
