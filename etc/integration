@@ -83,6 +83,8 @@ else
     runtest "$ROOT/test/passing" "$1"
   elif [ -d "$ROOT/test/pending/$1" ]; then
     runtest "$ROOT/test/pending" "$1"
+  elif [ -d "$ROOT/test/archived/$1" ]; then
+    runtest "$ROOT/test/archived" "$1"
   else
     echo "Could not find test $1"
   fi
