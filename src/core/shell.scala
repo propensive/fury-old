@@ -148,7 +148,7 @@ case class Shell(environment: Environment) {
           Try[String]].map(_.take(40)))
     }
 
-    def checkRemoteHasCommit(dir: Path, commit: Commit, track: RefSpec): Try[Boolean] =
+    def remoteHasCommit(dir: Path, commit: Commit, track: RefSpec): Try[Boolean] =
       sh"git -C ${dir.value} rev-list origin/${track.id}".exec[Try[String]].map(_.split("\n").contains(commit.id))
     
     def currentBranch(dir: Path): Try[RefSpec] =

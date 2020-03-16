@@ -116,7 +116,9 @@ You can grant these permissions with,
         case RepoAlreadyForked(repo, dir) =>
           cli.abort(msg"The repository ${repo} is already forked to ${dir}.")
         case RepoDirty(repo, changes) =>
-          cli.abort(msg"The repository ${repo} has uncommitted changes: $changes")
+          cli.abort(msg"The repository ${repo} has uncommitted changes ($changes).")
+        case RemoteNotSynched(repo, remote) =>
+          cli.abort(msg"The repository ${repo} has not been synchronized with its remote, $remote.")
         case ConflictingFiles(files) =>
           cli.abort(msg"The directory contains files which would be overwritten by checking out the repository here.")
         case e: NotUnique =>

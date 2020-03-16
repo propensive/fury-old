@@ -32,7 +32,9 @@ object SourceRepo {
     _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(local.id, dirty))
     commit <- Shell(layout.env).git.getCommit(layout.pwd)
     branch <- Shell(layout.env).git.currentBranch(layout.pwd)
-    _      <- Shell(layout.env).git.checkRemoteHasCommit(layout.pwd, commit, branch)
+    origin <- Shell(layout.env).git.getOrigin(layout.pwd)
+    pushed <- Shell(layout.env).git.remoteHasCommit(layout.pwd, commit, branch)
+    _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, origin))
     name   <- local.repo.projectName
     dest   <- Try((Xdg.runtimeDir / str"$name.bak").lowestNumberedNonexistentDir())
     files  <- Shell(layout.env).git.getTrackedFiles(layout.pwd)
