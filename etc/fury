@@ -140,7 +140,6 @@ case "$1" in
   *)
     fury "$@"
     res=$?
-    cleanup
     exit $res
     ;;
 esac
