@@ -6,6 +6,12 @@ else
   DEFAULT_FURY_HOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
 fi
 
+if [ "$XDG_RUNTIME_DIR" = "" ]; then
+  SCRIPT_DIR="/tmp/scripts"
+else
+  SCRIPT_DIR="$XDG_RUNTIME_DIR/scripts"
+fi
+
 ARGS="$@"
 DEFAULT_PORT="8462"
 PORT="${FURY_PORT:-$DEFAULT_PORT}"
@@ -19,6 +25,8 @@ UPGRADEDIR="$FHOME/upgrade"
 trap cleanup INT
 
 cleanup() {
+  printf "\e[0m"
+  printf "\e[?25h"
   fury interrupt
 }
 
@@ -85,6 +93,14 @@ ngServer() {
 
 fury() {
   ngServer && nailgun "${FURY_MAIN}" "$$" "$@"
+  case "$?" in
+    0|1)
+      ;;
+    91)
+      source "${SCRIPT_DIR}/exec_$$"
+      rm "${SCRIPT_DIR}/exec_$$"
+      ;;
+  esac
 }
 
 restartFury() {
