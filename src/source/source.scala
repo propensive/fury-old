@@ -81,7 +81,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-    cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources))
+    cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources).map(_.dir))
     call        <- cli.call()
     source      <- call(SourceArg)
     project     <- optProject.asTry
@@ -126,7 +126,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     sharedSrcs <- ~layout.sharedDir.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(
                       ".java") }.map(SharedSource(_, Glob.All))
 
-    cli        <- cli.hint(SourceArg, extSrcs ++ localSrcs ++ sharedSrcs)
+    cli        <- cli.hint(SourceArg, (extSrcs ++ localSrcs ++ sharedSrcs).map(_.dir))
     call       <- cli.call()
     project    <- optProject.asTry
     module     <- optModule.asTry
