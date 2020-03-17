@@ -128,6 +128,10 @@ object FuryMenu {
     
     Menu('repo, msg"manage source repositories for the schema", 'list, shortcut = 'r')(
       Action('add, msg"add a source repository to the schema", RepoCli(_).add, shortcut = 'a'),
+      
+      Action('checkout, msg"check out a repository into the working directory", RepoCli(_).checkout,
+          shortcut = 'c'),
+      
       Action('update, msg"update a source repository", RepoCli(_).update, shortcut = 'u'),
       Action('remove, msg"remove a source repository from the schema", RepoCli(_).remove, shortcut = 'r'),
       Action('fork, msg"fork a managed repository locally", RepoCli(_).fork, shortcut = 'f'),
