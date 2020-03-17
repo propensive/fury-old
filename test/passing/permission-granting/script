@@ -1,3 +1,4 @@
+rm ~/.config/fury/policy.conf
 fury layer init 
 fury project add -n scala
 fury module add -n compiler -t compiler
@@ -5,15 +6,18 @@ fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury source add -d src
+mkdir -p src
+echo 'object HelloWorld extends App { println("All permissions in order!\n") }' > src/hw.scala
 fury permission require -0 -C java.util.PropertyPermission -T scala.maven.version.number -A read
 fury permission require --no-grant -C java.util.PropertyPermission -T scala.version.number -A read
 fury permission require -C java.util.PropertyPermission -T scala.time -A read -0
 fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read --no-grant
+fury clean
+echo $?
+fury build run --output linear | grep '^ *[A-Za-z0-9]'
 fury permission grant -P 0bc4b2076691e61eb8b1dfac91ad7c0648b21b5e4c097ea4de8e54e91e5ae9d2
 fury permission grant -P 4d1a7232897567622a7ed04de5d3b9
 fury permission grant -P d42 75e0a580cc1
-fury source add -d src
-mkdir -p src
-echo 'object HelloWorld extends App { println("All permissions in order!\n") }' > src/hw.scala
 fury build run --output linear
 echo $?

@@ -282,7 +282,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- optModule.asTry
     moduleRef    =  module.ref(project)
 
-    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false, noSecurity = false)
+    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false, noSecurity = true)
 
     result    <- compilation.cleanCache(moduleRef, layout)
   } yield {
@@ -643,9 +643,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     ref           <- Layer.share(cli.env, layer, layout, raw)
     pub           <- Service.publish(cli.env, ref.key, path, raw, breaking, public,
                          conf.published.fold(0)(_.version.major), conf.published.fold(0)(_.version.minor), token)
-    _             <- if(raw) ~log.rawln(str"${ref.uri}") else ~log.info(msg"Shared at ${ref.uri}")
-    _             <- if(raw) ~log.rawln(str"${pub.url}")
-                     else ~log.info(msg"Published version ${pub.version} to ${pub.url}")
+    _             <- if(raw) ~log.rawln(str"${ref.uri} ${pub.url}") else {
+                       log.info(msg"Shared at ${ref.uri}")
+                       ~log.info(msg"Published version ${pub.version} to ${pub.url}")
+                     }
     digest        <- Layer.digestLayer(layer)
     _             <- Layer.saveFuryConf(FuryConf(digest, ImportPath.Root, Some(pub)), layout)
   } yield log.await()

@@ -6,6 +6,12 @@ else
   DEFAULT_FURY_HOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
 fi
 
+if [ "$XDG_RUNTIME_DIR" = "" ]; then
+  SCRIPT_DIR="/tmp/scripts"
+else
+  SCRIPT_DIR="$XDG_RUNTIME_DIR/scripts"
+fi
+
 ARGS="$@"
 DEFAULT_PORT="8462"
 PORT="${FURY_PORT:-$DEFAULT_PORT}"
@@ -20,6 +26,7 @@ trap cleanup INT
 
 cleanup() {
   fury interrupt
+  printf "\e[0m\e[?25h"
 }
 
 nailgun() {
@@ -85,6 +92,16 @@ ngServer() {
 
 fury() {
   ngServer && nailgun "${FURY_MAIN}" "$$" "$@"
+  EXIT="$?"
+  case "$EXIT" in
+    0|1)
+      exit "$EXIT"
+      ;;
+    91)
+      source "${SCRIPT_DIR}/exec_$$"
+      rm "${SCRIPT_DIR}/exec_$$"
+      ;;
+  esac
 }
 
 restartFury() {
@@ -125,7 +142,6 @@ case "$1" in
   *)
     fury "$@"
     res=$?
-    cleanup
     exit $res
     ;;
 esac
