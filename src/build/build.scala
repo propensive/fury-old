@@ -275,11 +275,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
     optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-    optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
     call         <- cli.call()
     project      <- optProject.asTry
-    module       <- optModule.asTry
+    module       <- project.modules.findBy(moduleId)
     moduleRef    =  module.ref(project)
 
     compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false, noSecurity = true)
@@ -423,13 +422,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
     optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-    optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
     noSecurity   <- ~call(NoSecurityArg).isSuccess
     project      <- optProject.asTry
-    module       <- optModule.asTry
+    module       <- project.modules.findBy(moduleId)
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https, noSecurity)
@@ -453,14 +451,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
     optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-    optModuleId  <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-    optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
     cli          <- cli.hint(SingleColumnArg)
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
     singleColumn <- ~call(SingleColumnArg).isSuccess
     project      <- optProject.asTry
-    module       <- optModule.asTry
+    module       <- project.modules.findBy(moduleId)
     
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https, false)
@@ -485,10 +482,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
-    optModuleId  <- ~call(ModuleArg).toOption.orElse(optProject.flatMap(_.main))
-    optModule    <- ~optModuleId.flatMap { arg => optProject.flatMap(_.modules.findBy(arg).toOption) }
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
     project      <- optProject.asTry
-    module       <- optModule.asTry
+    module       <- project.modules.findBy(moduleId)
 
     compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
                         https, false)
