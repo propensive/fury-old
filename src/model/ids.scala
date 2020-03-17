@@ -507,6 +507,9 @@ object FuryUri {
 
   implicit val stringShow: StringShow[FuryUri] = fl => str"fury://${fl.domain}/${fl.path}"
   implicit val diff: Diff[FuryUri] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+  implicit val parser: Parser[FuryUri] = parse(_)
+  implicit val ogdlWriter: OgdlWriter[FuryUri] = uri => Ogdl(stringShow.show(uri))
+  implicit val ogdlReader: OgdlReader[FuryUri] = str => parser.parse(str()).get
   
   def parse(str: String): Option[FuryUri] =
     str.only { case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)" => FuryUri(d, p) }

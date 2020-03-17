@@ -22,6 +22,7 @@ case class AlreadyInitialized() extends FuryException
 case class BspException() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
 case class CantWatchAndWait() extends FuryException
+case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
 case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
@@ -66,6 +67,9 @@ case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException
 case class ProjectAlreadyExists(project: ProjectId) extends FuryException
 case class ProjectConflict(ids: Set[ProjectId]/*, h1: Hierarchy, h2: Hierarchy*/) extends FuryException
+case class RemoteNotSynched(repo: RepoId, remote: String) extends FuryException
+case class RepoAlreadyForked(repo: RepoId, dir: Path) extends FuryException
+case class RepoDirty(repo: RepoId, changes: String) extends FuryException
 case class RepoNotForked(repo: RepoId) extends FuryException
 case class SchemaDifferences() extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException

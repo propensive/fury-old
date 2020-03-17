@@ -17,20 +17,39 @@
 package fury.core
 
 import fury.model._, fury.io._, fury.strings._, fury.ogdl._
+import mercator._
 
 import scala.util._
+
 
 object SourceRepo {
   implicit val msgShow: MsgShow[SourceRepo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[SourceRepo] = _.id.key
   implicit def diff: Diff[SourceRepo] = Diff.gen[SourceRepo]
+
+  def checkin(layout: Layout, local: SourceRepo, https: Boolean)(implicit log: Log): Try[Unit] = for {
+    dirty  <- Shell(layout.env).git.diffShortStat(layout.pwd)
+    _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(local.id, dirty))
+    commit <- Shell(layout.env).git.getCommit(layout.pwd)
+    branch <- Shell(layout.env).git.currentBranch(layout.pwd)
+    origin <- Shell(layout.env).git.getOrigin(layout.pwd)
+    pushed <- Shell(layout.env).git.remoteHasCommit(layout.pwd, commit, branch)
+    _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, origin))
+    name   <- local.repo.projectName
+    dest   <- Try((Xdg.runtimeDir / str"$name.bak").lowestNumberedNonexistentDir())
+    files  <- Shell(layout.env).git.getTrackedFiles(layout.pwd)
+    _      <- ~log.info(msg"Moving working directory contents to $dest")
+    _      <- files.traverse { f => (layout.pwd / f).moveTo(dest / f) }
+    _      <- (layout.pwd / ".git").moveTo(dest / ".git")
+    _      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
+  } yield ()
 }
 
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
     dir    <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
-    commit <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.
-                  getBranchHead(dir, track.id).toOption).getOrElse(track.id)
+    /*refSpec <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.
+                  getBranchHead(dir, track.id).toOption).getOrElse(track)*/
     files  <- localDir(layout).map(Success(dir.children.map(Path(_))).waive).getOrElse(
                   Shell(layout.env).git.lsTree(dir, commit))
   } yield files
@@ -39,8 +58,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     Shell(layout.env).git.getBranch(dir).toOption.map(RefSpec(_))
   }
 
-  def fullCheckout(layout: Layout): Checkout =
-    Checkout(id, repo, localDir(layout), commit, track, List())
+  def fullCheckout(layout: Layout): Checkout = Checkout(id, repo, localDir(layout), commit, track, List())
 
   def localDir(layout: Layout): Option[Path] = local.orElse {
     Repo.local(layout).map(_.simplified == repo.simplified) match {
@@ -70,7 +88,8 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
     repo.pull(commit, track, layout, https)
 
-  def isForked(): Try[Unit] = if(local.isDefined) Success(()) else Failure(RepoNotForked(id))
+  def isForked(): Try[Unit] = local.ascribe(RepoNotForked(id)).map { _ => () }
+  def isNotForked(): Try[Unit] = local.fold(Try(())) { dir => Failure(RepoAlreadyForked(id, dir)) }
 
   def current(layout: Layout, https: Boolean)(implicit log: Log): Try[RefSpec] = for {
     dir    <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
@@ -96,4 +115,29 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
                       msg"Uncommitted changes ($cs) in $relDir will not apply to the unforked repo") })
 
   } yield copy(local = None, commit = forkCommit)
+
+  def checkout(layout: Layout, local: Option[SourceRepo], https: Boolean)(implicit log: Log): Try[Unit] = for {
+    _         <- isNotForked()
+    conflicts <- conflict(layout, local, https).map { fs => if(fs.isEmpty) None else Some(fs) }
+    _         <- conflicts.fold(Try(())) { files => Failure(ConflictingFiles(files.map(Path(_)))) }
+    _         <- local.fold(Try(())) { local => SourceRepo.checkin(layout, local, https) }
+    _         <- doCleanCheckout(layout, https)
+  } yield ()
+
+  def conflict(layout: Layout, local: Option[SourceRepo], https: Boolean)
+              (implicit log: Log)
+              : Try[List[String]] = for {
+    current   <- ~layout.pwd.children.to[Set]
+    removed   <- local.flatMap(_.local).fold(Try(List[String]()))(Shell(layout.env).git.getTrackedFiles(_))
+    bareRepo  <- repo.fetch(layout, https)
+    files     <- Shell(layout.env).git.lsRoot(bareRepo, commit)
+    remaining <- Try(current -- removed)
+  } yield remaining.intersect(files.to[Set]).to[List]
+
+  def doCleanCheckout(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] = for {
+    bareRepo   <- repo.fetch(layout, https)
+    sourceRepo <- Shell(layout.env).git.sparseCheckout(bareRepo, layout.pwd, List(), track, commit,
+                      Some(repo.universal(false)))
+  } yield ()
+
 }
