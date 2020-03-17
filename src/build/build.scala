@@ -323,9 +323,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(schema.main))
     optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
     project        <- optProject.asTry
-    optModuleId   <- ~cli.peek(ModuleArg).orElse(moduleRef.map(_.moduleId).orElse(project.main))
-    optModule      <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
-    module         <- optModule.asTry
+    moduleId       <- moduleRef.map(~_.moduleId).getOrElse(cli.previewWithDefault(ModuleArg)(project.main))
+    module         <- project.modules.findBy(moduleId)
     pipelining     <- ~call(PipeliningArg).toOption
     fatJar         =  call(FatJarArg).isSuccess
     globalPolicy   <- ~Policy.read(log)
