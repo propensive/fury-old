@@ -25,9 +25,8 @@ UPGRADEDIR="$FHOME/upgrade"
 trap cleanup INT
 
 cleanup() {
-  printf "\e[0m"
-  printf "\e[?25h"
   fury interrupt
+  printf "\e[0m\e[?25h"
 }
 
 nailgun() {
