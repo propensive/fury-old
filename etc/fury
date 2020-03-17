@@ -92,8 +92,10 @@ ngServer() {
 
 fury() {
   ngServer && nailgun "${FURY_MAIN}" "$$" "$@"
-  case "$?" in
+  EXIT="$?"
+  case "$EXIT" in
     0|1)
+      exit "$EXIT"
       ;;
     91)
       source "${SCRIPT_DIR}/exec_$$"
