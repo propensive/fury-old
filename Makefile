@@ -15,10 +15,10 @@ clean:
 
 uninstall:
 	@printf "Removing all previous installations of Fury..."
-	@rm -rf $(HOME)/.local/share/fury/usr $(HOME)/.local/share/fury/downloads && \
+	@rm -rf $(HOME)/.local/share/fury/usr/$() $(HOME)/.local/share/fury/downloads && \
 	 printf "done\n" || printf "failed\n"
 
-install: etc/launcher uninstall dist/fury.tar.gz 
+install: etc/launcher dist/fury.tar.gz 
 	@( printf "Rewriting Fury launcher script for local use..." && \
 	   mkdir -p dist && \
 	   ( sed "s/%VERSION%/$(VERSION)/" "$<" | sed "s/%HASH%//" > "tmp/fury" ) && \

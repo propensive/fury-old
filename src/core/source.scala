@@ -65,6 +65,7 @@ object Source {
 
 sealed abstract class Source extends Key(msg"source") {
   def key: String
+  def completion: String
   def hash(schema: Schema, layout: Layout): Try[Digest]
   def dir: Path
   def glob: Glob
@@ -87,6 +88,7 @@ sealed abstract class Source extends Key(msg"source") {
 
 case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
   def key: String = str"${repoId}:${dir.value}//$glob"
+  def completion: String = str"${repoId}:${dir.value}"
   def repoIdentifier: RepoId = repoId
   def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((dir, _).digest[Md5])
   
@@ -96,6 +98,7 @@ case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source 
 
 case class SharedSource(dir: Path, glob: Glob) extends Source {
   def key: String = str"shared:${dir}//$glob"
+  def completion: String = key
   def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-2, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("shared")
   def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.sharedDir)
@@ -103,6 +106,7 @@ case class SharedSource(dir: Path, glob: Glob) extends Source {
 
 case class LocalSource(dir: Path, glob: Glob) extends Source {
   def key: String = str"${dir.value}//$glob"
+  def completion: String = dir.value
   def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("local")
   def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.baseDir)
