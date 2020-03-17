@@ -60,7 +60,7 @@ object Service {
     case class Request(path: String, token: String, hash: String, breaking: Boolean, public: Boolean,
         major: Int, minor: Int)
 
-    case class Response(major: Int, minor: Int)
+    case class Response(major: Int, minor: Int, name: String)
     for {
       ipfs <- Ipfs.daemon(env, quiet)
       id   <- Try(ipfs.id().get)
@@ -69,6 +69,6 @@ object Service {
       json <- Try(Json.parse(str).get)
       _    <- ~log.info(json.toString)
       res  <- Try(json.as[Response].get)
-    } yield PublishedLayer(FuryUri(ManagedConfig().service, path), LayerVersion(res.major, res.minor))
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.name), LayerVersion(res.major, res.minor))
   }
 }
