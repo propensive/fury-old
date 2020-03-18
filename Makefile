@@ -38,7 +38,7 @@ tmp/.version:
 	 printf "$(VERSION)" > "$@" && \
 	 printf "done\n" || printf "failed\n"
 
-tmp/lib/fury.jar: $(wildcard **/*.scala) tmp/.version
+tmp/lib/fury.jar: $(wildcard src/**/*.scala) tmp/.version
 	@printf "Cloning the Fury layer over IPFS...\n" && \
 	 mkdir -p tmp/lib && \
 	 ./fury layer clone -d . -l fury://$(LAYER_REF) && \
