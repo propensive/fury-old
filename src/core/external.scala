@@ -84,7 +84,7 @@ object Ipfs {
 
     def get(hash: IpfsRef): Try[String] = for {
       hash   <- ~Multihash.fromBase58(hash.key)
-      string <- ~(new String(api.get(hash), "UTF-8"))
+      string <- ~(new String(api.cat(hash), "UTF-8"))
     } yield string
     
     def id(): Try[IpfsId] = Try {
