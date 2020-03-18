@@ -1,0 +1,25 @@
+rm ~/.config/fury/policy.conf
+fury proj
+echo $?
+fury layer init
+fury project list --raw
+echo $?
+fury project add -n scala
+fury project list --raw
+echo $?
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury source add -d src
+mkdir -p src
+echo 'object HelloWorld extends App { println("Hello world!") }' > src/hello.scala
+fury source remove -d foo
+echo $?
+fury binary remove -b logging
+echo $?
+fury -m foo --output linear
+echo $?
+fury -m foo/bar --output linear
+echo $?
