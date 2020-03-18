@@ -81,7 +81,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
                      }
 
       conf        <- ~Ogdl.read[FuryConf](confString, identity(_))
-      layer       <- Layer.read(conf.layerRef, layout)
+      layer       <- Layer.retrieve(conf, quiet = false)
       schemas     <- ~layer.schemas.to[List]
     } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 

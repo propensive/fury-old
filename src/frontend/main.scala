@@ -37,7 +37,7 @@ object FuryServer {
     val layer = for {
       layout <- cli.layout
       conf   <- Layer.readFuryConf(layout)
-      layer  <- Layer.read(layout, conf)
+      layer  <- Layer.retrieve(conf)
     } yield layer
 
     val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>

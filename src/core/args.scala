@@ -58,7 +58,7 @@ object Args {
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
-  val ImportArg = CliParam[String]('l', 'layer, "specify an external layer to import")
+  val ImportArg = CliParam[LayerName]('l', 'layer, "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
@@ -75,7 +75,7 @@ object Args {
   
   val PluginArg = CliParam[PluginId]('P', 'plugin, "specify the name of the plugin")
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
-  val RemoteLayerArg = CliParam[String]('n', 'name, "specify a name at which to publish the layer")
+  val RemoteLayerArg = CliParam[RemoteLayerId]('n', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val SchemaNameArg = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
   val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")

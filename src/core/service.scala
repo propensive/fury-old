@@ -51,20 +51,34 @@ object Service {
       artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
     } yield artifact
 
-  def publish(env: Environment, hash: String, path: String, quiet: Boolean, breaking: Boolean,
-                  public: Boolean, major: Int, minor: Int, token: String)
+  def publish(service: String,
+              hash: IpfsRef,
+              group: Option[String],
+              name: Option[String],
+              quiet: Boolean,
+              breaking: Boolean,
+              public: Boolean,
+              major: Int,
+              minor: Int,
+              token: OauthToken,
+              dependencies: Set[IpfsRef])
              (implicit log: Log)
              : Try[PublishedLayer] = {
 
-    val url = Https(Path(ManagedConfig().service) / "publish")
+    val url = Https(Path(service) / "publish")
+    
     case class Request(path: String, token: String, hash: String, breaking: Boolean, public: Boolean,
-        major: Int, minor: Int)
+        major: Int, minor: Int, dependencies: List[String])
 
     case class Response(major: Int, minor: Int, name: String)
+
+    val request = Request(List(group, name).flatten.mkString("/"), token.value, hash.key, breaking, public, major, minor,
+        dependencies.map(_.key).to[List])
+    
     for {
-      ipfs <- Ipfs.daemon(env, quiet)
+      ipfs <- Ipfs.daemon(quiet)
       id   <- Try(ipfs.id().get)
-      out  <- Http.post(url, Json(Request(path, token, hash, breaking, public, major, minor)), headers = Set())
+      out  <- Http.post(url, Json(request), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
       _    <- ~log.info(json.toString)

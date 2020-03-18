@@ -109,16 +109,3 @@ object CompileResult {
     else allCodes.find(_ != 0).orElse(Some(0))
   }
 }
-
-object ManagedConfig {
-  private var config: Config =
-    Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
-
-  def write(newConfig: Config): Try[Unit] = synchronized {
-    config = newConfig
-    Ogdl.write(config, Installation.userConfig)
-  }
-
-  def apply(): Config = config
-}
-

@@ -32,7 +32,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
   def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
+    layer        <- Layer.retrieve(conf)
     schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -65,7 +65,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
   def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
+    layer        <- Layer.retrieve(conf)
     schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -89,7 +89,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id,
                         module.id))(_(_) -= source)
     
-    _           <- Layer.save(layer, layout)
+    _           <- Layer.commit(layer, conf, layout)
     schema      <- layer.schemas.findBy(SchemaId.default)
     _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
@@ -97,7 +97,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
+    layer        <- Layer.retrieve(conf)
     schemaArg    <- ~Some(SchemaId.default)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
@@ -132,7 +132,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     layer      <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id, 
                       module.id))(_(_) ++= Some(source))
     
-    _          <- Layer.save(layer, layout)
+    _          <- Layer.commit(layer, conf, layout)
     schema      <- layer.schemas.findBy(SchemaId.default)
     _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
   } yield log.await()
@@ -147,7 +147,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
  
   lazy val layout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = layout >>= Layer.readFuryConf
-  lazy val layer: Try[Layer] = (layout, conf) >>= Layer.read
+  lazy val layer: Try[Layer] = conf >>= (Layer.retrieve(_, false))
   lazy val schema: Try[Schema] = layer >>= (_.schemas.findBy(SchemaId.default))
 
   lazy val projectId: Try[ProjectId] = schema >>= (cli.preview(ProjectArg)() orElse _.main.asTry)
@@ -169,10 +169,9 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
 
   lazy val resource: Try[Source] = cli.preview(SourceArg)()
 
-  
-
   private def removeFromSet[T](items: SortedSet[T], item: T): SortedSet[T] = items - item
   private def addToSet[T](items: SortedSet[T], item: T): SortedSet[T] = items + item
+  private def commit(layer: Layer): Try[Unit] = (Try(layer), conf, layout) >>= (Layer.commit(_, _, _, false))
   private def finish[T](result: T): ExitStatus = log.await()
 
   object Resources {
@@ -196,7 +195,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
       (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
         val lens = (projectId, moduleId) >> resourcesLens
         (resources, SourceArg()) >> removeFromSet >>= { resources =>
-          ((layer, lens) >> Lenses.set(resources), layout) >> Layer.save >> finish
+          (layer, lens) >> Lenses.set(resources) >> commit >> finish
         }
       }
     }
@@ -204,7 +203,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
     def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
       val lens = (projectId, moduleId) >> resourcesLens
       (resources, SourceArg()) >> addToSet >>= { resources =>
-        ((layer, lens) >> Lenses.set(resources), layout) >> Layer.save >> finish
+        (layer, lens) >> Lenses.set(resources) >> commit >> finish
       }
     }
   }

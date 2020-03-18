@@ -29,6 +29,18 @@ import language.higherKinds
 
 import scala.collection.immutable.SortedSet
 
+object ManagedConfig {
+  private var config: Config =
+    Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
+
+  def write(newConfig: Config): Try[Unit] = synchronized {
+    config = newConfig
+    Ogdl.write(config, Installation.userConfig)
+  }
+
+  def apply(): Config = config
+}
+
 object Kind {
   implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
   implicit val stringShow: StringShow[Kind] = _.name
@@ -199,6 +211,8 @@ case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
     Focus(layerRef, path, Some((projectId, Some(moduleId))))
 }
 
+case class OauthToken(value: String)
+
 object Focus {
   implicit val msgShow: MsgShow[Focus] = { focus =>
     (focus.path match {
@@ -220,12 +234,25 @@ object AsIpfsRef {
 
 object IpfsRef {
   implicit val parser: Parser[IpfsRef] = AsIpfsRef.unapply(_)
+  implicit val msgShow: MsgShow[IpfsRef] = ir => UserMsg(_.layer(ir.key))
+  implicit val stringShow: StringShow[IpfsRef] = _.key
 }
 
-case class IpfsRef(key: String) extends Key(msg"IPFS ref") with LayerInput {
+case class IpfsRef(key: String) extends Key(msg"IPFS ref") with LayerName {
   def suggestedName: Option[ImportId] = None
   def uri: Uri = Uri("fury", Path(key))
+  def publishedLayer: Option[PublishedLayer] = None
 }
+
+object RemoteLayerId {
+  implicit val parser: Parser[RemoteLayerId] = unapply(_)
+  def unapply(str: String): Option[RemoteLayerId] = str.only {
+    case r"$group@([^/]+)/$name@([^/]+)" => RemoteLayerId(Some(group), name)
+    case r"$name@([^/]+)"                => RemoteLayerId(None, name)
+  }
+}
+
+case class RemoteLayerId(group: Option[String], name: String)
 
 case class Catalog(entries: SortedSet[Artifact])
 
@@ -241,12 +268,13 @@ object LayerRef {
   implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
   def unapply(value: String): Option[LayerRef] = value.only {
+    case r"fury:\/\/$value@(Qm[a-zA-Z0-9]{44})" => LayerRef(value)
     case r"[A-F0-9]{64}" => LayerRef(value)
     case r"Qm[a-zA-Z0-9]{44}" => LayerRef(value)
   }
 }
 
-case class LayerRef(key: String) extends Key(msg"layer")
+case class LayerRef(key: String) extends Key(msg"layer") { def ipfsRef: IpfsRef = IpfsRef(key) }
 
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
@@ -256,7 +284,7 @@ case class Config(showContext: Boolean = true,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
                   service: String = "furore.dev",
-                  token: Option[String] = None)
+                  token: Option[OauthToken] = None)
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
@@ -471,33 +499,61 @@ case class Alias(cmd: AliasCmd, description: String, module: ModuleRef, args: Li
 
 object Import {
   implicit val msgShow: MsgShow[Import] = v =>
-    UserMsg { theme => msg"${v.layerRef}${':'}${v.schema}".string(theme) }
+    UserMsg(msg"${v.layerRef}".string(_))
 
-  implicit val stringShow: StringShow[Import] = sr => str"${sr.layerRef}:${sr.schema}"
+  implicit val stringShow: StringShow[Import] = sr => str"${sr.layerRef}"
   implicit val diff: Diff[Import] = Diff.gen[Import]
   implicit val parser: Parser[Import] = unapply(_)
 
   def unapply(value: String): Option[Import] = value.only {
-    case r"$layer@([a-fA-F0-9]{64}):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Import(ImportId(""), LayerRef(layer), SchemaId(schema), None)
-    case r"$layer@(Qm[a-zA-Z0-9]+):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Import(ImportId(""), LayerRef(layer), SchemaId(schema), None)
+    case r"$layer@(Qm[a-zA-Z0-9]+)$$" =>
+      Import(ImportId(""), LayerRef(layer), None)
   }
 }
 
-case class Import(id: ImportId, layerRef: LayerRef, schema: SchemaId, remote: Option[PublishedLayer] = None)
+case class Import(id: ImportId, layerRef: LayerRef, remote: Option[PublishedLayer] = None)
 
-sealed trait LayerInput {
-  def suggestedName: Option[ImportId]
+object LayerName {
+  implicit val msgShow: MsgShow[LayerName] = {
+    case layerName: IpfsRef => IpfsRef.msgShow.show(layerName)
+    case layerName: FuryUri => FuryUri.msgShow.show(layerName)
+    case layerName: FileInput => FileInput.msgShow.show(layerName)
+  }
 
-  def publishedLayer: Option[PublishedLayer] =
-    this.only { case FuryUri(domain, path) => PublishedLayer(FuryUri(domain, path)) }
+  implicit val parser: Parser[LayerName] = parse(_).toOption
+
+  def parse(path: String): Try[LayerName] = {
+    val service = ManagedConfig().service
+    path match {
+      case r"fury:\/\/$ref@([A-Za-z0-9]{44})\/?" =>
+        Success(IpfsRef(str"Qm$ref"))
+      case r"fury:\/\/$dom@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
+        Success(FuryUri(dom, loc))
+      case r".*\.fury" =>
+        Success(FileInput(Path(path)))
+      case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
+        Success(FuryUri(service, path))
+      case name =>
+        Failure(InvalidLayer(name))
+    }
+  }
 }
 
-case class FileInput(path: Path) extends LayerInput {
+sealed trait LayerName {
+  def suggestedName: Option[ImportId]
+  def publishedLayer: Option[PublishedLayer]
+}
+
+object FileInput {
+  implicit val stringShow: StringShow[FileInput] = _.path.value
+  implicit val msgShow: MsgShow[FileInput] = fi => UserMsg(_.path(fi.path.value))
+}
+
+case class FileInput(path: Path) extends LayerName {
   def suggestedName: Option[ImportId] = path.value.split("/").last.split("\\.").head.only {
     case name@r"[a-z]([a-z0-9]+\-)*[a-z0-9]+" => ImportId(name)
   }
+  def publishedLayer: Option[PublishedLayer] = None
 }
 
 object FuryUri {
@@ -515,8 +571,9 @@ object FuryUri {
     str.only { case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)" => FuryUri(d, p) }
 }
 
-case class FuryUri(domain: String, path: String) extends LayerInput {
+case class FuryUri(domain: String, path: String) extends LayerName {
   def suggestedName: Option[ImportId] = Some(ImportId(path.split("/")(1)))
+  def publishedLayer: Option[PublishedLayer] = Some(PublishedLayer(FuryUri(domain, path)))
 }
 
 object ImportId {

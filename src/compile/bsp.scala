@@ -104,7 +104,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
   private def structure: Try[Structure] =
     for {
       conf           <- Ogdl.read[FuryConf](layout.confFile, identity(_))
-      layer          <- Layer.read(conf.layerRef, layout)
+      layer          <- Layer.retrieve(conf)
       schema         <- layer.mainSchema
       hierarchy      <- schema.hierarchy(layout)
       universe       <- hierarchy.universe
@@ -130,7 +130,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
     for {
       //FIXME remove duplication with structure
       conf           <- Layer.readFuryConf(layout)
-      layer          <- Layer.read(layout, conf)
+      layer          <- Layer.retrieve(conf)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
       compilation    <- Compilation.syncCompilation(schema, module, layout, https = true, noSecurity = false)

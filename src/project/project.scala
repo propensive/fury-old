@@ -31,7 +31,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
   def select: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.read(layout, conf)
+    layer       <- Layer.retrieve(conf)
     optSchemaId <- ~Some(SchemaId.default)
     dSchema     <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
     cli         <- cli.hint(ProjectArg, dSchema.projects)
@@ -45,13 +45,13 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     _           <- schema(projectId)
     focus       <- ~Lenses.focus()
     layer       <- ~(focus(layer, _.lens(_.main)) = Some(Some(projectId)))
-    _           <- Layer.save(layer, layout)
+    _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def list: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.read(layout, conf)
+    layer       <- Layer.retrieve(conf)
     optSchemaId <- ~Some(SchemaId.default)
     dSchema     <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
     cli         <- cli.hint(ProjectArg, dSchema.projects)
@@ -72,7 +72,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
   def add: Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
-    layer          <- Layer.read(layout, conf)
+    layer          <- Layer.retrieve(conf)
     optSchemaId    <- ~Some(SchemaId.default)
     cli            <- cli.hint(ProjectNameArg, List(layout.baseDir.name))
     cli            <- cli.hint(LicenseArg, License.standardLicenses)
@@ -98,14 +98,14 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer          <- Lenses.updateSchemas(layer)(Lenses.layer.mainProject(_))(_(_) =
                           Some(project.id))
 
-    _              <- Layer.save(layer, layout)
+    _              <- Layer.commit(layer, conf, layout)
     _              <- ~log.info(msg"Set current project to ${project.id}")
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
     layout      <- cli.layout
     conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.read(layout, conf)
+    layer       <- Layer.retrieve(conf)
     optSchemaId <- ~Some(SchemaId.default)
     dSchema     <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
     cli         <- cli.hint(ProjectArg, dSchema.projects)
@@ -121,13 +121,13 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer       <- Lenses.updateSchemas(layer)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                        if(lens(ws) == Some(projectId))(lens(ws) = None) else ws }
    
-    _           <- Layer.save(layer, layout)(log)
+    _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
-    layer          <- Layer.read(layout, conf)
+    layer          <- Layer.retrieve(conf)
     optSchemaId    <- ~Some(SchemaId.default)
     dSchema        <- ~layer.schemas.findBy(optSchemaId.getOrElse(layer.main)).toOption
     cli            <- cli.hint(ProjectArg, dSchema.map(_.projects).getOrElse(Nil))
@@ -163,6 +163,6 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     lens           <- ~Lenses.layer.schemas
     layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
     layer          <- ~lens.modify(layer)(_ + newSchema)
-    _              <- Layer.save(layer, layout)
+    _              <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }

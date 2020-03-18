@@ -51,8 +51,8 @@ case class Schema(id: SchemaId,
 
   def hierarchy(layout: Layout)(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
-      layer        <- Layer.read(ref.layerRef, layout)
-      resolved     <- layer.schemas.findBy(ref.schema)
+      layer        <- Layer.get(ref.layerRef, quiet = false)
+      resolved     <- layer.schemas.findBy(SchemaId.default)
       tree         <- resolved.hierarchy(layout)
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
@@ -89,8 +89,8 @@ case class Schema(id: SchemaId,
   }
 
   def resolve(ref: Import, layout: Layout, https: Boolean)(implicit log: Log): Try[Schema] = for {
-    layer    <- Layer.read(ref.layerRef, layout)
-    resolved <- layer.schemas.findBy(ref.schema)
+    layer    <- Layer.get(ref.layerRef, quiet = false)
+    resolved <- layer.schemas.findBy(SchemaId.default)
   } yield resolved
 
   def localRepo(layout: Layout): Try[SourceRepo] = for {
