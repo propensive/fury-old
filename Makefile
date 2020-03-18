@@ -35,7 +35,8 @@ install: etc/launcher dist/fury.tar.gz
 tmp/.version:
 	@printf "Writing current version ($(VERSION)) to a file..." && \
 	 mkdir -p tmp && \
-	 printf "$(VERSION)" > "$@" && \
+	 printf "$(VERSION)\n" > "$@" && \
+	 printf "$(shell date +%s)" >> "$@" && \
 	 printf "done\n" || printf "failed\n"
 
 tmp/lib/fury.jar: $(wildcard src/**/*.scala) tmp/.version
