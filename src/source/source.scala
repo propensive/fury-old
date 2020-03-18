@@ -39,7 +39,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
+    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     
     optModule    =  (for {
                       project  <- optProject
@@ -72,7 +72,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
+    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
     optModule    =  (for {
       project  <- optProject
@@ -104,7 +104,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
+    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
     optModule    =  (for {
       project  <- optProject
@@ -150,9 +150,9 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   lazy val layer: Try[Layer] = (layout, conf) >>= Layer.read
   lazy val schema: Try[Schema] = layer >>= (_.schemas.findBy(SchemaId.default))
 
-  lazy val projectId: Try[ProjectId] = schema >>= (cli.preview(ProjectArg) orElse _.main.asTry)
+  lazy val projectId: Try[ProjectId] = schema >>= (cli.preview(ProjectArg)() orElse _.main.asTry)
   lazy val project: Try[Project] = (schema, projectId) >>= (_.projects.findBy(_))
-  lazy val moduleId: Try[ModuleId] = project >>= (cli.preview(ModuleArg) orElse _.main.asTry)
+  lazy val moduleId: Try[ModuleId] = project >>= (cli.preview(ModuleArg)() orElse _.main.asTry)
   lazy val module: Try[Module] = (project, moduleId) >>= (_.modules.findBy(_))
 
   implicit val projectHints: ProjectArg.Hinter = ProjectArg.hint(schema >> (_.projects.map(_.id)))
@@ -167,7 +167,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   def resourcesLens(projectId: ProjectId, moduleId: ModuleId) =
     Lens[Layer](_.schemas(on(SchemaId.default)).projects(on(projectId)).modules(on(moduleId)).resources)
 
-  lazy val resource: Try[Source] = cli.preview(SourceArg)
+  lazy val resource: Try[Source] = cli.preview(SourceArg)()
 
   
 

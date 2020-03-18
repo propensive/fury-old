@@ -174,9 +174,8 @@ class Cli(val stdout: java.io.PrintWriter,
   def action(blk: Call => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap(blk)
 
   def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
-  def preview(param: CliParam): Try[param.Type] = args.get(param.param)
-  def previewWithDefault(param: CliParam)(default: Option[param.Type]): Try[param.Type] = {
-    val result = preview(param)
+  def preview(param: CliParam)(default: Option[param.Type] = None): Try[param.Type] = {
+    val result = args.get(param.param)
     if(default.isDefined) result.recover {
         case _: exoskeleton.MissingArg => default.get
     } else result
