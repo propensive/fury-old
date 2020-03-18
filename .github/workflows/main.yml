@@ -40,7 +40,7 @@ jobs:
       run: |
         git config --global user.name $USER
         git config --global user.email johndoe@example.com
-        echo "::add-path::$HOME/.local/share/fury/usr/$(cat tmp/.version)/bin"
+        echo "::add-path::$HOME/.local/share/fury/usr/$(head -n1 tmp/.version)/bin"
       timeout-minutes: 1
     - name: Run integration tests
       run: |
