@@ -77,9 +77,14 @@ object Rnd extends java.util.Random {
 object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
 
 object FuryVersion {
-  final val current: String =
-    try scala.io.Source.fromResource(".version", getClass.getClassLoader).getLines.next
-    catch { case e: NullPointerException => "unknown" }
+  lazy val versionInfo: (String, String) = try {
+    val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
+    val lines = scala.io.Source.fromResource(".version", getClass.getClassLoader).getLines
+    (lines.next, dateFormat.format(new java.util.Date(lines.next.toLong*1000L)))
+  } catch { case e: Exception => ("unknown", "unknown") }
+
+  def current: String = versionInfo._1
+  def built: String = versionInfo._2
 }
 
 case class UserMsg(string: Theme => String) {

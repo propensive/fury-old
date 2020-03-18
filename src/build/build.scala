@@ -144,7 +144,7 @@ case class AboutCli(cli: Cli)(implicit log: Log) {
           |  /_/    \_._//_/  _\_. /
           |                   \___/
           |
-          |Fury build tool for Scala, version ${FuryVersion.current}.
+          |Fury build tool, version ${FuryVersion.current}, built ${FuryVersion.built}
           |This software is provided under the Apache 2.0 License.
           |Fury depends on Bloop, Coursier, Git and Nailgun.
           |© Copyright 2018-20 Jon Pretty, Propensive OÜ.
