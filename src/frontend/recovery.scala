@@ -143,8 +143,7 @@ You can grant these permissions with,
         case NoSourcesError(repoId, commit, sources) =>
           cli.abort(msg"The repository $repoId did not contain the sources $sources at commit $commit.")
         case e: ShellFailure =>
-          cli.abort(
-              msg"An error occurred while running: ${e.command}${"\n"}${e.stdout}${"\n"}${e.stderr}")
+          cli.abort(msg"An error occurred while running: ${e.command}${"\n"}${e.stdout}${"\n"}${e.stderr}")
         case e: CompilationFailure =>
           cli.abort(msg"One of the compile tasks failed. Check the logs for details.")
         case ExecutionFailure(exitCode) =>
