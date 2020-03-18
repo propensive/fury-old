@@ -173,7 +173,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     schema      <- layer.schemas.findBy(SchemaId.default)
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: schema.compilerRefs(layout, true))
     cli         <- cli.hint(KindArg, Kind.all)
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    optModuleId =  cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main)).toOption
 
     optModule   <- Success { for {
                       project  <- optProject
@@ -242,14 +242,13 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+    optModule    =  (for {
+      project  <- optProject
+      module   <- project.modules.findBy(moduleId).toOption
+    } yield module)
 
     cli         <- cli.hint(RawArg)
     table       <- ~Tables().binaries
@@ -276,13 +275,12 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+    optModule    =  (for {
+      project  <- optProject
+      module   <- project.modules.findBy(moduleId).toOption
+    } yield module)
 
     cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries.map(_.id)))
     cli         <- cli.hint(VersionArg)
@@ -310,14 +308,13 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
+    optModule    = (for {
                       project  <- optProject
-                      moduleId <- optModuleId
                       module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+                    } yield module)
 
     cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries.map(_.id)))
     call        <- cli.call()
@@ -344,20 +341,13 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
-
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
-
-    cli        <- cli.hint(BinaryNameArg)
-    cli        <- cli.hint(BinaryRepoArg, List(RepoId("central")))
-    call       <- cli.call()
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
+    cli          <- cli.hint(BinaryNameArg)
+    cli          <- cli.hint(BinaryRepoArg, List(RepoId("central")))
+    call         <- cli.call()
     project    <- optProject.asTry
-    module     <- optModule.asTry
+    module     <- project.modules.findBy(moduleId)
     binSpecArg <- call(BinSpecArg)
     binName    <- ~call(BinaryNameArg).toOption
     repoId     <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
@@ -383,13 +373,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+    optModule    =  (for {
+      project  <- optProject
+      module   <- project.modules.findBy(moduleId).toOption
+    } yield module)
 
     cli         <- cli.hint(RawArg)
     table       <- ~Tables().opts
@@ -420,13 +409,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+    optModule    =  (for {
+      project  <- optProject
+      module   <- project.modules.findBy(moduleId).toOption
+    } yield module)
 
     cli      <- cli.hint(OptArg, optModule.to[List].flatMap(_.opts))
     cli      <- cli.hint(PersistentArg)
@@ -455,13 +443,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+    optModule    =  (for {
+      project  <- optProject
+      module   <- project.modules.findBy(moduleId).toOption
+    } yield module)
 
     cli         <- cli.hint(OptArg)
     cli         <- cli.hint(DescriptionArg)
@@ -491,13 +478,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+    optModule    =  (for {
+      project  <- optProject
+      module   <- project.modules.findBy(moduleId).toOption
+    } yield module)
 
     cli         <- cli.hint(OptArg)
     call        <- cli.call()
@@ -521,13 +507,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
+    moduleId     <- cli.previewWithDefault(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule   <- Success { for {
-                      project  <- optProject
-                      moduleId <- optModuleId
-                      module   <- project.modules.findBy(moduleId).toOption
-                    } yield module }
+    optModule    =  (for {
+      project  <- optProject
+      module   <- project.modules.findBy(moduleId).toOption
+    } yield module)
 
     optDefs  <- ~(for {
                   project     <- optProject
