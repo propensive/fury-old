@@ -35,7 +35,7 @@ object Args {
   val BinaryArg = CliParam[BinaryId]('b', 'binary, "specify a binary")
   val ColumnArg = CliParam[String]('c', 'column, "specify the column")
   val PartialBinSpecArg = CliParam[PartialBinSpec]('b', 'binary, "specify a binary")
-  val BinaryNameArg = CliParam[BinaryId]('n', 'binary, "specify the name for the binary")
+  val BinaryNameArg = CliParam[BinaryId]('n', 'name, "specify the name for the binary")
   val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
