@@ -684,15 +684,15 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     call          <- cli.call()
     layerName     <- call(ImportArg)
     nameArg       <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingArg("name"))
-    layerRef      <- Layer.resolve(layerName)
-    layer         <- Layer.get(layerRef)
+    newLayerRef   <- Layer.resolve(layerName)
+    newLayer      <- Layer.get(newLayerRef)
 
     pub           <- ~(layerName match {
                        case u: FuryUri => Some(PublishedLayer(u, LayerVersion.Zero))
                        case _          => None
                      })
 
-    schemaRef     <- ~Import(nameArg, layerRef, pub)
+    schemaRef     <- ~Import(nameArg, newLayerRef, pub)
     layer         <- Lenses.updateSchemas(layer)(Lenses.layer.imports(_))(_.modify(_)(_ +
                           schemaRef.copy(id = nameArg)))
     
