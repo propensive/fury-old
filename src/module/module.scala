@@ -30,18 +30,16 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     call         <- cli.call()
     project      <- optProject.asTry
     moduleId     <- ~call(ModuleArg).toOption
     moduleId     <- moduleId.asTry
     _            <- project(moduleId)
-    focus        <- ~Lenses.focus()
-    layer        <- ~(focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(Some(moduleId)))
+    layer        <- ~(Lenses.layer(_.projects(on(project.id)).main)(layer) = Some(moduleId))
     _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -49,10 +47,9 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     project      <- optProject.asTry
     cli          <- cli.hint(ModuleArg, project.modules.map(_.id))
     table        <- ~Tables().modules(project.id, project.main)
@@ -72,14 +69,12 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli            <- cli.hint(ModuleNameArg)
     cli            <- cli.hint(HiddenArg, List("on", "off"))
-    schema         <- layer.schemas.findBy(SchemaId.default)
-    cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: schema.compilerRefs(layout, true))
+    cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout, true))
     cli            <- cli.hint(KindArg, Kind.all)
     optKind        <- ~cli.peek(KindArg)
 
@@ -110,28 +105,25 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     module         <- ~call(PluginArg).toOption.fold(module) { p => module.copy(plugin = if(p.key.isEmpty) None else
                           Some(p)) }
 
-    layer          <- Lenses.updateSchemas(layer)(Lenses.layer.modules(_, project.id)) {
-                          (lens, ws) => lens.modify(layer)((_: SortedSet[Module]) + module) }
+    layer          <- ~(Lenses.layer(_.projects(on(project.id)).modules).modify(layer)(_ + module))
+    layer          <- ~(Lenses.layer(_.projects(on(project.id)).main)(layer) = Some(module.id))
 
-    layer          <- Lenses.updateSchemas(layer)(Lenses.layer.mainModule(_, project.id)) {
-                          (lens, ws) => lens(ws) = Some(module.id) }
-
-    layer          <- if(project.compiler.isEmpty && compilerRef != ModuleRef.JavaRef) Lenses.updateSchemas(layer)(
-                          Lenses.layer.compiler(_, project.id)) { (lens, ws) =>
+    layer          <- if(project.compiler.isEmpty && compilerRef != ModuleRef.JavaRef) {
+                        ~(Lenses.layer.compiler(project.id).modify(layer) { v =>
                           log.info(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
-                          lens(ws) = Some(compilerRef)
+                          Some(compilerRef)
+                        })
                       } else Try(layer)
 
     _              <- Layer.commit(layer, conf, layout)
-    schema         <- layer.schemas.findBy(SchemaId.default)
-    _              <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _              <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
     _              <- ~log.info(msg"Set current module to ${module.id}")
   } yield log.await()
 
   private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, reference: String)(implicit log: Log): Try[ModuleRef] = for {
     project            <- optProject.asTry
     moduleRef          <- ModuleRef.parse(project.id, reference, true).ascribe(InvalidValue(reference))
-    availableCompilers  = layer.schemas.flatMap(_.compilerRefs(layout, https = true) :+ ModuleRef.JavaRef)
+    availableCompilers  = layer.compilerRefs(layout, https = true) :+ ModuleRef.JavaRef
     _                  <- if(availableCompilers.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
 
@@ -139,39 +131,30 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    schema       <- layer.schemas.findBy(SchemaId.default)
     call         <- cli.call()
     moduleId     <- call(ModuleArg)
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
-
-    layer        <- Lenses.updateSchemas(layer)(Lenses.layer.modules(_, project.id)) {
-                        (lens, ws) => lens.modify(ws)((_: SortedSet[Module]).filterNot(_.id == module.id)) }
-
-    layer        <- Lenses.updateSchemas(layer)(Lenses.layer.mainModule(_, project.id)) {
-                        (lens, ws) => if(lens(ws) == Some(moduleId)) lens(ws) = None else ws }
-
+    layer        <- ~(Lenses.layer.modules(project.id).modify(layer)(_.filterNot(_.id == module.id)))
+    layer        <- ~(Lenses.layer.mainModule(project.id).modify(layer)(_.filterNot(_ == moduleId)))
     _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     cli         <- cli.hint(HiddenArg, List("on", "off"))
-    schema      <- layer.schemas.findBy(SchemaId.default)
-    cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: schema.compilerRefs(layout, true))
+    cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout, true))
     cli         <- cli.hint(KindArg, Kind.all)
     optModuleId =  cli.preview(ModuleArg)(optProject.flatMap(_.main)).toOption
 
@@ -206,30 +189,20 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     newId       <- ~call(ModuleNameArg).toOption
     name        <- newId.to[List].map(project.modules.unique(_)).sequence.map(_.headOption)
     bloopSpec   <- cli.peek(BloopSpecArg).to[List].map(_.as[BloopSpec]).sequence.map(_.headOption)
-    focus       <- ~Lenses.focus()
-    layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).kind)) = optKind)
-
-    layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).compiler)) =
-                        compilerRef)
-
-    layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).hidden)) =
-                        hidden)
-
-    layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).bloopSpec)) =
-                        bloopSpec.map(Some(_)))
-
-    layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).main)) =
-                        mainClass.map(Some(_)))
-
-    layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).plugin)) =
-                        pluginName.map(Some(_)))
+    
+    layer       <- ~optKind.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).kind)(layer) = _)
+    layer       <- ~compilerRef.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).compiler)(layer) = _)
+    layer       <- ~hidden.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).hidden)(layer) = _)
+    layer       <- ~bloopSpec.map(Some(_)).fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).bloopSpec)(layer) = _)
+    layer       <- ~mainClass.map(Some(_)).fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).main)(layer) = _)
+    layer       <- ~pluginName.map(Some(_)).fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).plugin)(layer) = _)
 
     layer       <- if(newId.isEmpty || project.main != Some(module.id)) ~layer
-                    else ~(focus(layer, _.lens(_.projects(on(project.id)).main)) = Some(newId))
+                   else ~(Lenses.layer(_.projects(on(project.id)).main)(layer) = newId)
 
-    layer       <- ~(focus(layer, _.lens(_.projects(on(project.id)).modules(on(module.id)).id)) = name)
+    layer       <- ~name.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).id)(layer) = _)
     _           <- Layer.commit(layer, conf, layout)
-    _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 }
 
@@ -238,10 +211,9 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -270,10 +242,9 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -290,24 +261,18 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     project     <- optProject.asTry
     module      <- optModule.asTry
     binary      <- module.binaries.findBy(binaryArg)
-    
-    layer       <- Lenses.updateSchemas(layer)(Lenses.layer.binaries(_, project.id,
-                        module.id))(_(_) -= binary)
-
+    layer       <- ~(Lenses.layer.binaries(project.id, module.id)(layer) -= binary)
     _           <- Layer.commit(layer, conf, layout)
-    schema      <- layer.schemas.findBy(SchemaId.default)
-    _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
-
+    _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -322,13 +287,9 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     project     <- optProject.asTry
     module      <- optModule.asTry
     binaryToDel <- module.binaries.findBy(binaryArg)
-    
-    layer       <- Lenses.updateSchemas(layer)(Lenses.layer.binaries(_, project.id,
-                      module.id))(_(_) -= binaryToDel)
-
+    layer       <- ~(Lenses.layer.binaries(project.id, module.id)(layer) -= binaryToDel)
     _           <- Layer.commit(layer, conf, layout)
-    schema      <- layer.schemas.findBy(SchemaId.default)
-    _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -337,10 +298,9 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     layer        <- Layer.retrieve(conf)
     binSpecs     <- ~cli.peek(PartialBinSpecArg).to[Set].flatMap(MavenCentral.search(_).toOption.to[Set].flatten)
     cli          <- cli.hint(BinSpecArg, binSpecs)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     cli          <- cli.hint(BinaryNameArg)
@@ -353,13 +313,9 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     repoId     <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
     binary     <- Binary(binName, repoId, binSpecArg)
     _          <- module.binaries.unique(binary.id)
-
-    layer      <- Lenses.updateSchemas(layer)(Lenses.layer.binaries(_, project.id,
-                      module.id))(_(_) += binary)
-    
+    layer      <- ~(Lenses.layer.binaries(project.id, module.id)(layer) += binary)
     _          <- Layer.commit(layer, conf, layout)
-    schema     <- layer.schemas.findBy(SchemaId.default)
-    _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 }
 
@@ -368,10 +324,9 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -391,8 +346,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     project     <- optProject.asTry
     module      <- optModule.asTry
     compiler    <- ~module.compiler
-    schema      <- layer.schemas.findBy(SchemaId.default)
-    compilation <- Compilation.syncCompilation(schema, module.ref(project), layout, true, false)
+    compilation <- Compilation.syncCompilation(layer, module.ref(project), layout, true, false)
     rows        <- compilation.aggregatedOpts(module.ref(project), layout)
     showRows    <- ~rows.to[List].filter(_.compiler == compiler)
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
@@ -404,10 +358,9 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -424,24 +377,18 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     project  <- optProject.asTry
     module   <- optModule.asTry
     opt      <- ~module.opts.find(_.id == paramArg)
-
-    layer    <- opt.fold(Lenses.updateSchemas(layer)(Lenses.layer.opts(_, project.id, module.id))(_(_) += Opt(paramArg, persist, true))) { o =>
-                  Lenses.updateSchemas(layer)(Lenses.layer.opts(_, project.id, module.id))(_(_) -= o)
-                }
-
+    layer    <- ~opt.fold(Lenses.layer.opts(project.id, module.id)(layer) += Opt(paramArg, persist, true))(Lenses.layer.opts(project.id, module.id)(layer) -= _)
     _        <- Layer.commit(layer, conf, layout)
-    schema   <- layer.schemas.findBy(SchemaId.default)
-    _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _        <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   def define: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -462,10 +409,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     persist     <- ~call(PersistentArg).isSuccess
     transform   <- ~call.suffix
     optDef      <- ~OptDef(option, description, transform, persist)
-
-    layer       <- Lenses.updateSchemas(layer)(Lenses.layer.optDefs(_, project.id,
-                        module.id))(_(_) += optDef)
-    
+    layer       <- ~(Lenses.layer.optDefs(project.id, module.id)(layer) += optDef)
     _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -473,10 +417,9 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -491,10 +434,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     module      <- optModule.asTry
     project     <- optProject.asTry
     optDef      <- module.optDefs.findBy(option)
-    
-    layer       <- Lenses.updateSchemas(layer)(Lenses.layer.optDefs(_, project.id,
-                        module.id))(_(_) -= optDef)
-
+    layer       <- ~(Lenses.layer.optDefs(project.id, module.id)(layer) -= optDef)
     _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -502,10 +442,9 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schema       <- ~layer.schemas.findBy(SchemaId.default).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -517,8 +456,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     optDefs  <- ~(for {
                   project     <- optProject
                   module      <- optModule
-                  schema      <- layer.schemas.findBy(SchemaId.default).toOption
-                  compilation <- Compilation.syncCompilation(schema, module.ref(project), layout,
+                  compilation <- Compilation.syncCompilation(layer, module.ref(project), layout,
                                       true, false).toOption
                   optDefs     <- compilation.aggregatedOptDefs(module.ref(project)).toOption
                 } yield optDefs.map(_.value.id)).getOrElse(Set())
@@ -531,12 +469,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     paramArg <- call(OptArg)
     persist  <- ~call(PersistentArg).isSuccess
     param    <- ~Opt(paramArg, persist, remove = false)
-
-    layer    <- Lenses.updateSchemas(layer)(Lenses.layer.opts(_, project.id, module.id))(
-                    _(_) += param)
-
+    layer    <- ~(Lenses.layer.opts(project.id, module.id)(layer) += param)
     _        <- Layer.commit(layer, conf, layout)
-    schema   <- layer.schemas.findBy(SchemaId.default)
-    _        <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _        <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 }

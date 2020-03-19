@@ -184,7 +184,7 @@ case class Tables() {
     Heading("Version", _.version)
   )
 
-  val imports: Tabulation[(Import, Try[Schema])] = Tabulation(
+  val imports: Tabulation[(Import, Try[Layer])] = Tabulation(
     Heading("ID", _._1.id),
     Heading("Ref", _._1.layerRef),
     Heading("Projects", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),

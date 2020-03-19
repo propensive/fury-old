@@ -41,8 +41,7 @@ object Dns {
 class MenuContext(val cli: Cli,
                   val layout: Layout,
                   val layer: Layer,
-                  val conf: FuryConf,
-                  val optSchemaId: Option[SchemaId] = None) {
+                  val conf: FuryConf) {
   implicit def implicitLayout: Layout   = layout
   implicit def implicitShell: Shell     = Shell(cli.env)
   implicit def implicitEnv: Environment = cli.env

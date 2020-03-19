@@ -21,22 +21,79 @@ import fury.model._, fury.io._, fury.strings._, fury.ogdl._
 import mercator._
 import gastronomy._
 import kaleidoscope._
+import optometry._
 
 import scala.util._
 import scala.collection.immutable._
 import guillotine._
 
 import scala.collection.mutable.HashMap
+import scala.annotation._
 
 case class Layer(version: Int,
-                 schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
-                 main: SchemaId = SchemaId.default,
-                 aliases: SortedSet[Alias] = TreeSet()) { layer =>
+                 aliases: SortedSet[Alias] = TreeSet(),
+                 projects: SortedSet[Project] = TreeSet(),
+                 repos: SortedSet[SourceRepo] = TreeSet(),
+                 imports: SortedSet[Import] = TreeSet(),
+                 main: Option[ProjectId] = None) extends Lens.Partial[Layer] { layer =>
 
-  def mainSchema: Try[Schema] = schemas.findBy(main)
-  def showSchema: Boolean = schemas.size > 1
-  def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
-  def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
+  def apply(id: ProjectId) = projects.findBy(id)
+  def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
+  def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
+  def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
+  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
+
+  def compilerRefs(layout: Layout, https: Boolean)(implicit log: Log): List[ModuleRef] =
+    allProjects(layout, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
+
+  def hierarchy(layout: Layout)(implicit log: Log): Try[Hierarchy] = for {
+    imps <- imports.map { ref => for {
+      layer        <- Layer.get(ref.layerRef, quiet = false)
+      tree         <- layer.hierarchy(layout)
+    } yield tree }.sequence
+  } yield Hierarchy(this, imps)
+
+  def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
+    imports.to[List].map { sr => Layer.get(sr.layerRef, quiet = false).map(sr.id -> _) }.sequence.map(_.toMap)
+
+  def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
+  
+  def importTree(implicit log: Log): Try[List[ImportPath]] = for {
+    imports    <- resolvedImports
+    importList <- imports.to[List].map { case (id, layer) =>
+                    layer.importTree.map { is => is.map(_.prefix(id)) }
+                  }.sequence.map(_.flatten)
+  } yield (ImportPath.Root :: importList)
+
+  def allProjects(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Project]] = {
+    @tailrec
+    def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
+      treeNodes match {
+        case Nil => ~aggregated
+        case head :: tail =>
+          getChildren(head) match {
+            case Success(ch) => flatten(ch ::: tail)(head :: aggregated, getChildren)
+            case fail => fail
+          }
+      }
+    }
+
+    for {
+      allLayers <- flatten(List(this))(Nil, _.importedLayers)
+    } yield allLayers.flatMap(_.projects)
+  }
+
+  def localRepo(layout: Layout): Try[SourceRepo] = for {
+    repo   <- Repo.local(layout)
+    commit <- Shell(layout.env).git.getCommit(layout.baseDir)
+    branch <- Shell(layout.env).git.getBranch(layout.baseDir).map(RefSpec(_))
+  } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
+
+  def allRepos(layout: Layout): SortedSet[SourceRepo] =
+    (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
+      repos.map(_.repo.simplified).contains(r.repo.simplified)
+    }) ++ repos
+
 }
 
 object Layer {
@@ -55,8 +112,7 @@ object Layer {
   private def dereference(layer: Layer, path: ImportPath, quiet: Boolean)(implicit log: Log): Try[Layer] =
     if(path.isEmpty) Success(layer)
     else { for {
-      schema      <- layer.mainSchema
-      layerImport <- schema.imports.findBy(path.head)
+      layerImport <- layer.imports.findBy(path.head)
       layer       <- get(layerImport.layerRef, quiet)
       layer       <- dereference(layer, path.tail, quiet)
     } yield layer }
@@ -84,8 +140,7 @@ object Layer {
 
   def hashes(layer: Layer)(implicit log: Log): Try[Set[IpfsRef]] = for {
     layerRef  <- store(layer)
-    schema    <- layer.mainSchema
-    layerRefs <- ~schema.imports.map(_.layerRef)
+    layerRefs <- ~layer.imports.map(_.layerRef)
     layers    <- layerRefs.to[List].traverse(Layer.get(_))
     hashes    <- layers.traverse(hashes(_))
   } yield hashes.foldLeft(Set[IpfsRef]())(_ ++ _) + layerRef.ipfsRef
@@ -172,31 +227,11 @@ object Layer {
     if(version < CurrentVersion) {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
-        case 0 | 1 | 2 =>
+        case 0 | 1 | 2 | 3 | 4 | 5 =>
           log.fail(msg"Cannot migrate from layers earlier than version 3")
           // FIXME: Handle this better
           throw new Exception()
-        case 3 =>
-          ogdl.set(schemas = ogdl.schemas.map { schema =>
-            schema.set(imports = schema.imports.map { imp =>
-              imp.set(id = Ogdl(s"unknown-${Counter.next()}"))
-            })
-          })
-
-        case 4 =>
-          ogdl.set(schemas = ogdl.schemas.map { schema =>
-            schema.set(projects = schema.projects.map { project =>
-              project.set(modules = project.modules.map { module =>
-                module.set(
-                  opts = module.params.map { param => Ogdl(Opt(OptId(param()), false, false)) },
-                  dependencies = module.after,
-                  binaries = module.binaries.map { bin => bin.set(id = bin.artifact) },
-                  policy = module.policy.map { permission => permission.set(classRef =
-                      Ogdl(permission.className())) }
-                )
-              })
-            })
-          })
+        case _ => null: Ogdl
       }).set(version = Ogdl(version + 1)))
     } else ogdl
   }

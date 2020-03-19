@@ -39,11 +39,10 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
     } yield Target(
       ref,
-      resolvedProject.schema.id,
       module.kind,
       module.main,
       module.plugin,
-      resolvedProject.schema.repos.map(_.repo).to[List],
+      resolvedProject.layer.repos.map(_.repo).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],
       dependencies.to[List],
@@ -63,7 +62,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
     repos  <- (module.externalSources ++ module.externalResources).to[List]
-                  .groupBy(_.repoId).map { case (k, v) => entity.schema.repo(k, layout).map(_ -> v) }.sequence
+                  .groupBy(_.repoId).map { case (k, v) => entity.layer.repo(k, layout).map(_ -> v) }.sequence
   } yield Checkouts(repos.map { case (repo, paths) =>
     Checkout(repo.id, repo.repo, repo.localDir(layout), repo.commit, repo.track, paths.map(_.dir).to[List])
   }.to[Set])

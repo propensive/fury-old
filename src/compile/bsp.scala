@@ -105,11 +105,9 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
     for {
       conf           <- Ogdl.read[FuryConf](layout.confFile, identity(_))
       layer          <- Layer.retrieve(conf)
-      schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(layout)
+      hierarchy      <- layer.hierarchy(layout)
       universe       <- hierarchy.universe
-      projects       <- layer.projects
-      graph          <- projects.flatMap(_.moduleRefs).map { ref =>
+      graph          <- layer.projects.flatMap(_.moduleRefs).map { ref =>
                           for {
                             ds   <- universe.dependencies(ref, layout)
                             arts <- (ds + ref).map { d => universe.makeTarget(d, layout) }.sequence
@@ -131,9 +129,8 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
       //FIXME remove duplication with structure
       conf           <- Layer.readFuryConf(layout)
       layer          <- Layer.retrieve(conf)
-      schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(schema, module, layout, https = true, noSecurity = false)
+      compilation    <- Compilation.syncCompilation(layer, module, layout, https = true, noSecurity = false)
     } yield compilation
   }
   

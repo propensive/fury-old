@@ -108,8 +108,8 @@ object Uri {
   implicit val diff: Diff[Uri] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 }
 
-case class Uri(schema: String, path: Path, query: Query = Query.empty) extends Key(msg"URI") {
-  def key: String = str"${schema}://${path}${query}"
+case class Uri(scheme: String, path: Path, query: Query = Query.empty) extends Key(msg"URI") {
+  def key: String = str"${scheme}://${path}${query}"
 }
 
 object ImportPath {
@@ -674,20 +674,6 @@ case class ModuleRef(projectId: ProjectId,
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode
   override def toString: String = str"$projectId/$moduleId"
 }
-
-object SchemaId {
-  implicit val msgShow: MsgShow[SchemaId]       = v => UserMsg(_.schema(v.key))
-  implicit val stringShow: StringShow[SchemaId] = _.key
-  implicit val diff: Diff[SchemaId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  implicit val parser: Parser[SchemaId] = unapply(_)
-  
-  final val default = SchemaId("default")
-
-  def unapply(name: String): Option[SchemaId] =
-    name.only { case r"[a-z]([-\.]?[a-zA-Z0-9]+)*" => SchemaId(name) }
-}
-
-case class SchemaId(key: String) extends Key(msg"schema")
 
 object ClassRef {
   implicit val msgShow: MsgShow[ClassRef] = r => UserMsg(_.layer(r.key))

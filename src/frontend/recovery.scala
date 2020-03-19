@@ -38,12 +38,6 @@ object Recovery {
           val beginning = projectIds.tail.foldLeft(message + projectIds.head)(_ + ", " + _)
           //val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
           cli.abort(beginning)//+ ending)
-        case e: SchemaDifferences =>
-          cli.abort(
-              msg"""You are attempting to make this change to all schemas, however the value you are
-trying to change is different in different schemas. To make the change to just
-one schema, please specify the schema with --schema/-s, or if you are sure you
-want to make this change to all schemas, please add the --force/-F argument.""")
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
         case NoLatestVersion() =>

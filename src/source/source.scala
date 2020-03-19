@@ -33,11 +33,9 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     
@@ -66,11 +64,9 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -86,23 +82,18 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     module      <- optModule.asTry
     _           <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project))) else Success(())
 
-    layer       <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id,
-                        module.id))(_(_) -= source)
-    
+    layer       <- ~(Lenses.layer.sources(project.id, module.id)(layer) -= source)
     _           <- Layer.commit(layer, conf, layout)
-    schema      <- layer.schemas.findBy(SchemaId.default)
-    _           <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -111,9 +102,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
       module   <- project.modules.findBy(moduleId).toOption
     } yield module)
 
-    schema     <- layer.schemas.findBy(SchemaId.default)
-
-    extSrcs    =  optProject.to[List].flatMap { project => schema.repos.map(possibleSourceDirectories(_, layout)) }.flatten
+    extSrcs    =  optProject.to[List].flatMap { project => layer.repos.map(possibleSourceDirectories(_, layout)) }.flatten
     
     compiler   <- ~optModule.map(_.compiler).getOrElse(ModuleRef.JavaRef)
 
@@ -128,13 +117,9 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     project    <- optProject.asTry
     module     <- optModule.asTry
     source     <- call(SourceArg)
-
-    layer      <- Lenses.updateSchemas(layer)(Lenses.layer.sources(_, project.id, 
-                      module.id))(_(_) ++= Some(source))
-    
+    layer      <- ~(Lenses.layer.sources(project.id, module.id)(layer) ++= Some(source))
     _          <- Layer.commit(layer, conf, layout)
-    schema      <- layer.schemas.findBy(SchemaId.default)
-    _          <- ~Compilation.asyncCompilation(schema, module.ref(project), layout, false)
+    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   private[this] def possibleSourceDirectories(sourceRepo: SourceRepo, layout: Layout) = {
@@ -148,14 +133,13 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   lazy val layout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = layout >>= Layer.readFuryConf
   lazy val layer: Try[Layer] = conf >>= (Layer.retrieve(_, false))
-  lazy val schema: Try[Schema] = layer >>= (_.schemas.findBy(SchemaId.default))
 
-  lazy val projectId: Try[ProjectId] = schema >>= (cli.preview(ProjectArg)() orElse _.main.asTry)
-  lazy val project: Try[Project] = (schema, projectId) >>= (_.projects.findBy(_))
+  lazy val projectId: Try[ProjectId] = layer >>= (cli.preview(ProjectArg)() orElse _.main.asTry)
+  lazy val project: Try[Project] = (layer, projectId) >>= (_.projects.findBy(_))
   lazy val moduleId: Try[ModuleId] = project >>= (cli.preview(ModuleArg)() orElse _.main.asTry)
   lazy val module: Try[Module] = (project, moduleId) >>= (_.modules.findBy(_))
 
-  implicit val projectHints: ProjectArg.Hinter = ProjectArg.hint(schema >> (_.projects.map(_.id)))
+  implicit val projectHints: ProjectArg.Hinter = ProjectArg.hint(layer >> (_.projects.map(_.id)))
   implicit val moduleHints: ModuleArg.Hinter = ModuleArg.hint(project >> (_.modules.map(_.id)))
   implicit val sourceHints: SourceArg.Hinter = SourceArg.hint(module >> (_.resources))
   implicit val rawHints: RawArg.Hinter = RawArg.hint(())
@@ -165,7 +149,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   lazy val resources: Try[SortedSet[Source]] = module >> (_.resources)
 
   def resourcesLens(projectId: ProjectId, moduleId: ModuleId) =
-    Lens[Layer](_.schemas(on(SchemaId.default)).projects(on(projectId)).modules(on(moduleId)).resources)
+    Lens[Layer](_.projects(on(projectId)).modules(on(moduleId)).resources)
 
   lazy val resource: Try[Source] = cli.preview(SourceArg)()
 

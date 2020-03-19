@@ -202,7 +202,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     call       <- cli.call()
     aliasArg   <- call(AliasArg)
     aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
-    layer      <- Lenses.updateSchemas(layer) { s => Lenses.layer.aliases } (_(_) --= aliasToDel)
+    layer      <- ~(Lenses.layer.aliases(layer) --= aliasToDel)
     _          <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -210,18 +210,13 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     layout           <- cli.layout
     conf             <- Layer.readFuryConf(layout)
     layer            <- Layer.retrieve(conf)
-    optSchemaArg     <- ~Some(SchemaId.default)
     cli              <- cli.hint(AliasArg)
     cli              <- cli.hint(DescriptionArg)
-
-    optDefaultSchema <- ~optSchemaArg.flatMap(layer.schemas.findBy(_).toOption).orElse(
-                            layer.mainSchema.toOption)
-    
-    cli              <- cli.hint(ProjectArg, optDefaultSchema.map(_.projects).getOrElse(Nil))
+    cli              <- cli.hint(ProjectArg, layer.projects)
     optProjectId     <- ~cli.peek(ProjectArg)
     
-    optProject       <- ~optProjectId.orElse(optDefaultSchema.flatMap(_.main)).flatMap { id =>
-                            optDefaultSchema.flatMap(_.projects.findBy(id).toOption) }.to[List].headOption
+    optProject       <- ~optProjectId.orElse(layer.main).flatMap { id =>
+                            layer.projects.findBy(id).toOption }.to[List].headOption
     
     cli              <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     call             <- cli.call()
@@ -232,7 +227,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     aliasArg         <- call(AliasArg)
     description      <- call(DescriptionArg)
     alias            <- ~Alias(aliasArg, description, moduleRef, call.suffix)
-    layer            <- Lenses.updateSchemas(layer) { s => Lenses.layer.aliases } (_(_) += alias)
+    layer            <- ~(Lenses.layer.aliases(layer) += alias)
     _                <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }
@@ -259,8 +254,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf    <- Layer.readFuryConf(layout)
     call    <- cli.call()
     layer   <- Layer.retrieve(conf)
-    schema  <- layer.schemas.findBy(SchemaId.default)
-    project <- schema.mainProject
+    project <- layer.mainProject
     module  <- ~project.flatMap(_.main)
     _       <- ~log.raw(Prompt.rewrite(conf.focus(project.fold(ProjectId("?"))(_.id), module.getOrElse(ModuleId("?"))).string(ManagedConfig().theme)))
   } yield log.await()
@@ -269,11 +263,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    schemaArg    <- ~SchemaId.default
-    schema       <- layer.schemas.findBy(schemaArg)
-    cli          <- cli.hint(ProjectArg, schema.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-    optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     call         <- cli.call()
@@ -281,7 +273,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- project.modules.findBy(moduleId)
     moduleRef    =  module.ref(project)
 
-    compilation  <- Compilation.syncCompilation(schema, moduleRef, layout, https = false, noSecurity = true)
+    compilation  <- Compilation.syncCompilation(layer, moduleRef, layout, https = false, noSecurity = true)
 
     result    <- compilation.cleanCache(moduleRef, layout)
   } yield {
@@ -306,12 +298,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(WaitArg)
     cli            <- cli.hint(NoSecurityArg)
     cli            <- cli.hint(WatchArg)
-    schemaArg      <- ~SchemaId.default
-    schema         <- layer.schemas.findBy(schemaArg)
-    cli            <- cli.hint(ProjectArg, schema.projects)
-    autocProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(schema.main)
+    cli            <- cli.hint(ProjectArg, layer.projects)
+    autocProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(layer.main)
     cli            <- cli.hint(PipeliningArg, List("on", "off"))
-    autocProject   <- ~autocProjectId.flatMap(schema.projects.findBy(_).toOption)
+    autocProject   <- ~autocProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli            <- cli.hint(ModuleArg, autocProject.to[List].flatMap(_.modules))
     cli            <- cli.hint(DirArg)
     cli            <- cli.hint(FatJarArg)
@@ -319,8 +309,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call           <- cli.call()
     dir            <- ~call(DirArg).toOption
     https          <- ~call(HttpsArg).isSuccess
-    optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(schema.main))
-    optProject     <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+    optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(layer.main))
+    optProject     <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     project        <- optProject.asTry
     moduleId       <- moduleRef.map(~_.moduleId).getOrElse(cli.preview(ModuleArg)(project.main))
     module         <- project.modules.findBy(moduleId)
@@ -332,10 +322,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     waiting        =  call(WaitArg).isSuccess
     noSecurity     =  call(NoSecurityArg).isSuccess
     _              <- onlyOne(watch, waiting)
-    compilation    <- Compilation.syncCompilation(schema, module.ref(project), layout, https, noSecurity)
+    compilation    <- Compilation.syncCompilation(layer, module.ref(project), layout, https, noSecurity)
     r              =  repeater(compilation.allSources, waiting) {
       for {
-        task <- compileOnce(compilation, schema, module.ref(project), layout,
+        task <- compileOnce(compilation, layer, module.ref(project), layout,
           globalPolicy, if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https, noSecurity)
       } yield {
         task.transform { completed =>
@@ -380,11 +370,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     cli          <- cli.hint(HttpsArg)
-    schemaArg    <- ~SchemaId.default
-    schema       <- layer.schemas.findBy(schemaArg)
-    cli          <- cli.hint(ProjectArg, schema.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-    optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     cli          <- cli.hint(ExecNameArg)
     //cli          <- cli.hint(DirArg)
@@ -396,10 +384,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     optModuleId  <- ~call(ModuleArg).toOption.orElse(project.main)
     optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
     module       <- optModule.asTry
-    
-    compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
-                        https, false)
-    
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, https, false)
     _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
     main         <- module.main.ascribe(UnspecifiedMain(module.id))
     _            <- ~log.info(msg"Building native image for $exec")
@@ -416,11 +401,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layer        <- Layer.retrieve(conf)
     cli          <- cli.hint(HttpsArg)
     cli          <- cli.hint(NoSecurityArg)
-    schemaArg    <- ~SchemaId.default
-    schema       <- layer.schemas.findBy(schemaArg)
-    cli          <- cli.hint(ProjectArg, schema.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-    optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     call         <- cli.call()
@@ -429,7 +412,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
     
-    compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
                         https, noSecurity)
     
     classpath    <- ~compilation.classpath(module.ref(project), layout)
@@ -445,11 +428,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     cli          <- cli.hint(HttpsArg)
-    schemaArg    <- ~SchemaId.default
-    schema       <- layer.schemas.findBy(schemaArg)
-    cli          <- cli.hint(ProjectArg, schema.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-    optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     cli          <- cli.hint(SingleColumnArg)
@@ -459,7 +440,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
     
-    compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
                         https, false)
     
     classpath    <- ~compilation.classpath(module.ref(project), layout)
@@ -474,11 +455,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     cli          <- cli.hint(HttpsArg)
-    schemaArg    <- ~SchemaId.default
-    schema       <- layer.schemas.findBy(schemaArg)
-    cli          <- cli.hint(ProjectArg, schema.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(schema.main)
-    optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
@@ -486,7 +465,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
 
-    compilation  <- Compilation.syncCompilation(schema, module.ref(project), layout,
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
                         https, false)
     
     _            <- ~UiGraph.draw(compilation.graph.links, true,
@@ -495,7 +474,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   private[this] def compileOnce(compilation: Compilation,
-                                schema: Schema,
+                                layer: Layer,
                                 moduleRef: ModuleRef,
                                 layout: Layout,
                                 globalPolicy: Policy,
@@ -537,10 +516,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf      <- Layer.readFuryConf(layout)
     layer     <- Layer.retrieve(conf)
     cli       <- cli.hint(HttpsArg)
-    schemaArg <- ~SchemaId.default
-    schema    <- layer.schemas.findBy(schemaArg)
     cli       <- cli.hint(RawArg)
-    cli       <- cli.hint(ProjectArg, schema.projects.map(_.id))
+    cli       <- cli.hint(ProjectArg, layer.projects.map(_.id))
     table     <- ~Tables().projects(None)
     cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call      <- cli.call()
@@ -548,7 +525,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     projectId <- ~cli.peek(ProjectArg)
     raw       <- ~call(RawArg).isSuccess
     https     <- ~call(HttpsArg).isSuccess
-    projects  <- schema.allProjects(layout, https)
+    projects  <- layer.allProjects(layout, https)
     table     <- ~Tables().show(table, cli.cols, projects.distinct, raw, col, projectId, "project")
     _         <- ~log.infoWhen(!raw)(conf.focus())
     _         <- ~log.rawln(table)
@@ -559,12 +536,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     baseLayer    <- Layer.get(conf.layerRef)
     layer        <- Layer.retrieve(conf)
-    baseSchema   <- baseLayer.mainSchema
-    schema       <- layer.mainSchema
     focus        <- Layer.readFuryConf(layout)
     currentLayer <- ~Some(focus.path)
-    absTree      <- ~baseSchema.importTree(layout, true).getOrElse(Nil)
-    relLayers    <- ~schema.imports.map { sr => ImportPath(sr.id.key) }
+    absTree      <- ~baseLayer.importTree.getOrElse(Nil)
+    relLayers    <- ~layer.imports.map { sr => ImportPath(sr.id.key) }
     parentLayer  <- if(baseLayer == layer) ~None else ~Some(ImportPath(".."))
     cli          <- cli.hint(LayerArg, absTree.to[Set] ++ relLayers ++ parentLayer -- currentLayer)
     call         <- cli.call()
@@ -581,19 +556,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       Success()
     else
       Failure(LayersFailure(path))
-
-  /*def extract: Try[ExitStatus] = for {
-    cli      <- cli.hint(DirArg)
-    cli      <- cli.hint(FileArg)
-    call     <- cli.call()
-    pwd      <- cli.pwd
-    file     <- call(FileArg).map(pwd.resolve(_))
-    dir      <- ~cli.peek(DirArg).map(pwd.resolve(_)).getOrElse(pwd)
-    layout   <- cli.newLayout.map(_.copy(baseDir = dir))
-    _        =  Bsp.createConfig(layout)
-    layerRef <- Layer.loadFile(file, layout)
-    _        <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root), layout)
-  } yield log.await()*/
 
   def cloneLayer: Try[ExitStatus] = for {
     cli        <- cli.hint(DirArg)
@@ -678,8 +640,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.retrieve(conf)
     cli           <- cli.hint(ImportNameArg)
-    schemaArg     <- ~Some(SchemaId.default)
-    defaultSchema <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
     layerName     <- call(ImportArg)
@@ -692,10 +652,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                        case _          => None
                      })
 
-    schemaRef     <- ~Import(nameArg, newLayerRef, pub)
-    layer         <- Lenses.updateSchemas(layer)(Lenses.layer.imports(_))(_.modify(_)(_ +
-                          schemaRef.copy(id = nameArg)))
-    
+    ref           <- ~Import(nameArg, newLayerRef, pub)
+    layer         <- ~(Lenses.layer.imports.modify(layer)(_ + ref.copy(id = nameArg)))
     _             <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -703,14 +661,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layout    <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer     <- Layer.retrieve(conf)
-    schemaArg <- ~Some(SchemaId.default)
-    dSchema   <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli       <- cli.hint(ImportIdArg, dSchema.map(_.imports.map(_.id)).getOrElse(Nil))
+    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
     call      <- cli.call()
-    schemaId  <- ~SchemaId.default
     importArg <- call(ImportIdArg)
-    schema    <- layer.schemas.findBy(schemaId)
-    lens      <- ~Lenses.layer.imports(schema.id)
+    lens      <- ~Lenses.layer.imports
     layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
@@ -732,9 +686,9 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     recursive <- call(RecursiveArg)
     all       <- ~call(AllArg).isSuccess
     importArg <- call(ImportIdArg)
-    imported  <- layer.mainSchema.get.imports.findBy(importArg)
+    imported  <- layer.imports.findBy(importArg)
     published <- imported.remote.ascribe(ImportHasNoRemote())
-    lens      <- ~Lenses.layer.importRemote(SchemaId.default, importArg)
+    lens      <- ~Lenses.layer.importRemote(importArg)
     artifact  <- Service.latest(published.url.domain, published.url.path, Some(published.version))
     newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version)
     layer     <- ~(lens(layer) = Some(newPub))
@@ -747,18 +701,16 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       conf      <- Layer.readFuryConf(layout)
       layer     <- Layer.retrieve(conf)
       cli       <- cli.hint(HttpsArg)
-      schemaArg <- ~SchemaId.default
-      schema    <- layer.schemas.findBy(schemaArg)
       cli       <- cli.hint(RawArg)
       table     <- ~Tables().imports
       cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-      cli       <- cli.hint(ImportArg, schema.imports.map(_.id))
+      cli       <- cli.hint(ImportArg, layer.imports.map(_.id))
       call      <- cli.call()
       col       <- ~cli.peek(ColumnArg)
       importId  <- ~cli.peek(ImportArg)
       raw       <- ~call(RawArg).isSuccess
       https     <- ~call(HttpsArg).isSuccess
-      rows      <- ~schema.imports.to[List].map { i => (i, schema.resolve(i, layout, https)) }
+      rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef, true)) }
       table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
       _         <- ~log.infoWhen(!raw)(conf.focus())
       _         <- ~log.rawln(table)

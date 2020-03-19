@@ -99,9 +99,9 @@ object FuryMenu {
       Action('require, msg"add an application permission", PermissionCli(_).require)
     ),
     Menu('project, msg"manage projects", 'list, shortcut = 'p')(
-      Action('add, msg"add a new project to the schema", ProjectCli(_).add, shortcut = 'a'),
-      Action('remove, msg"remove a project from the schema", ProjectCli(_).remove, shortcut = 'r'),
-      Action('list, msg"list projects for the schema", ProjectCli(_).list, shortcut = 'l'),
+      Action('add, msg"add a new project to the layer", ProjectCli(_).add, shortcut = 'a'),
+      Action('remove, msg"remove a project from the layer", ProjectCli(_).remove, shortcut = 'r'),
+      Action('list, msg"list projects for the layer", ProjectCli(_).list, shortcut = 'l'),
       Action('select, msg"select the current project", ProjectCli(_).select, shortcut = 's'),
       Action('update, msg"update a project", ProjectCli(_).update, shortcut = 'u')
     ),
@@ -126,14 +126,14 @@ object FuryMenu {
     Action('stop, msg"gracefully shut down the Fury server", ((_: Cli) => Lifecycle.shutdown()),
         needsLayer = false),
     
-    Menu('repo, msg"manage source repositories for the schema", 'list, shortcut = 'r')(
-      Action('add, msg"add a source repository to the schema", RepoCli(_).add, shortcut = 'a'),
+    Menu('repo, msg"manage source repositories for the layer", 'list, shortcut = 'r')(
+      Action('add, msg"add a source repository to the layer", RepoCli(_).add, shortcut = 'a'),
       
       Action('checkout, msg"check out a repository into the working directory", RepoCli(_).checkout,
           shortcut = 'c'),
       
       Action('update, msg"update a source repository", RepoCli(_).update, shortcut = 'u'),
-      Action('remove, msg"remove a source repository from the schema", RepoCli(_).remove, shortcut = 'r'),
+      Action('remove, msg"remove a source repository from the layer", RepoCli(_).remove, shortcut = 'r'),
       Action('fork, msg"fork a managed repository locally", RepoCli(_).fork, shortcut = 'f'),
       Action('unfork, msg"restore a source repository to a managed checkout", RepoCli(_).unfork),
       Action('list, msg"list source repositories", RepoCli(_).list, shortcut = 'l'),

@@ -77,7 +77,6 @@ object Args {
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
   val RemoteLayerArg = CliParam[RemoteLayerId]('n', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
-  val SchemaNameArg = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
   val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
@@ -108,7 +107,6 @@ object Args {
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
-  val CompareArg = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 
   val KindArg = CliParam[Kind]('t', 'type,
       "Type of module (library, application, plugin, compiler, benchmarks)")

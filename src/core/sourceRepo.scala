@@ -72,19 +72,6 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     changes <- Shell(layout.env).git.diffShortStat(repoDir)
   } yield if(changes.isEmpty) None else Some(changes)
 
-  def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] =
-    for {
-      repoDir     <- repo.get(layout, https)
-
-      confString  <- Shell(layout.env).git.showFile(repoDir, ".fury.conf").orElse {
-                       Shell(layout.env).git.showFile(repoDir, ".focus.fury")
-                     }
-
-      conf        <- ~Ogdl.read[FuryConf](confString, identity(_))
-      layer       <- Layer.retrieve(conf, quiet = false)
-      schemas     <- ~layer.schemas.to[List]
-    } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
-
   def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
     repo.pull(commit, track, layout, https)
 
