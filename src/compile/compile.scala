@@ -213,6 +213,8 @@ object Compilation {
 
   private val requestOrigins: collection.mutable.Map[String, Compilation] = TrieMap()
 
+  def findBy(targetId: TargetId): Iterable[Compilation] = requestOrigins.values.filter(_.target.id == targetId)
+
   def mkCompilation(schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
@@ -245,7 +247,6 @@ object Compilation {
 
     for {
       target              <- makeTarget(ref, layout)
-      entity              <- entity(ref.projectId)
       graph               <- graph(target)
       targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout).map(t => targetId -> t) }
       requiredTargets     =  targetIndex.unzip._2.toSet
@@ -255,7 +256,7 @@ object Compilation {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] + TargetId(ref)).connections
-      Compilation(graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
+      Compilation(target, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
         moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
   }
@@ -305,7 +306,8 @@ class FuryBuildClient(targetId: TargetId, layout: Layout) extends BuildClient {
       case e: ModuleCompileEvent => e.ref
       case _ => targetId.ref
     }
-    BloopServer.subscribers(this).map(_.multiplexer).foreach(_(ref) = event)
+    BloopServer.subscribers(this).map(_.multiplexer)
+      .filter(_.contains(ref)).foreach(_(ref) = event)
   }
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit =
@@ -396,8 +398,11 @@ ${'|'} ${highlightedLine}
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val targetId = getCompileTargetId(params.getData)
     broadcast(StartCompile(targetId.ref))
-    compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      broadcast(NoCompile(dependencyTargetId.ref))
+    for {
+      compilation <- Compilation.findBy(targetId)
+      dependencyTargetId <- compilation.deepDependencies(targetId)
+    } yield {
+      broadcast(NoCompile(dependencyTargetId.ref))  
     }
   }
 
@@ -405,13 +410,16 @@ ${'|'} ${highlightedLine}
     case TaskDataKind.COMPILE_REPORT =>
       val targetId = getCompileTargetId(params.getData)
       val ref = targetId.ref
-      broadcast(StopCompile(ref, params.getStatus == StatusCode.OK))
-      if(!compilation.targets(ref).kind.needsExecution) broadcast(StopRun(ref))
-      else broadcast(StartRun(ref))
+      broadcast( StopCompile(ref, params.getStatus == StatusCode.OK))
+      Compilation.findBy(targetId).foreach { compilation =>
+        val signal = if(compilation.targets(ref).kind.needsExecution) StartRun(ref) else StopRun(ref)
+        broadcast(signal)
+      }
   }
 }
 
-case class Compilation(graph: Target.Graph,
+case class Compilation(target: Target, 
+                       graph: Target.Graph,
                        subgraphs: Map[TargetId, Set[TargetId]],
                        checkouts: Checkouts,
                        targets: Map[ModuleRef, Target],
