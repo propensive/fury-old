@@ -46,15 +46,16 @@ object Counter {
 
 sealed trait CompileEvent
 case object Tick                                                 extends CompileEvent
-case class StartCompile(ref: ModuleRef)                          extends CompileEvent
-case class CompilationProgress(ref: ModuleRef, progress: Double) extends CompileEvent
-case class StopCompile(ref: ModuleRef, success: Boolean)         extends CompileEvent
-case class NoCompile(ref: ModuleRef)                             extends CompileEvent
-case class SkipCompile(ref: ModuleRef)                           extends CompileEvent
-case class Print(ref: ModuleRef, line: String)                   extends CompileEvent
-case class StartRun(ref: ModuleRef)                              extends CompileEvent
-case class StopRun(ref: ModuleRef)                               extends CompileEvent
-case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends CompileEvent
+sealed trait ModuleCompileEvent extends CompileEvent { val ref: ModuleRef }
+case class StartCompile(ref: ModuleRef)                          extends ModuleCompileEvent
+case class CompilationProgress(ref: ModuleRef, progress: Double) extends ModuleCompileEvent
+case class StopCompile(ref: ModuleRef, success: Boolean)         extends ModuleCompileEvent
+case class NoCompile(ref: ModuleRef)                             extends ModuleCompileEvent
+case class SkipCompile(ref: ModuleRef)                           extends ModuleCompileEvent
+case class Print(ref: ModuleRef, line: String)                   extends ModuleCompileEvent
+case class StartRun(ref: ModuleRef)                              extends ModuleCompileEvent
+case class StopRun(ref: ModuleRef)                               extends ModuleCompileEvent
+case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends ModuleCompileEvent
 
 case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: ScalacOptionsResult, exitCode: Option[Int] = None) {
   def isSuccessful: Boolean = bspCompileResult.getStatusCode == StatusCode.OK && exitCode.forall(_ == 0)
