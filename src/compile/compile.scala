@@ -294,15 +294,19 @@ object Compilation {
 class FuryBuildClient(compilation: Compilation,
     targetId: TargetId, layout: Layout) extends BuildClient {
 
-  private def broadcast(f: Multiplexer[ModuleRef, CompileEvent] => Unit): Unit = {
-    BloopServer.subscribers(this).map(_.multiplexer).foreach(f)
+  private def broadcast(event: CompileEvent): Unit = {
+    val ref = event match {
+      case e: ModuleCompileEvent => e.ref
+      case _ => targetId.ref
+    }
+    BloopServer.subscribers(this).map(_.multiplexer).foreach(_(ref) = event)
   }
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit =
-    broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+    broadcast(Print(targetId.ref, params.getMessage))
 
   override def onBuildLogMessage(params: LogMessageParams): Unit =
-    broadcast(_(targetId.ref) = Print(targetId.ref, params.getMessage))
+    broadcast(Print(targetId.ref, params.getMessage))
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
@@ -343,7 +347,7 @@ class FuryBuildClient(compilation: Compilation,
         case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
       } }
 
-      broadcast(_(targetId.ref) = DiagnosticMsg(
+      broadcast(DiagnosticMsg(
         targetId.ref,
         CompilerDiagnostic(
           msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum + 1).toString}
@@ -379,14 +383,14 @@ ${'|'} ${highlightedLine}
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val targetId = getCompileTargetId(params.getData)
-    broadcast(_(targetId.ref) = CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal))
+    broadcast(CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal))
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val targetId = getCompileTargetId(params.getData)
-    broadcast(_(targetId.ref) = StartCompile(targetId.ref))
+    broadcast(StartCompile(targetId.ref))
     compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      broadcast(_(dependencyTargetId.ref) = NoCompile(dependencyTargetId.ref))
+      broadcast(NoCompile(dependencyTargetId.ref))
     }
   }
 
@@ -394,9 +398,9 @@ ${'|'} ${highlightedLine}
     case TaskDataKind.COMPILE_REPORT =>
       val targetId = getCompileTargetId(params.getData)
       val ref = targetId.ref
-      broadcast(_(ref) = StopCompile(ref, params.getStatus == StatusCode.OK))
-      if(!compilation.targets(ref).kind.needsExecution) broadcast(_(ref) = StopRun(ref))
-      else broadcast(_(ref) = StartRun(ref))
+      broadcast(StopCompile(ref, params.getStatus == StatusCode.OK))
+      if(!compilation.targets(ref).kind.needsExecution) broadcast(StopRun(ref))
+      else broadcast(StartRun(ref))
   }
 }
 
