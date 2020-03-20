@@ -246,8 +246,8 @@ object Compilation {
       entity              <- entity(ref.projectId)
       graph               <- graph(target)
       targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout).map(t => targetId -> t) }
-      requiredTargets     =  targetIndex.unzip._2
-      requiredPermissions =  requiredTargets.flatMap(_.permissions)
+      requiredTargets     =  targetIndex.unzip._2.toSet
+      requiredPermissions =  (if(target.kind.needsExecution) requiredTargets else requiredTargets - target).flatMap(_.permissions)
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap

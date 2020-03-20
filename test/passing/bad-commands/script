@@ -23,3 +23,10 @@ fury -m foo --output linear
 echo $?
 fury -m foo/bar --output linear
 echo $?
+fury permission require -0 -C java.util.PropertyPermission -T scala.maven.version.number -A read
+fury --output linear --output linear | grep '^ *[A-Za-z0-9]'
+fury module update -m baz -t library
+echo $?
+fury module update -t library
+fury --output linear
+echo $?
