@@ -21,7 +21,6 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.channels._
 import java.util.concurrent.{CompletableFuture, ExecutionException}
-import java.util.concurrent.atomic.AtomicInteger
 
 import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
@@ -211,7 +210,7 @@ object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
-  private val requestOrigins: collection.mutable.Map[String, Compilation] = TrieMap()
+  private val requestOrigins: collection.mutable.Map[RequestOriginId, Compilation] = TrieMap()
 
   def findBy(targetId: TargetId): Iterable[Compilation] = requestOrigins.values.filter(_.target.id == targetId)
 
@@ -287,15 +286,13 @@ object Compilation {
     compilation
   }
 
-  private val originIdCounter = new AtomicInteger(1)
-
-  def nextOriginId(compilation: Compilation)(implicit log: Log): String = {
-    val originId = s"${log.pid.pid}-${originIdCounter.getAndIncrement}"
+  def nextOriginId(compilation: Compilation)(implicit log: Log): RequestOriginId = {
+    val originId = RequestOriginId.next(log.pid)
     requestOrigins(originId) = compilation
     originId
   }
 
-  def findOrigin(originId: String): Option[Compilation] = requestOrigins.get(originId)
+  def findOrigin(originId: RequestOriginId): Option[Compilation] = requestOrigins.get(originId)
 
 }
 
@@ -319,8 +316,18 @@ class FuryBuildClient(targetId: TargetId, layout: Layout) extends BuildClient {
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val compilation = Compilation.findOrigin(params.getOriginId).get
-    val repos = compilation.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
+    val compilation = for {
+      originId    <- RequestOriginId.unapply(params.getOriginId)
+      compilation <- Compilation.findOrigin(originId)
+    } yield compilation
+
+    val repos = compilation match {
+      case Some(c) => c.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
+      case None =>
+        //FIXME
+        println(str"Request with originId: ${params.getOriginId} could not be matched to a compilation")
+        Map.empty
+    }
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
@@ -613,7 +620,7 @@ case class Compilation(target: Target,
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
-    params.setOriginId(originId)
+    params.setOriginId(originId.key)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
     val furyTargetIds = deepDependencies(target.id).toList
     
@@ -634,8 +641,8 @@ case class Compilation(target: Target,
       }
 
       val responseOriginId = result.get.bspCompileResult.getOriginId
-      if(responseOriginId != originId){
-        log.warn(s"buildTarget/compile: Expected $originId, but got $responseOriginId")
+      if(responseOriginId != originId.key){
+        log.warn(s"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
       }
 
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
