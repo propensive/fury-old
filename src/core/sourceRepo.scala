@@ -58,7 +58,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def fullCheckout(layout: Layout): Checkout = Checkout(id, repo, localDir(layout), commit, track, List())
 
   def localDir(layout: Layout): Option[Path] = local.orElse {
-    Repo.local(layout).map(_.simplified == repo.simplified) match {
+    Repo.local(layout).map(_.equivalentTo(repo)) match {
       case Success(true) => Some(layout.baseDir)
       case _             => None
     }
@@ -123,5 +123,4 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     sourceRepo <- Shell(layout.env).git.sparseCheckout(bareRepo, layout.pwd, List(), track, commit,
                       Some(repo.universal(false)))
   } yield ()
-
 }
