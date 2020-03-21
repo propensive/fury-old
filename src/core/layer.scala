@@ -35,7 +35,8 @@ case class Layer(version: Int,
                  projects: SortedSet[Project] = TreeSet(),
                  repos: SortedSet[SourceRepo] = TreeSet(),
                  imports: SortedSet[Import] = TreeSet(),
-                 main: Option[ProjectId] = None) extends Lens.Partial[Layer] { layer =>
+                 main: Option[ProjectId] = None,
+                 mainRepo: Option[RepoId] = None) extends Lens.Partial[Layer] { layer =>
 
   def apply(id: ProjectId) = projects.findBy(id)
   def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
@@ -97,12 +98,9 @@ case class Layer(version: Int,
 }
 
 object Layer {
-
   private val cache: HashMap[IpfsRef, Layer] = HashMap()
-
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
-
-  val CurrentVersion = 5
+  val CurrentVersion: Int = 5
 
   def retrieve(conf: FuryConf, quiet: Boolean = false)(implicit log: Log): Try[Layer] = for {
     base  <- get(conf.layerRef, quiet)
@@ -111,11 +109,11 @@ object Layer {
 
   private def dereference(layer: Layer, path: ImportPath, quiet: Boolean)(implicit log: Log): Try[Layer] =
     if(path.isEmpty) Success(layer)
-    else { for {
+    else for {
       layerImport <- layer.imports.findBy(path.head)
       layer       <- get(layerImport.layerRef, quiet)
       layer       <- dereference(layer, path.tail, quiet)
-    } yield layer }
+    } yield layer
 
   def get(layerRef: LayerRef, quiet: Boolean = false)(implicit log: Log): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
@@ -146,20 +144,15 @@ object Layer {
   } yield hashes.foldLeft(Set[IpfsRef]())(_ ++ _) + layerRef.ipfsRef
 
   def share(service: String, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
-    ref     <- store(layer)
-    hashes  <- Layer.hashes(layer)
-    _       <- Service.publish(service, ref.ipfsRef, None, None, false, true, true, 0, 0, token, hashes)
+    ref    <- store(layer)
+    hashes <- Layer.hashes(layer)
+    _      <- Service.publish(service, ref.ipfsRef, None, None, false, true, true, 0, 0, token, hashes)
   } yield ref
 
   def resolve(layerInput: LayerName)(implicit log: Log): Try[LayerRef] = layerInput match {
-    case FileInput(path) => 
-      ???
-    case FuryUri(domain, path) =>
-      for {
-        artifact <- Service.latest(domain, path, None)
-      } yield LayerRef(artifact.ref)
-    case IpfsRef(key) =>
-      Success(LayerRef(key))
+    case FileInput(path)       => ???
+    case FuryUri(domain, path) => Service.latest(domain, path, None).map { a => LayerRef(a.ref) }
+    case IpfsRef(key)          => Success(LayerRef(key))
   }
 
   def pathCompletions()(implicit log: Log): Try[List[String]] =
@@ -202,9 +195,8 @@ object Layer {
     _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
   } yield conf
 
-  def pushToHistory(layerRef: LayerRef, layout: Layout)(implicit log: Log): Try[Unit] = {
+  def pushToHistory(layerRef: LayerRef, layout: Layout)(implicit log: Log): Try[Unit] =
     layout.undoStack.writeSync(layerRef.key + "\n", append = true)
-  }
 
   def popFromHistory(layout: Layout)(implicit log: Log): Try[LayerRef] = {
     val history = layout.undoStack

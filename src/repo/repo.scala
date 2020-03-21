@@ -59,6 +59,8 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     local     <- ~layer.localRepo(layout).toOption
     https     <- ~call(HttpsArg).isSuccess
     _         <- repo.checkout(layout, local, https)
+    layer     <- ~(layer.lens(_.mainRepo)(layer) = Some(repo.id))
+    _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def unfork: Try[ExitStatus] = for {

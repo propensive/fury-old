@@ -564,18 +564,21 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     call       <- cli.call()
     edit       <- ~call(EditorArg).isSuccess
     layerName  <- call(ImportArg)
-    layout     <- cli.layout
     layerRef   <- Layer.resolve(layerName)
     layer      <- Layer.get(layerRef)
     dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~pwd.resolve(dir)
+    _          <- ~log.info(msg"Cloning layer $layerName into ${dir.relativizeTo(pwd)}")
     _          <- ~dir.mkdir()
     newLayout  <- cli.newLayout
     layout     =  newLayout.copy(baseDir = dir)
+    optRepo    <- ~layer.mainRepo.flatMap(layer.repos.findBy(_).toOption)
+    _          <- optRepo.fold(Try(()))(_.doCleanCheckout(layout, true))
+    _          <- ~log.info(msg"Saving Fury configuration file ${layout.confFile.relativizeTo(layout.pwd)}")
     _          <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, layerName.publishedLayer), layout)
     _          <- Bsp.createConfig(layout)
-    _          <- ~log.info(msg"Cloned layer $layerRef into ${dir.relativizeTo(pwd)}")
+    _          <- ~log.info(msg"Cloning complete")
     
     _          <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
                     implicit val env: Environment = cli.env
