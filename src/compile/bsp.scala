@@ -270,7 +270,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
-        val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
+        val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
         val session = Lifecycle.currentSession(log)
         session.multiplexer = multiplexer
         val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty, pipelining = false, noSecurity = false)

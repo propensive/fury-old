@@ -21,7 +21,6 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.channels._
 import java.util.concurrent.{CompletableFuture, ExecutionException}
-import java.util.concurrent.atomic.AtomicInteger
 
 import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
@@ -146,7 +145,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
       thread.start()
       
-      val client = new FuryBuildClient(compilation, targetId, layout)
+      val client = new FuryBuildClient(targetId, layout)
         
       val bspServer = new Launcher.Builder[FuryBspServer]()
         .setRemoteInterface(classOf[FuryBspServer])
@@ -211,6 +210,10 @@ object Compilation {
 
   private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
 
+  private val requestOrigins: collection.mutable.Map[RequestOriginId, Compilation] = TrieMap()
+
+  def findBy(targetId: TargetId): Iterable[Compilation] = requestOrigins.values.filter(_.target.id == targetId)
+
   def mkCompilation(layer: Layer,
                     ref: ModuleRef,
                     layout: Layout,
@@ -243,7 +246,6 @@ object Compilation {
 
     for {
       target              <- makeTarget(ref, layout)
-      entity              <- entity(ref.projectId)
       graph               <- graph(target)
       targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout).map(t => targetId -> t) }
       requiredTargets     =  targetIndex.unzip._2.toSet
@@ -253,7 +255,7 @@ object Compilation {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] + TargetId(ref)).connections
-      Compilation(graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
+      Compilation(target, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
         moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
   }
@@ -284,22 +286,25 @@ object Compilation {
     compilation
   }
 
-  private val originIdCounter = new AtomicInteger(1)
-  def nextOriginId()(implicit log: Log): String = {
-    s"${log.pid.pid}-${originIdCounter.getAndIncrement}"
+  def nextOriginId(compilation: Compilation)(implicit log: Log): RequestOriginId = {
+    val originId = RequestOriginId.next(log.pid)
+    requestOrigins(originId) = compilation
+    originId
   }
+
+  def findOrigin(originId: RequestOriginId): Option[Compilation] = requestOrigins.get(originId)
 
 }
 
-class FuryBuildClient(compilation: Compilation,
-    targetId: TargetId, layout: Layout) extends BuildClient {
+class FuryBuildClient(targetId: TargetId, layout: Layout) extends BuildClient {
 
-  private def broadcast(event: CompileEvent): Unit = {
+  def broadcast(event: CompileEvent): Unit = {
     val ref = event match {
       case e: ModuleCompileEvent => e.ref
       case _ => targetId.ref
     }
-    BloopServer.subscribers(this).map(_.multiplexer).foreach(_(ref) = event)
+    BloopServer.subscribers(this).map(_.multiplexer)
+      .filter(_.contains(ref)).foreach(_(ref) = event)
   }
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit =
@@ -311,7 +316,18 @@ class FuryBuildClient(compilation: Compilation,
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val repos = compilation.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
+    val compilation = for {
+      originId    <- RequestOriginId.unapply(params.getOriginId)
+      compilation <- Compilation.findOrigin(originId)
+    } yield compilation
+
+    val repos = compilation match {
+      case Some(c) => c.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
+      case None =>
+        //FIXME
+        println(str"Request with originId: ${params.getOriginId} could not be matched to a compilation")
+        Map.empty
+    }
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
@@ -389,8 +405,11 @@ ${'|'} ${highlightedLine}
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val targetId = getCompileTargetId(params.getData)
     broadcast(StartCompile(targetId.ref))
-    compilation.deepDependencies(targetId).foreach { dependencyTargetId =>
-      broadcast(NoCompile(dependencyTargetId.ref))
+    for {
+      compilation <- Compilation.findBy(targetId)
+      dependencyTargetId <- compilation.deepDependencies(targetId)
+    } yield {
+      broadcast(NoCompile(dependencyTargetId.ref))  
     }
   }
 
@@ -398,13 +417,16 @@ ${'|'} ${highlightedLine}
     case TaskDataKind.COMPILE_REPORT =>
       val targetId = getCompileTargetId(params.getData)
       val ref = targetId.ref
-      broadcast(StopCompile(ref, params.getStatus == StatusCode.OK))
-      if(!compilation.targets(ref).kind.needsExecution) broadcast(StopRun(ref))
-      else broadcast(StartRun(ref))
+      broadcast( StopCompile(ref, params.getStatus == StatusCode.OK))
+      Compilation.findBy(targetId).foreach { compilation =>
+        val signal = if(compilation.targets(ref).kind.needsExecution) StartRun(ref) else StopRun(ref)
+        broadcast(signal)
+      }
   }
 }
 
-case class Compilation(graph: Target.Graph,
+case class Compilation(target: Target, 
+                       graph: Target.Graph,
                        subgraphs: Map[TargetId, Set[TargetId]],
                        checkouts: Checkouts,
                        targets: Map[ModuleRef, Target],
@@ -594,11 +616,11 @@ case class Compilation(graph: Target.Graph,
                     args: List[String],
                     noSecurity: Boolean)(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
-    val originId = Compilation.nextOriginId()
+    val originId = Compilation.nextOriginId(this)
 
     val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
-    params.setOriginId(originId)
+    params.setOriginId(originId.key)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
     val furyTargetIds = deepDependencies(target.id).toList
     
@@ -619,8 +641,8 @@ case class Compilation(graph: Target.Graph,
       }
 
       val responseOriginId = result.get.bspCompileResult.getOriginId
-      if(responseOriginId != originId){
-        log.warn(s"buildTarget/compile: Expected $originId, but got $responseOriginId")
+      if(responseOriginId != originId.key){
+        log.warn(s"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
       }
 
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
@@ -634,13 +656,15 @@ case class Compilation(graph: Target.Graph,
         soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
       }
 
-      result.get
+      (result.get, conn.client)
     }.map {
-      case compileResult if compileResult.isSuccessful && target.kind.needsExecution =>
+      case (compileResult, client) if compileResult.isSuccessful && target.kind.needsExecution =>
         val classDirectories = compileResult.classDirectories
+        client.broadcast(StartRun(target.ref))
         val exitCode = run(target, classDirectories, layout, globalPolicy, args, noSecurity)
+        client.broadcast(StopRun(target.ref))
         compileResult.copy(exitCode = Some(exitCode))
-      case otherResult =>
+      case (otherResult, _) =>
         otherResult
     }
   }
