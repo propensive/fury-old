@@ -36,7 +36,7 @@ object SourceRepo {
     pushed <- Shell(layout.env).git.remoteHasCommit(layout.pwd, commit, branch)
     _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, origin))
     name   <- local.repo.projectName
-    dest   <- Try((Xdg.runtimeDir / str"$name.bak").lowestNumberedNonexistentDir())
+    dest   <- Try((Xdg.runtimeDir / str"$name.bak").uniquify())
     files  <- Shell(layout.env).git.getTrackedFiles(layout.pwd)
     _      <- ~log.info(msg"Moving working directory contents to $dest")
     _      <- files.traverse { f => (layout.pwd / f).moveTo(dest / f) }

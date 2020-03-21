@@ -57,6 +57,7 @@ object Xdg {
   val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
   val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
   val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
+  val docsDir: Path = Var("DOCUMENTS_DIR").path.getOrElse(home / "Documents")
 
   val pathEnv: List[Path] = Option(System.getenv("PATH")).map { str => str.split(":").to[List].map(Path(_))
       }.getOrElse(Nil)
@@ -126,6 +127,7 @@ object Installation {
   val installDir: Path = Path(System.getProperty("fury.home"))
   val usrDir: Path = (installDir / "usr").extant()
   val binDir: Path = (installDir / "bin").extant()
+  val etcDir: Path = (installDir / "etc").extant()
   val scriptDir: Path = (installDir / "script").extant()
   val ipfsInstallDir: Path = installDir / "ipfs"
   val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"

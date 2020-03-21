@@ -42,6 +42,7 @@ object Args {
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
+  val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
   val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
   val SourceArg = CliParam[Source]('d', 'source, "specify a source directory")
   val DirArg = CliParam[Path]('d', 'dir, "specify the new repository destination directory")

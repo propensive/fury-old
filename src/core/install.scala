@@ -20,8 +20,9 @@ import fury._, io._, strings._, ogdl._, model._
 
 import gastronomy._
 import kaleidoscope._
+import mercator._
 import guillotine._, environments.enclosing
-import java.util.{List => _, _}
+import java.util.{List => _, Map => _, _}
 
 import scala.util._
 import scala.io._
@@ -37,6 +38,7 @@ object Install {
     
     _ <- rcInstall(env, force, Xdg.home / ".zshrc", ExecName("zsh"), zshCompletions)
     _ <- rcInstall(env, force, Xdg.home / ".bashrc", ExecName("bash"), Nil)
+    _ <- desktopInstall(env)
     _ <- fishInstall(env)
   } yield ()
 
@@ -50,6 +52,27 @@ object Install {
 
   private def fishInstall(env: Environment)(implicit log: Log): Try[Unit] =
     Try(log.warn(msg"Installation for ${ExecName("fish")} is not yet supported"))
+
+  private def iconDirs: List[Path] = List(16, 48, 128).map { s =>
+    Path("icons") / "hicolor" / str"${s}x${s}" / "apps" / "fury-icon.png"
+  }
+
+  private def desktopInstall(env: Environment)(implicit log: Log): Try[Unit] = for {
+    _       <- ~log.info(msg"Installing handler for fury:// URLs")
+    file    <- ~(Xdg.dataHome / "applications" / "fury.desktop")
+    _       <- ~file.writeSync(desktopEntry)
+    _       <- iconDirs.traverse { p => p.in(Installation.etcDir).copyTo(p.in(Xdg.dataHome)) }
+    _       <- sh"xdg-mime default fury.desktop x-scheme-handler/fury".exec[Try[String]]
+  } yield ()
+
+  private def desktopEntry: String = Map(
+    "Name"     -> "Fury",
+    "Exec"     -> "fury layer clone -D -e -l %u",
+    "Icon"     -> "fury-icon",
+    "Type"     -> "Application",
+    "Terminal" -> "false",
+    "MimeType" -> "x-scheme-handler/fury"
+  ).map { case (k, v) => s"$k=$v" }.join("[Desktop Entry]\n", "\n", "\n")
 
   private final val furyTag: String = "# Added by Fury"
   

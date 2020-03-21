@@ -560,16 +560,18 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   def cloneLayer: Try[ExitStatus] = for {
     cli        <- cli.hint(DirArg)
     cli        <- cli.hint(EditorArg)
+    cli        <- cli.hint(DocsArg)
     cli        <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call       <- cli.call()
     edit       <- ~call(EditorArg).isSuccess
+    useDocsDir <- ~call(DocsArg).isSuccess
     layerName  <- call(ImportArg)
     layerRef   <- Layer.resolve(layerName)
     layer      <- Layer.get(layerRef)
     dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
-    dir        <- ~pwd.resolve(dir)
-    _          <- ~log.info(msg"Cloning layer $layerName into ${dir.relativizeTo(pwd)}")
+    dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
+    _          <- ~log.info(msg"Cloning layer $layerName into ${if(useDocsDir) dir else dir.relativizeTo(pwd)}")
     _          <- ~dir.mkdir()
     newLayout  <- cli.newLayout
     layout     =  newLayout.copy(baseDir = dir)

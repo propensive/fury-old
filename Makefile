@@ -83,10 +83,19 @@ tmp/bin/ng.py:
 	 chmod +x "$@" && \
 	 printf "done\n" || printf "failed\n"
 
-dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury
+tmp/etc: doc/logo/render_1000px.png
+	@printf "Resizing logo for Fury icons..." && \
+	 mkdir -p tmp/etc/icons/hicolor/128x128/apps tmp/etc/icons/hicolor/48x48/apps tmp/etc/icons/hicolor/16x16/apps && \
+	 convert doc/logo/render_1000px.png -resize 16x16 tmp/etc/icons/hicolor/16x16/apps/fury-icon.png && \
+	 convert doc/logo/render_1000px.png -resize 48x48 tmp/etc/icons/hicolor/48x48/apps/fury-icon.png && \
+	 convert doc/logo/render_1000px.png -resize 128x128 tmp/etc/icons/hicolor/128x128/apps/fury-icon.png && \
+	 touch tmp/etc && \
+	 printf "done\n" || printf "failed\n"
+
+dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury tmp/etc tmp/etc
 	@printf "Creating bundle file..." && \
 	 mkdir -p dist && \
-	 tar czf "$@" -C tmp .version lib bin script && \
+	 tar czf "$@" -C tmp .version lib bin etc script && \
 	 printf "done\n" || printf "failed\n"
 
 tmp/.bundle.ipfs: dist/fury.tar.gz

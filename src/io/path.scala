@@ -106,8 +106,8 @@ case class Path(input: String) {
     childPaths.traverse(_.setWritable()).map(_.unit)
   }
 
-  def lowestNumberedNonexistentDir(): Path =
-    if(!exists()) this else Stream.from(1).map { i => this.rename(_+"-"+i) }.find(!_.exists()).get
+  def uniquify(): Path =
+    if(!exists()) this else Stream.from(2).map { i => this.rename(_+"-"+i) }.find(!_.exists()).get
 
   def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
     case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
