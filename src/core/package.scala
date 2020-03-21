@@ -21,6 +21,7 @@ import fury.strings._, fury.io._
 import escritoire._
 import gastronomy._
 import mercator._
+import optometry._
 
 import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions
@@ -28,6 +29,8 @@ import scala.util._
 
 object `package` {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
+
+  implicit def sortedSetExt[T](set: SortedSet[T]): SortedSetExt[T] = new SortedSetExt[T](set)
 
   implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
     implicitly[MsgShow[T]].show(_).string(theme)
@@ -85,4 +88,11 @@ object `package` {
       t3 <- monadTriple._3
     } yield that(t1, t2, t3)
   }
+
+  type Id[A] = A
+  implicit def lensOptic[A, AId](id: AId)(implicit resolver: Resolver[A, AId]): Optic[SortedSet, Id, A] =
+    new Optic[SortedSet, Id, A]("focus") {
+      def map[B](v: SortedSet[A])(fn: A => B): B     = fn(v.find(resolver.matchOn(id, _)).get)
+      def comap(f: SortedSet[A], g: A): SortedSet[A] = f.filterNot(resolver.matchOn(id, _)) + g
+    }
 }

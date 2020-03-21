@@ -36,7 +36,7 @@ case class Layer(version: Int,
                  repos: SortedSet[SourceRepo] = TreeSet(),
                  imports: SortedSet[Import] = TreeSet(),
                  main: Option[ProjectId] = None,
-                 mainRepo: Option[RepoId] = None) extends Lens.Partial[Layer] { layer =>
+                 mainRepo: Option[RepoId] = None) { layer =>
 
   def apply(id: ProjectId) = projects.findBy(id)
   def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
@@ -97,10 +97,12 @@ case class Layer(version: Int,
 
 }
 
-object Layer {
+object Layer extends Lens.Partial[Layer] {
   private val cache: HashMap[IpfsRef, Layer] = HashMap()
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
-  val CurrentVersion: Int = 5
+  val CurrentVersion: Int = 6
+
+  def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
   def retrieve(conf: FuryConf, quiet: Boolean = false)(implicit log: Log): Try[Layer] = for {
     base  <- get(conf.layerRef, quiet)
@@ -220,7 +222,7 @@ object Layer {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
         case 0 | 1 | 2 | 3 | 4 | 5 =>
-          log.fail(msg"Cannot migrate from layers earlier than version 3")
+          log.fail(msg"Cannot migrate from layers earlier than version 6")
           // FIXME: Handle this better
           throw new Exception()
         case _ => null: Ogdl

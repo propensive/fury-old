@@ -84,7 +84,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     module    <- optModule.asTry
     moduleRef <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
     force     <- ~call(ForceArg).isSuccess
-    layer     <- ~(Lenses.layer.dependencies(project.id, module.id)(layer) -= moduleRef)
+    layer     <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - moduleRef)
     _         <- Layer.commit(layer, conf, layout)
     _         <- ~Compilation.asyncCompilation(layer, moduleRef, layout, https)
   } yield log.await()
@@ -114,7 +114,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     intransitive     <- ~call(IntransitiveArg).isSuccess
     linkArg          <- call(LinkArg)
     moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
-    layer            <- ~(Lenses.layer.dependencies(project.id, module.id)(layer) += moduleRef)
+    layer            <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + moduleRef)
     _                <- Layer.commit(layer, conf, layout)
     _                <- ~Compilation.asyncCompilation(layer, moduleRef, layout, false)
   } yield log.await()
@@ -161,10 +161,10 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    optModule    <- ~(for {
+                      project  <- optProject
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module)
 
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     cli          <- cli.hint(EnvArg, optModule.to[List].flatMap(_.environment.to[List]))
@@ -174,7 +174,7 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     project      <- optProject.asTry
     module       <- optModule.asTry
     force        <- ~call(ForceArg).isSuccess
-    layer        <- ~(Lenses.layer.environment(project.id, module.id)(layer) -= envArg)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ - envArg)
     _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -201,7 +201,7 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     project         <- optProject.asTry
     module          <- optModule.asTry
     envArg          <- call(EnvArg)
-    layer           <- ~(Lenses.layer.environment(project.id, module.id)(layer) += envArg)
+    layer           <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ + envArg)
     _               <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }
@@ -237,7 +237,8 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     actionArg       =  call(ActionArg).toOption
     grant           =  call(NoGrantArg).isFailure
     permission      =  Permission(classArg, targetArg, actionArg)
-    layer           <- ~(Lenses.layer.policy(project.id, module.id)(layer) += permission)
+    layer           <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_ +
+                           permission)
     _               <- Layer.commit(layer, conf, layout)
     policy          <- ~Policy.read(log)
     newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
@@ -274,7 +275,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
     permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
     force         =  call(ForceArg).isSuccess
-    layer         <- ~Lenses.layer.policy(project.id, module.id).modify(layer)(_.diff(permissions.to[Set]))
+    layer         <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_.diff(permissions.to[Set]))
     _             <- Layer.commit(layer, conf, layout)
   } yield log.await()
   
@@ -395,7 +396,7 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     project   <- optProject.asTry
     module    <- optModule.asTry
     force     <- ~call(ForceArg).isSuccess
-    layer     <- ~(Lenses.layer.properties(project.id, module.id)(layer) -= propArg)
+    layer     <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ - propArg)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -435,7 +436,7 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     project         <- optProject.asTry
     module          <- optModule.asTry
     propArg         <- call(PropArg)
-    layer           <- ~(Lenses.layer.properties(project.id, module.id)(layer) += propArg)
+    layer           <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ + propArg)
     _               <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }

@@ -38,7 +38,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     projectId   <- ~cli.peek(ProjectArg)
     projectId   <- projectId.asTry
     force       <- ~call(ForceArg).isSuccess
-    layer       <- ~(Lenses.layer.lens(_.main)(layer) = Some(projectId))
+    layer       <- ~(Layer(_.main)(layer) = Some(projectId))
     _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -77,8 +77,8 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     projectId      <- call(ProjectNameArg)
     license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))
     project        <- ~Project(projectId, license = license, compiler = optCompilerRef)
-    layer          <- ~(Lenses.layer.projects.modify(layer)((_: SortedSet[Project]) + project))
-    layer          <- ~(Lenses.layer.mainProject(layer) = Some(project.id))
+    layer          <- ~Layer(_.projects).modify(layer)(_ + project)
+    layer          <- ~(Layer(_.main)(layer) = Some(project.id))
     _              <- Layer.commit(layer, conf, layout)
     _              <- ~log.info(msg"Set current project to ${project.id}")
   } yield log.await()
@@ -93,8 +93,8 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     projectId   <- call(ProjectArg)
     project     <- layer.projects.findBy(projectId)
     force       <- ~call(ForceArg).isSuccess
-    layer       <- ~(Lenses.layer.projects.modify(layer)((_: SortedSet[Project]).filterNot(_.id == project.id)))
-    layer       <- ~(Lenses.layer.mainProject.modify(layer) { v => if(v == Some(projectId)) None else v })
+    layer       <- ~Layer(_.projects).modify(layer)(_.evict(project.id))
+    layer       <- ~Layer(_.main).modify(layer) { v => if(v == Some(projectId)) None else v }
     _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -114,17 +114,17 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     project        <- layer.projects.findBy(projectId)
     force          <- ~call(ForceArg).isSuccess
     licenseArg     <- ~call(LicenseArg).toOption
-    layer          <- ~licenseArg.fold(layer)(layer.lens(_.projects(on(project.id)).license)(layer) = _)
+    layer          <- ~licenseArg.fold(layer)(Layer(_.projects(project.id).license)(layer) = _)
     descriptionArg <- ~call(DescriptionArg).toOption
-    layer          <- ~descriptionArg.fold(layer)(layer.lens(_.projects(on(project.id)).description)(layer) = _)
+    layer          <- ~descriptionArg.fold(layer)(Layer(_.projects(project.id).description)(layer) = _)
     compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true))
-    layer          <- ~compilerArg.map(Some(_)).fold(layer)(layer.lens(_.projects(on(project.id)).compiler)(layer) = _)
+    layer          <- ~compilerArg.map(Some(_)).fold(layer)(Layer(_.projects(project.id).compiler)(layer) = _)
     nameArg        <- ~call(ProjectNameArg).toOption
     newId          <- ~nameArg.flatMap(layer.projects.unique(_).toOption)
-    layer          <- ~newId.fold(layer)(layer.lens(_.projects(on(project.id)).id)(layer) = _)
+    layer          <- ~newId.fold(layer)(Layer(_.projects(project.id).id)(layer) = _)
     
     layer          <- if(newId.isEmpty || layer.main != Some(project.id)) ~layer
-                      else ~(layer.lens(_.main)(layer) = newId)
+                      else ~(Layer(_.main)(layer) = newId)
 
     _              <- Layer.commit(layer, conf, layout)
   } yield log.await()

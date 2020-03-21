@@ -81,8 +81,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     project     <- optProject.asTry
     module      <- optModule.asTry
     _           <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project))) else Success(())
-
-    layer       <- ~(Lenses.layer.sources(project.id, module.id)(layer) -= source)
+    layer       <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
     _           <- Layer.commit(layer, conf, layout)
     _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -117,7 +116,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     project    <- optProject.asTry
     module     <- optModule.asTry
     source     <- call(SourceArg)
-    layer      <- ~(Lenses.layer.sources(project.id, module.id)(layer) ++= Some(source))
+    layer      <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))
     _          <- Layer.commit(layer, conf, layout)
     _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -149,7 +148,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
   lazy val resources: Try[SortedSet[Source]] = module >> (_.resources)
 
   def resourcesLens(projectId: ProjectId, moduleId: ModuleId) =
-    Lens[Layer](_.projects(on(projectId)).modules(on(moduleId)).resources)
+    Lens[Layer](_.projects(projectId).modules(moduleId).resources)
 
   lazy val resource: Try[Source] = cli.preview(SourceArg)()
 
@@ -179,7 +178,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
       (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
         val lens = (projectId, moduleId) >> resourcesLens
         (resources, SourceArg()) >> removeFromSet >>= { resources =>
-          (layer, lens) >> Lenses.set(resources) >> commit >> finish
+          (layer, lens) >> Layer.set(resources) >> commit >> finish
         }
       }
     }
@@ -187,7 +186,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
     def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
       val lens = (projectId, moduleId) >> resourcesLens
       (resources, SourceArg()) >> addToSet >>= { resources =>
-        (layer, lens) >> Lenses.set(resources) >> commit >> finish
+        (layer, lens) >> Layer.set(resources) >> commit >> finish
       }
     }
   }

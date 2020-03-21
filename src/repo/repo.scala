@@ -25,8 +25,6 @@ import optometry._
 import mercator._
 import scala.util._
 
-import Lenses._
-
 case class RepoCli(cli: Cli)(implicit log: Log) {
 
   def list: Try[ExitStatus] = for {
@@ -59,7 +57,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     local     <- ~layer.localRepo(layout).toOption
     https     <- ~call(HttpsArg).isSuccess
     _         <- repo.checkout(layout, local, https)
-    layer     <- ~(layer.lens(_.mainRepo)(layer) = Some(repo.id))
+    layer     <- ~(Layer(_.mainRepo)(layer) = Some(repo.id))
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -73,8 +71,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     repo      <- layer.repos.findBy(repoId)
     _         <- repo.isForked()
     newRepo   <- repo.unfork(layout, true)
-    lens      <- ~Lenses.layer.repos
-    layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+    layer     <- ~Layer(_.repos).modify(layer)(_ - repo + newRepo)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -101,8 +98,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
                       repo.commit, Some(repo.repo.universal(false)))
 
     newRepo   <- ~repo.copy(local = Some(absPath))
-    lens      <- ~Lenses.layer.repos
-    layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
+    layer     <- ~Layer(_.repos).modify(layer)(_ - repo + newRepo)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -122,7 +118,6 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
 
     repos     <- optRepos.map(layer.repo(_, layout)).sequence
     succeeded <- ~repos.map(_.pull(layout, https)).forall(_.isSuccess)
-    lens      <- ~Lenses.layer.repos
 
     newRepos  <- repos.map { repo => for {
                     commit  <- repo.repo.getCommitFromTag(layout, repo.track)
@@ -130,7 +125,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
                   } yield (newRepo, repo) }.sequence
 
     newLayer   = newRepos.foldLeft(layer) { (layer, repoDiff) => repoDiff match {
-                    case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
+                    case (newRepo, oldRepo) => Layer(_.repos).modify(layer)(_ - oldRepo + newRepo) }
                   }
 
     _         <- Layer.commit(layer, conf, layout)
@@ -172,8 +167,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
 
     nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
     sourceRepo     <- ~SourceRepo(nameArg, repo, refSpec, commit, dir)
-    lens           <- ~Lenses.layer.repos
-    layer          <- ~(lens.modify(layer)(_ + sourceRepo))
+    layer          <- ~Layer(_.repos).modify(layer)(_ + sourceRepo)
     _              <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -197,12 +191,12 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     remote      <- ~remoteArg.map(Repo(_))
     nameArg     <- ~call(RepoNameArg).toOption
     force       <- ~call(ForceArg).isSuccess
-    layer       <- ~remote.fold(layer)(layer.lens(_.repos(on(repo.id)).repo)(layer) = _)
-    layer       <- ~refSpec.fold(layer)(layer.lens(_.repos(on(repo.id)).track)(layer) = _)
-    layer       <- ~dir.map(Some(_)).fold(layer)(layer.lens(_.repos(on(repo.id)).local)(layer) = _)
-    layer       <- ~nameArg.fold(layer)(layer.lens(_.repos(on(repo.id)).id)(layer) = _)
+    layer       <- ~remote.fold(layer)(Layer(_.repos(repo.id).repo)(layer) = _)
+    layer       <- ~refSpec.fold(layer)(Layer(_.repos(repo.id).track)(layer) = _)
+    layer       <- ~dir.map(Some(_)).fold(layer)(Layer(_.repos(repo.id).local)(layer) = _)
+    layer       <- ~nameArg.fold(layer)(Layer(_.repos(repo.id).id)(layer) = _)
     commit      <- refSpec.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
-    layer       <- ~(layer.lens(_.repos(on(repo.id)).commit)(layer) = commit)
+    layer       <- ~(Layer(_.repos(repo.id).commit)(layer) = commit)
     _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -214,8 +208,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     call      <- cli.call()
     repoId    <- call(RepoArg)
     repo      <- layer.repos.findBy(repoId)
-    lens      <- ~Lenses.layer.repos
-    layer     <- ~(lens(layer) -= repo)
+    layer     <- ~Layer(_.repos).modify(layer)(_ - repo)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }

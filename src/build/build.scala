@@ -202,7 +202,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     call       <- cli.call()
     aliasArg   <- call(AliasArg)
     aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
-    layer      <- ~(Lenses.layer.aliases(layer) --= aliasToDel)
+    layer      <- ~Layer(_.aliases).modify(layer)(_ -- aliasToDel)
     _          <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -227,7 +227,7 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     aliasArg         <- call(AliasArg)
     description      <- call(DescriptionArg)
     alias            <- ~Alias(aliasArg, description, moduleRef, call.suffix)
-    layer            <- ~(Lenses.layer.aliases(layer) += alias)
+    layer            <- ~Layer(_.aliases).modify(layer)(_ + alias)
     _                <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }
@@ -656,7 +656,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                      })
 
     ref           <- ~Import(nameArg, newLayerRef, pub)
-    layer         <- ~(Lenses.layer.imports.modify(layer)(_ + ref.copy(id = nameArg)))
+    layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -667,8 +667,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
     call      <- cli.call()
     importArg <- call(ImportIdArg)
-    lens      <- ~Lenses.layer.imports
-    layer     <- ~lens.modify(layer)(_.filterNot(_.id == importArg))
+    layer     <- ~Layer(_.imports).modify(layer)(_.evict(importArg))
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -691,10 +690,9 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     importArg <- call(ImportIdArg)
     imported  <- layer.imports.findBy(importArg)
     published <- imported.remote.ascribe(ImportHasNoRemote())
-    lens      <- ~Lenses.layer.importRemote(importArg)
     artifact  <- Service.latest(published.url.domain, published.url.path, Some(published.version))
     newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version)
-    layer     <- ~(lens(layer) = Some(newPub))
+    layer     <- ~(Layer(_.imports(importArg).remote)(layer) = Some(newPub))
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 

@@ -39,7 +39,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     moduleId     <- ~call(ModuleArg).toOption
     moduleId     <- moduleId.asTry
     _            <- project(moduleId)
-    layer        <- ~(Lenses.layer(_.projects(on(project.id)).main)(layer) = Some(moduleId))
+    layer        <- ~(Layer(_.projects(project.id).main)(layer) = Some(moduleId))
     _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -105,14 +105,14 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     module         <- ~call(PluginArg).toOption.fold(module) { p => module.copy(plugin = if(p.key.isEmpty) None else
                           Some(p)) }
 
-    layer          <- ~(Lenses.layer(_.projects(on(project.id)).modules).modify(layer)(_ + module))
-    layer          <- ~(Lenses.layer(_.projects(on(project.id)).main)(layer) = Some(module.id))
+    layer          <- ~Layer(_.projects(project.id).modules).modify(layer)(_ + module)
+    layer          <- ~(Layer(_.projects(project.id).main)(layer) = Some(module.id))
 
     layer          <- if(project.compiler.isEmpty && compilerRef != ModuleRef.JavaRef) {
-                        ~(Lenses.layer.compiler(project.id).modify(layer) { v =>
+                        ~Layer(_.projects(project.id).compiler).modify(layer) { v =>
                           log.info(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
                           Some(compilerRef)
-                        })
+                        }
                       } else Try(layer)
 
     _              <- Layer.commit(layer, conf, layout)
@@ -139,8 +139,8 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     moduleId     <- call(ModuleArg)
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
-    layer        <- ~(Lenses.layer.modules(project.id).modify(layer)(_.filterNot(_.id == module.id)))
-    layer        <- ~(Lenses.layer.mainModule(project.id).modify(layer)(_.filterNot(_ == moduleId)))
+    layer        <- ~Layer(_.projects(project.id).modules).modify(layer)(_.evict(module.id))
+    layer        <- ~Layer(_.projects(project.id).main).modify(layer)(_.filterNot(_ == moduleId))
     _            <- Layer.commit(layer, conf, layout)
     _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -190,17 +190,17 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     name        <- newId.to[List].map(project.modules.unique(_)).sequence.map(_.headOption)
     bloopSpec   <- cli.peek(BloopSpecArg).to[List].map(_.as[BloopSpec]).sequence.map(_.headOption)
     
-    layer       <- ~optKind.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).kind)(layer) = _)
-    layer       <- ~compilerRef.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).compiler)(layer) = _)
-    layer       <- ~hidden.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).hidden)(layer) = _)
-    layer       <- ~bloopSpec.map(Some(_)).fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).bloopSpec)(layer) = _)
-    layer       <- ~mainClass.map(Some(_)).fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).main)(layer) = _)
-    layer       <- ~pluginName.map(Some(_)).fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).plugin)(layer) = _)
+    layer       <- ~optKind.fold(layer)(Layer(_.projects(project.id).modules(module.id).kind)(layer) = _)
+    layer       <- ~compilerRef.fold(layer)(Layer(_.projects(project.id).modules(module.id).compiler)(layer) = _)
+    layer       <- ~hidden.fold(layer)(Layer(_.projects(project.id).modules(module.id).hidden)(layer) = _)
+    layer       <- ~bloopSpec.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).bloopSpec)(layer) = _)
+    layer       <- ~mainClass.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).main)(layer) = _)
+    layer       <- ~pluginName.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).plugin)(layer) = _)
 
     layer       <- if(newId.isEmpty || project.main != Some(module.id)) ~layer
-                   else ~(Lenses.layer(_.projects(on(project.id)).main)(layer) = newId)
+                   else ~(Layer(_.projects(project.id).main)(layer) = newId)
 
-    layer       <- ~name.fold(layer)(Lenses.layer(_.projects(on(project.id)).modules(on(module.id)).id)(layer) = _)
+    layer       <- ~name.fold(layer)(Layer(_.projects(project.id).modules(module.id).id)(layer) = _)
     _           <- Layer.commit(layer, conf, layout)
     _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -261,7 +261,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     project     <- optProject.asTry
     module      <- optModule.asTry
     binary      <- module.binaries.findBy(binaryArg)
-    layer       <- ~(Lenses.layer.binaries(project.id, module.id)(layer) -= binary)
+    layer       <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - binary)
     _           <- Layer.commit(layer, conf, layout)
     _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -287,7 +287,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     project     <- optProject.asTry
     module      <- optModule.asTry
     binaryToDel <- module.binaries.findBy(binaryArg)
-    layer       <- ~(Lenses.layer.binaries(project.id, module.id)(layer) -= binaryToDel)
+    layer       <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - binaryToDel)
     _           <- Layer.commit(layer, conf, layout)
     _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -313,7 +313,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     repoId     <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
     binary     <- Binary(binName, repoId, binSpecArg)
     _          <- module.binaries.unique(binary.id)
-    layer      <- ~(Lenses.layer.binaries(project.id, module.id)(layer) += binary)
+    layer       <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
     _          <- Layer.commit(layer, conf, layout)
     _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -377,7 +377,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     project  <- optProject.asTry
     module   <- optModule.asTry
     opt      <- ~module.opts.find(_.id == paramArg)
-    layer    <- ~opt.fold(Lenses.layer.opts(project.id, module.id)(layer) += Opt(paramArg, persist, true))(Lenses.layer.opts(project.id, module.id)(layer) -= _)
+    base     <- ~Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ + Opt(paramArg, persist, true))
+    
+    layer    <- ~opt.fold(base) { optToDel =>
+                  Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ - optToDel)
+                }
+
     _        <- Layer.commit(layer, conf, layout)
     _        <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
@@ -409,7 +414,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     persist     <- ~call(PersistentArg).isSuccess
     transform   <- ~call.suffix
     optDef      <- ~OptDef(option, description, transform, persist)
-    layer       <- ~(Lenses.layer.optDefs(project.id, module.id)(layer) += optDef)
+    layer       <- ~Layer(_.projects(project.id).modules(module.id).optDefs).modify(layer)(_ + optDef)
     _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -434,7 +439,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     module      <- optModule.asTry
     project     <- optProject.asTry
     optDef      <- module.optDefs.findBy(option)
-    layer       <- ~(Lenses.layer.optDefs(project.id, module.id)(layer) -= optDef)
+    layer       <- ~Layer(_.projects(project.id).modules(module.id).optDefs).modify(layer)(_ - optDef)
     _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
@@ -469,7 +474,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     paramArg <- call(OptArg)
     persist  <- ~call(PersistentArg).isSuccess
     param    <- ~Opt(paramArg, persist, remove = false)
-    layer    <- ~(Lenses.layer.opts(project.id, module.id)(layer) += param)
+    layer    <- ~Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ + param)
     _        <- Layer.commit(layer, conf, layout)
     _        <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
