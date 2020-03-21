@@ -43,7 +43,7 @@ object Lifecycle {
   case class Session(cli: Cli, thread: Thread) {
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
-    private var _multiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(List.empty)
+    private var _multiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(Set.empty)
     def multiplexer = synchronized{ _multiplexer }
     def multiplexer_=(m: Multiplexer[ModuleRef, CompileEvent]) = synchronized{ _multiplexer = m }
   }

@@ -509,7 +509,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     for {
       _            <- compilation.checkoutAll(layout, https)
     } yield {
-      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[List])
+      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
       val future = compilation.compile(moduleRef, Map(), layout,
         globalPolicy, compileArgs, pipelining, noSecurity).apply(TargetId(moduleRef)).andThen {

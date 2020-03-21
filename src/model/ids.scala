@@ -292,6 +292,22 @@ case class TargetId(key: String) extends AnyVal {
   def ref: ModuleRef = ModuleRef(projectId, moduleId)
 }
 
+case class RequestOriginId private(pid: Pid, counter: Int) {
+  val key = s"fury-${pid.pid}-${RequestOriginId.originIdCounter.getAndIncrement}"
+}
+
+object RequestOriginId {
+  private val originIdCounter = new java.util.concurrent.atomic.AtomicInteger(1)
+
+  def next(pid: Pid): RequestOriginId = RequestOriginId(pid, originIdCounter.getAndIncrement)
+
+  def unapply(originId: String): Option[RequestOriginId] = {
+    originId.only {
+      case r"fury-$pid@([0-9]+)-$counter@([0-9]+)" =>RequestOriginId(Pid(pid.toInt), counter.toInt)
+    }
+  }
+}
+
 case class BinRepoId(id: String)
 
 object BinRepoId {

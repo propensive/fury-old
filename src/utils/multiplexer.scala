@@ -17,7 +17,7 @@
 package fury.utils
 
 /** a streaming multiplexer optimized for concurrent writes */
-final class Multiplexer[K, V](keys: List[K]) {
+final class Multiplexer[K, V](keys: Set[K]) {
   private[this] var show: Boolean = false
   private[this] val state: Array[List[V]]  = Array.fill(keys.size)(Nil)
   private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
@@ -46,6 +46,8 @@ final class Multiplexer[K, V](keys: List[K]) {
     }
     stream(state.to[List])
   }
+
+  def contains(key: K): Boolean = keys.contains(key)
 
   /** This method should only ever be called from one thread for any given reference, to
     *  guarantee safe concurrent access. */
