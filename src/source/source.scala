@@ -131,7 +131,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
  
   lazy val layout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = layout >>= Layer.readFuryConf
-  lazy val layer: Try[Layer] = conf >>= (Layer.retrieve(_, false))
+  lazy val layer: Try[Layer] = conf >>= (Layer.retrieve(_))
 
   lazy val projectId: Try[ProjectId] = layer >>= (cli.preview(ProjectArg)() orElse _.main.asTry)
   lazy val project: Try[Project] = (layer, projectId) >>= (_.projects.findBy(_))
@@ -154,7 +154,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
 
   private def removeFromSet[T](items: SortedSet[T], item: T): SortedSet[T] = items - item
   private def addToSet[T](items: SortedSet[T], item: T): SortedSet[T] = items + item
-  private def commit(layer: Layer): Try[Unit] = (Try(layer), conf, layout) >>= (Layer.commit(_, _, _, false))
+  private def commit(layer: Layer): Try[Unit] = (Try(layer), conf, layout) >>= (Layer.commit(_, _, _))
   private def finish[T](result: T): ExitStatus = log.await()
 
   object Resources {

@@ -49,13 +49,13 @@ case class Layer(version: Int,
 
   def hierarchy(layout: Layout)(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
-      layer        <- Layer.get(ref.layerRef, quiet = false)
+      layer        <- Layer.get(ref.layerRef)
       tree         <- layer.hierarchy(layout)
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
-    imports.to[List].map { sr => Layer.get(sr.layerRef, quiet = false).map(sr.id -> _) }.sequence.map(_.toMap)
+    imports.to[List].map { sr => Layer.get(sr.layerRef).map(sr.id -> _) }.sequence.map(_.toMap)
 
   def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
   
@@ -104,39 +104,44 @@ object Layer extends Lens.Partial[Layer] {
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
-  def retrieve(conf: FuryConf, quiet: Boolean = false)(implicit log: Log): Try[Layer] = for {
-    base  <- get(conf.layerRef, quiet)
-    layer <- dereference(base, conf.path, quiet)
+  def retrieve(conf: FuryConf)(implicit log: Log): Try[Layer] = for {
+    base  <- get(conf.layerRef)
+    layer <- dereference(base, conf.path)
   } yield layer
 
-  private def dereference(layer: Layer, path: ImportPath, quiet: Boolean)(implicit log: Log): Try[Layer] =
+  private def dereference(layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
     if(path.isEmpty) Success(layer)
     else for {
       layerImport <- layer.imports.findBy(path.head)
-      layer       <- get(layerImport.layerRef, quiet)
-      layer       <- dereference(layer, path.tail, quiet)
+      layer       <- get(layerImport.layerRef)
+      layer       <- dereference(layer, path.tail)
     } yield layer
 
-  def get(layerRef: LayerRef, quiet: Boolean = false)(implicit log: Log): Try[Layer] =
+  def get(layerRef: LayerRef)(implicit log: Log): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
-      ipfs  <- Ipfs.daemon(quiet)
+      ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Try(Ogdl.read[Layer](data, migrate(_)))
     } yield layer }
 
-  def store(layer: Layer, quiet: Boolean = false)(implicit log: Log): Try[LayerRef] = for {
-    ipfs    <- Ipfs.daemon(quiet)
+  def store(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
+    ipfs    <- Ipfs.daemon(false)
     ipfsRef <- ipfs.add(Ogdl.serialize(Ogdl(layer)))
     _       <- Try(cache.synchronized { cache(ipfsRef) = layer })
   } yield LayerRef(ipfsRef.key)
 
-  def commit(layer: Layer, conf: FuryConf, layout: Layout, quiet: Boolean = false)
-            (implicit log: Log)
-            : Try[Unit] = for {
-    ref  <- store(layer, quiet)
-    conf <- ~conf.copy(layerRef = ref)
-    _    <- saveFuryConf(conf, layout)
-  } yield ()
+  def commit(layer: Layer, conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] = for {
+    baseRef <- commitNested(conf, layer)
+    _       <- saveFuryConf(conf.copy(layerRef = baseRef), layout)
+    } yield ()
+
+  private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =
+    if(conf.path.isEmpty) store(layer) else for {
+      ref     <- store(layer)
+      parent  <- retrieve(conf.parent)
+      pLayer   = Layer(_.imports(conf.path.last).layerRef)(parent) = ref
+      baseRef <- commitNested(conf.parent, pLayer)
+    } yield baseRef
 
   def hashes(layer: Layer)(implicit log: Log): Try[Set[IpfsRef]] = for {
     layerRef  <- store(layer)
@@ -166,11 +171,11 @@ object Layer extends Lens.Partial[Layer] {
   def init(layout: Layout)(implicit log: Log): Try[Unit] = {
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
-      layer    <- Layer.get(conf.layerRef, false)
+      layer    <- Layer.get(conf.layerRef)
       _        <- ~log.info(msg"Reinitialized layer ${conf.layerRef}")
     } yield () } else { for {
       _        <- layout.confFile.mkParents()
-      ref      <- store(Layer(CurrentVersion), false)
+      ref      <- store(Layer(CurrentVersion))
       conf     <- saveFuryConf(FuryConf(ref), layout)
       _        <- ~log.info(msg"Initialized an empty layer")
     } yield () }

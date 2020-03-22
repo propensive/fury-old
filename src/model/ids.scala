@@ -134,11 +134,11 @@ case class ImportPath(path: String) {
 
   def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
   def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("/", "/", ""))
-  def isEmpty: Boolean = parts.length == 0
+  def init: ImportPath = ImportPath(parts.init.map(_.key).mkString("/", "/", ""))
   def head: ImportId = parts.head
-  
-  def prefix(importId: ImportId): ImportPath =
-    ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
+  def last: ImportId = parts.last
+  def isEmpty: Boolean = parts.length == 0
+  def prefix(importId: ImportId): ImportPath = ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
 
   def dereference(relPath: ImportPath): Try[ImportPath] = {
     import java.nio.file.{ Path, Paths }
@@ -209,6 +209,8 @@ case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
 
   def focus(projectId: ProjectId, moduleId: ModuleId): Focus =
     Focus(layerRef, path, Some((projectId, Some(moduleId))))
+  
+  def parent: FuryConf = FuryConf(layerRef, path.init, published)
 }
 
 case class OauthToken(value: String)

@@ -713,7 +713,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       importId  <- ~cli.peek(ImportArg)
       raw       <- ~call(RawArg).isSuccess
       https     <- ~call(HttpsArg).isSuccess
-      rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef, true)) }
+      rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef)) }
       table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
       _         <- ~log.infoWhen(!raw)(conf.focus())
       _         <- ~log.rawln(table)
