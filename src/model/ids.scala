@@ -297,7 +297,7 @@ object TargetId {
   def apply(ref: ModuleRef): TargetId =
     TargetId(ref.projectId, ref.moduleId)
 
-  implicit val keyName: KeyName[TargetId] = () => msg"foobar"
+  implicit val keyName: KeyName[TargetId] = () => msg"target"
 
   implicit val uriParser: Parser[TargetId] = parse(_)
 
