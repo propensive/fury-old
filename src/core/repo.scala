@@ -53,7 +53,7 @@ object Repo {
         other
     }
   
-    def local(layout: Layout): Try[Repo] = Shell(layout.env).git.getOrigin(layout.baseDir).map(Repo(_))
+    def local(layout: Layout): Try[Repo] = Shell(layout.env).git.getOrigin(layout.baseDir / ".git").map(Repo(_))
   }
   
   case class Repo(ref: String) {
