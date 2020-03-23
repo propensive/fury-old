@@ -145,7 +145,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
       thread.start()
       
-      val client = new FuryBuildClient(targetId, layout)
+      val client = new FuryBuildClient(layout)
         
       val bspServer = new Launcher.Builder[FuryBspServer]()
         .setRemoteInterface(classOf[FuryBspServer])
@@ -296,22 +296,34 @@ object Compilation {
 
 }
 
-class FuryBuildClient(targetId: TargetId, layout: Layout) extends BuildClient {
+class FuryBuildClient(layout: Layout) extends BuildClient {
 
   def broadcast(event: CompileEvent): Unit = {
-    val ref = event match {
-      case e: ModuleCompileEvent => e.ref
-      case _ => targetId.ref
+    event match {
+      case e: ModuleCompileEvent =>
+        BloopServer.subscribers(this).map(_.multiplexer)
+          .filter(_.contains(e.ref)).foreach(_(e.ref) = event)
+      case Tick =>
+        BloopServer.subscribers(this).map(_.multiplexer)
+          .foreach(_.updateAll(Tick))
     }
-    BloopServer.subscribers(this).map(_.multiplexer)
-      .filter(_.contains(ref)).foreach(_(ref) = event)
   }
 
-  override def onBuildShowMessage(params: ShowMessageParams): Unit =
-    broadcast(Print(targetId.ref, params.getMessage))
+  override def onBuildShowMessage(params: ShowMessageParams): Unit = {
+    val ref = for {
+      originId <- RequestOriginId.unapply(params.getOriginId)
+      compilation <- Compilation.findOrigin(originId)
+    } yield compilation.target.ref
+    broadcast(Print(ref.get, params.getMessage))
+  }
 
-  override def onBuildLogMessage(params: LogMessageParams): Unit =
-    broadcast(Print(targetId.ref, params.getMessage))
+  override def onBuildLogMessage(params: LogMessageParams): Unit = {
+    val ref = for {
+      originId <- RequestOriginId.unapply(params.getOriginId)
+      compilation <- Compilation.findOrigin(originId)
+    } yield compilation.target.ref
+    broadcast(Print(ref.get, params.getMessage))
+  }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
