@@ -24,13 +24,13 @@ import scala.util._
 import guillotine._
 
 object Service {
-  def catalog(service: String)(implicit log: Log): Try[List[Artifact]] = {
+  def catalog(service: String)(implicit log: Log): Try[List[String]] = {
     val url = Https(Path(service) / "catalog")
     
     for {
       bytes <- Http.get(url, Set())
       catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
-      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
+      artifacts <- Try(catalog.entries.as[List[String]].get)
     } yield artifacts
   }
 
@@ -51,38 +51,57 @@ object Service {
       artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
     } yield artifact
 
-  def publish(service: String,
-              hash: IpfsRef,
-              group: Option[String],
-              name: Option[String],
-              quiet: Boolean,
-              breaking: Boolean,
-              public: Boolean,
-              major: Int,
-              minor: Int,
-              token: OauthToken,
-              dependencies: Set[IpfsRef])
-             (implicit log: Log)
-             : Try[PublishedLayer] = {
-
-    val url = Https(Path(service) / "publish")
+  def share(service: String, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef])
+           (implicit log: Log)
+           : Try[Unit] = {
     
-    case class Request(path: String, token: String, hash: String, breaking: Boolean, public: Boolean,
-        major: Int, minor: Int, dependencies: List[String])
+    val url = Https(Path(service) / "share")
 
-    case class Response(major: Int, minor: Int, name: String)
+    case class Request(refs: List[String], token: String)
+    case class Response(refs: List[String])
 
-    val request = Request(List(group, name).flatten.mkString("/"), token.value, hash.key, breaking, public, major, minor,
-        dependencies.map(_.key).to[List])
-    
+    val request = Request((ref :: dependencies.to[List]).map(_.key), token.value)
+
     for {
-      ipfs <- Ipfs.daemon(quiet)
+      ipfs <- Ipfs.daemon(false)
       id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json(request), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
-      _    <- ~log.info(json.toString)
+      _    <- ~log.note(json.toString)
       res  <- Try(json.as[Response].get)
-    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.name), LayerVersion(res.major, res.minor))
+    } yield ()
+  }
+
+  def tag(service: String,
+          hash: IpfsRef,
+          group: Option[String],
+          name: String,
+          breaking: Boolean,
+          public: Boolean,
+          major: Int,
+          minor: Int,
+          token: OauthToken)
+         (implicit log: Log)
+         : Try[PublishedLayer] = {
+
+    val url = Https(Path(service) / "tag")
+    
+    case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
+        public: Boolean, breaking: Boolean)
+
+    case class Response(path: String, ref: String, version: LayerVersion)
+
+    val request = Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking)
+    
+    for {
+      ipfs <- Ipfs.daemon(false)
+      id   <- Try(ipfs.id().get)
+      out  <- Http.post(url, Json(request), headers = Set())
+      str  <- Success(new String(out, "UTF-8"))
+      json <- Try(Json.parse(str).get)
+      _    <- ~log.note(json.toString)
+      res  <- Try(json.as[Response].get)
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version)
   }
 }

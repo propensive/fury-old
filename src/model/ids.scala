@@ -177,7 +177,7 @@ object PublishedLayer {
   }
 }
 
-case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.Zero)
+case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.First)
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
@@ -188,7 +188,7 @@ object LayerVersion {
   def unapply(str: String): Option[LayerVersion] =
     str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, minor.toInt) }
 
-  final val Zero: LayerVersion = LayerVersion(0, 0)
+  final val First: LayerVersion = LayerVersion(1, 0)
 }
 
 case class LayerVersion(major: Int, minor: Int)
@@ -243,7 +243,6 @@ object IpfsRef {
 case class IpfsRef(key: String) extends Key(msg"IPFS ref") with LayerName {
   def suggestedName: Option[ImportId] = None
   def uri: Uri = Uri("fury", Path(key))
-  def publishedLayer: Option[PublishedLayer] = None
 }
 
 object RemoteLayerId {
@@ -262,7 +261,9 @@ object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(path: String, ref: String, version: LayerVersion)
+case class Artifact(ref: String, timestamp: Long, version: LayerVersion) {
+  def layerRef: LayerRef = LayerRef(ref)
+}
 
 object LayerRef {
   implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.drop(2).take(8)))
@@ -519,7 +520,7 @@ object Import {
   implicit val msgShow: MsgShow[Import] = v =>
     UserMsg(msg"${v.layerRef}".string(_))
 
-  implicit val stringShow: StringShow[Import] = sr => str"${sr.layerRef}"
+  implicit val stringShow: StringShow[Import] = sr => str"${sr.id}"
   implicit val diff: Diff[Import] = Diff.gen[Import]
   implicit val parser: Parser[Import] = unapply(_)
 
@@ -559,7 +560,6 @@ object LayerName {
 
 sealed trait LayerName {
   def suggestedName: Option[ImportId]
-  def publishedLayer: Option[PublishedLayer]
 }
 
 object FileInput {
@@ -571,7 +571,6 @@ case class FileInput(path: Path) extends LayerName {
   def suggestedName: Option[ImportId] = path.value.split("/").last.split("\\.").head.only {
     case name@r"[a-z]([a-z0-9]+\-)*[a-z0-9]+" => ImportId(name)
   }
-  def publishedLayer: Option[PublishedLayer] = None
 }
 
 object FuryUri {
@@ -591,7 +590,6 @@ object FuryUri {
 
 case class FuryUri(domain: String, path: String) extends LayerName {
   def suggestedName: Option[ImportId] = Some(ImportId(path.split("/")(1)))
-  def publishedLayer: Option[PublishedLayer] = Some(PublishedLayer(FuryUri(domain, path)))
 }
 
 object ImportId {

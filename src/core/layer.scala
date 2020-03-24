@@ -153,8 +153,15 @@ object Layer extends Lens.Partial[Layer] {
   def share(service: String, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
     ref    <- store(layer)
     hashes <- Layer.hashes(layer)
-    _      <- Service.publish(service, ref.ipfsRef, None, None, false, true, true, 0, 0, token, hashes)
+    _      <- Service.share(service, ref.ipfsRef, token, hashes - ref.ipfsRef)
   } yield ref
+
+  def published(layerName: LayerName)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
+    case furyUri@FuryUri(service, path) =>
+      Service.latest(service, path, None).map { artifact => Some(PublishedLayer(furyUri, artifact.version)) }
+    case _ =>
+      Success(None)
+  }
 
   def resolve(layerInput: LayerName)(implicit log: Log): Try[LayerRef] = layerInput match {
     case FileInput(path)       => ???
@@ -163,7 +170,7 @@ object Layer extends Lens.Partial[Layer] {
   }
 
   def pathCompletions()(implicit log: Log): Try[List[String]] =
-    Service.catalog(ManagedConfig().service).map(_.map(_.path))
+    Service.catalog(ManagedConfig().service)
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
     Ogdl.read[FuryConf](layout.confFile, identity(_))

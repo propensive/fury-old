@@ -578,7 +578,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     optRepo    <- ~layer.mainRepo.flatMap(layer.repos.findBy(_).toOption)
     _          <- optRepo.fold(Try(()))(_.doCleanCheckout(layout, true))
     _          <- ~log.info(msg"Saving Fury configuration file ${layout.confFile.relativizeTo(layout.pwd)}")
-    _          <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, layerName.publishedLayer), layout)
+    published  <- Layer.published(layerName)
+    _          <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, published), layout)
     _          <- Bsp.createConfig(layout)
     _          <- ~log.info(msg"Cloning complete")
     
@@ -591,27 +592,26 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
   def publish: Try[ExitStatus] = for {
     layout        <- cli.layout
-    cli           <- cli.hint(RemoteLayerArg)
+    conf          <- Layer.readFuryConf(layout)
+    cli           <- cli.hint(RemoteLayerArg, List(layout.pwd.name) ++ conf.published.map(_.url.path))
     cli           <- cli.hint(RawArg)
     cli           <- cli.hint(BreakingArg)
     cli           <- cli.hint(PublicArg)
     call          <- cli.call()
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
-    conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.retrieve(conf)
-    remoteLayerId <- call(RemoteLayerArg)
+    defaultId     <- Try(conf.published.map(_.url.path).flatMap(RemoteLayerId.unapply(_)))
+    remoteLayerId <- call(RemoteLayerArg).orElse(Try(defaultId.get))
     breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
-    hashes        <- Layer.hashes(layer)
     ref           <- Layer.share(ManagedConfig().service, layer, token)
-    pub           <- Service.publish(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group,
-                         Some(remoteLayerId.name), false, breaking, public,
-                         conf.published.fold(0)(_.version.major), conf.published.fold(0)(_.version.minor),
-                         token, hashes)
+    pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
+                         breaking, public, conf.published.fold(0)(_.version.major),
+                         conf.published.fold(0)(_.version.minor), token)
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
-                       log.info(msg"Shared at ${ref}")
-                       ~log.info(msg"Published version ${pub.version} to ${pub.url}")
+                       log.info(msg"Shared layer at ${IpfsRef(ref.key)}")
+                       ~log.info(msg"Published version ${pub.version}${if(public) " " else " privately "}to ${pub.url}")
                      }
     _             <- Layer.saveFuryConf(FuryConf(ref, ImportPath.Root, Some(pub)), layout)
   } yield log.await()
@@ -651,12 +651,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     nameArg       <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingArg("name"))
     newLayerRef   <- Layer.resolve(layerName)
     newLayer      <- Layer.get(newLayerRef)
-
-    pub           <- ~(layerName match {
-                       case u: FuryUri => Some(PublishedLayer(u, LayerVersion.Zero))
-                       case _          => None
-                     })
-
+    pub           <- Layer.published(layerName)
     ref           <- ~Import(nameArg, newLayerRef, pub)
     layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)
@@ -679,24 +674,38 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _         <- Layer.undo(layout)
   } yield log.await()*/
 
-  def update: Try[ExitStatus] = for {
+  def pull: Try[ExitStatus] = for {
     layout    <- cli.layout
     conf      <- Layer.readFuryConf(layout)
     layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(AllArg)
     cli       <- cli.hint(RecursiveArg)
-    cli       <- cli.hint(ImportIdArg)
+    cli       <- cli.hint(AllArg)
+    cli       <- cli.hint(ImportArg, layer.imports.map(_.id))
     call      <- cli.call()
-    recursive <- call(RecursiveArg)
+    recursive <- ~call(RecursiveArg).isSuccess
     all       <- ~call(AllArg).isSuccess
-    importArg <- call(ImportIdArg)
-    imported  <- layer.imports.findBy(importArg)
+    imports   <- if(all) Try(layer.imports.map(_.id).to[List]) else call(ImportIdArg).map(List(_))
+    layer     <- updateAll(layer, imports, recursive)
+    _         <- Layer.commit(layer, conf, layout)
+  } yield log.await()
+
+  private def updateAll(layer: Layer, imports: List[ImportId], recursive: Boolean): Try[Layer] =
+    ~imports.foldLeft(layer) { (layer, next) => updateOne(layer, next, recursive).getOrElse(layer) }
+
+  private def updateOne(layer: Layer, importId: ImportId, recursive: Boolean): Try[Layer] = for {
+    imported  <- layer.imports.findBy(importId)
     published <- imported.remote.ascribe(ImportHasNoRemote())
     artifact  <- Service.latest(published.url.domain, published.url.path, Some(published.version))
     newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version)
-    layer     <- ~(Layer(_.imports(importArg).remote)(layer) = Some(newPub))
-    _         <- Layer.commit(layer, conf, layout)
-  } yield log.await()
+    _          = if(artifact.version != published.version)
+                   log.info(msg"Updated layer $importId from version ${published.version} to ${artifact.version}")
+    layer     <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
+    newLayer  <- Layer.get(artifact.layerRef)
+    newLayer  <- if(recursive) updateAll(newLayer, newLayer.imports.map(_.id).to[List], recursive)
+                 else ~newLayer
+    layerRef  <- Layer.store(newLayer)
+    layer     <- ~(Layer(_.imports(importId).layerRef)(layer) = layerRef)
+  } yield layer
 
   def list: Try[ExitStatus] = {
     for {
