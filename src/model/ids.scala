@@ -324,7 +324,7 @@ case class TargetId(key: String) extends AnyVal {
 }
 
 case class RequestOriginId private(pid: Pid, counter: Int) {
-  val key = s"fury-${pid.pid}-${RequestOriginId.originIdCounter.getAndIncrement}"
+  val key = s"fury-${pid.pid}-${counter}"
 }
 
 object RequestOriginId {

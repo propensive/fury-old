@@ -51,7 +51,11 @@ final class Multiplexer[K, V](keys: Set[K]) {
 
   /** This method should only ever be called from one thread for any given reference, to
     *  guarantee safe concurrent access. */
-  def update(key: K, value: V): Unit = state(refs(key)) = value :: state(refs(key))
+  def fire(key: K, value: V): Unit = state(refs(key)) = value :: state(refs(key))
+
+  /** This method should only ever be called from one thread for any given reference, to
+    *  guarantee safe concurrent access. */
+  def updateAll(value: V): Unit = keys.foreach(k => fire(k, value))
 
   /** This method should only ever be called from one thread for any given reference, to
     *  guarantee safe concurrent access. */
