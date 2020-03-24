@@ -302,7 +302,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     event match {
       case e: ModuleCompileEvent =>
         BloopServer.subscribers(this).map(_.multiplexer)
-          .filter(_.contains(e.ref)).foreach(_(e.ref) = event)
+          .filter(_.contains(e.ref)).foreach(_.fire(e.ref, event))
       case Tick =>
         BloopServer.subscribers(this).map(_.multiplexer)
           .foreach(_.updateAll(Tick))
@@ -707,7 +707,7 @@ case class Compilation(target: Target,
 
     val future = dependencyFutures.map(CompileResult.merge).flatMap { required =>
       if(!required.isSuccessful) {
-        multiplexer(target.ref) = SkipCompile(target.ref)
+        multiplexer.fire(target.ref, SkipCompile(target.ref))
         multiplexer.close(target.ref)
         Future.successful(required)
       } else {
@@ -715,7 +715,7 @@ case class Compilation(target: Target,
 
         if(noCompilation) {
           deepDependencies(target.id).foreach { targetId =>
-            multiplexer(targetId.ref) = NoCompile(targetId.ref)
+            multiplexer.fire(targetId.ref, NoCompile(targetId.ref))
           }
           Future.successful(required)
         } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity)
@@ -751,15 +751,15 @@ case class Compilation(target: Target,
       args,
       noSecurity
     ) { ln =>
-      multiplexer(target.ref) = Print(target.ref, ln)
+      multiplexer.fire(target.ref, Print(target.ref, ln))
     }.await()
 
     deepDependencies(target.id).foreach { targetId =>
-      multiplexer(targetId.ref) = NoCompile(targetId.ref)
+      multiplexer.fire(targetId.ref, NoCompile(targetId.ref))
     }
 
     multiplexer.close(target.ref)
-    multiplexer(target.ref) = StopRun(target.ref)
+    multiplexer.fire(target.ref, StopRun(target.ref))
 
     exitCode
   }
