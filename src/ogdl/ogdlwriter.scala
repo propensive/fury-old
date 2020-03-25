@@ -71,7 +71,8 @@ object OgdlWriter {
         (coll.to[Vector].map { e =>
           val data = Ogdl(e)
           val idx = implicitly[Index[T]].index
-          data.selectDynamic(idx)() -> Ogdl(data.values.filterNot(_._1 == idx))
+          val dedup = data.values.filterNot(_._1 == idx)
+          data.selectDynamic(idx)() -> Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
         })
     }
 
@@ -81,7 +82,8 @@ object OgdlWriter {
       else (coll.to[Vector].map { e =>
         val data = Ogdl(e)
         val idx = implicitly[Index[T]].index
-        data.selectDynamic(idx)() -> Ogdl(data.values.filterNot(_._1 == idx))
+        val dedup = data.values.filterNot(_._1 == idx)
+        data.selectDynamic(idx)() -> Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
       })
     }
 
