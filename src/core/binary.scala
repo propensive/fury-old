@@ -26,7 +26,7 @@ import scala.util._
 
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
-  implicit val stringShow: StringShow[Binary] = _.spec
+  implicit val stringShow: StringShow[Binary] = _.id
   implicit def diff: Diff[Binary] = Diff.gen[Binary]
 
   def apply(id: Option[BinaryId], service: BinRepoId, binSpec: BinSpec): Try[Binary] =
