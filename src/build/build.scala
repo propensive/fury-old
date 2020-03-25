@@ -685,24 +685,31 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     recursive <- ~call(RecursiveArg).isSuccess
     all       <- ~call(AllArg).isSuccess
     imports   <- if(all) Try(layer.imports.map(_.id).to[List]) else call(ImportIdArg).map(List(_))
-    layer     <- updateAll(layer, imports, recursive)
+    layer     <- updateAll(layer, ImportPath.Empty, imports, recursive)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
-  private def updateAll(layer: Layer, imports: List[ImportId], recursive: Boolean): Try[Layer] =
-    ~imports.foldLeft(layer) { (layer, next) => updateOne(layer, next, recursive).getOrElse(layer) }
+  private def updateAll(layer: Layer, importPath: ImportPath, imports: List[ImportId], recursive: Boolean)
+                       : Try[Layer] =
+    ~imports.foldLeft(layer) { (layer, next) => updateOne(layer, importPath, next, recursive).getOrElse(layer) }
 
-  private def updateOne(layer: Layer, importId: ImportId, recursive: Boolean): Try[Layer] = for {
+  private def updateOne(layer: Layer, importPath: ImportPath, importId: ImportId, recursive: Boolean)
+                       : Try[Layer] = for {
     imported  <- layer.imports.findBy(importId)
     published <- imported.remote.ascribe(ImportHasNoRemote())
     artifact  <- Service.latest(published.url.domain, published.url.path, Some(published.version))
     newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version)
+    
     _          = if(artifact.version != published.version)
-                   log.info(msg"Updated layer $importId from version ${published.version} to ${artifact.version}")
+                   log.info(msg"Updated layer ${importPath / importId} from ${published.url} to version "+
+                       msg"${artifact.version} from ${published.version}")
+
     layer     <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
     newLayer  <- Layer.get(artifact.layerRef)
-    newLayer  <- if(recursive) updateAll(newLayer, newLayer.imports.map(_.id).to[List], recursive)
-                 else ~newLayer
+
+    newLayer  <- if(recursive) updateAll(newLayer, importPath / importId, newLayer.imports.map(_.id).to[List],
+                     recursive) else ~newLayer
+    
     layerRef  <- Layer.store(newLayer)
     layer     <- ~(Layer(_.imports(importId).layerRef)(layer) = layerRef)
   } yield layer

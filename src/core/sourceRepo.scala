@@ -115,12 +115,13 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     removed   <- local.flatMap(_.local).fold(Try(List[String]()))(Shell(layout.env).git.getTrackedFiles(_))
     bareRepo  <- repo.fetch(layout, https)
     files     <- Shell(layout.env).git.lsRoot(bareRepo, commit)
-    remaining <- Try(current -- removed)
+    remaining <- Try((current -- removed) - ".fury.conf")
   } yield remaining.intersect(files.to[Set]).to[List]
 
   def doCleanCheckout(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] = for {
     _          <- ~log.info(msg"Checking out ${repo} to ${layout.baseDir.relativizeTo(layout.pwd)}")
     bareRepo   <- repo.fetch(layout, https)
+    _          <- ~((layout.pwd / ".fury.conf").delete())
     sourceRepo <- Shell(layout.env).git.sparseCheckout(bareRepo, layout.baseDir, List(), track, commit,
                       Some(repo.universal(false)))
   } yield ()

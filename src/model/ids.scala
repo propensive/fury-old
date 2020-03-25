@@ -117,6 +117,7 @@ object ImportPath {
   implicit val stringShow: StringShow[ImportPath] = _.path
   implicit val parser: Parser[ImportPath] = unapply(_)
   val Root: ImportPath = ImportPath("/")
+  val Empty: ImportPath = ImportPath("")
 
   // FIXME: Actually parse it and check that it's valid
   def unapply(str: String): Option[ImportPath] = Some(ImportPath(str))
