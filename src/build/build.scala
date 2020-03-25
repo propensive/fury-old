@@ -689,6 +689,25 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
+  def diff: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.retrieve(conf)
+    cli    <- cli.hint(RawArg)
+    cli    <- cli.hint(ImportArg)
+    table  <- ~Tables().differences("This", "That")
+    cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    call   <- cli.call()
+    col    <- ~cli.peek(ColumnArg)
+    raw    <- ~call(RawArg).isSuccess
+    other  <- call(ImportArg).orElse(conf.published.map { layer => IpfsRef(layer.layerRef.key) }.ascribe(NoOtherLayer()))
+    other  <- Layer.resolve(other)
+    other  <- Layer.get(other)
+    rows   <- ~Diff.gen[Layer].diff(layer, other)
+    table  <- ~Tables().show[Difference, Difference](table, cli.cols, rows, raw, col)
+    _      <- ~log.rawln(table)
+  } yield log.await()
+
   private def updateAll(layer: Layer, importPath: ImportPath, imports: List[ImportId], recursive: Boolean)
                        : Try[Layer] =
     ~imports.foldLeft(layer) { (layer, next) => updateOne(layer, importPath, next, recursive).getOrElse(layer) }

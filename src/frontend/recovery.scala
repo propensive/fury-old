@@ -46,6 +46,8 @@ object Recovery {
           cli.abort(msg"The required executable $name was not found on the PATH.")
         case NotAuthenticated() =>
           cli.abort(msg"You are not authenticated.")
+        case NoOtherLayer() =>
+          cli.abort(msg"The layer to compare this layer with has not been specified.")
         case CantWatchAndWait() =>
           cli.abort(msg"The --watch (-w) and --wait (-W) options cannot be used together.")
         case ImportOnlyFileOrRef() =>

@@ -100,6 +100,8 @@ case class Layer(version: Int,
 object Layer extends Lens.Partial[Layer] {
   private val cache: HashMap[IpfsRef, Layer] = HashMap()
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
+  implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
+
   val CurrentVersion: Int = 6
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue

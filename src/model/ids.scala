@@ -508,6 +508,7 @@ case class AliasCmd(key: String)
 object Alias {
   implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.cmd.key))
   implicit val stringShow: StringShow[Alias] = _.cmd.key
+  implicit val diff: Diff[Alias] = Diff.gen[Alias]
 }
 
 case class Alias(cmd: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
@@ -728,6 +729,7 @@ object RepoId {
   implicit val stringShow: StringShow[RepoId] = _.key
   implicit val parser: Parser[RepoId] = unapply(_)
   implicit val keyName: KeyName[RepoId] = () => msg"repo"
+  implicit val diff: Diff[RepoId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
   def unapply(name: String): Option[RepoId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => RepoId(name) }
 }

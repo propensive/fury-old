@@ -104,6 +104,11 @@ object Diff extends Diff_1 {
 
 trait Diff_1 { implicit def gen[T]: Diff[T] = macro Magnolia.gen[T] }
 trait Diff[-T] { def diff(left: T, right: T): Seq[Difference] }
+
+object Difference {
+  implicit val msgShow: MsgShow[Difference] = d => msg"${d.left} ${'<'}${'='}${'>'} ${d.right}"
+}
+
 case class Difference(entity: UserMsg, label: UserMsg, left: UserMsg, right: UserMsg)
 
 object EntityName extends EntityName_1 {

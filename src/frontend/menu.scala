@@ -143,6 +143,7 @@ object FuryMenu {
     //Action('undo, msg"undo the previous modification", LayerCli(_).undo),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
+      Action('diff, msg"show differences with the current layer", LayerCli(_).diff, shortcut = 'd'),
       //Action('export, msg"export a layer to a file", LayerCli(_).export, shortcut = 'e'),
       //Action('extract, msg"extract a layer file", LayerCli(_).extract, needsLayer = false),
       Action('import, msg"import an external layer", LayerCli(_).addImport, shortcut = 'i'),
