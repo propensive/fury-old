@@ -88,5 +88,5 @@ object OgdlWriter {
   implicit def gen[T]: OgdlWriter[T] = macro Magnolia.gen[T]
 }
 
-object Index { implicit def index[T]: Index[T] = new Index[T] { def index: String = "id" } }
-trait Index[T] { def index: String }
+object Index { implicit def index[T]: Index[T] = Index[T]("id") }
+case class Index[T](index: String)
