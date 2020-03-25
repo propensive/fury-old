@@ -26,9 +26,8 @@ import scala.util._
 
 object Source {
   implicit val stringShow: StringShow[Source] = _.key
-  implicit val index: Index[Source] = Index("key")
-  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
-  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.key)
+  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src.id()).get // FIXME
+  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(Vector("id" -> Ogdl(src.key)))
   implicit val parser: Parser[Source] = unapply(_)
   implicit val keyName: KeyName[Source] = () => msg"source"
 

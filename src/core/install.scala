@@ -58,11 +58,15 @@ object Install {
   }
 
   private def desktopInstall(env: Environment)(implicit log: Log): Try[Unit] = for {
-    _       <- ~log.info(msg"Installing handler for fury:// URLs")
-    file    <- ~(Xdg.dataHome / "applications" / "fury.desktop")
-    _       <- ~file.writeSync(desktopEntry)
-    _       <- iconDirs.traverse { p => p.in(Installation.etcDir).copyTo(p.in(Xdg.dataHome)) }
-    _       <- sh"xdg-mime default fury.desktop x-scheme-handler/fury".exec[Try[String]]
+    _        <- ~log.info(msg"Installing handler for fury:// URLs")
+    file     <- ~(Xdg.dataHome / "applications" / "fury.desktop")
+    _        <- ~file.writeSync(desktopEntry)
+    _        <- iconDirs.traverse { p => p.in(Installation.etcDir).copyTo(p.in(Xdg.dataHome)) }
+    mimeList <- ~(Xdg.dataHome / "applications" / "mimeapps.list")
+    lines    <- ~mimeList.lines().map(_.filterNot(_.contains("=fury.desktop")).to[List]).getOrElse(Nil)
+    content  <- ~lines.mkString("", "\n", "\nx-scheme-handler/fury=fury.desktop\n")
+    _        <- mimeList.writeSync(content)
+    _        <- sh"xdg-mime default fury.desktop x-scheme-handler/fury".exec[Try[String]]
   } yield ()
 
   private def desktopEntry: String = Map(

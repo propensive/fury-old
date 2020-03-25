@@ -76,10 +76,10 @@ case class Tables() {
   }
 
   private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] = _.map {
-    case ModuleRef(p, m, intransitive, _) =>
+    case ref@ModuleRef(id, intransitive, _) =>
       val extra = (if(intransitive) msg"*" else msg"")
-      if(p == projectId) msg"${theme.module(m.key)}$extra"
-      else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"
+      if(ref.projectId == projectId) msg"${theme.module(ref.moduleId.key)}$extra"
+      else msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}$extra"
   }.foldLeft(msg"")(_ + _ + "\n").string(theme)
 
   implicit private def compilerRef(
@@ -121,7 +121,7 @@ case class Tables() {
   )
 
   val aliases: Tabulation[Alias] = Tabulation(
-    Heading("Alias", _.cmd),
+    Heading("Alias", _.id),
     Heading("Description", _.description),
     Heading("Module", _.module),
     Heading("Arguments", _.args.mkString("'", "', '", "'"))
@@ -159,12 +159,12 @@ case class Tables() {
   )
 
   val envs: Tabulation[EnvVar] = Tabulation(
-    Heading("Key", _.key),
+    Heading("Key", _.id),
     Heading("Value", _.value)
   )
   
   val props: Tabulation[JavaProperty] = Tabulation(
-    Heading("Key", _.key),
+    Heading("Key", _.id),
     Heading("Value", _.value)
   )
 

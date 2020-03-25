@@ -198,10 +198,10 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
     layout     <- cli.layout
     conf       <- Layer.readFuryConf(layout)
     layer      <- Layer.retrieve(conf)
-    cli        <- cli.hint(AliasArg, layer.aliases.map(_.cmd))
+    cli        <- cli.hint(AliasArg, layer.aliases.map(_.id))
     call       <- cli.call()
     aliasArg   <- call(AliasArg)
-    aliasToDel <- ~layer.aliases.find(_.cmd == aliasArg)
+    aliasToDel <- ~layer.aliases.find(_.id == aliasArg)
     layer      <- ~Layer(_.aliases).modify(layer)(_ -- aliasToDel)
     _          <- Layer.commit(layer, conf, layout)
   } yield log.await()

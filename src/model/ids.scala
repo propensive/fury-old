@@ -316,7 +316,7 @@ case class Pid(pid: Int)
 case class TargetId(key: String) extends AnyVal {
   def moduleId: ModuleId = ModuleId(key.split("_")(1))
   def projectId: ProjectId = ProjectId(key.split("_")(0))
-  def ref: ModuleRef = ModuleRef(projectId, moduleId)
+  def ref: ModuleRef = ModuleRef(projectId, moduleId, false, false)
 }
 
 case class RequestOriginId private(pid: Pid, counter: Int) {
@@ -385,7 +385,9 @@ object Permission {
     "javax.xml.ws.WebServicePermission"
   )
 }
-case class Permission(classRef: ClassRef, target: String, action: Option[String]) {
+case class Permission(id: String, action: Option[String]) {
+  def classRef: ClassRef = ClassRef(id.split(":", 2)(0))
+  def target: String = id.split(":", 2)(1)
   def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
 }
 
@@ -426,6 +428,7 @@ sealed abstract class ScopeId(val id: String) extends scala.Product with scala.S
 object Grant {
   implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
   implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
+  implicit val index: Index[Grant] = Index("permission")
 }
 
 case class Grant(scope: Scope, permission: Permission)
@@ -438,22 +441,22 @@ object PermissionEntry {
 case class PermissionEntry(permission: Permission, hash: PermissionHash)
 
 object EnvVar {
-  implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
-  implicit val stringShow: StringShow[EnvVar] = e => str"${e.key}=${e.value}"
+  implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.id}=${e.value}"
+  implicit val stringShow: StringShow[EnvVar] = e => str"${e.id}=${e.value}"
   implicit val diff: Diff[EnvVar] = Diff.gen[EnvVar]
   implicit val parser: Parser[EnvVar] = unapply(_)
 
   def unapply(str: String): Option[EnvVar] = str.split("=", 2).only {
-    case Array(key, value) => EnvVar(key, value)
-    case Array(key)        => EnvVar(key, "")
+    case Array(id, value) => EnvVar(id, value)
+    case Array(id)        => EnvVar(id, "")
   }
 }
 
-case class EnvVar(key: String, value: String)
+case class EnvVar(id: String, value: String)
 
 object JavaProperty {
-  implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.key}=${e.value}"
-  implicit val stringShow: StringShow[JavaProperty] = e => str"${e.key}=${e.value}"
+  implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.id}=${e.value}"
+  implicit val stringShow: StringShow[JavaProperty] = e => str"${e.id}=${e.value}"
   implicit val diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
   implicit val parser: Parser[JavaProperty] = unapply(_)
 
@@ -462,7 +465,7 @@ object JavaProperty {
     case Array(key)        => JavaProperty(key, "")
   }
 }
-case class JavaProperty(key: String, value: String)
+case class JavaProperty(id: String, value: String)
 
 object Scope {
   def apply(id: ScopeId, layout: Layout, projectId: ProjectId): Scope = id match {
@@ -506,12 +509,12 @@ object AliasCmd {
 case class AliasCmd(key: String)
 
 object Alias {
-  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.cmd.key))
-  implicit val stringShow: StringShow[Alias] = _.cmd.key
+  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.id.key))
+  implicit val stringShow: StringShow[Alias] = _.id.key
   implicit val diff: Diff[Alias] = Diff.gen[Alias]
 }
 
-case class Alias(cmd: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
+case class Alias(id: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
 
 object Import {
   implicit val msgShow: MsgShow[Import] = v =>
@@ -652,7 +655,10 @@ object ModuleRef {
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
   implicit val parser: Parser[ModuleRef] = parseFull(_, false)
   
-  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
+  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false, false)
+
+  def apply(projectId: ProjectId, moduleId: ModuleId, intransitive: Boolean, hidden: Boolean): ModuleRef =
+    ModuleRef(str"${projectId.key}/${moduleId.key}", intransitive, hidden)
 
   implicit val diff: Diff[ModuleRef] =
     (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))
@@ -664,24 +670,24 @@ object ModuleRef {
 
   def parseFull(string: String, intransitive: Boolean): Option[ModuleRef] = string.only {
     case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
-      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive)
+      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive, false)
   }
 
   def parse(projectId: ProjectId, string: String, intransitive: Boolean): Option[ModuleRef] = string.only {
     case r"$projectId@([a-z](-?[a-z0-9]+)*)\/$moduleId@([a-z](-?[a-z0-9]+)*)" =>
-      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive)
+      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive, false)
     case r"[a-z](-?[a-z0-9]+)*" =>
-      ModuleRef(projectId, ModuleId(string), intransitive)
+      ModuleRef(projectId, ModuleId(string), intransitive, false)
   }
 }
 
-case class ModuleRef(projectId: ProjectId,
-                     moduleId: ModuleId,
-                     intransitive: Boolean = false,
-                     hidden: Boolean = false) {
+case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) {
+
+  def projectId: ProjectId = ProjectId(id.split("/")(0))
+  def moduleId: ModuleId = ModuleId(id.split("/")(1))
 
   override def equals(that: Any): Boolean =
-    that.only { case ModuleRef(p, m, _, _) => projectId == p && moduleId == m }.getOrElse(false)
+    that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
 
   def hide = copy(hidden = true)
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode

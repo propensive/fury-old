@@ -236,7 +236,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     targetArg       <- call(PermissionTargetArg)
     actionArg       =  call(ActionArg).toOption
     grant           =  call(NoGrantArg).isFailure
-    permission      =  Permission(classArg, targetArg, actionArg)
+    permission      =  Permission(str"${classArg.key}:${targetArg}", actionArg)
     layer           <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_ +
                            permission)
     _               <- Layer.commit(layer, conf, layout)

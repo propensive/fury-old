@@ -175,10 +175,12 @@ case class Path(input: String) {
   }
 
   def writeSync(content: String, append: Boolean = false): Try[Unit] = {
-    tryWith(new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append))){ writer =>
+    tryWith(new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append))) { writer =>
       writer.write(content)
     }.recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
+
+  def lines(): Try[Iterator[String]] = Try(scala.io.Source.fromFile(javaFile).getLines())
 
   def copyTo(path: Path): Try[Path] = Try {
     Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))

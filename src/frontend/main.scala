@@ -43,7 +43,7 @@ object FuryServer {
     val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
         def action(cli: Cli) = BuildCli(cli).compile(Some(alias.module), alias.args)
 
-        Action(Symbol(alias.cmd.key), msg"${alias.description}", (cli: Cli) => action(cli))
+        Action(Symbol(alias.id.key), msg"${alias.description}", (cli: Cli) => action(cli))
       }
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
