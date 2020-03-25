@@ -171,14 +171,9 @@ object PublishedLayer {
   implicit val keyName: KeyName[PublishedLayer] = () => msg"layer"
   implicit val diff: Diff[PublishedLayer] = (l, r) => 
     Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
-  
-  def parse(str: String): Option[PublishedLayer] = str.only {
-    case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)\@${LayerVersion(v)}@(.*)" =>
-      PublishedLayer(FuryUri(d, p), v)
-  }
 }
 
-case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.First)
+case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.First, layerRef: LayerRef)
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))

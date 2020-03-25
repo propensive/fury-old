@@ -698,7 +698,9 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     imported  <- layer.imports.findBy(importId)
     published <- imported.remote.ascribe(ImportHasNoRemote())
     artifact  <- Service.latest(published.url.domain, published.url.path, Some(published.version))
-    newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version)
+    
+    newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version,
+                     LayerRef(artifact.ref))
     
     _          = if(artifact.version != published.version)
                    log.info(msg"Updated layer ${importPath / importId} from ${published.url} to version "+

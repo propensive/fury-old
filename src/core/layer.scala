@@ -158,7 +158,9 @@ object Layer extends Lens.Partial[Layer] {
 
   def published(layerName: LayerName)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
     case furyUri@FuryUri(service, path) =>
-      Service.latest(service, path, None).map { artifact => Some(PublishedLayer(furyUri, artifact.version)) }
+      Service.latest(service, path, None).map { artifact =>
+        Some(PublishedLayer(furyUri, artifact.version, LayerRef(artifact.ref)))
+       }
     case _ =>
       Success(None)
   }

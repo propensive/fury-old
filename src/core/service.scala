@@ -102,6 +102,6 @@ object Service {
       json <- Try(Json.parse(str).get)
       _    <- ~log.note(json.toString)
       res  <- Try(json.as[Response].get)
-    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version)
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
   }
 }
