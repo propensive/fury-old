@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, fury.strings._, fury.io._
+import fury.model._, fury.strings._, fury.io._, fury.ogdl._
 
 import exoskeleton._
 import kaleidoscope._
@@ -26,7 +26,7 @@ import scala.util._
 
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
-  implicit val stringShow: StringShow[Binary] = _.id
+  implicit val stringShow: StringShow[Binary] = b => b.id.key
   implicit def diff: Diff[Binary] = Diff.gen[Binary]
 
   def apply(id: Option[BinaryId], service: BinRepoId, binSpec: BinSpec): Try[Binary] =

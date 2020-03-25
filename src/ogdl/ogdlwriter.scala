@@ -64,20 +64,29 @@ object OgdlWriter {
   implicit val boolean: OgdlWriter[Boolean] = boolean => Ogdl(boolean.toString)
   implicit val theme: OgdlWriter[Theme] = theme => Ogdl(theme.name)
 
-  implicit def list[T: OgdlWriter: StringShow]: OgdlWriter[List[T]] = coll =>
+  implicit def list[T: OgdlWriter: Index]: OgdlWriter[List[T]] = coll =>
     Ogdl {
       if(coll.isEmpty) Vector(("", Ogdl(Vector())))
       else
         (coll.to[Vector].map { e =>
-          implicitly[StringShow[T]].show(e) -> Ogdl(e)
+          val data = Ogdl(e)
+          val idx = implicitly[Index[T]].index
+          data.selectDynamic(idx)() -> Ogdl(data.values.filterNot(_._1 == idx))
         })
     }
 
-  implicit def treeSet[T: OgdlWriter: StringShow]: OgdlWriter[SortedSet[T]] = coll =>
+  implicit def treeSet[T: OgdlWriter: Index]: OgdlWriter[SortedSet[T]] = coll =>
     Ogdl {
       if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-      else (coll.to[Vector].map { e => implicitly[StringShow[T]].show(e) -> Ogdl(e) })
+      else (coll.to[Vector].map { e =>
+        val data = Ogdl(e)
+        val idx = implicitly[Index[T]].index
+        data.selectDynamic(idx)() -> Ogdl(data.values.filterNot(_._1 == idx))
+      })
     }
 
   implicit def gen[T]: OgdlWriter[T] = macro Magnolia.gen[T]
 }
+
+object Index { implicit def index[T]: Index[T] = new Index[T] { def index: String = "id" } }
+trait Index[T] { def index: String }
