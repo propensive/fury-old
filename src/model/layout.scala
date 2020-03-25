@@ -107,7 +107,7 @@ object Installation {
     val machine: Try[Machine] = sh"uname -m".exec[Try[String]].map {
       case "x86_64" | "amd64" => X64
       case "i386" | "i686"    => X86
-      case other => Machine.Unknown(other)
+      case other              => X64
     }
 
     sh"uname".exec[Try[String]].flatMap {
