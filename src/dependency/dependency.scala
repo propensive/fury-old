@@ -270,7 +270,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
     project       <- optProject.asTry
     module        <- optModule.asTry
-    hierarchy     <- layer.hierarchy(layout)
+    hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
     compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
     permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
@@ -331,7 +331,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     project       <- optProject.asTry
     module        <- optModule.asTry
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
-    hierarchy     <- layer.hierarchy(layout)
+    hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
     compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
     permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))

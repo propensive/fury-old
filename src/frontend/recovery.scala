@@ -79,6 +79,11 @@ You can grant these permissions with,
         case LayerNotFound(path) =>
           cli.abort(
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
+        case UnresolvedModules(refs) =>
+          cli.abort(msg"""Some modules contain references to other modules which do not exist.""")
+        case LayerContainsLocalSources(refs) =>
+          val plural = if(refs.size > 1) "s" else ""
+          cli.abort(msg"""The module$plural contains references to local sources.""")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>

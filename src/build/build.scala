@@ -605,6 +605,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
+    _             <- layer.verify()
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
@@ -624,6 +625,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer         <- Layer.retrieve(conf)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
+    _             <- layer.verify()
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     _             <- if(raw) ~log.rawln(str"${ref}") else ~log.info(msg"Shared at ${ref}")

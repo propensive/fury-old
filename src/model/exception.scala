@@ -58,6 +58,7 @@ case class NotAuthenticated() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
 case class LayerNotFound(path: Path) extends FuryException
+case class LayerContainsLocalSources(refs: List[ModuleRef]) extends FuryException
 case class MissingCommand() extends FuryException
 case class ModuleAlreadyExists(module: ModuleId) extends FuryException
 case class NoLatestVersion() extends FuryException
@@ -76,6 +77,7 @@ case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException
+case class UnresolvedModules(refs: Map[ModuleRef, Set[ModuleRef]]) extends FuryException
 case class UnknownOs(description: String) extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException
 case class UnspecifiedMain(module: ModuleId) extends FuryException

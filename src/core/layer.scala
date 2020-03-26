@@ -44,13 +44,37 @@ case class Layer(version: Int,
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
+  def localSources: List[ModuleRef] = for {
+    project           <- projects.to[List]
+    module            <- project.modules
+    LocalSource(_, _) <- module.sources
+  } yield module.ref(project)
+
+  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[ModuleRef]] = { for {
+    project    <- projects.to[List]
+    module     <- project.modules
+    dependency <- module.dependencies
+    missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
+  } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
+
+  def verify()(implicit log: Log): Try[Unit] = for {
+    _         <- ~log.info(msg"Checking that no modules reference local sources")
+    localSrcs <- ~localSources
+    _         <- if(localSrcs.isEmpty) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
+    _         <- ~log.info(msg"Checking that no project names conflict")
+    universe  <- hierarchy().flatMap(_.universe)
+    _         <- ~log.info(msg"Checking that all module references resolve")
+    missing   <- ~unresolvedModules(universe)
+    _         <- if(missing.isEmpty) Success(()) else Failure(UnresolvedModules(missing))
+  } yield ()
+
   def compilerRefs(layout: Layout, https: Boolean)(implicit log: Log): List[ModuleRef] =
     allProjects(layout, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def hierarchy(layout: Layout)(implicit log: Log): Try[Hierarchy] = for {
+  def hierarchy()(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
       layer        <- Layer.get(ref.layerRef)
-      tree         <- layer.hierarchy(layout)
+      tree         <- layer.hierarchy()
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 
@@ -246,4 +270,3 @@ object Layer extends Lens.Partial[Layer] {
     } else ogdl
   }
 }
-  
