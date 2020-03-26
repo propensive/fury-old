@@ -61,6 +61,12 @@ object Source {
   }
 
   def repoId(src: Source): Option[RepoId] = src.only { case ExternalSource(repoId, _, _) => repoId }
+
+  def rewriteLocal(source: Source, localId: Option[RepoId]): Source =
+    localId.fold(source) { repoId => source match {
+      case LocalSource(dir, glob) => ExternalSource(repoId, dir, glob)
+      case source => source
+    } }
 }
 
 sealed abstract class Source extends Key(msg"source") {

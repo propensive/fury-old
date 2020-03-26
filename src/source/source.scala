@@ -116,6 +116,10 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     project    <- optProject.asTry
     module     <- optModule.asTry
     source     <- call(SourceArg)
+    localId    <- ~Repo.local(layout).toOption.flatMap { r =>
+                    layer.repos.find(_.repo.simplified == r.simplified).map(_.id)
+                  }
+    source     <- ~Source.rewriteLocal(source, localId)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))
     _          <- Layer.commit(layer, conf, layout)
     _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
