@@ -26,12 +26,15 @@ object MavenCentral {
   case class Doc(g: String, a: String, v: String, id: String)
 
   def search(binSpec: PartialBinSpec)(implicit log: Log): Try[Set[String]] = {
+    
     val query = binSpec match {
       case PartialBinSpec(g, None | Some(""), None) => str"""g:%22$g%22"""
       case PartialBinSpec(g, Some(a), None)         => str"""g:%22$g%22"""
       case PartialBinSpec(g, Some(a), Some(_))      => str"""g:%22$g%22+AND+a:%22$a%22"""
     }
-    val httpQuery = Query & "q" -> query & "core" -> "gav" & "wt" -> "json" & "rows" -> "100"
+    
+    val httpQuery = Query("q" -> query, "core" -> "gav", "wt" -> "json", "rows" -> "100")
+
     for {
       string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / "select", httpQuery), Set())
 

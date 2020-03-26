@@ -84,16 +84,17 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
-case class Query(fields: ListMap[String, String]) {
-  override def toString: String = if(isEmpty) "" else fields.map { case (field, value) => field + "=" + value }.mkString("?", "&", "")
+case class Query(fields: (String, String)*) {
+  def queryString: String =
+    if(isEmpty) "" else fields.map { case (field, value) => field + "=" + value }.mkString("?", "&", "")
+  
   def isEmpty: Boolean = fields.isEmpty
-  def &(field: (String, String)): Query = copy(fields = fields + field)
 }
 
 object Query {
-  val empty: Query = apply(ListMap.empty)
-  implicit val stringShow: StringShow[Query] = _.toString
-  def &(field: (String, String)): Query = empty & field
+  implicit val stringShow: StringShow[Query] = q =>
+    if(q.fields.isEmpty) ""
+    else q.fields.map { case (field, value) => field + "=" + value }.mkString("?", "&", "")
 }
 
 object Uri {
@@ -108,8 +109,10 @@ object Uri {
   implicit val diff: Diff[Uri] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 }
 
-case class Uri(scheme: String, path: Path, query: Query = Query.empty) extends Key(msg"URI") {
-  def key: String = str"${scheme}://${path}${query}"
+case class Uri(scheme: String, path: Path, parameters: Query = Query()) extends Key(msg"URI") {
+  def key: String = str"${scheme}://${path}${parameters}"
+  def /(str: String): Uri = Uri(scheme, path / str, parameters)
+  def query(params: (String, String)*): Uri = copy(parameters = Query(params: _*))
 }
 
 object ImportPath {
@@ -282,7 +285,7 @@ case class Config(showContext: Boolean = true,
                   pipelining: Boolean = false,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
-                  service: String = "furore.dev",
+                  service: DomainName = DomainName("furore.dev"),
                   token: Option[OauthToken] = None)
 
 object TargetId {
@@ -547,7 +550,7 @@ object LayerName {
       case r"fury:\/\/$ref@([A-Za-z0-9]{44})\/?" =>
         Success(IpfsRef(str"Qm$ref"))
       case r"fury:\/\/$dom@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
-        Success(FuryUri(dom, loc))
+        Success(FuryUri(DomainName(dom), loc))
       case r".*\.fury" =>
         Success(FileInput(Path(path)))
       case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
@@ -585,10 +588,12 @@ object FuryUri {
   implicit val ogdlReader: OgdlReader[FuryUri] = str => parser.parse(str()).get
   
   def parse(str: String): Option[FuryUri] =
-    str.only { case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)" => FuryUri(d, p) }
+    str.only { case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)" =>
+      FuryUri(DomainName(d), p)
+    }
 }
 
-case class FuryUri(domain: String, path: String) extends LayerName {
+case class FuryUri(domain: DomainName, path: String) extends LayerName {
   def suggestedName: Option[ImportId] = Some(ImportId(path.split("/")(1)))
 }
 
@@ -858,3 +863,13 @@ object Commit {
 }
 
 case class Commit(id: String)
+
+object DomainName {
+  implicit val stringShow: StringShow[DomainName] = _.value
+  implicit val msgShow: MsgShow[DomainName] = v => UserMsg(_.uri(v.value))
+  implicit val parser: Parser[DomainName] = unapply(_)
+
+  def unapply(value: String): Option[DomainName] = value.only {
+    case r"([a-z0-9][a-z0-9\-]*\.)*[a-z]+" => DomainName(value) }
+}
+case class DomainName(value: String)

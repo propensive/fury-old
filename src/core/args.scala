@@ -98,7 +98,7 @@ object Args {
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
-  val ServiceArg = CliParam[String]('S', 'service, "specify the default remote layer service")
+  val ServiceArg = CliParam[DomainName]('S', 'service, "specify the default remote layer service")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
   val TransformArg = CliParam[Unit]('t', 'transform, "transform the option into the parameters following --")
   val TraceArg = CliParam[Boolean]('D', Symbol("bsp-trace"), "Write the BSP communication trace to a file")

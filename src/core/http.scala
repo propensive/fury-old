@@ -49,7 +49,10 @@ abstract class Postable[T](val contentType: String) { def content(value: T): Arr
 
 case class HttpHeader(key: String, value: String)
 
-object Https { def apply(path: Path, query: Query = Query.empty): Uri = Uri("https", path, query) }
+object Https {
+  def apply(path: Path, query: Query = Query()): Uri = Uri("https", path, query)
+  def apply(domain: DomainName): Uri = Uri("https", Path(domain.value))
+}
 
 object Http {
 

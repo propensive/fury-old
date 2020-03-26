@@ -152,7 +152,7 @@ object Layer extends Lens.Partial[Layer] {
     hashes    <- layers.traverse(hashes(_))
   } yield hashes.foldLeft(Set[IpfsRef]())(_ ++ _) + layerRef.ipfsRef
 
-  def share(service: String, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
+  def share(service: DomainName, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
     ref    <- store(layer)
     hashes <- Layer.hashes(layer)
     _      <- Service.share(service, ref.ipfsRef, token, hashes - ref.ipfsRef)

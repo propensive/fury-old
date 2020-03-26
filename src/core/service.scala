@@ -24,8 +24,8 @@ import scala.util._
 import guillotine._
 
 object Service {
-  def catalog(service: String)(implicit log: Log): Try[List[String]] = {
-    val url = Https(Path(service) / "catalog")
+  def catalog(service: DomainName)(implicit log: Log): Try[List[String]] = {
+    val url: Uri = Https(service) / "catalog"
     
     for {
       bytes <- Http.get(url, Set())
@@ -34,8 +34,8 @@ object Service {
     } yield artifacts
   }
 
-  def list(service: String, path: String)(implicit log: Log): Try[List[Artifact]] = {
-    val url = Https(Path(service) / "list" / path)
+  def list(service: DomainName, path: String)(implicit log: Log): Try[List[Artifact]] = {
+    val url = Https(service) / "list" / path
     
     for {
       bytes <- Http.get(url, Set())
@@ -44,18 +44,20 @@ object Service {
     } yield artifacts
   }
 
-  def latest(service: String, path: String, current: Option[LayerVersion])(implicit log: Log): Try[Artifact] =
+  def latest(service: DomainName, path: String, current: Option[LayerVersion])
+            (implicit log: Log)
+            : Try[Artifact] =
     for {
       artifacts <- list(service, path)
       grouped   <- ~artifacts.groupBy(_.version.major)
       artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
     } yield artifact
 
-  def share(service: String, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef])
+  def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef])
            (implicit log: Log)
            : Try[Unit] = {
     
-    val url = Https(Path(service) / "share")
+    val url = Https(service) / "share"
 
     case class Request(refs: List[String], token: String)
     case class Response(refs: List[String])
@@ -73,7 +75,7 @@ object Service {
     } yield ()
   }
 
-  def tag(service: String,
+  def tag(service: DomainName,
           hash: IpfsRef,
           group: Option[String],
           name: String,
@@ -85,7 +87,7 @@ object Service {
          (implicit log: Log)
          : Try[PublishedLayer] = {
 
-    val url = Https(Path(service) / "tag")
+    val url = Https(service) / "tag"
     
     case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
         public: Boolean, breaking: Boolean)

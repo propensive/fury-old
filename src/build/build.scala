@@ -75,9 +75,9 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
   def doAuth: Try[OauthToken] = for {
     code     <- ~Rnd.token(18)
     // These futures should be managed in the session
-    uri      <- ~Https(Path(ManagedConfig().service) / "await", Query & "code" -> code)
+    uri      <- ~(Https(ManagedConfig().service) / "await").query("code" -> code)
     future   <- ~Future(blocking(Http.get(uri, Set())))
-    uri      <- ~Https(Path(ManagedConfig().service) / "auth", Query & "code" -> code)
+    uri      <- ~(Https(ManagedConfig().service) / "auth").query("code" -> code)
     _        <- ~log.info(msg"Please visit $uri to authenticate using GitHub.")
     _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
     response <- Await.result(future, Duration.Inf)

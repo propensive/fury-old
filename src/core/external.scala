@@ -116,7 +116,7 @@ object Ipfs {
 
     private[this] def getFileFromGateway(hash: Multihash, path: Path)(gateway: String)(implicit log: Log): Try[Path] = {
       log.info(s"Accessing $gateway to retrieve $hash")
-      val query = Query & ("arg" -> hash.toBase58) & ("archive" -> "true")
+      val query = Query("arg" -> hash.toBase58, "archive" -> "true")
       for {
         _    <- path.mkParents()
         data <- Http.get(Https(Path(gateway) / "api" / "v0" / s"get", query), Set.empty)
