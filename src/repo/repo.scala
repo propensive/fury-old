@@ -59,6 +59,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- repo.checkout(layout, local, https)
     layer     <- ~(Layer(_.mainRepo)(layer) = Some(repo.id))
     _         <- Layer.commit(layer, conf, layout)
+    _         <- (layout.pwd / ".fury.conf.bak").delete()
   } yield log.await()
 
   def unfork: Try[ExitStatus] = for {

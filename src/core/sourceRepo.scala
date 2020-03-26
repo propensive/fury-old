@@ -121,7 +121,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def doCleanCheckout(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] = for {
     _          <- ~log.info(msg"Checking out ${repo} to ${layout.baseDir.relativizeTo(layout.pwd)}")
     bareRepo   <- repo.fetch(layout, https)
-    _          <- ~((layout.pwd / ".fury.conf").delete())
+    _          <- (layout.pwd / ".fury.conf").moveTo(layout.pwd / ".fury.conf.bak")
     sourceRepo <- Shell(layout.env).git.sparseCheckout(bareRepo, layout.baseDir, List(), track, commit,
                       Some(repo.universal(false)))
   } yield ()
