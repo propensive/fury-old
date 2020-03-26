@@ -81,6 +81,7 @@ object Args {
   val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
+  val LayerVersionArg = CliParam[LayerVersion]('V', 'version, "a specific version of the layer")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
 
   val BloopSpecArg = CliParam[String]('C', Symbol("compiler-spec"),

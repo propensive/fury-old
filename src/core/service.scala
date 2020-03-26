@@ -53,6 +53,17 @@ object Service {
       artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
     } yield artifact
 
+  def fetch(service: DomainName, path: String, version: LayerVersion)
+            (implicit log: Log)
+            : Try[Artifact] =
+    for {
+      artifacts <- list(service, path)
+      stream    <- artifacts.groupBy(_.version.major).get(version.major).ascribe(UnknownVersion(version))
+      artifact  <- version.minor.fold(~stream.maxBy(_.version.minor)) { v =>
+                     stream.find(_.version.minor == Some(v)).ascribe(UnknownVersion(version))
+                   }
+    } yield artifact
+
   def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef])
            (implicit log: Log)
            : Try[Unit] = {

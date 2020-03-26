@@ -79,6 +79,8 @@ You can grant these permissions with,
         case LayerNotFound(path) =>
           cli.abort(
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
+        case CannotUndo() =>
+          cli.abort(msg"""The previous action cannot be undone...""")
         case UnresolvedModules(refs) =>
           cli.abort(msg"""Some modules contain references to other modules which do not exist.""")
         case LayerContainsLocalSources(refs) =>
@@ -90,6 +92,8 @@ You can grant these permissions with,
           cli.abort(msg"Coursier could not download a file because DNS resolution failed.")
         case OfflineException() =>
           cli.abort(msg"Coursier could not download a file because you appear to be offline.")
+        case UnknownVersion(v) =>
+          cli.abort(msg"The version $v does not exist.")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>

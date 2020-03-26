@@ -36,7 +36,8 @@ case class Layer(version: Int,
                  repos: SortedSet[SourceRepo] = TreeSet(),
                  imports: SortedSet[Import] = TreeSet(),
                  main: Option[ProjectId] = None,
-                 mainRepo: Option[RepoId] = None) { layer =>
+                 mainRepo: Option[RepoId] = None,
+                 previous: Option[LayerRef] = None) { layer =>
 
   def apply(id: ProjectId) = projects.findBy(id)
   def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
@@ -158,6 +159,9 @@ object Layer extends Lens.Partial[Layer] {
 
   def commit(layer: Layer, conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] = for {
     baseRef <- commitNested(conf, layer)
+    base    <- get(baseRef)
+    layer   <- ~base.copy(previous = Some(conf.layerRef))
+    baseRef <- store(layer)
     _       <- saveFuryConf(conf.copy(layerRef = baseRef), layout)
     } yield ()
 

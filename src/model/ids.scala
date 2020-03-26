@@ -180,17 +180,23 @@ case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.Fir
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
+  implicit val parser: Parser[LayerVersion] = unapply(_)
+  implicit val ogdlWriter: OgdlWriter[LayerVersion] = lv => Ogdl(stringShow.show(lv))
+  implicit val ogdlReader: OgdlReader[LayerVersion] = ogdl => unapply(ogdl()).get
   
   implicit val stringShow: StringShow[LayerVersion] =
-    layerVersion => str"${layerVersion.major}.${layerVersion.minor}"
+    layerVersion => str"${layerVersion.major}${layerVersion.minor.fold("") { v => str".$v" }}"
     
   def unapply(str: String): Option[LayerVersion] =
-    str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, minor.toInt) }
+    str.only {
+      case r"[0-9]+"                           => LayerVersion(str.toInt, None)
+      case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, Some(minor.toInt))
+    }
 
-  final val First: LayerVersion = LayerVersion(1, 0)
+  final val First: LayerVersion = LayerVersion(1, Some(0))
 }
 
-case class LayerVersion(major: Int, minor: Int)
+case class LayerVersion(major: Int, minor: Option[Int])
 
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {

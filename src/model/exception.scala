@@ -22,6 +22,7 @@ case class AlreadyInitialized() extends FuryException
 case class BspException() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
 case class CantWatchAndWait() extends FuryException
+case class CannotUndo() extends FuryException
 case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
 case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
@@ -76,6 +77,7 @@ case class RepoNotForked(repo: RepoId) extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException
+case class UnknownVersion(version: LayerVersion) extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException
 case class UnresolvedModules(refs: Map[ModuleRef, Set[ModuleRef]]) extends FuryException
 case class UnknownOs(description: String) extends FuryException
