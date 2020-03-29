@@ -19,7 +19,7 @@ package fury.strings
 case class AnsiCode(private val code: String) {
   def apply(): String             = if(code == "") "" else s"\u001b[$code"
   def apply(str: String): String  = if(code == "") str else s"${apply()}$str${Ansi.reset()}"
-  def +(that: AnsiCode): AnsiCode = AnsiCode(s"${code}\u001b${that.code}")
+  def +(that: AnsiCode): AnsiCode = AnsiCode(s"${code}\u001b[${that.code}")
 }
 
 object Rgb { def apply(r: Int, g: Int, b: Int): AnsiCode = AnsiCode(s"38;2;$r;$g;${b}m") }
@@ -104,7 +104,8 @@ object Theme {
           info = Rgb(40, 40, 160),
           uri = Rgb(120, 120, 240),
           number = Rgb(255, 200, 0),
-          underline = Ansi.underline)
+          underline = Ansi.underline,
+          hazard = Rgb(255, 50, 0) + Ansi.reverse)
 
   object Basic
       extends Theme(
@@ -131,7 +132,8 @@ object Theme {
           info = Ansi.blue,
           uri = Ansi.blue,
           number = Ansi.brightYellow,
-          underline = Ansi.underline)
+          underline = Ansi.underline,
+          hazard = Ansi.brightRed + Ansi.reverse)
 
   object NoColor extends Theme("nocolor") {
     override val reset: AnsiCode     = AnsiCode("")
@@ -169,7 +171,8 @@ case class Theme(
     info: AnsiCode = AnsiCode(""),
     uri: AnsiCode = AnsiCode(""),
     number: AnsiCode = AnsiCode(""),
-    underline: AnsiCode = AnsiCode("")) {
+    underline: AnsiCode = AnsiCode(""),
+    hazard: AnsiCode = AnsiCode("")) {
   val reset: AnsiCode     = AnsiCode("0m")
   val bold: AnsiCode      = AnsiCode("1m")
   val strike: AnsiCode    = AnsiCode("9m")

@@ -93,8 +93,8 @@ object Http {
     new URL(url.key).openConnection match {
       case conn: HttpURLConnection =>
         conn.setRequestMethod(method)
-        conn.setConnectTimeout(10000)
-        conn.setReadTimeout(10000)
+        conn.setConnectTimeout(30000)
+        conn.setReadTimeout(30000)
         
         if(method == "POST" || method == "PUT")
           conn.setRequestProperty("Content-Type", implicitly[Postable[T]].contentType)

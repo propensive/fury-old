@@ -52,6 +52,7 @@ case class InitFailure() extends FuryException
 case class InvalidKind(expected: Kind) extends FuryException
 case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
+case class InvalidVersion() extends FuryException
 case class InvalidSource(source: UserMsg, module: ModuleRef) extends FuryException
 case class IpfsTimeout() extends FuryException
 case class NotOnPath(name: ExecName) extends FuryException
@@ -69,11 +70,13 @@ case class NoSourcesError(repoId: RepoId, commit: Commit, sources: UserMsg) exte
 case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException
 case class ProjectAlreadyExists(project: ProjectId) extends FuryException
+case class PublishFailure() extends FuryException
 case class ProjectConflict(ids: Set[ProjectId]/*, h1: Hierarchy, h2: Hierarchy*/) extends FuryException
 case class RemoteNotSynched(repo: RepoId, remote: String) extends FuryException
 case class RepoAlreadyForked(repo: RepoId, dir: Path) extends FuryException
 case class RepoDirty(repo: RepoId, changes: String) extends FuryException
 case class RepoNotForked(repo: RepoId) extends FuryException
+case class RootLayerNotSelected() extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException

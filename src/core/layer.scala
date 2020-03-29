@@ -51,6 +51,10 @@ case class Layer(version: Int,
     LocalSource(_, _) <- module.sources
   } yield module.ref(project)
 
+  def deepModuleRefs(universe: Universe): Set[ModuleRef] =
+    universe.entities.values.flatMap(_.project.moduleRefs).to[Set]
+
+
   def unresolvedModules(universe: Universe): Map[ModuleRef, Set[ModuleRef]] = { for {
     project    <- projects.to[List]
     module     <- project.modules
@@ -58,7 +62,9 @@ case class Layer(version: Int,
     missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
-  def verify()(implicit log: Log): Try[Unit] = for {
+  def verify(conf: FuryConf)(implicit log: Log): Try[Unit] = for {
+    _         <- ~log.info(msg"Checking that the root layer is selected")
+    _         <- if(conf.path == ImportPath.Root) Success(()) else Failure(RootLayerNotSelected())
     _         <- ~log.info(msg"Checking that no modules reference local sources")
     localSrcs <- ~localSources
     _         <- if(localSrcs.isEmpty) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
