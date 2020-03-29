@@ -81,8 +81,8 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     _        <- ~log.info(msg"Please visit $uri to authenticate using GitHub.")
     _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
     response <- Await.result(future, Duration.Inf)
-    json     <- ~Json.parse(new String(response, "UTF-8")).get
-    token    <- ~json.token.as[String].get
+    json     <- Json.parse(new String(response, "UTF-8")).to[Try]
+    token    <- json.token.as[String].to[Try]
   } yield OauthToken(token)
 
   def software: Try[ExitStatus] = for {

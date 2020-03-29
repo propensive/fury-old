@@ -141,7 +141,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
-    cli            <- cli.hint(UrlArg, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
+    cli            <- cli.hint(UrlArg)//, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
     cli            <- cli.hint(DirArg)
     cli            <- cli.hint(HttpsArg)
     projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)

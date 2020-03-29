@@ -29,8 +29,8 @@ object Service {
     
     for {
       bytes <- Http.get(url, Set())
-      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
-      artifacts <- Try(catalog.entries.as[List[String]].get)
+      catalog <- Json.parse(new String(bytes, "UTF-8")).to[Try]
+      artifacts <- catalog.entries.as[List[String]].to[Try]
     } yield artifacts
   }
 
@@ -39,8 +39,8 @@ object Service {
     
     for {
       bytes <- Http.get(url, Set())
-      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
-      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
+      catalog <- Json.parse(new String(bytes, "UTF-8")).to[Try]
+      artifacts <- catalog.entries.as[List[Artifact]].to[Try]
     } yield artifacts
   }
 
@@ -80,9 +80,9 @@ object Service {
       id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json(request), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
-      json <- Try(Json.parse(str).get)
+      json <- Json.parse(str).to[Try]
       _    <- ~log.note(json.toString)
-      res  <- Try(json.as[Response].get)
+      res  <- json.as[Response].to[Try]
     } yield ()
   }
 
@@ -112,9 +112,9 @@ object Service {
       id   <- Try(ipfs.id().get)
       out  <- Http.post(url, Json(request), headers = Set())
       str  <- Success(new String(out, "UTF-8"))
-      json <- Try(Json.parse(str).get)
+      json <- Json.parse(str).to[Try]
       _    <- ~log.note(json.toString)
-      res  <- Try(json.as[Response].get)
+      res  <- json.as[Response].to[Try]
     } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
   }
 }

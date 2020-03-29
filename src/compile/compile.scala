@@ -221,7 +221,7 @@ object Compilation {
                     noSecurity: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
-    hierarchy   <- layer.hierarchy(layout)
+    hierarchy   <- layer.hierarchy()
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
     compilation <- fromUniverse(universe, ref, layout)

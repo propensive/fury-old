@@ -38,8 +38,8 @@ object MavenCentral {
     for {
       string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / "select", httpQuery), Set())
 
-      json   <- Try(Json.parse(new String(string, "UTF-8")).get)
-      docs   <- Try(json.response.docs.as[Set[Doc]].get)
+      json   <- Json.parse(new String(string, "UTF-8")).to[Try]
+      docs   <- json.response.docs.as[Set[Doc]].to[Try]
     } yield {
       binSpec match {
         case PartialBinSpec(_, None, None) =>
