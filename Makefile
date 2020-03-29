@@ -1,5 +1,4 @@
 VERSION="${shell git describe --tags 2> /dev/null}"
-LAYER_REF="QmegLbqVdLgis1wUiB2s5HRxpYZXS9343PkiJ7JPBkBCaJ"
 
 run: dist/fury tmp/.bundle.ipfs
 
@@ -42,10 +41,9 @@ tmp/.version:
 tmp/lib/fury.jar: $(wildcard src/**/*.scala) tmp/.version
 	@printf "Cloning the Fury layer over IPFS...\n" && \
 	 mkdir -p tmp/lib && \
-	 ./fury layer clone -d . -l fury://$(LAYER_REF) && \
 	 printf "Done\n" && \
 	 printf "Compiling Fury from source...\n" && \
-	 ./fury build run --https --project fury --module frontend --output linear --dir tmp/lib --fat-jar --disable-security-manager && \
+	 fury build run --https --project fury --module frontend --output linear --dir tmp/lib --fat-jar --disable-security-manager && \
 	 mv tmp/lib/fury-frontend.jar "$@" && \
 	 jar uf "$@" -C tmp .version && \
 	 touch "$@" && \
