@@ -29,8 +29,8 @@ object Service {
     
     for {
       bytes <- Http.get(url, Set())
-      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
-      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
+      catalog <- Json.parse(new String(bytes, "UTF-8")).ascribe(CatalogParseError())
+      artifacts <- catalog.entries.as[List[Artifact]].ascribe(CatalogFormatError())
     } yield artifacts
   }
 

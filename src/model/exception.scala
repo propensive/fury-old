@@ -22,6 +22,8 @@ case class AlreadyInitialized() extends FuryException
 case class BspException() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
 case class CantWatchAndWait() extends FuryException
+case class CatalogParseError() extends FuryException
+case class CatalogFormatError() extends FuryException
 case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
 case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException

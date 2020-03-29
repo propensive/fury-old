@@ -54,6 +54,10 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"You are not authenticated.")
         case CantWatchAndWait() =>
           cli.abort(msg"The --watch (-w) and --wait (-W) options cannot be used together.")
+        case CatalogParseError() =>
+          cli.abort(msg"The response of the catalog server could not be parsed as JSON.")
+        case CatalogFormatError() =>
+          cli.abort(msg"Unexpected format of the catalog server response.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path, e) =>
