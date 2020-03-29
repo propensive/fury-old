@@ -176,7 +176,7 @@ object PublishedLayer {
     Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
 }
 
-case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.First, layerRef: LayerRef)
+case class PublishedLayer(url: FuryUri, version: FullVersion = FullVersion.First, layerRef: LayerRef)
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
@@ -192,8 +192,6 @@ object LayerVersion {
       case r"[0-9]+"                           => LayerVersion(str.toInt, None)
       case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, Some(minor.toInt))
     }
-
-  final val First: LayerVersion = LayerVersion(1, Some(0))
 }
 
 case class LayerVersion(major: Int, minor: Option[Int])
@@ -260,13 +258,28 @@ object RemoteLayerId {
 
 case class RemoteLayerId(group: Option[String], name: String)
 
-case class Catalog(entries: SortedSet[Artifact])
+case class Catalog(entries: List[Artifact])
+
+object FullVersion {
+  final val First: FullVersion = FullVersion(1, 0)
+  implicit val msgShow: MsgShow[FullVersion] = fullVersion => UserMsg(_.number(stringShow.show(fullVersion)))
+  implicit val parser: Parser[FullVersion] = unapply(_)
+  implicit val ogdlWriter: OgdlWriter[FullVersion] = lv => Ogdl(stringShow.show(lv))
+  implicit val ogdlReader: OgdlReader[FullVersion] = ogdl => unapply(ogdl()).get
+  
+  implicit val stringShow: StringShow[FullVersion] =
+    fullVersion => str"${fullVersion.major}.${fullVersion.minor}"
+    
+  def unapply(str: String): Option[FullVersion] =
+    str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => FullVersion(major.toInt, minor.toInt) }
+}
+case class FullVersion(major: Int, minor: Int) { def layerVersion = LayerVersion(major, Some(minor)) }
 
 object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(ref: String, timestamp: Long, version: LayerVersion) {
+case class Artifact(ref: String, timestamp: Long, version: FullVersion) {
   def layerRef: LayerRef = LayerRef(ref)
 }
 

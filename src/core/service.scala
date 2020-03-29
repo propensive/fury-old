@@ -38,13 +38,14 @@ object Service {
     val url = Https(service) / "list" / path
     
     for {
-      bytes <- Http.get(url, Set())
-      catalog <- Try(Json.parse(new String(bytes, "UTF-8")).get)
-      artifacts <- Try(catalog.entries.as[List[Artifact]].get)
-    } yield artifacts
+      bytes   <- Http.get(url, Set())
+      _       <- ~log.note(new String(bytes, "UTF-8"))
+      json    <- Try(Json.parse(new String(bytes, "UTF-8")).get)
+      catalog <- Try(json.as[Catalog].get)
+    } yield catalog.entries
   }
 
-  def latest(service: DomainName, path: String, current: Option[LayerVersion])
+  def latest(service: DomainName, path: String, current: Option[FullVersion])
             (implicit log: Log)
             : Try[Artifact] =
     for {
@@ -60,7 +61,7 @@ object Service {
       artifacts <- list(service, path)
       stream    <- artifacts.groupBy(_.version.major).get(version.major).ascribe(UnknownVersion(version))
       artifact  <- version.minor.fold(~stream.maxBy(_.version.minor)) { v =>
-                     stream.find(_.version.minor == Some(v)).ascribe(UnknownVersion(version))
+                     stream.find(_.version.minor == v).ascribe(UnknownVersion(version))
                    }
     } yield artifact
 
@@ -103,7 +104,7 @@ object Service {
     case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
         public: Boolean, breaking: Boolean)
 
-    case class Response(path: String, ref: String, version: LayerVersion)
+    case class Response(path: String, ref: String, version: FullVersion)
 
     val request = Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking)
     
@@ -114,7 +115,30 @@ object Service {
       str  <- Success(new String(out, "UTF-8"))
       json <- Try(Json.parse(str).get)
       _    <- ~log.note(json.toString)
-      res  <- Try(json.as[Response].get)
+      res  <- handleError[Response](json)
     } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
   }
+  import Json._
+
+  def handleError[R: Deserializer](json: Json): Try[R] = json.as[R].map(Try(_)).getOrElse {
+    json.as[ServiceException] match {
+      case Some(v) => Failure(v)
+      case None    => Failure(UnexpectedError("Could not parse JSON response"))
+    }
+  }
+  
 }
+
+sealed abstract class ServiceException(msg: String) extends Exception(msg) with Product with Serializable
+
+case class GithubUserDetailsError(code: Int) extends ServiceException("Could not fetch the information about the user due to HTTP error code $code")
+case class PinataAddHashFailure() extends ServiceException("Could not pin the hash to IPFS service")
+case class PinataPinFailure() extends ServiceException("Could not pin the file to IPFS service")
+case class InvalidPrefix(prefix: String) extends ServiceException(s"The name prefix $prefix is not yours")
+case class InvalidNameFormat(name: String) extends ServiceException(s"The name $name is not in the right format")
+case class InvalidVersion() extends ServiceException(s"The version number is not valid")
+case class UnexpectedError(msg: String) extends ServiceException(msg)
+case class InputError() extends ServiceException("The input data was not in the correct format")
+case class ThirdPartyError() extends ServiceException("There was an invalid interaction with a third-party service")
+case class MissingParam(param: String) extends ServiceException("The parameter $param was missing")
+case class NameNotFound() extends ServiceException("A public layer with that name was not found")

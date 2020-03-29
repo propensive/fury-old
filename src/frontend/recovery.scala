@@ -79,13 +79,19 @@ You can grant these permissions with,
         case LayerNotFound(path) =>
           cli.abort(
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
+        case e: ServiceException =>
+          cli.abort(e.getMessage)
         case CannotUndo() =>
           cli.abort(msg"""The previous action cannot be undone...""")
         case UnresolvedModules(refs) =>
           cli.abort(msg"""Some modules contain references to other modules which do not exist.""")
+        case PublishFailure() =>
+          cli.abort(msg"""The server was not able to publish this layer.""")
         case LayerContainsLocalSources(refs) =>
           val plural = if(refs.size > 1) "s" else ""
           cli.abort(msg"""The module$plural contains references to local sources.""")
+        case RootLayerNotSelected() =>
+          cli.abort(msg"A layer can only be published from the root layer (${ImportPath.Root})")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>

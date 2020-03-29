@@ -601,16 +601,16 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     layer         <- Layer.retrieve(conf)
     defaultId     <- Try(conf.published.map(_.url.path).flatMap(RemoteLayerId.unapply(_)))
-    remoteLayerId <- call(RemoteLayerArg).orElse(Try(defaultId.get))
+    remoteLayerId <- call(RemoteLayerArg).toOption.orElse(defaultId).ascribe(MissingArg("name"))
     breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
-    _             <- layer.verify()
+    _             <- layer.verify(conf)
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
                          breaking, public, conf.published.fold(0)(_.version.major),
-                         conf.published.fold(0)(_.version.minor.getOrElse(0)), token)
+                         conf.published.fold(0)(_.version.minor), token)
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
                        log.info(msg"Shared layer at ${IpfsRef(ref.key)}")
                        ~log.info(msg"Published version ${pub.version}${if(public) " " else " privately "}to ${pub.url}")
@@ -625,7 +625,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer         <- Layer.retrieve(conf)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
-    _             <- layer.verify()
+    _             <- layer.verify(conf)
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     _             <- if(raw) ~log.rawln(str"${ref}") else ~log.info(msg"Shared at ${ref}")
