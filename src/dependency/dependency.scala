@@ -103,10 +103,11 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
       project  <- optProject
       module   <- project.modules.findBy(moduleId).toOption
     } yield module)
-    importedLayers   <- layer.importedLayers
-    allLayers        =  layer :: importedLayers.to[List]
-    allModules       =  allLayers.map(_.moduleRefs).flatten
-    cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
+    
+    hierarchy        <- layer.hierarchy()
+    universe         <- hierarchy.universe
+    allModuleRefs    <- ~layer.deepModuleRefs(universe)
+    cli              <- cli.hint(LinkArg, allModuleRefs.filter(!_.hidden))
     cli              <- cli.hint(IntransitiveArg)
     call             <- cli.call()
     project          <- optProject.asTry

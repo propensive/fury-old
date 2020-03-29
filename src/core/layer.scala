@@ -51,6 +51,10 @@ case class Layer(version: Int,
     LocalSource(_, _) <- module.sources
   } yield module.ref(project)
 
+  def deepModuleRefs(universe: Universe): Set[ModuleRef] =
+    universe.entities.values.flatMap(_.project.moduleRefs).to[Set]
+
+
   def unresolvedModules(universe: Universe): Map[ModuleRef, Set[ModuleRef]] = { for {
     project    <- projects.to[List]
     module     <- project.modules
