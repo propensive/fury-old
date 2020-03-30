@@ -39,9 +39,15 @@ object Ipfs {
 
   case class IpfsApi(api: IPFS){
 
-    def add(path: Path): Try[IpfsRef] =  for{
+    def add(path: Path): Try[IpfsRef] = for {
       file <- Try(new NamedStreamable.FileWrapper(path.javaFile))
       ref  <- add(file, wrap = false, onlyHash = false)
+    } yield ref
+
+    def add(string: String): Try[IpfsRef] = for {
+      data <- Try(new ByteArrayInputStream(string.getBytes("UTF-8")))
+      data <- Try(new NamedStreamable.InputStreamWrapper(data))
+      ref  <- add(data, wrap = false, onlyHash = false)
     } yield ref
 
     def hash(path: Path): Try[IpfsRef] =  for{
@@ -52,10 +58,12 @@ object Ipfs {
     def get(ref: IpfsRef, path: Path)(implicit log: Log): Try[Path] = {
       val hash = Multihash.fromBase58(ref.key)
       val config = ManagedConfig()
+      
       val getFromIpfs: Try[Path] =
         if(config.skipIpfs) Failure(new IllegalStateException("Using the IPFS daemon is forbidden by configuration"))
         else getFile(hash, path)
-      getFromIpfs.failed.foreach{ e =>
+
+      getFromIpfs.failed.foreach { e =>
         log.warn(s"Could not resolve the hash using IPFS daemon. Cause: $e")
       }
       getFromIpfs.recoverWith { case e =>
@@ -74,6 +82,11 @@ object Ipfs {
       }
     }
 
+    def get(hash: IpfsRef): Try[String] = for {
+      hash   <- ~Multihash.fromBase58(hash.key)
+      string <- ~(new String(api.cat(hash), "UTF-8"))
+    } yield string
+    
     def id(): Try[IpfsId] = Try {
       val idInfo = api.id()
 
@@ -103,7 +116,7 @@ object Ipfs {
 
     private[this] def getFileFromGateway(hash: Multihash, path: Path)(gateway: String)(implicit log: Log): Try[Path] = {
       log.info(s"Accessing $gateway to retrieve $hash")
-      val query = Query & ("arg" -> hash.toBase58) & ("archive" -> "true")
+      val query = Query("arg" -> hash.toBase58, "archive" -> "true")
       for {
         _    <- path.mkParents()
         data <- Http.get(Https(Path(gateway) / "api" / "v0" / s"get", query), Set.empty)
@@ -117,7 +130,7 @@ object Ipfs {
   case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
       ProtocolVersion: String)
 
-  def daemon(env: Environment, quiet: Boolean)(implicit log: Log): Try[IpfsApi] = {
+  def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsApi] = {
     log.note("Checking for IPFS daemon")
 
     def getHandle(): Try[IPFS] = Try(new IPFS("localhost", 5001).timeout(10000))
@@ -154,8 +167,8 @@ object Ipfs {
       case e: RuntimeException if e.getMessage.contains("Couldn't connect to IPFS daemon") =>
         log.infoWhen(!quiet)(msg"Couldn't connect to IPFS daemon")
         for {
-          _    <- IpfsSoftware.installedPath(env, quiet)
-          ipfs =  IpfsSoftware.activePath(env)
+          _    <- IpfsSoftware.installedPath(environments.enclosing, quiet)
+          ipfs =  IpfsSoftware.activePath(environments.enclosing)
           _    <- init(ipfs)
           _    <- Await.ready(handleAsync(ipfs), 120.seconds).value.get
           api  <- getHandle()

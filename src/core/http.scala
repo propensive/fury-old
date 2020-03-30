@@ -49,7 +49,10 @@ abstract class Postable[T](val contentType: String) { def content(value: T): Arr
 
 case class HttpHeader(key: String, value: String)
 
-object Https { def apply(path: Path, query: Query = Query.empty): Uri = Uri("https", path, query) }
+object Https {
+  def apply(path: Path, query: Query = Query()): Uri = Uri("https", path, query)
+  def apply(domain: DomainName): Uri = Uri("https", Path(domain.value))
+}
 
 object Http {
 
@@ -90,8 +93,8 @@ object Http {
     new URL(url.key).openConnection match {
       case conn: HttpURLConnection =>
         conn.setRequestMethod(method)
-        conn.setConnectTimeout(10000)
-        conn.setReadTimeout(10000)
+        conn.setConnectTimeout(30000)
+        conn.setReadTimeout(30000)
         
         if(method == "POST" || method == "PUT")
           conn.setRequestProperty("Content-Type", implicitly[Postable[T]].contentType)

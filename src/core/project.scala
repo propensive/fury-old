@@ -30,7 +30,7 @@ object Project {
   implicit val keyName: KeyName[Project] = () => msg"project"
 
   def available(projectId: ProjectId, layer: Layer): Boolean =
-    !layer.projects.toOption.to[List].flatten.findBy(projectId).isSuccess
+    !layer.projects.findBy(projectId).isSuccess
 }
 
 case class Project(id: ProjectId,

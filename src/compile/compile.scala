@@ -214,14 +214,14 @@ object Compilation {
 
   def findBy(targetId: TargetId): Iterable[Compilation] = requestOrigins.values.filter(_.target.id == targetId)
 
-  def mkCompilation(schema: Schema,
+  def mkCompilation(layer: Layer,
                     ref: ModuleRef,
                     layout: Layout,
                     https: Boolean,
                     noSecurity: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(layout)
+    hierarchy   <- layer.hierarchy()
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
     compilation <- fromUniverse(universe, ref, layout)
@@ -260,13 +260,13 @@ object Compilation {
     }
   }
 
-  def asyncCompilation(schema: Schema,
+  def asyncCompilation(layer: Layer,
                        ref: ModuleRef,
                        layout: Layout,
                        https: Boolean)(implicit log: Log)
   : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(schema, ref, layout, https, false))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(layer, ref, layout, https, false))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -276,12 +276,12 @@ object Compilation {
     compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(schema: Schema,
+  def syncCompilation(layer: Layer,
                       ref: ModuleRef,
                       layout: Layout,
                       https: Boolean,
                       noSecurity: Boolean)(implicit log: Log): Try[Compilation] = {
-    val compilation = mkCompilation(schema, ref, layout, https, noSecurity)
+    val compilation = mkCompilation(layer, ref, layout, https, noSecurity)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }

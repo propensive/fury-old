@@ -30,12 +30,10 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
   def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -56,7 +54,6 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     module  <- optModule.asTry
     rows    <- ~module.dependencies.to[List].sorted
     table   <- ~Tables().show(table, cli.cols, rows, raw, col, dep, "dependency")
-    schema  <- layer.schemas.findBy(SchemaId.default)
     _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _       <- ~log.rawln(table)
   } yield log.await()
@@ -64,12 +61,10 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
   def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -89,27 +84,18 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     module    <- optModule.asTry
     moduleRef <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
     force     <- ~call(ForceArg).isSuccess
-
-    layer     <- Lenses.updateSchemas(layer)(Lenses.layer.dependencies(_, project.id,
-                      module.id))(_(_) -= moduleRef)
-
-    _         <- Layer.save(layer, layout)
-    optSchema <- ~layer.mainSchema.toOption
-
-    _         <- ~optSchema.foreach(Compilation.asyncCompilation(_, moduleRef, layout,
-                      https))
-
+    layer     <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - moduleRef)
+    _         <- Layer.commit(layer, conf, layout)
+    _         <- ~Compilation.asyncCompilation(layer, moduleRef, layout, https)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -117,12 +103,11 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
       project  <- optProject
       module   <- project.modules.findBy(moduleId).toOption
     } yield module)
-
-    optSchema       <- ~layer.mainSchema.toOption
-    importedSchemas  = optSchema.flatMap(_.importedSchemas(layout, false).toOption)
-    allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
-    allModules       = allSchemas.map(_.moduleRefs).flatten
-    cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
+    
+    hierarchy        <- layer.hierarchy()
+    universe         <- hierarchy.universe
+    allModuleRefs    <- ~layer.deepModuleRefs(universe)
+    cli              <- cli.hint(LinkArg, allModuleRefs.filter(!_.hidden))
     cli              <- cli.hint(IntransitiveArg)
     call             <- cli.call()
     project          <- optProject.asTry
@@ -130,15 +115,9 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     intransitive     <- ~call(IntransitiveArg).isSuccess
     linkArg          <- call(LinkArg)
     moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
-
-    layer            <- Lenses.updateSchemas(layer)(Lenses.layer.dependencies(_,
-                            project.id, module.id))(_(_) += moduleRef)
-
-    _                <- Layer.save(layer, layout)
-
-    _                <- ~optSchema.foreach(Compilation.asyncCompilation(_, moduleRef, layout,
-                            false))
-
+    layer            <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + moduleRef)
+    _                <- Layer.commit(layer, conf, layout)
+    _                <- ~Compilation.asyncCompilation(layer, moduleRef, layout, false)
   } yield log.await()
 }
 
@@ -146,12 +125,10 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
   def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -178,19 +155,17 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
   def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    optModule    <- ~(for {
+                      project  <- optProject
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module)
 
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     cli          <- cli.hint(EnvArg, optModule.to[List].flatMap(_.environment.to[List]))
@@ -200,23 +175,17 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     project      <- optProject.asTry
     module       <- optModule.asTry
     force        <- ~call(ForceArg).isSuccess
-    
-    layer        <- Lenses.updateSchemas(layer)(Lenses.layer.environment(_, project.id,
-                        module.id))(_(_) -= envArg)
-
-    _            <- Layer.save(layer, layout)
-    optSchema    <- ~layer.mainSchema.toOption
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ - envArg)
+    _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
     layout          <- cli.layout
     conf            <- Layer.readFuryConf(layout)
-    layer           <- Layer.read(layout, conf)
-    schemaArg       <- ~Some(SchemaId.default)
-    schema          <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli             <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId    <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject      <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer           <- Layer.retrieve(conf)
+    cli             <- cli.hint(ProjectArg, layer.projects)
+    optProjectId    <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject      <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli             <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId        <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -224,21 +193,17 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
       project  <- optProject
       module   <- project.modules.findBy(moduleId).toOption
     } yield module)
-    optSchema       <- ~layer.mainSchema.toOption
 
-    importedSchemas  = optSchema.flatMap(_.importedSchemas(layout, false).toOption)
-    allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
-    allModules       = allSchemas.map(_.moduleRefs).flatten
+    importedLayers  = layer.importedLayers.toOption
+    allLayers       = layer :: importedLayers.toList.flatten
+    allModules       = allLayers.map(_.moduleRefs).flatten
     cli             <- cli.hint(EnvArg)
     call            <- cli.call()
     project         <- optProject.asTry
     module          <- optModule.asTry
     envArg          <- call(EnvArg)
-
-    layer           <- Lenses.updateSchemas(layer)(Lenses.layer.environment(_, project.id,
-                            module.id))(_(_) += envArg)
-
-    _               <- Layer.save(layer, layout)
+    layer           <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ + envArg)
+    _               <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }
 
@@ -247,12 +212,10 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
   def require: Try[ExitStatus] = for {
     layout          <- cli.layout
     conf            <- Layer.readFuryConf(layout)
-    layer           <- Layer.read(layout, conf)
-    schemaArg       <- ~Some(SchemaId.default)
-    schema          <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli             <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId    <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject      <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer           <- Layer.retrieve(conf)
+    cli             <- cli.hint(ProjectArg, layer.projects)
+    optProjectId    <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject      <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli             <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId        <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -274,10 +237,10 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     targetArg       <- call(PermissionTargetArg)
     actionArg       =  call(ActionArg).toOption
     grant           =  call(NoGrantArg).isFailure
-    permission      =  Permission(classArg, targetArg, actionArg)
-    layer           <- Lenses.updateSchemas(layer)(Lenses.layer.policy(_, project.id,
-                            module.id))(_(_) += permission)
-    _               <- Layer.save(layer, layout)
+    permission      =  Permission(str"${classArg.key}:${targetArg}", actionArg)
+    layer           <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_ +
+                           permission)
+    _               <- Layer.commit(layer, conf, layout)
     policy          <- ~Policy.read(log)
     newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
     _               <- Policy.save(newPolicy)
@@ -289,12 +252,10 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
   def obviate: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
-    layer         <- Layer.read(layout, conf)
-    schemaArg     <- ~Some(SchemaId.default)
-    schema        <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli           <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId  <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject    <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer         <- Layer.retrieve(conf)
+    cli           <- cli.hint(ProjectArg, layer.projects)
+    optProjectId  <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject    <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId      <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -310,26 +271,22 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
     project       <- optProject.asTry
     module        <- optModule.asTry
-    schema        <- layer.schemas.findBy(layer.main)
-    hierarchy     <- schema.hierarchy(layout)
+    hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
     compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
     permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
     force         =  call(ForceArg).isSuccess
-    layer         <- Lenses.updateSchemas(layer)(Lenses.layer.policy(_, project.id,
-                          module.id))((x, y) => x(y) = x(y) diff permissions.to[Set])
-    _             <- Layer.save(layer, layout)
+    layer         <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_.diff(permissions.to[Set]))
+    _             <- Layer.commit(layer, conf, layout)
   } yield log.await()
   
   def list: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
-    layer         <- Layer.read(layout, conf)
-    schemaArg     <- ~Some(SchemaId.default)
-    schema        <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli           <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId  <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject    <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer         <- Layer.retrieve(conf)
+    cli           <- cli.hint(ProjectArg, layer.projects)
+    optProjectId  <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject    <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId      <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -355,12 +312,10 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
   def grant: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
-    layer         <- Layer.read(layout, conf)
-    schemaArg     <- ~Some(SchemaId.default)
-    schema        <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli           <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId  <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject    <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer         <- Layer.retrieve(conf)
+    cli           <- cli.hint(ProjectArg, layer.projects)
+    optProjectId  <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject    <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli           <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId      <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -377,8 +332,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     project       <- optProject.asTry
     module        <- optModule.asTry
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
-    schema        <- layer.schemas.findBy(layer.main)
-    hierarchy     <- schema.hierarchy(layout)
+    hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
     compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
     permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
@@ -392,12 +346,10 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
   def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId      <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -425,12 +377,10 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
   def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId      <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -447,22 +397,17 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     project   <- optProject.asTry
     module    <- optModule.asTry
     force     <- ~call(ForceArg).isSuccess
-
-    layer     <- Lenses.updateSchemas(layer)(Lenses.layer.properties(_, project.id,
-                      module.id))(_(_) -= propArg)
-
-    _         <- Layer.save(layer, layout)
+    layer     <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ - propArg)
+    _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId      <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -473,12 +418,10 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
 
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.read(layout, conf)
-    schemaArg    <- ~Some(SchemaId.default)
-    schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
-    cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
-    optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
-    optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
+    layer        <- Layer.retrieve(conf)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId      <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
@@ -487,18 +430,14 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
       module   <- project.modules.findBy(moduleId).toOption
     } yield module)
 
-    optSchema       <- ~layer.mainSchema.toOption
-    importedSchemas  = optSchema.flatMap(_.importedSchemas(layout, false).toOption)
-    allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
+    importedLayers   = layer.importedLayers.toOption
+    allLayers        = layer :: importedLayers.toList.flatten
     cli             <- cli.hint(PropArg)
     call            <- cli.call()
     project         <- optProject.asTry
     module          <- optModule.asTry
     propArg         <- call(PropArg)
-
-    layer           <- Lenses.updateSchemas(layer)(Lenses.layer.properties(_, project.id,
-                            module.id))(_(_) += propArg)
-
-    _               <- Layer.save(layer, layout)
+    layer           <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ + propArg)
+    _               <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }

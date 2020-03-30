@@ -1,5 +1,4 @@
 VERSION="${shell git describe --tags 2> /dev/null}"
-LAYER_REF="QmegLbqVdLgis1wUiB2s5HRxpYZXS9343PkiJ7JPBkBCaJ"
 
 run: dist/fury tmp/.bundle.ipfs
 
@@ -42,7 +41,6 @@ tmp/.version:
 tmp/lib/fury.jar: $(wildcard src/**/*.scala) tmp/.version
 	@printf "Cloning the Fury layer over IPFS...\n" && \
 	 mkdir -p tmp/lib && \
-	 ./fury layer clone -d . -l fury://$(LAYER_REF) && \
 	 printf "Done\n" && \
 	 printf "Compiling Fury from source...\n" && \
 	 ./fury build run --https --project fury --module frontend --output linear --dir tmp/lib --fat-jar --disable-security-manager && \
@@ -83,10 +81,25 @@ tmp/bin/ng.py:
 	 chmod +x "$@" && \
 	 printf "done\n" || printf "failed\n"
 
-dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury
+tmp/etc: etc/icons/hicolor/16x16/apps/fury-icon.png etc/icons/hicolor/48x48/apps/fury-icon.png etc/icons/hicolor/128x128/apps/fury-icon.png 
+	@printf "Copying Fury icons..." && \
+	 mkdir -p tmp/etc && \
+	 cp -r etc/icons tmp/etc/icons && \
+	 touch tmp/etc && \
+	 printf "done\n" || printf "failed\n"
+
+icons: doc/logo/render_1000px.png
+	@printf "Resizing logo for Fury icons..." && \
+	 mkdir -p etc/icons/hicolor/128x128/apps etc/icons/hicolor/48x48/apps etc/icons/hicolor/16x16/apps && \
+	 convert doc/logo/render_1000px.png -resize 16x16 etc/icons/hicolor/16x16/apps/fury-icon.png && \
+	 convert doc/logo/render_1000px.png -resize 48x48 etc/icons/hicolor/48x48/apps/fury-icon.png && \
+	 convert doc/logo/render_1000px.png -resize 128x128 etc/icons/hicolor/128x128/apps/fury-icon.png && \
+	 printf "done\n" || printf "failed\n"
+
+dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury tmp/etc tmp/etc
 	@printf "Creating bundle file..." && \
 	 mkdir -p dist && \
-	 tar czf "$@" -C tmp .version lib bin script && \
+	 tar czf "$@" -C tmp .version lib bin etc script && \
 	 printf "done\n" || printf "failed\n"
 
 tmp/.bundle.ipfs: dist/fury.tar.gz
@@ -138,4 +151,4 @@ publish: tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	 )
 	@printf "$(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
 
-.PHONY: run publish pinata pinata-launcher clean uninstall
+.PHONY: run publish pinata pinata-launcher clean uninstall icons

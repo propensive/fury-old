@@ -62,14 +62,15 @@ object OgdlReader {
   implicit val boolean: OgdlReader[Boolean] = _().toBoolean
   implicit val theme: OgdlReader[Theme] = ogdl => Theme.unapply(ogdl()).getOrElse(Theme.Full)
 
-  implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader](
+  implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader: Index](
       implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
     ): OgdlReader[Coll[T]] = {
     case ogdl @ Ogdl(vector) =>
       if(vector.head._1 == "") Vector[T]().to[Coll]
       else
         vector.map { v =>
-          implicitly[OgdlReader[T]].read(v._2)
+          val data: Ogdl = Ogdl((implicitly[Index[T]].index, Ogdl(v._1)) +: v._2.values)
+          implicitly[OgdlReader[T]].read(data)
         }.to[Coll]
   }
 

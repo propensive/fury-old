@@ -27,7 +27,9 @@ import scala.collection.mutable.HashMap
 import java.util.UUID
 import java.util.jar.{JarFile, Manifest => JManifest}
 import java.util.zip.ZipFile
+import java.io._
 import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry, ZipArchiveOutputStream}
+import java.util.zip.ZipInputStream
 
 case class Shell(environment: Environment) {
   private val furyHome   = Path(System.getProperty("fury.home"))
@@ -196,6 +198,19 @@ case class Shell(environment: Environment) {
       )
   }
 
+  def duplicateFiles(jarInputs: List[Path]): Try[Map[Path, Set[String]]] = {
+    jarInputs.traverse { path => Try {
+      val in = new FileInputStream(path.javaFile)
+      val zis = new ZipInputStream(in)
+      
+      val entries = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName).to[Set]
+
+      (path, entries)
+    } }.map(_.foldLeft((Set[String](), Map[Path, Set[String]]())) { case ((all, map), (path, entries)) =>
+      (all ++ entries, map.updated(path, entries -- all))
+    }._2)
+  }
+
   def jar(dest: Path, jarInputs: Set[Path], pathInputs: Set[Path], manifest: JManifest): Try[Unit] = {
     val zos = new ZipArchiveOutputStream(dest.javaPath.toFile)
     zos.setEncoding("UTF-8")
@@ -205,11 +220,13 @@ case class Shell(environment: Environment) {
 
     val creator = new ParallelScatterZipCreator
     val ok = for {
-      _ <- jarInputs.traverse { input => Zipper.pack(new ZipFile(input.javaFile), creator)(x => !x.getName.contains("META-INF") && !x.isDirectory) }
-      _ <- pathInputs.traverse(Zipper.pack(_, creator))
-    } yield {
-      creator.writeTo(zos)
-    }
+      dups <- duplicateFiles(jarInputs.toList)
+      _    <- jarInputs.traverse { input => Zipper.pack(new ZipFile(input.javaFile), creator) { x =>
+                !x.getName.contains("META-INF") && !x.isDirectory && dups(input).contains(x.getName)
+              } }
+      _    <- pathInputs.traverse(Zipper.pack(_, creator))
+    } yield creator.writeTo(zos)
+    
     zos.close()
     ok
   }

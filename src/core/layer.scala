@@ -21,279 +21,262 @@ import fury.model._, fury.io._, fury.strings._, fury.ogdl._
 import mercator._
 import gastronomy._
 import kaleidoscope._
+import optometry._
 
 import scala.util._
 import scala.collection.immutable._
 import guillotine._
 
+import scala.collection.mutable.HashMap
+import scala.annotation._
+
 case class Layer(version: Int,
-                 schemas: SortedSet[Schema] = TreeSet(Schema(SchemaId.default)),
-                 main: SchemaId = SchemaId.default,
-                 aliases: SortedSet[Alias] = TreeSet()) { layer =>
+                 aliases: SortedSet[Alias] = TreeSet(),
+                 projects: SortedSet[Project] = TreeSet(),
+                 repos: SortedSet[SourceRepo] = TreeSet(),
+                 imports: SortedSet[Import] = TreeSet(),
+                 main: Option[ProjectId] = None,
+                 mainRepo: Option[RepoId] = None,
+                 previous: Option[LayerRef] = None) { layer =>
 
-  def mainSchema: Try[Schema] = schemas.findBy(main)
-  def showSchema: Boolean = schemas.size > 1
-  def apply(schemaId: SchemaId): Try[Schema] = schemas.find(_.id == schemaId).ascribe(ItemNotFound(schemaId))
-  def projects: Try[SortedSet[Project]] = mainSchema.map(_.projects)
+  def apply(id: ProjectId) = projects.findBy(id)
+  def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
+  def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
+  def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
+  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
-  lazy val hash: String = Layer.digestLayer(this).get.key.take(6).toLowerCase
+  def localSources: List[ModuleRef] = for {
+    project           <- projects.to[List]
+    module            <- project.modules
+    LocalSource(_, _) <- module.sources
+  } yield module.ref(project)
+
+  def deepModuleRefs(universe: Universe): Set[ModuleRef] =
+    universe.entities.values.flatMap(_.project.moduleRefs).to[Set]
+
+
+  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[ModuleRef]] = { for {
+    project    <- projects.to[List]
+    module     <- project.modules
+    dependency <- module.dependencies
+    missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
+  } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
+
+  def verify(conf: FuryConf)(implicit log: Log): Try[Unit] = for {
+    _         <- ~log.info(msg"Checking that the root layer is selected")
+    _         <- if(conf.path == ImportPath.Root) Success(()) else Failure(RootLayerNotSelected())
+    _         <- ~log.info(msg"Checking that no modules reference local sources")
+    localSrcs <- ~localSources
+    _         <- if(localSrcs.isEmpty) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
+    _         <- ~log.info(msg"Checking that no project names conflict")
+    universe  <- hierarchy().flatMap(_.universe)
+    _         <- ~log.info(msg"Checking that all module references resolve")
+    missing   <- ~unresolvedModules(universe)
+    _         <- if(missing.isEmpty) Success(()) else Failure(UnresolvedModules(missing))
+  } yield ()
+
+  def compilerRefs(layout: Layout, https: Boolean)(implicit log: Log): List[ModuleRef] =
+    allProjects(layout, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
+
+  def hierarchy()(implicit log: Log): Try[Hierarchy] = for {
+    imps <- imports.map { ref => for {
+      layer        <- Layer.get(ref.layerRef)
+      tree         <- layer.hierarchy()
+    } yield tree }.sequence
+  } yield Hierarchy(this, imps)
+
+  def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
+    imports.to[List].map { sr => Layer.get(sr.layerRef).map(sr.id -> _) }.sequence.map(_.toMap)
+
+  def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
+  
+  def importTree(implicit log: Log): Try[List[ImportPath]] = for {
+    imports    <- resolvedImports
+    importList <- imports.to[List].map { case (id, layer) =>
+                    layer.importTree.map { is => is.map(_.prefix(id)) }
+                  }.sequence.map(_.flatten)
+  } yield (ImportPath.Root :: importList)
+
+  def allProjects(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Project]] = {
+    @tailrec
+    def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
+      treeNodes match {
+        case Nil => ~aggregated
+        case head :: tail =>
+          getChildren(head) match {
+            case Success(ch) => flatten(ch ::: tail)(head :: aggregated, getChildren)
+            case fail => fail
+          }
+      }
+    }
+
+    for {
+      allLayers <- flatten(List(this))(Nil, _.importedLayers)
+    } yield allLayers.flatMap(_.projects)
+  }
+
+  def localRepo(layout: Layout): Try[SourceRepo] = for {
+    repo   <- Repo.local(layout)
+    commit <- Shell(layout.env).git.getCommit(layout.baseDir)
+    branch <- Shell(layout.env).git.getBranch(layout.baseDir).map(RefSpec(_))
+  } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
+
+  def allRepos(layout: Layout): SortedSet[SourceRepo] =
+    (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
+      repos.map(_.repo.simplified).contains(r.repo.simplified)
+    }) ++ repos
+
 }
 
-object Layer {
-    val CurrentVersion = 5
-    implicit val msgShow: MsgShow[Layer] = r => UserMsg(_.layer(r.hash))
-    implicit val stringShow: StringShow[Layer] = _.hash
-  
-    def loadFromIpfs(env: Environment, layerRef: IpfsRef, layout: Layout, quiet: Boolean)
-                    (implicit log: Log)
-                    : Try[LayerRef] =
-      Installation.tmpDir { dir => for {
-        ipfs <- Ipfs.daemon(env, quiet)
-        file <- ipfs.get(layerRef, dir)
-        ref  <- loadDir(file, layout)
-      } yield ref }
-  
-    def moveFuryConfIfNecessary(dir: Path): Try[Unit] = {
-      val oldFile = dir / ".focus.fury"
-      val newFile = dir / ".fury.conf"
-      Try(if(oldFile.exists && !newFile.exists) oldFile.moveTo(newFile))
-    }
-  
-    def loadDir(dir: Path, layout: Layout)(implicit log: Log): Try[LayerRef] =
-      for {
-        _      <- (dir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
-        bases  <- ~(dir / "bases").childPaths
-        _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
-        _      <- moveFuryConfIfNecessary(dir)
-        conf   <- Ogdl.read[FuryConf](dir / ".fury.conf", identity(_))
-      } yield conf.layerRef
-  
-    def loadFile(file: Path, layout: Layout)(implicit log: Log): Try[LayerRef] =
-      Installation.tmpDir { tmpDir => for {
-        _      <- TarGz.extract(file, tmpDir)
-        _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
-        bases  <- ~(tmpDir / "bases").childPaths
-        _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence
-        _      <- moveFuryConfIfNecessary(tmpDir)
-        conf   <- Ogdl.read[FuryConf](tmpDir / ".fury.conf", identity(_))
-      } yield conf.layerRef }
-  
-    def share(env: Environment, layer: Layer, layout: Layout, quiet: Boolean)(implicit log: Log): Try[IpfsRef] =
-      Installation.tmpDir { tmp => for {
-        layerRef  <- saveLayer(layer)
-        schemaRef =  Import(ImportId(""), layerRef, layer.main, None)
-        layerRefs <- collectLayerRefs(schemaRef, layout)
-        _         =  (tmp / "layers").mkdir()
-        filesMap  =  layerRefs.map { ref =>
-                       (tmp / "layers" / ref.key, Installation.layersPath / ref.key)
-                     }.toMap.updated(tmp / ".fury.conf", layout.confFile)
-        _         <- filesMap.toSeq.traverse { case (dest, src) => src.copyTo(dest) }
-        ipfs      <- Ipfs.daemon(env, quiet)
-        ref       <- ipfs.add(tmp)
-      } yield ref }
-  
-    def parse(path: String, layout: Layout): Try[LayerInput] = {
-      val service = ManagedConfig().service
-      path match {
-        case r"fury:\/\/$ref@([A-Za-z0-9]{46})\/?" =>
-          Success(IpfsRef(ref))
-        case r"fury:\/\/$dom@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
-          Success(FuryUri(dom, loc))
-        case r".*\.fury" =>
-          val file = Path(path).in(layout.pwd)
-          if(file.exists) Success(FileInput(file)) else Failure(LayerNotFound(file))
-        case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
-          Success(FuryUri(service, path))
-        case name =>
-          Failure(InvalidLayer(name))
-      }
-    }
-  
-    def load(env: Environment, input: LayerInput, layout: Layout)(implicit log: Log): Try[LayerRef] =
-      input match {
-        case FuryUri(domain, path) => for {
-                                        entries <- Service.catalog(domain)
-                                        ipfsRef <- Try(entries.find(_.path == path).get)
-                                        ref     <- loadFromIpfs(env, IpfsRef(ipfsRef.ref), layout, false)
-                                      } yield ref
-        case ref@IpfsRef(_)        => loadFromIpfs(env, ref, layout, false)
-        case FileInput(file)       => loadFile(file, layout)
-      }
-  
-    def pathCompletions()(implicit log: Log): Try[List[String]] =
-      Service.catalog(ManagedConfig().service).map(_.map(_.path))
-  
-    def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
-      Ogdl.read[FuryConf](layout.confFile, identity(_))
-  
-    private def collectLayerRefs(ref: Import, layout: Layout)(implicit log: Log): Try[Set[LayerRef]] = for {
-      layer   <- read(ref.layerRef, layout)
-      schema  <- layer.schemas.findBy(ref.schema)
-      imports <- schema.imports.map(collectLayerRefs(_, layout)).sequence.map(_.flatten)
-    } yield imports + ref.layerRef
-  
-    def export(layer: Layer, layout: Layout, path: Path)(implicit log: Log): Try[Path] = for {
-      layerRef  <- saveLayer(layer)
-      schemaRef <- ~Import(ImportId(""), layerRef, layer.main, None)
-      layerRefs <- collectLayerRefs(schemaRef, layout)
-      filesMap  <- ~layerRefs.map { ref => (Path(str"layers/${ref}"), Installation.layersPath / ref.key) }.toMap
-      _         <- TarGz.store(filesMap.updated(Path(".fury.conf"), layout.confFile), path)
-    } yield path
-  
-    def base(layout: Layout)(implicit log: Log): Try[Layer] = for {
-      conf     <- readFuryConf(layout)
-      layer    <- read(conf.layerRef, layout)
+object Layer extends Lens.Partial[Layer] {
+  private val cache: HashMap[IpfsRef, Layer] = HashMap()
+  private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
+  implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
+
+  val CurrentVersion: Int = 6
+
+  def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
+
+  def retrieve(conf: FuryConf)(implicit log: Log): Try[Layer] = for {
+    base  <- get(conf.layerRef)
+    layer <- dereference(base, conf.path)
+  } yield layer
+
+  private def dereference(layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
+    if(path.isEmpty) Success(layer)
+    else for {
+      layerImport <- layer.imports.findBy(path.head)
+      layer       <- get(layerImport.layerRef)
+      layer       <- dereference(layer, path.tail)
     } yield layer
-  
-    def read(layout: Layout, conf: FuryConf)(implicit log: Log): Try[Layer] = for {
-      _        <- Ipfs.daemon(environments.enclosing, quiet = false)
-      layer    <- read(conf.layerRef, layout)
-      newLayer <- resolveSchema(layout, layer, conf.path)
-    } yield newLayer
-  
-    def read(ref: LayerRef, layout: Layout)(implicit log: Log): Try[Layer] =
-      Ogdl.read[Layer](Installation.layersPath / ref.key, migrate(_))
-  
-    def resolveSchema(layout: Layout, layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
-      path.parts.foldLeft(Try(layer)) { case (current, importId) => for {
-        layer     <- current
-        schema    <- layer.mainSchema
-        schemaRef <- schema.imports.findBy(importId)
-        layer     <- read(schemaRef.layerRef, layout)
-      } yield layer.copy(main = schemaRef.schema) }
-  
-    def digestLayer(layer: Layer): Try[LayerRef] = Installation.tmpFile { file => for {
-      ipfs <- Ipfs.daemon(environments.enclosing, quiet = true)(Log.log(Pid(-1)))
-      _    <- file.writeSync(Ogdl.serialize(Ogdl(layer)))
-      ref  <- ipfs.hash(file)
-    } yield LayerRef(ref.key) }
 
-    def init(env: Environment, layout: Layout)(implicit log: Log): Try[Unit] = {
-      if(layout.confFile.exists) { for {
-        conf     <- readFuryConf(layout)
-        url      <- Try(conf.published.get)
-        ref      <- parse(str"$url", layout)
-        layer    <- Layer.load(env, ref, layout)
-        conf     <- saveFuryConf(FuryConf(layer, conf.path, conf.published), layout)
-        _        <- ~log.info(msg"Initialized layer ${layer}")
-      } yield () } else { for {
-        _        <- layout.confFile.mkParents()
-        layerRef <- saveLayer(Layer(CurrentVersion))
-        conf     <- saveFuryConf(FuryConf(layerRef), layout)
-        _        <- ~log.info(msg"Initialized an empty layer")
-      } yield () }
-    }
-  
-    def save(newLayer: Layer, layout: Layout)(implicit log: Log): Try[LayerRef] = for {
-      conf         <- readFuryConf(layout)
-      currentLayer <- read(conf.layerRef, layout)
-      layerRef     <- saveSchema(layout, newLayer, conf.path, currentLayer)
-      _            <- pushToHistory(conf.layerRef, layout)
-      _            <- saveFuryConf(conf.copy(layerRef = layerRef), layout)
-    } yield layerRef
+  def get(layerRef: LayerRef)(implicit log: Log): Try[Layer] =
+    lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
+      ipfs  <- Ipfs.daemon(false)
+      data  <- ipfs.get(layerRef.ipfsRef)
+      layer <- Try(Ogdl.read[Layer](data, migrate(_)))
+    } yield layer }
 
-    def undo(layout: Layout)(implicit log: Log): Try[Unit] = for {
-      conf         <- readFuryConf(layout)
-      lastLayer    <- popFromHistory(layout)
-      _            <- saveFuryConf(conf.copy(layerRef = lastLayer), layout)
-      _            <- ~log.info(msg"Reverted to layer $lastLayer")
+  def store(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
+    ipfs    <- Ipfs.daemon(false)
+    ipfsRef <- ipfs.add(Ogdl.serialize(Ogdl(layer)))
+    _       <- Try(cache.synchronized { cache(ipfsRef) = layer })
+  } yield LayerRef(ipfsRef.key)
+
+  def commit(layer: Layer, conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] = for {
+    baseRef <- commitNested(conf, layer)
+    base    <- get(baseRef)
+    layer   <- ~base.copy(previous = Some(conf.layerRef))
+    baseRef <- store(layer)
+    _       <- saveFuryConf(conf.copy(layerRef = baseRef), layout)
     } yield ()
 
-    private def saveSchema(layout: Layout, newLayer: Layer, path: ImportPath, currentLayer: Layer)
-                          (implicit log: Log)
-                          : Try[LayerRef] =
-      if(path.isEmpty) saveLayer(newLayer)
-      else for {
-        schema    <- currentLayer.mainSchema
-        schemaRef <- schema.imports.findBy(path.head)
-        nextLayer <- read(schemaRef.layerRef, layout)
-        layerRef  <- saveSchema(layout, newLayer, path.tail, nextLayer)
-        newSchema <- ~schema.copy(imports = schema.imports.filter(_.id != path.head) + schemaRef.copy(layerRef =
-                         layerRef))
-        newLayer  <- ~currentLayer.copy(schemas = currentLayer.schemas.filter(_.id != currentLayer.main) +
-                         newSchema)
-        newLayerRef <- saveLayer(newLayer)
-      } yield newLayerRef
+  private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =
+    if(conf.path.isEmpty) store(layer) else for {
+      ref     <- store(layer)
+      parent  <- retrieve(conf.parent)
+      pLayer   = Layer(_.imports(conf.path.last).layerRef)(parent) = ref
+      baseRef <- commitNested(conf.parent, pLayer)
+    } yield baseRef
 
-    private def saveLayer(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
-      _ <- Ipfs.daemon(environments.enclosing, quiet = false)
-      layerRef <- digestLayer(layer)
-      _        <- (Installation.layersPath / layerRef.key).writeSync(Ogdl.serialize(Ogdl(layer)))
-    } yield layerRef
+  def hashes(layer: Layer)(implicit log: Log): Try[Set[IpfsRef]] = for {
+    layerRef  <- store(layer)
+    layerRefs <- ~layer.imports.map(_.layerRef)
+    layers    <- layerRefs.to[List].traverse(Layer.get(_))
+    hashes    <- layers.traverse(hashes(_))
+  } yield hashes.foldLeft(Set[IpfsRef]())(_ ++ _) + layerRef.ipfsRef
 
-    private final val confComments: String =
-      str"""# This is a Fury configuration file. It contains significant
-           |# whitespace and is not intended to be human-editable.
-           |#
-           |# To start using Fury with this project, install Fury and run,
-           |#
-           |#   fury layer init
-           |#
-           |# For more information, please visit https://propensive.com/fury/
-           |#
-           |""".stripMargin
+  def share(service: DomainName, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
+    ref    <- store(layer)
+    hashes <- Layer.hashes(layer)
+    _      <- Service.share(service, ref.ipfsRef, token, hashes - ref.ipfsRef)
+  } yield ref
 
-    private final val vimModeline: String =
-      str"""# vim: set noai ts=12 sw=12:
-           |""".stripMargin
-
-    def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] = for {
-      confStr  <- ~Ogdl.serialize(Ogdl(conf))
-      _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
-    } yield conf
-
-    def pushToHistory(layerRef: LayerRef, layout: Layout)(implicit log: Log): Try[Unit] = {
-      layout.undoStack.writeSync(layerRef.key + "\n", append = true)
-    }
-
-    def popFromHistory(layout: Layout)(implicit log: Log): Try[LayerRef] = {
-      val history = layout.undoStack
-      if(history.exists()) {
-        val reader = scala.io.Source.fromFile(history.javaFile)
-        val content = Try(reader.getLines().toList)
-        reader.close()
-        for {
-          lines      <- content
-          entries    <- lines.traverse(LayerRef.unapply(_).ascribe(HistoryCorrupt()))
-          last       <- entries.lastOption.ascribe(HistoryMissing())
-          newEntries =  entries.dropRight(1).map(_.key)
-          _          <- layout.undoStack.writeSync(newEntries.mkString("\n"))
-        } yield last
-      } else Failure(HistoryMissing())
-    }
-  
-    private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
-      val version = Try(ogdl.version().toInt).getOrElse(1)
-      if(version < CurrentVersion) {
-        log.note(msg"Migrating layer file from version $version to ${version + 1}")
-        migrate((version match {
-          case 0 | 1 | 2 =>
-            log.fail(msg"Cannot migrate from layers earlier than version 3")
-            // FIXME: Handle this better
-            throw new Exception()
-          case 3 =>
-            ogdl.set(schemas = ogdl.schemas.map { schema =>
-              schema.set(imports = schema.imports.map { imp =>
-                imp.set(id = Ogdl(s"unknown-${Counter.next()}"))
-              })
-            })
-  
-          case 4 =>
-            ogdl.set(schemas = ogdl.schemas.map { schema =>
-              schema.set(projects = schema.projects.map { project =>
-                project.set(modules = project.modules.map { module =>
-                  module.set(
-                    opts = module.params.map { param => Ogdl(Opt(OptId(param()), false, false)) },
-                    dependencies = module.after,
-                    binaries = module.binaries.map { bin => bin.set(id = bin.artifact) },
-                    policy = module.policy.map { permission => permission.set(classRef =
-                        Ogdl(permission.className())) }
-                  )
-                })
-              })
-            })
-        }).set(version = Ogdl(version + 1)))
-      } else ogdl
-    }
+  def published(layerName: LayerName)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
+    case furyUri@FuryUri(service, path) =>
+      Service.latest(service, path, None).map { artifact =>
+        Some(PublishedLayer(furyUri, artifact.version, LayerRef(artifact.ref)))
+       }
+    case _ =>
+      Success(None)
   }
+
+  def resolve(layerInput: LayerName)(implicit log: Log): Try[LayerRef] = layerInput match {
+    case FileInput(path)       => ???
+    case FuryUri(domain, path) => Service.latest(domain, path, None).map { a => LayerRef(a.ref) }
+    case IpfsRef(key)          => Success(LayerRef(key))
+  }
+
+  def pathCompletions()(implicit log: Log): Try[List[String]] =
+    Service.catalog(ManagedConfig().service)
+
+  def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
+    Ogdl.read[FuryConf](layout.confFile, identity(_))
   
+  def init(layout: Layout)(implicit log: Log): Try[Unit] = {
+    if(layout.confFile.exists) { for {
+      conf     <- readFuryConf(layout)
+      layer    <- Layer.get(conf.layerRef)
+      _        <- ~log.info(msg"Reinitialized layer ${conf.layerRef}")
+    } yield () } else { for {
+      _        <- layout.confFile.mkParents()
+      ref      <- store(Layer(CurrentVersion))
+      conf     <- saveFuryConf(FuryConf(ref), layout)
+      _        <- ~log.info(msg"Initialized an empty layer")
+    } yield () }
+  }
+
+  private final val confComments: String =
+    str"""# This is a Fury configuration file. It contains significant
+         |# whitespace and is not intended to be human-editable.
+         |#
+         |# To start using Fury with this project, install Fury and run,
+         |#
+         |#   fury layer init
+         |#
+         |# For more information, please visit https://propensive.com/fury/
+         |#
+         |""".stripMargin
+
+  private final val vimModeline: String =
+    str"""# vim: set noai ts=12 sw=12:
+         |""".stripMargin
+
+  def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] = for {
+    confStr  <- ~Ogdl.serialize(Ogdl(conf))
+    _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
+  } yield conf
+
+  def pushToHistory(layerRef: LayerRef, layout: Layout)(implicit log: Log): Try[Unit] =
+    layout.undoStack.writeSync(layerRef.key + "\n", append = true)
+
+  def popFromHistory(layout: Layout)(implicit log: Log): Try[LayerRef] = {
+    val history = layout.undoStack
+    if(history.exists()) {
+      val reader = scala.io.Source.fromFile(history.javaFile)
+      val content = Try(reader.getLines().toList)
+      reader.close()
+      for {
+        lines      <- content
+        entries    <- lines.traverse(LayerRef.unapply(_).ascribe(HistoryCorrupt()))
+        last       <- entries.lastOption.ascribe(HistoryMissing())
+        newEntries =  entries.dropRight(1).map(_.key)
+        _          <- layout.undoStack.writeSync(newEntries.mkString("\n"))
+      } yield last
+    } else Failure(HistoryMissing())
+  }
+
+  private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
+    val version = Try(ogdl.version().toInt).getOrElse(1)
+    if(version < CurrentVersion) {
+      log.note(msg"Migrating layer file from version $version to ${version + 1}")
+      migrate((version match {
+        case 0 | 1 | 2 | 3 | 4 | 5 =>
+          log.fail(msg"Cannot migrate from layers earlier than version 6")
+          // FIXME: Handle this better
+          throw new Exception()
+        case _ => null: Ogdl
+      }).set(version = Ogdl(version + 1)))
+    } else ogdl
+  }
+}

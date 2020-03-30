@@ -38,12 +38,6 @@ object Recovery {
           val beginning = projectIds.tail.foldLeft(message + projectIds.head)(_ + ", " + _)
           //val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
           cli.abort(beginning)//+ ending)
-        case e: SchemaDifferences =>
-          cli.abort(
-              msg"""You are attempting to make this change to all schemas, however the value you are
-trying to change is different in different schemas. To make the change to just
-one schema, please specify the schema with --schema/-s, or if you are sure you
-want to make this change to all schemas, please add the --force/-F argument.""")
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
         case NoLatestVersion() =>
@@ -52,12 +46,10 @@ want to make this change to all schemas, please add the --force/-F argument.""")
           cli.abort(msg"The required executable $name was not found on the PATH.")
         case NotAuthenticated() =>
           cli.abort(msg"You are not authenticated.")
+        case NoOtherLayer() =>
+          cli.abort(msg"The layer to compare this layer with has not been specified.")
         case CantWatchAndWait() =>
           cli.abort(msg"The --watch (-w) and --wait (-W) options cannot be used together.")
-        case CatalogParseError() =>
-          cli.abort(msg"The response of the catalog server could not be parsed as JSON.")
-        case CatalogFormatError() =>
-          cli.abort(msg"Unexpected format of the catalog server response.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path, e) =>
@@ -87,12 +79,27 @@ You can grant these permissions with,
         case LayerNotFound(path) =>
           cli.abort(
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
+        case e: ServiceException =>
+          cli.abort(e.getMessage)
+        case CannotUndo() =>
+          cli.abort(msg"""The previous action cannot be undone...""")
+        case UnresolvedModules(refs) =>
+          cli.abort(msg"""Some modules contain references to other modules which do not exist.""")
+        case PublishFailure() =>
+          cli.abort(msg"""The server was not able to publish this layer.""")
+        case LayerContainsLocalSources(refs) =>
+          val plural = if(refs.size > 1) "s" else ""
+          cli.abort(msg"""The module$plural contains references to local sources.""")
+        case RootLayerNotSelected() =>
+          cli.abort(msg"A layer can only be published from the root layer (${ImportPath.Root})")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>
           cli.abort(msg"Coursier could not download a file because DNS resolution failed.")
         case OfflineException() =>
           cli.abort(msg"Coursier could not download a file because you appear to be offline.")
+        case UnknownVersion(v) =>
+          cli.abort(msg"The version $v does not exist.")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>

@@ -29,6 +29,18 @@ import language.higherKinds
 
 import scala.collection.immutable.SortedSet
 
+object ManagedConfig {
+  private var config: Config =
+    Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
+
+  def write(newConfig: Config): Try[Unit] = synchronized {
+    config = newConfig
+    Ogdl.write(config, Installation.userConfig)
+  }
+
+  def apply(): Config = config
+}
+
 object Kind {
   implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
   implicit val stringShow: StringShow[Kind] = _.name
@@ -72,16 +84,17 @@ object ModuleId {
 
 case class ModuleId(key: String) extends Key(msg"module")
 
-case class Query(fields: ListMap[String, String]) {
-  override def toString: String = if(isEmpty) "" else fields.map { case (field, value) => field + "=" + value }.mkString("?", "&", "")
+case class Query(fields: (String, String)*) {
+  def queryString: String =
+    if(isEmpty) "" else fields.map { case (field, value) => field + "=" + value }.mkString("?", "&", "")
+  
   def isEmpty: Boolean = fields.isEmpty
-  def &(field: (String, String)): Query = copy(fields = fields + field)
 }
 
 object Query {
-  val empty: Query = apply(ListMap.empty)
-  implicit val stringShow: StringShow[Query] = _.toString
-  def &(field: (String, String)): Query = empty & field
+  implicit val stringShow: StringShow[Query] = q =>
+    if(q.fields.isEmpty) ""
+    else q.fields.map { case (field, value) => field + "=" + value }.mkString("?", "&", "")
 }
 
 object Uri {
@@ -96,8 +109,10 @@ object Uri {
   implicit val diff: Diff[Uri] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
 }
 
-case class Uri(schema: String, path: Path, query: Query = Query.empty) extends Key(msg"URI") {
-  def key: String = str"${schema}://${path}${query}"
+case class Uri(scheme: String, path: Path, parameters: Query = Query()) extends Key(msg"URI") {
+  def key: String = str"${scheme}://${path}${parameters}"
+  def /(str: String): Uri = Uri(scheme, path / str, parameters)
+  def query(params: (String, String)*): Uri = copy(parameters = Query(params: _*))
 }
 
 object ImportPath {
@@ -105,6 +120,7 @@ object ImportPath {
   implicit val stringShow: StringShow[ImportPath] = _.path
   implicit val parser: Parser[ImportPath] = unapply(_)
   val Root: ImportPath = ImportPath("/")
+  val Empty: ImportPath = ImportPath("")
 
   // FIXME: Actually parse it and check that it's valid
   def unapply(str: String): Option[ImportPath] = Some(ImportPath(str))
@@ -122,11 +138,11 @@ case class ImportPath(path: String) {
 
   def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
   def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("/", "/", ""))
-  def isEmpty: Boolean = parts.length == 0
+  def init: ImportPath = ImportPath(parts.init.map(_.key).mkString("/", "/", ""))
   def head: ImportId = parts.head
-  
-  def prefix(importId: ImportId): ImportPath =
-    ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
+  def last: ImportId = parts.last
+  def isEmpty: Boolean = parts.length == 0
+  def prefix(importId: ImportId): ImportPath = ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
 
   def dereference(relPath: ImportPath): Try[ImportPath] = {
     import java.nio.file.{ Path, Paths }
@@ -158,28 +174,27 @@ object PublishedLayer {
   implicit val keyName: KeyName[PublishedLayer] = () => msg"layer"
   implicit val diff: Diff[PublishedLayer] = (l, r) => 
     Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
-  
-  def parse(str: String): Option[PublishedLayer] = str.only {
-    case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)\@${LayerVersion(v)}@(.*)" =>
-      PublishedLayer(FuryUri(d, p), v)
-  }
 }
 
-case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion.Zero)
+case class PublishedLayer(url: FuryUri, version: FullVersion = FullVersion.First, layerRef: LayerRef)
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
+  implicit val parser: Parser[LayerVersion] = unapply(_)
+  implicit val ogdlWriter: OgdlWriter[LayerVersion] = lv => Ogdl(stringShow.show(lv))
+  implicit val ogdlReader: OgdlReader[LayerVersion] = ogdl => unapply(ogdl()).get
   
   implicit val stringShow: StringShow[LayerVersion] =
-    layerVersion => str"${layerVersion.major}.${layerVersion.minor}"
+    layerVersion => str"${layerVersion.major}${layerVersion.minor.fold("") { v => str".$v" }}"
     
   def unapply(str: String): Option[LayerVersion] =
-    str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, minor.toInt) }
-
-  final val Zero: LayerVersion = LayerVersion(0, 0)
+    str.only {
+      case r"[0-9]+"                           => LayerVersion(str.toInt, None)
+      case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, Some(minor.toInt))
+    }
 }
 
-case class LayerVersion(major: Int, minor: Int)
+case class LayerVersion(major: Int, minor: Option[Int])
 
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {
@@ -197,7 +212,11 @@ case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
 
   def focus(projectId: ProjectId, moduleId: ModuleId): Focus =
     Focus(layerRef, path, Some((projectId, Some(moduleId))))
+  
+  def parent: FuryConf = FuryConf(layerRef, path.init, published)
 }
+
+case class OauthToken(value: String)
 
 object Focus {
   implicit val msgShow: MsgShow[Focus] = { focus =>
@@ -220,20 +239,49 @@ object AsIpfsRef {
 
 object IpfsRef {
   implicit val parser: Parser[IpfsRef] = AsIpfsRef.unapply(_)
+  implicit val msgShow: MsgShow[IpfsRef] = ir => UserMsg(_.layer(ir.key))
+  implicit val stringShow: StringShow[IpfsRef] = _.key
 }
 
-case class IpfsRef(key: String) extends Key(msg"IPFS ref") with LayerInput {
+case class IpfsRef(key: String) extends Key(msg"IPFS ref") with LayerName {
   def suggestedName: Option[ImportId] = None
   def uri: Uri = Uri("fury", Path(key))
 }
 
-case class Catalog(entries: SortedSet[Artifact])
+object RemoteLayerId {
+  implicit val parser: Parser[RemoteLayerId] = unapply(_)
+  def unapply(str: String): Option[RemoteLayerId] = str.only {
+    case r"$group@([^/]+)/$name@([^/]+)" => RemoteLayerId(Some(group), name)
+    case r"$name@([^/]+)"                => RemoteLayerId(None, name)
+  }
+}
+
+case class RemoteLayerId(group: Option[String], name: String)
+
+case class Catalog(entries: List[Artifact])
+
+object FullVersion {
+  final val First: FullVersion = FullVersion(1, 0)
+  implicit val msgShow: MsgShow[FullVersion] = fullVersion => UserMsg(_.number(stringShow.show(fullVersion)))
+  implicit val parser: Parser[FullVersion] = unapply(_)
+  implicit val ogdlWriter: OgdlWriter[FullVersion] = lv => Ogdl(stringShow.show(lv))
+  implicit val ogdlReader: OgdlReader[FullVersion] = ogdl => unapply(ogdl()).get
+  
+  implicit val stringShow: StringShow[FullVersion] =
+    fullVersion => str"${fullVersion.major}.${fullVersion.minor}"
+    
+  def unapply(str: String): Option[FullVersion] =
+    str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => FullVersion(major.toInt, minor.toInt) }
+}
+case class FullVersion(major: Int, minor: Int) { def layerVersion = LayerVersion(major, Some(minor)) }
 
 object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(path: String, ref: String, version: LayerVersion)
+case class Artifact(ref: String, timestamp: Long, version: FullVersion) {
+  def layerRef: LayerRef = LayerRef(ref)
+}
 
 object LayerRef {
   implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.drop(2).take(8)))
@@ -241,12 +289,13 @@ object LayerRef {
   implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
   def unapply(value: String): Option[LayerRef] = value.only {
+    case r"fury:\/\/$value@(Qm[a-zA-Z0-9]{44})" => LayerRef(value)
     case r"[A-F0-9]{64}" => LayerRef(value)
     case r"Qm[a-zA-Z0-9]{44}" => LayerRef(value)
   }
 }
 
-case class LayerRef(key: String) extends Key(msg"layer")
+case class LayerRef(key: String) extends Key(msg"layer") { def ipfsRef: IpfsRef = IpfsRef(key) }
 
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
@@ -255,8 +304,8 @@ case class Config(showContext: Boolean = true,
                   pipelining: Boolean = false,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
-                  service: String = "furore.dev",
-                  token: Option[String] = None)
+                  service: DomainName = DomainName("furore.dev"),
+                  token: Option[OauthToken] = None)
 
 object TargetId {
   implicit val stringShow: StringShow[TargetId] = _.key
@@ -267,7 +316,7 @@ object TargetId {
   def apply(ref: ModuleRef): TargetId =
     TargetId(ref.projectId, ref.moduleId)
 
-  implicit val keyName: KeyName[TargetId] = () => msg"foobar"
+  implicit val keyName: KeyName[TargetId] = () => msg"target"
 
   implicit val uriParser: Parser[TargetId] = parse(_)
 
@@ -289,7 +338,7 @@ case class Pid(pid: Int)
 case class TargetId(key: String) extends AnyVal {
   def moduleId: ModuleId = ModuleId(key.split("_")(1))
   def projectId: ProjectId = ProjectId(key.split("_")(0))
-  def ref: ModuleRef = ModuleRef(projectId, moduleId)
+  def ref: ModuleRef = ModuleRef(projectId, moduleId, false, false)
 }
 
 case class RequestOriginId private(pid: Pid, counter: Int) {
@@ -358,7 +407,9 @@ object Permission {
     "javax.xml.ws.WebServicePermission"
   )
 }
-case class Permission(classRef: ClassRef, target: String, action: Option[String]) {
+case class Permission(id: String, action: Option[String]) {
+  def classRef: ClassRef = ClassRef(id.split(":", 2)(0))
+  def target: String = id.split(":", 2)(1)
   def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
 }
 
@@ -399,6 +450,7 @@ sealed abstract class ScopeId(val id: String) extends scala.Product with scala.S
 object Grant {
   implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
   implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
+  implicit val index: Index[Grant] = Index("permission")
 }
 
 case class Grant(scope: Scope, permission: Permission)
@@ -411,22 +463,22 @@ object PermissionEntry {
 case class PermissionEntry(permission: Permission, hash: PermissionHash)
 
 object EnvVar {
-  implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.key}=${e.value}"
-  implicit val stringShow: StringShow[EnvVar] = e => str"${e.key}=${e.value}"
+  implicit val msgShow: MsgShow[EnvVar] = e => msg"${e.id}=${e.value}"
+  implicit val stringShow: StringShow[EnvVar] = e => str"${e.id}=${e.value}"
   implicit val diff: Diff[EnvVar] = Diff.gen[EnvVar]
   implicit val parser: Parser[EnvVar] = unapply(_)
 
   def unapply(str: String): Option[EnvVar] = str.split("=", 2).only {
-    case Array(key, value) => EnvVar(key, value)
-    case Array(key)        => EnvVar(key, "")
+    case Array(id, value) => EnvVar(id, value)
+    case Array(id)        => EnvVar(id, "")
   }
 }
 
-case class EnvVar(key: String, value: String)
+case class EnvVar(id: String, value: String)
 
 object JavaProperty {
-  implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.key}=${e.value}"
-  implicit val stringShow: StringShow[JavaProperty] = e => str"${e.key}=${e.value}"
+  implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.id}=${e.value}"
+  implicit val stringShow: StringShow[JavaProperty] = e => str"${e.id}=${e.value}"
   implicit val diff: Diff[JavaProperty] = Diff.gen[JavaProperty]
   implicit val parser: Parser[JavaProperty] = unapply(_)
 
@@ -435,7 +487,7 @@ object JavaProperty {
     case Array(key)        => JavaProperty(key, "")
   }
 }
-case class JavaProperty(key: String, value: String)
+case class JavaProperty(id: String, value: String)
 
 object Scope {
   def apply(id: ScopeId, layout: Layout, projectId: ProjectId): Scope = id match {
@@ -479,38 +531,65 @@ object AliasCmd {
 case class AliasCmd(key: String)
 
 object Alias {
-  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.cmd.key))
-  implicit val stringShow: StringShow[Alias] = _.cmd.key
+  implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.id.key))
+  implicit val stringShow: StringShow[Alias] = _.id.key
+  implicit val diff: Diff[Alias] = Diff.gen[Alias]
 }
 
-case class Alias(cmd: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
+case class Alias(id: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
 
 object Import {
   implicit val msgShow: MsgShow[Import] = v =>
-    UserMsg { theme => msg"${v.layerRef}${':'}${v.schema}".string(theme) }
+    UserMsg(msg"${v.layerRef}".string(_))
 
-  implicit val stringShow: StringShow[Import] = sr => str"${sr.layerRef}:${sr.schema}"
+  implicit val stringShow: StringShow[Import] = sr => str"${sr.id}"
   implicit val diff: Diff[Import] = Diff.gen[Import]
   implicit val parser: Parser[Import] = unapply(_)
 
   def unapply(value: String): Option[Import] = value.only {
-    case r"$layer@([a-fA-F0-9]{64}):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Import(ImportId(""), LayerRef(layer), SchemaId(schema), None)
-    case r"$layer@(Qm[a-zA-Z0-9]+):$schema@([a-zA-Z0-9\-\.]*[a-zA-Z0-9])$$" =>
-      Import(ImportId(""), LayerRef(layer), SchemaId(schema), None)
+    case r"$layer@(Qm[a-zA-Z0-9]+)$$" =>
+      Import(ImportId(""), LayerRef(layer), None)
   }
 }
 
-case class Import(id: ImportId, layerRef: LayerRef, schema: SchemaId, remote: Option[PublishedLayer] = None)
+case class Import(id: ImportId, layerRef: LayerRef, remote: Option[PublishedLayer] = None)
 
-sealed trait LayerInput {
-  def suggestedName: Option[ImportId]
+object LayerName {
+  implicit val msgShow: MsgShow[LayerName] = {
+    case layerName: IpfsRef => IpfsRef.msgShow.show(layerName)
+    case layerName: FuryUri => FuryUri.msgShow.show(layerName)
+    case layerName: FileInput => FileInput.msgShow.show(layerName)
+  }
 
-  def publishedLayer: Option[PublishedLayer] =
-    this.only { case FuryUri(domain, path) => PublishedLayer(FuryUri(domain, path)) }
+  implicit val parser: Parser[LayerName] = parse(_).toOption
+
+  def parse(path: String): Try[LayerName] = {
+    val service = ManagedConfig().service
+    path match {
+      case r"fury:\/\/$ref@([A-Za-z0-9]{44})\/?" =>
+        Success(IpfsRef(str"Qm$ref"))
+      case r"fury:\/\/$dom@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
+        Success(FuryUri(DomainName(dom), loc))
+      case r".*\.fury" =>
+        Success(FileInput(Path(path)))
+      case r"([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*" =>
+        Success(FuryUri(service, path))
+      case name =>
+        Failure(InvalidLayer(name))
+    }
+  }
 }
 
-case class FileInput(path: Path) extends LayerInput {
+sealed trait LayerName {
+  def suggestedName: Option[ImportId]
+}
+
+object FileInput {
+  implicit val stringShow: StringShow[FileInput] = _.path.value
+  implicit val msgShow: MsgShow[FileInput] = fi => UserMsg(_.path(fi.path.value))
+}
+
+case class FileInput(path: Path) extends LayerName {
   def suggestedName: Option[ImportId] = path.value.split("/").last.split("\\.").head.only {
     case name@r"[a-z]([a-z0-9]+\-)*[a-z0-9]+" => ImportId(name)
   }
@@ -528,10 +607,12 @@ object FuryUri {
   implicit val ogdlReader: OgdlReader[FuryUri] = str => parser.parse(str()).get
   
   def parse(str: String): Option[FuryUri] =
-    str.only { case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)" => FuryUri(d, p) }
+    str.only { case r"fury:\/\/$d@([a-z][a-z0-9\-\.]*[a-z0-9])\/$p@([a-z0-9\-\/]*)" =>
+      FuryUri(DomainName(d), p)
+    }
 }
 
-case class FuryUri(domain: String, path: String) extends LayerInput {
+case class FuryUri(domain: DomainName, path: String) extends LayerName {
   def suggestedName: Option[ImportId] = Some(ImportId(path.split("/")(1)))
 }
 
@@ -598,7 +679,10 @@ object ModuleRef {
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
   implicit val parser: Parser[ModuleRef] = parseFull(_, false)
   
-  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false)
+  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false, false)
+
+  def apply(projectId: ProjectId, moduleId: ModuleId, intransitive: Boolean, hidden: Boolean): ModuleRef =
+    ModuleRef(str"${projectId.key}/${moduleId.key}", intransitive, hidden)
 
   implicit val diff: Diff[ModuleRef] =
     (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))
@@ -610,43 +694,29 @@ object ModuleRef {
 
   def parseFull(string: String, intransitive: Boolean): Option[ModuleRef] = string.only {
     case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
-      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive)
+      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive, false)
   }
 
   def parse(projectId: ProjectId, string: String, intransitive: Boolean): Option[ModuleRef] = string.only {
     case r"$projectId@([a-z](-?[a-z0-9]+)*)\/$moduleId@([a-z](-?[a-z0-9]+)*)" =>
-      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive)
+      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive, false)
     case r"[a-z](-?[a-z0-9]+)*" =>
-      ModuleRef(projectId, ModuleId(string), intransitive)
+      ModuleRef(projectId, ModuleId(string), intransitive, false)
   }
 }
 
-case class ModuleRef(projectId: ProjectId,
-                     moduleId: ModuleId,
-                     intransitive: Boolean = false,
-                     hidden: Boolean = false) {
+case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) {
+
+  def projectId: ProjectId = ProjectId(id.split("/")(0))
+  def moduleId: ModuleId = ModuleId(id.split("/")(1))
 
   override def equals(that: Any): Boolean =
-    that.only { case ModuleRef(p, m, _, _) => projectId == p && moduleId == m }.getOrElse(false)
+    that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
 
   def hide = copy(hidden = true)
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode
   override def toString: String = str"$projectId/$moduleId"
 }
-
-object SchemaId {
-  implicit val msgShow: MsgShow[SchemaId]       = v => UserMsg(_.schema(v.key))
-  implicit val stringShow: StringShow[SchemaId] = _.key
-  implicit val diff: Diff[SchemaId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  implicit val parser: Parser[SchemaId] = unapply(_)
-  
-  final val default = SchemaId("default")
-
-  def unapply(name: String): Option[SchemaId] =
-    name.only { case r"[a-z]([-\.]?[a-zA-Z0-9]+)*" => SchemaId(name) }
-}
-
-case class SchemaId(key: String) extends Key(msg"schema")
 
 object ClassRef {
   implicit val msgShow: MsgShow[ClassRef] = r => UserMsg(_.layer(r.key))
@@ -689,6 +759,7 @@ object RepoId {
   implicit val stringShow: StringShow[RepoId] = _.key
   implicit val parser: Parser[RepoId] = unapply(_)
   implicit val keyName: KeyName[RepoId] = () => msg"repo"
+  implicit val diff: Diff[RepoId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
   def unapply(name: String): Option[RepoId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => RepoId(name) }
 }
@@ -811,3 +882,13 @@ object Commit {
 }
 
 case class Commit(id: String)
+
+object DomainName {
+  implicit val stringShow: StringShow[DomainName] = _.value
+  implicit val msgShow: MsgShow[DomainName] = v => UserMsg(_.uri(v.value))
+  implicit val parser: Parser[DomainName] = unapply(_)
+
+  def unapply(value: String): Option[DomainName] = value.only {
+    case r"([a-z0-9][a-z0-9\-]*\.)*[a-z]+" => DomainName(value) }
+}
+case class DomainName(value: String)

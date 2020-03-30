@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.core._, fury.strings._
+import fury.core._, fury.strings._, fury.model._
 
 import scala.util._
 
@@ -99,9 +99,9 @@ object FuryMenu {
       Action('require, msg"add an application permission", PermissionCli(_).require)
     ),
     Menu('project, msg"manage projects", 'list, shortcut = 'p')(
-      Action('add, msg"add a new project to the schema", ProjectCli(_).add, shortcut = 'a'),
-      Action('remove, msg"remove a project from the schema", ProjectCli(_).remove, shortcut = 'r'),
-      Action('list, msg"list projects for the schema", ProjectCli(_).list, shortcut = 'l'),
+      Action('add, msg"add a new project to the layer", ProjectCli(_).add, shortcut = 'a'),
+      Action('remove, msg"remove a project from the layer", ProjectCli(_).remove, shortcut = 'r'),
+      Action('list, msg"list projects for the layer", ProjectCli(_).list, shortcut = 'l'),
       Action('select, msg"select the current project", ProjectCli(_).select, shortcut = 's'),
       Action('update, msg"update a project", ProjectCli(_).update, shortcut = 'u')
     ),
@@ -126,14 +126,14 @@ object FuryMenu {
     Action('stop, msg"gracefully shut down the Fury server", ((_: Cli) => Lifecycle.shutdown()),
         needsLayer = false),
     
-    Menu('repo, msg"manage source repositories for the schema", 'list, shortcut = 'r')(
-      Action('add, msg"add a source repository to the schema", RepoCli(_).add, shortcut = 'a'),
+    Menu('repo, msg"manage source repositories for the layer", 'list, shortcut = 'r')(
+      Action('add, msg"add a source repository to the layer", RepoCli(_).add, shortcut = 'a'),
       
       Action('checkout, msg"check out a repository into the working directory", RepoCli(_).checkout,
           shortcut = 'c'),
       
       Action('update, msg"update a source repository", RepoCli(_).update, shortcut = 'u'),
-      Action('remove, msg"remove a source repository from the schema", RepoCli(_).remove, shortcut = 'r'),
+      Action('remove, msg"remove a source repository from the layer", RepoCli(_).remove, shortcut = 'r'),
       Action('fork, msg"fork a managed repository locally", RepoCli(_).fork, shortcut = 'f'),
       Action('unfork, msg"restore a source repository to a managed checkout", RepoCli(_).unfork),
       Action('list, msg"list source repositories", RepoCli(_).list, shortcut = 'l'),
@@ -143,15 +143,16 @@ object FuryMenu {
     Action('undo, msg"undo the previous modification", LayerCli(_).undo),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
-      Action('export, msg"export a layer to a file", LayerCli(_).export, shortcut = 'e'),
-      Action('extract, msg"extract a layer file", LayerCli(_).extract, needsLayer = false),
+      Action('diff, msg"show differences with the current layer", LayerCli(_).diff, shortcut = 'd'),
+      //Action('export, msg"export a layer to a file", LayerCli(_).export, shortcut = 'e'),
+      //Action('extract, msg"extract a layer file", LayerCli(_).extract, needsLayer = false),
       Action('import, msg"import an external layer", LayerCli(_).addImport, shortcut = 'i'),
       Action('init, msg"initialize a new Fury layer", LayerCli(_).init, needsLayer = false),
       Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
       Action('projects, msg"show all available projects", LayerCli(_).projects),
-      Action('publish, msg"publish a layer", LayerCli(_).publish, shortcut = 'p'),
+      Action('publish, msg"publish a layer", LayerCli(_).publish),
+      Action('pull, msg"update the layer to a more recent version", LayerCli(_).pull, shortcut = 'p'),
       Action('unimport, msg"remove a previously imported layer", LayerCli(_).unimport),
-      Action('update, msg"update the layer to a more recent version", LayerCli(_).update, shortcut = 'u'),
       Action('select, msg"select a layer", LayerCli(_).select, shortcut = 's'),
       Action('share, msg"share this layer", LayerCli(_).share),
     )

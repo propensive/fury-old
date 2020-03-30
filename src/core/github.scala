@@ -24,13 +24,15 @@ import kaleidoscope._
 import scala.util.Try
 
 object GitHub {
-  def repos(prefix: String)(implicit log: Log): List[String] = prefix match {
+  /*def repos(prefix: String)(implicit log: Log): List[String] = prefix match {
     case r"gh:$org@([a-z][a-z0-9]*)\/" => (for {
       _   <- ~log.info(s"Looking for completions for $org...")
-      out <- Http.get(Https(Path("api.github.com") / "orgs" / org / "repos", Query.empty), Set(HttpHeader("Authorization", s"token ${ManagedConfig().token}")))
+      out <- Http.get(Https(DomainName("api.github.com")) / "orgs" / org / "repos",
+                 Set(HttpHeader("Authorization", s"token ${ManagedConfig().token}")))
       _   <- ~log.info(new String(out, "UTF-8"))
-      rs  <- Try(Json.parse(new String(out, "UTF-8")).get)
-    } yield rs.as[List[Json]].get.flatMap(_.name.as[String].map { name => str"gh:$org/$name" }.to[List])).toOption.to[List].flatten
+      rs  <- Json.parse(new String(out, "UTF-8")).to[Try]
+      xs  <- rs.as[List[Json]].to[Try]
+    } yield xs.flatMap(_.name.as[String].map { name => str"gh:$org/$name" }.to[Try]))
     case _ => Nil
-  }
+  }*/
 }

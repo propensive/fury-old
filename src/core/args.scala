@@ -42,6 +42,7 @@ object Args {
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
+  val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
   val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
   val SourceArg = CliParam[Source]('d', 'source, "specify a source directory")
   val DirArg = CliParam[Path]('d', 'dir, "specify the new repository destination directory")
@@ -58,7 +59,7 @@ object Args {
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
-  val ImportArg = CliParam[String]('l', 'layer, "specify an external layer to import")
+  val ImportArg = CliParam[LayerName]('l', 'layer, "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
@@ -75,12 +76,12 @@ object Args {
   
   val PluginArg = CliParam[PluginId]('P', 'plugin, "specify the name of the plugin")
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
-  val RemoteLayerArg = CliParam[String]('n', 'name, "specify a name at which to publish the layer")
+  val RemoteLayerArg = CliParam[RemoteLayerId]('n', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
-  val SchemaNameArg = CliParam[SchemaId]('n', 'name, "specify a name for the schema")
   val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
+  val LayerVersionArg = CliParam[LayerVersion]('V', 'version, "a specific version of the layer")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
 
   val BloopSpecArg = CliParam[String]('C', Symbol("compiler-spec"),
@@ -98,7 +99,7 @@ object Args {
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
-  val ServiceArg = CliParam[String]('S', 'service, "specify the default remote layer service")
+  val ServiceArg = CliParam[DomainName]('S', 'service, "specify the default remote layer service")
   val TargetArg = CliParam[String]('T', 'target, "target file/directory")
   val TransformArg = CliParam[Unit]('t', 'transform, "transform the option into the parameters following --")
   val TraceArg = CliParam[Boolean]('D', Symbol("bsp-trace"), "Write the BSP communication trace to a file")
@@ -108,7 +109,6 @@ object Args {
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
-  val CompareArg = CliParam[SchemaId]('w', Symbol("with"), "specify a schema to compare with")
 
   val KindArg = CliParam[Kind]('t', 'type,
       "Type of module (library, application, plugin, compiler, benchmarks)")

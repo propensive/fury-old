@@ -60,6 +60,8 @@ object Repo {
     def hash: Digest = ref.digest[Md5]
     def path(layout: Layout): Path = Installation.reposDir / hash.encoded
   
+    def equivalentTo(repo: Repo): Boolean = repo.simplified == simplified
+    
     def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
       for {
         _         <- fetch(layout, https)

@@ -26,13 +26,13 @@ import java.util.Hashtable
 import javax.naming.directory._
 
 object Dns {
-  def lookup(domain: String)(implicit log: Log): Try[List[String]] = {
+  def lookup(domain: DomainName)(implicit log: Log): Try[List[String]] = {
     val env = new Hashtable[String, String]()
     env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory")
     val dirContext = new InitialDirContext(env)
     
     for {
-      atts <- Try(dirContext.getAttributes(domain, Array("TXT")))
+      atts <- Try(dirContext.getAttributes(domain.value, Array("TXT")))
       txts <- Try(Option(atts.get("TXT")).get)
     } yield txts.getAll.asScala.to[List].map(_.toString)
   }
@@ -41,8 +41,7 @@ object Dns {
 class MenuContext(val cli: Cli,
                   val layout: Layout,
                   val layer: Layer,
-                  val conf: FuryConf,
-                  val optSchemaId: Option[SchemaId] = None) {
+                  val conf: FuryConf) {
   implicit def implicitLayout: Layout   = layout
   implicit def implicitShell: Shell     = Shell(cli.env)
   implicit def implicitEnv: Environment = cli.env

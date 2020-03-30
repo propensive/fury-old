@@ -26,8 +26,8 @@ import scala.util._
 
 object Source {
   implicit val stringShow: StringShow[Source] = _.key
-  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src()).get // FIXME
-  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(src.key)
+  implicit val ogdlReader: OgdlReader[Source] = src => unapply(src.id()).get // FIXME
+  implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(Vector("id" -> Ogdl(src.key)))
   implicit val parser: Parser[Source] = unapply(_)
   implicit val keyName: KeyName[Source] = () => msg"source"
 
@@ -61,12 +61,18 @@ object Source {
   }
 
   def repoId(src: Source): Option[RepoId] = src.only { case ExternalSource(repoId, _, _) => repoId }
+
+  def rewriteLocal(source: Source, localId: Option[RepoId]): Source =
+    localId.fold(source) { repoId => source match {
+      case LocalSource(dir, glob) => ExternalSource(repoId, dir, glob)
+      case source => source
+    } }
 }
 
 sealed abstract class Source extends Key(msg"source") {
   def key: String
   def completion: String
-  def hash(schema: Schema, layout: Layout): Try[Digest]
+  def hash(layer: Layer, layout: Layout): Try[Digest]
   def dir: Path
   def glob: Glob
   def repoIdentifier: RepoId
@@ -90,7 +96,7 @@ case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source 
   def key: String = str"${repoId}:${dir.value}//$glob"
   def completion: String = str"${repoId}:${dir.value}"
   def repoIdentifier: RepoId = repoId
-  def hash(schema: Schema, layout: Layout): Try[Digest] = schema.repo(repoId, layout).map((dir, _).digest[Md5])
+  def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId, layout).map((dir, _).digest[Md5])
   
   def base(checkouts: Checkouts, layout: Layout): Try[Path] =
     checkouts(repoId).map { checkout => checkout.local.getOrElse(checkout.path) }
@@ -99,7 +105,7 @@ case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source 
 case class SharedSource(dir: Path, glob: Glob) extends Source {
   def key: String = str"shared:${dir}//$glob"
   def completion: String = key
-  def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-2, dir).digest[Md5])
+  def hash(layer: Layer, layout: Layout): Try[Digest] = Success((-2, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("shared")
   def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.sharedDir)
 }
@@ -107,7 +113,7 @@ case class SharedSource(dir: Path, glob: Glob) extends Source {
 case class LocalSource(dir: Path, glob: Glob) extends Source {
   def key: String = str"${dir.value}//$glob"
   def completion: String = dir.value
-  def hash(schema: Schema, layout: Layout): Try[Digest] = Success((-1, dir).digest[Md5])
+  def hash(layer: Layer, layout: Layout): Try[Digest] = Success((-1, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("local")
   def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.baseDir)
 }

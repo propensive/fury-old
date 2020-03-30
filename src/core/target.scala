@@ -27,7 +27,6 @@ object Target {
   }
   
   case class Target(ref: ModuleRef,
-                    schemaId: SchemaId,
                     kind: Kind,
                     main: Option[ClassRef],
                     plugin: Option[PluginId],

@@ -36,7 +36,7 @@ object SourceRepo {
     pushed <- Shell(layout.env).git.remoteHasCommit(layout.pwd, commit, branch)
     _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, origin))
     name   <- local.repo.projectName
-    dest   <- Try((Xdg.runtimeDir / str"$name.bak").lowestNumberedNonexistentDir())
+    dest   <- Try((Xdg.runtimeDir / str"$name.bak").uniquify())
     files  <- Shell(layout.env).git.getTrackedFiles(layout.pwd)
     _      <- ~log.info(msg"Moving working directory contents to $dest")
     _      <- files.traverse { f => (layout.pwd / f).moveTo(dest / f) }
@@ -47,11 +47,8 @@ object SourceRepo {
 
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
-    dir    <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
-    /*refSpec <- ~Shell(layout.env).git.getTag(dir, track.id).toOption.orElse(Shell(layout.env).git.
-                  getBranchHead(dir, track.id).toOption).getOrElse(track)*/
-    files  <- localDir(layout).map(Success(dir.children.map(Path(_))).waive).getOrElse(
-                  Shell(layout.env).git.lsTree(dir, commit))
+    dir   <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
+    files <- localDir(layout).fold(Shell(layout.env).git.lsTree(dir, commit))(Success(dir.children.map(Path(_))).waive)
   } yield files
 
   def tracking(layout: Layout): Option[RefSpec] = localDir(layout).fold(Option(track)) { dir =>
@@ -61,7 +58,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def fullCheckout(layout: Layout): Checkout = Checkout(id, repo, localDir(layout), commit, track, List())
 
   def localDir(layout: Layout): Option[Path] = local.orElse {
-    Repo.local(layout).map(_.simplified == repo.simplified) match {
+    Repo.local(layout).map(_.equivalentTo(repo)) match {
       case Success(true) => Some(layout.baseDir)
       case _             => None
     }
@@ -71,19 +68,6 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     repoDir <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
     changes <- Shell(layout.env).git.diffShortStat(repoDir)
   } yield if(changes.isEmpty) None else Some(changes)
-
-  def importCandidates(schema: Schema, layout: Layout, https: Boolean)(implicit log: Log): Try[List[String]] =
-    for {
-      repoDir     <- repo.get(layout, https)
-
-      confString  <- Shell(layout.env).git.showFile(repoDir, ".fury.conf").orElse {
-                       Shell(layout.env).git.showFile(repoDir, ".focus.fury")
-                     }
-
-      conf        <- ~Ogdl.read[FuryConf](confString, identity(_))
-      layer       <- Layer.read(conf.layerRef, layout)
-      schemas     <- ~layer.schemas.to[List]
-    } yield schemas.map { schema => str"${id.key}:${schema.id.key}" }
 
   def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
     repo.pull(commit, track, layout, https)
@@ -131,13 +115,14 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     removed   <- local.flatMap(_.local).fold(Try(List[String]()))(Shell(layout.env).git.getTrackedFiles(_))
     bareRepo  <- repo.fetch(layout, https)
     files     <- Shell(layout.env).git.lsRoot(bareRepo, commit)
-    remaining <- Try(current -- removed)
+    remaining <- Try((current -- removed) - ".fury.conf")
   } yield remaining.intersect(files.to[Set]).to[List]
 
   def doCleanCheckout(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] = for {
+    _          <- ~log.info(msg"Checking out ${repo} to ${layout.baseDir.relativizeTo(layout.pwd)}")
     bareRepo   <- repo.fetch(layout, https)
-    sourceRepo <- Shell(layout.env).git.sparseCheckout(bareRepo, layout.pwd, List(), track, commit,
+    _          <- (layout.pwd / ".fury.conf").moveTo(layout.pwd / ".fury.conf.bak")
+    sourceRepo <- Shell(layout.env).git.sparseCheckout(bareRepo, layout.baseDir, List(), track, commit,
                       Some(repo.universal(false)))
   } yield ()
-
 }

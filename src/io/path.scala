@@ -106,8 +106,8 @@ case class Path(input: String) {
     childPaths.traverse(_.setWritable()).map(_.unit)
   }
 
-  def lowestNumberedNonexistentDir(): Path =
-    if(!exists()) this else Stream.from(1).map { i => this.rename(_+"-"+i) }.find(!_.exists()).get
+  def uniquify(): Path =
+    if(!exists()) this else Stream.from(2).map { i => this.rename(_+"-"+i) }.find(!_.exists()).get
 
   def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
     case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
@@ -175,10 +175,12 @@ case class Path(input: String) {
   }
 
   def writeSync(content: String, append: Boolean = false): Try[Unit] = {
-    tryWith(new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append))){ writer =>
+    tryWith(new java.io.BufferedWriter(new java.io.FileWriter(javaPath.toFile, append))) { writer =>
       writer.write(content)
     }.recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
+
+  def lines(): Try[Iterator[String]] = Try(scala.io.Source.fromFile(javaFile).getLines())
 
   def copyTo(path: Path): Try[Path] = Try {
     Files.walkFileTree(javaPath, new Path.CopyFileVisitor(javaPath, path.javaPath))

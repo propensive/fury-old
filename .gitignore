@@ -25,5 +25,4 @@ out/**/*
 .*.bak
 .sandbox/
 .vscode/
-.fury.conf
 .pinata

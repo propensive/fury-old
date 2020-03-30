@@ -57,6 +57,7 @@ object Xdg {
   val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
   val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
   val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
+  val docsDir: Path = Var("DOCUMENTS_DIR").path.getOrElse(home / "Documents")
 
   val pathEnv: List[Path] = Option(System.getenv("PATH")).map { str => str.split(":").to[List].map(Path(_))
       }.getOrElse(Nil)
@@ -106,7 +107,7 @@ object Installation {
     val machine: Try[Machine] = sh"uname -m".exec[Try[String]].map {
       case "x86_64" | "amd64" => X64
       case "i386" | "i686"    => X86
-      case other => Machine.Unknown(other)
+      case other              => X64
     }
 
     sh"uname".exec[Try[String]].flatMap {
@@ -126,6 +127,7 @@ object Installation {
   val installDir: Path = Path(System.getProperty("fury.home"))
   val usrDir: Path = (installDir / "usr").extant()
   val binDir: Path = (installDir / "bin").extant()
+  val etcDir: Path = (installDir / "etc").extant()
   val scriptDir: Path = (installDir / "script").extant()
   val ipfsInstallDir: Path = installDir / "ipfs"
   val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"
@@ -136,7 +138,6 @@ object Installation {
 
   val userConfig: Path = config / "config.fury"
   val aliasesPath: Path = config / "aliases"
-  val layersPath: Path = data / "layers"
   val policyFile: Path = config / "policy.conf"
   val srcsDir: Path = cache / "sources"
   val reposDir: Path = cache / "repos"

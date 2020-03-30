@@ -29,10 +29,10 @@ import java.net.URI
 
 case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
 
-case class Entity(project: Project, schema: Schema) {
+case class Entity(project: Project, layer: Layer) {
   def spec: ProjectSpec = {
     val repoIds = project.allRepoIds
-    ProjectSpec(project, schema.repos.to[List].filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
+    ProjectSpec(project, layer.repos.to[List].filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
   }
 }
 
@@ -110,16 +110,3 @@ object CompileResult {
     else allCodes.find(_ != 0).orElse(Some(0))
   }
 }
-
-object ManagedConfig {
-  private var config: Config =
-    Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
-
-  def write(newConfig: Config): Try[Unit] = synchronized {
-    config = newConfig
-    Ogdl.write(config, Installation.userConfig)
-  }
-
-  def apply(): Config = config
-}
-

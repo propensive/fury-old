@@ -75,12 +75,14 @@ case class Tables() {
     case Origin.Compiler    => theme.italic(theme.param("compiler"))
   }
 
-  private def refinedModuleDep(projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] = _.map {
-    case ModuleRef(p, m, intransitive, _) =>
-      val extra = (if(intransitive) msg"*" else msg"")
-      if(p == projectId) msg"${theme.module(m.key)}$extra"
-      else msg"${theme.project(p.key)}${theme.gray("/")}${theme.module(m.key)}$extra"
-  }.foldLeft(msg"")(_ + _ + "\n").string(theme)
+  private def refinedModuleDep(universe: Universe, projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] =
+    _.map {
+      case ref@ModuleRef(id, intransitive, _) =>
+        val extra = (if(intransitive) msg"*" else msg"")
+        val missing = if(universe.getMod(ref).isFailure) msg" ${theme.hazard("!")}" else msg""
+        if(ref.projectId == projectId) msg"${theme.module(ref.moduleId.key)}$extra$missing"
+        else msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}$extra$missing"
+    }.foldLeft(msg"")(_ + _ + "\n").string(theme)
 
   implicit private def compilerRef(
       implicit show: AnsiShow[ModuleRef]
@@ -104,24 +106,27 @@ case class Tables() {
     Heading(right, _.right)
   )
 
-  def modules(projectId: ProjectId, current: Option[ModuleId]): Tabulation[Module] = Tabulation[Module](
-    Heading("", m => Some(m.id) == current),
-    Heading("Module", _.id),
-    Heading("Dependencies", (m: Module) => m.dependencies, width = FlexibleWidth)(refinedModuleDep(projectId)),
-    Heading("Sources", _.sources),
-    Heading("Binaries", m => bar(m.allBinaries.size)),
-    Heading("Compiler", _.compiler),
-    Heading("Options", m => bar(m.opts.size)),
-    Heading("Type", _.kind),
-    Heading("Details", m => m.kind match {
-      case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
-      case Application => m.main.fold(msg"${'-'}") { a => msg"$a" }
-      case _ => msg"${'-'}"
-    })
-  )
+  def modules(projectId: ProjectId, current: Option[ModuleId], universe: Universe): Tabulation[Module] =
+    Tabulation[Module](
+      Heading("", m => Some(m.id) == current),
+      Heading("Module", _.id),
+      Heading("Dependencies", (m: Module) =>
+        m.dependencies, width = FlexibleWidth)(refinedModuleDep(universe, projectId)
+      ),
+      Heading("Sources", _.sources),
+      Heading("Binaries", m => bar(m.allBinaries.size)),
+      Heading("Compiler", _.compiler),
+      Heading("Options", m => bar(m.opts.size)),
+      Heading("Type", _.kind),
+      Heading("Details", m => m.kind match {
+        case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
+        case Application => m.main.fold(msg"${'-'}") { a => msg"$a" }
+        case _ => msg"${'-'}"
+      })
+    )
 
   val aliases: Tabulation[Alias] = Tabulation(
-    Heading("Alias", _.cmd),
+    Heading("Alias", _.id),
     Heading("Description", _.description),
     Heading("Module", _.module),
     Heading("Arguments", _.args.mkString("'", "', '", "'"))
@@ -159,12 +164,12 @@ case class Tables() {
   )
 
   val envs: Tabulation[EnvVar] = Tabulation(
-    Heading("Key", _.key),
+    Heading("Key", _.id),
     Heading("Value", _.value)
   )
   
   val props: Tabulation[JavaProperty] = Tabulation(
-    Heading("Key", _.key),
+    Heading("Key", _.id),
     Heading("Value", _.value)
   )
 
@@ -184,7 +189,7 @@ case class Tables() {
     Heading("Version", _.version)
   )
 
-  val imports: Tabulation[(Import, Try[Schema])] = Tabulation(
+  val imports: Tabulation[(Import, Try[Layer])] = Tabulation(
     Heading("ID", _._1.id),
     Heading("Ref", _._1.layerRef),
     Heading("Projects", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),

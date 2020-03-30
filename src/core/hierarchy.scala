@@ -20,9 +20,9 @@ import fury.model._
 
 import scala.util._
 
-case class Hierarchy(schema: Schema, inherited: Set[Hierarchy]) {
+case class Hierarchy(layer: Layer, inherited: Set[Hierarchy]) {
   lazy val universe: Try[Universe] = {
-    val localProjectIds = schema.projects.map(_.id)
+    val localProjectIds = layer.projects.map(_.id)
 
     def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
       projects             <- universe
@@ -42,8 +42,8 @@ case class Hierarchy(schema: Schema, inherited: Set[Hierarchy]) {
     val empty: Try[Universe] = Success(Universe())
 
     for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
-      val schemaEntities = schema.projects.map { project => project.id -> Entity(project, schema) }
-      allInherited ++ Universe(schemaEntities.toMap)
+      val layerEntities = layer.projects.map { project => project.id -> Entity(project, layer) }
+      allInherited ++ Universe(layerEntities.toMap)
     }
   }
 }

@@ -19,11 +19,11 @@ package fury.core
 import fury.strings._, fury.model._
 
 import scala.util._
+import scala.collection.immutable.SortedSet
 
 object Resolver {
   implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id
   implicit val projectResolver: Resolver[Project, ProjectId] = _ == _.id
-  implicit val schemaResolver: Resolver[Schema, SchemaId] = _ == _.id
   implicit val sourceRepoResolver: Resolver[SourceRepo, RepoId] = _ == _.id
   implicit val importResolver: Resolver[Import, ImportId] = _ == _.id
   implicit val binaryResolver: Resolver[Binary, BinaryId] = _ == _.id
@@ -40,4 +40,9 @@ class ResolverExt[T](items: Traversable[T]) {
 
   def unique[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Try[I] =
     if(items.exists(resolver.matchOn(id, _))) Failure(NotUnique(id)) else Success(id)
+}
+
+class SortedSetExt[T](set: SortedSet[T]) {
+  def evict[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): SortedSet[T] =
+    set.filterNot(resolver.matchOn(id, _))
 }
