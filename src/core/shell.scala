@@ -220,7 +220,7 @@ case class Shell(environment: Environment) {
 
     val creator = new ParallelScatterZipCreator
     val ok = for {
-      dups <- duplicateFiles(jarInputs.toList)
+      dups <- duplicateFiles(jarInputs.to[List])
       _    <- jarInputs.traverse { input => Zipper.pack(new ZipFile(input.javaFile), creator) { x =>
                 !x.getName.contains("META-INF") && !x.isDirectory && dups(input).contains(x.getName)
               } }

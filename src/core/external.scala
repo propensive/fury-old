@@ -32,10 +32,11 @@ object Ipfs {
   import io.ipfs.api._
   import io.ipfs.multihash.Multihash
 
-  private val knownGateways = List(
-      "ipfs.io",
-      "gateway.pinata.cloud"
-  )
+  private var lastIpfsTimeout: Long = 0L
+  // Attempt to use IPFS again if last failure was more than ten minutes ago
+  def attemptToUseIpfs = System.currentTimeMillis - lastIpfsTimeout > 10*60*1000L
+
+  private val knownGateways: List[DomainName] = List(DomainName("ipfs.io"), DomainName("gateway.pinata.cloud"))
 
   case class IpfsApi(api: IPFS){
 
@@ -60,18 +61,24 @@ object Ipfs {
       val config = ManagedConfig()
       
       val getFromIpfs: Try[Path] =
-        if(config.skipIpfs) Failure(new IllegalStateException("Using the IPFS daemon is forbidden by configuration"))
+        if(!attemptToUseIpfs) Failure(new IllegalStateException(
+            "An IPFS timeout has occurred in the last ten minutes."))
+        else if(config.skipIpfs) Failure(new IllegalStateException(
+            "Using the IPFS daemon is forbidden by configuration"))
         else getFile(hash, path)
 
       getFromIpfs.failed.foreach { e =>
         log.warn(s"Could not resolve the hash using IPFS daemon. Cause: $e")
+        Ipfs.synchronized { lastIpfsTimeout = System.currentTimeMillis }
       }
+      
       getFromIpfs.recoverWith { case e =>
-        knownGateways.foldLeft[Try[Path]](Failure(e)){
-          case (res@Success(_), _) =>res
+        knownGateways.foldLeft[Try[Path]](Failure(e)) {
+          case (res@Success(_), _)   =>
+            res
           case (Failure(_), gateway) =>
             val result = getFileFromGateway(hash, path)(gateway)
-            result.failed.foreach{ e =>
+            result.failed.foreach { e =>
               log.warn(s"Could not resolve the hash using $gateway. Cause: $e")
             }
             result
@@ -84,20 +91,21 @@ object Ipfs {
 
     def get(hash: IpfsRef): Try[String] = for {
       hash   <- ~Multihash.fromBase58(hash.key)
-      string <- ~(new String(api.cat(hash), "UTF-8"))
+      bytes  <- Await.result(Future(~api.cat(hash)), 5.seconds)
+      string <- ~(new String(bytes, "UTF-8"))
     } yield string
     
     def id(): Try[IpfsId] = Try {
       val idInfo = api.id()
 
       IpfsId(
-        ID = idInfo.get("ID").toString,
-        PublicKey = idInfo.get("PublicKey").toString,
-        Addresses = idInfo.get("Addresses") match {
+        id = idInfo.get("ID").toString,
+        publicKey = idInfo.get("PublicKey").toString,
+        addresses = idInfo.get("Addresses") match {
           case xs: java.util.List[_] => xs.asScala.to[List].map(_.toString)
         },
-        AgentVersion = idInfo.get("AgentVersion").toString,
-        ProtocolVersion = idInfo.get("ProtocolVersion").toString
+        agentVersion = idInfo.get("AgentVersion").toString,
+        protocolVersion = idInfo.get("ProtocolVersion").toString
       )
     }
 
@@ -114,12 +122,15 @@ object Ipfs {
       _    =  TarGz.untar(in, path)
     } yield path.childPaths.head
 
-    private[this] def getFileFromGateway(hash: Multihash, path: Path)(gateway: String)(implicit log: Log): Try[Path] = {
-      log.info(s"Accessing $gateway to retrieve $hash")
-      val query = Query("arg" -> hash.toBase58, "archive" -> "true")
+    private[this] def getFileFromGateway(hash: Multihash, path: Path)(gateway: DomainName)
+                                        (implicit log: Log)
+                                        : Try[Path] = {
+
+      log.info(msg"Accessing $gateway to retrieve ${IpfsRef(hash.toString)}")
+      val params = List("arg" -> hash.toBase58, "archive" -> "true")
       for {
         _    <- path.mkParents()
-        data <- Http.get(Https(Path(gateway) / "api" / "v0" / s"get", query), Set.empty)
+        data <- Http.get((Https(gateway) / "api" / "v0" / s"get").query(params: _*), Set.empty)
         in   =  new ByteArrayInputStream(data)
         _    =  TarGz.untar(in, path)
       } yield path.childPaths.head
@@ -127,8 +138,8 @@ object Ipfs {
 
   }
 
-  case class IpfsId(ID: String, PublicKey: String, Addresses: List[String], AgentVersion: String,
-      ProtocolVersion: String)
+  case class IpfsId(id: String, publicKey: String, addresses: List[String], agentVersion: String,
+      protocolVersion: String)
 
   def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsApi] = {
     log.note("Checking for IPFS daemon")
