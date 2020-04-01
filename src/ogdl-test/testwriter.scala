@@ -14,17 +14,62 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury
+package fury.ogdl
 
-import fury.ogdl.{OgdlParserTest, OgdlSerializerTest, OgdlWriterTest}
-import probably.TestApp
+import probably._
 
-object Tests {
-  private val testSuites = List[TestApp](
-      OgdlParserTest,
-      OgdlSerializerTest,
-      OgdlWriterTest
-  )
+import scala.collection.immutable.{SortedSet, TreeSet}
+import scala.language.implicitConversions
+import scala.util.{Try, Success}
 
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+object OgdlWriterTest extends TestApp {
+  private[this] val empty = Ogdl(Vector())
+
+  case class Foo(bar: String, baz: Int)
+
+  override def tests(): Unit = {
+    test("string") {
+      val input: String = "Hello World!"
+      Try(Ogdl(input))
+    }.assert(_ == Success(Ogdl(Vector(("Hello World!", empty)))))
+
+    test("case class") {
+      val input = Foo(bar = "1", baz = 2)
+      Try(Ogdl(input))
+    }.assert(_ == Success(Ogdl(Vector(
+      ("bar",Ogdl(Vector(("1", empty)))),
+      ("baz",Ogdl(Vector(("2", empty))))
+    ))))
+
+    test("list of strings") {
+      val input = List("3", "2", "1")
+      Try{Ogdl(input)}
+    }.assert(_ == Success(
+      Ogdl(
+        Vector(
+          ("::",Ogdl(Vector(
+            ("head",Ogdl(Vector(("3",empty)))),
+            ("tl$access$1",Ogdl(Vector(
+              ("::",Ogdl(Vector(
+                ("head",Ogdl(Vector(("2",empty)))),
+                ("tl$access$1",Ogdl(Vector(
+                  ("::",Ogdl(Vector(
+                    ("head",Ogdl(Vector(("1",empty)))),
+                    ("tl$access$1",Ogdl(Vector(
+                      ("Nil",empty)
+                    )
+                    )))
+                  )))
+                )))
+              )))
+            )))
+          )))
+      )
+    ))
+
+    test("sorted set of integers") {
+      val input: SortedSet[Int] = TreeSet(1, 2, 3)
+      Try{Ogdl(input)}
+    }.assert(_ == Success(Ogdl(Vector(("1",Ogdl(Vector(("1",empty)))), ("2",Ogdl(Vector(("2",empty)))), ("3",Ogdl(Vector(("3",empty))))))))
+  }
 }
