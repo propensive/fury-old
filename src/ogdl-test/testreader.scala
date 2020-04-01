@@ -22,31 +22,32 @@ import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.language.implicitConversions
 import scala.util.{Try, Success}
 
-object OgdlWriterTest extends TestApp {
+object OgdlReaderTest extends TestApp {
   private[this] val empty = Ogdl(Vector())
 
   private case class Foo(bar: String, baz: Int)
 
   override def tests(): Unit = {
     test("string") {
-      val input: String = "Hello World!"
-      Try(Ogdl(input))
-    }.assert(_ == Success(Ogdl(Vector(("Hello World!", empty)))))
+      val ogdl = Ogdl(Vector(("Hello World!", empty)))
+      Try(implicitly[OgdlReader[String]].read(ogdl))
+    }.assert(_ == Success("Hello World!"))
 
     test("case class") {
-      val input = Foo(bar = "1", baz = 2)
-      Try(Ogdl(input))
-    }.assert(_ == Success(Ogdl(Vector(
-      ("bar",Ogdl(Vector(("1", empty)))),
-      ("baz",Ogdl(Vector(("2", empty))))
-    ))))
+      val ogdl = Ogdl(Vector(
+        ("bar",Ogdl(Vector(("1", empty)))),
+        ("baz",Ogdl(Vector(("2", empty))))
+      ))
+      Try(implicitly[OgdlReader[Foo]].read(ogdl))
+    }.assert(_ == Success( Foo(bar = "1", baz = 2)))
 
-    //Ogdl(Vector((::,Ogdl(Vector((head,Ogdl(Vector((3,Ogdl(Vector()))))), (tl$access$1,Ogdl(Vector((::,Ogdl(Vector((head,Ogdl(Vector((2,Ogdl(Vector()))))), (tl$access$1,Ogdl(Vector((::,Ogdl(Vector((head,Ogdl(Vector((1,Ogdl(Vector()))))), (tl$access$1,Ogdl(Vector((Nil,Ogdl(Vector()))))))))))))))))))))))
+    test("sorted set of integers") {
+      val ogdl = Ogdl(Vector(("1",Ogdl(Vector(("1",empty)))), ("2",Ogdl(Vector(("2",empty)))), ("3",Ogdl(Vector(("3",empty))))))
+      Try(implicitly[OgdlReader[SortedSet[Int]]].read(ogdl))
+    }.assert(_ == Success(TreeSet(1, 2, 3)))
+
     test("list of strings") {
-      val input = List("3", "2", "1")
-      Try{Ogdl(input)}
-    }.assert(_ == Success(
-      Ogdl(
+      val ogdl = Ogdl(
         Vector(
           ("::",Ogdl(Vector(
             ("head",Ogdl(Vector(("3",empty)))),
@@ -66,11 +67,8 @@ object OgdlWriterTest extends TestApp {
             )))
           )))
       )
-    ))
+      Try(implicitly[OgdlReader[List[String]]].read(ogdl))
+    }.assert(_ == Success(List("3", "2", "1")))
 
-    test("sorted set of integers") {
-      val input: SortedSet[Int] = TreeSet(1, 2, 3)
-      Try{Ogdl(input)}
-    }.assert(_ == Success(Ogdl(Vector(("1",Ogdl(Vector(("1",empty)))), ("2",Ogdl(Vector(("2",empty)))), ("3",Ogdl(Vector(("3",empty))))))))
   }
 }
