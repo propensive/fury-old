@@ -142,6 +142,7 @@ object StringShow {
   implicit val char: StringShow[Char] = _.toString
   implicit val long: StringShow[Long] = _.toString
   implicit val int: StringShow[Int] = _.toString
+  implicit val boolean: StringShow[Boolean] = _.toString
 }
 
 trait StringShow[-T] { def show(value: T): String }

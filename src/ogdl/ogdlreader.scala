@@ -69,7 +69,11 @@ object OgdlReader {
       if(vector.head._1 == "") Vector[T]().to[Coll]
       else
         vector.map { v =>
-          val data: Ogdl = Ogdl((implicitly[Index[T]].index, Ogdl(v._1)) +: v._2.values)
+          val index = implicitly[Index[T]]
+          val data: Ogdl = index match {
+            case FieldIndex(field) => Ogdl((field, Ogdl(v._1)) +: v._2.values)
+            case SelfIndexed() => Ogdl(v._1)
+          }
           implicitly[OgdlReader[T]].read(data)
         }.to[Coll]
   }

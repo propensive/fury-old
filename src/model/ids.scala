@@ -450,7 +450,7 @@ sealed abstract class ScopeId(val id: String) extends scala.Product with scala.S
 object Grant {
   implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
   implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
-  implicit val index: Index[Grant] = Index("permission")
+  implicit val index: Index[Grant] = FieldIndex("permission")
 }
 
 case class Grant(scope: Scope, permission: Permission)
