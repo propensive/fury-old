@@ -91,7 +91,7 @@ object Ipfs {
 
     def get(hash: IpfsRef): Try[String] = for {
       hash   <- ~Multihash.fromBase58(hash.key)
-      bytes  <- Await.result(Future(~api.cat(hash)), 5.seconds)
+      bytes  <- Try(Await.result(Future(~api.cat(hash)), 5.seconds)).flatten
       string <- ~(new String(bytes, "UTF-8"))
     } yield string
     
