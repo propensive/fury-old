@@ -134,7 +134,10 @@ pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
 	 ) && \
 	 printf "$(shell tput -Tansi bold)Fury bundle version $(VERSION) published to $(shell cat tmp/.bundle.ipfs)$(shell tput -Tansi sgr0)\n"
 
-publish: tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
+.version:
+	@( echo $(shell bash -c 'read -p "Please specify the new version (current: $(VERSION)): " V; echo $$V') > "$@" )
+
+publish: tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey .version
 	@( echo $(VERSION) | grep -q '-' && printf "Not pinning snapshot release of Fury launcher.\n" ) || \
 	 ( ( stat .version 2> /dev/null > /dev/null || \
 	     ( printf "Please specify the new version in the file $(shell tput -Tansi bold).version$(shell tput -Tansi sgr0).\n" && \
