@@ -44,9 +44,9 @@ object Args {
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
   val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
-  val LinkArg = CliParam[String]('l', 'link, "specify a dependency link to another module")
-  val SourceArg = CliParam[Source]('d', 'source, "specify a source directory")
-  val DirArg = CliParam[Path]('d', 'dir, "specify the new repository destination directory")
+  val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
+  val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")
+  val DirArg = CliParam[Path]('f', 'dir, "specify the new repository destination directory")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
@@ -60,13 +60,13 @@ object Args {
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
-  val ImportArg = CliParam[LayerName]('l', 'layer, "specify an external layer to import")
-  val ImportIdArg = CliParam[ImportId]('l', Symbol("layer"), "specify a layer to unimport")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
       "specify if this dependency should not be included transitively")
 
   val KeyArg = CliParam[String]('k', 'key, "GPG key")
+  val ImportArg = CliParam[LayerName]('i', 'layer, "specify an external layer to import")
+  val ImportIdArg = CliParam[ImportId]('l', 'layer, "specify a layer to unimport")
   val LayerArg = CliParam[ImportPath]('l', 'layer, "specify the layer")
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
