@@ -104,17 +104,17 @@ object Installation {
 
   lazy val system: Try[Os] = {
     import environments.enclosing
-    val machine: Try[Machine] = sh"uname -m".exec[Try[String]].map {
-      case "x86_64" | "amd64" => X64
-      case "i386" | "i686"    => X86
-      case other              => X64
+    val machine: Machine = sh"uname -m".exec[Try[String]] match {
+      case Success("x86_64" | "amd64") => X64
+      case Success("i386" | "i686")    => X86
+      case other                       => X64
     }
 
-    sh"uname".exec[Try[String]].flatMap {
-      case "Darwin"   => machine.map(MacOs(_))
-      case "Linux"    => machine.map(Linux(_))
-      case r"MINGW.*" => machine.map(Windows(_))
-      case other => machine.map(Os.Unknown(other)(_))
+    sh"uname".exec[Try[String]].map {
+      case "Darwin"   => MacOs(machine)
+      case "Linux"    => Linux(machine)
+      case r"MINGW.*" => Windows(machine)
+      case other      => Os.Unknown(other)(machine)
     }
   }
 
