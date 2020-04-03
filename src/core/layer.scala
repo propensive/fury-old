@@ -149,11 +149,13 @@ object Layer extends Lens.Partial[Layer] {
       layer       <- dereference(layer, path.tail)
     } yield layer
 
-  def get(layerRef: LayerRef)(implicit log: Log): Try[Layer] =
+  def get(layerRef: LayerRef, id: Option[PublishedLayer] = None)(implicit log: Log): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
+      _     <- ~log.info("Fetching $layerRef")
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Try(Ogdl.read[Layer](data, migrate(_)))
+      _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
     } yield layer }
 
   def store(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
@@ -206,8 +208,7 @@ object Layer extends Lens.Partial[Layer] {
     case IpfsRef(key)          => Success(LayerRef(key))
   }
 
-  def pathCompletions()(implicit log: Log): Try[List[String]] =
-    Service.catalog(ManagedConfig().service)
+  def pathCompletions()(implicit log: Log): Try[List[String]] = Service.catalog(ManagedConfig().service)
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
     Ogdl.read[FuryConf](layout.confFile, identity(_))
@@ -245,25 +246,6 @@ object Layer extends Lens.Partial[Layer] {
     confStr  <- ~Ogdl.serialize(Ogdl(conf))
     _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
   } yield conf
-
-  def pushToHistory(layerRef: LayerRef, layout: Layout)(implicit log: Log): Try[Unit] =
-    layout.undoStack.writeSync(layerRef.key + "\n", append = true)
-
-  def popFromHistory(layout: Layout)(implicit log: Log): Try[LayerRef] = {
-    val history = layout.undoStack
-    if(history.exists()) {
-      val reader = scala.io.Source.fromFile(history.javaFile)
-      val content = Try(reader.getLines().toList)
-      reader.close()
-      for {
-        lines      <- content
-        entries    <- lines.traverse(LayerRef.unapply(_).ascribe(HistoryCorrupt()))
-        last       <- entries.lastOption.ascribe(HistoryMissing())
-        newEntries =  entries.dropRight(1).map(_.key)
-        _          <- layout.undoStack.writeSync(newEntries.mkString("\n"))
-      } yield last
-    } else Failure(HistoryMissing())
-  }
 
   private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
     val version = Try(ogdl.version().toInt).getOrElse(1)

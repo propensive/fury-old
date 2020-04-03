@@ -121,7 +121,7 @@ object Ipfs {
                                         (implicit log: Log)
                                         : Try[String] = {
 
-      log.info(msg"Accessing $gateway to retrieve ${ref}")
+      log.note(msg"Accessing $gateway to retrieve ${ref}")
       val params = List("arg" -> ref.key, "archive" -> "true")
       for {
         data   <- Http.get((Https(gateway) / "api" / "v0" / s"get").query(params: _*), Set.empty)
