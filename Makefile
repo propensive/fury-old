@@ -1,4 +1,4 @@
-VERSION="${shell git describe --tags 2> /dev/null}"
+VERSION="${shell cat .version 2> /dev/null || git describe --tags 2> /dev/null}"
 
 run: dist/fury tmp/.bundle.ipfs
 
@@ -130,13 +130,21 @@ pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
 	    -H "pinata_secret_api_key: $(shell cat .pinata/secretApiKey)" \
 	    -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).tar.gz\"},\"hashToPin\":\"$(shell cat tmp/.bundle.ipfs)\"}" \
 	    "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
-	    printf "done\n" || printf "failed\n" \
+	    printf "done\n" || ( printf "failed\n" && exit 1 ) \
 	 ) && \
 	 printf "$(shell tput -Tansi bold)Fury bundle version $(VERSION) published to $(shell cat tmp/.bundle.ipfs)$(shell tput -Tansi sgr0)\n"
 
 publish: tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
-	@( echo $(VERSION) | grep -q '-' && printf "Not pinning snapshot release of Fury launcher.\n" ) || \
-	 ( printf "Sending $(shell tput -Tansi sitm)addHashToPinQueue$(shell tput -Tansi sgr0) request to Pinata..." && \
+	@( echo $(VERSION) | grep -q '-' && printf "Not pinning snapshot release of Fury launcher.\n" ) && \
+	 ( ( stat .version 2> /dev/null > /dev/null || \
+	     ( printf "Please specify the new version in the file $(shell tput -Tansi bold).version$(shell tput -Tansi sgr0).\n" && \
+	       exit 1 ) \
+	   ) && \
+	   printf "Checking there are no uncommitted changes..." && \
+	   git diff-index --quiet HEAD -- && \
+	   printf "done\n" && \
+	   git tag "$(VERSION)" && \
+	   printf "Sending $(shell tput -Tansi sitm)addHashToPinQueue$(shell tput -Tansi sgr0) request to Pinata..." && \
 	   curl -s \
 	    -X POST \
 	    -H "Content-Type: application/json" \
@@ -147,7 +155,13 @@ publish: tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	    printf "done\n" && \
 	    printf "Copying new launcher script to root directory..." && \
 	    cp dist/fury fury && \
-	    printf "done\n" || printf "failed\n" \
+	    git push --tags && \
+	    ./fury repo update -r fury -V "$(VERSION)" && \
+	    git add .fury.conf && \
+	    git commit -m "Updated layer file for version $(VERSION)" && \
+	    git push && \
+	    rm .version && \
+	    printf "Done\n" || ( printf "Failed\n" && exit 1 ) \
 	 )
 	@printf "$(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
 
