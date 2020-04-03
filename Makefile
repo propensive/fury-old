@@ -153,13 +153,13 @@ publish: tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	    -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).sh\"},\"hashToPin\":\"$(shell cat tmp/.launcher.ipfs)\"}" \
 	    "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
 	    printf "done\n" && \
-	    printf "Copying new launcher script to root directory..." && \
-	    cp dist/fury fury && \
 	    git push --tags && \
 	    ./fury repo update -r fury -V "$(VERSION)" && \
 	    git add .fury.conf && \
 	    git commit -m "Updated layer file for version $(VERSION)" && \
 	    git push && \
+	    printf "Copying new launcher script to root directory..." && \
+	    cp dist/fury fury && \
 	    rm .version && \
 	    printf "Done\n" || ( printf "Failed\n" && exit 1 ) \
 	 )
