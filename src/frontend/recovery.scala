@@ -18,7 +18,7 @@ package fury
 
 import fury.strings._, fury.core._, fury.ogdl._, fury.io._, fury.model._
 
-import exoskeleton._
+import exoskeleton.{MissingArg, InvalidArgValue}
 import guillotine._
 
 import scala.util._
@@ -49,7 +49,7 @@ object Recovery {
         case NoOtherLayer() =>
           cli.abort(msg"The layer to compare this layer with has not been specified.")
         case CantWatchAndWait() =>
-          cli.abort(msg"The --watch (-w) and --wait (-W) options cannot be used together.")
+          cli.abort(msg"The ${Args.WatchArg} and ${Args.WaitArg} options cannot be used together.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path, e) =>
@@ -63,8 +63,8 @@ object Recovery {
           val prefixLength = Compare.uniquePrefixLength(perms.map(_.hash)).max(3)
           val rows = perms.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }.to[List]
           
-          val permissions = Tables().show[PermissionEntry, PermissionEntry](Tables().permissions, cli.cols, rows,
-              false, None, None, "hash")
+          val permissions = Tables().show[PermissionEntry, PermissionEntry](Tables().permissions, cli.cols,
+              rows, false, None, None, "hash")
 
           cli.abort(msg"""The following permissions are required to run the build:
 ${permissions}
@@ -81,6 +81,9 @@ You can grant these permissions with,
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
         case e: ServiceException =>
           cli.abort(e.getMessage)
+        case BadPullParams() =>
+          cli.abort(msg"""The ${Args.AllArg} parameter cannot be used with either ${Args.LayerArg} or """+
+                    msg"""${Args.LayerVersionArg}.""")
         case CannotUndo() =>
           cli.abort(msg"""The previous action cannot be undone...""")
         case UnresolvedModules(refs) =>
@@ -164,7 +167,7 @@ You can grant these permissions with,
         case e: ProjectAlreadyExists =>
           cli.abort(msg"The project '${e.project}' already exists.")
         case e: AlreadyInitialized =>
-          cli.abort(msg"Fury is already initialized in this directory. Use --force to override.")
+          cli.abort(msg"Fury is already initialized in this directory. Use ${Args.ForceArg} to override.")
         case CyclesInDependencies(refs) =>
           cli.abort(msg"There are dependency cycles containing : [${refs.mkString}]")
         case UnspecifiedBinary(Nil) =>

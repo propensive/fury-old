@@ -53,9 +53,11 @@ object CliParam {
       type Type = T
       def extractor: Param.Extractor[Type] = implicitly[Param.Extractor[T]]
     }
+  
+  implicit def msgShow[T]: MsgShow[CliParam { type Type = T }] = p => UserMsg { theme =>
+    theme.param(str"--${p.longName.name}")+" "+theme.gray("(")+theme.param(str"-${p.shortName.toString}")+
+        theme.gray(")") }
 }
-
-
 
 abstract class CliParam(val shortName: Char,
                         val longName: Symbol,

@@ -682,23 +682,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _        <- Layer.saveFuryConf(conf.copy(layerRef = layerRef), layout)
   } yield log.await()
 
-  def pull: Try[ExitStatus] = for {
-    layout    <- cli.layout
-    conf      <- Layer.readFuryConf(layout)
-    layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(RecursiveArg)
-    cli       <- cli.hint(LayerVersionArg)
-    cli       <- cli.hint(AllArg)
-    cli       <- cli.hint(ImportArg, layer.imports.map(_.id))
-    call      <- cli.call()
-    version   <- ~call(LayerVersionArg).toOption
-    recursive <- ~call(RecursiveArg).isSuccess
-    all       <- ~call(AllArg).isSuccess
-    imports   <- if(all) Try(layer.imports.map(_.id).to[List]) else call(ImportIdArg).map(List(_))
-    layer     <- updateAll(layer, ImportPath.Empty, imports, recursive, version)
-    _         <- Layer.commit(layer, conf, layout)
-  } yield log.await()
-
   def diff: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
@@ -717,6 +700,39 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     table  <- ~Tables().show[Difference, Difference](table, cli.cols, rows, raw, col)
     _      <- if(!rows.isEmpty) ~log.rawln(table) else ~log.info("No changes")
   } yield log.await()
+  
+  def pull: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(RecursiveArg)
+    cli       <- cli.hint(LayerVersionArg)
+    cli       <- cli.hint(AllArg)
+    cli       <- cli.hint(ImportArg, layer.imports.map(_.id))
+    call      <- cli.call()
+    version   <- ~call(LayerVersionArg).toOption
+    recursive <- ~call(RecursiveArg).isSuccess
+    all       <- ~call(AllArg).isSuccess
+    importId  <- ~call(ImportIdArg)
+    
+    imports   <- if(all) Try(layer.imports.map(_.id).to[List])
+                 else ~importId.toOption.fold(List[ImportId]())(List(_))
+
+    _         <- if(all && (importId.isSuccess || version.isDefined)) Failure(BadPullParams()) else ~()
+    current   <- Try(!all && importId.isFailure)
+    conf      <- if(current) updateCurrent(layer, conf, version) else ~conf
+    layer     <- Layer.retrieve(conf)
+    layer     <- updateAll(layer, ImportPath.Empty, imports, recursive, if(current) None else version)
+    _         <- Layer.commit(layer, conf, layout)
+  } yield log.await()
+
+  private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion]): Try[FuryConf] = for {
+    _                  <- if(conf.path != ImportPath.Root) Failure(RootLayerNotSelected()) else Success(())
+    published          <- conf.published.ascribe(ImportHasNoRemote())
+    (newPub, artifact) <- getNewLayer(published, version, ImportPath.Root)
+    newLayer           <- Layer.get(artifact.layerRef)
+    layerRef           <- Layer.store(newLayer)
+  } yield conf.copy(layerRef = layerRef, published = Some(newPub))
 
   private def updateAll(layer: Layer,
                         importPath: ImportPath,
@@ -734,28 +750,34 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         recursive: Boolean,
                         version: Option[LayerVersion])
                        : Try[Layer] = for {
-    imported  <- layer.imports.findBy(importId)
-    published <- imported.remote.ascribe(ImportHasNoRemote())
-    artifact  <- version.fold(Service.latest(published.url.domain, published.url.path, Some(published.version))) { v =>
-                   Service.fetch(published.url.domain, published.url.path, v)
-                 }
-    
-    newPub    <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version,
-                     LayerRef(artifact.ref))
-    
-    _          = if(artifact.version != published.version)
-                   log.info(msg"Updated layer ${importPath / importId} from ${published.url} to version "+
-                       msg"${artifact.version} from ${published.version}")
+    imported           <- layer.imports.findBy(importId)
+    published          <- imported.remote.ascribe(ImportHasNoRemote())
+    (newPub, artifact) <- getNewLayer(published, version, importPath / importId)
+    layer              <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
+    newLayer           <- Layer.get(artifact.layerRef)
 
-    layer     <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
-    newLayer  <- Layer.get(artifact.layerRef)
-
-    newLayer  <- if(recursive) updateAll(newLayer, importPath / importId, newLayer.imports.map(_.id).to[List],
-                     recursive, None) else ~newLayer
+    newLayer           <- if(recursive) updateAll(newLayer, importPath / importId,
+                              newLayer.imports.map(_.id).to[List], recursive, None) else ~newLayer
     
-    layerRef  <- Layer.store(newLayer)
-    layer     <- ~(Layer(_.imports(importId).layerRef)(layer) = layerRef)
+    layerRef           <- Layer.store(newLayer)
+    layer              <- ~(Layer(_.imports(importId).layerRef)(layer) = layerRef)
   } yield layer
+
+  private def getNewLayer(published: PublishedLayer, version: Option[LayerVersion], importPath: ImportPath)
+                         : Try[(PublishedLayer, Artifact)] =
+    for {
+      artifact <- version.fold(Service.latest(published.url.domain, published.url.path,
+                      Some(published.version))) { v =>
+                    Service.fetch(published.url.domain, published.url.path, v)
+                  }
+      
+      newPub   <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version,
+                      LayerRef(artifact.ref))
+      
+      _         = if(artifact.version != published.version)
+                    log.info(msg"Updated layer ${importPath} from ${published.url} from version "+
+                        msg"${published.version} to ${artifact.version}")
+  } yield (newPub, artifact)
 
   def list: Try[ExitStatus] = {
     for {

@@ -20,6 +20,7 @@ import fury.strings._, fury.io._
 
 case class AlreadyInitialized() extends FuryException
 case class BspException() extends FuryException
+case class BadPullParams() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
 case class CantWatchAndWait() extends FuryException
 case class CannotUndo() extends FuryException
