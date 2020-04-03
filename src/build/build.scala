@@ -375,10 +375,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     cli          <- cli.hint(ExecNameArg)
-    //cli          <- cli.hint(DirArg)
     call         <- cli.call()
     exec         <- call(ExecNameArg)
-    //dir          <- call(DirArg)
     https        <- ~call(HttpsArg).isSuccess
     project      <- optProject.asTry
     optModuleId  <- ~call(ModuleArg).toOption.orElse(project.main)
@@ -400,7 +398,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     cli          <- cli.hint(HttpsArg)
+    cli          <- cli.hint(PipeliningArg, List("on", "off"))
     cli          <- cli.hint(NoSecurityArg)
+    cli          <- cli.hint(IgnoreErrorsArg)
+    cli          <- cli.hint(ReporterArg, Reporter.all)
     cli          <- cli.hint(ProjectArg, layer.projects)
     optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
     optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
@@ -408,6 +409,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
+    force        <- ~call(IgnoreErrorsArg).isSuccess
+    pipelining   <- ~call(PipeliningArg).toOption
+    reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     noSecurity   <- ~call(NoSecurityArg).isSuccess
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
@@ -415,6 +419,21 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
                         https, noSecurity)
     
+    result       <- for {
+                      globalPolicy <- ~Policy.read(log)
+                      task <- compileOnce(compilation, layer, module.ref(project), layout,
+                                  globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
+                                  ManagedConfig().theme, https, noSecurity)
+                    } yield { task.transform { completed => for {
+                      compileResult  <- completed
+                      compileSuccess <- compileResult.asTry
+                    } yield compileSuccess } }
+
+    result       <- Try(Try(Await.result(result, Duration.Inf)))
+    _            <- if(force) {
+                      if(result.isFailure) log.warn(msg"Errors occurred during compilation; launching console with an incomplete classpath")
+                      Success(())
+                    } else result
     classpath    <- ~compilation.classpath(module.ref(project), layout)
     bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
   } yield {
