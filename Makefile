@@ -9,7 +9,7 @@ fury: dist/fury publish
 
 clean:
 	@printf "Cleaning tmp, dist directories..." && \
-	 rm -rf tmp dist && \
+	 rm -rf .version tmp dist && \
 	 printf "done\n" || printf "failed\n"
 
 uninstall:
