@@ -139,7 +139,6 @@ object FuryMenu {
       Action('list, msg"list source repositories", RepoCli(_).list, shortcut = 'l'),
       Action('pull, msg"pull the latest remote version of the source repo", RepoCli(_).pull, shortcut = 'p')
     ),
-    Action('upgrade, msg"upgrade to the latest version of Fury", BuildCli(_).upgrade, needsLayer = false),
     Action('undo, msg"undo the previous modification", LayerCli(_).undo),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),

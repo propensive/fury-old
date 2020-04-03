@@ -236,19 +236,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 
   def notImplemented: Try[ExitStatus] = Success(Abort)
 
-  def upgrade: Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.retrieve(conf)
-    layout        <- cli.layout
-    call          <- cli.call()
-    records       <- Dns.lookup(ManagedConfig().service)
-    latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
-    ipfs          <- Ipfs.daemon(false)
-    file          <- ipfs.get(latestRef, tmpFile)
-    _             <- TarGz.extract(file, Installation.upgradeDir)
-  } yield log.await() }
-
   def prompt: Try[ExitStatus] = for {
     layout  <- cli.layout
     conf    <- Layer.readFuryConf(layout)

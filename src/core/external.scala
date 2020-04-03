@@ -56,16 +56,14 @@ object Ipfs {
       ref  <- add(file, wrap = false, onlyHash = true)
     } yield ref
 
-    def get(ref: IpfsRef, path: Path)(implicit log: Log): Try[Path] = {
-      val hash = Multihash.fromBase58(ref.key)
+    def get(ref: IpfsRef)(implicit log: Log): Try[String] = {
       val config = ManagedConfig()
       
-      val getFromIpfs: Try[Path] =
-        if(!attemptToUseIpfs) Failure(new IllegalStateException(
-            "An IPFS timeout has occurred in the last ten minutes."))
+      val getFromIpfs: Try[String] =
+        if(!attemptToUseIpfs) Failure(IpfsTimeout())
         else if(config.skipIpfs) Failure(new IllegalStateException(
             "Using the IPFS daemon is forbidden by configuration"))
-        else getFile(hash, path)
+        else getRef(ref)
 
       getFromIpfs.failed.foreach { e =>
         log.warn(s"Could not resolve the hash using IPFS daemon. Cause: $e")
@@ -73,25 +71,27 @@ object Ipfs {
       }
       
       getFromIpfs.recoverWith { case e =>
-        knownGateways.foldLeft[Try[Path]](Failure(e)) {
+        knownGateways.foldLeft[Try[String]](Failure(e)) {
           case (res@Success(_), _)   =>
             res
           case (Failure(_), gateway) =>
-            val result = getFileFromGateway(hash, path)(gateway)
+            val result = getFileFromGateway(ref, gateway)
             result.failed.foreach { e =>
               log.warn(s"Could not resolve the hash using $gateway. Cause: $e")
             }
             result
         }
       }.recoverWith {
-        case e: RuntimeException if e.getMessage matches "timeout \\(.+\\) has been exceeded" => Failure(IpfsTimeout())
-        case _: java.net.SocketTimeoutException => Failure(IpfsTimeout())
+        case e: RuntimeException if e.getMessage matches "timeout \\(.+\\) has been exceeded" =>
+          Failure(IpfsTimeout())
+        case _: java.net.SocketTimeoutException =>
+          Failure(IpfsTimeout())
       }
     }
 
-    def get(hash: IpfsRef): Try[String] = for {
+    def getRef(hash: IpfsRef): Try[String] = for {
       hash   <- ~Multihash.fromBase58(hash.key)
-      bytes  <- Try(Await.result(Future(~api.cat(hash)), 5.seconds)).flatten
+      bytes  <- Try(Await.result(Future(api.cat(hash)), 10.seconds))
       string <- ~(new String(bytes, "UTF-8"))
     } yield string
     
@@ -122,18 +122,15 @@ object Ipfs {
       _    =  TarGz.untar(in, path)
     } yield path.childPaths.head
 
-    private[this] def getFileFromGateway(hash: Multihash, path: Path)(gateway: DomainName)
+    private[this] def getFileFromGateway(ref: IpfsRef, gateway: DomainName)
                                         (implicit log: Log)
-                                        : Try[Path] = {
+                                        : Try[String] = {
 
-      log.info(msg"Accessing $gateway to retrieve ${IpfsRef(hash.toString)}")
-      val params = List("arg" -> hash.toBase58, "archive" -> "true")
+      log.info(msg"Accessing $gateway to retrieve ${ref}")
+      val params = List("arg" -> ref.key)//, "archive" -> "true")
       for {
-        _    <- path.mkParents()
         data <- Http.get((Https(gateway) / "api" / "v0" / s"get").query(params: _*), Set.empty)
-        in   =  new ByteArrayInputStream(data)
-        _    =  TarGz.untar(in, path)
-      } yield path.childPaths.head
+      } yield new String(data, "UTF-8")
     }
 
   }
