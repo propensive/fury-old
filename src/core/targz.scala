@@ -81,5 +81,20 @@ object TarGz {
     }
     tis.close()
   }
+  
+  def untar(in: InputStream): Try[List[Array[Byte]]] = {
+    val tis = new TarInputStream(in)
+    val entries = Try {
+      Iterator.continually(tis.getNextEntry).takeWhile(_ != null).filter(!_.isDirectory).map { entry =>
+        val out = new ByteArrayOutputStream()
+        transfer(tis, out, keepOpen = true)
+        out.close()
+        out.toByteArray()
+      }.to[List]
+    }
+    tis.close()
+
+    entries
+  }
 }
 

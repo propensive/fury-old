@@ -127,9 +127,10 @@ object Ipfs {
                                         : Try[String] = {
 
       log.info(msg"Accessing $gateway to retrieve ${ref}")
-      val params = List("arg" -> ref.key)//, "archive" -> "true")
+      val params = List("arg" -> ref.key, "archive" -> "true")
       for {
         data <- Http.get((Https(gateway) / "api" / "v0" / s"get").query(params: _*), Set.empty)
+        _    <- TarGz.untar(new ByteArrayInputStream(data))
       } yield new String(data, "UTF-8")
     }
 
