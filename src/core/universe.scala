@@ -58,7 +58,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       module.resources.to[List]
     )
 
-  def checkout(ref: ModuleRef, layout: Layout): Try[Checkouts] = for {
+  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Checkouts] = for {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
     repos  <- (module.externalSources ++ module.externalResources).to[List]

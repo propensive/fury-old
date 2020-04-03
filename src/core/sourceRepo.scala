@@ -51,16 +51,31 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     files <- localDir(layout).fold(Shell(layout.env).git.lsTree(dir, commit))(Success(dir.children.map(Path(_))).waive)
   } yield files
 
-  def tracking(layout: Layout): Option[RefSpec] = localDir(layout).fold(Option(track)) { dir =>
-    Shell(layout.env).git.getBranch(dir).toOption.map(RefSpec(_))
-  }
+  def tracking(layout: Layout)(implicit log: Log): Option[RefSpec] =
+    localDir(layout).fold(Option(track)) { dir =>
+      Shell(layout.env).git.getBranch(dir).toOption.map(RefSpec(_))
+    }
 
-  def fullCheckout(layout: Layout): Checkout = Checkout(id, repo, localDir(layout), commit, track, List())
+  def fullCheckout(layout: Layout)(implicit log: Log): Checkout =
+    Checkout(id, repo, localDir(layout), commit, track, List())
 
-  def localDir(layout: Layout): Option[Path] = local.orElse {
+  private[this] var thisLocalDir: Option[Option[Path]] = None
+
+  def localDir(layout: Layout)(implicit log: Log): Option[Path] = local.orElse {
     Repo.local(layout).map(_.equivalentTo(repo)) match {
-      case Success(true) => Some(layout.baseDir)
-      case _             => None
+      case Success(true) =>
+        thisLocalDir.getOrElse {
+          log.info(msg"Commandeering the working directory as the repository $id")
+          Shell(layout.env).git.diffShortStat(layout.baseDir, Some(commit)).foreach { diff =>
+            log.warn(msg"The working directory differs from the layer specification: $diff")
+          }
+          val result = Some(layout.baseDir)
+          thisLocalDir = Some(result)
+          result
+        }
+
+      case _ =>
+        None
     }
   }
 

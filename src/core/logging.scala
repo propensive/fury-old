@@ -73,9 +73,10 @@ case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean],
     val fTime = paddedTime(time)
     val fLevel = optionalLogLevel(level)
     val paddedSession: String = if(!showSession) "" else msg"$pid".string(theme)+" "
+    val bold: String = if(level >= Log.Warn) theme.bold() else ""
     
     printWriter().append(msg.string(theme).split("\n").map { line =>
-      s"$wipe$fTime$fLevel$paddedSession$line"
+      s"$wipe$fTime$fLevel$paddedSession$bold$line"
     }.mkString("", "\n", "\n"))
     
     printWriter().flush()

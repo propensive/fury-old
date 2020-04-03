@@ -91,8 +91,12 @@ case class Shell(environment: Environment) {
     def getOrigin(dir: Path): Try[String] =
       sh"git -C ${dir.value} config --get remote.origin.url".exec[Try[String]]
 
-    def diffShortStat(dir: Path): Try[String] =
-      sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat".exec[Try[String]]
+    def diffShortStat(dir: Path, other: Option[Commit] = None): Try[String] = { other match {
+      case None =>
+        sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat"
+      case Some(commit) =>
+        sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat ${commit.id}"
+    } }.exec[Try[String]]
 
     def sparseCheckout(from: Path,
                        dir: Path,

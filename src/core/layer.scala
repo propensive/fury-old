@@ -54,7 +54,6 @@ case class Layer(version: Int,
   def deepModuleRefs(universe: Universe): Set[ModuleRef] =
     universe.entities.values.flatMap(_.project.moduleRefs).to[Set]
 
-
   def unresolvedModules(universe: Universe): Map[ModuleRef, Set[ModuleRef]] = { for {
     project    <- projects.to[List]
     module     <- project.modules

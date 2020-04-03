@@ -24,91 +24,91 @@ import kaleidoscope._
 import scala.util._
 
 object Repo {
-    implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
-    implicit val stringShow: StringShow[Repo] = _.simplified
-  
-    case class ExistingLocalFileAsAbspath(absPath: String)
-  
-    object ExistingLocalFileAsAbspath {
-      def unapply(path: String): Option[String] = Path(path).absolutePath().toOption match {
-        case Some(absPath) => absPath.ifExists().map(_.value)
-        case None          => None
-      }
-    }
-  
-    def fromString(str: String, https: Boolean): String = str match {
-      case "." => ""
-      case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-        if(https) str"https://github.com/$group/$project.git"
-        else str"git@github.com:$group/$project.git"
-      case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-        if(https) str"https://gitlab.com/$group/$project.git"
-        else str"git@gitlab.com:$group/$project.git"
-      case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-        if(https) str"https://bitbucket.com/$group/$project.git"
-        str"git@bitbucket.com:$group/$project.git"
-      case ExistingLocalFileAsAbspath(abspath) =>
-        abspath
-      case other =>
-        other
-    }
-  
-    def local(layout: Layout): Try[Repo] = Shell(layout.env).git.getOrigin(layout.baseDir / ".git").map(Repo(_))
-  }
-  
-  case class Repo(ref: String) {
-    def hash: Digest = ref.digest[Md5]
-    def path(layout: Layout): Path = Installation.reposDir / hash.encoded
-  
-    def equivalentTo(repo: Repo): Boolean = repo.simplified == simplified
-    
-    def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
-      for {
-        _         <- fetch(layout, https)
-        newCommit <- Shell(layout.env).git.getCommit(path(layout))
-        _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
-                         else msg"Repository $this has not changed")
-      } yield newCommit
-  
-    def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
-      for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
-  
-    def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-      if((path(layout) / ".done").exists) Success(path(layout))
-      else fetch(layout, https)
-    }
-  
-    def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-      val done = path(layout) / ".done"
-      if(path(layout).exists && !done.exists) {
-        log.info(msg"Found incomplete clone of $this")
-        path(layout).delete()
-      }
-      if(path(layout).exists) {
-        done.delete()
-        Shell(layout.env).git.fetch(path(layout), None)
-        done.touch()
-        Success(path(layout))
-      } else {
-        log.info(msg"Cloning repository at $this")
-        path(layout).mkdir()
-        Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
-      }
-    }
-  
-    def simplified: String = ref match {
-      case r"git@github.com:$group@(.*)/$project@(.*?)(\.git)?"     => str"gh:$group/$project"
-      case r"git@bitbucket.com:$group@(.*)/$project@(.*?)(\.git)?"  => str"bb:$group/$project"
-      case r"git@gitlab.com:$group@(.*)/$project@(.*?)(\.git)?"     => str"gl:$group/$project"
-      case r"https://github.com/$group@(.*)/$project@(.*?)(\.git)?" => str"gh:$group/$project"
-      case r"https://gitlab.com/$group@(.*)/$project@(.*?)(\.git)?" => str"gl:$group/$project"
-      case other                                               => other
-    }
-  
-    def universal(https: Boolean): String = Repo.fromString(simplified, https)
-  
-    def projectName: Try[RepoId] = {
-      val value = simplified.split("/").last
-      RepoId.unapply(value).ascribe(InvalidValue(value))
+  implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
+  implicit val stringShow: StringShow[Repo] = _.simplified
+
+  case class ExistingLocalFileAsAbspath(absPath: String)
+
+  object ExistingLocalFileAsAbspath {
+    def unapply(path: String): Option[String] = Path(path).absolutePath().toOption match {
+      case Some(absPath) => absPath.ifExists().map(_.value)
+      case None          => None
     }
   }
+
+  def fromString(str: String, https: Boolean): String = str match {
+    case "." => ""
+    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      if(https) str"https://github.com/$group/$project.git"
+      else str"git@github.com:$group/$project.git"
+    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      if(https) str"https://gitlab.com/$group/$project.git"
+      else str"git@gitlab.com:$group/$project.git"
+    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      if(https) str"https://bitbucket.com/$group/$project.git"
+      str"git@bitbucket.com:$group/$project.git"
+    case ExistingLocalFileAsAbspath(abspath) =>
+      abspath
+    case other =>
+      other
+  }
+
+  def local(layout: Layout): Try[Repo] = Shell(layout.env).git.getOrigin(layout.baseDir / ".git").map(Repo(_))
+}
+
+case class Repo(ref: String) {
+  def hash: Digest = ref.digest[Md5]
+  def path(layout: Layout): Path = Installation.reposDir / hash.encoded
+
+  def equivalentTo(repo: Repo): Boolean = repo.simplified == simplified
+  
+  def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
+    for {
+      _         <- fetch(layout, https)
+      newCommit <- Shell(layout.env).git.getCommit(path(layout))
+      _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
+                        else msg"Repository $this has not changed")
+    } yield newCommit
+
+  def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
+    for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
+
+  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
+    if((path(layout) / ".done").exists) Success(path(layout))
+    else fetch(layout, https)
+  }
+
+  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
+    val done = path(layout) / ".done"
+    if(path(layout).exists && !done.exists) {
+      log.info(msg"Found incomplete clone of $this")
+      path(layout).delete()
+    }
+    if(path(layout).exists) {
+      done.delete()
+      Shell(layout.env).git.fetch(path(layout), None)
+      done.touch()
+      Success(path(layout))
+    } else {
+      log.info(msg"Cloning repository at $this")
+      path(layout).mkdir()
+      Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
+    }
+  }
+
+  def simplified: String = ref match {
+    case r"git@github.com:$group@(.*)/$project@(.*?)(\.git)?"     => str"gh:$group/$project"
+    case r"git@bitbucket.com:$group@(.*)/$project@(.*?)(\.git)?"  => str"bb:$group/$project"
+    case r"git@gitlab.com:$group@(.*)/$project@(.*?)(\.git)?"     => str"gl:$group/$project"
+    case r"https://github.com/$group@(.*)/$project@(.*?)(\.git)?" => str"gh:$group/$project"
+    case r"https://gitlab.com/$group@(.*)/$project@(.*?)(\.git)?" => str"gl:$group/$project"
+    case other                                               => other
+  }
+
+  def universal(https: Boolean): String = Repo.fromString(simplified, https)
+
+  def projectName: Try[RepoId] = {
+    val value = simplified.split("/").last
+    RepoId.unapply(value).ascribe(InvalidValue(value))
+  }
+}

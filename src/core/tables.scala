@@ -93,7 +93,7 @@ case class Tables() {
 
   private def bar(n: Int) = msg"${theme.gray("■" * n)}"
 
-  private def commitOrPath(layout: Layout, r: SourceRepo) = r.localDir(layout) match {
+  private def commitOrPath(layout: Layout, r: SourceRepo)(implicit log: Log) = r.localDir(layout) match {
     case Some(dir) => if(r.localDir(layout) == Some(layout.baseDir)) msg"${theme.italic("local")}"
                       else msg"${theme.path(dir.value)}"
     case None      => msg"${theme.version(r.commit.id.take(7))}"
