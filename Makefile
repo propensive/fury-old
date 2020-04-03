@@ -146,6 +146,12 @@ publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	   printf "Checking there are no uncommitted changes..." && \
 	   git diff-index --quiet HEAD -- && \
 	   printf "done\n" && \
+	   printf "Updating source headers..." && \
+	   etc/revise && \
+	   printf "done\n" && \
+	   git add src && \
+	   git commit -m "Updated source headers to version $(VERSION)" && \
+	   git push && \
 	   git tag "$(VERSION)" && \
 	   printf "Sending $(shell tput -Tansi sitm)addHashToPinQueue$(shell tput -Tansi sgr0) request to Pinata..." && \
 	   curl -s \
@@ -166,7 +172,7 @@ publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	    git commit -m "Updated layer file and launcher for version $(VERSION)" && \
 	    git push && \
 	    printf "Done\n" || ( printf "Failed\n" && exit 1 ) \
-	 )
-	@printf "$(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
+	 ) && \
+	 printf "$(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
 
 .PHONY: run publish pinata pinata-launcher clean uninstall icons
