@@ -90,7 +90,7 @@ object Install {
   
   private final val zshCompletions: List[String] = List(
     str"fpath=(${Installation.scriptDir} $$fpath) $furyTag",
-    str"compinit $furyTag"
+    str"autoload -U compinit && compinit $furyTag"
   )
 
   private def rcInstall(env: Environment, force: Boolean, file: Path, shell: ExecName, extra: List[String])
