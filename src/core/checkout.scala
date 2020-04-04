@@ -65,7 +65,7 @@ case class Checkout(repoId: RepoId,
       if(!path.exists) {
         log.info(msg"Checking out $sourceDesc from repository $repoId")
         path.mkdir()
-        Shell(layout.env).git.sparseCheckout(repo.path(layout), path, sources, refSpec = refSpec,
+        GitDir(path)(layout.env).sparseCheckout(repo.path(layout), sources, refSpec = refSpec,
             commit = commit, None).flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
           case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
             Failure(NoSourcesError(repoId, commit, sourceDesc))

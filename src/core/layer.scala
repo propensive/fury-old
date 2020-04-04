@@ -116,8 +116,9 @@ case class Layer(version: Int,
 
   def localRepo(layout: Layout): Try[SourceRepo] = for {
     repo   <- Repo.local(layout)
-    commit <- Shell(layout.env).git.getCommit(layout.baseDir)
-    branch <- Shell(layout.env).git.getBranch(layout.baseDir).map(RefSpec(_))
+    gitDir <- ~GitDir(layout.baseDir)(layout.env)
+    commit <- gitDir.getCommit()
+    branch <- gitDir.getBranch().map(RefSpec(_))
   } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 
   def allRepos(layout: Layout): SortedSet[SourceRepo] =
