@@ -149,12 +149,11 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     remoteOpt      <- ~cli.peek(UrlArg)
     repoOpt        <- ~remoteOpt.map(Repo(_))
     
-    versions       <- repoOpt.map { repo =>
-                        GitDir.lsRemote(Repo.fromString(repo.ref, true))(layout.env)
-                      }.to[List].sequence.map(_.flatten).recover { case e => Nil }
+    versions       <- repoOpt.map(GitDir.lsRemote(_)(layout.env)).to[List].sequence.map(_.flatten).recover {
+                          case e => Nil }
 
     cli            <- cli.hint(RefSpecArg, versions)
-    call          <- cli.call()
+    call           <- cli.call()
     dir            <- ~call(DirArg).toOption
     https          <- ~call(HttpsArg).isSuccess
     refSpec        <- ~call(RefSpecArg).toOption.getOrElse(RefSpec.master)
@@ -181,7 +180,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(ForceArg)
     cli         <- cli.hint(RepoArg, layer.repos)
     optRepo     <- ~cli.peek(RepoArg).flatMap(layer.repos.findBy(_).toOption)
-    refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(GitDir(_)(layout.env).showRefs()).sequence
+    refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(GitDir(_)(layout.env).showRefs).sequence
     cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
     call        <- cli.call()
     repoArg     <- call(RepoArg)

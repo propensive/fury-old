@@ -211,6 +211,6 @@ case class Tables() {
     Heading("Remote", _.repo),
     Heading("Branch/Tag", _.tracking(layout)),
     Heading("Commit/Path", commitOrPath(layout, _)),
-    Heading("Changes", _.changes(layout, true).toOption.flatten.getOrElse("-"))
+    Heading("Changes", _.changes(layout, true).toOption.flatten)
   )
 }

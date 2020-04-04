@@ -32,8 +32,6 @@ import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, Zip
 import java.util.zip.ZipInputStream
 
 case class Shell(environment: Environment) {
-  private val furyHome   = Path(System.getProperty("fury.home"))
-
   implicit private[this] val defaultEnvironment: Environment = environment
 
   def runJava(classpath: List[String],
@@ -95,7 +93,7 @@ case class Shell(environment: Environment) {
       )
   }
 
-  def duplicateFiles(jarInputs: List[Path]): Try[Map[Path, Set[String]]] = {
+  private def shadowDuplicates(jarInputs: List[Path]): Try[Map[Path, Set[String]]] = {
     jarInputs.traverse { path => Try {
       val in = new FileInputStream(path.javaFile)
       val zis = new ZipInputStream(in)
@@ -115,9 +113,9 @@ case class Shell(environment: Environment) {
     manifest.write(zos)
     zos.closeArchiveEntry()
 
-    val creator = new ParallelScatterZipCreator
-    val ok = for {
-      dups <- duplicateFiles(jarInputs.to[List])
+    val creator = new ParallelScatterZipCreator()
+    val result = for {
+      dups <- shadowDuplicates(jarInputs.to[List])
       _    <- jarInputs.traverse { input => Zipper.pack(new ZipFile(input.javaFile), creator) { x =>
                 !x.getName.contains("META-INF") && !x.isDirectory && dups(input).contains(x.getName)
               } }
@@ -125,7 +123,8 @@ case class Shell(environment: Environment) {
     } yield creator.writeTo(zos)
     
     zos.close()
-    ok
+    
+    result
   }
 
   def native(dest: Path, classpath: List[String], main: String): Try[Unit] = {
@@ -138,112 +137,4 @@ case class Shell(environment: Environment) {
       _  <- sh"native-image -cp $cp $main".exec[Try[String]].map(main.toLowerCase.waive)
     } yield ()
   }
-}
-
-object Cached {
-  val lsRemote: HashMap[String, Try[List[String]]] = new HashMap()
-  val lsRemoteRefSpec: HashMap[(String, String), Try[String]] = new HashMap()
-}
-
-object GitDir {
-
-  def supplementEnv(env: Environment): Environment = env.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
-
-  def lsRemote(url: String)(implicit env: Environment): Try[List[String]] =
-    Cached.lsRemote.getOrElseUpdate(url, sh"git ls-remote --tags --heads $url".exec[Try[String]]()(
-        implicitly, supplementEnv(env)).map(_.split("\n").to[List].map(_.split("/").last)))
-
-  def lsRemoteRefSpec(url: String, refSpec: String)(implicit env: Environment): Try[String] =
-    Cached.lsRemoteRefSpec.getOrElseUpdate((url, refSpec), sh"git ls-remote $url $refSpec".exec[Try[String]]()(
-        implicitly, supplementEnv(env)).map(_.take(40)))
-
-  def apply(dir: Path)(implicit env: Environment): GitDir =
-    GitDir(supplementEnv(env), dir)
-}
-
-case class GitDir(env: Environment, dir: Path) {
-
-  private implicit val environment: Environment = env
-  private def git = List("git", "-c", dir.value)
-  
-  def cloneBare(url: String): Try[String] =
-    sh"git clone --mirror $url ${dir.value}".exec[Try[String]].map { out => (dir / ".done").touch(); out }
-
-  def getOrigin(): Try[String] =
-    sh"$git config --get remote.origin.url".exec[Try[String]]
-
-  def diffShortStat(other: Option[Commit] = None): Try[String] = { other match {
-    case None =>
-      sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat"
-    case Some(commit) =>
-      sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat ${commit.id}"
-  } }.exec[Try[String]]
-
-  def sparseCheckout(from: Path, sources: List[Path], refSpec: RefSpec, commit: Commit, remote: Option[String])
-                    : Try[String] = for {
-    _   <- sh"$git init".exec[Try[String]]
-    _   <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]]
-            else Success(())
-    _   <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
-    _   <- sh"$git remote add origin ${from.value}".exec[Try[String]]
-    str <- sh"$git fetch --all".exec[Try[String]]
-    _   <- sh"$git checkout ${commit.id}".exec[Try[String]]
-    _   <- ~remote.foreach { url => for {
-              _ <- sh"$git remote remove origin".exec[Try[String]]
-              _ <- sh"$git remote add origin $url".exec[Try[String]]
-              _ <- sh"$git checkout -b ${refSpec.id}".exec[Try[String]]
-              _ <- sh"$git fetch".exec[Try[String]]
-              _ <- sh"$git branch -u origin/${refSpec.id}".exec[Try[String]]
-            } yield () }
-    _   <- sources.map(_.in(dir)).traverse(_.setReadOnly())
-    _   <- ~(dir / ".done").touch()
-  } yield str
-
-  def lsTree(commit: Commit): Try[List[Path]] = for {
-    string <- sh"$git ls-tree -r --name-only ${commit.id}".exec[Try[String]]
-    files  <- ~string.split("\n").to[List].map(Path(_))
-  } yield files
-
-  def lsRoot(commit: Commit): Try[List[String]] = for {
-    string <- sh"$git ls-tree --name-only ${commit.id}".exec[Try[String]]
-    files  <- ~string.split("\n").to[List]
-  } yield files
-
-  def showRefs(): Try[List[String]] = for {
-    refs  <- sh"$git show-ref --heads --tags".exec[Try[String]]
-    lines <- ~refs.split("\n").to[List]
-  } yield lines.map(_.split("/").last)
-
-  def remoteHasCommit(commit: Commit, track: RefSpec): Try[Boolean] =
-    sh"$git rev-list origin/${track.id}".exec[Try[String]].map(_.split("\n").contains(commit.id))
-  
-  def currentBranch(): Try[RefSpec] =
-    sh"$git rev-parse --abbrev-ref HEAD".exec[Try[String]].map(RefSpec(_))
-
-  def fetch(refspec: Option[RefSpec]): Try[String] =
-    sh"$git fetch origin ${refspec.to[List].map(_.id)}".exec[Try[String]]
-
-  def showFile(file: String): Try[String] =
-    sh"$git show HEAD:$file".exec[Try[String]]
-
-  def getCommitFromTag(tag: String): Try[String] =
-    sh"$git rev-parse $tag".exec[Try[String]]
-
-  def getCommit(): Try[Commit] =
-    sh"$git rev-parse HEAD".exec[Try[String]].map(Commit(_))
-
-  def getTrackedFiles(): Try[List[String]] =
-    sh"$git ls-tree --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List])
-
-  def getAllTrackedFiles(): Try[List[String]] =
-    sh"$git ls-tree -r --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List])
-
-  def getBranchHead(branch: String): Try[Commit] =
-    sh"$git show-ref -s heads/$branch".exec[Try[String]].map(Commit(_))
-
-  def getTag(tag: String): Try[Commit] =
-    sh"$git show-ref -s tags/$tag".exec[Try[String]].map(Commit(_))
-  
-  def getBranch(): Try[String] =
-    sh"git -C ${(dir / ".git").value} rev-parse --abbrev-ref HEAD".exec[Try[String]]
 }
