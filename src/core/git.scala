@@ -79,24 +79,35 @@ case class GitDir(env: Environment, dir: Path) {
       sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat ${commit.id}"
   } }.exec[Try[String]].map { s => if(s.isEmpty) None else Some(DiffStat(s)) }
 
+  def mergeConflicts: Try[(Commit, Commit)] =
+    sh"$git log --merge --format=%H".exec[Try[String]].map(_.split("\n", 2) match {
+      case Array(left, right) => (Commit(left), Commit(right))
+    })
+
+  def mergeBase(left: Commit, right: Commit): Try[Commit] =
+    sh"$git merge-base ${left.id} ${right.id}".exec[Try[String]].map(Commit(_))
+
   def sparseCheckout(from: Path, sources: List[Path], refSpec: RefSpec, commit: Commit, remote: Option[Repo])
                     : Try[Unit] = for {
-    _   <- sh"$git init".exec[Try[String]]
-    _   <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]]
-            else Success(())
-    _   <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
-    _   <- sh"$git remote add origin ${from.value}".exec[Try[String]]
-    _   <- sh"$git fetch --all".exec[Try[String]]
-    _   <- sh"$git checkout ${commit.id}".exec[Try[String]]
-    _   <- ~remote.foreach { repo => for {
-              _ <- sh"$git remote remove origin".exec[Try[String]]
-              _ <- sh"$git remote add origin ${repo.ref}".exec[Try[String]]
-              _ <- sh"$git checkout -b ${refSpec.id}".exec[Try[String]]
-              _ <- sh"$git fetch".exec[Try[String]]
-              _ <- sh"$git branch -u origin/${refSpec.id}".exec[Try[String]]
-            } yield () }
-    _   <- sources.map(_.in(dir)).traverse(_.setReadOnly())
-    _   <- ~(dir / ".done").touch()
+    _ <- sh"$git init".exec[Try[String]]
+    _ <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]] else Success(())
+    _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
+    _ <- sh"$git remote add origin ${from.value}".exec[Try[String]]
+    _ <- sh"$git fetch --all".exec[Try[String]]
+    _ <- sh"$git checkout ${commit.id}".exec[Try[String]]
+
+    _ <- ~remote.foreach { repo =>
+           for {
+             _ <- sh"$git remote remove origin".exec[Try[String]]
+             _ <- sh"$git remote add origin ${repo.ref}".exec[Try[String]]
+             _ <- sh"$git checkout -b ${refSpec.id}".exec[Try[String]]
+             _ <- sh"$git fetch".exec[Try[String]]
+             _ <- sh"$git branch -u origin/${refSpec.id}".exec[Try[String]]
+           } yield ()
+         }
+
+    _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
+    _ <- ~(dir / ".done").touch()
   } yield ()
 
   def lsTree(commit: Commit): Try[List[Path]] = for {

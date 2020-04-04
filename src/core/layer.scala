@@ -212,7 +212,34 @@ object Layer extends Lens.Partial[Layer] {
   def pathCompletions()(implicit log: Log): Try[List[String]] = Service.catalog(ManagedConfig().service)
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
-    Ogdl.read[FuryConf](layout.confFile, identity(_))
+    Ogdl.read[FuryConf](layout.confFile, identity(_)).recoverWith {
+      case e: Exception => for {
+        gitDir        <- ~GitDir(layout.baseDir)(layout.env)
+        (left, right) <- gitDir.mergeConflicts
+        common        <- gitDir.mergeBase(left, right)
+        _             <- ~log.warn(msg"The layer has merge conflicts")
+        leftSrc       <- gitDir.cat(left, Path(".fury.conf"))
+        commonSrc     <- gitDir.cat(common, Path(".fury.conf"))
+        rightSrc      <- gitDir.cat(right, Path(".fury.conf"))
+        leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
+        commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
+        rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
+        leftLayer     <- Layer.get(leftConf.layerRef)
+        commonLayer   <- Layer.get(commonConf.layerRef)
+        rightLayer    <- Layer.get(rightConf.layerRef)
+        leftDiff      <- ~Diff.gen[Layer].diff(commonLayer, leftLayer)
+        rightDiff     <- ~Diff.gen[Layer].diff(commonLayer, rightLayer)
+        _             <- ~log.info(msg"Changes in Git commit $left:")
+        leftTable     <- ~Tables().differences("Common", left.id)
+        leftTable     <- ~Tables().show[Difference, Difference](leftTable, 100, leftDiff, false)
+        _             <- ~log.info(leftTable)
+        _             <- ~log.info(msg"Changes in Git commit $right:")
+        rightTable    <- ~Tables().differences("Common", right.id)
+        rightTable    <- ~Tables().show[Difference, Difference](rightTable, 100, rightDiff, false)
+        _             <- ~log.info(rightTable)
+        _             <- Failure(MergeConflicts())
+      } yield ???
+    }
   
   def init(layout: Layout)(implicit log: Log): Try[Unit] = {
     if(layout.confFile.exists) { for {
