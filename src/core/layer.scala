@@ -152,7 +152,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def get(layerRef: LayerRef, id: Option[PublishedLayer] = None)(implicit log: Log): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
-      _     <- ~log.info("Fetching $layerRef")
+      _     <- ~log.info(msg"Fetching $layerRef")
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Try(Ogdl.read[Layer](data, migrate(_)))
