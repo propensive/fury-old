@@ -212,34 +212,41 @@ object Layer extends Lens.Partial[Layer] {
   def pathCompletions()(implicit log: Log): Try[List[String]] = Service.catalog(ManagedConfig().service)
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
-    Ogdl.read[FuryConf](layout.confFile, identity(_)).recoverWith {
-      case e: Exception => for {
-        gitDir        <- ~GitDir(layout.baseDir)(layout.env)
-        (left, right) <- gitDir.mergeConflicts
-        common        <- gitDir.mergeBase(left, right)
-        _             <- ~log.warn(msg"The layer has merge conflicts")
-        leftSrc       <- gitDir.cat(left, Path(".fury.conf"))
-        commonSrc     <- gitDir.cat(common, Path(".fury.conf"))
-        rightSrc      <- gitDir.cat(right, Path(".fury.conf"))
-        leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
-        commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
-        rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
-        leftLayer     <- Layer.get(leftConf.layerRef)
-        commonLayer   <- Layer.get(commonConf.layerRef)
-        rightLayer    <- Layer.get(rightConf.layerRef)
-        leftDiff      <- ~Diff.gen[Layer].diff(commonLayer, leftLayer)
-        rightDiff     <- ~Diff.gen[Layer].diff(commonLayer, rightLayer)
-        _             <- ~log.info(msg"Changes in Git commit $left:")
-        leftTable     <- ~Tables().differences("Common", left.id)
-        leftTable     <- ~Tables().show[Difference, Difference](leftTable, 100, leftDiff, false)
-        _             <- ~log.info(leftTable)
-        _             <- ~log.info(msg"Changes in Git commit $right:")
-        rightTable    <- ~Tables().differences("Common", right.id)
-        rightTable    <- ~Tables().show[Difference, Difference](rightTable, 100, rightDiff, false)
-        _             <- ~log.info(rightTable)
-        _             <- Failure(MergeConflicts())
-      } yield ???
-    }
+    layout.confFile.lines().map { lines =>
+      if(lines.contains("=======")) Failure(MergeConflicts())
+      else Ogdl.read[FuryConf](layout.confFile, identity(_))
+    }.flatten
+  
+  def showMergeConflicts(layout: Layout)(implicit log: Log) = for {
+    gitDir        <- ~GitDir(layout.baseDir)(layout.env)
+    (left, right) <- gitDir.mergeConflicts
+    common        <- gitDir.mergeBase(left, right)
+    _             <- ~log.warn(msg"The layer has merge conflicts")
+    leftSrc       <- gitDir.cat(left, Path(".fury.conf"))
+    commonSrc     <- gitDir.cat(common, Path(".fury.conf"))
+    rightSrc      <- gitDir.cat(right, Path(".fury.conf"))
+    leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
+    commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
+    rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
+    leftLayer     <- Layer.get(leftConf.layerRef)
+    commonLayer   <- Layer.get(commonConf.layerRef)
+    rightLayer    <- Layer.get(rightConf.layerRef)
+    leftDiff      <- ~Layer.diff(commonLayer, leftLayer)
+    rightDiff     <- ~Layer.diff(commonLayer, rightLayer)
+    leftMsg       <- gitDir.logMessage(left)
+    rightMsg       <- gitDir.logMessage(right)
+    _             <- ~log.info(msg"Changes since Git commit $left ($leftMsg):")
+    leftTable     <- ~Tables().differences("Base", str"${leftConf.layerRef}")
+    leftTable     <- ~Tables().show[Difference, Difference](leftTable, 100, leftDiff, false)
+    _             <- ~log.rawln(leftTable)
+    _             <- ~log.info(msg"Changes since Git commit $right ($rightMsg):")
+    rightTable    <- ~Tables().differences("Base", str"${rightConf.layerRef}")
+    rightTable    <- ~Tables().show[Difference, Difference](rightTable, 100, rightDiff, false)
+    _             <- ~log.rawln(rightTable)
+  } yield ()
+
+  def diff(left: Layer, right: Layer): List[Difference] =
+    Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
   def init(layout: Layout)(implicit log: Log): Try[Unit] = {
     if(layout.confFile.exists) { for {

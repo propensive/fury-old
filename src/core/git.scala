@@ -63,7 +63,7 @@ case class DiffStat(value: String)
 case class GitDir(env: Environment, dir: Path) {
 
   private implicit val environment: Environment = env
-  private def git = List("git", "-c", dir.value)
+  private def git = List("git", "-C", dir.value)
   
   def cloneBare(repo: Repo): Try[Unit] =
     sh"git clone --mirror ${repo.ref} ${dir.value}".exec[Try[String]].map { out =>
@@ -86,6 +86,9 @@ case class GitDir(env: Environment, dir: Path) {
 
   def mergeBase(left: Commit, right: Commit): Try[Commit] =
     sh"$git merge-base ${left.id} ${right.id}".exec[Try[String]].map(Commit(_))
+
+  def logMessage(commit: Commit): Try[String] =
+    sh"$git log ${commit.id} --format=%s --max-count=1".exec[Try[String]]
 
   def sparseCheckout(from: Path, sources: List[Path], refSpec: RefSpec, commit: Commit, remote: Option[Repo])
                     : Try[Unit] = for {
