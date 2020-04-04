@@ -19,6 +19,7 @@ package fury.core
 import fury.io._, fury.model._, fury.strings._
 
 import euphemism._
+import antiphony._
 
 import scala.util._
 import guillotine._
@@ -28,7 +29,7 @@ object Service {
     val url: Uri = Https(service) / "catalog"
     
     for {
-      bytes <- Http.get(url, Set())
+      bytes <- Http.get(url.key, Set()).to[Try]
       catalog <- Json.parse(new String(bytes, "UTF-8")).to[Try]
       artifacts <- catalog.entries.as[List[String]].to[Try]
     } yield artifacts
@@ -38,7 +39,7 @@ object Service {
     val url = Https(service) / "list" / path
     
     for {
-      bytes   <- Http.get(url, Set())
+      bytes   <- Http.get(url.key, Set()).to[Try]
       json    <- Json.parse(new String(bytes, "UTF-8")).to[Try]
       catalog <- json.as[Catalog].to[Try]
     } yield catalog.entries
@@ -78,7 +79,7 @@ object Service {
     for {
       ipfs <- Ipfs.daemon(false)
       id   <- Try(ipfs.id().get)
-      out  <- Http.post(url, Json(request), headers = Set())
+      out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(json.toString)
@@ -110,7 +111,7 @@ object Service {
     for {
       ipfs <- Ipfs.daemon(false)
       id   <- Try(ipfs.id().get)
-      out  <- Http.post(url, Json(request), headers = Set())
+      out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(json.toString)

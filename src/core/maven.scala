@@ -19,6 +19,7 @@ package fury.core
 import fury.model._, fury.io._, fury.strings._
 
 import euphemism._
+import antiphony._
 
 import scala.util._
 
@@ -36,7 +37,8 @@ object MavenCentral {
     val httpQuery = Query("q" -> query, "core" -> "gav", "wt" -> "json", "rows" -> "100")
 
     for {
-      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / "select", httpQuery), Set())
+      string <- Http.get(Https(Path("search.maven.org") / "solrsearch" / "select", httpQuery).key,
+                    Set()).to[Try]
 
       json   <- Json.parse(new String(string, "UTF-8")).to[Try]
       docs   <- json.response.docs.as[Set[Doc]].to[Try]

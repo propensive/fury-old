@@ -20,6 +20,7 @@ import fury.strings._, fury.core._, fury.model._, fury.io._, fury.utils._
 
 import exoskeleton._
 import euphemism._
+import antiphony._
 import guillotine._
 
 import Args._
@@ -76,7 +77,7 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     code     <- ~Rnd.token(18)
     // These futures should be managed in the session
     uri      <- ~(Https(ManagedConfig().service) / "await").query("code" -> code)
-    future   <- ~Future(blocking(Http.get(uri, Set())))
+    future   <- ~Future(blocking(Http.get(uri.key, Set()).to[Try]))
     uri      <- ~(Https(ManagedConfig().service) / "auth").query("code" -> code)
     _        <- ~log.info(msg"Please visit $uri to authenticate using GitHub.")
     _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))

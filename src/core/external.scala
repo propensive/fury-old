@@ -22,6 +22,7 @@ import fury.strings._, fury.io._, fury.model._
 
 import guillotine._, environments.enclosing
 import kaleidoscope._
+import antiphony._
 
 import scala.util._
 import scala.collection.JavaConverters._
@@ -124,7 +125,7 @@ object Ipfs {
       log.note(msg"Accessing $gateway to retrieve ${ref}")
       val params = List("arg" -> ref.key, "archive" -> "true")
       for {
-        data   <- Http.get((Https(gateway) / "api" / "v0" / s"get").query(params: _*), Set.empty)
+        data   <- Http.get((Https(gateway) / "api" / "v0" / s"get").query(params: _*).key, Set.empty).to[Try]
         stream <- TarGz.untar(new ByteArrayInputStream(data))
       } yield new String(stream.head, "UTF-8")
     }
@@ -208,8 +209,8 @@ abstract class Installable(name: ExecName) extends Software(name) {
     for {
       bin <- tarGz
       _   <- ~log.infoWhen(!quiet)(msg"Downloading $bin...")
-      in  <- Http.requestStream(bin, Map[String, String](), "GET", Set())
-      _   <- TarGz.extract(in, base)
+      in  <- Http.request(bin.key, Map[String, String](), "GET", Set()).to[Try]
+      _   <- TarGz.extract(new ByteArrayInputStream(in), base)
       _   <- managedPath.setExecutable(true)
     } yield {
       log.infoWhen(!quiet)(msg"Installed ${name} to ${managedPath}")
