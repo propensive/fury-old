@@ -36,7 +36,7 @@ object Repo {
     }
   }
 
-  def fromString(str: String, https: Boolean): String = str match {
+  def parse(str: String, https: Boolean): Repo = Repo { str match {
     case "." => ""
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       if(https) str"https://github.com/$group/$project.git"
@@ -51,9 +51,9 @@ object Repo {
       abspath
     case other =>
       other
-  }
+  } }
 
-  def local(layout: Layout): Try[Repo] = Shell(layout.env).git.getOrigin(layout.baseDir / ".git").map(Repo(_))
+  def local(layout: Layout): Try[Repo] = GitDir(layout.baseDir / ".git")(layout.env).origin
 }
 
 case class Repo(ref: String) {
@@ -65,13 +65,13 @@ case class Repo(ref: String) {
   def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
     for {
       _         <- fetch(layout, https)
-      newCommit <- Shell(layout.env).git.getCommit(path(layout))
+      newCommit <- GitDir(path(layout))(layout.env).commit
       _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
                         else msg"Repository $this has not changed")
     } yield newCommit
 
   def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
-    for(commit <- Shell(layout.env).git.getCommitFromTag(path(layout), tag.id)) yield Commit(commit)
+    GitDir(path(layout))(layout.env).commitFromTag(tag)
 
   def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
     if((path(layout) / ".done").exists) Success(path(layout))
@@ -86,13 +86,13 @@ case class Repo(ref: String) {
     }
     if(path(layout).exists) {
       done.delete()
-      Shell(layout.env).git.fetch(path(layout), None)
+      GitDir(path(layout))(layout.env).fetch(None)
       done.touch()
       Success(path(layout))
     } else {
       log.info(msg"Cloning repository at $this")
       path(layout).mkdir()
-      Shell(layout.env).git.cloneBare(Repo.fromString(ref, https), path(layout)).map(path(layout).waive)
+      GitDir(path(layout))(layout.env).cloneBare(Repo.parse(ref, https)).map(path(layout).waive)
     }
   }
 
@@ -105,7 +105,7 @@ case class Repo(ref: String) {
     case other                                               => other
   }
 
-  def universal(https: Boolean): String = Repo.fromString(simplified, https)
+  def universal(https: Boolean): Repo = Repo.parse(simplified, https)
 
   def projectName: Try[RepoId] = {
     val value = simplified.split("/").last

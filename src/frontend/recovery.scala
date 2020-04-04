@@ -46,6 +46,10 @@ object Recovery {
           cli.abort(msg"The required executable $name was not found on the PATH.")
         case NotAuthenticated() =>
           cli.abort(msg"You are not authenticated.")
+        case MergeConflicts() =>
+          cli.call()
+          cli.layout.foreach(Layer.showMergeConflicts(_))
+          cli.abort(msg"It is not possible to continue until merge conflicts have been resolved.")
         case NoOtherLayer() =>
           cli.abort(msg"The layer to compare this layer with has not been specified.")
         case CantWatchAndWait() =>

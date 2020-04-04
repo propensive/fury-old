@@ -95,7 +95,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
                     _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
                   } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
-    _         <- ~Shell(layout.env).git.sparseCheckout(bareRepo, absPath, List(), refSpec = repo.track, commit =
+    _         <- ~GitDir(bareRepo)(layout.env).sparseCheckout(absPath, List(), refSpec = repo.track, commit =
                       repo.commit, Some(repo.repo.universal(false)))
 
     newRepo   <- ~repo.copy(local = Some(absPath))
@@ -149,12 +149,11 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     remoteOpt      <- ~cli.peek(UrlArg)
     repoOpt        <- ~remoteOpt.map(Repo(_))
     
-    versions       <- repoOpt.map { repo =>
-                        Shell(layout.env).git.lsRemote(Repo.fromString(repo.ref, true))
-                      }.to[List].sequence.map(_.flatten).recover { case e => Nil }
+    versions       <- repoOpt.map(GitDir.lsRemote(_)(layout.env)).to[List].sequence.map(_.flatten).recover {
+                          case e => Nil }
 
     cli            <- cli.hint(RefSpecArg, versions)
-    call          <- cli.call()
+    call           <- cli.call()
     dir            <- ~call(DirArg).toOption
     https          <- ~call(HttpsArg).isSuccess
     refSpec        <- ~call(RefSpecArg).toOption.getOrElse(RefSpec.master)
@@ -181,7 +180,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(ForceArg)
     cli         <- cli.hint(RepoArg, layer.repos)
     optRepo     <- ~cli.peek(RepoArg).flatMap(layer.repos.findBy(_).toOption)
-    refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(Shell(layout.env).git.showRefs(_)).sequence
+    refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(GitDir(_)(layout.env).showRefs).sequence
     cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
     call        <- cli.call()
     repoArg     <- call(RepoArg)

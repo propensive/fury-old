@@ -284,8 +284,8 @@ case class Artifact(ref: String, timestamp: Long, version: FullVersion) {
 }
 
 object LayerRef {
-  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(lr.key.drop(2).take(8)))
-  implicit val stringShow: StringShow[LayerRef] = _.key
+  implicit val stringShow: StringShow[LayerRef] = _.key.drop(2).take(8)
+  implicit val msgShow: MsgShow[LayerRef] = lr => UserMsg(_.layer(stringShow.show(lr)))
   implicit val diff: Diff[LayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
   def unapply(value: String): Option[LayerRef] = value.only {

@@ -116,8 +116,9 @@ case class Layer(version: Int,
 
   def localRepo(layout: Layout): Try[SourceRepo] = for {
     repo   <- Repo.local(layout)
-    commit <- Shell(layout.env).git.getCommit(layout.baseDir)
-    branch <- Shell(layout.env).git.getBranch(layout.baseDir).map(RefSpec(_))
+    gitDir <- ~GitDir(layout.baseDir)(layout.env)
+    commit <- gitDir.commit
+    branch <- gitDir.branch
   } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 
   def allRepos(layout: Layout): SortedSet[SourceRepo] =
@@ -151,7 +152,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def get(layerRef: LayerRef, id: Option[PublishedLayer] = None)(implicit log: Log): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
-      _     <- ~log.info("Fetching $layerRef")
+      _     <- ~log.info(msg"Fetching $layerRef")
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Try(Ogdl.read[Layer](data, migrate(_)))
@@ -211,7 +212,41 @@ object Layer extends Lens.Partial[Layer] {
   def pathCompletions()(implicit log: Log): Try[List[String]] = Service.catalog(ManagedConfig().service)
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
-    Ogdl.read[FuryConf](layout.confFile, identity(_))
+    layout.confFile.lines().map { lines =>
+      if(lines.contains("=======")) Failure(MergeConflicts())
+      else Ogdl.read[FuryConf](layout.confFile, identity(_))
+    }.flatten
+  
+  def showMergeConflicts(layout: Layout)(implicit log: Log) = for {
+    gitDir        <- ~GitDir(layout.baseDir)(layout.env)
+    (left, right) <- gitDir.mergeConflicts
+    common        <- gitDir.mergeBase(left, right)
+    _             <- ~log.warn(msg"The layer has merge conflicts")
+    leftSrc       <- gitDir.cat(left, Path(".fury.conf"))
+    commonSrc     <- gitDir.cat(common, Path(".fury.conf"))
+    rightSrc      <- gitDir.cat(right, Path(".fury.conf"))
+    leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
+    commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
+    rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
+    leftLayer     <- Layer.get(leftConf.layerRef)
+    commonLayer   <- Layer.get(commonConf.layerRef)
+    rightLayer    <- Layer.get(rightConf.layerRef)
+    leftDiff      <- ~Layer.diff(commonLayer, leftLayer)
+    rightDiff     <- ~Layer.diff(commonLayer, rightLayer)
+    leftMsg       <- gitDir.logMessage(left)
+    rightMsg       <- gitDir.logMessage(right)
+    _             <- ~log.info(msg"Changes since Git commit $left ($leftMsg):")
+    leftTable     <- ~Tables().differences("Base", str"${leftConf.layerRef}")
+    leftTable     <- ~Tables().show[Difference, Difference](leftTable, 100, leftDiff, false)
+    _             <- ~log.rawln(leftTable)
+    _             <- ~log.info(msg"Changes since Git commit $right ($rightMsg):")
+    rightTable    <- ~Tables().differences("Base", str"${rightConf.layerRef}")
+    rightTable    <- ~Tables().show[Difference, Difference](rightTable, 100, rightDiff, false)
+    _             <- ~log.rawln(rightTable)
+  } yield ()
+
+  def diff(left: Layer, right: Layer): List[Difference] =
+    Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
   def init(layout: Layout)(implicit log: Log): Try[Unit] = {
     if(layout.confFile.exists) { for {
