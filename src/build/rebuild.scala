@@ -16,6 +16,8 @@
 */
 package fury
 
+import fury.core._, fury.strings._, fury.model._
+
 import java.util.concurrent.atomic.AtomicBoolean
 
 import _root_.io.methvin.better.files.RecursiveFileMonitor
@@ -24,6 +26,29 @@ import fury.io.Path
 import fury.utils.Threads
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util._
+
+
+object Inotify {
+  private var done: Boolean = false
+  def check(watching: Boolean)(implicit log: Log): Try[Unit] = {
+    val maxQueuedWatchers = Path("/proc/sys/fs/inotify/max_user_watches")
+    val count = if(watching && !done && maxQueuedWatchers.exists()) { for {
+      lines <- maxQueuedWatchers.lines()
+      count <- Try(lines.next().toInt)
+    } yield count } else Success(Int.MaxValue)
+
+    Try(if(count.getOrElse(Int.MaxValue) < 8192) {
+      done = true
+      log.warn(msg"Your system's ${ExecName("inotify")} settings may cause filewatching to fail.")
+      log.warn(msg"Please append,")
+      log.warn(msg"    fs.inotify.max_user_watches=524288")
+      log.warn(msg"to your ${Path("/etc/sysctl.conf")} file, and run,")
+      log.warn(msg"    echo 524288 > ${maxQueuedWatchers.value}")
+      log.warn(msg"")
+    })
+  }
+}
 
 trait Repeater[Res]{
   def repeatCondition(): Boolean

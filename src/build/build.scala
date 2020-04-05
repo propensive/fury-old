@@ -307,6 +307,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     watch          =  call(WatchArg).isSuccess
     waiting        =  call(WaitArg).isSuccess
+    _              <- Inotify.check(watch || waiting)
     noSecurity     =  call(NoSecurityArg).isSuccess
     _              <- onlyOne(watch, waiting)
     compilation    <- Compilation.syncCompilation(layer, module.ref(project), layout, https, noSecurity)
