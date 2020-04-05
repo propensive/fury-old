@@ -62,7 +62,7 @@ object OgdlReaderTest extends TestApp {
     }.assert(_ == Success(TreeSet(1, 2, 3)))
 
     test("sorted set of case classes") {
-      implicit val index: Index[Foo] = Index("bar")
+      implicit val index: Index[Foo] = FieldIndex("bar")
       val ogdl = Ogdl(Vector(
         ("B",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty))))))),
         ("A",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty))))))),
@@ -74,7 +74,7 @@ object OgdlReaderTest extends TestApp {
     }.assert(_ == Success(TreeSet(Foo(bar = "B", baz = 1), Foo(bar = "A", baz = 2), Foo(bar = "B", baz = 3))))
 
     test("case class with a sorted set") {
-      implicit val index: Index[Quux] = Index("handle")
+      implicit val index: Index[Quux] = FieldIndex("handle")
       val ogdl = Ogdl(Vector(
         ("handle",Ogdl(Vector(("Q",empty)))),
         ("data",Ogdl(Vector(

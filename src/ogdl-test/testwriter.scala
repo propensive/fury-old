@@ -66,9 +66,7 @@ object OgdlWriterTest extends TestApp {
 
     test("list of strings") {
       val input = List("3", "2", "1")
-      val x = Try{Ogdl(input)}
-      println(x)
-      x
+      Try{Ogdl(input)}
     }.assert(_ == Success(
       Ogdl(Vector(
         ("3",Ogdl(Vector(("3",empty)))),
@@ -79,9 +77,7 @@ object OgdlWriterTest extends TestApp {
 
     test("sorted set of integers") {
       val input: SortedSet[Int] = TreeSet(1, 2, 3)
-      val x = Try{Ogdl(input)}
-      println(x)
-      x
+      Try{Ogdl(input)}
     }.assert(_ == Success(Ogdl(Vector(
       ("1",Ogdl(Vector(("1",empty)))),
       ("2",Ogdl(Vector(("2",empty)))),
@@ -89,32 +85,49 @@ object OgdlWriterTest extends TestApp {
     ))))
 
     test("sorted set of case classes") {
-      implicit val index: Index[Foo] = Index("bar")
+      implicit val index: Index[Foo] = FieldIndex("bar")
       val input: SortedSet[Foo] = TreeSet(Foo(bar = "A", baz = 2), Foo(bar = "B", baz = 3), Foo(bar = "B", baz = 1))
       Try{Ogdl(input)}
+      //TODO think of a more compact format
     }.assert(_ == Success(Ogdl(Vector(
-      ("B",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty))))))),
-      ("A",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty))))))),
-      ("B",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))
+      ("kvp",Ogdl(Vector(("key",Ogdl(Vector(("B",empty)))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty)))))))))),
+      ("kvp",Ogdl(Vector(("key",Ogdl(Vector(("A",empty)))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty)))))))))),
+      ("kvp",Ogdl(Vector(("key",Ogdl(Vector(("B",empty)))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty))))))))))
     ))))
 
-    test("sorted set of case classes 2") {
-      implicit val index: Index[Foo2] = Index("bar")
-      val input: SortedSet[Foo2] = TreeSet(Foo2(bar = Some("A"), baz = 2), Foo2(bar = Some("B"), baz = 3), Foo2(bar = None, baz = 1))
+    test("sorted set of case classes with complex index") {
+      implicit val index: Index[Foo2] = FieldIndex("bar")
+      val input: SortedSet[Foo2] = TreeSet(
+        Foo2(bar = Some("A"), baz = 2),
+        Foo2(bar = Some("B"), baz = 3),
+        Foo2(bar = None, baz = 1),
+        Foo2(bar = None, baz = 4)
+      )
+      //FIXME Uniqueness of the index field is not quaranteed
       Try{Ogdl(input)}
-      //FIXME value of the option is lost
     }.assert(_ == Success(Ogdl(Vector(
-      ("None",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty))))))),
-      ("Some",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty))))))),
-      ("Some",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))
+      ("kvp",Ogdl(Vector(
+        ("key",Ogdl(Vector(("None",empty)))),
+        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty)))))))
+      ))),
+      ("kvp",Ogdl(Vector(
+        ("key",Ogdl(Vector(("Some",Ogdl(Vector(("A",empty))))))),
+        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty)))))))
+      ))),
+      ("kvp",Ogdl(Vector(
+        ("key",Ogdl(Vector(("Some",Ogdl(Vector(("B",empty))))))),
+        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))
+      ))),
+      ("kvp",Ogdl(Vector(
+        ("key",Ogdl(Vector(("None",empty)))),
+        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("4",empty)))))))
+      )))
     ))))
 
     test("case class with a sorted set") {
-      implicit val index: Index[Quux] = Index("handle")
+      implicit val index: Index[Quux] = FieldIndex("handle")
       val input: Quux = Quux("Q", TreeSet("A", "B", "C"))
-      val x = Try{Ogdl(input)}
-      println(x)
-      x
+      Try{Ogdl(input)}
     }.assert(_ == Success(Ogdl(Vector(
       ("handle",Ogdl(Vector(("Q",empty)))),
       ("data",Ogdl(Vector(

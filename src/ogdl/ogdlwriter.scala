@@ -67,28 +67,41 @@ object OgdlWriter {
   implicit def list[T: OgdlWriter: Index]: OgdlWriter[List[T]] = coll =>
     Ogdl {
       if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-      else
-        (coll.to[Vector].map { e =>
-          val data = Ogdl(e)
-          val idx = implicitly[Index[T]].index
-          val dedup = data.values.filterNot(_._1 == idx)
-          data.selectDynamic(idx)() -> Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
-        })
+      else coll.to[Vector].map(implicitly[Index[T]].writeCollectionItem)
     }
 
-  implicit def treeSet[T: OgdlWriter: Index]: OgdlWriter[SortedSet[T]] = coll =>
+  implicit def treeSet[T: OgdlWriter: Index, X[T] <: SortedSet[T]]: OgdlWriter[X[T]] = coll =>
     Ogdl {
       if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-      else (coll.to[Vector].map { e =>
-        val data = Ogdl(e)
-        val idx = implicitly[Index[T]].index
-        val dedup = data.values.filterNot(_._1 == idx)
-        data.selectDynamic(idx)() -> Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
-      })
+      else coll.to[Vector].map(implicitly[Index[T]].writeCollectionItem)
     }
 
   implicit def gen[T]: OgdlWriter[T] = macro Magnolia.gen[T]
 }
 
-object Index { implicit def index[T]: Index[T] = Index[T]("id") }
-case class Index[T](index: String)
+
+
+sealed trait Index[T] {
+  def writeCollectionItem(value: T): (String, Ogdl)
+}
+case class FieldIndex[T: OgdlWriter](field: String) extends Index[T] {
+  override def writeCollectionItem(value: T): (String, Ogdl) = {
+    val data = Ogdl(value)
+    val dedup = data.values.filterNot(_._1 == field)
+    val k = data.selectDynamic(field)
+    val v = Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
+    "kvp" -> Ogdl(Vector("key" -> k, "value" -> v))
+  }
+}
+case class SelfIndexed[T: OgdlWriter: StringShow]() extends Index[T] {
+  override def writeCollectionItem(value: T): (String, Ogdl) = {
+    implicitly[StringShow[T]].show(value) -> Ogdl(value)
+  }
+}
+object Index {
+  implicit val string = SelfIndexed[String]
+  implicit val int = SelfIndexed[Int]
+  implicit val long = SelfIndexed[Long]
+  //implicit val boolean = SelfIndexed[Boolean]
+  implicit def index[T <: {val id: AnyRef}: OgdlWriter]: FieldIndex[T] = FieldIndex[T]("id")
+}
