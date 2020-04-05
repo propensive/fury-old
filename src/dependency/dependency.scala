@@ -74,7 +74,9 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     } yield module)
 
     cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    cli       <- cli.hint(LinkArg, optModule.to[List].flatMap(_.dependencies.to[List]))
+    deps      <- ~optModule.to[Set].flatMap(_.dependencies.to[Set])
+    cli       <- cli.hint(LinkArg, deps.map(_.id) ++
+                     optProject.to[Set].flatMap { p => deps.filter(_.projectId == p.id) }.map(_.moduleId.key))
     cli       <- cli.hint(ForceArg)
     cli       <- cli.hint(HttpsArg)
     call      <- cli.call()
@@ -107,7 +109,11 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     hierarchy        <- layer.hierarchy()
     universe         <- hierarchy.universe
     allModuleRefs    <- ~layer.deepModuleRefs(universe)
-    cli              <- cli.hint(LinkArg, allModuleRefs.filter(!_.hidden))
+    deps             <- ~optModule.to[Set].flatMap(_.dependencies)
+    allRefs          <- ~(allModuleRefs.filter(!_.hidden).filterNot(deps.contains).map(_.id) ++
+                            optProject.to[Set].flatMap(_.modules.filterNot { m =>
+                            deps.exists(_.moduleId == m.id) }.map(_.id.key)))
+    cli              <- cli.hint(LinkArg, allRefs)
     cli              <- cli.hint(IntransitiveArg)
     call             <- cli.call()
     project          <- optProject.asTry
