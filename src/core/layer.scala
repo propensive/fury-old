@@ -79,13 +79,13 @@ case class Layer(version: Int,
 
   def hierarchy()(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
-      layer        <- Layer.get(ref.layerRef)
+      layer        <- Layer.get(ref.layerRef, ref.remote)
       tree         <- layer.hierarchy()
     } yield tree }.sequence
   } yield Hierarchy(this, imps)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
-    imports.to[List].map { sr => Layer.get(sr.layerRef).map(sr.id -> _) }.sequence.map(_.toMap)
+    imports.to[List].map { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.sequence.map(_.toMap)
 
   def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
   
@@ -138,7 +138,7 @@ object Layer extends Lens.Partial[Layer] {
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
   def retrieve(conf: FuryConf)(implicit log: Log): Try[Layer] = for {
-    base  <- get(conf.layerRef)
+    base  <- get(conf.layerRef, conf.published)
     layer <- dereference(base, conf.path)
   } yield layer
 
@@ -146,13 +146,15 @@ object Layer extends Lens.Partial[Layer] {
     if(path.isEmpty) Success(layer)
     else for {
       layerImport <- layer.imports.findBy(path.head)
-      layer       <- get(layerImport.layerRef)
+      layer       <- get(layerImport.layerRef, layerImport.remote)
       layer       <- dereference(layer, path.tail)
     } yield layer
 
-  def get(layerRef: LayerRef, id: Option[PublishedLayer] = None)(implicit log: Log): Try[Layer] =
+  def get(layerRef: LayerRef, id: Option[PublishedLayer])(implicit log: Log): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
-      _     <- ~log.info(msg"Fetching $layerRef")
+      pub   <- ~id.fold(msg"Fetching layer $layerRef") { pl =>
+                 msg"Fetching layer ${ImportPath(pl.url.path)}${'@'}${pl.version} ${'('}$layerRef${')'}"
+               }
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Try(Ogdl.read[Layer](data, migrate(_)))
@@ -167,7 +169,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def commit(layer: Layer, conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] = for {
     baseRef <- commitNested(conf, layer)
-    base    <- get(baseRef)
+    base    <- get(baseRef, conf.published)
     layer   <- ~base.copy(previous = Some(conf.layerRef))
     baseRef <- store(layer)
     _       <- saveFuryConf(conf.copy(layerRef = baseRef), layout)
@@ -183,8 +185,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def hashes(layer: Layer)(implicit log: Log): Try[Set[IpfsRef]] = for {
     layerRef  <- store(layer)
-    layerRefs <- ~layer.imports.map(_.layerRef)
-    layers    <- layerRefs.to[List].traverse(Layer.get(_))
+    layers    <- layer.imports.to[List].traverse { ref => Layer.get(ref.layerRef, ref.remote) }
     hashes    <- layers.traverse(hashes(_))
   } yield hashes.foldLeft(Set[IpfsRef]())(_ ++ _) + layerRef.ipfsRef
 
@@ -228,9 +229,9 @@ object Layer extends Lens.Partial[Layer] {
     leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
     commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
     rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
-    leftLayer     <- Layer.get(leftConf.layerRef)
-    commonLayer   <- Layer.get(commonConf.layerRef)
-    rightLayer    <- Layer.get(rightConf.layerRef)
+    leftLayer     <- Layer.get(leftConf.layerRef, leftConf.published)
+    commonLayer   <- Layer.get(commonConf.layerRef, commonConf.published)
+    rightLayer    <- Layer.get(rightConf.layerRef, rightConf.published)
     leftDiff      <- ~Layer.diff(commonLayer, leftLayer)
     rightDiff     <- ~Layer.diff(commonLayer, rightLayer)
     leftMsg       <- gitDir.logMessage(left)
@@ -251,7 +252,7 @@ object Layer extends Lens.Partial[Layer] {
   def init(layout: Layout)(implicit log: Log): Try[Unit] = {
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
-      layer    <- Layer.get(conf.layerRef)
+      layer    <- Layer.get(conf.layerRef, conf.published)
       _        <- ~log.info(msg"Reinitialized layer ${conf.layerRef}")
     } yield () } else { for {
       _        <- layout.confFile.mkParents()

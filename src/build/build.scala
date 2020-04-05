@@ -540,7 +540,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   def select: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
-    baseLayer    <- Layer.get(conf.layerRef)
+    baseLayer    <- Layer.get(conf.layerRef, conf.published)
     layer        <- Layer.retrieve(conf)
     focus        <- Layer.readFuryConf(layout)
     currentLayer <- ~Some(focus.path)
@@ -573,7 +573,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     useDocsDir <- ~call(DocsArg).isSuccess
     layerName  <- call(ImportArg)
     layerRef   <- Layer.resolve(layerName)
-    layer      <- Layer.get(layerRef)
+    published  <- Layer.published(layerName)
+    layer      <- Layer.get(layerRef, published)
     dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
@@ -659,8 +660,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layerName     <- call(ImportArg)
     nameArg       <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingArg("name"))
     newLayerRef   <- Layer.resolve(layerName)
-    newLayer      <- Layer.get(newLayerRef)
     pub           <- Layer.published(layerName)
+    newLayer      <- Layer.get(newLayerRef, pub)
     ref           <- ~Import(nameArg, newLayerRef, pub)
     layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)
@@ -681,9 +682,9 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     call     <- cli.call()
     layout   <- cli.layout
     conf     <- Layer.readFuryConf(layout)
-    layer    <- Layer.get(conf.layerRef)
+    layer    <- Layer.get(conf.layerRef, conf.published)
     previous <- layer.previous.ascribe(CannotUndo())
-    layer    <- Layer.get(previous)
+    layer    <- Layer.get(previous, None)
     layerRef <- Layer.store(layer)
     _        <- Layer.saveFuryConf(conf.copy(layerRef = layerRef), layout)
   } yield log.await()
@@ -701,7 +702,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     raw    <- ~call(RawArg).isSuccess
     other  <- call(ImportArg).orElse(conf.published.map { layer => IpfsRef(layer.layerRef.key) }.ascribe(NoOtherLayer()))
     other  <- Layer.resolve(other)
-    other  <- Layer.get(other)
+    other  <- Layer.get(other, None)
     rows   <- ~Diff.gen[Layer].diff(layer, other)
     table  <- ~Tables().show[Difference, Difference](table, cli.cols, rows, raw, col)
     _      <- if(!rows.isEmpty) ~log.rawln(table) else ~log.info("No changes")
@@ -736,7 +737,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _                  <- if(conf.path != ImportPath.Root) Failure(RootLayerNotSelected()) else Success(())
     published          <- conf.published.ascribe(ImportHasNoRemote())
     (newPub, artifact) <- getNewLayer(published, version, ImportPath.Root)
-    newLayer           <- Layer.get(artifact.layerRef)
+    newLayer           <- Layer.get(artifact.layerRef, Some(newPub))
     layerRef           <- Layer.store(newLayer)
   } yield conf.copy(layerRef = layerRef, published = Some(newPub))
 
@@ -760,7 +761,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     published          <- imported.remote.ascribe(ImportHasNoRemote())
     (newPub, artifact) <- getNewLayer(published, version, importPath / importId)
     layer              <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
-    newLayer           <- Layer.get(artifact.layerRef)
+    newLayer           <- Layer.get(artifact.layerRef, Some(newPub))
 
     newLayer           <- if(recursive) updateAll(newLayer, importPath / importId,
                               newLayer.imports.map(_.id).to[List], recursive, None) else ~newLayer
@@ -800,7 +801,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       importId  <- ~cli.peek(ImportArg)
       raw       <- ~call(RawArg).isSuccess
       https     <- ~call(HttpsArg).isSuccess
-      rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef)) }
+      rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef, i.remote)) }
       table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
       _         <- ~log.infoWhen(!raw)(conf.focus())
       _         <- ~log.rawln(table)
