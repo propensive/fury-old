@@ -40,8 +40,8 @@ object SourceRepo {
     dest   <- Try((Xdg.runtimeDir / str"$name.bak").uniquify())
     files  <- gitDir.trackedFiles
     _      <- ~log.info(msg"Moving working directory contents to $dest")
-    _      <- files.traverse { f => f.in(layout.pwd).moveTo(f.in(dest)) }
-    _      <- (layout.pwd / ".git").moveTo(dest / ".git")
+    _      <- files.traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
+    _      <- (layout.baseDir / ".git").moveTo(dest / ".git")
     _      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield ()
 }
@@ -129,7 +129,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def conflict(layout: Layout, local: Option[SourceRepo], https: Boolean)
               (implicit log: Log)
               : Try[List[Path]] = for {
-    current   <- ~layout.pwd.children.to[Set].map(Path(_))
+    current   <- ~layout.baseDir.children.to[Set].map(Path(_))
     removed   <- local.flatMap(_.local).fold(Try(List[Path]()))(GitDir(_)(layout.env).trackedFiles)
     bareRepo  <- repo.fetch(layout, https)
     files     <- GitDir(bareRepo)(layout.env).lsRoot(commit)
@@ -139,7 +139,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def doCleanCheckout(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] = for {
     _          <- ~log.info(msg"Checking out ${repo} to ${layout.baseDir.relativizeTo(layout.pwd)}")
     bareRepo   <- repo.fetch(layout, https)
-    _          <- (layout.pwd / ".fury.conf").moveTo(layout.pwd / ".fury.conf.bak")
+    _          <- layout.confFile.moveTo(layout.confFile.rename(_+".bak"))
     gitDir     <- ~GitDir(layout.baseDir)(layout.env)
     sourceRepo <- gitDir.sparseCheckout(bareRepo, List(), track, commit, Some(repo.universal(false)))
   } yield ()
