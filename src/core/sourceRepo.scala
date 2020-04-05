@@ -139,7 +139,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
   def doCleanCheckout(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] = for {
     _          <- ~log.info(msg"Checking out ${repo} to ${layout.baseDir.relativizeTo(layout.pwd)}")
     bareRepo   <- repo.fetch(layout, https)
-    _          <- layout.confFile.moveTo(layout.confFile.rename(_+".bak"))
+    _          <- ~layout.confFile.moveTo(layout.confFile.rename(_+".bak"))
     gitDir     <- ~GitDir(layout.baseDir)(layout.env)
     sourceRepo <- gitDir.sparseCheckout(bareRepo, List(), track, commit, Some(repo.universal(false)))
   } yield ()
