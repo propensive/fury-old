@@ -45,6 +45,20 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- ~log.rawln(table)
   } yield log.await()
 
+  def commit: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(HttpsArg)
+    call      <- cli.call()
+    local     <- layer.local(layout)
+    commit    <- GitDir(layout.baseDir)(layout.env).commit
+    branch    <- GitDir(layout.baseDir)(layout.env).branch
+    layer     <- ~(Layer(_.repos(local.id).track)(layer) = branch)
+    layer     <- ~(Layer(_.repos(local.id).commit)(layer) = commit)
+    _         <- Layer.commit(layer, conf, layout)
+  } yield log.await()
+
   def checkout: Try[ExitStatus] = for {
     layout    <- cli.layout
     conf      <- Layer.readFuryConf(layout)

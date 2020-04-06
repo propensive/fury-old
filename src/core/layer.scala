@@ -121,6 +121,9 @@ case class Layer(version: Int,
     branch <- gitDir.branch
   } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 
+  def local(layout: Layout): Try[SourceRepo] =
+    localRepo(layout).flatMap { r => repos.find(_.repo.equivalentTo(r.repo)).ascribe(NoRepoCheckedOut()) }
+
   def allRepos(layout: Layout): SortedSet[SourceRepo] =
     (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
       repos.map(_.repo.simplified).contains(r.repo.simplified)

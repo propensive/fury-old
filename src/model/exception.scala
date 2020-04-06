@@ -62,6 +62,7 @@ case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
 case class LayerNotFound(path: Path) extends FuryException
 case class LayerContainsLocalSources(refs: List[ModuleRef]) extends FuryException
+case class NoRepoCheckedOut() extends FuryException
 case class MergeConflicts() extends FuryException
 case class MissingCommand() extends FuryException
 case class ModuleAlreadyExists(module: ModuleId) extends FuryException
