@@ -46,6 +46,8 @@ object Recovery {
           cli.abort(msg"The required executable $name was not found on the PATH.")
         case NotAuthenticated() =>
           cli.abort(msg"You are not authenticated.")
+        case NoRepoCheckedOut() =>
+          cli.abort(msg"There is no repository currently checked out.")
         case MergeConflicts() =>
           cli.call()
           cli.layout.foreach(Layer.showMergeConflicts(_))
