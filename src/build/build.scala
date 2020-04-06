@@ -722,12 +722,12 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     recursive <- ~call(RecursiveArg).isSuccess
     all       <- ~call(AllArg).isSuccess
     importId  <- ~call(ImportIdArg)
+    current   <- Try(!all && importId.isFailure)
     
-    imports   <- if(all) Try(layer.imports.map(_.id).to[List])
+    imports   <- if(all || current) Try(layer.imports.map(_.id).to[List])
                  else ~importId.toOption.fold(List[ImportId]())(List(_))
 
     _         <- if(all && (importId.isSuccess || version.isDefined)) Failure(BadPullParams()) else ~()
-    current   <- Try(!all && importId.isFailure)
     conf      <- if(current) updateCurrent(layer, conf, version) else ~conf
     layer     <- Layer.retrieve(conf)
     layer     <- updateAll(layer, ImportPath.Empty, imports, recursive, if(current) None else version)
