@@ -88,9 +88,14 @@ case class FieldIndex[T: OgdlWriter](field: String) extends Index[T] {
   override def writeCollectionItem(value: T): (String, Ogdl) = {
     val data = Ogdl(value)
     val dedup = data.values.filterNot(_._1 == field)
-    val k = data.selectDynamic(field)
-    val v = Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
-    "kvp" -> Ogdl(Vector("key" -> k, "value" -> v))
+    val key = data.selectDynamic(field)
+    val rest = Ogdl(if(dedup.isEmpty) Vector("" -> Ogdl(Vector())) else dedup)
+    tuple(key, rest)
+  }
+
+  private def tuple(key: Ogdl, value: Ogdl): (String, Ogdl) = key.values match {
+    case Vector((single, rest)) if rest.values.isEmpty => single -> value
+    case _ => "kvp" -> Ogdl(Vector(field -> key, "value" -> value))
   }
 }
 case class SelfIndexed[T: OgdlWriter: StringShow]() extends Index[T] {

@@ -28,6 +28,9 @@ object OgdlReaderTest extends TestApp {
   private[this] case class Foo(bar: String, baz: Int)
   private[this] implicit val ord: Ordering[Foo] = Ordering[Int].on[Foo](_.baz)
 
+  private[this] case class Foo2(bar: Option[String], baz: Int)
+  private[this] implicit val ord2: Ordering[Foo2] = Ordering[Int].on[Foo2](_.baz)
+
   private[this] case class Quux(handle: String, data: SortedSet[String])
 
   override def tests(): Unit = {
@@ -51,9 +54,7 @@ object OgdlReaderTest extends TestApp {
 
     test("list of strings") {
       val ogdl = Ogdl(Vector(("3",Ogdl(Vector(("3",empty)))), ("2",Ogdl(Vector(("2",empty)))), ("1",Ogdl(Vector(("1",empty))))))
-      val x = Try(implicitly[OgdlReader[List[String]]].read(ogdl))
-      println(x)
-      x
+     Try(implicitly[OgdlReader[List[String]]].read(ogdl))
     }.assert(_ == Success(List("3", "2", "1")))
 
     test("sorted set of integers") {
@@ -68,9 +69,7 @@ object OgdlReaderTest extends TestApp {
         ("A",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty))))))),
         ("B",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))
       ))
-      val x = Try(implicitly[OgdlReader[SortedSet[Foo]]].read(ogdl))
-      println(x)
-      x
+      Try(implicitly[OgdlReader[SortedSet[Foo]]].read(ogdl))
     }.assert(_ == Success(TreeSet(Foo(bar = "B", baz = 1), Foo(bar = "A", baz = 2), Foo(bar = "B", baz = 3))))
 
     test("case class with a sorted set") {
@@ -83,10 +82,24 @@ object OgdlReaderTest extends TestApp {
           ("C",Ogdl(Vector(("C",empty))))
         )))
       ))
-      val x = Try(implicitly[OgdlReader[Quux]].read(ogdl))
-      println(x)
-      x
+      Try(implicitly[OgdlReader[Quux]].read(ogdl))
     }.assert(_ == Success(Quux("Q", TreeSet("A", "B", "C"))))
+
+    test("sorted set of case classes with complex index") {
+      implicit val index: Index[Foo2] = FieldIndex("bar")
+      val ogdl = Ogdl(Vector(
+        ("None",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty))))))),
+        ("kvp",Ogdl(Vector(("bar",Ogdl(Vector(("Some",Ogdl(Vector(("A",empty))))))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty)))))))))),
+        ("kvp",Ogdl(Vector(("bar",Ogdl(Vector(("Some",Ogdl(Vector(("B",empty))))))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))))),
+        ("None",Ogdl(Vector(("baz",Ogdl(Vector(("4",empty)))))))
+      ))
+      Try(implicitly[OgdlReader[SortedSet[Foo2]]].read(ogdl))
+    }.assert(_ == Success(TreeSet(
+      Foo2(bar = Some("A"), baz = 2),
+      Foo2(bar = Some("B"), baz = 3),
+      Foo2(bar = None, baz = 1),
+      Foo2(bar = None, baz = 4)
+    )))
 
   }
 }

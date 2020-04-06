@@ -43,7 +43,6 @@ object OgdlWriterTest extends TestApp {
         )))
       ))
       input.selectDynamic("permission")()
-      //FIXME I'm almost certain that the output should be "permission.name1:target1"
     }.assert(_ == "id")
 
     test("string") {
@@ -88,11 +87,10 @@ object OgdlWriterTest extends TestApp {
       implicit val index: Index[Foo] = FieldIndex("bar")
       val input: SortedSet[Foo] = TreeSet(Foo(bar = "A", baz = 2), Foo(bar = "B", baz = 3), Foo(bar = "B", baz = 1))
       Try{Ogdl(input)}
-      //TODO think of a more compact format
     }.assert(_ == Success(Ogdl(Vector(
-      ("kvp",Ogdl(Vector(("key",Ogdl(Vector(("B",empty)))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty)))))))))),
-      ("kvp",Ogdl(Vector(("key",Ogdl(Vector(("A",empty)))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty)))))))))),
-      ("kvp",Ogdl(Vector(("key",Ogdl(Vector(("B",empty)))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty))))))))))
+      ("B",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty))))))),
+      ("A",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty))))))),
+      ("B",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))
     ))))
 
     test("sorted set of case classes with complex index") {
@@ -106,22 +104,10 @@ object OgdlWriterTest extends TestApp {
       //FIXME Uniqueness of the index field is not quaranteed
       Try{Ogdl(input)}
     }.assert(_ == Success(Ogdl(Vector(
-      ("kvp",Ogdl(Vector(
-        ("key",Ogdl(Vector(("None",empty)))),
-        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty)))))))
-      ))),
-      ("kvp",Ogdl(Vector(
-        ("key",Ogdl(Vector(("Some",Ogdl(Vector(("A",empty))))))),
-        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty)))))))
-      ))),
-      ("kvp",Ogdl(Vector(
-        ("key",Ogdl(Vector(("Some",Ogdl(Vector(("B",empty))))))),
-        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))
-      ))),
-      ("kvp",Ogdl(Vector(
-        ("key",Ogdl(Vector(("None",empty)))),
-        ("value",Ogdl(Vector(("baz",Ogdl(Vector(("4",empty)))))))
-      )))
+      ("None",Ogdl(Vector(("baz",Ogdl(Vector(("1",empty))))))),
+      ("kvp",Ogdl(Vector(("bar",Ogdl(Vector(("Some",Ogdl(Vector(("A",empty))))))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("2",empty)))))))))),
+      ("kvp",Ogdl(Vector(("bar",Ogdl(Vector(("Some",Ogdl(Vector(("B",empty))))))), ("value",Ogdl(Vector(("baz",Ogdl(Vector(("3",empty)))))))))),
+      ("None",Ogdl(Vector(("baz",Ogdl(Vector(("4",empty)))))))
     ))))
 
     test("case class with a sorted set") {

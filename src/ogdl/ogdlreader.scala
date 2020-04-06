@@ -65,14 +65,22 @@ object OgdlReader {
   implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader: Index](
       implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
     ): OgdlReader[Coll[T]] = {
-    case ogdl @ Ogdl(vector) =>
+    case Ogdl(vector) =>
       if(vector.head._1 == "") Vector[T]().to[Coll]
       else
-        vector.map { v =>
+        vector.map { element =>
           val index = implicitly[Index[T]]
           val data: Ogdl = index match {
-            case FieldIndex(field) => Ogdl((field, Ogdl(v._1)) +: v._2.values)
-            case SelfIndexed() => Ogdl(v._1)
+            case FieldIndex(field) => element match {
+              case ("kvp", kvp) =>
+                val key = Ogdl(Vector(field -> kvp.selectDynamic(field)))
+                val rest = kvp.selectDynamic("value")
+                Ogdl(key.values ++ rest.values)
+              case (single, rest) =>
+                val key = Ogdl(Vector(field -> Ogdl(Vector(single -> Ogdl(Vector())))))
+                Ogdl(key.values ++ rest.values)
+            }
+            case SelfIndexed() => Ogdl(element._1)
           }
           implicitly[OgdlReader[T]].read(data)
         }.to[Coll]
