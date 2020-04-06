@@ -29,6 +29,7 @@ object Source {
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src.id()).get // FIXME
   implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(Vector("id" -> Ogdl(src.key)))
   implicit val parser: Parser[Source] = unapply(_)
+  implicit val index: Index[Source] = FieldIndex("id")
   implicit val keyName: KeyName[Source] = () => msg"source"
 
   implicit val sourceDiff: Diff[Source] =
