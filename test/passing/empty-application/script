@@ -6,7 +6,7 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 
 fury module add -n library -c scala/compiler
-fury source add -d src
+fury source add -s src
 mkdir -p src
 cat << EOF >  src/hello.scala
 object HelloWorld {

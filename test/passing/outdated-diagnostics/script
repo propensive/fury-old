@@ -8,13 +8,13 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello
 fury module add -n core -c scala/compiler
 mkdir -p src/core
-fury source add -d src/core
+fury source add -s src/core
 echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
 
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury dependency add -l core
 mkdir -p src/app
-fury source add -d src/app
+fury source add -s src/app
 echo 'object HelloWorld extends App { println(Constants.x) }' > src/app/hw.scala
 
 fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read

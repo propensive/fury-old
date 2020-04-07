@@ -12,7 +12,7 @@ fury permission require -C java.util.PropertyPermission -T scala.copyright.strin
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 mkdir -p src/app
-fury source add -d src/app
+fury source add -s src/app
 echo 'object HelloWorld extends App { println("Hello World") }' > src/app/hw.scala
 mkdir -p out
 fury build run --dir out --output linear -F
