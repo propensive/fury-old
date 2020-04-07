@@ -187,6 +187,13 @@ case class Path(input: String) {
     path
   }
 
+  def hardLinkTo(path: Path): Try[Path] = Try {
+    Files.createLink(path.javaPath, javaPath)
+    path
+  }
+
+  def hardLinks(): Try[Int] = Try(Files.getAttribute(javaPath, "unix:nlink")).collect { case i: Integer => i }
+
   def walkTree: Stream[Path] =
     if(directory) Stream(this) ++: childPaths.to[Stream].flatMap(_.walkTree) else Stream(this)
 

@@ -63,7 +63,7 @@ object Ipfs {
       val getFromIpfs: Try[String] =
         if(!attemptToUseIpfs) Failure(IpfsTimeout())
         else if(config.skipIpfs) Failure(new IllegalStateException(
-            "Using the IPFS daemon is forbidden by configuration"))
+            "Using IPFS is disabled by the configuration"))
         else getRef(ref)
 
       getFromIpfs.failed.foreach { e => Ipfs.synchronized { lastIpfsTimeout = System.currentTimeMillis } }
@@ -74,7 +74,7 @@ object Ipfs {
             res
           case (Failure(_), gateway) =>
             val result = getFileFromGateway(ref, gateway)
-            result.failed.foreach { e => log.warn(s"The layer could not be resolved using IPFS or $gateway.") }
+            result.failed.foreach { e => log.warn(msg"The layer could not be resolved using IPFS or $gateway.") }
             result
         }
       }.recoverWith {
