@@ -19,12 +19,12 @@ fury module add -n core -c scala/compiler
 fury repo add -n library -u ../library
 fury repo fork -r library -d library-local
 sed -i.bak 's/World/fork/' library-local/src/core/constants.scala
-fury source add -d library:src/core
+fury source add -s library:src/core
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 fury dependency add -l library/core
 mkdir -p src/app
-fury source add -d src/app
+fury source add -s src/app
 echo 'object HelloWorld extends App{ val y = Constants.x; println(y) }' > src/app/HelloWorld.scala
 fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read
 fury permission require -C java.util.PropertyPermission -T scala.version.number -A read
