@@ -4,18 +4,18 @@ Set current module to compiler
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to core
-0bc4b2076691e61eb8b1dfac91ad7c0648b21b5e4c097ea4de8e54e91e5ae9d2
-4d1a7232897567622a7ed04de5d3b90059ca81c6e46ccdf3f0116afd0fc79745
-d42a730e5df5d6041cff16617a0cc9ad9f565162a1ad5fdcad5fa6f29c656dba
-75e0a580cc1e57819ac9fbb1fdfc8522ca51d00df2b31769f2dacf03c37b9581
+ad452b8d3779ba72bed24656286fcf4c95753320343db145221fa1741d0b7a01
+a5da2b44866b457ba7c441ae2be4fa1ecdc95c10f6f877389870cb740f1f086c
+233a73e66904a8139f221dab329929afc80e611c2e6724a711c3da5db0e95f03
+8fb847bdc80e4f92a8d579b43f7cd98878f357b4591ef02309a7ab937a1ab25f
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
 0
 Set current module to lib
-f55e467661fcea388dffd8525b6561d4acc9444687bf8101c5bbf5b9f5dd08a0
+1902316c584aae1ce14579535200e0705f8b7e36ae7c93299ab01fa2ac384c71
 0
-f55
+190
 The following permissions are required to run the build:
 You can grant these permissions with,
   fury permission grant -P <permission hash>
