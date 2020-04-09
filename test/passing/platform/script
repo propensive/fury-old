@@ -40,7 +40,7 @@ fury permission require -C java.util.PropertyPermission -T scala.copyright.strin
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury permission require -C java.io.FilePermission -T '.content' -A write
-fury dependency add -l library/core
+fury dependency add -d library/core
 fury source add -s src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello World") }' > src/hw.scala

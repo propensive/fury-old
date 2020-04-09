@@ -12,7 +12,7 @@ fury source add -s src/core
 echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
 
 fury module add -n app -c scala/compiler -t application -M HelloWorld
-fury dependency add -l core
+fury dependency add -d core
 mkdir -p src/app
 fury source add -s src/app
 echo 'object HelloWorld extends App { println(Constants.x) }' > src/app/hw.scala
