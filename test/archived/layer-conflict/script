@@ -56,8 +56,8 @@ IPFSREF_2=$(fury layer share --raw)
 
 cd ../app
 fury layer init
-fury layer import -l $IPFSREF_1 --name platform1 --import platform1
-fury layer import -l $IPFSREF_2 --name platform1 --import platform2
+fury layer import -i $IPFSREF_1 --name platform1 --import platform1
+fury layer import -i $IPFSREF_2 --name platform1 --import platform2
 IPFSREF_1=
 IPFSREF_2=
 fury project add -n hello-world

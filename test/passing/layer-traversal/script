@@ -29,7 +29,7 @@ IPFSREF=$(fury layer share --raw)
 
 cd ../app
 fury layer init
-fury layer import -l $IPFSREF --name platform
+fury layer import -i $IPFSREF --name platform
 IPFSREF=
 fury layer list --raw
 grep path .fury.conf
