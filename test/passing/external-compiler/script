@@ -1,5 +1,5 @@
 fury layer init
-fury layer import -l scala.fury -n scala
+fury layer import -i scala.fury -n scala
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 echo $?
