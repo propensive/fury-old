@@ -494,11 +494,11 @@ special-case of forking, where the repository is will be forked into the current
 
 To fork a repository, run the command,
 ```
-fury repo fork -r <repo id> -d <destination>
+fury repo fork -r <repo id> -f <destination>
 ```
 
 This will create a checkout of the repository with the id `<repo id>` into the directory `<destination>`,
-creating it if necessary. Both the `-r`/`--repo` and `-d`/`--dir` options are required.
+creating it if necessary. Both the `-r`/`--repo` and `-f`/`--dir` options are required.
 
 #### Checking out a repository
 
