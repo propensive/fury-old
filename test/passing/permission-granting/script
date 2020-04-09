@@ -18,7 +18,7 @@ echo $?
 fury module add -n lib -t library
 fury permission require -C java.util.PropertyPermission -T foo.bar -A read -0
 echo $?
-fury dependency add -l core
+fury dependency add -d core
 fury permission list --raw
 fury build run --output linear | grep '^ *[A-Za-z0-9]'
 fury permission grant -P ad452b8d3779ba72bed24656286fcf4c95753320343db145221fa1741d0b7a01
