@@ -18,7 +18,7 @@ The module foo was not found.
 1
 The argument 'foo/bar' was not a valid value for the parameter '-m/--module'.
 1
-0bc4b2076691e61eb8b1dfac91ad7c0648b21b5e4c097ea4de8e54e91e5ae9d2
+ad452b8d3779ba72bed24656286fcf4c95753320343db145221fa1741d0b7a01
 The following permissions are required to run the build:
 You can grant these permissions with,
   fury permission grant -P <permission hash>

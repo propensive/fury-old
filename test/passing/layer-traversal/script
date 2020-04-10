@@ -20,7 +20,7 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n library
 fury module add -n core -c scala/compiler
 fury repo add -n library -u ../library
-fury source add -d library:src/core
+fury source add -s library:src/core
 git add .
 git commit -m 'platform' -q
 fury build run --output linear
@@ -29,7 +29,7 @@ IPFSREF=$(fury layer share --raw)
 
 cd ../app
 fury layer init
-fury layer import -l $IPFSREF --name platform
+fury layer import -i $IPFSREF --name platform
 IPFSREF=
 fury layer list --raw
 grep path .fury.conf

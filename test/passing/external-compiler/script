@@ -1,5 +1,5 @@
 fury layer init
-fury layer import -l scala.fury -n scala
+fury layer import -i scala.fury -n scala
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
 echo $?
@@ -10,7 +10,7 @@ fury permission require -C java.util.PropertyPermission -T scala.copyright.strin
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury permission require -C java.io.FilePermission -T '.content' -A write
-fury source add -d src
+fury source add -s src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello World\n") }' > src/hw.scala
 fury build run --output linear

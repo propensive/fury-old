@@ -5,7 +5,7 @@ fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -M HelloWorld
-fury source add -d src
-fury resource add -d res//**
+fury source add -s src
+fury resource add -s res//**
 fury build run --output linear -d out
 unzip out/hello-world-app.jar | grep readme

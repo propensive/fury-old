@@ -11,30 +11,30 @@ fury option define -P -o nu -D 'Warn about side-effecting nullary methods' -t --
 fury project add -n sequence
 
 fury module add -n aiap -c scala/compiler
-fury source add -d src
+fury source add -s src
 fury option add -o ia -P
 
 fury module add -n aaat-dnut -c scala/compiler
-fury source add -d src
-fury dependency add -l sequence/aiap
+fury source add -s src
+fury dependency add -d sequence/aiap
 fury option add -o aa
 fury option remove -o nu
 
 fury module add -n diap-dnut -c scala/compiler
-fury source add -d src
-fury dependency add -l sequence/aaat-dnut
+fury source add -s src
+fury dependency add -d sequence/aaat-dnut
 fury option remove -o ia -P
 fury option define -o mix -D 'Several options' -t -- -Ywarn-nullary-unit -Ywarn-adapted-args -Ywarn-infer-any
 
 fury module add -n dnut -c scala/compiler
-fury source add -d src
-fury dependency add -l sequence/diap-dnut
+fury source add -s src
+fury dependency add -d sequence/diap-dnut
 fury option remove -o nu
 
 
 fury module add -n all -c scala/compiler
-fury source add -d src
-fury dependency add -l sequence/dnut
+fury source add -s src
+fury dependency add -d sequence/dnut
 fury option add -o mix
 
 

@@ -11,7 +11,7 @@ fury permission require -C java.util.PropertyPermission -T scala.time -A read
 fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
-fury source add -d src
+fury source add -s src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello world!") }' > src/hello.scala
 fury binary add -b com.spotify:logging:2.2.6
