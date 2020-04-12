@@ -52,6 +52,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     cli       <- cli.hint(HttpsArg)
     call      <- cli.call()
     local     <- layer.local(layout)
+    _         <- layout.gitConf.copyTo(layout.baseConf)
     commit    <- GitDir(layout.baseDir)(layout.env).commit
     branch    <- GitDir(layout.baseDir)(layout.env).branch
     layer     <- ~(Layer(_.repos(local.id).track)(layer) = branch)
@@ -73,7 +74,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- repo.checkout(layout, local, https)
     layer     <- ~(Layer(_.mainRepo)(layer) = Some(repo.id))
     _         <- Layer.commit(layer, conf, layout)
-    _         <- (layout.pwd / ".fury.conf.bak").delete()
+    _         <- ~(layout.pwd / ".fury.conf.bak").delete()
   } yield log.await()
 
   def unfork: Try[ExitStatus] = for {
