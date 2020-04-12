@@ -127,6 +127,8 @@ object Installation {
 
 
   val installDir: Path = Path(System.getProperty("fury.home"))
+  val installVersion: String = installDir.name
+
   val usrDir: Path = (installDir / "usr").extant()
   val binDir: Path = (installDir / "bin").extant()
   val etcDir: Path = (installDir / "etc").extant()
@@ -138,6 +140,8 @@ object Installation {
   val config: Path = Xdg.config("fury")
   val data: Path = Xdg.data("fury")
 
+  val rootBinDir: Path = (data / "bin").extant()
+  val optDir: Path = (data / "opt").extant()
   val userConfig: Path = config / "config.fury"
   val aliasesPath: Path = config / "aliases"
   val policyFile: Path = config / "policy.conf"

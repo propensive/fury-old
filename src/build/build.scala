@@ -374,7 +374,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
     main         <- module.main.ascribe(UnspecifiedMain(module.id))
     _            <- ~log.info(msg"Building native image for $exec")
-    _            <- compilation.saveNative(module.ref(project), Installation.usrDir, layout, main)
+    _            <- compilation.saveNative(module.ref(project), Installation.optDir, layout, main)
     bin          <- ~(Installation.usrDir / main.key.toLowerCase)
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)

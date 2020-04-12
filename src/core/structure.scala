@@ -47,15 +47,25 @@ case class Menu(
   )(val items: MenuStructure*)
     extends MenuStructure {
 
-  def apply(cli: Cli, ctx: Cli): Try[ExitStatus] = {
+  def apply(cli: Cli, ctx: Cli, reentrant: Boolean = false): Try[ExitStatus] = {
     val hasLayer: Boolean = cli.layout.map(_.confFile.exists).getOrElse(false)
     if(cli.args.args == Seq("interrupt")) {
       Success(Done)
     } else {
+      if(FuryVersion.current != Installation.installVersion && !reentrant) {
+        cli.forceLog(msg"The running Fury server version (${FuryVersion.current}) differs from the shell"+
+            msg"script version (${Installation.installVersion}) calling it.")
+        cli.forceLog(msg"This is probably because a newer version of Fury has been installed while the old "+
+            msg"version is still running.")
+      }
+
       cli.args.prefix.headOption match {
         case None =>
           if (cli.completion) cli.completeCommand(this, hasLayer)
-          else apply(cli.prefix(default.name), ctx)
+          else {
+            apply(cli.prefix(default.name), ctx)
+          }
+
         case Some(next) =>
           val cmd = items.find(_.command.name == next.value).orElse {
             if (next.value.length <= 2 && !cli.command.exists(_ < 4)) items.find(_.shortcut == next.value(0))
@@ -67,7 +77,7 @@ case class Menu(
               if (cli.completion) cli.completeCommand(this, hasLayer)
               else Failure(UnknownCommand(next.value))
             case Some(item@Menu(_, _, _, _, _, _)) =>
-              item(cli.tail, cli)
+              item(cli.tail, cli, true)
             case Some(item@Action(_, _, _, _, _, _)) =>
               item.action(cli)
           }
