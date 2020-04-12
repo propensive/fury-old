@@ -64,24 +64,18 @@ object OgdlWriterTest extends TestApp {
     ))))
 
     test("list of strings") {
-      val input = List("3", "2", "1")
+      val input = List("foo", "bar", "baz")
       Try{Ogdl(input)}
     }.assert(_ == Success(
-      Ogdl(Vector(
-        ("3",Ogdl(Vector(("3",empty)))),
-        ("2",Ogdl(Vector(("2",empty)))),
-        ("1",Ogdl(Vector(("1",empty))))
-      ))
+      Ogdl(Vector(("foo", Ogdl(Vector(("bar", Ogdl(Vector(("baz", empty)))))))))
     ))
 
     test("sorted set of integers") {
       val input: SortedSet[Int] = TreeSet(1, 2, 3)
       Try{Ogdl(input)}
-    }.assert(_ == Success(Ogdl(Vector(
-      ("1",Ogdl(Vector(("1",empty)))),
-      ("2",Ogdl(Vector(("2",empty)))),
-      ("3",Ogdl(Vector(("3",empty))))
-    ))))
+    }.assert(_ == Success(
+      Ogdl(Vector(("1", Ogdl(Vector(("2", Ogdl(Vector(("3", empty)))))))))
+    ))
 
     test("sorted set of case classes") {
       implicit val index: Index[Foo] = FieldIndex("bar")
@@ -116,11 +110,7 @@ object OgdlWriterTest extends TestApp {
       Try{Ogdl(input)}
     }.assert(_ == Success(Ogdl(Vector(
       ("handle",Ogdl(Vector(("Q",empty)))),
-      ("data",Ogdl(Vector(
-        ("A",Ogdl(Vector(("A",empty)))),
-        ("B",Ogdl(Vector(("B",empty)))),
-        ("C",Ogdl(Vector(("C",empty))))
-      )))
+      ("data",Ogdl(Vector(("A", Ogdl(Vector(("B", Ogdl(Vector(("C", empty))))))))))
     ))))
   }
 }

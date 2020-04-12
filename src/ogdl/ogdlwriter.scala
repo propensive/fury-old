@@ -64,22 +64,29 @@ object OgdlWriter {
   implicit val boolean: OgdlWriter[Boolean] = boolean => Ogdl(boolean.toString)
   implicit val theme: OgdlWriter[Theme] = theme => Ogdl(theme.name)
 
-  implicit def list[T: OgdlWriter: Index]: OgdlWriter[List[T]] = coll =>
+  implicit def list[T: OgdlWriter: Index]: OgdlWriter[List[T]] = implicitly[Index[T]] match {
+    case fi@FieldIndex(_) => complexTraversable[T](implicitly[OgdlWriter[T]], fi).write(_)
+    case si@SelfIndexed() => simpleTraversable[T](implicitly[OgdlWriter[T]], si).write(_)
+  }
+
+  implicit def treeSet[T: OgdlWriter: Index, X[T] <: SortedSet[T]]: OgdlWriter[X[T]] = implicitly[Index[T]] match {
+    case fi@FieldIndex(_) => complexTraversable[T](implicitly[OgdlWriter[T]], fi).write(_)
+    case si@SelfIndexed() => simpleTraversable[T](implicitly[OgdlWriter[T]], si).write(_)
+  }
+
+  private def complexTraversable[T: OgdlWriter: FieldIndex]: OgdlWriter[Traversable[T]] = coll =>
     Ogdl {
       if(coll.isEmpty) Vector(("", Ogdl(Vector())))
       else coll.to[Vector].map(implicitly[Index[T]].writeCollectionItem)
     }
 
-  implicit def treeSet[T: OgdlWriter: Index, X[T] <: SortedSet[T]]: OgdlWriter[X[T]] = coll =>
-    Ogdl {
-      if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-      else coll.to[Vector].map(implicitly[Index[T]].writeCollectionItem)
+  private def simpleTraversable[T: OgdlWriter: SelfIndexed]: OgdlWriter[Traversable[T]] = coll =>
+    coll.to[Vector].foldRight(Ogdl(Vector())) {
+      case (element, tail) => Ogdl(Vector(implicitly[Index[T]].writeCollectionItem(element)._1 -> tail))
     }
 
   implicit def gen[T]: OgdlWriter[T] = macro Magnolia.gen[T]
 }
-
-
 
 sealed trait Index[T] {
   def writeCollectionItem(value: T): (String, Ogdl)

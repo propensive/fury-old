@@ -53,12 +53,12 @@ object OgdlReaderTest extends TestApp {
     }.assert(_ == Success( Foo(bar = "1", baz = 2)))
 
     test("list of strings") {
-      val ogdl = Ogdl(Vector(("3",Ogdl(Vector(("3",empty)))), ("2",Ogdl(Vector(("2",empty)))), ("1",Ogdl(Vector(("1",empty))))))
-     Try(implicitly[OgdlReader[List[String]]].read(ogdl))
-    }.assert(_ == Success(List("3", "2", "1")))
+      val ogdl = Ogdl(Vector(("foo", Ogdl(Vector(("bar", Ogdl(Vector(("baz", empty)))))))))
+      Try(implicitly[OgdlReader[List[String]]].read(ogdl))
+    }.assert(_ == Success(List("foo", "bar", "baz")))
 
     test("sorted set of integers") {
-      val ogdl = Ogdl(Vector(("1",Ogdl(Vector(("1",empty)))), ("2",Ogdl(Vector(("2",empty)))), ("3",Ogdl(Vector(("3",empty))))))
+      val ogdl = Ogdl(Vector(("1", Ogdl(Vector(("2", Ogdl(Vector(("3", empty)))))))))
       Try(implicitly[OgdlReader[SortedSet[Int]]].read(ogdl))
     }.assert(_ == Success(TreeSet(1, 2, 3)))
 
@@ -76,11 +76,7 @@ object OgdlReaderTest extends TestApp {
       implicit val index: Index[Quux] = FieldIndex("handle")
       val ogdl = Ogdl(Vector(
         ("handle",Ogdl(Vector(("Q",empty)))),
-        ("data",Ogdl(Vector(
-          ("A",Ogdl(Vector(("A",empty)))),
-          ("B",Ogdl(Vector(("B",empty)))),
-          ("C",Ogdl(Vector(("C",empty))))
-        )))
+        ("data",Ogdl(Vector(("A", Ogdl(Vector(("B", Ogdl(Vector(("C", empty))))))))))
       ))
       Try(implicitly[OgdlReader[Quux]].read(ogdl))
     }.assert(_ == Success(Quux("Q", TreeSet("A", "B", "C"))))
