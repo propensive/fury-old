@@ -52,8 +52,7 @@ coursier() {
 }
 
 stopFury() {
-  nailgun "${FURY_MAIN}" "$$" "stop" 
-  nailgun ng-stop 
+  nailgun "${FURY_MAIN}" "$$" "stop" 2> /dev/null && nailgun ng-stop || (echo "Fury is not running." && exit 1)
   # ! pkill -f "(java -Dfury.home)|(bloop)"
 }
 
