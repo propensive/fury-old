@@ -429,9 +429,10 @@ ${'|'} ${highlightedLine}
     case TaskDataKind.COMPILE_REPORT =>
       val targetId = getCompileTargetId(params.getData)
       val ref = targetId.ref
-      broadcast( StopCompile(ref, params.getStatus == StatusCode.OK))
+      val success = params.getStatus == StatusCode.OK
+      broadcast(StopCompile(ref, success))
       Compilation.findBy(targetId).foreach { compilation =>
-        val signal = if(compilation.targets(ref).kind.needsExecution) StartRun(ref) else StopRun(ref)
+        val signal = if(success && compilation.targets(ref).kind.needsExecution) StartRun(ref) else StopRun(ref)
         broadcast(signal)
       }
   }
