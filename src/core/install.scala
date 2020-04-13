@@ -32,8 +32,9 @@ object Install {
   def apply(env: Environment, force: Boolean)(implicit log: Log): Try[Unit] = for {
     _ <- doCCompilation(env).recover { case e =>
            log.warn(msg"Could not find a C compiler (${ExecName("cc")}) on the PATH")
-           log.warn(msg"Fury will work, but will be unable to display the ${ExecName("fury")} process name and"+
-               msg" will use the slower Python Nailgun client, instead of a native client")
+           log.warn(msg"Fury will work, but its process name will be ${ExecName("java")} instead of "+
+               msg"${ExecName("fury")} and will use the slower Python Nailgun client, instead of a native "+
+               msg"client")
          }
     
     _ <- rcInstall(env, force, Xdg.home / ".zshrc", ExecName("zsh"), zshCompletions)
@@ -99,9 +100,12 @@ object Install {
     lines <- Try(scala.io.Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag))).recover {
                case e if(force || shell == getShell(env)) => List("")
              }
+
+    _     <- Success((Installation.rootBinDir / "fury").delete())
+    _     <- Try((Installation.binDir / "fury").symlinkTo(Installation.rootBinDir / "fury"))
     
-    _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.binDir,
-                 Installation.usrDir)) ++ extra).join("", "\n", "\n"))
+    _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,
+                 Installation.optDir)) ++ extra).join("", "\n", "\n"))
     
     _     <- Try(log.info(msg"Updated ${file} to include ${ExecName("fury")} on the PATH"))
   } yield () }.recover { case e =>

@@ -162,16 +162,20 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
+  private lazy val logStyle: LogStyle = LogStyle(stdout, debug = false)
+
   def call()(implicit log: Log): Try[Call] = {
     if(completion) {
       stdout.println(optCompletions.flatMap(_.output).mkString("\n"))
       stdout.flush()
       Failure(EarlyCompletions())
     } else {
-      log.attach(LogStyle(stdout, debug = false))
+      log.attach(logStyle)
       Success(new Call())
     }
   }
+
+  def forceLog(msg: UserMsg): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, pid)
 
   def action(blk: Call => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap(blk)
 

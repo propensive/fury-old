@@ -213,8 +213,8 @@ case class Path(input: String) {
       this
     }.recoverWith { case e: Exception => Failure(FileWriteError(parent, e)) }
 
-  def linksTo(target: Path): Try[Path] = Try {
-    Files.createSymbolicLink(javaPath, target.javaPath)
+  def symlinkTo(target: Path): Try[Path] = Try {
+    Files.createSymbolicLink(target.javaPath, javaPath)
     this
   }.recover { case e: java.io.IOException => this }
 
