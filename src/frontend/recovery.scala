@@ -140,7 +140,8 @@ You can grant these permissions with,
         case RemoteNotSynched(repo, remote) =>
           cli.abort(msg"The repository ${repo} has not been synchronized with its remote, $remote.")
         case ConflictingFiles(files) =>
-          cli.abort(msg"The directory contains files which would be overwritten by checking out the repository here.")
+          cli.abort(msg"The directory contains files which would be overwritten by checking out the repository"+
+              msg" here.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
         case Unspecified(kind) =>

@@ -25,7 +25,10 @@ object FuryMenu {
   def menu(aliases: List[Action])(implicit log: Log): Menu = Menu('main, "main menu", 'build)(List(
     Action(Symbol("version"), msg"show the current version number", AboutCli(_).version, show = false),
     Menu('about, msg"inspect resource usage, current tasks etc.", 'resources, needsLayer = false)(
-      Action('resources, msg"display information about available CPUs and memory usage", AboutCli(_).resources, needsLayer = false),
+      
+      Action('resources, msg"display information about available CPUs and memory usage", AboutCli(_).resources,
+          needsLayer = false),
+      
       Action('tasks, msg"list the tasks that are being executed", AboutCli(_).tasks, needsLayer = false),
       Action('connections, msg"list open BSP connections", AboutCli(_).connections, needsLayer = false)
     ),
@@ -52,7 +55,10 @@ object FuryMenu {
     Menu('clean, msg"clean fury workspace", 'compiler)(
       Action('all, msg"clean all", CleanCli(_).cleanAll, needsLayer = false),
       Action('compiler, msg"clean the caches managed by the compiler", BuildCli(_).clean),
-      Action('targets, msg"clean the compile targets definition files", CleanCli(_).cleanBloop, needsLayer = false),
+      
+      Action('targets, msg"clean the compile targets definition files", CleanCli(_).cleanBloop, needsLayer =
+          false),
+      
       Action('classes, msg"clean compiled classes", CleanCli(_).cleanClasses, needsLayer = false),
       Action('logs, msg"clean logs", CleanCli(_).cleanLogs, needsLayer = false),
       Action('repositories, msg"clean repositories", CleanCli(_).cleanRepos, needsLayer = false),

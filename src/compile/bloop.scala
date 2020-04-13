@@ -25,7 +25,8 @@ import scala.util._
 
 object Bloop {
   def clean(layout: Layout): Try[Boolean] =
-    layout.bloopDir.ifExists().fold[Try[Boolean]](Success(false))(_.findChildren(_.endsWith(".json")).map(_.delete()).sequence.map(_.contains(true)))
+    layout.bloopDir.ifExists().fold(Try(false))(_.findChildren(_.endsWith(".json")).map(_.delete()
+        ).sequence.map(_.contains(true)))
 
   def generateFiles(compilation: Compilation, layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     new CollOps(compilation.targets.values.map { target =>
@@ -36,7 +37,10 @@ object Bloop {
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(target: Target, compilation: Compilation, layout: Layout)(implicit log: Log): Try[String] = {
+  private def makeConfig(target: Target, compilation: Compilation, layout: Layout)
+                        (implicit log: Log)
+                        : Try[String] = {
+
     compilation.writePlugin(target.ref, layout)
     val classpath = compilation.classpath(target.ref, layout)
     val compiler = target.compiler.fold(ModuleRef.JavaRef)(_.ref)

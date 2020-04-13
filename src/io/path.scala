@@ -109,9 +109,10 @@ case class Path(input: String) {
   def uniquify(): Path =
     if(!exists()) this else Stream.from(2).map { i => this.rename(_+"-"+i) }.find(!_.exists()).get
 
-  def hardLink(path: Path): Try[Unit] = Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
-    case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
-  }
+  def hardLink(path: Path): Try[Unit] =
+    Try(Files.createLink(javaPath, path.javaPath)).map { _ => () }.recoverWith {
+      case ex: java.nio.file.NoSuchFileException => copyTo(path).map { _ => () }
+    }
 
   def touch(): Try[Unit] = Try {
     if(!exists()) new java.io.FileOutputStream(javaFile).close()
@@ -132,9 +133,12 @@ case class Path(input: String) {
 
   def isExecutable: Boolean = Files.isExecutable(javaPath)
 
-  def setExecutable(exec: Boolean): Try[Unit] = Try(javaFile.setExecutable(exec)).flatMap{
-    case true => Success()
-    case false => Failure(new IllegalStateException(s"Could not ${if (exec) "set" else "unset"} execution permission for ${value}"))
+  def setExecutable(exec: Boolean): Try[Unit] = Try(javaFile.setExecutable(exec)).flatMap {
+    case true =>
+      Success()
+    case false =>
+      Failure(new IllegalStateException(
+          s"Could not ${if (exec) "set" else "unset"} execution permission for ${value}"))
   }
 
   def resolve(rel: Path) = Path(javaPath.resolve(rel.javaPath))

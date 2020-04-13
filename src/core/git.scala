@@ -28,7 +28,8 @@ import java.util.UUID
 import java.util.jar.{JarFile, Manifest => JManifest}
 import java.util.zip.ZipFile
 import java.io._
-import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry, ZipArchiveOutputStream}
+import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry,
+    ZipArchiveOutputStream}
 import java.util.zip.ZipInputStream
 
 object Cached {

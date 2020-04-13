@@ -321,7 +321,9 @@ object TargetId {
   implicit val uriParser: Parser[TargetId] = parse(_)
 
   private[this] def parse(bspUri: String): Option[TargetId] = {
-    val uriQuery = new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
+    val uriQuery =
+      new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
+    
     uriQuery.get("id").map(TargetId(_))
   }
 
@@ -645,7 +647,8 @@ object BinaryId {
   implicit val parser: Parser[BinaryId] = unapply(_)
   implicit val keyName: KeyName[BinaryId] = () => msg"binary"
   
-  def unapply(name: String): Option[BinaryId] = name.only { case r"[a-z]([_\-\.]?[a-z0-9]+)*" => BinaryId(name) }
+  def unapply(name: String): Option[BinaryId] =
+    name.only { case r"[a-z]([_\-\.]?[a-z0-9]+)*" => BinaryId(name) }
 }
 
 case class BinaryId(key: String) extends Key("binary")

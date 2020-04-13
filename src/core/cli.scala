@@ -199,11 +199,15 @@ class Cli(val stdout: java.io.PrintWriter,
     Cli(stdout, ParamMap((str :: args.args.to[List]): _*), command, optCompletions, env, pid)
   
   def tail: Cli { type Hinted <: cli.Hinted } = {
-    val newArgs = if(args.headOption.map(_.length) == Some(2)) ParamMap(args.args.head.tail +: args.args.tail: _*) else args.tail
+    
+    val newArgs = if(args.headOption.map(_.length) == Some(2)) ParamMap(args.args.head.tail +:
+        args.args.tail: _*) else args.tail
+    
     Cli(stdout, newArgs, command, optCompletions, env, pid)
   }
   
-  def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] = Success(args(param.param).toOption)
+  def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] =
+    Success(args(param.param).toOption)
 
   def abort(msg: UserMsg)(implicit log: Log): ExitStatus = {
     if(!completion){

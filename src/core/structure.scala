@@ -99,10 +99,11 @@ case class Menu(
     val width      = 12
     shownItems.sortBy { case _: Action => 0; case _ => 1 }.flatMap {
       case item: Action =>
-        List(msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme))
+        List(msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(
+            theme))
       case item: Menu =>
-        "" +: msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(theme) +:
-          item.reference.map("  " + _)
+        "" +: msg"  ${highlight(item.command.name.padTo(width, ' '),
+            item.shortcut)} ${item.description}".string(theme) +: item.reference.map("  " + _)
     }
   }
 }

@@ -39,7 +39,10 @@ object Args {
   val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
-  val IgnoreErrorsArg = CliParam[Unit]('I', Symbol("ignore-errors"), "ignore compilation errors and launch the console anyway")
+  
+  val IgnoreErrorsArg = CliParam[Unit]('I', Symbol("ignore-errors"),
+      "ignore compilation errors and launch the console anyway")
+  
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")

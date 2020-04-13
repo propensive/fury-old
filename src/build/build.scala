@@ -243,7 +243,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layer   <- Layer.retrieve(conf)
     project <- layer.mainProject
     module  <- ~project.flatMap(_.main)
-    _       <- ~log.raw(Prompt.rewrite(conf.focus(project.fold(ProjectId("?"))(_.id), module.getOrElse(ModuleId("?"))).string(ManagedConfig().theme)))
+
+    _       <- ~log.raw(Prompt.rewrite(conf.focus(project.fold(ProjectId("?"))(_.id), module.getOrElse(
+                   ModuleId("?"))).string(ManagedConfig().theme)))
+
   } yield log.await()
 
   def clean: Try[ExitStatus] = for {
@@ -302,32 +305,37 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     moduleId       <- moduleRef.map(~_.moduleId).getOrElse(cli.preview(ModuleArg)(project.main))
     module         <- project.modules.findBy(moduleId)
     pipelining     <- ~call(PipeliningArg).toOption
-    fatJar         =  call(FatJarArg).isSuccess
+    fatJar          = call(FatJarArg).isSuccess
     globalPolicy   <- ~Policy.read(log)
     reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
-    watch          =  call(WatchArg).isSuccess
-    waiting        =  call(WaitArg).isSuccess
+    watch           = call(WatchArg).isSuccess
+    waiting         = call(WaitArg).isSuccess
     _              <- Inotify.check(watch || waiting)
-    noSecurity     =  call(NoSecurityArg).isSuccess
+    noSecurity      = call(NoSecurityArg).isSuccess
     _              <- onlyOne(watch, waiting)
     compilation    <- Compilation.syncCompilation(layer, module.ref(project), layout, https, noSecurity)
-    r              =  repeater(compilation.allSources, waiting) {
-      for {
-        task <- compileOnce(compilation, layer, module.ref(project), layout,
-          globalPolicy, if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme, https, noSecurity)
-      } yield {
-        task.transform { completed =>
-          for {
-            compileResult  <- completed
-            compileSuccess <- compileResult.asTry
-            _              <- (dir.map { dir => compilation.saveJars(module.ref(project),
-                                  compileSuccess.classDirectories, dir in layout.pwd, layout, fatJar)
-                              }).getOrElse(Success(()))
-          } yield compileSuccess
-        }
-      }
-    }
-    future        <- if(watch || waiting) Try(r.start()).flatten else r.action()
+
+    r               = repeater(compilation.allSources, waiting) {
+                        for {
+                          task <- compileOnce(compilation, layer, module.ref(project), layout, globalPolicy,
+                                      if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
+                                      ManagedConfig().pipelining), reporter, ManagedConfig().theme, https,
+                                      noSecurity)
+                        } yield {
+                          task.transform { completed =>
+                            for {
+                              compileResult  <- completed
+                              compileSuccess <- compileResult.asTry
+                              _              <- (dir.map { dir => compilation.saveJars(module.ref(project),
+                                                    compileSuccess.classDirectories, dir in layout.pwd, layout,
+                                                    fatJar)
+                                                }).getOrElse(Success(()))
+                            } yield compileSuccess
+                          }
+                        }
+                      }
+
+    future         <- if(watch || waiting) Try(r.start()).flatten else r.action()
   } yield log.await(Await.result(future, duration.Duration.Inf).isSuccessful)
 
   private def repeater(sources: Set[Path], onceOnly: Boolean)
@@ -419,7 +427,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 
     result       <- Try(Try(Await.result(result, Duration.Inf)))
     _            <- if(force) {
-                      if(result.isFailure) log.warn(msg"Errors occurred during compilation; launching console with an incomplete classpath")
+                      if(result.isFailure) log.warn(msg"Errors occurred during compilation; launching console "+
+                          msg"with an incomplete classpath")
                       Success(())
                     } else result
     classpath    <- ~compilation.classpath(module.ref(project), layout)
@@ -427,7 +436,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   } yield {
     val cp = classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
-    cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp -Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true scala.tools.nsc.MainGenericRunner""")
+    cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
+        str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true """+
+        str"""scala.tools.nsc.MainGenericRunner""")
   }
 
   def classpath: Try[ExitStatus] = for {
@@ -621,7 +632,9 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                          conf.published.fold(0)(_.version.minor), token)
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
                        log.info(msg"Shared layer at ${IpfsRef(ref.key)}")
-                       ~log.info(msg"Published version ${pub.version}${if(public) " " else " privately "}to ${pub.url}")
+                       
+                       ~log.info(msg"Published version ${pub.version}${if(public) " " else
+                           " privately "}to ${pub.url}")
                      }
     _             <- Layer.saveFuryConf(FuryConf(ref, ImportPath.Root, Some(pub)), layout)
   } yield log.await()
@@ -701,7 +714,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     call   <- cli.call()
     col    <- ~cli.peek(ColumnArg)
     raw    <- ~call(RawArg).isSuccess
-    other  <- call(ImportArg).orElse(conf.published.map { layer => IpfsRef(layer.layerRef.key) }.ascribe(NoOtherLayer()))
+                  
+    other  <- call(ImportArg).orElse(conf.published.map { layer => IpfsRef(layer.layerRef.key) }.ascribe(
+                  NoOtherLayer()))
+
     other  <- Layer.resolve(other)
     other  <- Layer.get(other, None)
     rows   <- ~Diff.gen[Layer].diff(layer.copy(previous = None), other.copy(previous = None))

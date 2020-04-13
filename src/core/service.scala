@@ -131,14 +131,22 @@ object Service {
 
 sealed abstract class ServiceException(msg: String) extends Exception(msg) with Product with Serializable
 
-case class GithubUserDetailsError(code: Int) extends ServiceException("Could not fetch the information about the user due to HTTP error code $code")
+case class GithubUserDetailsError(code: Int) extends ServiceException(
+    str"Could not fetch the information about the user due to HTTP error code $code")
+
 case class PinataAddHashFailure() extends ServiceException("Could not pin the hash to IPFS service")
 case class PinataPinFailure() extends ServiceException("Could not pin the file to IPFS service")
-case class InvalidPrefix(prefix: String) extends ServiceException(s"The name prefix $prefix is not yours")
-case class InvalidNameFormat(name: String) extends ServiceException(s"The name $name is not in the right format")
+case class InvalidPrefix(prefix: String) extends ServiceException(str"The name prefix $prefix is not yours")
+
+case class InvalidNameFormat(name: String) extends ServiceException(
+    str"The name $name is not in the right format")
+
 case class InvalidVersion() extends ServiceException(s"The version number is not valid")
 case class UnexpectedError(msg: String) extends ServiceException(msg)
 case class InputError() extends ServiceException("The input data was not in the correct format")
-case class ThirdPartyError() extends ServiceException("There was an invalid interaction with a third-party service")
+
+case class ThirdPartyError() extends ServiceException(
+    "There was an invalid interaction with a third-party service")
+
 case class MissingParam(param: String) extends ServiceException("The parameter $param was missing")
 case class NameNotFound() extends ServiceException("A public layer with that name was not found")

@@ -54,7 +54,10 @@ object Zipper {
     }
   }
 
-  def pack(zip: ZipFile, creator: ParallelScatterZipCreator)(filter: ZipEntry => Boolean = _ => true): Try[Unit] = Try {
+  def pack(zip: ZipFile, creator: ParallelScatterZipCreator)
+          (filter: ZipEntry => Boolean = _ => true)
+          : Try[Unit] = Try {
+
     zip.entries.asScala.to[List].sortBy(_.getName).filter(filter).foreach { case entry =>
       val za = createZipArchiveEntry(entry.getName)
       val iss = new InputStreamSupplier() { override def get: InputStream = zip.getInputStream(entry) }
