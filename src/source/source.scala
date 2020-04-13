@@ -39,25 +39,28 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     
-    optModule    =  (for {
+    optModule     = (for {
                       project  <- optProject
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module)
 
-    cli     <- cli.hint(RawArg)
-    table   <- ~Tables().sources
-    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    cli     <- cli.hint(SourceArg, optModule.map(_.sources).getOrElse(Nil))
-    call    <- cli.call()
-    source  <- ~cli.peek(SourceArg)
-    col     <- ~cli.peek(ColumnArg)
-    raw     <- ~call(RawArg).isSuccess
-    project <- optProject.asTry
-    module  <- optModule.asTry
-    rows    <- ~module.sources.to[List]
-    table   <- ~Tables().show(table, cli.cols, rows, raw, col, source, "repo")
-    _       <- ~log.info(conf.focus(project.id, module.id))
-    _       <- ~log.rawln(table)
+    cli          <- cli.hint(RawArg)
+    cli          <- cli.hint(ColumnArg, List("repo", "path", "sources", "files", "size", "lines"))
+    cli          <- cli.hint(SourceArg, optModule.map(_.sources).getOrElse(Nil))
+    call         <- cli.call()
+    source       <- ~cli.peek(SourceArg)
+    col          <- ~cli.peek(ColumnArg)
+    raw          <- ~call(RawArg).isSuccess
+    project      <- optProject.asTry
+    module       <- optModule.asTry
+    hierarchy    <- layer.hierarchy
+    universe     <- hierarchy.universe
+    checkouts    <- universe.checkout(module.ref(project), layout)
+    table        <- ~Tables().sources(checkouts, layout)
+    rows         <- ~module.sources.to[List]
+    table        <- ~Tables().show(table, cli.cols, rows, raw, col, source, "repo")
+    _            <- ~log.info(conf.focus(project.id, module.id))
+    _            <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
