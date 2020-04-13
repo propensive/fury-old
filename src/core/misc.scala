@@ -26,7 +26,6 @@ import scala.util._
 
 import java.net.URI
 
-
 case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
 
 case class Entity(project: Project, layer: Layer) {
@@ -36,28 +35,23 @@ case class Entity(project: Project, layer: Layer) {
   }
 }
 
-object Counter {
-  private var count: Int = 0
-  def next(): Int = {
-    count += 1
-    count
-  }
-}
-
 sealed trait CompileEvent
-case object Tick                                                 extends CompileEvent
+case object Tick extends CompileEvent
 sealed trait ModuleCompileEvent extends CompileEvent { val ref: ModuleRef }
-case class StartCompile(ref: ModuleRef)                          extends ModuleCompileEvent
+case class StartCompile(ref: ModuleRef) extends ModuleCompileEvent
 case class CompilationProgress(ref: ModuleRef, progress: Double) extends ModuleCompileEvent
-case class StopCompile(ref: ModuleRef, success: Boolean)         extends ModuleCompileEvent
-case class NoCompile(ref: ModuleRef)                             extends ModuleCompileEvent
-case class SkipCompile(ref: ModuleRef)                           extends ModuleCompileEvent
-case class Print(ref: ModuleRef, line: String)                   extends ModuleCompileEvent
-case class StartRun(ref: ModuleRef)                              extends ModuleCompileEvent
-case class StopRun(ref: ModuleRef)                               extends ModuleCompileEvent
+case class StopCompile(ref: ModuleRef, success: Boolean) extends ModuleCompileEvent
+case class NoCompile(ref: ModuleRef) extends ModuleCompileEvent
+case class SkipCompile(ref: ModuleRef) extends ModuleCompileEvent
+case class Print(ref: ModuleRef, line: String) extends ModuleCompileEvent
+case class StartRun(ref: ModuleRef) extends ModuleCompileEvent
+case class StopRun(ref: ModuleRef) extends ModuleCompileEvent
 case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends ModuleCompileEvent
 
-case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: ScalacOptionsResult, exitCode: Option[Int] = None) {
+case class CompileResult(bspCompileResult: BspCompileResult,
+                         scalacOptions: ScalacOptionsResult,
+                         exitCode: Option[Int] = None) {
+
   def isSuccessful: Boolean = bspCompileResult.getStatusCode == StatusCode.OK && exitCode.forall(_ == 0)
 
   def classDirectories: Set[Path] = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
@@ -71,7 +65,10 @@ case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: Scal
   def asBsp: BspCompileResult = {
     println(bspCompileResult)
     println(exitCode)
-    val bspResult = new BspCompileResult(if(exitCode.exists(_ != 0)) StatusCode.ERROR else bspCompileResult.getStatusCode)
+    
+    val bspResult = new BspCompileResult(if(exitCode.exists(_ != 0)) StatusCode.ERROR else
+        bspCompileResult.getStatusCode)
+    
     bspResult.setOriginId(bspCompileResult.getOriginId)
     bspResult.setDataKind(bspCompileResult.getDataKind)
     bspResult.setData(bspCompileResult.getData)
@@ -81,7 +78,8 @@ case class CompileResult(bspCompileResult: BspCompileResult, scalacOptions: Scal
 
 object CompileResult {
   def merge(results: Iterable[CompileResult]): CompileResult = {
-    CompileResult(merge(results.map(_.bspCompileResult)), merge(results.map(_.scalacOptions)), merge(results.map(_.exitCode)))
+    CompileResult(merge(results.map(_.bspCompileResult)), merge(results.map(_.scalacOptions)),
+        merge(results.map(_.exitCode)))
   }
 
   private def merge(results: Iterable[BspCompileResult]): BspCompileResult = {

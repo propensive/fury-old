@@ -103,8 +103,8 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     module         <- ~call(MainArg).toOption.fold(module) { m => module.copy(main = if(m.key.isEmpty) None else
                           Some(m)) }
 
-    module         <- ~call(PluginArg).toOption.fold(module) { p => module.copy(plugin = if(p.key.isEmpty) None else
-                          Some(p)) }
+    module         <- ~call(PluginArg).toOption.fold(module) { p => module.copy(plugin = if(p.key.isEmpty) None
+                          else Some(p)) }
 
     layer          <- ~Layer(_.projects(project.id).modules).modify(layer)(_ + module)
     layer          <- ~(Layer(_.projects(project.id).main)(layer) = Some(module.id))
@@ -121,7 +121,9 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     _              <- ~log.info(msg"Set current module to ${module.id}")
   } yield log.await()
 
-  private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, reference: String)(implicit log: Log): Try[ModuleRef] = for {
+  private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, reference: String)
+                               (implicit log: Log)
+                               : Try[ModuleRef] = for {
     project            <- optProject.asTry
     moduleRef          <- ModuleRef.parse(project.id, reference, true).ascribe(InvalidValue(reference))
     availableCompilers  = layer.compilerRefs(layout, https = true) :+ ModuleRef.JavaRef
@@ -192,11 +194,20 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     bloopSpec   <- cli.peek(BloopSpecArg).to[List].map(_.as[BloopSpec]).sequence.map(_.headOption)
     
     layer       <- ~optKind.fold(layer)(Layer(_.projects(project.id).modules(module.id).kind)(layer) = _)
-    layer       <- ~compilerRef.fold(layer)(Layer(_.projects(project.id).modules(module.id).compiler)(layer) = _)
+
+    layer       <- ~compilerRef.fold(layer)(Layer(_.projects(project.id).modules(module.id).compiler)(layer) =
+                       _)
+
     layer       <- ~hidden.fold(layer)(Layer(_.projects(project.id).modules(module.id).hidden)(layer) = _)
-    layer       <- ~bloopSpec.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).bloopSpec)(layer) = _)
-    layer       <- ~mainClass.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).main)(layer) = _)
-    layer       <- ~pluginName.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).plugin)(layer) = _)
+    
+    layer       <- ~bloopSpec.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(
+                       module.id).bloopSpec)(layer) = _)
+
+    layer       <- ~mainClass.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).main)(
+                       layer) = _)
+
+    layer       <- ~pluginName.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).plugin)(
+                       layer) = _)
 
     layer       <- if(newId.isEmpty || project.main != Some(module.id)) ~layer
                    else ~(Layer(_.projects(project.id).main)(layer) = newId)
@@ -297,7 +308,10 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    binSpecs     <- ~cli.peek(PartialBinSpecArg).to[Set].flatMap(MavenCentral.search(_).toOption.to[Set].flatten)
+    
+    binSpecs     <- ~cli.peek(PartialBinSpecArg).to[Set].flatMap(
+                        MavenCentral.search(_).toOption.to[Set].flatten)
+
     cli          <- cli.hint(BinSpecArg, binSpecs)
     cli          <- cli.hint(ProjectArg, layer.projects)
     optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
@@ -307,16 +321,16 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(BinaryNameArg)
     cli          <- cli.hint(BinaryRepoArg, List(RepoId("central")))
     call         <- cli.call()
-    project    <- optProject.asTry
-    module     <- project.modules.findBy(moduleId)
-    binSpecArg <- call(BinSpecArg)
-    binName    <- ~call(BinaryNameArg).toOption
-    repoId     <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
-    binary     <- Binary(binName, repoId, binSpecArg)
-    _          <- module.binaries.unique(binary.id)
-    layer       <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
-    _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
+    project      <- optProject.asTry
+    module       <- project.modules.findBy(moduleId)
+    binSpecArg   <- call(BinSpecArg)
+    binName      <- ~call(BinaryNameArg).toOption
+    repoId       <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
+    binary       <- Binary(binName, repoId, binSpecArg)
+    _            <- module.binaries.unique(binary.id)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
+    _            <- Layer.commit(layer, conf, layout)
+    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 }
 
@@ -328,31 +342,31 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, layer.projects)
     optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
     optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    optModule     = (for {
+                      project <- optProject
+                      module  <- project.modules.findBy(moduleId).toOption
+                    } yield module)
 
-    cli         <- cli.hint(RawArg)
-    table       <- ~Tables().opts
-    cli         <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    cli         <- cli.hint(OptArg, optModule.map(_.opts).getOrElse(Nil))
-    call        <- cli.call()
-    opt         <- ~cli.peek(OptArg)
-    col         <- ~cli.peek(ColumnArg)
-    raw         <- ~call(RawArg).isSuccess
-    project     <- optProject.asTry
-    module      <- optModule.asTry
-    compiler    <- ~module.compiler
-    compilation <- Compilation.syncCompilation(layer, module.ref(project), layout, true, false)
-    rows        <- compilation.aggregatedOpts(module.ref(project), layout)
-    showRows    <- ~rows.to[List].filter(_.compiler == compiler)
-    _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    table       <- ~Tables().show(table, cli.cols, showRows, raw, col, opt, "param")
-    _           <- ~log.rawln(table)
+    cli          <- cli.hint(RawArg)
+    table        <- ~Tables().opts
+    cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli          <- cli.hint(OptArg, optModule.map(_.opts).getOrElse(Nil))
+    call         <- cli.call()
+    opt          <- ~cli.peek(OptArg)
+    col          <- ~cli.peek(ColumnArg)
+    raw          <- ~call(RawArg).isSuccess
+    project      <- optProject.asTry
+    module       <- optModule.asTry
+    compiler     <- ~module.compiler
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, true, false)
+    rows         <- compilation.aggregatedOpts(module.ref(project), layout)
+    showRows     <- ~rows.to[List].filter(_.compiler == compiler)
+    _            <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
+    table        <- ~Tables().show(table, cli.cols, showRows, raw, col, opt, "param")
+    _            <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -378,11 +392,12 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     project  <- optProject.asTry
     module   <- optModule.asTry
     opt      <- ~module.opts.find(_.id == paramArg)
-    base     <- ~Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ + Opt(paramArg, persist, true))
+
+    base     <- ~Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ + Opt(paramArg, persist,
+                    true))
     
     layer    <- ~opt.fold(base) { optToDel =>
-                  Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ - optToDel)
-                }
+                    Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ - optToDel) }
 
     _        <- Layer.commit(layer, conf, layout)
     _        <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
@@ -395,28 +410,28 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, layer.projects)
     optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
     optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
     optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+                      project  <- optProject
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module)
 
-    cli         <- cli.hint(OptArg)
-    cli         <- cli.hint(DescriptionArg)
-    cli         <- cli.hint(TransformArg)
-    cli         <- cli.hint(PersistentArg)
-    call        <- cli.call()
-    option      <- call(OptArg)
-    module      <- optModule.asTry
-    project     <- optProject.asTry
-    description <- ~call(DescriptionArg).getOrElse("")
-    persist     <- ~call(PersistentArg).isSuccess
-    transform   <- ~call.suffix
-    optDef      <- ~OptDef(option, description, transform, persist)
-    layer       <- ~Layer(_.projects(project.id).modules(module.id).optDefs).modify(layer)(_ + optDef)
-    _           <- Layer.commit(layer, conf, layout)
+    cli          <- cli.hint(OptArg)
+    cli          <- cli.hint(DescriptionArg)
+    cli          <- cli.hint(TransformArg)
+    cli          <- cli.hint(PersistentArg)
+    call         <- cli.call()
+    option       <- call(OptArg)
+    module       <- optModule.asTry
+    project      <- optProject.asTry
+    description  <- ~call(DescriptionArg).getOrElse("")
+    persist      <- ~call(PersistentArg).isSuccess
+    transform    <- ~call.suffix
+    optDef       <- ~OptDef(option, description, transform, persist)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).optDefs).modify(layer)(_ + optDef)
+    _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def undefine: Try[ExitStatus] = for {
@@ -426,13 +441,13 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ProjectArg, layer.projects)
     optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
     optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    optModule     = (for {
+                      project  <- optProject
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module)
 
     cli         <- cli.hint(OptArg)
     call        <- cli.call()

@@ -85,7 +85,11 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path,
-      compilation: Compilation, targetId: TargetId, layout: Layout, trace: Option[Path] = None)(implicit log: Log): Future[Connection] =
+                      compilation: Compilation,
+                      targetId: TargetId,
+                      layout: Layout,
+                      trace: Option[Path] = None)
+                     (implicit log: Log): Future[Connection] =
     singleTasking { promise =>
 
       val traceOut = trace.map{ path => new FileOutputStream(path.javaFile, true) }
@@ -169,23 +173,28 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, compilation: Compilation, targetId: TargetId, layout: Layout)(fn: Connection => T)(implicit log: Log): Try[T] = {
+  def borrow[T](dir: Path, compilation: Compilation, targetId: TargetId, layout: Layout)
+               (fn: Connection => T)
+               (implicit log: Log)
+               : Try[T] = {
+
     val conn = BloopServer.synchronized {
       connections.get(dir)
-    }.getOrElse{
+    }.getOrElse {
       val tracePath: Option[Path] = if(ManagedConfig().trace) {
         Some(layout.logsDir / str"${java.time.LocalDateTime.now().toString}.log")
       } else None
-      val newConnection = Await.result(connect(dir, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+      
+      val newConnection =
+        Await.result(connect(dir, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+      
       connections += dir -> newConnection
       newConnection
     }
 
     Try {
       acquire(Lifecycle.currentSession, conn)
-      conn.synchronized{
-        fn(conn)
-      }
+      conn.synchronized(fn(conn))
     }
   }
   
@@ -232,7 +241,8 @@ object Compilation {
   def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Compilation] = {
     import universe._
 
-    def directDependencies(target: Target): Set[TargetId] = (target.dependencies ++ target.compiler.map(_.id)).to[Set]
+    def directDependencies(target: Target): Set[TargetId] =
+      (target.dependencies ++ target.compiler.map(_.id)).to[Set]
 
     def graph(target: Target): Try[Target.Graph] = for {
       requiredModules <- dependencies(ref, layout)
@@ -242,21 +252,31 @@ object Compilation {
       Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
     }
 
-    def canAffectBuild(target: Target): Boolean = Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.kind)
+    def canAffectBuild(target: Target): Boolean =
+      Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.kind)
 
     for {
       target              <- makeTarget(ref, layout)
       graph               <- graph(target)
-      targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref, layout).map(t => targetId -> t) }
+      
+      targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref,
+                                 layout).map(t => targetId -> t) }
+
       requiredTargets     =  targetIndex.unzip._2.toSet
-      requiredPermissions =  (if(target.kind.needsExecution) requiredTargets else requiredTargets - target).flatMap(_.permissions)
+      
+      requiredPermissions =  (if(target.kind.needsExecution) requiredTargets else requiredTargets -
+                                 target).flatMap(_.permissions)
+
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
-      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] + TargetId(ref)).connections
+      
+      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
+          TargetId(ref)).connections
+      
       Compilation(target, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
-        moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
+          moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
   }
 
@@ -378,7 +398,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
       broadcast(DiagnosticMsg(
         targetId.ref,
         CompilerDiagnostic(
-          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum + 1).toString}
+          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum +
+              1).toString}
 ${'|'} ${UserMsg(
             theme =>
               diag.getMessage.split("\n").to[List].map(theme.gray(_)).join(msg"""
@@ -582,11 +603,15 @@ case class Compilation(target: Target,
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       resources        <- aggregatedResources(ref)
       _                <- resources.traverse(_.copyTo(checkouts, layout, stagingDirectory))
-      _                <- Shell(layout.env).jar(path, if(fatJar) bins else Set.empty, stagingDirectory.children.map(stagingDirectory / _).to[Set],
-        manifest)
+      
+      _                <- Shell(layout.env).jar(path, if(fatJar) bins else Set.empty,
+                              stagingDirectory.children.map(stagingDirectory / _).to[Set], manifest)
+
       _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
+
       _                 = if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
-                          else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
+                          else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
+                              ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
 
     } yield ()
   }

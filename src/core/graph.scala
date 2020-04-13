@@ -107,7 +107,9 @@ object UiGraph {
             log.raw("\n")
             log.raw(Ansi.up(graph.size + 1)())
             log.raw("\n")
-            val completion = graphState.compilationLogs.values.map(_.state.completion).sum/graphState.compilationLogs.size
+            
+            val completion =
+              graphState.compilationLogs.values.map(_.state.completion).sum/graphState.compilationLogs.size
             
             val current = graphState.compilationLogs.collect { case (r, s) if s.state.isInstanceOf[Compiling] =>
                 str"${r.string}" }.to[List].sorted.join(", ")
@@ -125,9 +127,12 @@ object UiGraph {
         case StartCompile(ref) =>
           graphState.updateCompilationLog(ref, _.progress(0))
         case DiagnosticMsg(ref, msg) =>
-          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.msgs).modify(_)(_ :+ msg)).copy(changed = false)
+          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.msgs).modify(_)(_ :+ msg)).copy(changed =
+              false)
         case NoCompile(ref) =>
-          val newState = compilationLogs.getOrElse(ref, CompilationInfo(state = AlreadyCompiled, msgs = List.empty))
+          val newState = compilationLogs.getOrElse(ref, CompilationInfo(state = AlreadyCompiled, msgs =
+              List.empty))
+
           graphState.updateCompilationLog(ref, newState.waive)
         case StopCompile(ref, success) =>
           val msgs = compilationLogs(ref).msgs

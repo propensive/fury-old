@@ -27,7 +27,6 @@ import Args._
 import scala.util._
 import scala.collection.immutable._
 
-
 case class SourceCli(cli: Cli)(implicit log: Log) {
   def list: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -39,25 +38,25 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     
-    optModule    =  (for {
+    optModule     = (for {
                       project  <- optProject
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module)
 
-    cli     <- cli.hint(RawArg)
-    table   <- ~Tables().sources
-    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    cli     <- cli.hint(SourceArg, optModule.map(_.sources).getOrElse(Nil))
-    call    <- cli.call()
-    source  <- ~cli.peek(SourceArg)
-    col     <- ~cli.peek(ColumnArg)
-    raw     <- ~call(RawArg).isSuccess
-    project <- optProject.asTry
-    module  <- optModule.asTry
-    rows    <- ~module.sources.to[List]
-    table   <- ~Tables().show(table, cli.cols, rows, raw, col, source, "repo")
-    _       <- ~log.info(conf.focus(project.id, module.id))
-    _       <- ~log.rawln(table)
+    cli          <- cli.hint(RawArg)
+    table        <- ~Tables().sources
+    cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli          <- cli.hint(SourceArg, optModule.map(_.sources).getOrElse(Nil))
+    call         <- cli.call()
+    source       <- ~cli.peek(SourceArg)
+    col          <- ~cli.peek(ColumnArg)
+    raw          <- ~call(RawArg).isSuccess
+    project      <- optProject.asTry
+    module       <- optModule.asTry
+    rows         <- ~module.sources.to[List]
+    table        <- ~Tables().show(table, cli.cols, rows, raw, col, source, "repo")
+    _            <- ~log.info(conf.focus(project.id, module.id))
+    _            <- ~log.rawln(table)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -70,20 +69,23 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    optModule     = (for {
+                      project  <- optProject
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module)
 
-    cli         <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources).map(_.completion))
-    call        <- cli.call()
-    source      <- call(SourceArg)
-    project     <- optProject.asTry
-    module      <- optModule.asTry
-    _           <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project))) else Success(())
-    layer       <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
-    _           <- Layer.commit(layer, conf, layout)
-    _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
+    cli          <- cli.hint(SourceArg, optModule.to[List].flatMap(_.sources).map(_.completion))
+    call         <- cli.call()
+    source       <- call(SourceArg)
+    project      <- optProject.asTry
+    module       <- optModule.asTry
+    
+    _            <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project)))
+                        else Success(())
+
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
+    _            <- Layer.commit(layer, conf, layout)
+    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -96,38 +98,42 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    optModule     = (for {
+                      project  <- optProject
+                      module   <- project.modules.findBy(moduleId).toOption
+                    } yield module)
 
-    extSrcs    =  optProject.to[List].flatMap { project => layer.repos.map(possibleSourceDirectories(_, layout)) }.flatten
+    extSrcs       = optProject.to[List].flatMap { project =>
+                        layer.repos.map(possibleSourceDirectories(_, layout)) }.flatten
     
-    compiler   <- ~optModule.map(_.compiler).getOrElse(ModuleRef.JavaRef)
+    compiler     <- ~optModule.map(_.compiler).getOrElse(ModuleRef.JavaRef)
 
-    localSrcs  <- ~layout.pwd.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(".java")
-                      }.map(LocalSource(_, Glob.All))
+    localSrcs    <- ~layout.pwd.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(".java")
+                        }.map(LocalSource(_, Glob.All))
 
-    sharedSrcs <- ~layout.sharedDir.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(
-                      ".java") }.map(SharedSource(_, Glob.All))
+    sharedSrcs   <- ~layout.sharedDir.relativeSubdirsContaining { n => n.endsWith(".scala") || n.endsWith(
+                        ".java") }.map(SharedSource(_, Glob.All))
 
-    cli        <- cli.hint(SourceArg, (extSrcs ++ localSrcs ++ sharedSrcs).map(_.completion))
-    call       <- cli.call()
-    project    <- optProject.asTry
-    module     <- optModule.asTry
-    source     <- call(SourceArg)
-    localId    <- ~Repo.local(layout).toOption.flatMap { r =>
-                    layer.repos.find(_.repo.simplified == r.simplified).map(_.id)
-                  }
-    source     <- ~Source.rewriteLocal(source, localId)
-    layer      <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))
-    _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
+    cli          <- cli.hint(SourceArg, (extSrcs ++ localSrcs ++ sharedSrcs).map(_.completion))
+    call         <- cli.call()
+    project      <- optProject.asTry
+    module       <- optModule.asTry
+    source       <- call(SourceArg)
+
+    localId      <- ~Repo.local(layout).toOption.flatMap { r =>
+                        layer.repos.find(_.repo.simplified == r.simplified).map(_.id) }
+
+    source       <- ~Source.rewriteLocal(source, localId)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))
+    _            <- Layer.commit(layer, conf, layout)
+    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
   } yield log.await()
 
   private[this] def possibleSourceDirectories(sourceRepo: SourceRepo, layout: Layout) = {
     val sourceFileExtensions = Seq(".scala", ".java")
-    sourceRepo.sourceCandidates(layout, false)(n => sourceFileExtensions.exists(n.endsWith)).getOrElse(Set.empty)
+    
+    sourceRepo.sourceCandidates(layout, false) { n => sourceFileExtensions.exists(n.endsWith)
+        }.getOrElse(Set.empty)
   }
 }
 

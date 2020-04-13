@@ -121,7 +121,10 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     intransitive     <- ~call(IntransitiveArg).isSuccess
     linkArg          <- call(LinkArg)
     moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
-    layer            <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + moduleRef)
+
+    layer            <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ +
+                            moduleRef)
+    
     _                <- Layer.commit(layer, conf, layout)
     _                <- ~Compilation.asyncCompilation(layer, moduleRef, layout, false)
   } yield log.await()
@@ -282,7 +285,10 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
     permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
     force         =  call(ForceArg).isSuccess
-    layer         <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_.diff(permissions.to[Set]))
+                         
+    layer         <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_.diff(
+                         permissions.to[Set]))
+
     _             <- Layer.commit(layer, conf, layout)
   } yield log.await()
   
@@ -310,7 +316,10 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     project       <- optProject.asTry
     module        <- optModule.asTry
     rows          <- ~module.policyEntries.to[List].sortBy(_.hash.key)
-    table         <- ~Tables().show[PermissionEntry, PermissionEntry](table, cli.cols, rows, raw, col, None, "hash")
+                         
+    table         <- ~Tables().show[PermissionEntry, PermissionEntry](table, cli.cols, rows, raw, col, None,
+                         "hash")
+
     _             <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _             <- ~log.rawln(table)
   } yield log.await()

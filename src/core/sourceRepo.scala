@@ -49,7 +49,9 @@ object SourceRepo {
 case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
     dir   <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
-    files <- localDir(layout).fold(GitDir(dir)(layout.env).lsTree(commit))(Success(dir.children.map(Path(_))).waive)
+    
+    files <- localDir(layout).fold(GitDir(dir)(layout.env).lsTree(commit))(Success(
+                 dir.children.map(Path(_))).waive)
   } yield files
 
   def tracking(layout: Layout)(implicit log: Log): Option[RefSpec] =

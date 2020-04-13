@@ -70,17 +70,26 @@ object InterleavingReporter extends Reporter("interleaving") {
             : Unit = {
     val interleaver = new Interleaver(3000L)
     multiplexer.stream(50, Some(Tick)).foreach {
-      case StartCompile(ref)                           => interleaver.println(ref, msg"Starting compilation of module $ref", false)
-      case StopCompile(ref, true)                      => interleaver.println(ref, msg"Successfully compiled module $ref", false)
-      case StopRun(ref)                                => interleaver.terminate(ref)
-      case StartRun(ref)                               => ()
-      case StopCompile(ref, false)                     => interleaver.println(ref, msg"Compilation of module $ref failed", false)
-      case DiagnosticMsg(ref, message)                 => interleaver.println(ref, message.msg, false)
-      case Print(ref, line)                            => interleaver.println(ref, UserMsg { theme =>
-                                                            theme.gray(escritoire.Ansi.strip(line))
-                                                          }, false)
-      case Tick                                        => interleaver.tick()
-      case other                                       => ()
+
+      case StartCompile(ref)           => interleaver.println(ref, msg"Starting compilation of module $ref",
+                                              false)
+
+      case StopCompile(ref, true)      => interleaver.println(ref, msg"Successfully compiled module $ref",
+                                              false)
+
+      case StopRun(ref)                => interleaver.terminate(ref)
+      case StartRun(ref)               => ()
+
+      case StopCompile(ref, false)     => interleaver.println(ref, msg"Compilation of module $ref failed",
+                                              false)
+
+      case DiagnosticMsg(ref, message) => interleaver.println(ref, message.msg, false)
+
+      case Print(ref, line)            => interleaver.println(ref, UserMsg(_.gray(escritoire.Ansi.strip(line))),
+                                              false)
+
+      case Tick                        => interleaver.tick()
+      case other                       => ()
     }
   }
 }
