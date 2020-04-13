@@ -16,13 +16,15 @@
 */
 package fury
 
-import fury.ogdl.{OgdlParserTest, OgdlSerializerTest}
+import fury.ogdl.{OgdlParserTest, OgdlReaderTest, OgdlSerializerTest, OgdlWriterTest}
 import probably.TestApp
 
 object Tests {
   private val testSuites = List[TestApp](
       OgdlParserTest,
-      OgdlSerializerTest
+      OgdlSerializerTest,
+      OgdlWriterTest,
+      OgdlReaderTest
   )
 
   def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())

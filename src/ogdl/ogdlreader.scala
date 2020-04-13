@@ -63,13 +63,44 @@ object OgdlReader {
   implicit val theme: OgdlReader[Theme] = ogdl => Theme.unapply(ogdl()).getOrElse(Theme.Full)
 
   implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader: Index](
+  implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
+  ): OgdlReader[Coll[T]] = implicitly[Index[T]] match {
+      case fi@FieldIndex(_) => complexTraversable[Coll, T](implicitly[OgdlReader[T]], fi, cbf).read(_)
+      case si@SelfIndexed() => simpleTraversable[Coll, T](implicitly[OgdlReader[T]], si, cbf).read(_)
+    }
+
+  private def simpleTraversable[Coll[t] <: Traversable[t], T: OgdlReader: SelfIndexed](
       implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
     ): OgdlReader[Coll[T]] = {
-    case ogdl @ Ogdl(vector) =>
+    case Ogdl(vector) =>
+      if(vector.isEmpty) Vector[T]().to[Coll]
+      else {
+        vector.head match {
+          case (f, r) =>
+            val first = implicitly[OgdlReader[T]].read(Ogdl(f))
+            val rest = simpleTraversable[Coll, T].read(r)
+            (first +: rest.toSeq).to[Coll]
+        }
+      }
+  }
+
+  private def complexTraversable[Coll[t] <: Traversable[t], T: OgdlReader: FieldIndex](
+      implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
+    ): OgdlReader[Coll[T]] = {
+    case Ogdl(vector) =>
       if(vector.head._1 == "") Vector[T]().to[Coll]
       else
-        vector.map { v =>
-          val data: Ogdl = Ogdl((implicitly[Index[T]].index, Ogdl(v._1)) +: v._2.values)
+        vector.map { element =>
+          val index = implicitly[FieldIndex[T]]
+          val data: Ogdl = element match {
+            case ("kvp", kvp) =>
+              val key = Ogdl(Vector(index.field -> kvp.selectDynamic(index.field)))
+              val rest = kvp.selectDynamic("value")
+              Ogdl(key.values ++ rest.values)
+            case (single, rest) =>
+              val key = Ogdl(Vector(index.field -> Ogdl(Vector(single -> Ogdl(Vector())))))
+              Ogdl(key.values ++ rest.values)
+          }
           implicitly[OgdlReader[T]].read(data)
         }.to[Coll]
   }

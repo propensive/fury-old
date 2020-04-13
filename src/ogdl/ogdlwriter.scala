@@ -64,31 +64,56 @@ object OgdlWriter {
   implicit val boolean: OgdlWriter[Boolean] = boolean => Ogdl(boolean.toString)
   implicit val theme: OgdlWriter[Theme] = theme => Ogdl(theme.name)
 
-  implicit def list[T: OgdlWriter: Index]: OgdlWriter[List[T]] = coll =>
+  implicit def list[T: OgdlWriter: Index]: OgdlWriter[List[T]] = implicitly[Index[T]] match {
+    case fi@FieldIndex(_) => complexTraversable[T](implicitly[OgdlWriter[T]], fi).write(_)
+    case si@SelfIndexed() => simpleTraversable[T](implicitly[OgdlWriter[T]], si).write(_)
+  }
+
+  implicit def treeSet[T: OgdlWriter: Index, X[T] <: SortedSet[T]]: OgdlWriter[X[T]] = implicitly[Index[T]] match {
+    case fi@FieldIndex(_) => complexTraversable[T](implicitly[OgdlWriter[T]], fi).write(_)
+    case si@SelfIndexed() => simpleTraversable[T](implicitly[OgdlWriter[T]], si).write(_)
+  }
+
+  private def complexTraversable[T: OgdlWriter: FieldIndex]: OgdlWriter[Traversable[T]] = coll =>
     Ogdl {
       if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-      else
-        (coll.to[Vector].map { e =>
-          val data = Ogdl(e)
-          val idx = implicitly[Index[T]].index
-          val dedup = data.values.filterNot(_._1 == idx)
-          data.selectDynamic(idx)() -> Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
-        })
+      else coll.to[Vector].map(implicitly[Index[T]].writeCollectionItem)
     }
 
-  implicit def treeSet[T: OgdlWriter: Index]: OgdlWriter[SortedSet[T]] = coll =>
-    Ogdl {
-      if(coll.isEmpty) Vector(("", Ogdl(Vector())))
-      else (coll.to[Vector].map { e =>
-        val data = Ogdl(e)
-        val idx = implicitly[Index[T]].index
-        val dedup = data.values.filterNot(_._1 == idx)
-        data.selectDynamic(idx)() -> Ogdl(if(dedup.isEmpty) Vector(("", Ogdl(Vector()))) else dedup)
-      })
+  private def simpleTraversable[T: OgdlWriter: SelfIndexed]: OgdlWriter[Traversable[T]] = coll =>
+    coll.to[Vector].foldRight(Ogdl(Vector())) {
+      case (element, tail) => Ogdl(Vector(implicitly[Index[T]].writeCollectionItem(element)._1 -> tail))
     }
 
   implicit def gen[T]: OgdlWriter[T] = macro Magnolia.gen[T]
 }
 
-object Index { implicit def index[T]: Index[T] = Index[T]("id") }
-case class Index[T](index: String)
+sealed trait Index[T] {
+  def writeCollectionItem(value: T): (String, Ogdl)
+}
+case class FieldIndex[T: OgdlWriter](field: String) extends Index[T] {
+  override def writeCollectionItem(value: T): (String, Ogdl) = {
+    val data = Ogdl(value)
+    val dedup = data.values.filterNot(_._1 == field)
+    val key = data.selectDynamic(field)
+    val rest = Ogdl(if(dedup.isEmpty) Vector("" -> Ogdl(Vector())) else dedup)
+    tuple(key, rest)
+  }
+
+  private def tuple(key: Ogdl, value: Ogdl): (String, Ogdl) = key.values match {
+    case Vector((single, rest)) if rest.values.isEmpty => single -> value
+    case _ => "kvp" -> Ogdl(Vector(field -> key, "value" -> value))
+  }
+}
+case class SelfIndexed[T: OgdlWriter: StringShow]() extends Index[T] {
+  override def writeCollectionItem(value: T): (String, Ogdl) = {
+    implicitly[StringShow[T]].show(value) -> Ogdl(value)
+  }
+}
+object Index {
+  implicit val string = SelfIndexed[String]
+  implicit val int = SelfIndexed[Int]
+  implicit val long = SelfIndexed[Long]
+  //implicit val boolean = SelfIndexed[Boolean]
+  implicit def index[T <: {val id: AnyRef}: OgdlWriter]: FieldIndex[T] = FieldIndex[T]("id")
+}
