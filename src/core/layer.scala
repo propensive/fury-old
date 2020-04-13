@@ -61,9 +61,13 @@ case class Layer(version: Int,
     missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
-  def verify(conf: FuryConf)(implicit log: Log): Try[Unit] = for {
+  def verifyConf(conf: FuryConf)(implicit log: Log): Try[Unit] = for {
     _         <- ~log.info(msg"Checking that the root layer is selected")
     _         <- if(conf.path == ImportPath.Root) Success(()) else Failure(RootLayerNotSelected())
+    _         <- verify
+  } yield ()
+
+  def verify(implicit log: Log): Try[Unit] = for {
     _         <- ~log.info(msg"Checking that no modules reference local sources")
     localSrcs <- ~localSources
     _         <- if(localSrcs.isEmpty) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
@@ -161,6 +165,7 @@ object Layer extends Lens.Partial[Layer] {
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Try(Ogdl.read[Layer](data, migrate(_)))
+      _     <- layer.verify
       _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
     } yield layer }
 
