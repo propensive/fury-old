@@ -91,6 +91,16 @@ sealed abstract class Source extends Key(msg"source") {
                   f.relativizeTo(baseDir).in(destination).mkParents().map(f.copyTo(_))
                 }.sequence
   } yield ()
+
+  def fileCount(checkouts: Checkouts, layout: Layout): Try[Int] = files(checkouts, layout).map(_.length)
+
+  def totalSize(checkouts: Checkouts, layout: Layout): Try[ByteSize] =
+    files(checkouts, layout).map(_.map(_.size).reduce(_ + _))
+
+  def linesOfCode(checkouts: Checkouts, layout: Layout): Try[Int] = for {
+    pathStream <- files(checkouts, layout)
+    lines      <- pathStream.traverse(_.lines)
+  } yield lines.map(_.size).sum
 }
 
 case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {

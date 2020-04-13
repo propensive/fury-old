@@ -44,8 +44,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
                     } yield module)
 
     cli          <- cli.hint(RawArg)
-    table        <- ~Tables().sources
-    cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli          <- cli.hint(ColumnArg, List("repo", "path", "sources", "files", "size", "lines"))
     cli          <- cli.hint(SourceArg, optModule.map(_.sources).getOrElse(Nil))
     call         <- cli.call()
     source       <- ~cli.peek(SourceArg)
@@ -53,6 +52,10 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     raw          <- ~call(RawArg).isSuccess
     project      <- optProject.asTry
     module       <- optModule.asTry
+    hierarchy    <- layer.hierarchy
+    universe     <- hierarchy.universe
+    checkouts    <- universe.checkout(module.ref(project), layout)
+    table        <- ~Tables().sources(checkouts, layout)
     rows         <- ~module.sources.to[List]
     table        <- ~Tables().show(table, cli.cols, rows, raw, col, source, "repo")
     _            <- ~log.info(conf.focus(project.id, module.id))

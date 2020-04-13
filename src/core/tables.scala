@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._
+import fury.strings._, fury.model._, fury.io._
 
 import escritoire.{Ansi => _, _}
 import kaleidoscope._
@@ -137,10 +137,13 @@ case class Tables() {
     Heading("Intransitive", _.intransitive)
   )
 
-  val sources: Tabulation[Source] = Tabulation(
+  def sources(checkouts: Checkouts, layout: Layout): Tabulation[Source] = Tabulation(
     Heading("Repo", _.repoIdentifier),
     Heading("Path", _.dir),
-    Heading("Sources", _.glob)
+    Heading("Sources", _.glob),
+    Heading("Files", _.fileCount(checkouts, layout).getOrElse(0)),
+    Heading("Size", _.totalSize(checkouts, layout).getOrElse(ByteSize(0))),
+    Heading("Lines", _.linesOfCode(checkouts, layout).getOrElse(0))
   )
 
   val resources: Tabulation[Source] = Tabulation(
