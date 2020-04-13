@@ -16,18 +16,13 @@
 */
 package fury.core
 
-import fury.strings._, fury.io.Path, fury.model._, fury.ogdl._
+import fury.strings._, fury.io.Path, fury.model._, fury.ogdl._, fury.utils._
 
 import euphemism._
 
-import java.io.{InputStream, OutputStream}
-import java.net.URI
-import java.util.concurrent.CompletableFuture
-
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import FuryBuildServer._
-import fury.utils.Multiplexer
-import gastronomy.{Bytes, Digest, Md5}
+import gastronomy._
 import guillotine._
 import mercator._
 import org.eclipse.lsp4j.jsonrpc.Launcher
@@ -37,6 +32,12 @@ import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
+
+import java.util.concurrent.{Future => JFuture, CompletableFuture}
+import java.io.{InputStream, OutputStream}
+import java.net.URI
+
+
 import language.higherKinds
 
 object Bsp {
@@ -74,7 +75,8 @@ object Bsp {
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean)(implicit log: Log): java.util.concurrent.Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean)
+         (implicit log: Log): JFuture[Void] = {
 
     val cancel = new Cancelator()
     val server = new FuryBuildServer(layout, cancel, https)
@@ -96,7 +98,9 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implicit log: Log) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)
+                     (implicit log: Log)
+    extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _
@@ -264,16 +268,19 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
     implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
     val bspTargets = compileParams.getTargets.asScala
     val allResults = bspTargets.traverse { bspTargetId =>
-      for{
+      for {
         globalPolicy <- ~Policy.read(log)
         struct <- structure
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
-        val multiplexer = new fury.utils.Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
+        val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
         val session = Lifecycle.currentSession(log)
         session.multiplexer = multiplexer
-        val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty, pipelining = false, noSecurity = false)
+        
+        val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty,
+            pipelining = false, noSecurity = false)
+        
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
         reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)
@@ -311,7 +318,8 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)(implic
     future
   }
 
-  private[this] def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure): Try[ScalacOptionsItem] =
+  private[this] def scalacOptionsItem(target: BuildTargetIdentifier, struct: Structure)
+                                     : Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
       val art = struct.targets(ref)
       val params = art.params.map(_.parameter)
@@ -392,7 +400,7 @@ object FuryBuildServer {
       val id = new URI(bti.getUri).getSchemeSpecificPart
 
       // TODO depends on assumption about how digest is encoded
-      val bytes  = java.util.Base64.getDecoder.decode(id)
+      val bytes = java.util.Base64.getDecoder.decode(id)
       
       val digest = Digest(Bytes(bytes))
       
@@ -457,8 +465,10 @@ object FuryBuildServer {
     private def info(message: UserMsg)(implicit theme: Theme) =
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
-    override def report(graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log): Unit = {
-      implicit val t = theme
+    override def report(graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+                       (implicit log: Log): Unit = {
+
+      implicit val t: Theme = theme
       multiplexer.stream(50, Some(Tick)).foreach {
         case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")
         case StopCompile(ref, true)                      => info(msg"Successfully compiled module $ref")
@@ -469,7 +479,6 @@ object FuryBuildServer {
       }
     }
   }
-
 }
 
 case class BspTarget(id: BuildTargetIdentifier) extends Key(msg"BuildTargetIdentifier") {

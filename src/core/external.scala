@@ -74,7 +74,11 @@ object Ipfs {
             res
           case (Failure(_), gateway) =>
             val result = getFileFromGateway(ref, gateway)
-            result.failed.foreach { e => log.warn(msg"The layer could not be resolved using IPFS or $gateway.") }
+
+            result.failed.foreach { e =>
+              log.warn(msg"The layer could not be resolved using IPFS or $gateway.")
+            }
+
             result
         }
       }.recoverWith {
@@ -271,9 +275,12 @@ object VsCodeSoftware extends Installable(ExecName("code")) {
   def website = Https(Path("code.visualstudio.com"))
 
   private def osDir(base: Path): Try[Path] = Installation.system.flatMap {
-    case Linux(_) => Success(base / "VSCode-linux-x64" / "bin" / "code")
-    case MacOs(_) => Success(base / "Visual Studio Code.app" / "Contents" / "Resources" / "app" / "bin" / "code")
-    case other    => Failure(UnknownOs(other.toString))
+    case Linux(_) =>
+      Success(base / "VSCode-linux-x64" / "bin" / "code")
+    case MacOs(_) =>
+      Success(base / "Visual Studio Code.app" / "Contents" / "Resources" / "app" / "bin" / "code")
+    case other =>
+      Failure(UnknownOs(other.toString))
   }
 
   def managedPath: Path = osDir(Installation.usrDir / "code").get

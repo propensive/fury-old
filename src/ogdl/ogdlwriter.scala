@@ -69,10 +69,11 @@ object OgdlWriter {
     case si@SelfIndexed() => simpleTraversable[T](implicitly[OgdlWriter[T]], si).write(_)
   }
 
-  implicit def treeSet[T: OgdlWriter: Index, X[T] <: SortedSet[T]]: OgdlWriter[X[T]] = implicitly[Index[T]] match {
-    case fi@FieldIndex(_) => complexTraversable[T](implicitly[OgdlWriter[T]], fi).write(_)
-    case si@SelfIndexed() => simpleTraversable[T](implicitly[OgdlWriter[T]], si).write(_)
-  }
+  implicit def treeSet[T: OgdlWriter: Index, X[T] <: SortedSet[T]]: OgdlWriter[X[T]] =
+    implicitly[Index[T]] match {
+      case fi@FieldIndex(_) => complexTraversable[T](implicitly[OgdlWriter[T]], fi).write(_)
+      case si@SelfIndexed() => simpleTraversable[T](implicitly[OgdlWriter[T]], si).write(_)
+    }
 
   private def complexTraversable[T: OgdlWriter: FieldIndex]: OgdlWriter[Traversable[T]] = coll =>
     Ogdl {

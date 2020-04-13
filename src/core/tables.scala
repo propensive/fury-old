@@ -81,7 +81,7 @@ case class Tables() {
         val extra = (if(intransitive) msg"*" else msg"")
         val missing = if(universe.getMod(ref).isFailure) msg" ${theme.hazard("!")}" else msg""
         if(ref.projectId == projectId) msg"${theme.module(ref.moduleId.key)}$extra$missing"
-        else msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}$extra$missing"
+        else msg"${theme.project(ref.projectId.key)}${'/'}${theme.module(ref.moduleId.key)}$extra$missing"
     }.foldLeft(msg"")(_ + _ + "\n").string(theme)
 
   implicit private def compilerRef(

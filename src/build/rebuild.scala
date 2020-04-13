@@ -70,7 +70,10 @@ trait Repeater[Res]{
 }
 
 class SourceWatcher(sources: Set[Path]){
-  private val executor = java.util.concurrent.Executors.newCachedThreadPool(Threads.factory("file-watcher", daemon = true))
+  
+  private val executor =
+    java.util.concurrent.Executors.newCachedThreadPool(Threads.factory("file-watcher", daemon = true))
+  
   private val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
   private[this] val changed = new AtomicBoolean(true)
 

@@ -55,7 +55,10 @@ object Xdg {
   val ipfsRepo: Path = Option(System.getenv("IPFS_PATH")).map(Path(_)).getOrElse(home / ".ipfs")
   val cacheHome: Path = Var("CACHE_HOME").path.getOrElse(home / ".cache")
   val dataHome: Path = Var("DATA_HOME").path.getOrElse(home / ".local" / "share")
-  val dataDirs: List[Path] = Var("DATA_DIRS").paths.getOrElse(List(Path("/usr/local/share"), Path("/usr/share")))
+  
+  val dataDirs: List[Path] = Var("DATA_DIRS").paths.getOrElse(List(Path("/usr/local/share"),
+      Path("/usr/share")))
+  
   val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
   val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
   val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
@@ -106,6 +109,7 @@ object Installation {
 
   lazy val system: Try[Os] = {
     import environments.enclosing
+    
     val machine: Machine = sh"uname -m".exec[Try[String]] match {
       case Success("x86_64" | "amd64") => X64
       case Success("i386" | "i686")    => X86
@@ -122,7 +126,10 @@ object Installation {
 
   def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
     paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
-    execPath <- paths.find(_.childPaths.exists(f => !f.directory && f.isExecutable && f.name == name.key)).ascribe(NotOnPath(name))
+    
+    execPath <- paths.find(_.childPaths.exists { f => !f.directory && f.isExecutable && f.name == name.key
+                    }).ascribe(NotOnPath(name))
+
   } yield execPath / name.key
 
 
