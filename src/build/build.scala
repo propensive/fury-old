@@ -101,6 +101,7 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     _      <- ~log.infoWhen(!raw)(conf.focus())
     _      <- ~log.rawln(table)
   } yield log.await()
+
 }
 
 case class AboutCli(cli: Cli)(implicit log: Log) {
