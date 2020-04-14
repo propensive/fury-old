@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.12.3. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.13.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -14,9 +14,3 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-
-import com.facebook.nailgun._
-
-object Fury {
-  def main(args: Array[String]): Unit = NGServer.main(args)
-}
