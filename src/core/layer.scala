@@ -175,12 +175,14 @@ object Layer extends Lens.Partial[Layer] {
     _       <- Try(cache.synchronized { cache(ipfsRef) = layer })
   } yield LayerRef(ipfsRef.key)
 
-  def commit(layer: Layer, conf: FuryConf, layout: Layout)(implicit log: Log): Try[Unit] = for {
+  def commit(layer: Layer, conf: FuryConf, layout: Layout, force: Boolean = false)
+            (implicit log: Log)
+            : Try[Unit] = for {
     baseRef  <- commitNested(conf, layer)
     base     <- get(baseRef, conf.published)
     layer    <- ~base.copy(previous = Some(conf.layerRef))
     previous <- retrieve(conf)
-    _        <- if(!Layer.diff(previous.copy(previous = None), layer.copy(previous = None)).isEmpty)
+    _        <- if(!Layer.diff(previous, layer).isEmpty || force)
                     store(layer).flatMap { baseRef => saveFuryConf(conf.copy(layerRef = baseRef), layout) }
                 else Success(())
     } yield ()
