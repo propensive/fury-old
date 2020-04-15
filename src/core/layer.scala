@@ -165,7 +165,6 @@ object Layer extends Lens.Partial[Layer] {
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Try(Ogdl.read[Layer](data, migrate(_)))
-      _     <- layer.verify
       _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
     } yield layer }
 

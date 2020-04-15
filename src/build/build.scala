@@ -587,6 +587,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layerRef   <- Layer.resolve(layerName)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
+    _          <- layer.verify
     dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
@@ -676,6 +677,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     newLayerRef   <- Layer.resolve(layerName)
     pub           <- Layer.published(layerName)
     newLayer      <- Layer.get(newLayerRef, pub)
+    _             <- newLayer.verify
     ref           <- ~Import(nameArg, newLayerRef, pub)
     layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)
