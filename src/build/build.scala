@@ -720,7 +720,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
     other  <- Layer.resolve(other)
     other  <- Layer.get(other, None)
-    rows   <- ~Diff.gen[Layer].diff(layer.copy(previous = None), other.copy(previous = None))
+    rows   <- ~Diff.gen[Layer].diff(layer, other)
     table  <- ~Tables().show[Difference, Difference](table, cli.cols, rows, raw, col)
     _      <- if(!rows.isEmpty) ~log.rawln(table) else ~log.info("No changes")
   } yield log.await()

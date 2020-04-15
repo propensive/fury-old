@@ -180,7 +180,7 @@ object Layer extends Lens.Partial[Layer] {
     base     <- get(baseRef, conf.published)
     layer    <- ~base.copy(previous = Some(conf.layerRef))
     previous <- retrieve(conf)
-    _        <- if(!Layer.diff(previous.copy(previous = None), layer.copy(previous = None)).isEmpty)
+    _        <- if(!Layer.diff(previous, layer).isEmpty)
                     store(layer).flatMap { baseRef => saveFuryConf(conf.copy(layerRef = baseRef), layout) }
                 else Success(())
     } yield ()
