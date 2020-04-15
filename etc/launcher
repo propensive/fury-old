@@ -8,7 +8,6 @@
 
 version="%VERSION%"
 ipfsHash="%HASH%"
-startTime="$(($(date +"%s * 1000 + %-N / 1000000")))"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
@@ -37,7 +36,7 @@ installFury() {
 
 runFury() {
   printf "Launching Fury ${version} in standalone mode...\n"
-  FURY_HOME="${installDir}" START_TIME="${startTime}" "${installDir}/bin/fury" standalone ${args}
+  FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone ${args}
 }
 
 fail() {
