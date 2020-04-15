@@ -31,94 +31,123 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    cli          <- cli.hint(ProjectArg, layer.projects)
+    tryProject = for {
+      projectId <- cli.preview(ProjectArg)(layer.main)
+      project   <- layer.projects.findBy(projectId)
+    } yield project
+
+    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
+    tryModule = for {
+      project  <- tryProject
+      moduleId <- cli.preview(ModuleArg)(project.main)
+      module   <- project.modules.findBy(moduleId)
+    } yield module
 
     cli     <- cli.hint(RawArg)
-    table   <- ~Tables().dependencies
+    table   =  Tables().dependencies
     cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    cli     <- cli.hint(LinkArg, optModule.map(_.dependencies).getOrElse(Nil))
+    cli     <- cli.hint(LinkArg, tryModule.map(_.dependencies).getOrElse(Set.empty))
     call    <- cli.call()
-    col     <- ~cli.peek(ColumnArg)
-    dep     <- ~cli.peek(LinkArg)
-    raw     <- ~call(RawArg).isSuccess
-    project <- optProject.asTry
-    module  <- optModule.asTry
-    rows    <- ~module.dependencies.to[List].sorted
-    table   <- ~Tables().show(table, cli.cols, rows, raw, col, dep, "dependency")
-    _       <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _       <- ~log.rawln(table)
-  } yield log.await()
+    col     =  cli.peek(ColumnArg)
+    dep     =  cli.peek(LinkArg)
+    raw     =  call(RawArg).isSuccess
+    project   <- tryProject
+    module    <- tryModule
+  } yield {
+    val rows = module.dependencies.to[List].sorted
+    log.infoWhen(!raw)(conf.focus(project.id, module.id))
+    log.rawln(Tables().show(table, cli.cols, rows, raw, col, dep, "dependency"))
+    log.await()
+  }
 
   def remove: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
+    
     cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
+    tryProject = for {
+      projectId <- cli.preview(ProjectArg)(layer.main)
+      project   <- layer.projects.findBy(projectId)
+    } yield project
 
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
-
-    cli       <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    deps      <- ~optModule.to[Set].flatMap(_.dependencies.to[Set])
-    cli       <- cli.hint(LinkArg, deps.map(_.id) ++
-                     optProject.to[Set].flatMap { p => deps.filter(_.projectId == p.id) }.map(_.moduleId.key))
+    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
+    tryModule = for {
+      project  <- tryProject
+      moduleId <- cli.preview(ModuleArg)(project.main)
+      module   <- project.modules.findBy(moduleId)
+    } yield module
+    
+    dependencyLinks      = for {
+      project  <- tryProject
+      module <- tryModule
+    } yield {
+      val fromOtherProjects = for {
+        ref <- module.dependencies if ref.projectId != project.id
+      } yield ref.id
+      val fromSameProject = for {
+        ref <- module.dependencies if ref.projectId == project.id
+      } yield ref.moduleId.key
+      fromOtherProjects ++ fromSameProject
+    }
+    cli       <- cli.hint(LinkArg, dependencyLinks.getOrElse(Set.empty))    
+    
     cli       <- cli.hint(ForceArg)
     cli       <- cli.hint(HttpsArg)
     call      <- cli.call()
-    https     <- ~call(HttpsArg).isSuccess
+    https     =  call(HttpsArg).isSuccess
     linkArg   <- call(LinkArg)
-    project   <- optProject.asTry
-    module    <- optModule.asTry
+    project   <- tryProject
+    module    <- tryModule
     moduleRef <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
     force     <- ~call(ForceArg).isSuccess
     layer     <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - moduleRef)
     _         <- Layer.commit(layer, conf, layout)
-    _         <- ~Compilation.asyncCompilation(layer, moduleRef, layout, https)
-  } yield log.await()
+  } yield {
+    Compilation.asyncCompilation(layer, moduleRef, layout, https)
+    log.await()
+  }
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
+    
     cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
-
-    optModule    =  (for {
-      project  <- optProject
-      module   <- project.modules.findBy(moduleId).toOption
-    } yield module)
+    tryProject = for {
+      projectId <- cli.preview(ProjectArg)(layer.main)
+      project   <- layer.projects.findBy(projectId)
+    } yield project    
+    
+    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
+    tryModule = for {
+      project  <- tryProject
+      moduleId <- cli.preview(ModuleArg)(project.main)
+      module   <- project.modules.findBy(moduleId)
+    } yield module
     
     hierarchy        <- layer.hierarchy()
     universe         <- hierarchy.universe
-    allModuleRefs    <- ~layer.deepModuleRefs(universe)
-    deps             <- ~optModule.to[Set].flatMap(_.dependencies)
-    allRefs          <- ~(allModuleRefs.filter(!_.hidden).filterNot(deps.contains).map(_.id) ++
-                            optProject.to[Set].flatMap(_.modules.filterNot { m =>
-                            deps.exists(_.moduleId == m.id) }.map(_.id.key)))
-    cli              <- cli.hint(LinkArg, allRefs)
+    allRefs = for {
+      project <- tryProject
+      module <- tryModule      
+    } yield {
+      val fromOtherProjects = for {
+        otherRef <- layer.deepModuleRefs(universe) if !(otherRef.hidden || module.dependencies.contains(otherRef))
+      } yield otherRef.id
+      val fromSameProject = for {
+        otherModule <- project.modules if !module.dependencies.exists(_.moduleId == otherModule.id)
+      } yield otherModule.id.key
+      fromOtherProjects ++ fromSameProject
+    }
+    cli              <- cli.hint(LinkArg, allRefs.getOrElse(Set.empty))
     cli              <- cli.hint(IntransitiveArg)
     call             <- cli.call()
-    project          <- optProject.asTry
-    module           <- optModule.asTry
-    intransitive     <- ~call(IntransitiveArg).isSuccess
+    project          <- tryProject
+    module           <- tryModule
+    intransitive     =  call(IntransitiveArg).isSuccess
     linkArg          <- call(LinkArg)
     moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
 
@@ -126,8 +155,10 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
                             moduleRef)
     
     _                <- Layer.commit(layer, conf, layout)
-    _                <- ~Compilation.asyncCompilation(layer, moduleRef, layout, false)
-  } yield log.await()
+  } yield {
+    Compilation.asyncCompilation(layer, moduleRef, layout, false)
+    log.await()
+  }
 }
 
 case class EnvCli(cli: Cli)(implicit log: Log) {
