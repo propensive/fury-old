@@ -23,6 +23,11 @@ import Args._
 import guillotine._
 import optometry._
 import mercator._
+import euphemism._
+import antiphony._
+
+import scala.concurrent._, ExecutionContext.Implicits.global, duration._
+
 import scala.util._
 
 case class RepoCli(cli: Cli)(implicit log: Log) {
@@ -50,7 +55,11 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     conf      <- Layer.readFuryConf(layout)
     layer     <- Layer.retrieve(conf)
     cli       <- cli.hint(HttpsArg)
+    cli       <- cli.hint(ServiceArg)
     call      <- cli.call()
+    service   <- ~call(ServiceArg).toOption.getOrElse(ManagedConfig().service)
+    token     <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(doAuth)
+    _         <- Layer.share(service, layer, token)
     local     <- layer.local(layout)
     _         <- layout.gitConf.copyTo(layout.baseConf)
     commit    <- GitDir(layout.baseDir)(layout.env).commit
@@ -59,6 +68,20 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     layer     <- ~(Layer(_.repos(local.id).commit)(layer) = commit)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
+
+  def doAuth: Try[OauthToken] = for {
+    // These futures should be managed in the session
+    // This was duplicated from build.scala
+    code      <- ~Rnd.token(18)
+    uri       <- ~(Https(ManagedConfig().service) / "await").query("code" -> code)
+    future    <- ~Future(blocking(Http.get(uri.key, Set()).to[Try]))
+    uri       <- ~(Https(ManagedConfig().service) / "auth").query("code" -> code)
+    _         <- ~log.info(msg"Please visit $uri to authenticate using GitHub.")
+    _         <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
+    response  <- Await.result(future, Duration.Inf)
+    json      <- Json.parse(new String(response, "UTF-8")).to[Try]
+    token     <- json.token.as[String].to[Try]
+  } yield OauthToken(token)
 
   def checkout: Try[ExitStatus] = for {
     layout    <- cli.layout

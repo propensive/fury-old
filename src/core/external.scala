@@ -52,7 +52,7 @@ object Ipfs {
       ref  <- add(data, wrap = false, onlyHash = false)
     } yield ref
 
-    def hash(path: Path): Try[IpfsRef] =  for{
+    def hash(path: Path): Try[IpfsRef] = for {
       file <- Try(new NamedStreamable.FileWrapper(path.javaFile))
       ref  <- add(file, wrap = false, onlyHash = true)
     } yield ref
