@@ -16,9 +16,13 @@
 */
 package fury.strings
 
+import gastronomy._
+
 import scala.util._
-import language.implicitConversions
+
 import java.text.DecimalFormat
+
+import language.implicitConversions
 
 object `package` {
   implicit def joinable(values: Traversable[String]): Joinable   = Joinable(values)
@@ -70,7 +74,7 @@ object Rnd extends java.util.Random {
   def token(size: Int = 20): String = {
     val array = new Array[Byte](size)
     nextBytes(array)
-    new String(java.util.Base64.getEncoder().encode(array), "UTF-8")
+    Bytes(array).encoded[Hex]
   }
 }
 

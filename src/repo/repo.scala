@@ -127,12 +127,14 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     dir       <- call(DirArg)
     https     <- ~call(HttpsArg).isSuccess
     bareRepo  <- repo.repo.fetch(layout, https)
+    
     absPath   <- { for {
                     absPath <- ~(layout.pwd.resolve(dir))
                     _       <- Try(absPath.mkdir())
                     _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
                   } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
 
+    _         <- ~log.info(msg"Checking out $repoId to $absPath")
     _         <- ~GitDir(bareRepo)(layout.env).sparseCheckout(absPath, List(), refSpec = repo.track, commit =
                       repo.commit, Some(repo.repo.universal(false)))
 
