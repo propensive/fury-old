@@ -6,8 +6,8 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.14.1"
-ipfsHash="QmVBfm3Z4yofsZwjxhgdgsAnZWkT9gFhxK8bWYZhzkqYiM"
+version="0.15.0"
+ipfsHash="QmWUjG4Ddnu5JcUqLN595Muh7upNUQZasXQDpHBL5gTKgv"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
