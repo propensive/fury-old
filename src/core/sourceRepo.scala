@@ -46,25 +46,21 @@ object SourceRepo {
   } yield ()
 }
 
-case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, local: Option[Path]) {
+case class SourceRepo(id: RepoId, repo: Repo, branch: Branch, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
-    dir   <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
-    
-    files <- localDir(layout).fold(GitDir(dir)(layout.env).lsTree(commit))(Success(
-                 dir.children.map(Path(_))).waive)
+    gitDir <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
+    files  <- localDir(layout).fold(gitDir.lsTree(commit))(Success(gitDir.dir.children.map(Path(_))).waive)
   } yield files
 
-  def tracking(layout: Layout)(implicit log: Log): Option[RefSpec] =
-    localDir(layout).fold(Option(track)) { dir =>
-      GitDir(dir)(layout.env).branch.toOption
-    }
+  def branch(layout: Layout)(implicit log: Log): Branch =
+    localDir(layout).flatMap(_.branch.toOption).getOrElse(branch)
 
   def fullCheckout(layout: Layout)(implicit log: Log): Checkout =
-    Checkout(id, repo, localDir(layout), commit, track, List())
+    Checkout(id, repo, localDir(layout), commit, branch, List())
 
   private[this] var thisLocalDir: Option[Option[Path]] = None
 
-  def localDir(layout: Layout)(implicit log: Log): Option[Path] = local.orElse {
+  def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env)).orElse {
     Repo.local(layout).map(_.equivalentTo(repo)) match {
       case Success(true) =>
         thisLocalDir.getOrElse {
@@ -77,7 +73,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
           val result = Some(layout.baseDir)
           thisLocalDir = Some(result)
           result
-        }
+        }.map(GitDir(_)(layout.env))
 
       case _ =>
         None
@@ -86,19 +82,19 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
 
   def changes(layout: Layout, https: Boolean)(implicit log: Log): Try[Option[DiffStat]] = for {
     repoDir <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
-    changes <- GitDir(repoDir)(layout.env).diffShortStat()
+    changes <- repoDir.diffShortStat()
   } yield changes
 
   def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
-    repo.pull(commit, track, layout, https)
+    repo.pull(commit, layout, https)
 
   def isForked(): Try[Unit] = local.ascribe(RepoNotForked(id)).map { _ => () }
   def isNotForked(): Try[Unit] = local.fold(Try(())) { dir => Failure(RepoAlreadyForked(id, dir)) }
 
-  def current(layout: Layout, https: Boolean)(implicit log: Log): Try[RefSpec] = for {
+  def current(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] = for {
     dir    <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
-    commit <- GitDir(dir)(layout.env).commit
-  } yield RefSpec(commit.id)
+    commit <- dir.commit
+  } yield Commit(commit.id)
 
   def sourceCandidates(layout: Layout, https: Boolean)
                       (pred: String => Boolean)
@@ -134,7 +130,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     current   <- ~layout.baseDir.children.to[Set].map(Path(_))
     removed   <- local.flatMap(_.local).fold(Try(List[Path]()))(GitDir(_)(layout.env).trackedFiles)
     bareRepo  <- repo.fetch(layout, https)
-    files     <- GitDir(bareRepo)(layout.env).lsRoot(commit)
+    files     <- bareRepo.lsRoot(commit)
     remaining <- Try((current -- removed) - Path(".fury.conf"))
   } yield remaining.intersect(files.to[Set]).to[List]
 
@@ -143,7 +139,7 @@ case class SourceRepo(id: RepoId, repo: Repo, track: RefSpec, commit: Commit, lo
     bareRepo   <- repo.fetch(layout, https)
     _          <- ~layout.confFile.moveTo(layout.confFileBackup)
     gitDir     <- ~GitDir(layout.baseDir)(layout.env)
-    sourceRepo <- gitDir.sparseCheckout(bareRepo, List(), track, commit, Some(repo.universal(false)))
+    sourceRepo <- gitDir.sparseCheckout(bareRepo.dir, List(), branch, commit, Some(repo.universal(false)))
     _          <- ~layout.confFileBackup.moveTo(layout.confFile)
   } yield ()
 }

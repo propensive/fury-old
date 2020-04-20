@@ -32,20 +32,19 @@ case class Checkouts(checkouts: Set[Checkout]) {
 
 case class Checkout(repoId: RepoId,
                     repo: Repo,
-                    local: Option[Path],
+                    local: Option[GitDir],
                     commit: Commit,
-                    refSpec: RefSpec,
+                    branch: Branch,
                     sources: List[Path]) {
 
   def hash: Digest = this.digest[Md5]
   def path: Path = Installation.srcsDir / hash.encoded
 
-  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = for {
-    repoDir    <- repo.get(layout, https)
-    workingDir <- checkout(layout)
-  } yield workingDir
+  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = for {
+    repoDir <- repo.get(layout, https)
+  } yield repoDir
 
-  private def checkout(layout: Layout)(implicit log: Log): Try[Path] =
+  private def checkout(layout: Layout)(implicit log: Log): Try[GitDir] =
     local.map(Success(_)).getOrElse {
       val sourceDesc: UserMsg = sources match {
         case List() =>
@@ -62,15 +61,18 @@ case class Checkout(repoId: RepoId,
         path.delete()
       }
 
+      val gitDir = GitDir(path)(layout.env)
+
       if(!path.exists) {
         log.info(msg"Checking out $sourceDesc from repository $repoId")
         path.mkdir()
-        GitDir(path)(layout.env).sparseCheckout(repo.path(layout), sources, refSpec = refSpec,
-            commit = commit, None).flatMap { _ => (path / ".git").delete() }.map(path.waive).recoverWith {
+        gitDir.sparseCheckout(repo.path(layout), sources, branch = branch,
+            commit = commit, None).flatMap { _ => (path / ".git").delete() }.map(gitDir.waive).recoverWith {
           case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
             Failure(NoSourcesError(repoId, commit, sourceDesc))
-          case e: Exception => Failure(e)
+          case e: Exception =>
+            Failure(e)
         }
-      } else Success(path)
+      } else Success(gitDir)
     }
 }

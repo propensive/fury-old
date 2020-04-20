@@ -216,6 +216,11 @@ case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
   def parent: FuryConf = FuryConf(layerRef, path.init, published)
 }
 
+object OauthToken {
+  implicit val msgShow: MsgShow[OauthToken] = token => msg"${token.value}"
+  implicit val stringShow: StringShow[OauthToken] = _.value
+}
+
 case class OauthToken(value: String)
 
 object Focus {
@@ -845,15 +850,24 @@ case class LicenseId(key: String) extends Key(msg"license")
 
 case class License(id: LicenseId, name: String)
 
-object RefSpec {
-  implicit val msgShow: MsgShow[RefSpec] = v => UserMsg(_.version(v.id))
-  implicit val stringShow: StringShow[RefSpec] = _.id
-  implicit val parser: Parser[RefSpec] = unapply(_)
-  val master: RefSpec = RefSpec("master")
-  def unapply(value: String): Option[RefSpec] = Some(RefSpec(value))
+object Branch {
+  implicit val msgShow: MsgShow[Branch] = v => UserMsg(_.version(v.id))
+  implicit val stringShow: StringShow[Branch] = _.id
+  implicit val parser: Parser[Branch] = unapply(_)
+  val master: Branch = Branch("master")
+  def unapply(value: String): Option[Branch] = Some(Branch(value))
 }
 
-case class RefSpec(id: String)
+case class Branch(id: String)
+
+object Tag {
+  implicit val msgShow: MsgShow[Tag] = v => UserMsg(_.version(v.id))
+  implicit val stringShow: StringShow[Tag] = _.id
+  implicit val parser: Parser[Tag] = unapply(_)
+  def unapply(value: String): Option[Tag] = Some(Tag(value))
+}
+
+case class Tag(id: String)
 
 object OptDef {
   implicit val stringShow: StringShow[OptDef] = _.transform.mkString(" ")
@@ -880,8 +894,10 @@ object OptId {
 case class OptId(key: String) extends Key(msg"option")
 
 object Commit {
-  implicit val stringShow: StringShow[Commit] = _.id
-  implicit val msgShow: MsgShow[Commit]       = r => UserMsg(_.version(r.id.take(7)))
+  implicit val stringShow: StringShow[Commit] = _.id.take(7)
+  implicit val msgShow: MsgShow[Commit] = r => UserMsg(_.version(r.id.take(7)))
+  implicit val parser: Parser[Commit] = unapply(_)
+  def unapply(value: String): Option[Commit] = value.only { case r"[0-9a-f]{7,40}" => Commit(value) }
 }
 
 case class Commit(id: String)

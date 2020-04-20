@@ -140,7 +140,7 @@ object Layer extends Lens.Partial[Layer] {
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
   implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
 
-  val CurrentVersion: Int = 6
+  val CurrentVersion: Int = 7
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
@@ -299,6 +299,11 @@ object Layer extends Lens.Partial[Layer] {
     if(version < CurrentVersion) {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
+        case 6 =>
+          // FIXME: This is a lazy solution
+          Try(ogdl.set(repos = ogdl.repos.map { repo =>
+            repo.set(branch = repo.track)
+          })).getOrElse(ogdl)
         case 0 | 1 | 2 | 3 | 4 | 5 =>
           log.fail(msg"Cannot migrate from layers earlier than version 6")
           // FIXME: Handle this better

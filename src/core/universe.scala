@@ -64,7 +64,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     repos  <- (module.externalSources ++ module.externalResources).to[List]
                   .groupBy(_.repoId).map { case (k, v) => entity.layer.repo(k, layout).map(_ -> v) }.sequence
   } yield Checkouts(repos.map { case (repo, paths) =>
-    Checkout(repo.id, repo.repo, repo.localDir(layout), repo.commit, repo.track, paths.map(_.dir).to[List])
+    Checkout(repo.id, repo.repo, repo.localDir(layout), repo.commit, repo.branch, paths.map(_.dir).to[List])
   }.to[Set])
 
   def ++(that: Universe): Universe = Universe(entities ++ that.entities)

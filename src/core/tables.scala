@@ -95,7 +95,7 @@ case class Tables() {
 
   private def commitOrPath(layout: Layout, r: SourceRepo)(implicit log: Log) = r.localDir(layout) match {
     case Some(dir) => if(r.localDir(layout) == Some(layout.baseDir)) msg"${theme.italic("local")}"
-                      else msg"${theme.path(dir.value)}"
+                      else msg"${theme.path(dir.dir.value)}"
     case None      => msg"${theme.version(r.commit.id.take(7))}"
   }
 
@@ -212,7 +212,7 @@ case class Tables() {
   def repositories(layout: Layout)(implicit log: Log): Tabulation[SourceRepo] = Tabulation(
     Heading("Repo", _.id),
     Heading("Remote", _.repo),
-    Heading("Branch/Tag", _.tracking(layout)),
+    Heading("Branch/Tag", _.branch),
     Heading("Commit/Path", commitOrPath(layout, _)),
     Heading("Changes", _.changes(layout, true).toOption.flatten)
   )

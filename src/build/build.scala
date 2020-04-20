@@ -278,9 +278,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     log.await(success)
   }
 
-  def onlyOne(watch: Boolean, wait: Boolean): Try[Unit] =
-    if(watch && wait) Failure(CantWatchAndWait()) else Success(())
-
   def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
@@ -313,7 +310,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     waiting         = call(WaitArg).isSuccess
     _              <- Inotify.check(watch || waiting)
     noSecurity      = call(NoSecurityArg).isSuccess
-    _              <- onlyOne(watch, waiting)
+    _              <- call.atMostOne(WatchArg, WaitArg)
     compilation    <- Compilation.syncCompilation(layer, module.ref(project), layout, https, noSecurity)
 
     r               = repeater(compilation.allSources, waiting) {
@@ -746,7 +743,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     imports   <- if(all || current) Try(layer.imports.map(_.id).to[List])
                  else ~importId.toOption.fold(List[ImportId]())(List(_))
 
-    _         <- if(all && (importId.isSuccess || version.isDefined)) Failure(BadPullParams()) else ~()
+    _         <- call.atMostOne(AllArg, LayerVersionArg)
+    _         <- call.atMostOne(AllArg, ImportIdArg)
     conf      <- if(current) updateCurrent(layer, conf, version) else ~conf
     layer     <- Layer.retrieve(conf)
     layer     <- updateAll(layer, ImportPath.Empty, imports, recursive, if(current) None else version)

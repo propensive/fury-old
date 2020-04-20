@@ -110,7 +110,7 @@ case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source 
   def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId, layout).map((dir, _).digest[Md5])
   
   def base(checkouts: Checkouts, layout: Layout): Try[Path] =
-    checkouts(repoId).map { checkout => checkout.local.getOrElse(checkout.path) }
+    checkouts(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
 }
 
 case class SharedSource(dir: Path, glob: Glob) extends Source {

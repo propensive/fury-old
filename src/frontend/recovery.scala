@@ -18,7 +18,6 @@ package fury
 
 import fury.strings._, fury.core._, fury.ogdl._, fury.io._, fury.model._
 
-import exoskeleton.{MissingArg, InvalidArgValue}
 import guillotine._
 
 import scala.util._
@@ -54,8 +53,6 @@ object Recovery {
           cli.abort(msg"It is not possible to continue until merge conflicts have been resolved.")
         case NoOtherLayer() =>
           cli.abort(msg"The layer to compare this layer with has not been specified.")
-        case CantWatchAndWait() =>
-          cli.abort(msg"The ${Args.WatchArg} and ${Args.WaitArg} options cannot be used together.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
         case FileWriteError(path, e) =>
@@ -63,8 +60,6 @@ object Recovery {
         case FileNotFound(path) =>
           cli.abort(
               msg"""Could not find the file at $path.""")
-        case MissingArg(param) =>
-          cli.abort(msg"The parameter $param was not provided.")
         case NoPermissions(perms) =>
           val prefixLength = Compare.uniquePrefixLength(perms.map(_.hash)).max(3)
           val rows = perms.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }.to[List]
@@ -87,9 +82,12 @@ You can grant these permissions with,
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
         case e: ServiceException =>
           cli.abort(e.getMessage)
-        case BadPullParams() =>
-          cli.abort(msg"""The ${Args.AllArg} parameter cannot be used with either ${Args.LayerArg} or """+
-                    msg"""${Args.LayerVersionArg}.""")
+        case BadParams(arg1, arg2) =>
+          cli.abort(msg"""The ${arg1} parameter cannot be used at the same time as ${arg2}.""")
+        case MissingParamChoice(param1, param2) =>
+          cli.abort(msg"""Either the ${param1} or ${param2} parameter must be specified.""")
+        case MissingParam(param) =>
+          cli.abort(msg"""The ${param} parameter is required.""")
         case CannotUndo() =>
           cli.abort(msg"""The previous action cannot be undone...""")
         case UnresolvedModules(refs) =>
@@ -105,6 +103,8 @@ You can grant these permissions with,
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>
           cli.abort(msg"Coursier could not download a file because DNS resolution failed.")
+        case BranchNotFound(commit) =>
+          cli.abort(msg"A branch corresponding to the commit $commit could not be found.")
         case OfflineException() =>
           cli.abort(msg"Coursier could not download a file because you appear to be offline.")
         case UnknownVersion(v) =>
@@ -113,8 +113,8 @@ You can grant these permissions with,
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
           cli.abort(msg"The command '${e.command}' was not recognized.")
-        case InvalidArgValue(param, arg) =>
-          cli.abort(msg"The argument '$arg' was not a valid value for the parameter '$param'.")
+        case BadParamValue(param, arg) =>
+          cli.abort(msg"The argument '$arg' was not a valid value for the parameter $param.")
         case InvalidLayer(layer) =>
           cli.abort(msg"The argument '$layer' does not represent a valid layer.")
         case e: ConfigFormatError =>
@@ -133,17 +133,23 @@ You can grant these permissions with,
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case RepoNotForked(repo) =>
           cli.abort(msg"The repository ${repo} has not been forked.")
+        case RepoNotFound() =>
+          cli.abort(msg"The repository could not be retrieved.")
         case RepoAlreadyForked(repo, dir) =>
           cli.abort(msg"The repository ${repo} is already forked to ${dir}.")
         case RepoDirty(repo, changes) =>
           cli.abort(msg"The repository ${repo} has uncommitted changes ($changes).")
         case RemoteNotSynched(repo, remote) =>
           cli.abort(msg"The repository ${repo} has not been synchronized with its remote, $remote.")
+        case CannotUpdateRepo(repo) =>
+          cli.abort(msg"Could not update the repository $repo.")
         case ConflictingFiles(files) =>
           cli.abort(msg"The directory contains files which would be overwritten by checking out the repository"+
               msg" here.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
+        case CommitNotInRepo(commit) =>
+          cli.abort(msg"The commit $commit does not exist in the repository.")
         case Unspecified(kind) =>
           cli.abort(msg"The $kind has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>
@@ -174,7 +180,7 @@ You can grant these permissions with,
         case e: ProjectAlreadyExists =>
           cli.abort(msg"The project '${e.project}' already exists.")
         case e: AlreadyInitialized =>
-          cli.abort(msg"Fury is already initialized in this directory. Use ${Args.ForceArg} to override.")
+          cli.abort(msg"Fury is already initialized in this directory. Use ${Args.ForceArg: CliParam} to override.")
         case CyclesInDependencies(refs) =>
           cli.abort(msg"There are dependency cycles containing : [${refs.mkString}]")
         case UnspecifiedBinary(Nil) =>

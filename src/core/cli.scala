@@ -26,6 +26,10 @@ import scala.util._
 import language.higherKinds
 
 case class EarlyCompletions() extends FuryException
+case class BadParams(param1: CliParam, param2: CliParam) extends FuryException
+case class MissingParamChoice(param1: CliParam, param2: CliParam) extends FuryException
+case class MissingParam(param: CliParam) extends FuryException
+case class BadParamValue(param: CliParam, value: String) extends FuryException
 
 sealed class ExitStatus(val code: Int)
 case object Done  extends ExitStatus(0)
@@ -54,7 +58,7 @@ object CliParam {
       def extractor: Param.Extractor[Type] = implicitly[Param.Extractor[T]]
     }
   
-  implicit def msgShow[T]: MsgShow[CliParam { type Type = T }] = p => UserMsg { theme =>
+  implicit val msgShow: MsgShow[CliParam] = (p: CliParam) => UserMsg { theme =>
     theme.param(str"--${p.longName.name}")+" "+theme.gray("(")+theme.param(str"-${p.shortName.toString}")+
         theme.gray(")") }
 }
@@ -68,7 +72,7 @@ abstract class CliParam(val shortName: Char,
   type Type
   
   implicit def extractor: Param.Extractor[Type]
-  
+
   val param: SimpleParam[Type] = Param[Type](shortName, longName)
 
   def hint(hints: Traversable[Type]): Hinter = Hinter(hints)
@@ -156,8 +160,22 @@ class Cli(val stdout: java.io.PrintWriter,
   type Hinted <: CliParam
 
   class Call private[Cli] () {
-    def apply[T](param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] = args.get(param.param)
+    def apply(param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] = args.get(param.param)
     def suffix: List[String] = args.suffix.to[List].map(_.value)
+
+    def exactlyOne(param1: CliParam, param2: CliParam)
+                  (implicit ev: Hinted <:< param1.type with param2.type)
+                  : Try[Either[param1.Type, param2.Type]] =
+      atMostOne(param1, param2).flatMap(_.ascribe(MissingParamChoice(param1, param2)))
+    
+    def atMostOne(param1: CliParam, param2: CliParam)
+                 (implicit ev: Hinted <:< param1.type with param2.type)
+                 : Try[Option[Either[param1.Type, param2.Type]]] = {
+      val left = args.get(param1.param).toOption
+      val right = args.get(param2.param).toOption
+      if(left.isDefined && right.isDefined) Failure(BadParams(param1, param2))
+      else Success(left.map(Left(_)).orElse(right.map(Right(_))))
+    }
   }
 
   def cols: Int = Terminal.columns(env).getOrElse(100)
