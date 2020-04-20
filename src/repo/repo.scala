@@ -139,6 +139,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
                      Some(repo.repo.universal(false)))
 
     newRepo   <- ~repo.copy(local = Some(gitDir.dir))
+
     layer     <- ~Layer(_.repos).modify(layer)(_ - repo + newRepo)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
