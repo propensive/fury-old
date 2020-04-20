@@ -42,7 +42,8 @@ object Args {
   
   val IgnoreErrorsArg = CliParam[Unit]('I', Symbol("ignore-errors"),
       "ignore compilation errors and launch the console anyway")
-  
+
+  val CommitArg = CliParam[Commit]('c', 'commit, "the Git commit hash")
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
@@ -109,16 +110,18 @@ object Args {
   val TraceArg = CliParam[Boolean]('D', Symbol("bsp-trace"), "Write the BSP communication trace to a file")
   val PermissionTargetArg = CliParam[String]('T', 'target, "permission target")
   val NoGrantArg = CliParam[Unit]('0', Symbol("no-grant"), "do not grant the permission automatically")
-  val TagArg = CliParam[String]('t', 'tag, "git tag")
+  val TagArg = CliParam[Tag]('t', 'tag, "git tag")
+  val BranchArg = CliParam[Branch]('B', 'branch, "git branch")
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
+  val RepoUrlArg = CliParam[Repo]('u', 'url, "specify a URL")
+  val RepoUrlStringArg = CliParam[String]('u', 'url, "specify a URL")
 
   val KindArg = CliParam[Kind]('t', 'type,
       "Type of module (library, application, plugin, compiler, benchmarks)")
 
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
-  val RefSpecArg = CliParam[RefSpec]('V', 'version, "Git branch, tag or commit")
   val VersionArg = CliParam[Version]('v', 'version, "The published version of the binary")
   val WaitArg = CliParam[Unit]('W', 'wait, "Wait for the first successful compilation")
   val WatchArg = CliParam[Unit]('w', 'watch, "Watch for file changes")

@@ -105,7 +105,7 @@ object Ogdl {
     val buffer = ByteBuffer.wrap(string.bytes)
     val ogdl   = OgdlParser.parse(buffer)
 
-    implicitly[OgdlReader[T]].read(ogdl)
+    implicitly[OgdlReader[T]].read(preprocessor(ogdl))
   }
 
   def read[T: OgdlReader](path: Path, preprocessor: Ogdl => Ogdl): Try[T] =

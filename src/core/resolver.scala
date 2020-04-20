@@ -39,7 +39,10 @@ class ResolverExt[T](items: Traversable[T]) {
     items.find(resolver.matchOn(id, _)).ascribe(ItemNotFound(id))
 
   def unique[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Try[I] =
-    if(items.exists(resolver.matchOn(id, _))) Failure(NotUnique(id)) else Success(id)
+    if(contains(id)) Failure(NotUnique(id)) else Success(id)
+  
+  def contains[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): Boolean =
+    items.exists(resolver.matchOn(id, _))
 }
 
 class SortedSetExt[T](set: SortedSet[T]) {

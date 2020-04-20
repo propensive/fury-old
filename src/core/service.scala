@@ -148,5 +148,4 @@ case class InputError() extends ServiceException("The input data was not in the 
 case class ThirdPartyError() extends ServiceException(
     "There was an invalid interaction with a third-party service")
 
-case class MissingParam(param: String) extends ServiceException("The parameter $param was missing")
 case class NameNotFound() extends ServiceException("A public layer with that name was not found")

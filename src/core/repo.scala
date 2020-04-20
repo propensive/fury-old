@@ -24,8 +24,9 @@ import kaleidoscope._
 import scala.util._
 
 object Repo {
-  implicit val msgShow: MsgShow[Repo]       = r => UserMsg(_.url(r.simplified))
+  implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.url(r.simplified))
   implicit val stringShow: StringShow[Repo] = _.simplified
+  implicit val parser: Parser[Repo] = str => Some(parse(str, true))
 
   case class ExistingLocalFileAsAbspath(absPath: String)
 
@@ -53,7 +54,7 @@ object Repo {
       other
   } }
 
-  def local(layout: Layout): Try[Repo] = GitDir(layout.baseDir / ".git")(layout.env).origin
+  def local(layout: Layout): Try[Repo] = GitDir(layout.baseDir / ".git")(layout.env).remote
 }
 
 case class Repo(ref: String) {
@@ -61,8 +62,10 @@ case class Repo(ref: String) {
   def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
   def equivalentTo(repo: Repo): Boolean = repo.simplified == simplified
-  
-  def pull(oldCommit: Commit, track: RefSpec, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
+
+  def gitDir(layout: Layout): GitDir = GitDir(path(layout))(layout.env)
+
+  def pull(oldCommit: Commit, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
     for {
       _         <- fetch(layout, https)
       newCommit <- GitDir(path(layout))(layout.env).commit
@@ -70,29 +73,28 @@ case class Repo(ref: String) {
                         else msg"Repository $this has not changed")
     } yield newCommit
 
-  def getCommitFromTag(layout: Layout, tag: RefSpec): Try[Commit] =
-    GitDir(path(layout))(layout.env).commitFromTag(tag)
-
-  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
-    if((path(layout) / ".done").exists) Success(path(layout))
+  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = {
+    if((path(layout) / ".done").exists) Success(GitDir(path(layout))(layout.env))
     else fetch(layout, https)
   }
 
-  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[Path] = {
+  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = {
     val done = path(layout) / ".done"
+    
     if(path(layout).exists && !done.exists) {
       log.info(msg"Found incomplete clone of $this")
       path(layout).delete()
     }
+    
     if(path(layout).exists) {
       done.delete()
-      GitDir(path(layout))(layout.env).fetch(None)
+      gitDir(layout).fetch(None)
       done.touch()
-      Success(path(layout))
+      Success(gitDir(layout))
     } else {
       log.info(msg"Cloning repository at $this")
       path(layout).mkdir()
-      GitDir(path(layout))(layout.env).cloneBare(Repo.parse(ref, https)).map(path(layout).waive)
+      gitDir(layout).cloneBare(Repo.parse(ref, https)).map(gitDir(layout).waive)
     }
   }
 

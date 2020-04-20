@@ -27,6 +27,7 @@ import euphemism._
 import antiphony._
 
 import scala.concurrent._, ExecutionContext.Implicits.global, duration._
+import scala.collection.immutable.SortedSet
 
 import scala.util._
 
@@ -62,9 +63,9 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- Layer.share(service, layer, token)
     local     <- layer.local(layout)
     _         <- layout.gitConf.copyTo(layout.baseConf)
-    commit    <- GitDir(layout.baseDir)(layout.env).commit
-    branch    <- GitDir(layout.baseDir)(layout.env).branch
-    layer     <- ~(Layer(_.repos(local.id).track)(layer) = branch)
+    commit    <- GitDir(layout).commit
+    branch    <- GitDir(layout).branch
+    layer     <- ~(Layer(_.repos(local.id).branch)(layer) = branch)
     layer     <- ~(Layer(_.repos(local.id).commit)(layer) = commit)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
@@ -100,6 +101,15 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- ~(layout.pwd / ".fury.conf.bak").delete()
   } yield log.await()
 
+  def checkin: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.retrieve(conf)
+    call   <- cli.call()
+    source <- SourceRepo.local(layout, layer)
+    layer  <- ~(Layer(_.mainRepo)(layer) = None)
+  } yield log.await()
+
   def unfork: Try[ExitStatus] = for {
     layout <- cli.layout
     conf   <- Layer.readFuryConf(layout)
@@ -127,47 +137,60 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     dir       <- call(DirArg)
     https     <- ~call(HttpsArg).isSuccess
     bareRepo  <- repo.repo.fetch(layout, https)
-    
-    absPath   <- { for {
-                    absPath <- ~(layout.pwd.resolve(dir))
-                    _       <- Try(absPath.mkdir())
-                    _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
-                  } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+    gitDir    <- {
+                   for {
+                     absPath <- ~(layout.pwd.resolve(dir))
+                     _       <- Try(absPath.mkdir())
+                     _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
+                   } yield GitDir(absPath)(layout.env)
+                 }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+    _         <- ~gitDir.sparseCheckout(bareRepo.dir, List(), branch = repo.branch, commit = repo.commit,
+                     Some(repo.repo.universal(false)))
 
-    _         <- ~log.info(msg"Checking out $repoId to $absPath")
-    _         <- ~GitDir(bareRepo)(layout.env).sparseCheckout(absPath, List(), refSpec = repo.track, commit =
-                      repo.commit, Some(repo.repo.universal(false)))
+    newRepo   <- ~repo.copy(local = Some(gitDir.dir))
 
-    newRepo   <- ~repo.copy(local = Some(absPath))
     layer     <- ~Layer(_.repos).modify(layer)(_ - repo + newRepo)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def pull: Try[ExitStatus] = for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.retrieve(conf)
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
     cli       <- cli.hint(HttpsArg)
     cli       <- cli.hint(RepoArg, layer.repos)
     cli       <- cli.hint(AllArg, List[String]())
+    optRepo   <- ~cli.peek(RepoArg).flatMap(layer.repos.findBy(_).toOption)
+    optDir    <- ~optRepo.flatMap(_.repo.fetch(layout, true).toOption)
+    cli       <- cli.hint(TagArg, optDir.flatMap(_.tags.toOption).to[List].flatten)
+    cli       <- cli.hint(CommitArg, optDir.flatMap(_.allCommits.toOption).to[List].flatten)
     call      <- cli.call()
     https     <- ~call(HttpsArg).isSuccess
     all       <- ~call(AllArg).toOption
+    tag       <- ~call(TagArg).toOption
+    tagCommit <- call.atMostOne(TagArg, CommitArg)
+    _         <- call.atMostOne(TagArg, AllArg)
+    _         <- call.atMostOne(CommitArg, AllArg)
+    gitDir    <- optDir.ascribe(RepoNotFound())
+    commit    <- ~tagCommit.map(_.fold(gitDir.commitFromTag(_), Success(_)).toOption)
     
-    optRepos  <- call(RepoArg).toOption.map(scala.collection.immutable.SortedSet(_)).orElse(all.map(_ =>
-                      layer.repos.map(_.id))).ascribe(exoskeleton.MissingArg("repo"))
+    optRepos  <- call(RepoArg).toOption.map(SortedSet(_)).orElse(all.map(_ =>
+                      layer.repos.map(_.id))).ascribe(MissingParam(RepoArg))
 
     repos     <- optRepos.map(layer.repo(_, layout)).sequence
     succeeded <- ~repos.map(_.pull(layout, https)).forall(_.isSuccess)
 
-    newRepos  <- repos.map { repo => for {
-                    commit  <- repo.repo.getCommitFromTag(layout, repo.track)
-                    newRepo = repo.copy(commit = commit)
-                  } yield (newRepo, repo) }.sequence
+    newRepos  <- repos.traverse { repo => for {
+                   gitDir <- ~repo.repo.gitDir(layout)
+                   
+                   commit <- commit.flatten.ascribe(CannotUpdateRepo(repo.id)).orElse(
+                                 gitDir.commitFromBranch(repo.branch))
+
+                 } yield (repo.copy(commit = commit), repo) }
 
     newLayer   = newRepos.foldLeft(layer) { (layer, repoDiff) => repoDiff match {
-                    case (newRepo, oldRepo) => Layer(_.repos).modify(layer)(_ - oldRepo + newRepo) }
-                  }
+                   case (newRepo, oldRepo) => Layer(_.repos).modify(layer)(_ - oldRepo + newRepo) }
+                 }
 
     _         <- Layer.commit(layer, conf, layout)
 
@@ -178,66 +201,67 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.retrieve(conf)
-    cli            <- cli.hint(UrlArg)//, GitHub.repos(cli.peek(UrlArg).getOrElse("")))
+    layout         <- cli.layout
+    conf           <- Layer.readFuryConf(layout)
+    layer          <- Layer.retrieve(conf)
+    cli            <- cli.hint(RepoUrlArg, GitHub.repos(cli.peek(RepoUrlStringArg)).getOrElse(Nil))
     cli            <- cli.hint(DirArg)
     cli            <- cli.hint(HttpsArg)
-    projectNameOpt <- ~cli.peek(UrlArg).map(Repo(_)).flatMap(_.projectName.toOption)
+    projectNameOpt <- ~cli.peek(RepoUrlArg).flatMap(_.projectName.toOption)
     cli            <- cli.hint(RepoNameArg, projectNameOpt)
-    remoteOpt      <- ~cli.peek(UrlArg)
-    repoOpt        <- ~remoteOpt.map(Repo(_))
-    
-    versions       <- repoOpt.map(GitDir.lsRemote(_)(layout.env)).to[List].sequence.map(_.flatten).recover {
-                          case e => Nil }
-
-    cli            <- cli.hint(RefSpecArg, versions)
+    optRepo        <- ~cli.peek(RepoUrlArg)
+    optGitDir      <- ~optRepo.map(RemoteGitDir(cli.env, _))
+    tags           <- ~optGitDir.map(_.tags().getOrElse(Nil)).getOrElse(Nil)
+    branches       <- ~optGitDir.map(_.branches().getOrElse(Nil)).getOrElse(Nil)
+    cli            <- cli.hint(BranchArg, branches)
+    cli            <- cli.hint(TagArg, tags)
     call           <- cli.call()
     dir            <- ~call(DirArg).toOption
     https          <- ~call(HttpsArg).isSuccess
-    refSpec        <- ~call(RefSpecArg).toOption.getOrElse(RefSpec.master)
-    urlArg         <- cli.peek(UrlArg).ascribe(exoskeleton.MissingArg("url"))
-    repo           <- repoOpt.ascribe(exoskeleton.InvalidArgValue("url", urlArg))
+    branchTag      <- call.atMostOne(BranchArg, TagArg).map(_.getOrElse(Left(Branch.master)))
+    repo           <- call(RepoUrlArg)
+    gitDir         <- ~RemoteGitDir(cli.env, repo)
     suggested      <- repo.projectName
-    _              <- repo.fetch(layout, https)
-
-    commit         <- repo.getCommitFromTag(layout, refSpec).toOption.ascribe(
-                          exoskeleton.InvalidArgValue("refspec", refSpec.id))
-
+    gitDir         <- repo.fetch(layout, https)
+    commit         <- branchTag.fold(gitDir.commitFromBranch(_), gitDir.commitFromTag(_))
+    branch         <- branchTag.fold(Success(_), gitDir.someBranchFromTag(_))
     nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
-    sourceRepo     <- ~SourceRepo(nameArg, repo, refSpec, commit, dir)
+    sourceRepo     <- ~SourceRepo(nameArg, repo, branch, commit, dir)
     layer          <- ~Layer(_.repos).modify(layer)(_ + sourceRepo)
     _              <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.retrieve(conf)
-    cli         <- cli.hint(DirArg)
-    cli         <- cli.hint(UrlArg)
-    cli         <- cli.hint(ForceArg)
-    cli         <- cli.hint(RepoArg, layer.repos)
-    optRepo     <- ~cli.peek(RepoArg).flatMap(layer.repos.findBy(_).toOption)
-    refSpecs    <- optRepo.to[List].map(_.repo.path(layout)).map(GitDir(_)(layout.env).showRefs).sequence
-    cli         <- cli.hint(RefSpecArg, refSpecs.flatten)
-    call        <- cli.call()
-    repoArg     <- call(RepoArg)
-    repo        <- layer.repos.findBy(repoArg)
-    dir         <- ~call(DirArg).toOption
-    refSpec     <- ~call(RefSpecArg).toOption
-    remoteArg   <- ~call(UrlArg).toOption
-    remote      <- ~remoteArg.map(Repo(_))
-    nameArg     <- ~call(RepoNameArg).toOption
-    force       <- ~call(ForceArg).isSuccess
-    layer       <- ~remote.fold(layer)(Layer(_.repos(repo.id).repo)(layer) = _)
-    layer       <- ~refSpec.fold(layer)(Layer(_.repos(repo.id).track)(layer) = _)
-    layer       <- ~dir.map(Some(_)).fold(layer)(Layer(_.repos(repo.id).local)(layer) = _)
-    layer       <- ~nameArg.fold(layer)(Layer(_.repos(repo.id).id)(layer) = _)
-    commit      <- refSpec.fold(~repo.commit) { v => repo.repo.getCommitFromTag(layout, v) }
-    layer       <- ~(Layer(_.repos(repo.id).commit)(layer) = commit)
-    _           <- Layer.commit(layer, conf, layout)
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(DirArg)
+    cli       <- cli.hint(HttpsArg)
+    cli       <- cli.hint(RepoUrlArg, GitHub.repos(cli.peek(RepoUrlStringArg)).getOrElse(Nil))
+    cli       <- cli.hint(RepoArg, layer.repos)
+    optRepo   <- ~cli.peek(RepoArg).flatMap(layer.repos.findBy(_).toOption)
+    branches  <- optRepo.to[List].map(_.repo.path(layout)).map(GitDir(_)(layout.env).branches).sequence
+    tags      <- optRepo.to[List].map(_.repo.path(layout)).map(GitDir(_)(layout.env).tags).sequence
+    cli       <- cli.hint(BranchArg, branches.flatten)
+    cli       <- cli.hint(TagArg, tags.flatten)
+    call      <- cli.call()
+    repoArg   <- call(RepoArg)
+    repo      <- layer.repos.findBy(repoArg)
+    gitDir    <- ~repo.repo.gitDir(layout)
+    dir       <- ~call(DirArg).toOption
+    branch    <- ~call(BranchArg).toOption
+    nameArg   <- ~call(RepoNameArg).toOption
+    branchTag <- call.atMostOne(BranchArg, TagArg).map(_.getOrElse(Left(Branch.master)))
+    commit    <- branchTag.fold(gitDir.commitFromBranch(_), gitDir.commitFromTag(_))
+    urlArg    <- ~call(RepoUrlArg).toOption
+    https     <- ~call(HttpsArg).isSuccess
+    layer     <- ~urlArg.fold(layer)(Layer(_.repos(repo.id).repo)(layer) = _)
+    layer     <- ~branch.fold(layer)(Layer(_.repos(repo.id).branch)(layer) = _)
+    layer     <- ~dir.map(Some(_)).fold(layer)(Layer(_.repos(repo.id).local)(layer) = _)
+    layer     <- ~nameArg.fold(layer)(Layer(_.repos(repo.id).id)(layer) = _)
+    layer     <- ~(Layer(_.repos(repo.id).commit)(layer) = commit)
+    _         <- repo.repo.fetch(layout, https)
+    _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {

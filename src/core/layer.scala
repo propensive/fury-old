@@ -45,6 +45,29 @@ case class Layer(version: Int,
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
+  def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
+    project.copy(modules = project.modules.map { module =>
+      module.copy(sources = module.sources.map {
+        case ExternalSource(`repoId`, dir, glob) => LocalSource(dir, glob)
+        case other => other
+      })
+    })
+  })
+
+  def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
+    project.copy(modules = project.modules.map { module =>
+      module.copy(sources = module.sources.map {
+        case LocalSource(dir, glob) => ExternalSource(repoId, dir, glob)
+        case other => other
+      })
+    })
+  })
+
+  def uniqueRepoId(baseDir: Path): RepoId = {
+    val unnamed = Stream.from(1).map { n => RepoId(str"repo-$n") }
+    (mainRepo.to[Stream] ++: RepoId.unapply(baseDir.name) ++: unnamed).filter(!repos.contains(_)).head
+  }
+
   def localSources: List[ModuleRef] = for {
     project           <- projects.to[List]
     module            <- project.modules
@@ -120,7 +143,7 @@ case class Layer(version: Int,
 
   def localRepo(layout: Layout): Try[SourceRepo] = for {
     repo   <- Repo.local(layout)
-    gitDir <- ~GitDir(layout.baseDir)(layout.env)
+    gitDir <- ~GitDir(layout)
     commit <- gitDir.commit
     branch <- gitDir.branch
   } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
@@ -140,7 +163,7 @@ object Layer extends Lens.Partial[Layer] {
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
   implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
 
-  val CurrentVersion: Int = 6
+  val CurrentVersion: Int = 7
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
@@ -230,7 +253,7 @@ object Layer extends Lens.Partial[Layer] {
     }.flatten
   
   def showMergeConflicts(layout: Layout)(implicit log: Log) = for {
-    gitDir        <- ~GitDir(layout.baseDir)(layout.env)
+    gitDir        <- ~GitDir(layout)
     (left, right) <- gitDir.mergeConflicts
     common        <- gitDir.mergeBase(left, right)
     _             <- ~log.warn(msg"The layer has merge conflicts")
@@ -299,6 +322,11 @@ object Layer extends Lens.Partial[Layer] {
     if(version < CurrentVersion) {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
+        case 6 =>
+          // FIXME: This is a lazy solution
+          Try(ogdl.set(repos = ogdl.repos.map { repo =>
+            repo.set(branch = repo.track)
+          })).getOrElse(ogdl)
         case 0 | 1 | 2 | 3 | 4 | 5 =>
           log.fail(msg"Cannot migrate from layers earlier than version 6")
           // FIXME: Handle this better
