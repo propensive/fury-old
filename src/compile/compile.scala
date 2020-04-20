@@ -331,7 +331,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
     val ref = for {
-      originId <- RequestOriginId.unapply(params.getOriginId)
+      idString    <- Option(params.getOriginId)
+      originId    <- RequestOriginId.unapply(idString)
       compilation <- Compilation.findOrigin(originId)
     } yield compilation.target.ref
     broadcast(Print(ref.get, params.getMessage))
@@ -339,7 +340,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {
     val ref = for {
-      originId <- RequestOriginId.unapply(params.getOriginId)
+      idString    <- Option(params.getOriginId)
+      originId    <- RequestOriginId.unapply(idString)
       compilation <- Compilation.findOrigin(originId)
     } yield compilation.target.ref
     broadcast(Print(ref.get, params.getMessage))
@@ -349,7 +351,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     val compilation = for {
-      originId    <- RequestOriginId.unapply(params.getOriginId)
+      idString    <- Option(params.getOriginId)
+      originId    <- RequestOriginId.unapply(idString)
       compilation <- Compilation.findOrigin(originId)
     } yield compilation
 
@@ -357,7 +360,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
       case Some(c) => c.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
       case None =>
         //FIXME
-        println(str"Request with originId: ${params.getOriginId} could not be matched to a compilation")
+        //println(str"Request with originId: ${params.getOriginId} could not be matched to a compilation")
         Map.empty
     }
 

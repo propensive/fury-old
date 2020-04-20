@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.14.1. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.13.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -41,8 +41,9 @@ case class Checkout(repoId: RepoId,
   def path: Path = Installation.srcsDir / hash.encoded
 
   def get(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = for {
-    repoDir <- repo.get(layout, https)
-  } yield repoDir
+    repoDir    <- repo.get(layout, https)
+    workingDir <- checkout(layout)
+  } yield workingDir
 
   private def checkout(layout: Layout)(implicit log: Log): Try[GitDir] =
     local.map(Success(_)).getOrElse {
