@@ -128,16 +128,17 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     dir       <- call(DirArg)
     https     <- ~call(HttpsArg).isSuccess
     bareRepo  <- repo.repo.fetch(layout, https)
-    absPath   <- { for {
-                    absPath <- ~(layout.pwd.resolve(dir))
-                    _       <- Try(absPath.mkdir())
-                    _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
-                  } yield absPath }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
-
-    _         <- ~bareRepo.sparseCheckout(absPath, List(), branch = repo.branch, commit = repo.commit,
+    gitDir    <- {
+                   for {
+                     absPath <- ~(layout.pwd.resolve(dir))
+                     _       <- Try(absPath.mkdir())
+                     _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
+                   } yield GitDir(absPath)(layout.env)
+                 }.orElse(Failure(exoskeleton.InvalidArgValue("dir", dir.value)))
+    _         <- ~gitDir.sparseCheckout(bareRepo.dir, List(), branch = repo.branch, commit = repo.commit,
                      Some(repo.repo.universal(false)))
 
-    newRepo   <- ~repo.copy(local = Some(absPath))
+    newRepo   <- ~repo.copy(local = Some(gitDir.dir))
     layer     <- ~Layer(_.repos).modify(layer)(_ - repo + newRepo)
     _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
