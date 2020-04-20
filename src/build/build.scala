@@ -619,7 +619,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     layer         <- Layer.retrieve(conf)
     defaultId     <- Try(conf.published.map(_.url.path).flatMap(RemoteLayerId.unapply(_)))
-    remoteLayerId <- call(RemoteLayerArg).toOption.orElse(defaultId).ascribe(MissingArg("name"))
+    remoteLayerId <- call(RemoteLayerArg).toOption.orElse(defaultId).ascribe(MissingParam(RemoteLayerArg))
     breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
@@ -671,7 +671,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call          <- cli.call()
     layerName     <- call(ImportArg)
-    nameArg       <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingArg("name"))
+    
+    nameArg       <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingParam(
+                         ImportNameArg))
+
     newLayerRef   <- Layer.resolve(layerName)
     pub           <- Layer.published(layerName)
     newLayer      <- Layer.get(newLayerRef, pub)
