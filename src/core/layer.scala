@@ -45,6 +45,29 @@ case class Layer(version: Int,
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
   def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
 
+  def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
+    project.copy(modules = project.modules.map { module =>
+      module.copy(sources = module.sources.map {
+        case ExternalSource(`repoId`, dir, glob) => LocalSource(dir, glob)
+        case other => other
+      })
+    })
+  })
+
+  def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
+    project.copy(modules = project.modules.map { module =>
+      module.copy(sources = module.sources.map {
+        case LocalSource(dir, glob) => ExternalSource(repoId, dir, glob)
+        case other => other
+      })
+    })
+  })
+
+  def uniqueRepoId(baseDir: Path): RepoId = {
+    val unnamed = Stream.from(1).map { n => RepoId(str"repo-$n") }
+    (mainRepo.to[Stream] ++: RepoId.unapply(baseDir.name) ++: unnamed).filter(!repos.contains(_)).head
+  }
+
   def localSources: List[ModuleRef] = for {
     project           <- projects.to[List]
     module            <- project.modules
@@ -120,7 +143,7 @@ case class Layer(version: Int,
 
   def localRepo(layout: Layout): Try[SourceRepo] = for {
     repo   <- Repo.local(layout)
-    gitDir <- ~GitDir(layout.baseDir)(layout.env)
+    gitDir <- ~GitDir(layout)
     commit <- gitDir.commit
     branch <- gitDir.branch
   } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
@@ -230,7 +253,7 @@ object Layer extends Lens.Partial[Layer] {
     }.flatten
   
   def showMergeConflicts(layout: Layout)(implicit log: Log) = for {
-    gitDir        <- ~GitDir(layout.baseDir)(layout.env)
+    gitDir        <- ~GitDir(layout)
     (left, right) <- gitDir.mergeConflicts
     common        <- gitDir.mergeBase(left, right)
     _             <- ~log.warn(msg"The layer has merge conflicts")

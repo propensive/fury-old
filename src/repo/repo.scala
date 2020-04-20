@@ -63,8 +63,8 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- Layer.share(service, layer, token)
     local     <- layer.local(layout)
     _         <- layout.gitConf.copyTo(layout.baseConf)
-    commit    <- GitDir(layout.baseDir)(layout.env).commit
-    branch    <- GitDir(layout.baseDir)(layout.env).branch
+    commit    <- GitDir(layout).commit
+    branch    <- GitDir(layout).branch
     layer     <- ~(Layer(_.repos(local.id).branch)(layer) = branch)
     layer     <- ~(Layer(_.repos(local.id).commit)(layer) = commit)
     _         <- Layer.commit(layer, conf, layout)
@@ -99,6 +99,15 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     layer     <- ~(Layer(_.mainRepo)(layer) = Some(repo.id))
     _         <- Layer.commit(layer, conf, layout)
     _         <- ~(layout.pwd / ".fury.conf.bak").delete()
+  } yield log.await()
+
+  def checkin: Try[ExitStatus] = for {
+    layout <- cli.layout
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.retrieve(conf)
+    call   <- cli.call()
+    source <- SourceRepo.local(layout, layer)
+    layer  <- ~(Layer(_.mainRepo)(layer) = None)
   } yield log.await()
 
   def unfork: Try[ExitStatus] = for {

@@ -54,7 +54,7 @@ object Repo {
       other
   } }
 
-  def local(layout: Layout): Try[Repo] = GitDir(layout.baseDir / ".git")(layout.env).origin
+  def local(layout: Layout): Try[Repo] = GitDir(layout.baseDir / ".git")(layout.env).remote
 }
 
 case class Repo(ref: String) {

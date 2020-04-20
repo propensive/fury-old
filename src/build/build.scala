@@ -381,10 +381,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     main         <- module.main.ascribe(UnspecifiedMain(module.id))
     _            <- ~log.info(msg"Building native image for $exec")
     _            <- compilation.saveNative(module.ref(project), Installation.optDir, layout, main)
-    bin          <- ~(Installation.usrDir / main.key.toLowerCase)
+    bin          <- ~(Installation.optDir / main.key.toLowerCase)
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
-    _            <- ~log.info(msg"Installed $exec executable")
+    _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
 
   def console: Try[ExitStatus] = for {

@@ -28,14 +28,14 @@ object SourceRepo {
   implicit def diff: Diff[SourceRepo] = Diff.gen[SourceRepo]
 
   def checkin(layout: Layout, local: SourceRepo, https: Boolean)(implicit log: Log): Try[Unit] = for {
-    gitDir <- ~GitDir(layout.baseDir)(layout.env)
+    gitDir <- ~GitDir(layout)
     dirty  <- gitDir.diffShortStat()
     _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(local.id, dirty.get.value))
     commit <- gitDir.commit
     branch <- gitDir.branch
-    origin <- gitDir.origin
+    remote <- gitDir.remote
     pushed <- gitDir.remoteHasCommit(commit, branch)
-    _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, origin.ref))
+    _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, remote.ref))
     name   <- local.repo.projectName
     dest   <- Try((Xdg.runtimeDir / str"$name.bak").uniquify())
     files  <- gitDir.trackedFiles
@@ -44,6 +44,18 @@ object SourceRepo {
     _      <- (layout.baseDir / ".git").moveTo(dest / ".git")
     _      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield ()
+
+  def local(layout: Layout, layer: Layer)(implicit log: Log): Try[Option[SourceRepo]] = {
+    val gitDir = GitDir(layout)
+    if(gitDir.commit.isFailure) Success(None)
+    else for {
+      repoId <- ~layer.uniqueRepoId(layout.baseDir)
+      remote <- gitDir.remote
+      branch <- gitDir.branch
+      commit <- gitDir.commit
+    } yield Some(SourceRepo(repoId, remote, branch, commit, None))
+  }
+    
 }
 
 case class SourceRepo(id: RepoId, repo: Repo, branch: Branch, commit: Commit, local: Option[Path]) {
@@ -65,7 +77,7 @@ case class SourceRepo(id: RepoId, repo: Repo, branch: Branch, commit: Commit, lo
       case Success(true) =>
         thisLocalDir.getOrElse {
           log.info(msg"Commandeering the working directory as the repository $id")
-          GitDir(layout.baseDir)(layout.env).diffShortStat(Some(commit)).foreach { diff =>
+          GitDir(layout).diffShortStat(Some(commit)).foreach { diff =>
             diff.foreach { diff =>
               log.warn(msg"The working directory differs from the repo in the layer: $diff")
             }
@@ -138,7 +150,7 @@ case class SourceRepo(id: RepoId, repo: Repo, branch: Branch, commit: Commit, lo
     _          <- ~log.info(msg"Checking out ${repo} to ${layout.baseDir.relativizeTo(layout.pwd)}")
     bareRepo   <- repo.fetch(layout, https)
     _          <- ~layout.confFile.moveTo(layout.confFileBackup)
-    gitDir     <- ~GitDir(layout.baseDir)(layout.env)
+    gitDir     <- ~GitDir(layout)
     sourceRepo <- gitDir.sparseCheckout(bareRepo.dir, List(), branch, commit, Some(repo.universal(false)))
     _          <- ~layout.confFileBackup.moveTo(layout.confFile)
   } yield ()

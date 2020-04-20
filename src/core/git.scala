@@ -38,9 +38,8 @@ object GitDir {
   def supplementEnv(env: Environment): Environment =
     env.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes").append("GIT_TERMINAL_PROMPT", "0")
 
-  def apply(dir: Path)(implicit env: Environment): GitDir =
-    GitDir(supplementEnv(env), dir)
-
+  def apply(dir: Path)(implicit env: Environment): GitDir = GitDir(supplementEnv(env), dir)
+  def apply(layout: Layout): GitDir = GitDir(layout.baseDir)(layout.env)
   implicit val hashable: Hashable[GitDir] = (acc, value) => implicitly[Hashable[Path]].digest(acc, value.dir)
 }
 
@@ -86,7 +85,7 @@ case class GitDir(env: Environment, dir: Path) {
       (dir / ".done").touch()
     }
 
-  def origin: Try[Repo] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Repo.parse(_, true))
+  def remote: Try[Repo] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Repo.parse(_, true))
 
   def diffShortStat(other: Option[Commit] = None): Try[Option[DiffStat]] = { other match {
     case None =>
@@ -115,15 +114,13 @@ case class GitDir(env: Environment, dir: Path) {
     _ <- sh"$git fetch --all".exec[Try[String]]
     _ <- sh"$git checkout ${commit.id}".exec[Try[String]]
 
-    _ <- ~remote.foreach { repo =>
-           for {
-             _ <- sh"$git remote remove origin".exec[Try[String]]
-             _ <- sh"$git remote add origin ${repo.ref}".exec[Try[String]]
-             _ <- sh"$git checkout -b ${branch.id}".exec[Try[String]]
-             _ <- sh"$git fetch".exec[Try[String]]
-             _ <- sh"$git branch -u origin/${branch.id}".exec[Try[String]]
-           } yield ()
-         }
+    _ <- ~remote.foreach { repo => for {
+           _ <- sh"$git remote remove origin".exec[Try[String]]
+           _ <- sh"$git remote add origin ${repo.ref}".exec[Try[String]]
+           _ <- sh"$git checkout -b ${branch.id}".exec[Try[String]]
+           _ <- sh"$git fetch".exec[Try[String]]
+           _ <- sh"$git branch -u origin/${branch.id}".exec[Try[String]]
+         } yield () }
 
     _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
     _ <- ~(dir / ".done").touch()
