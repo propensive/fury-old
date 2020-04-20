@@ -160,7 +160,9 @@ class Cli(val stdout: java.io.PrintWriter,
   type Hinted <: CliParam
 
   class Call private[Cli] () {
-    def apply(param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] = args.get(param.param)
+    def apply(param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] =
+      args.get(param.param).toOption.ascribe(MissingParam(param))
+
     def suffix: List[String] = args.suffix.to[List].map(_.value)
 
     def exactlyOne(param1: CliParam, param2: CliParam)
@@ -198,11 +200,10 @@ class Cli(val stdout: java.io.PrintWriter,
   def action(blk: Call => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap(blk)
 
   def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
+  
   def preview(param: CliParam)(default: Option[param.Type] = None): Try[param.Type] = {
     val result = args.get(param.param)
-    if(default.isDefined) result.recover {
-        case _: exoskeleton.MissingArg => default.get
-    } else result
+    if(default.isDefined) result.recover { case MissingParam(_) => default.get } else result
   }
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
