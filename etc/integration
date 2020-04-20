@@ -50,7 +50,7 @@ mkdir -pv ~/.cache/fury/policies
 fury start
 fury clean
 fury config set --theme nocolor --timestamps off
-
+export LC_COLLATE=C
 if [ "$1" = "" ]; then
 
   for ATEST in $(ls $ROOT/test/passing); do
