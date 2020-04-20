@@ -138,9 +138,10 @@ case class GitDir(env: Environment, dir: Path) {
     refs  <- sh"$git show-ref --heads".exec[Try[String]]
   } yield refs.split("\n").to[List].map(_.split("/", 3).last).map(Branch(_))
 
-  def tags: Try[List[Tag]] = for {
-    refs  <- sh"$git show-ref --tags".exec[Try[String]]
-  } yield refs.split("\n").to[List].map(_.split("/", 3).last).map(Tag(_))
+  def tags: Try[List[Tag]] = Try {
+    sh"$git show-ref --tags".exec[Try[String]].toOption.getOrElse("").split("\n").to[List].map(_.split("/",
+        3).last).map(Tag(_))
+  }
 
   def remoteHasCommit(commit: Commit, branch: Branch): Try[Boolean] =
     sh"$git rev-list origin/${branch.id}".exec[Try[String]].map(_.split("\n").contains(commit.id))
