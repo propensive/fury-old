@@ -93,12 +93,6 @@ case class Tables() {
 
   private def bar(n: Int) = msg"${theme.gray("■" * n)}"
 
-  private def commitOrPath(layout: Layout, r: SourceRepo)(implicit log: Log) = r.localDir(layout) match {
-    case Some(dir) => if(r.localDir(layout) == Some(layout.baseDir)) msg"${theme.italic("local")}"
-                      else msg"${theme.path(dir.dir.value)}"
-    case None      => msg"${theme.version(r.commit.id.take(7))}"
-  }
-
   def differences(left: String, right: String): Tabulation[Difference] = Tabulation[Difference](
     Heading("Type", _.entity),
     Heading("Diff", _.label),
@@ -209,11 +203,12 @@ case class Tables() {
     Heading("Compiler", _.compiler)
   )
 
-  def repositories(layout: Layout)(implicit log: Log): Tabulation[SourceRepo] = Tabulation(
+  def repos(layout: Layout)(implicit log: Log): Tabulation[SourceRepo] = Tabulation(
     Heading("Repo", _.id),
     Heading("Remote", _.repo),
     Heading("Branch/Tag", _.branch),
-    Heading("Commit/Path", commitOrPath(layout, _)),
-    Heading("Changes", _.changes(layout, true).toOption.flatten)
+    Heading("Commit", _.commit),
+    Heading("Path", _.local),
+    Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout, true).toOption.flatten)
   )
 }

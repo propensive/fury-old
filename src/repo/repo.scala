@@ -38,7 +38,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     conf      <- Layer.readFuryConf(layout)
     layer     <- Layer.retrieve(conf)
     cli       <- cli.hint(RawArg)
-    table     <- ~Tables().repositories(layout)
+    table     <- ~Tables().repos(layout)
     cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     cli       <- cli.hint(RepoArg, layer.repos.map(_.id))
     call      <- cli.call()
