@@ -31,20 +31,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli     <- cli.hint(RawArg)
     table   =  Tables().dependencies
     cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
@@ -66,20 +53,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-    
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     dependencyLinks      = for {
       project  <- tryProject
       module <- tryModule
@@ -93,7 +67,6 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
       fromOtherProjects ++ fromSameProject
     }
     cli       <- cli.hint(LinkArg, dependencyLinks.getOrElse(Set.empty))    
-    
     cli       <- cli.hint(ForceArg)
     cli       <- cli.hint(HttpsArg)
     call      <- cli.call()
@@ -114,20 +87,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project    
-    
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-    
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     hierarchy        <- layer.hierarchy()
     universe         <- hierarchy.universe
     allRefs = for {
