@@ -18,6 +18,7 @@ still under active development.
     * If Fury cannot detect a running Bloop server, it will download and launch an own instance.
 * Git
 * IPFS
+    * Supported versions are 0.4.x. IPFS 0.5.x is not supported yet.
     * If Fury cannot detect a running IPFS daemon, a new one will be started. 
     * Fury will also download the IPFS distribution if an installed one cannot be found.
 * Tab completion for shell commands works only in Zsh. 
