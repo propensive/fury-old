@@ -17,6 +17,6 @@ fi
 
 for FILE in $(find src -name '*.scala'); do
   sed 's/%VERSION%/'"$VERSION"'/g' "$HEADER" | sed 's/%YEAR%/'$YEAR'/g' > "$TMP"
-  sed '/package/,$!d' "$FILE" >> "$TMP"
+  sed '/\(package\|object\|import\)/,$!d' "$FILE" >> "$TMP"
   mv "$TMP" "$FILE"
 done

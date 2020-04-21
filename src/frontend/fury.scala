@@ -14,3 +14,8 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
+import com.facebook.nailgun
+
+object Fury {
+  def main(args: Array[String]): Unit = NGServer.main(args)
+}
