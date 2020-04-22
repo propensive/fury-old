@@ -195,6 +195,24 @@ class Cli(val stdout: java.io.PrintWriter,
     }
   }
 
+  def askProjectAndModule(layer: Layer): Try[(Cli, Try[Project], Try[Module])] = {
+    import fury.core.Args.{ ProjectArg, ModuleArg }
+    for {
+      cli          <- this.hint(ProjectArg, layer.projects)
+      tryProject = for {
+        projectId <- cli.preview(ProjectArg)(layer.main)
+        project   <- layer.projects.findBy(projectId)
+      } yield project
+
+      cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
+      tryModule = for {
+        project  <- tryProject
+        moduleId <- cli.preview(ModuleArg)(project.main)
+        module   <- project.modules.findBy(moduleId)
+      } yield module
+    } yield (cli, tryProject, tryModule)
+  }
+
   def forceLog(msg: UserMsg): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, pid)
 
   def action(blk: Call => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap(blk)

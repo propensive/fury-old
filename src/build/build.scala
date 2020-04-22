@@ -254,14 +254,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     call         <- cli.call()
-    project      <- optProject.asTry
-    module       <- project.modules.findBy(moduleId)
+    project      <- tryProject
+    module       <- tryModule
     moduleRef    =  module.ref(project)
 
     compilation  <- Compilation.syncCompilation(layer, moduleRef, layout, https = false, noSecurity = true)
@@ -364,18 +360,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     cli          <- cli.hint(HttpsArg)
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(ExecNameArg)
     call         <- cli.call()
     exec         <- call(ExecNameArg)
     https        <- ~call(HttpsArg).isSuccess
-    project      <- optProject.asTry
-    optModuleId  <- ~call(ModuleArg).toOption.orElse(project.main)
-    optModule    <- ~optModuleId.flatMap(project.modules.findBy(_).toOption)
-    module       <- optModule.asTry
+    project      <- tryProject
+    module       <- tryModule
     compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, https, false)
     _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
     main         <- module.main.ascribe(UnspecifiedMain(module.id))
@@ -391,24 +382,20 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(HttpsArg)
     cli          <- cli.hint(PipeliningArg, List("on", "off"))
     cli          <- cli.hint(NoSecurityArg)
     cli          <- cli.hint(IgnoreErrorsArg)
     cli          <- cli.hint(ReporterArg, Reporter.all)
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
     force        <- ~call(IgnoreErrorsArg).isSuccess
     pipelining   <- ~call(PipeliningArg).toOption
     reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     noSecurity   <- ~call(NoSecurityArg).isSuccess
-    project      <- optProject.asTry
-    module       <- project.modules.findBy(moduleId)
+    project      <- tryProject
+    module       <- tryModule
     
     compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
                         https, noSecurity)
@@ -444,17 +431,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     cli          <- cli.hint(HttpsArg)
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
-    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(SingleColumnArg)
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
     singleColumn <- ~call(SingleColumnArg).isSuccess
-    project      <- optProject.asTry
-    module       <- project.modules.findBy(moduleId)
+    project      <- tryProject
+    module       <- tryModule
     
     compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
                         https, false)
@@ -470,16 +453,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(HttpsArg)
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    cli          <- cli.hint(ModuleArg, optProject.map(_.modules).getOrElse(Nil))
     call         <- cli.call()
     https        <- ~call(HttpsArg).isSuccess
-    moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
-    project      <- optProject.asTry
-    module       <- project.modules.findBy(moduleId)
+    project      <- tryProject
+    module       <- tryModule
 
     compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
                         https, false)
