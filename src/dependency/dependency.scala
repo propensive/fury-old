@@ -126,20 +126,7 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(RawArg)
     table        <- ~Tables().envs
     cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
@@ -161,20 +148,7 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(EnvArg, tryModule.map(_.environment).getOrElse(Nil))
     cli          <- cli.hint(ForceArg)
     call         <- cli.call()
@@ -190,20 +164,7 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     layout          <- cli.layout
     conf            <- Layer.readFuryConf(layout)
     layer           <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     importedLayers  = layer.importedLayers.toOption
     allLayers       = layer :: importedLayers.toList.flatten
     allModules      = allLayers.map(_.moduleRefs).flatten
@@ -223,20 +184,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     layout          <- cli.layout
     conf            <- Layer.readFuryConf(layout)
     layer           <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli             <- cli.hint(ScopeArg, ScopeId.All)
     cli             <- cli.hint(NoGrantArg)
     cli             <- cli.hint(ClassArg, Permission.Classes)
@@ -266,20 +214,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli           <- cli.hint(PermissionArg, tryModule.map(_.policyEntries).getOrElse(Set.empty))
     cli           <- cli.hint(ForceArg)
     call          <- cli.call()
@@ -302,20 +237,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli           <- cli.hint(RawArg)
     table         <- ~Tables().permissions
     cli           <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
@@ -335,20 +257,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli           <- cli.hint(ScopeArg, ScopeId.All)
     cli           <- cli.hint(PermissionArg, tryModule.map(_.policyEntries).getOrElse(Set.empty))
     call          <- cli.call()
@@ -371,20 +280,7 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli     <- cli.hint(RawArg)
     table   <- ~Tables().props
     cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
@@ -406,20 +302,7 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli       <- cli.hint(PropArg, tryModule.map(_.properties).getOrElse(Set.empty))
     cli       <- cli.hint(ForceArg)
     call      <- cli.call()
@@ -435,20 +318,7 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-
-    cli          <- cli.hint(ProjectArg, layer.projects)
-    tryProject = for {
-      projectId <- cli.preview(ProjectArg)(layer.main)
-      project   <- layer.projects.findBy(projectId)
-    } yield project
-
-    cli          <- cli.hint(ModuleArg, tryProject.map(_.modules).getOrElse(Set.empty))
-    tryModule = for {
-      project  <- tryProject
-      moduleId <- cli.preview(ModuleArg)(project.main)
-      module   <- project.modules.findBy(moduleId)
-    } yield module
-
+    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     importedLayers   = layer.importedLayers.toOption
     allLayers        = layer :: importedLayers.toList.flatten
     cli             <- cli.hint(PropArg)
