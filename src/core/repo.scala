@@ -54,7 +54,11 @@ object Repo {
       other
   } }
 
-  def local(layout: Layout): Try[Repo] = GitDir(layout.baseDir / ".git")(layout.env).remote
+  def local(layout: Layout): Try[Repo] = {
+    val gitDir =  layout.baseDir / ".git"
+    if(gitDir.directory) GitDir(gitDir)(layout.env).remote
+    else Failure(RepoNotFound(layout.baseDir))
+  }
 }
 
 case class Repo(ref: String) {

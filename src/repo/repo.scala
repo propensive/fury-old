@@ -160,10 +160,13 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     cli       <- cli.hint(HttpsArg)
     cli       <- cli.hint(RepoArg, layer.repos)
     cli       <- cli.hint(AllArg, List[String]())
-    optRepo   <- ~cli.peek(RepoArg).flatMap(layer.repos.findBy(_).toOption)
-    optDir    <- ~optRepo.flatMap(_.repo.fetch(layout, true).toOption)
-    cli       <- cli.hint(TagArg, optDir.flatMap(_.tags.toOption).to[List].flatten)
-    cli       <- cli.hint(CommitArg, optDir.flatMap(_.allCommits.toOption).to[List].flatten)
+    tryDir = for {
+      repoId     <- cli.preview(RepoArg)()
+      sourceRepo <- layer.repos.findBy(repoId)
+      dir        <- sourceRepo.repo.fetch(layout, true)
+    } yield dir
+    cli       <- cli.hint(TagArg, tryDir.flatMap(_.tags).getOrElse(Nil))
+    cli       <- cli.hint(CommitArg, tryDir.flatMap(_.allCommits).getOrElse(Nil))
     call      <- cli.call()
     https     <- ~call(HttpsArg).isSuccess
     all       <- ~call(AllArg).toOption
@@ -171,7 +174,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     tagCommit <- call.atMostOne(TagArg, CommitArg)
     _         <- call.atMostOne(TagArg, AllArg)
     _         <- call.atMostOne(CommitArg, AllArg)
-    gitDir    <- optDir.ascribe(RepoNotFound())
+    gitDir    <- tryDir
     commit    <- ~tagCommit.map(_.fold(gitDir.commitFromTag(_), Success(_)).toOption)
     
     optRepos  <- call(RepoArg).toOption.map(SortedSet(_)).orElse(all.map(_ =>

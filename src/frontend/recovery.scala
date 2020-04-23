@@ -133,8 +133,8 @@ You can grant these permissions with,
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case RepoNotForked(repo) =>
           cli.abort(msg"The repository ${repo} has not been forked.")
-        case RepoNotFound() =>
-          cli.abort(msg"The repository could not be retrieved.")
+        case RepoNotFound(base) =>
+          cli.abort(msg"There is no .git directory in $base.")
         case RepoAlreadyForked(repo, dir) =>
           cli.abort(msg"The repository ${repo} is already forked to ${dir}.")
         case RepoDirty(repo, changes) =>
