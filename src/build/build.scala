@@ -375,6 +375,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     bin          <- ~(Installation.optDir / main.key.toLowerCase)
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
+    globalPolicy <- ~Policy.read(log)
+    _            <- Try(Shell(cli.env).runJava(compilation.classpath(module.ref(project), layout).to[List].map(_.value),
+                        "exoskeleton.Generate", false, Map("FPATH" -> Installation.completionsDir.value), Map(),
+                        globalPolicy, layout, List(exec.key), true)(log.info(_)).await())
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
 

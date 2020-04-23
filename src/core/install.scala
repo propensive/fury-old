@@ -90,7 +90,7 @@ object Install {
     List(str"export PATH=${paths.map(_.value).join(":")}:$$PATH $furyTag")
   
   private final val zshCompletions: List[String] = List(
-    str"fpath=(${Installation.scriptDir} $$fpath) $furyTag",
+    str"fpath=(${Installation.scriptDir} ${Installation.completionsDir} $$fpath) $furyTag",
     str"autoload -U compinit && compinit $furyTag"
   )
 

@@ -149,6 +149,7 @@ object Installation {
 
   val rootBinDir: Path = (data / "bin").extant()
   val optDir: Path = (data / "opt").extant()
+  val completionsDir: Path = (data / "completions").extant()
   val userConfig: Path = config / "config.fury"
   val aliasesPath: Path = config / "aliases"
   val policyFile: Path = config / "policy.conf"
