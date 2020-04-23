@@ -195,7 +195,9 @@ class Cli(val stdout: java.io.PrintWriter,
     }
   }
 
-  def askProjectAndModule(layer: Layer): Try[(Cli, Try[Project], Try[Module])] = {
+  def askProjectAndModule(layer: Layer): Try[(Cli{
+    type Hinted <: cli.Hinted with Args.ProjectArg.type with Args.ModuleArg.type
+  }, Try[Project], Try[Module])] = {
     import fury.core.Args.{ ProjectArg, ModuleArg }
     for {
       cli          <- this.hint(ProjectArg, layer.projects)
