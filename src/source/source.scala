@@ -89,8 +89,10 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     source       <- call(SourceArg)
 
-    tryLocalRepo =  Repo.local(layout)
-    localId      <- tryLocalRepo.map { r => layer.repos.find(_.repo.simplified == r.simplified).map(_.id) }
+    localId      =  for {
+      localRepo <- Repo.local(layout).toOption
+      layerMatch <- layer.repos.find(_.repo.simplified == localRepo.simplified)
+    } yield layerMatch.id
 
     source       <- ~Source.rewriteLocal(source, localId)
     layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))

@@ -81,7 +81,7 @@ case class RemoteNotSynched(repo: RepoId, remote: String) extends FuryException
 case class RepoAlreadyForked(repo: RepoId, dir: Path) extends FuryException
 case class RepoDirty(repo: RepoId, changes: String) extends FuryException
 case class RepoNotForked(repo: RepoId) extends FuryException
-case class RepoNotFound() extends FuryException
+case class RepoNotFound(base: Path) extends FuryException
 case class RootLayerNotSelected() extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class UnknownCommand(command: String) extends FuryException
