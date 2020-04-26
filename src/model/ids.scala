@@ -573,8 +573,8 @@ object LayerName {
   def parse(path: String): Try[LayerName] = {
     val service = ManagedConfig().service
     path match {
-      case r"fury:\/\/$ref@([A-Za-z0-9]{44})\/?" =>
-        Success(IpfsRef(str"Qm$ref"))
+      case r"fury:\/\/$ref@(Qm[A-Za-z0-9]{44})\/?" =>
+        Success(IpfsRef(ref))
       case r"fury:\/\/$dom@(([a-z]+\.)+[a-z]{2,})\/$loc@(([a-z][a-z0-9]*\/)+[a-z][0-9a-z]*([\-.][0-9a-z]+)*)" =>
         Success(FuryUri(DomainName(dom), loc))
       case r".*\.fury" =>
