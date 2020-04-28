@@ -30,7 +30,7 @@ object Target {
                     kind: Kind,
                     main: Option[ClassRef],
                     plugin: Option[PluginId],
-                    repos: List[Repo],
+                    repos: List[Remote],
                     checkouts: List[Checkout],
                     binaries: List[Path],
                     dependencies: List[TargetId],

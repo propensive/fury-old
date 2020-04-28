@@ -31,7 +31,7 @@ case class Checkouts(checkouts: Set[Checkout]) {
 }
 
 case class Checkout(repoId: RepoId,
-                    repo: Repo,
+                    repo: Remote,
                     local: Option[GitDir],
                     commit: Commit,
                     branch: Branch,

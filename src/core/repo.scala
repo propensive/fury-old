@@ -23,10 +23,10 @@ import kaleidoscope._
 
 import scala.util._
 
-object Repo {
-  implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.url(r.simplified))
-  implicit val stringShow: StringShow[Repo] = _.simplified
-  implicit val parser: Parser[Repo] = str => Some(parse(str, true))
+object Remote {
+  implicit val msgShow: MsgShow[Remote] = r => UserMsg(_.url(r.simplified))
+  implicit val stringShow: StringShow[Remote] = _.simplified
+  implicit val parser: Parser[Remote] = str => Some(parse(str, true))
 
   case class ExistingLocalFileAsAbspath(absPath: String)
 
@@ -37,7 +37,7 @@ object Repo {
     }
   }
 
-  def parse(str: String, https: Boolean): Repo = Repo { str match {
+  def parse(str: String, https: Boolean): Remote = Remote { str match {
     case "." => ""
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       if(https) str"https://github.com/$group/$project.git"
@@ -54,18 +54,18 @@ object Repo {
       other
   } }
 
-  def local(layout: Layout): Try[Repo] = {
+  def local(layout: Layout): Try[Remote] = {
     val gitDir =  layout.baseDir / ".git"
     if(gitDir.directory) GitDir(gitDir)(layout.env).remote
     else Failure(RepoNotFound(layout.baseDir))
   }
 }
 
-case class Repo(ref: String) {
+case class Remote(ref: String) {
   def hash: Digest = ref.digest[Md5]
   def path(layout: Layout): Path = Installation.reposDir / hash.encoded
 
-  def equivalentTo(repo: Repo): Boolean = repo.simplified == simplified
+  def equivalentTo(remote: Remote): Boolean = remote.simplified == simplified
 
   def gitDir(layout: Layout): GitDir = GitDir(path(layout))(layout.env)
 
@@ -98,7 +98,7 @@ case class Repo(ref: String) {
     } else {
       log.info(msg"Cloning repository at $this")
       path(layout).mkdir()
-      gitDir(layout).cloneBare(Repo.parse(ref, https)).map(gitDir(layout).waive)
+      gitDir(layout).cloneBare(Remote.parse(ref, https)).map(gitDir(layout).waive)
     }
   }
 
@@ -111,7 +111,7 @@ case class Repo(ref: String) {
     case other                                               => other
   }
 
-  def universal(https: Boolean): Repo = Repo.parse(simplified, https)
+  def universal(https: Boolean): Remote = Remote.parse(simplified, https)
 
   def projectName: Try[RepoId] = {
     val value = simplified.split("/").last

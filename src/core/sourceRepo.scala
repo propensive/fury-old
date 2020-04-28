@@ -58,7 +58,7 @@ object SourceRepo {
     
 }
 
-case class SourceRepo(id: RepoId, repo: Repo, branch: Branch, commit: Commit, local: Option[Path]) {
+case class SourceRepo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
     gitDir <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
     files  <- localDir(layout).fold(gitDir.lsTree(commit))(Success(gitDir.dir.children.map(Path(_))).waive)
@@ -73,7 +73,7 @@ case class SourceRepo(id: RepoId, repo: Repo, branch: Branch, commit: Commit, lo
   private[this] var thisLocalDir: Option[Option[Path]] = None
 
   def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env)).orElse {
-    Repo.local(layout).map(_.equivalentTo(repo)) match {
+    Remote.local(layout).map(_.equivalentTo(repo)) match {
       case Success(true) =>
         thisLocalDir.getOrElse {
           log.info(msg"Commandeering the working directory as the repository $id")

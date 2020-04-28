@@ -50,7 +50,7 @@ object DiffStat {
 
 case class DiffStat(value: String)
 
-case class RemoteGitDir(env: Environment, repo: Repo) {
+case class RemoteGitDir(env: Environment, repo: Remote) {
   
   private case class RefSpec(commit: Commit, name: String)
   
@@ -80,12 +80,12 @@ case class GitDir(env: Environment, dir: Path) {
   private implicit val environment: Environment = env
   private def git = List("git", "-C", dir.value)
   
-  def cloneBare(repo: Repo): Try[Unit] =
+  def cloneBare(repo: Remote): Try[Unit] =
     sh"git clone --mirror ${repo.ref} ${dir.value}".exec[Try[String]].map { out =>
       (dir / ".done").touch()
     }
 
-  def remote: Try[Repo] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Repo.parse(_, true))
+  def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_, true))
 
   def diffShortStat(other: Option[Commit] = None): Try[Option[DiffStat]] = { other match {
     case None =>
@@ -105,7 +105,7 @@ case class GitDir(env: Environment, dir: Path) {
   def logMessage(commit: Commit): Try[String] =
     sh"$git log ${commit.id} --format=%s --max-count=1".exec[Try[String]]
 
-  def sparseCheckout(from: Path, sources: List[Path], branch: Branch, commit: Commit, remote: Option[Repo])
+  def sparseCheckout(from: Path, sources: List[Path], branch: Branch, commit: Commit, remote: Option[Remote])
                     : Try[Unit] = for {
     _ <- sh"$git init".exec[Try[String]]
     _ <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]] else Success(())

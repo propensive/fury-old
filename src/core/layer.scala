@@ -142,7 +142,7 @@ case class Layer(version: Int,
   }
 
   def localRepo(layout: Layout): Try[SourceRepo] = for {
-    repo   <- Repo.local(layout)
+    repo   <- Remote.local(layout)
     gitDir <- ~GitDir(layout)
     commit <- gitDir.commit
     branch <- gitDir.branch

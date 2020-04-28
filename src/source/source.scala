@@ -90,7 +90,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     source       <- call(SourceArg)
 
     localId      =  for {
-      localRepo <- Repo.local(layout).toOption
+      localRepo <- Remote.local(layout).toOption
       layerMatch <- layer.repos.find(_.repo.simplified == localRepo.simplified)
     } yield layerMatch.id
 
