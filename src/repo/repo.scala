@@ -195,7 +195,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
                    case (newRepo, oldRepo) => Layer(_.repos).modify(layer)(_ - oldRepo + newRepo) }
                  }
 
-    _         <- Layer.commit(layer, conf, layout)
+    _         <- Layer.commit(newLayer, conf, layout)
 
     _         <- ~newRepos.foreach { case (newRepo, _) =>
                     log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
