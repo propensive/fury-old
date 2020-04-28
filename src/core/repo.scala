@@ -92,7 +92,7 @@ case class Repo(ref: String) {
     
     if(path(layout).exists) {
       done.delete()
-      gitDir(layout).fetch(None)
+      gitDir(layout).fetch()
       done.touch()
       Success(gitDir(layout))
     } else {
