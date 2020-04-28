@@ -106,7 +106,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
-    source <- SourceRepo.local(layout, layer)
+    source <- Repo.local(layout, layer)
     layer  <- ~(Layer(_.mainRepo)(layer) = None)
   } yield log.await()
 
@@ -229,7 +229,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     commit         <- branchTag.fold(gitDir.commitFromBranch(_), gitDir.commitFromTag(_))
     branch         <- branchTag.fold(Success(_), gitDir.someBranchFromTag(_))
     nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
-    sourceRepo     <- ~SourceRepo(nameArg, repo, branch, commit, dir)
+    sourceRepo     <- ~Repo(nameArg, repo, branch, commit, dir)
     layer          <- ~Layer(_.repos).modify(layer)(_ + sourceRepo)
     _              <- Layer.commit(layer, conf, layout)
   } yield log.await()

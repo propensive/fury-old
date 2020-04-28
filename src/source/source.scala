@@ -102,7 +102,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
 
   private[this] def isSourceFileName(name: String): Boolean = name.endsWith(".scala") || name.endsWith(".java")
 
-  private[this] def possibleSourceDirectories(sourceRepo: SourceRepo, layout: Layout) =
+  private[this] def possibleSourceDirectories(sourceRepo: Repo, layout: Layout) =
     sourceRepo.sourceCandidates(layout, false)(isSourceFileName).getOrElse(Set.empty)
 }
 

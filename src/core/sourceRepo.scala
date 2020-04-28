@@ -22,12 +22,12 @@ import mercator._
 import scala.util._
 
 
-object SourceRepo {
-  implicit val msgShow: MsgShow[SourceRepo] = r => UserMsg(_.repo(r.id.key))
-  implicit val stringShow: StringShow[SourceRepo] = _.id.key
-  implicit def diff: Diff[SourceRepo] = Diff.gen[SourceRepo]
+object Repo {
+  implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.repo(r.id.key))
+  implicit val stringShow: StringShow[Repo] = _.id.key
+  implicit def diff: Diff[Repo] = Diff.gen[Repo]
 
-  def checkin(layout: Layout, local: SourceRepo, https: Boolean)(implicit log: Log): Try[Unit] = for {
+  def checkin(layout: Layout, local: Repo, https: Boolean)(implicit log: Log): Try[Unit] = for {
     gitDir <- ~GitDir(layout)
     dirty  <- gitDir.diffShortStat()
     _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(local.id, dirty.get.value))
@@ -45,7 +45,7 @@ object SourceRepo {
     _      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield ()
 
-  def local(layout: Layout, layer: Layer)(implicit log: Log): Try[Option[SourceRepo]] = {
+  def local(layout: Layout, layer: Layer)(implicit log: Log): Try[Option[Repo]] = {
     val gitDir = GitDir(layout)
     if(gitDir.commit.isFailure) Success(None)
     else for {
@@ -53,12 +53,12 @@ object SourceRepo {
       remote <- gitDir.remote
       branch <- gitDir.branch
       commit <- gitDir.commit
-    } yield Some(SourceRepo(repoId, remote, branch, commit, None))
+    } yield Some(Repo(repoId, remote, branch, commit, None))
   }
     
 }
 
-case class SourceRepo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
+case class Repo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
     gitDir <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
     files  <- localDir(layout).fold(gitDir.lsTree(commit))(Success(gitDir.dir.children.map(Path(_))).waive)
@@ -115,7 +115,7 @@ case class SourceRepo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, 
     listFiles(layout, https).map(_.filter { f => pred(f.filename) }.map { p =>
         ExternalSource(id, p.parent, Glob.All): Source }.to[Set])
   
-  def unfork(layout: Layout, https: Boolean)(implicit log: Log): Try[SourceRepo] = for {
+  def unfork(layout: Layout, https: Boolean)(implicit log: Log): Try[Repo] = for {
     _          <- if(local.isDefined) Success(()) else Failure(RepoNotForked(id))
     dir        <- ~local.get
     forkCommit <- GitDir(dir)(layout.env).commit
@@ -128,15 +128,15 @@ case class SourceRepo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, 
 
   } yield copy(local = None, commit = forkCommit)
 
-  def checkout(layout: Layout, local: Option[SourceRepo], https: Boolean)(implicit log: Log): Try[Unit] = for {
+  def checkout(layout: Layout, local: Option[Repo], https: Boolean)(implicit log: Log): Try[Unit] = for {
     _         <- isNotForked()
     conflicts <- conflict(layout, local, https).map { fs => if(fs.isEmpty) None else Some(fs) }
     _         <- conflicts.fold(Try(())) { files => Failure(ConflictingFiles(files)) }
-    _         <- local.fold(Try(())) { local => SourceRepo.checkin(layout, local, https) }
+    _         <- local.fold(Try(())) { local => Repo.checkin(layout, local, https) }
     _         <- doCleanCheckout(layout, https)
   } yield ()
 
-  def conflict(layout: Layout, local: Option[SourceRepo], https: Boolean)
+  def conflict(layout: Layout, local: Option[Repo], https: Boolean)
               (implicit log: Log)
               : Try[List[Path]] = for {
     current   <- ~layout.baseDir.children.to[Set].map(Path(_))

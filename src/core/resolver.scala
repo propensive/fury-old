@@ -24,7 +24,7 @@ import scala.collection.immutable.SortedSet
 object Resolver {
   implicit val moduleResolver: Resolver[Module, ModuleId] = _ == _.id
   implicit val projectResolver: Resolver[Project, ProjectId] = _ == _.id
-  implicit val sourceRepoResolver: Resolver[SourceRepo, RepoId] = _ == _.id
+  implicit val sourceRepoResolver: Resolver[Repo, RepoId] = _ == _.id
   implicit val importResolver: Resolver[Import, ImportId] = _ == _.id
   implicit val binaryResolver: Resolver[Binary, BinaryId] = _ == _.id
   implicit val optDefResolver: Resolver[OptDef, OptId] = _ == _.id

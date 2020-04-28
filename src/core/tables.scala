@@ -203,7 +203,7 @@ case class Tables() {
     Heading("Compiler", _.compiler)
   )
 
-  def repos(layout: Layout)(implicit log: Log): Tabulation[SourceRepo] = Tabulation(
+  def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(
     Heading("Repo", _.id),
     Heading("Remote", _.repo),
     Heading("Branch/Tag", _.branch),
