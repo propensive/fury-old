@@ -751,9 +751,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         recursive: Boolean,
                         version: Option[LayerVersion])
                        : Try[Layer] =
-    ~imports.foldLeft(layer) { (layer, next) =>
-      updateOne(layer, importPath, next, recursive, version).getOrElse(layer)
-    }
+    ~imports.foldLeft(layer)(updateOne(_, importPath, _, recursive, version).getOrElse(layer))
 
   private def updateOne(layer: Layer,
                         importPath: ImportPath,
