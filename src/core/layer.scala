@@ -43,7 +43,7 @@ case class Layer(version: Int,
   def repo(repoId: RepoId, layout: Layout): Try[Repo] = repos.findBy(repoId)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
-  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
+  def repoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
@@ -149,11 +149,11 @@ case class Layer(version: Int,
   } yield Repo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 
   def local(layout: Layout): Try[Repo] =
-    localRepo(layout).flatMap { r => repos.find(_.repo.equivalentTo(r.repo)).ascribe(NoRepoCheckedOut()) }
+    localRepo(layout).flatMap { r => repos.find(_.remote.equivalentTo(r.remote)).ascribe(NoRepoCheckedOut()) }
 
   def allRepos(layout: Layout): SortedSet[Repo] =
     (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
-      repos.map(_.repo.simplified).contains(r.repo.simplified)
+      repos.map(_.remote.simplified).contains(r.remote.simplified)
     }) ++ repos
 
 }

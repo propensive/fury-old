@@ -50,7 +50,7 @@ object DiffStat {
 
 case class DiffStat(value: String)
 
-case class RemoteGitDir(env: Environment, repo: Remote) {
+case class RemoteGitDir(env: Environment, remote: Remote) {
   
   private case class RefSpec(commit: Commit, name: String)
   
@@ -62,11 +62,11 @@ case class RemoteGitDir(env: Environment, repo: Remote) {
         GitDir.supplementEnv(env)).map(parseRefSpec(_).map(_.commit))*/
 
   def tags(): Try[List[Tag]] =
-    sh"git ls-remote --refs --tags ${repo.ref}".exec[Try[String]]()(implicitly,
+    sh"git ls-remote --refs --tags ${remote.ref}".exec[Try[String]]()(implicitly,
         GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Tag(rs.name) })
 
   def branches(): Try[List[Branch]] =
-    sh"git ls-remote --refs --heads ${repo.ref}".exec[Try[String]]()(implicitly,
+    sh"git ls-remote --refs --heads ${remote.ref}".exec[Try[String]]()(implicitly,
         GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Branch(rs.name) })
 
   /*def lsRemoteRefSpec(repo: Repo, branch: Branch)(implicit env: Environment): Try[Commit] =
@@ -80,8 +80,8 @@ case class GitDir(env: Environment, dir: Path) {
   private implicit val environment: Environment = env
   private def git = List("git", "-C", dir.value)
   
-  def cloneBare(repo: Remote): Try[Unit] =
-    sh"git clone --mirror ${repo.ref} ${dir.value}".exec[Try[String]].map { out =>
+  def cloneBare(remote: Remote): Try[Unit] =
+    sh"git clone --mirror ${remote.ref} ${dir.value}".exec[Try[String]].map { out =>
       (dir / ".done").touch()
     }
 

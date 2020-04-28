@@ -36,7 +36,7 @@ object Repo {
     remote <- gitDir.remote
     pushed <- gitDir.remoteHasCommit(commit, branch)
     _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, remote.ref))
-    name   <- local.repo.projectName
+    name   <- local.remote.projectName
     dest   <- Try((Xdg.runtimeDir / str"$name.bak").uniquify())
     files  <- gitDir.trackedFiles
     _      <- ~log.info(msg"Moving working directory contents to $dest")
@@ -58,9 +58,9 @@ object Repo {
     
 }
 
-case class Repo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
+case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
   def listFiles(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Path]] = for {
-    gitDir <- localDir(layout).map(Success(_)).getOrElse(repo.get(layout, https))
+    gitDir <- localDir(layout).map(Success(_)).getOrElse(remote.get(layout, https))
     files  <- localDir(layout).fold(gitDir.lsTree(commit))(Success(gitDir.dir.children.map(Path(_))).waive)
   } yield files
 
@@ -68,12 +68,12 @@ case class Repo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, local:
     localDir(layout).flatMap(_.branch.toOption).getOrElse(branch)
 
   def fullCheckout(layout: Layout)(implicit log: Log): Checkout =
-    Checkout(id, repo, localDir(layout), commit, branch, List())
+    Checkout(id, remote, localDir(layout), commit, branch, List())
 
   private[this] var thisLocalDir: Option[Option[Path]] = None
 
   def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env)).orElse {
-    Remote.local(layout).map(_.equivalentTo(repo)) match {
+    Remote.local(layout).map(_.equivalentTo(remote)) match {
       case Success(true) =>
         thisLocalDir.getOrElse {
           log.info(msg"Commandeering the working directory as the repository $id")
@@ -93,18 +93,18 @@ case class Repo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, local:
   }
 
   def changes(layout: Layout, https: Boolean)(implicit log: Log): Try[Option[DiffStat]] = for {
-    repoDir <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
+    repoDir <- localDir(layout).map(Success(_)).getOrElse(remote.fetch(layout, https))
     changes <- repoDir.diffShortStat()
   } yield changes
 
   def pull(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
-    repo.pull(commit, layout, https)
+    remote.pull(commit, layout, https)
 
   def isForked(): Try[Unit] = local.ascribe(RepoNotForked(id)).map { _ => () }
   def isNotForked(): Try[Unit] = local.fold(Try(())) { dir => Failure(RepoAlreadyForked(id, dir)) }
 
   def current(layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] = for {
-    dir    <- localDir(layout).map(Success(_)).getOrElse(repo.fetch(layout, https))
+    dir    <- localDir(layout).map(Success(_)).getOrElse(remote.fetch(layout, https))
     commit <- dir.commit
   } yield Commit(commit.id)
 
@@ -141,17 +141,17 @@ case class Repo(id: RepoId, repo: Remote, branch: Branch, commit: Commit, local:
               : Try[List[Path]] = for {
     current   <- ~layout.baseDir.children.to[Set].map(Path(_))
     removed   <- local.flatMap(_.local).fold(Try(List[Path]()))(GitDir(_)(layout.env).trackedFiles)
-    bareRepo  <- repo.fetch(layout, https)
+    bareRepo  <- remote.fetch(layout, https)
     files     <- bareRepo.lsRoot(commit)
     remaining <- Try((current -- removed) - Path(".fury.conf"))
   } yield remaining.intersect(files.to[Set]).to[List]
 
   def doCleanCheckout(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] = for {
-    _          <- ~log.info(msg"Checking out ${repo} to ${layout.baseDir.relativizeTo(layout.pwd)}")
-    bareRepo   <- repo.fetch(layout, https)
+    _          <- ~log.info(msg"Checking out ${remote} to ${layout.baseDir.relativizeTo(layout.pwd)}")
+    bareRepo   <- remote.fetch(layout, https)
     _          <- ~layout.confFile.moveTo(layout.confFileBackup)
     gitDir     <- ~GitDir(layout)
-    sourceRepo <- gitDir.sparseCheckout(bareRepo.dir, List(), branch, commit, Some(repo.universal(false)))
+    repo       <- gitDir.sparseCheckout(bareRepo.dir, List(), branch, commit, Some(remote.universal(false)))
     _          <- ~layout.confFileBackup.moveTo(layout.confFile)
   } yield ()
 }
