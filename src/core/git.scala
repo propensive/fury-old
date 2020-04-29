@@ -57,10 +57,6 @@ case class RemoteGitDir(env: Environment, remote: Remote) {
   private def parseRefSpec(value: String): List[RefSpec] =
     value.split("\n").map { line => RefSpec(Commit(line.take(40)), line.split("/", 3).last) }.to[List]
 
-  /*def commits(): Try[List[Commit]] =
-    sh"git ls-remote --refs --tags --heads ${repo.ref}".exec[Try[String]]()(implicitly,
-        GitDir.supplementEnv(env)).map(parseRefSpec(_).map(_.commit))*/
-
   def tags(): Try[List[Tag]] =
     sh"git ls-remote --refs --tags ${remote.ref}".exec[Try[String]]()(implicitly,
         GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Tag(rs.name) })
@@ -68,11 +64,6 @@ case class RemoteGitDir(env: Environment, remote: Remote) {
   def branches(): Try[List[Branch]] =
     sh"git ls-remote --refs --heads ${remote.ref}".exec[Try[String]]()(implicitly,
         GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Branch(rs.name) })
-
-  /*def lsRemoteRefSpec(repo: Repo, branch: Branch)(implicit env: Environment): Try[Commit] =
-    sh"git ls-remote ${repo.ref} ${branch.id}".exec[Try[String]]()(implicitly,
-        supplementEnv(env)).map { r => Commit(r.take(40)) }*/
-
 }
 
 case class GitDir(env: Environment, dir: Path) {
@@ -86,6 +77,19 @@ case class GitDir(env: Environment, dir: Path) {
     }
 
   def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_, true))
+
+  def writePrePushHook(): Try[Unit] =
+    ((if((dir / ".git").exists()) dir / ".git" else dir) / "hooks" / "pre-push").writeSync(
+      """|#!/bin/sh
+         |remote="$1"
+         |url="$2"
+         |while read local_ref local_sha remote_ref remote_sha
+         |do
+         |  git --no-pager diff --name-only $local_ref..$remote_ref -- .fury.conf && fury layer share
+         |done
+         |exit 0
+         |""".stripMargin
+    )
 
   def diffShortStat(other: Option[Commit] = None): Try[Option[DiffStat]] = { other match {
     case None =>

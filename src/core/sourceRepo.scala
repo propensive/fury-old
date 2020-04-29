@@ -27,23 +27,22 @@ object Repo {
   implicit val stringShow: StringShow[Repo] = _.id.key
   implicit def diff: Diff[Repo] = Diff.gen[Repo]
 
-  def checkin(layout: Layout, local: Repo, https: Boolean)(implicit log: Log): Try[Unit] = for {
+  def checkin(layout: Layout, repoId: RepoId, https: Boolean)(implicit log: Log): Try[Repo] = for {
     gitDir <- ~GitDir(layout)
     dirty  <- gitDir.diffShortStat()
-    _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(local.id, dirty.get.value))
+    _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(repoId, dirty.get.value))
     commit <- gitDir.commit
     branch <- gitDir.branch
     remote <- gitDir.remote
     pushed <- gitDir.remoteHasCommit(commit, branch)
-    _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(local.id, remote.ref))
-    name   <- local.remote.projectName
-    dest   <- Try((Xdg.runtimeDir / str"$name.bak").uniquify())
+    _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(repoId, remote.ref))
+    dest   <- Try((Xdg.runtimeDir / str"${repoId.key}.bak").uniquify())
     files  <- gitDir.trackedFiles
     _      <- ~log.info(msg"Moving working directory contents to $dest")
     _      <- files.traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
     _      <- (layout.baseDir / ".git").moveTo(dest / ".git")
     _      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
-  } yield ()
+  } yield Repo(repoId, remote, branch, commit, None)
 
   def local(layout: Layout, layer: Layer)(implicit log: Log): Try[Option[Repo]] = {
     val gitDir = GitDir(layout)
@@ -128,13 +127,13 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
 
   } yield copy(local = None, commit = forkCommit)
 
-  def checkout(layout: Layout, local: Option[Repo], https: Boolean)(implicit log: Log): Try[Unit] = for {
+  /*def checkout(layout: Layout, local: Option[Repo], https: Boolean)(implicit log: Log): Try[Unit] = for {
     _         <- isNotForked()
     conflicts <- conflict(layout, local, https).map { fs => if(fs.isEmpty) None else Some(fs) }
     _         <- conflicts.fold(Try(())) { files => Failure(ConflictingFiles(files)) }
-    _         <- local.fold(Try(())) { local => Repo.checkin(layout, local, https) }
+    _         <- local.fold(Try(())) { local => Repo.checkin(layout, local.id, https) }
     _         <- doCleanCheckout(layout, https)
-  } yield ()
+  } yield ()*/
 
   def conflict(layout: Layout, local: Option[Repo], https: Boolean)
               (implicit log: Log)
