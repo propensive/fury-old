@@ -26,7 +26,7 @@ import scala.util._
 
 import java.net.URI
 
-case class ProjectSpec(project: Project, repos: Map[RepoId, SourceRepo])
+case class ProjectSpec(project: Project, repos: Map[RepoId, Repo])
 
 case class Entity(project: Project, layer: Layer) {
   def spec: ProjectSpec = {

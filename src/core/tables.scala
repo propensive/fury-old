@@ -190,7 +190,7 @@ case class Tables() {
     Heading("ID", _._1.id),
     Heading("Ref", _._1.layerRef),
     Heading("Projects", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),
-    Heading("Repos", s => s._2.toOption.map { s => bar(s.sourceRepoIds.size) }.getOrElse(msg"-")),
+    Heading("Repos", s => s._2.toOption.map { s => bar(s.repoIds.size) }.getOrElse(msg"-")),
     Heading("Imports", s => s._2.toOption.map { s => bar(s.imports.size) }.getOrElse(msg"-"))
   )
 
@@ -203,9 +203,9 @@ case class Tables() {
     Heading("Compiler", _.compiler)
   )
 
-  def repos(layout: Layout)(implicit log: Log): Tabulation[SourceRepo] = Tabulation(
+  def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(
     Heading("Repo", _.id),
-    Heading("Remote", _.repo),
+    Heading("Remote", _.remote),
     Heading("Branch/Tag", _.branch),
     Heading("Commit", _.commit),
     Heading("Path", _.local),

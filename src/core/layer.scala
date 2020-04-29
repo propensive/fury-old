@@ -33,17 +33,17 @@ import scala.annotation._
 case class Layer(version: Int,
                  aliases: SortedSet[Alias] = TreeSet(),
                  projects: SortedSet[Project] = TreeSet(),
-                 repos: SortedSet[SourceRepo] = TreeSet(),
+                 repos: SortedSet[Repo] = TreeSet(),
                  imports: SortedSet[Import] = TreeSet(),
                  main: Option[ProjectId] = None,
                  mainRepo: Option[RepoId] = None,
                  previous: Option[LayerRef] = None) { layer =>
 
   def apply(id: ProjectId) = projects.findBy(id)
-  def repo(repoId: RepoId, layout: Layout): Try[SourceRepo] = repos.findBy(repoId)
+  def repo(repoId: RepoId, layout: Layout): Try[Repo] = repos.findBy(repoId)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
-  def sourceRepoIds: SortedSet[RepoId] = repos.map(_.id)
+  def repoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
@@ -141,19 +141,19 @@ case class Layer(version: Int,
     } yield allLayers.flatMap(_.projects)
   }
 
-  def localRepo(layout: Layout): Try[SourceRepo] = for {
-    repo   <- Repo.local(layout)
+  def localRepo(layout: Layout): Try[Repo] = for {
+    repo   <- Remote.local(layout)
     gitDir <- ~GitDir(layout)
     commit <- gitDir.commit
     branch <- gitDir.branch
-  } yield SourceRepo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
+  } yield Repo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 
-  def local(layout: Layout): Try[SourceRepo] =
-    localRepo(layout).flatMap { r => repos.find(_.repo.equivalentTo(r.repo)).ascribe(NoRepoCheckedOut()) }
+  def local(layout: Layout): Try[Repo] =
+    localRepo(layout).flatMap { r => repos.find(_.remote.equivalentTo(r.remote)).ascribe(NoRepoCheckedOut()) }
 
-  def allRepos(layout: Layout): SortedSet[SourceRepo] =
+  def allRepos(layout: Layout): SortedSet[Repo] =
     (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
-      repos.map(_.repo.simplified).contains(r.repo.simplified)
+      repos.map(_.remote.simplified).contains(r.remote.simplified)
     }) ++ repos
 
 }

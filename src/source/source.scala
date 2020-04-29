@@ -90,8 +90,8 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     source       <- call(SourceArg)
 
     localId      =  for {
-      localRepo <- Repo.local(layout).toOption
-      layerMatch <- layer.repos.find(_.repo.simplified == localRepo.simplified)
+      localRepo <- Remote.local(layout).toOption
+      layerMatch <- layer.repos.find(_.remote.simplified == localRepo.simplified)
     } yield layerMatch.id
 
     source       <- ~Source.rewriteLocal(source, localId)
@@ -102,8 +102,8 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
 
   private[this] def isSourceFileName(name: String): Boolean = name.endsWith(".scala") || name.endsWith(".java")
 
-  private[this] def possibleSourceDirectories(sourceRepo: SourceRepo, layout: Layout) =
-    sourceRepo.sourceCandidates(layout, false)(isSourceFileName).getOrElse(Set.empty)
+  private[this] def possibleSourceDirectories(repo: Repo, layout: Layout) =
+    repo.sourceCandidates(layout, false)(isSourceFileName).getOrElse(Set.empty)
 }
 
 case class FrontEnd(cli: Cli)(implicit log: Log) {

@@ -115,7 +115,7 @@ object Args {
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
-  val RepoUrlArg = CliParam[Repo]('u', 'url, "specify a URL")
+  val RepoUrlArg = CliParam[Remote]('u', 'url, "specify a URL")
   val RepoUrlStringArg = CliParam[String]('u', 'url, "specify a URL")
 
   val KindArg = CliParam[Kind]('t', 'type,

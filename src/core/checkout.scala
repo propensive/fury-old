@@ -31,7 +31,7 @@ case class Checkouts(checkouts: Set[Checkout]) {
 }
 
 case class Checkout(repoId: RepoId,
-                    repo: Repo,
+                    remote: Remote,
                     local: Option[GitDir],
                     commit: Commit,
                     branch: Branch,
@@ -41,7 +41,7 @@ case class Checkout(repoId: RepoId,
   def path: Path = Installation.srcsDir / hash.encoded
 
   def get(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = for {
-    repoDir    <- repo.get(layout, https)
+    repoDir    <- remote.get(layout, https)
     workingDir <- checkout(layout)
   } yield workingDir
 
@@ -67,7 +67,7 @@ case class Checkout(repoId: RepoId,
       if(!path.exists) {
         log.info(msg"Checking out $sourceDesc from repository $repoId")
         path.mkdir()
-        gitDir.sparseCheckout(repo.path(layout), sources, branch = branch,
+        gitDir.sparseCheckout(remote.path(layout), sources, branch = branch,
             commit = commit, None).flatMap { _ => (path / ".git").delete() }.map(gitDir.waive).recoverWith {
           case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
             Failure(NoSourcesError(repoId, commit, sourceDesc))
