@@ -69,27 +69,7 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
   def fullCheckout(layout: Layout)(implicit log: Log): Checkout =
     Checkout(id, remote, localDir(layout), commit, branch, List())
 
-  private[this] var thisLocalDir: Option[Option[Path]] = None
-
-  def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env)).orElse {
-    Remote.local(layout).map(_.equivalentTo(remote)) match {
-      case Success(true) =>
-        thisLocalDir.getOrElse {
-          log.info(msg"Commandeering the working directory as the repository $id")
-          GitDir(layout).diffShortStat(Some(commit)).foreach { diff =>
-            diff.foreach { diff =>
-              log.warn(msg"The working directory differs from the repo in the layer: $diff")
-            }
-          }
-          val result = Some(layout.baseDir)
-          thisLocalDir = Some(result)
-          result
-        }.map(GitDir(_)(layout.env))
-
-      case _ =>
-        None
-    }
-  }
+  def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env))
 
   def changes(layout: Layout, https: Boolean)(implicit log: Log): Try[Option[DiffStat]] = for {
     repoDir <- localDir(layout).map(Success(_)).getOrElse(remote.fetch(layout, https))
@@ -126,14 +106,6 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
                       msg"Uncommitted changes ($cs) in $relDir will not apply to the unforked repo") })
 
   } yield copy(local = None, commit = forkCommit)
-
-  /*def checkout(layout: Layout, local: Option[Repo], https: Boolean)(implicit log: Log): Try[Unit] = for {
-    _         <- isNotForked()
-    conflicts <- conflict(layout, local, https).map { fs => if(fs.isEmpty) None else Some(fs) }
-    _         <- conflicts.fold(Try(())) { files => Failure(ConflictingFiles(files)) }
-    _         <- local.fold(Try(())) { local => Repo.checkin(layout, local.id, https) }
-    _         <- doCleanCheckout(layout, https)
-  } yield ()*/
 
   def conflict(layout: Layout, local: Option[Repo], https: Boolean)
               (implicit log: Log)
