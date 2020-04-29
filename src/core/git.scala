@@ -76,20 +76,28 @@ case class GitDir(env: Environment, dir: Path) {
       (dir / ".done").touch()
     }
 
+  def clone(remote: Remote, branch: Branch, commit: Commit): Try[Unit] = for {
+    _ <- sh"git clone ${remote.ref} --branch=${branch.id} ${dir.value}".exec[Try[String]]
+    _ <- sh"$git reset ${commit.id}".exec[Try[String]]
+  } yield ()
+
   def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_, true))
 
-  def writePrePushHook(): Try[Unit] =
-    ((if((dir / ".git").exists()) dir / ".git" else dir) / "hooks" / "pre-push").writeSync(
-      """|#!/bin/sh
-         |remote="$1"
-         |url="$2"
-         |while read local_ref local_sha remote_ref remote_sha
-         |do
-         |  git --no-pager diff --name-only $local_ref..$remote_ref -- .fury.conf && fury layer share
-         |done
-         |exit 0
-         |""".stripMargin
-    )
+  def writePrePushHook(): Try[Unit] = for {
+    file <- Try((if((dir / ".git").exists()) dir / ".git" else dir) / "hooks" / "pre-push")
+    _    <- file.writeSync(
+              """|#!/bin/sh
+                |remote="$1"
+                |url="$2"
+                |while read local_ref local_sha remote_ref remote_sha
+                |do
+                |  git --no-pager diff --name-only $local_ref..$remote_ref -- .fury.conf && fury layer share
+                |done
+                |exit 0
+                |""".stripMargin
+            )
+    _    <- file.setExecutable(true)
+  } yield ()
 
   def diffShortStat(other: Option[Commit] = None): Try[Option[DiffStat]] = { other match {
     case None =>
@@ -112,6 +120,8 @@ case class GitDir(env: Environment, dir: Path) {
   def sparseCheckout(from: Path, sources: List[Path], branch: Branch, commit: Commit, remote: Option[Remote])
                     : Try[Unit] = for {
     _ <- sh"$git init".exec[Try[String]]
+    // FIXME: Something in here is not checkout out the working tree
+    // Do a standard checkout, not a separated one
     _ <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]] else Success(())
     _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
     _ <- sh"$git remote add origin ${from.value}".exec[Try[String]]

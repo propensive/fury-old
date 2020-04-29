@@ -62,7 +62,6 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     token     <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(doAuth)
     _         <- Layer.share(service, layer, token)
     local     <- layer.local(layout)
-    _         <- layout.gitConf.copyTo(layout.baseConf)
     commit    <- GitDir(layout).commit
     branch    <- GitDir(layout).branch
     layer     <- ~(Layer(_.repos(local.id).branch)(layer) = branch)
@@ -85,23 +84,25 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
   } yield OauthToken(token)
 
   def checkout: Try[ExitStatus] = for {
-    layout <- cli.layout
-    conf   <- Layer.readFuryConf(layout)
-    layer  <- Layer.retrieve(conf)
-    cli    <- cli.hint(RepoArg, layer.repos.map(_.id))
-    call   <- cli.call()
-    repoId <- call(RepoArg)
-    repo   <- layer.repos.findBy(repoId)
-    gitDir <- ~repo.remote.gitDir(layout)
-
-    _      <- ~gitDir.sparseCheckout(layout.baseDir, List(Path("!.fury.conf")), branch = repo.branch, commit =
-                  repo.commit, Some(repo.remote))
-
-    _      <- gitDir.writePrePushHook()
-    layer  <- ~layer.checkoutSources(repoId)
-    layer  <- ~(Layer(_.repos).modify(layer)(_ - repo))
-    layer  <- ~layer.copy(mainRepo = Some(repoId))
-    _      <- Layer.commit(layer, conf, layout)
+    layout   <- cli.layout
+    conf     <- Layer.readFuryConf(layout)
+    layer    <- Layer.retrieve(conf)
+    cli      <- cli.hint(RepoArg, layer.repos.map(_.id))
+    cli      <- cli.hint(HttpsArg)
+    call     <- cli.call()
+    https    <- ~call(HttpsArg).isSuccess
+    repoId   <- call(RepoArg)
+    repo     <- layer.repos.findBy(repoId)
+    gitDir   <- ~GitDir((layout.baseDir / ".tmp").uniquify)(cli.env)
+    _        <- gitDir.clone(repo.remote, branch = repo.branch, commit = repo.commit)
+    _        <- gitDir.dir.childPaths.traverse { f => f.moveTo(f.parent.parent / f.name) }
+    _        <- gitDir.dir.delete()
+    gitDir   <- ~GitDir(layout.baseDir)(cli.env)
+    _        <- gitDir.writePrePushHook()
+    layer    <- ~layer.checkoutSources(repoId)
+    layer    <- ~(Layer(_.repos).modify(layer)(_ - repo))
+    layer    <- ~layer.copy(mainRepo = Some(repoId))
+    _        <- Layer.commit(layer, conf, layout)
   } yield log.await()
   
   def checkin: Try[ExitStatus] = for {
