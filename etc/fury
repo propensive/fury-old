@@ -22,7 +22,7 @@ FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
 
-trap cleanup INT
+trap cleanup INT HUP TERM
 
 cleanup() {
   fury interrupt
