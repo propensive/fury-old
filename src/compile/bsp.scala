@@ -65,21 +65,19 @@ object Bsp {
   def startServer(cli: Cli)(implicit log: Log): Try[ExitStatus] =
     for {
       layout  <- cli.layout
-      cli     <- cli.hint(Args.HttpsArg)
       invoc   <- cli.call()
-      https   <- ~invoc(Args.HttpsArg).isSuccess
-      running <- ~run(System.in, System.out, layout, https)
+      running <- ~run(System.in, System.out, layout)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean)
+  def run(in: InputStream, out: OutputStream, layout: Layout)
          (implicit log: Log): JFuture[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel, https)
+    val server = new FuryBuildServer(layout, cancel)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -98,8 +96,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)
-                     (implicit log: Log)
+class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
     extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
@@ -131,10 +128,10 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean)
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
       //FIXME remove duplication with structure
-      conf           <- Layer.readFuryConf(layout)
-      layer          <- Layer.retrieve(conf)
-      module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(layer, module, layout, https = true, noSecurity = false)
+      conf        <- Layer.readFuryConf(layout)
+      layer       <- Layer.retrieve(conf)
+      module      <- structure.moduleRef(bti)
+      compilation <- Compilation.syncCompilation(layer, module, layout, noSecurity = false)
     } yield compilation
   }
   

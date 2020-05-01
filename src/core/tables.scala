@@ -209,6 +209,6 @@ case class Tables() {
     Heading("Branch/Tag", _.branch),
     Heading("Commit", _.commit),
     Heading("Path", _.local),
-    Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout, true).toOption.flatten)
+    Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout).toOption.flatten)
   )
 }

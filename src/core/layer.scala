@@ -101,8 +101,8 @@ case class Layer(version: Int,
     _         <- if(missing.isEmpty) Success(()) else Failure(UnresolvedModules(missing))
   } yield ()
 
-  def compilerRefs(layout: Layout, https: Boolean)(implicit log: Log): List[ModuleRef] =
-    allProjects(layout, https).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
+  def compilerRefs(layout: Layout)(implicit log: Log): List[ModuleRef] =
+    allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
   def hierarchy()(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
@@ -123,7 +123,7 @@ case class Layer(version: Int,
                   }.sequence.map(_.flatten)
   } yield (ImportPath.Root :: importList)
 
-  def allProjects(layout: Layout, https: Boolean)(implicit log: Log): Try[List[Project]] = {
+  def allProjects(layout: Layout)(implicit log: Log): Try[List[Project]] = {
     @tailrec
     def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
       treeNodes match {

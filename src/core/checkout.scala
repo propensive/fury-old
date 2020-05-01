@@ -40,8 +40,8 @@ case class Checkout(repoId: RepoId,
   def hash: Digest = this.digest[Md5]
   def path: Path = Installation.srcsDir / hash.encoded
 
-  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = for {
-    repoDir    <- remote.get(layout, https)
+  def get(layout: Layout)(implicit log: Log): Try[GitDir] = for {
+    repoDir    <- remote.get(layout)
     workingDir <- checkout(layout)
   } yield workingDir
 

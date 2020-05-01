@@ -41,6 +41,9 @@ object GitDir {
   def apply(dir: Path)(implicit env: Environment): GitDir = GitDir(supplementEnv(env), dir)
   def apply(layout: Layout): GitDir = GitDir(layout.baseDir)(layout.env)
   implicit val hashable: Hashable[GitDir] = (acc, value) => implicitly[Hashable[Path]].digest(acc, value.dir)
+
+  def sshOrHttps(remote: Remote)(fn: String => Command)(implicit env: Environment): Try[String] =
+    fn(remote.ssh).exec[Try[String]].orElse(fn(remote.https).exec[Try[String]])
 }
 
 object DiffStat {
@@ -51,19 +54,18 @@ object DiffStat {
 case class DiffStat(value: String)
 
 case class RemoteGitDir(env: Environment, remote: Remote) {
-
-  private case class RefSpec(commit: Commit, name: String)
   
+  private case class RefSpec(commit: Commit, name: String)
+  implicit val newEnv = GitDir.supplementEnv(env)
+
   private def parseRefSpec(value: String): List[RefSpec] =
     value.split("\n").map { line => RefSpec(Commit(line.take(40)), line.split("/", 3).last) }.to[List]
 
-  def tags(): Try[List[Tag]] =
-    sh"git ls-remote --refs --tags $remote".exec[Try[String]]()(implicitly,
-        GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Tag(rs.name) })
+  def tags(): Try[List[Tag]] = GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --tags ${r}"
+      }.map(parseRefSpec(_).map(_.name).map(Tag(_)))
 
-  def branches(): Try[List[Branch]] =
-    sh"git ls-remote --refs --heads $remote".exec[Try[String]]()(implicitly,
-        GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Branch(rs.name) })
+  def branches(): Try[List[Branch]] = GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --heads $r"
+      }.map(parseRefSpec(_).map(_.name).map(Branch(_)))
 }
 
 case class GitDir(env: Environment, dir: Path) {
@@ -72,16 +74,14 @@ case class GitDir(env: Environment, dir: Path) {
   private def git = sh"git -C $dir"
   
   def cloneBare(remote: Remote): Try[Unit] =
-    sh"git clone --mirror $remote $dir".exec[Try[String]].map { out =>
-      (dir / ".done").touch()
-    }
+    GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }.map { out => (dir / ".done").touch() }
 
   def clone(remote: Remote, branch: Branch, commit: Commit): Try[Unit] = for {
-    _ <- sh"git clone $remote --branch=$branch $dir".exec[Try[String]]
+    _ <- GitDir.sshOrHttps(remote) { r => sh"git clone $r --branch=$branch $dir" }
     _ <- sh"$git reset $commit".exec[Try[String]]
   } yield ()
 
-  def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_, true))
+  def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_))
 
   def writePrePushHook()(implicit log: Log): Try[Unit] = for {
     file <- Try((if((dir / ".git").exists()) dir / ".git" else dir) / "hooks" / "pre-push")
@@ -95,7 +95,6 @@ case class GitDir(env: Environment, dir: Path) {
                  |  printf 'Would you like to share the layer publicly [Yn]? '
                  |  exec < /dev/tty
                  |  read answer
-                 |  exec <&-
                  |  case $answer in
                  |    ''|yes|YES|Yes|Y|y) return 0 ;;
                  |    *                 ) return 1 ;;

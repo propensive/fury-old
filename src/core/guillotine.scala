@@ -35,7 +35,6 @@ object ShellParam {
   implicit def option[T: ShellParam]: ShellParam[Option[T]] =
     _.fold(Command())(implicitly[ShellParam[T]].embed(_))
 
-  implicit val remote: ShellParam[Remote] = remote => Command(remote.ref)
   implicit val branch: ShellParam[Branch] = branch => Command(branch.id)
   implicit val commit: ShellParam[Commit] = commit => Command(commit.id)
   implicit val tag: ShellParam[Tag] = tag => Command(tag.id)
