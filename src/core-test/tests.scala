@@ -16,12 +16,12 @@
 */
 package fury
 
-import probably.TestApp
+import probably._
 
-object Tests {
-  private val testSuites = List[TestApp](
-      DirectedGraphTest,
+object Tests extends probably.Tests {
+  private val testSuites = List[probably.Tests](
+      DirectedGraphTest
   )
 
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+  def run(test: Runner): Unit = testSuites.foreach(_.run(test))
 }

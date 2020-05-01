@@ -16,19 +16,15 @@
 */
 package fury
 
-import fury.io._, fury.utils._
-
-import java.nio.ByteBuffer
-import java.nio.ByteBuffer.wrap
+import fury.utils._
 
 import probably._
-import fury.core._
 
 import scala.language.implicitConversions
 
-object DirectedGraphTest extends TestApp {
+object DirectedGraphTest extends probably.Tests {
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
     test("Graph with no edges has no cycles") {
       DirectedGraph[Int](Map(1 -> Set()))
     }.assert(!_.hasCycle(1))
