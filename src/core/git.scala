@@ -51,34 +51,34 @@ object DiffStat {
 case class DiffStat(value: String)
 
 case class RemoteGitDir(env: Environment, remote: Remote) {
-  
+
   private case class RefSpec(commit: Commit, name: String)
   
   private def parseRefSpec(value: String): List[RefSpec] =
     value.split("\n").map { line => RefSpec(Commit(line.take(40)), line.split("/", 3).last) }.to[List]
 
   def tags(): Try[List[Tag]] =
-    sh"git ls-remote --refs --tags ${remote.ref}".exec[Try[String]]()(implicitly,
+    sh"git ls-remote --refs --tags $remote".exec[Try[String]]()(implicitly,
         GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Tag(rs.name) })
 
   def branches(): Try[List[Branch]] =
-    sh"git ls-remote --refs --heads ${remote.ref}".exec[Try[String]]()(implicitly,
+    sh"git ls-remote --refs --heads $remote".exec[Try[String]]()(implicitly,
         GitDir.supplementEnv(env)).map(parseRefSpec(_).map { rs => Branch(rs.name) })
 }
 
 case class GitDir(env: Environment, dir: Path) {
 
   private implicit val environment: Environment = env
-  private def git = List("git", "-C", dir.value)
+  private def git = sh"git -C $dir"
   
   def cloneBare(remote: Remote): Try[Unit] =
-    sh"git clone --mirror ${remote.ref} ${dir.value}".exec[Try[String]].map { out =>
+    sh"git clone --mirror $remote $dir".exec[Try[String]].map { out =>
       (dir / ".done").touch()
     }
 
   def clone(remote: Remote, branch: Branch, commit: Commit): Try[Unit] = for {
-    _ <- sh"git clone ${remote.ref} --branch=${branch.id} ${dir.value}".exec[Try[String]]
-    _ <- sh"$git reset ${commit.id}".exec[Try[String]]
+    _ <- sh"git clone $remote --branch=$branch $dir".exec[Try[String]]
+    _ <- sh"$git reset $commit".exec[Try[String]]
   } yield ()
 
   def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_, true))
@@ -114,9 +114,9 @@ case class GitDir(env: Environment, dir: Path) {
 
   def diffShortStat(other: Option[Commit] = None): Try[Option[DiffStat]] = { other match {
     case None =>
-      sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat"
+      sh"git --work-tree $dir -C ${dir / ".git"} diff --shortstat"
     case Some(commit) =>
-      sh"git --work-tree ${dir.value} -C ${(dir / ".git").value} diff --shortstat ${commit.id}"
+      sh"git --work-tree $dir -C ${dir / ".git"} diff --shortstat $commit"
   } }.exec[Try[String]].map { s => if(s.isEmpty) None else Some(DiffStat(s)) }
 
   def mergeConflicts: Try[(Commit, Commit)] =
@@ -125,10 +125,10 @@ case class GitDir(env: Environment, dir: Path) {
     })
 
   def mergeBase(left: Commit, right: Commit): Try[Commit] =
-    sh"$git merge-base ${left.id} ${right.id}".exec[Try[String]].map(Commit(_))
+    sh"$git merge-base $left $right".exec[Try[String]].map(Commit(_))
 
   def logMessage(commit: Commit): Try[String] =
-    sh"$git log ${commit.id} --format=%s --max-count=1".exec[Try[String]]
+    sh"$git log $commit --format=%s --max-count=1".exec[Try[String]]
 
   def sparseCheckout(from: Path, sources: List[Path], branch: Branch, commit: Commit, remote: Option[Remote])
                     : Try[Unit] = for {
@@ -137,16 +137,16 @@ case class GitDir(env: Environment, dir: Path) {
     // Do a standard checkout, not a separated one
     _ <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]] else Success(())
     _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
-    _ <- sh"$git remote add origin ${from.value}".exec[Try[String]]
+    _ <- sh"$git remote add origin $from".exec[Try[String]]
     _ <- sh"$git fetch --all".exec[Try[String]]
-    _ <- sh"$git checkout ${commit.id}".exec[Try[String]]
+    _ <- sh"$git checkout commit".exec[Try[String]]
 
-    _ <- ~remote.foreach { repo => for {
+    _ <- ~remote.foreach { remote => for {
            _ <- sh"$git remote remove origin".exec[Try[String]]
-           _ <- sh"$git remote add origin ${repo.ref}".exec[Try[String]]
+           _ <- sh"$git remote add origin ${remote.ref}".exec[Try[String]]
            _ <- sh"$git checkout -b ${branch.id}".exec[Try[String]]
            _ <- sh"$git fetch".exec[Try[String]]
-           _ <- sh"$git branch -u origin/${branch.id}".exec[Try[String]]
+           _ <- sh"$git branch -u 'origin/$branch'".exec[Try[String]]
          } yield () }
 
     _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
@@ -171,30 +171,30 @@ case class GitDir(env: Environment, dir: Path) {
   }
 
   def remoteHasCommit(commit: Commit, branch: Branch): Try[Boolean] =
-    sh"$git rev-list origin/${branch.id}".exec[Try[String]].map(_.split("\n").contains(commit.id))
+    sh"$git rev-list 'origin/$branch'".exec[Try[String]].map(_.split("\n").contains(commit.id))
 
   def fetch(branch: Branch): Try[Unit] =
-    sh"$git fetch origin ${branch.id}".exec[Try[String]].map(_.unit)
+    sh"$git fetch origin $branch".exec[Try[String]].map(_.unit)
 
   def fetch(): Try[Unit] =
     sh"$git fetch --all".exec[Try[String]].map(_.unit)
 
   def branch: Try[Branch] = sh"$git rev-parse --abbrev-ref HEAD".exec[Try[String]].map(Branch(_))
-  def cat(path: Path): Try[String] = sh"$git show HEAD:${path.value}".exec[Try[String]]
-  def cat(commit: Commit, path: Path): Try[String] = sh"$git show ${commit.id}:${path.value}".exec[Try[String]]
+  def cat(path: Path): Try[String] = sh"$git show 'HEAD:$path'".exec[Try[String]]
+  def cat(commit: Commit, path: Path): Try[String] = sh"$git show '$commit:$path'".exec[Try[String]]
   def commit: Try[Commit] = sh"$git rev-parse HEAD".exec[Try[String]].map(Commit(_))
-  def commitFromTag(tag: Tag): Try[Commit] = sh"$git rev-parse ${tag.id}".exec[Try[String]].map(Commit(_))
+  def commitFromTag(tag: Tag): Try[Commit] = sh"$git rev-parse $tag".exec[Try[String]].map(Commit(_))
   
   def commitFromBranch(branch: Branch): Try[Commit] =
-    sh"$git rev-parse ${branch.id}".exec[Try[String]].map(Commit(_))
+    sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_))
 
   def branchesFromCommit(commit: Commit): Try[List[Branch]] =
-    sh"$git branch --contains ${commit.id}".exec[Try[String]].map { out =>
+    sh"$git branch --contains $commit".exec[Try[String]].map { out =>
       out.split("\n").to[List].map(_.drop(2)).map(Branch(_))
     }
 
   def contains(commit: Commit): Try[Unit] =
-    sh"$git branch --contains ${commit.id}".exec[Try[String]].map(_.unit).recoverWith { case e =>
+    sh"$git branch --contains $commit".exec[Try[String]].map(_.unit).recoverWith { case e =>
       Failure(CommitNotInRepo(commit))
     }
 
@@ -215,7 +215,7 @@ case class GitDir(env: Environment, dir: Path) {
     sh"$git ls-tree -r --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List].map(Path(_)))
 
   def branchHead(branch: Branch): Try[Commit] =
-    sh"$git show-ref -s heads/${branch.id}".exec[Try[String]].map(Commit(_))
+    sh"$git show-ref -s 'heads/$branch'".exec[Try[String]].map(Commit(_))
 
-  def getTag(tag: Branch): Try[Commit] = sh"$git show-ref -s tags/${tag.id}".exec[Try[String]].map(Commit(_))
+  def getTag(tag: Branch): Try[Commit] = sh"$git show-ref -s 'tags/$tag'".exec[Try[String]].map(Commit(_))
 }
