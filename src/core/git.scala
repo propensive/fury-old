@@ -35,6 +35,8 @@ import java.util.zip.ZipInputStream
 
 object GitDir {
 
+  private var useHttps: Boolean = false
+
   def supplementEnv(env: Environment): Environment =
     env.append("GIT_SSH_COMMAND", "ssh -o BatchMode=yes").append("GIT_TERMINAL_PROMPT", "0")
 
@@ -43,7 +45,11 @@ object GitDir {
   implicit val hashable: Hashable[GitDir] = (acc, value) => implicitly[Hashable[Path]].digest(acc, value.dir)
 
   def sshOrHttps(remote: Remote)(fn: String => Command)(implicit env: Environment): Try[String] =
-    fn(remote.ssh).exec[Try[String]].orElse(fn(remote.https).exec[Try[String]])
+    if(useHttps) fn(remote.https).exec[Try[String]]
+    else fn(remote.ssh).exec[Try[String]].orElse { fn(remote.https).exec[Try[String]].map { result =>
+      useHttps = true
+      result
+    } }
 }
 
 object DiffStat {
