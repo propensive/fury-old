@@ -763,13 +763,18 @@ case class ExecName(key: String) extends Key(msg"executable")
 case class Plugin(id: PluginId, ref: ModuleRef, main: ClassRef)
 
 object RepoId {
-  implicit val msgShow: MsgShow[RepoId]       = r => UserMsg(_.repo(r.key))
+  implicit val msgShow: MsgShow[RepoId] = r => UserMsg(_.repo(r.key))
   implicit val stringShow: StringShow[RepoId] = _.key
   implicit val parser: Parser[RepoId] = unapply(_)
   implicit val keyName: KeyName[RepoId] = () => msg"repo"
   implicit val diff: Diff[RepoId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   
   def unapply(name: String): Option[RepoId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => RepoId(name) }
+
+  def apply(layout: Layout): RepoId =
+    unapply(layout.baseDir.name).orElse(unapply(layout.baseDir.name.toLowerCase)).orElse(
+        unapply(layout.baseDir.name.toLowerCase.dropWhile(_.isDigit).replaceAll("[^a-z]+", "-"))).getOrElse(
+        RepoId("unnamed"))
 }
 
 case class RepoId(key: String) extends Key(msg"repository")
