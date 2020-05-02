@@ -68,9 +68,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     }
     cli       <- cli.hint(LinkArg, dependencyLinks.getOrElse(Set.empty))    
     cli       <- cli.hint(ForceArg)
-    cli       <- cli.hint(HttpsArg)
     call      <- cli.call()
-    https     =  call(HttpsArg).isSuccess
     linkArg   <- call(LinkArg)
     project   <- tryProject
     module    <- tryModule
@@ -79,7 +77,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layer     <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - moduleRef)
     _         <- Layer.commit(layer, conf, layout)
   } yield {
-    Compilation.asyncCompilation(layer, moduleRef, layout, https)
+    Compilation.asyncCompilation(layer, moduleRef, layout)
     log.await()
   }
 
@@ -116,7 +114,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     
     _                <- Layer.commit(layer, conf, layout)
   } yield {
-    Compilation.asyncCompilation(layer, moduleRef, layout, false)
+    Compilation.asyncCompilation(layer, moduleRef, layout)
     log.await()
   }
 }

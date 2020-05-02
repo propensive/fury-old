@@ -91,8 +91,6 @@ case class Tables() {
     case Some(ref) => show.show(ref)
   }
 
-  private def bar(n: Int) = msg"${theme.gray("■" * n)}"
-
   def differences(left: String, right: String): Tabulation[Difference] = Tabulation[Difference](
     Heading("Type", _.entity),
     Heading("Diff", _.label),
@@ -108,9 +106,9 @@ case class Tables() {
         m.dependencies, width = FlexibleWidth)(refinedModuleDep(universe, projectId)
       ),
       Heading("Sources", _.sources),
-      Heading("Binaries", m => bar(m.allBinaries.size)),
+      Heading("Binaries", m => m.allBinaries.size),
       Heading("Compiler", _.compiler),
-      Heading("Options", m => bar(m.opts.size)),
+      Heading("Options", m => m.opts.size),
       Heading("Type", _.kind),
       Heading("Details", m => m.kind match {
         case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
@@ -189,15 +187,15 @@ case class Tables() {
   val imports: Tabulation[(Import, Try[Layer])] = Tabulation(
     Heading("ID", _._1.id),
     Heading("Ref", _._1.layerRef),
-    Heading("Projects", s => s._2.toOption.map { s => bar(s.projects.size) }.getOrElse(msg"-")),
-    Heading("Repos", s => s._2.toOption.map { s => bar(s.repoIds.size) }.getOrElse(msg"-")),
-    Heading("Imports", s => s._2.toOption.map { s => bar(s.imports.size) }.getOrElse(msg"-"))
+    Heading("Projects", s => s._2.toOption.fold(msg"${'-'}")(_.projects.size)),
+    Heading("Repos", s => s._2.toOption.fold(msg"${'-'}")(_.repoIds.size)),
+    Heading("Imports", s => s._2.toOption.fold(msg"${'-'}")(_.imports.size))
   )
 
   def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation[Project](
     Heading("", p => Some(p.id) == current),
     Heading("Project", _.id),
-    Heading("Modules", p => bar(p.modules.size)),
+    Heading("Modules", p => p.modules.size),
     Heading("Description", _.description),
     Heading("License", _.license),
     Heading("Compiler", _.compiler)
@@ -209,6 +207,6 @@ case class Tables() {
     Heading("Branch/Tag", _.branch),
     Heading("Commit", _.commit),
     Heading("Path", _.local),
-    Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout, true).toOption.flatten)
+    Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout).toOption.flatten)
   )
 }

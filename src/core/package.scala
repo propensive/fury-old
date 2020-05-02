@@ -14,12 +14,14 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.core
+package fury
 
 import fury.strings._, fury.io._
 
+import contextual._
 import escritoire._
 import gastronomy._
+import guillotine._
 import mercator._
 import optometry._
 
@@ -27,7 +29,7 @@ import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions
 import scala.util._
 
-object `package` {
+package object core extends GuillotineExtensions {
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
 
   implicit def sortedSetExt[T](set: SortedSet[T]): SortedSetExt[T] = new SortedSetExt[T](set)

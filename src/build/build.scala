@@ -260,7 +260,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     moduleRef    =  module.ref(project)
 
-    compilation  <- Compilation.syncCompilation(layer, moduleRef, layout, https = false, noSecurity = true)
+    compilation  <- Compilation.syncCompilation(layer, moduleRef, layout, noSecurity = true)
 
     result    <- compilation.cleanCache(moduleRef, layout)
   } yield {
@@ -278,7 +278,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)
     layer          <- Layer.retrieve(conf)
-    cli            <- cli.hint(HttpsArg)
     cli            <- cli.hint(WaitArg)
     cli            <- cli.hint(NoSecurityArg)
     cli            <- cli.hint(WatchArg)
@@ -292,7 +291,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(ReporterArg, Reporter.all)
     call           <- cli.call()
     dir            <- ~call(DirArg).toOption
-    https          <- ~call(HttpsArg).isSuccess
     optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(layer.main))
     optProject     <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     project        <- optProject.asTry
@@ -307,13 +305,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _              <- Inotify.check(watch || waiting)
     noSecurity      = call(NoSecurityArg).isSuccess
     _              <- call.atMostOne(WatchArg, WaitArg)
-    compilation    <- Compilation.syncCompilation(layer, module.ref(project), layout, https, noSecurity)
+    compilation    <- Compilation.syncCompilation(layer, module.ref(project), layout, noSecurity)
 
     r               = repeater(compilation.allSources, waiting) {
                         for {
                           task <- compileOnce(compilation, layer, module.ref(project), layout, globalPolicy,
                                       if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
-                                      ManagedConfig().pipelining), reporter, ManagedConfig().theme, https,
+                                      ManagedConfig().pipelining), reporter, ManagedConfig().theme,
                                       noSecurity)
                         } yield {
                           task.transform { completed =>
@@ -359,15 +357,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    cli          <- cli.hint(HttpsArg)
     (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(ExecNameArg)
     call         <- cli.call()
     exec         <- call(ExecNameArg)
-    https        <- ~call(HttpsArg).isSuccess
     project      <- tryProject
     module       <- tryModule
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, https, false)
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, false)
     _            <- if(module.kind == Application) Success(()) else Failure(InvalidKind(Application))
     main         <- module.main.ascribe(UnspecifiedMain(module.id))
     _            <- ~log.info(msg"Building native image for $exec")
@@ -387,13 +383,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli          <- cli.hint(HttpsArg)
     cli          <- cli.hint(PipeliningArg, List("on", "off"))
     cli          <- cli.hint(NoSecurityArg)
     cli          <- cli.hint(IgnoreErrorsArg)
     cli          <- cli.hint(ReporterArg, Reporter.all)
     call         <- cli.call()
-    https        <- ~call(HttpsArg).isSuccess
     force        <- ~call(IgnoreErrorsArg).isSuccess
     pipelining   <- ~call(PipeliningArg).toOption
     reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
@@ -401,14 +395,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
-                        https, noSecurity)
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, noSecurity)
     
     result       <- for {
                       globalPolicy <- ~Policy.read(log)
                       task <- compileOnce(compilation, layer, module.ref(project), layout,
                                   globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
-                                  ManagedConfig().theme, https, noSecurity)
+                                  ManagedConfig().theme, noSecurity)
                     } yield { task.transform { completed => for {
                       compileResult  <- completed
                       compileSuccess <- compileResult.asTry
@@ -434,18 +427,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    cli          <- cli.hint(HttpsArg)
     (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(SingleColumnArg)
     call         <- cli.call()
-    https        <- ~call(HttpsArg).isSuccess
     singleColumn <- ~call(SingleColumnArg).isSuccess
     project      <- tryProject
     module       <- tryModule
-    
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
-                        https, false)
-    
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, false)
     classpath    <- ~compilation.classpath(module.ref(project), layout)
   } yield {
     val separator = if(singleColumn) "\n" else ":"
@@ -458,14 +446,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli          <- cli.hint(HttpsArg)
     call         <- cli.call()
-    https        <- ~call(HttpsArg).isSuccess
     project      <- tryProject
     module       <- tryModule
-
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout,
-                        https, false)
+    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, false)
     
     _            <- ~UiGraph.draw(compilation.graph.links, true,
                         Map())(ManagedConfig().theme).foreach(log.info(_))
@@ -481,11 +465,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 pipelining: Boolean,
                                 reporter: Reporter,
                                 theme: Theme,
-                                https: Boolean,
                                 noSecurity: Boolean)
                                (implicit log: Log): Try[Future[CompileResult]] = {
     for {
-      _            <- compilation.checkoutAll(layout, https)
+      _            <- compilation.checkoutAll(layout)
     } yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
@@ -514,7 +497,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layout    <- cli.layout
     conf      <- Layer.readFuryConf(layout)
     layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(HttpsArg)
     cli       <- cli.hint(RawArg)
     cli       <- cli.hint(ProjectArg, layer.projects.map(_.id))
     table     <- ~Tables().projects(None)
@@ -523,8 +505,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     col       <- ~cli.peek(ColumnArg)
     projectId <- ~cli.peek(ProjectArg)
     raw       <- ~call(RawArg).isSuccess
-    https     <- ~call(HttpsArg).isSuccess
-    projects  <- layer.allProjects(layout, https)
+    projects  <- layer.allProjects(layout)
     table     <- ~Tables().show(table, cli.cols, projects.distinct, raw, col, projectId, "project")
     _         <- ~log.infoWhen(!raw)(conf.focus())
     _         <- ~log.rawln(table)
@@ -577,7 +558,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     newLayout  <- cli.newLayout
     layout     =  newLayout.copy(baseDir = dir)
     optRepo    <- ~layer.mainRepo.flatMap(layer.repos.findBy(_).toOption)
-    _          <- optRepo.fold(Try(()))(_.doCleanCheckout(layout, true))
+    _          <- optRepo.fold(Try(()))(_.doCleanCheckout(layout))
     _          <- ~log.info(msg"Saving Fury configuration file ${layout.confFile.relativizeTo(layout.pwd)}")
     published  <- Layer.published(layerName)
     _          <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, published), layout)
@@ -793,7 +774,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       layout    <- cli.layout
       conf      <- Layer.readFuryConf(layout)
       layer     <- Layer.retrieve(conf)
-      cli       <- cli.hint(HttpsArg)
       cli       <- cli.hint(RawArg)
       table     <- ~Tables().imports
       cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
@@ -802,7 +782,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       col       <- ~cli.peek(ColumnArg)
       importId  <- ~cli.peek(ImportArg)
       raw       <- ~call(RawArg).isSuccess
-      https     <- ~call(HttpsArg).isSuccess
       rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef, i.remote)) }
       table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
       _         <- ~log.infoWhen(!raw)(conf.focus())

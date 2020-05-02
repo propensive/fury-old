@@ -135,8 +135,11 @@ object FuryMenu {
     Menu('repo, msg"manage source repositories for the layer", 'list, shortcut = 'r')(
       Action('add, msg"add a source repository to the layer", RepoCli(_).add, shortcut = 'a'),
       
+      Action('checkin, msg"check in the repository from the working directory", RepoCli(_).checkin,
+          shortcut = 'i'),
+      
       Action('checkout, msg"check out a repository into the working directory", RepoCli(_).checkout,
-          shortcut = 'c'),
+          shortcut = 'o'),
       
       Action('commit, msg"commit the current checked-out repo to the layer", RepoCli(_).commit, shortcut = 'c'),
       Action('update, msg"update a source repository", RepoCli(_).update, shortcut = 'u'),

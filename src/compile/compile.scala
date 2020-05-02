@@ -226,7 +226,6 @@ object Compilation {
   def mkCompilation(layer: Layer,
                     ref: ModuleRef,
                     layout: Layout,
-                    https: Boolean,
                     noSecurity: Boolean)(implicit log: Log)
   : Try[Compilation] = for {
 
@@ -280,13 +279,11 @@ object Compilation {
     }
   }
 
-  def asyncCompilation(layer: Layer,
-                       ref: ModuleRef,
-                       layout: Layout,
-                       https: Boolean)(implicit log: Log)
-  : Future[Try[Compilation]] = {
+  def asyncCompilation(layer: Layer, ref: ModuleRef, layout: Layout)
+                      (implicit log: Log)
+                      : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(layer, ref, layout, https, false))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(layer, ref, layout, false))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -299,9 +296,8 @@ object Compilation {
   def syncCompilation(layer: Layer,
                       ref: ModuleRef,
                       layout: Layout,
-                      https: Boolean,
                       noSecurity: Boolean)(implicit log: Log): Try[Compilation] = {
-    val compilation = mkCompilation(layer, ref, layout, https, noSecurity)
+    val compilation = mkCompilation(layer, ref, layout, noSecurity)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
@@ -490,8 +486,8 @@ case class Compilation(target: Target,
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
-  def checkoutAll(layout: Layout, https: Boolean)(implicit log: Log): Try[Unit] =
-    checkouts.checkouts.traverse(_.get(layout, https)).map{ _ => ()}
+  def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
+    checkouts.checkouts.traverse(_.get(layout)).map{ _ => ()}
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.generateFiles(this, layout)

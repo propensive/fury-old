@@ -44,6 +44,10 @@ object Args {
       "ignore compilation errors and launch the console anyway")
 
   val CommitArg = CliParam[Commit]('c', 'commit, "the Git commit hash")
+
+  val GrabArg = CliParam[Unit]('C', 'commandeer,
+      "have Fury commandeer the Git repository in the working directory")
+    
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")

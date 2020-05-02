@@ -66,7 +66,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer          <- Layer.retrieve(conf)
     cli            <- cli.hint(ProjectNameArg, List(layout.baseDir.name))
     cli            <- cli.hint(LicenseArg, License.standardLicenses)
-    cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout, false))
+    cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     call           <- cli.call()
     compilerId     <- ~cli.peek(DefaultCompilerArg)
     
@@ -104,7 +104,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer          <- Layer.retrieve(conf)
     cli            <- cli.hint(ProjectArg, layer.projects)
     cli            <- cli.hint(DescriptionArg)
-    cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout, false))
+    cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     cli            <- cli.hint(ForceArg)
     projectId      <- ~cli.peek(ProjectArg).orElse(layer.main)
     cli            <- cli.hint(LicenseArg, License.standardLicenses)

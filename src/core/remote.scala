@@ -26,7 +26,7 @@ import scala.util._
 object Remote {
   implicit val msgShow: MsgShow[Remote] = r => UserMsg(_.url(r.simplified))
   implicit val stringShow: StringShow[Remote] = _.simplified
-  implicit val parser: Parser[Remote] = str => Some(parse(str, true))
+  implicit val parser: Parser[Remote] = str => Some(parse(str))
 
   case class ExistingLocalFileAsAbspath(absPath: String)
 
@@ -37,17 +37,11 @@ object Remote {
     }
   }
 
-  def parse(str: String, https: Boolean): Remote = Remote { str match {
+  def parse(str: String): Remote = Remote { str match {
     case "." => ""
-    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      if(https) str"https://github.com/$group/$project.git"
-      else str"git@github.com:$group/$project.git"
-    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      if(https) str"https://gitlab.com/$group/$project.git"
-      else str"git@gitlab.com:$group/$project.git"
-    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      if(https) str"https://bitbucket.com/$group/$project.git"
-      str"git@bitbucket.com:$group/$project.git"
+    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" => str
+    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" => str
+    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" => str
     case ExistingLocalFileAsAbspath(abspath) =>
       abspath
     case other =>
@@ -69,20 +63,20 @@ case class Remote(ref: String) {
 
   def gitDir(layout: Layout): GitDir = GitDir(path(layout))(layout.env)
 
-  def pull(oldCommit: Commit, layout: Layout, https: Boolean)(implicit log: Log): Try[Commit] =
+  def pull(oldCommit: Commit, layout: Layout)(implicit log: Log): Try[Commit] =
     for {
-      _         <- fetch(layout, https)
+      _         <- fetch(layout)
       newCommit <- GitDir(path(layout))(layout.env).commit
       _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
                         else msg"Repository $this has not changed")
     } yield newCommit
 
-  def get(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = {
+  def get(layout: Layout)(implicit log: Log): Try[GitDir] = {
     if((path(layout) / ".done").exists) Success(GitDir(path(layout))(layout.env))
-    else fetch(layout, https)
+    else fetch(layout)
   }
 
-  def fetch(layout: Layout, https: Boolean)(implicit log: Log): Try[GitDir] = {
+  def fetch(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val done = path(layout) / ".done"
     
     if(path(layout).exists && !done.exists) {
@@ -98,7 +92,7 @@ case class Remote(ref: String) {
     } else {
       log.info(msg"Cloning repository at $this")
       path(layout).mkdir()
-      gitDir(layout).cloneBare(Remote.parse(ref, https)).map(gitDir(layout).waive)
+      gitDir(layout).cloneBare(this).map(gitDir(layout).waive)
     }
   }
 
@@ -108,10 +102,28 @@ case class Remote(ref: String) {
     case r"git@gitlab.com:$group@(.*)/$project@(.*?)(\.git)?"     => str"gl:$group/$project"
     case r"https://github.com/$group@(.*)/$project@(.*?)(\.git)?" => str"gh:$group/$project"
     case r"https://gitlab.com/$group@(.*)/$project@(.*?)(\.git)?" => str"gl:$group/$project"
-    case other                                               => other
+    case other                                                    => other
   }
 
-  def universal(https: Boolean): Remote = Remote.parse(simplified, https)
+  def https: String = simplified match {
+    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      str"https://github.com/$group/$project.git"
+    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      str"https://gitlab.com/$group/$project.git"
+    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      str"https://bitbucket.com/$group/$project.git"
+    case other => other
+  }
+  
+  def ssh: String = simplified match {
+    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      str"git@bitbucket.com:$group/$project.git"
+    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      str"git@github.com:$group/$project.git"
+    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      str"git@gitlab.com:$group/$project.git"
+    case other => other
+  }
 
   def projectName: Try[RepoId] = {
     val value = simplified.split("/").last

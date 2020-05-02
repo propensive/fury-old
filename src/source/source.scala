@@ -70,7 +70,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
 
     layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
     _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
+    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -90,20 +90,20 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     source       <- call(SourceArg)
 
     localId      =  for {
-      localRepo <- Remote.local(layout).toOption
-      layerMatch <- layer.repos.find(_.remote.simplified == localRepo.simplified)
-    } yield layerMatch.id
+                      localRepo <- Remote.local(layout).toOption
+                      layerMatch <- layer.repos.find(_.remote.simplified == localRepo.simplified)
+                    } yield layerMatch.id
 
     source       <- ~Source.rewriteLocal(source, localId)
     layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))
     _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout, false)
+    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
   } yield log.await()
 
   private[this] def isSourceFileName(name: String): Boolean = name.endsWith(".scala") || name.endsWith(".java")
 
   private[this] def possibleSourceDirectories(repo: Repo, layout: Layout) =
-    repo.sourceCandidates(layout, false)(isSourceFileName).getOrElse(Set.empty)
+    repo.sourceCandidates(layout)(isSourceFileName).getOrElse(Set.empty)
 }
 
 case class FrontEnd(cli: Cli)(implicit log: Log) {
