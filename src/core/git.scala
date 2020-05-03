@@ -101,6 +101,7 @@ case class GitDir(env: Environment, dir: Path) {
                  |  printf 'Would you like to share the layer publicly [Yn]? '
                  |  exec < /dev/tty
                  |  read answer
+                 |  exec <^- 2> /dev/null
                  |  case $answer in
                  |    ''|yes|YES|Yes|Y|y) return 0 ;;
                  |    *                 ) return 1 ;;
