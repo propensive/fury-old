@@ -12,7 +12,11 @@ BSP server is listening for incoming connections
 Starting compilation of module library/core
 Successfully compiled module library/core
 0
+IPFS ref: fury://QmVK6NpfWMUqzUVFH9wRUYrwSoDJUhmBJeVDjLtJL24qwy
 Initialized an empty layer
+Checking that no modules reference local sources
+Checking that no project names conflict
+Checking that all module references resolve
 platform
 path	/platform
 Layer name .. not found.

@@ -89,7 +89,7 @@ You can grant these permissions with,
         case MissingParam(param) =>
           cli.abort(msg"""The ${param} parameter is required.""")
         case CannotUndo() =>
-          cli.abort(msg"""The previous action cannot be undone...""")
+          cli.abort(msg"""The previous action cannot be undone.""")
         case UnresolvedModules(refs) =>
           cli.abort(msg"""Some modules contain references to other modules which do not exist.""")
         case PublishFailure() =>

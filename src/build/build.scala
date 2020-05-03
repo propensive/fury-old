@@ -549,7 +549,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layerRef   <- Layer.resolve(layerName)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
-    _          <- layer.verify
+    _          <- layer.verify(true)
     dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
@@ -587,7 +587,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
-    _             <- layer.verifyConf(conf)
+    _             <- layer.verifyConf(false, conf)
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
@@ -603,16 +603,23 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   def share: Try[ExitStatus] = for {
-    layout        <- cli.layout
-    cli           <- cli.hint(RawArg)
-    conf          <- Layer.readFuryConf(layout)
-    layer         <- Layer.retrieve(conf)
-    call          <- cli.call()
-    raw           <- ~call(RawArg).isSuccess
-    _             <- layer.verifyConf(conf)
-    token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
-    ref           <- Layer.share(ManagedConfig().service, layer, token)
-    _             <- if(raw) ~log.rawln(str"${ref}") else ~log.info(msg"Shared at ${ref}")
+    layout <- cli.layout
+    cli    <- cli.hint(RawArg)
+    cli    <- cli.hint(PublicArg)
+    conf   <- Layer.readFuryConf(layout)
+    layer  <- Layer.retrieve(conf)
+    call   <- cli.call()
+    public <- ~call(PublicArg).isSuccess
+    raw    <- ~call(RawArg).isSuccess
+    _      <- layer.verifyConf(true, conf, quiet = raw)
+
+    ref    <- if(!public) Layer.store(layer)
+              else for {
+                token  <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
+                ref    <- Layer.share(ManagedConfig().service, layer, token)
+              } yield ref
+
+    _      <- if(raw) ~log.rawln(str"${ref.ipfsRef.uri}") else ~log.info(msg"Shared at ${ref.ipfsRef.uri}")
   } yield log.await()
 
   /*def export: Try[ExitStatus] = for {
@@ -642,7 +649,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     newLayerRef   <- Layer.resolve(layerName)
     pub           <- Layer.published(layerName)
     newLayer      <- Layer.get(newLayerRef, pub)
-    _             <- newLayer.verify
+    _             <- newLayer.verify(false)
     ref           <- ~Import(nameArg, newLayerRef, pub)
     layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)
@@ -667,6 +674,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     previous <- layer.previous.ascribe(CannotUndo())
     layer    <- Layer.get(previous, None)
     layerRef <- Layer.store(layer)
+    _        <- ~log.info(msg"Reverted to layer $layerRef")
     _        <- Layer.saveFuryConf(conf.copy(layerRef = layerRef), layout)
   } yield log.await()
 

@@ -84,19 +84,19 @@ case class Layer(version: Int,
     missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
-  def verifyConf(conf: FuryConf)(implicit log: Log): Try[Unit] = for {
-    _         <- ~log.info(msg"Checking that the root layer is selected")
+  def verifyConf(local: Boolean, conf: FuryConf, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
+    _         <- ~log.infoWhen(!quiet)(msg"Checking that the root layer is selected")
     _         <- if(conf.path == ImportPath.Root) Success(()) else Failure(RootLayerNotSelected())
-    _         <- verify
+    _         <- verify(local, quiet)
   } yield ()
 
-  def verify(implicit log: Log): Try[Unit] = for {
-    _         <- ~log.info(msg"Checking that no modules reference local sources")
+  def verify(local: Boolean, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
+    _         <- ~log.infoWhen(!quiet)(msg"Checking that no modules reference local sources")
     localSrcs <- ~localSources
-    _         <- if(localSrcs.isEmpty) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
-    _         <- ~log.info(msg"Checking that no project names conflict")
+    _         <- if(localSrcs.isEmpty || local) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
+    _         <- ~log.infoWhen(!quiet)(msg"Checking that no project names conflict")
     universe  <- hierarchy().flatMap(_.universe)
-    _         <- ~log.info(msg"Checking that all module references resolve")
+    _         <- ~log.infoWhen(!quiet)(msg"Checking that all module references resolve")
     missing   <- ~unresolvedModules(universe)
     _         <- if(missing.isEmpty) Success(()) else Failure(UnresolvedModules(missing))
   } yield ()

@@ -54,7 +54,6 @@ object Repo {
       commit <- gitDir.commit
     } yield Some(Repo(repoId, remote, branch, commit, None))
   }
-    
 }
 
 case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
