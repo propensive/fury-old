@@ -667,6 +667,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     previous <- layer.previous.ascribe(CannotUndo())
     layer    <- Layer.get(previous, None)
     layerRef <- Layer.store(layer)
+    _        <- ~log.info(msg"Reverted to layer $layerRef")
     _        <- Layer.saveFuryConf(conf.copy(layerRef = layerRef), layout)
   } yield log.await()
 
