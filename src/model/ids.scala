@@ -376,6 +376,10 @@ object BinRepoId {
 }
 
 object Permission {
+
+  def apply(classRef: ClassRef, target: String, action: Option[String] = None): Permission =
+    Permission(str"$classRef:$target", action)
+
   implicit val msgShow: MsgShow[Permission] = stringShow.show
   
   implicit val stringShow: StringShow[Permission] =
@@ -383,7 +387,7 @@ object Permission {
   
   implicit val diff: Diff[Permission] = Diff.gen[Permission]
 
-  val Classes: List[String] = List(
+  val Classes: List[ClassRef] = List(
     "java.awt.AWTPermission",
     "java.io.FilePermission",
     "java.io.SerializablePermission",
@@ -412,8 +416,9 @@ object Permission {
     "javax.sound.sampled.AudioPermission",
     "javax.xml.bind.JAXBPermission",
     "javax.xml.ws.WebServicePermission"
-  )
+  ).map(ClassRef(_))
 }
+
 case class Permission(id: String, action: Option[String]) {
   def classRef: ClassRef = ClassRef(id.split(":", 2)(0))
   def target: String = id.split(":", 2)(1)
@@ -454,13 +459,13 @@ object ScopeId {
 
 sealed abstract class ScopeId(val id: String) extends scala.Product with scala.Serializable
 
-object Grant {
-  implicit val ord: Ordering[Grant] = Ordering[String].on[Grant](_.permission.hash)
-  implicit val stringShow: StringShow[Grant] = _.digest[Sha256].encoded
-  implicit val index: Index[Grant] = FieldIndex("permission")
+object Privilege {
+  implicit val ord: Ordering[Privilege] = Ordering[String].on[Privilege](_.permission.hash)
+  implicit val stringShow: StringShow[Privilege] = _.digest[Sha256].encoded
+  implicit val index: Index[Privilege] = FieldIndex("permission")
 }
 
-case class Grant(scope: Scope, permission: Permission)
+case class Privilege(scope: Scope, permission: Permission)
 
 object PermissionEntry {
   implicit val msgShow: MsgShow[PermissionEntry] = pe => msg"${pe.hash.key} ${pe.permission}"
@@ -499,13 +504,14 @@ case class JavaProperty(id: String, value: String)
 object Scope {
   def apply(id: ScopeId, layout: Layout, projectId: ProjectId): Scope = id match {
     case ScopeId.Project => ProjectScope(projectId)
-    case ScopeId.Directory => DirectoryScope(layout.baseDir.value)
+    case ScopeId.Directory => DirectoryScope(layout.baseDir)
     //case ScopeId.Layer => LayerScope()
   }
 }
 
 sealed trait Scope extends scala.Product with scala.Serializable
-case class DirectoryScope(dir: String) extends Scope
+case object GlobalScope extends Scope
+case class DirectoryScope(path: Path) extends Scope
 case class ProjectScope(name: ProjectId) extends Scope
 //case class LayerScope(layerHash: String) extends Scope
 

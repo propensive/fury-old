@@ -3,7 +3,7 @@
 CACHED=()
 
 TEMPDIR=$(mktemp --directory --tmpdir=.)
-mkdir $TEMPDIR
+mkdir -p $TEMPDIR
 
 function download {
   echo "downloading $1"

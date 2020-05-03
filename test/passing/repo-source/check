@@ -5,10 +5,6 @@ Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
 0
-ad452b8d3779ba72bed24656286fcf4c95753320343db145221fa1741d0b7a01
-a5da2b44866b457ba7c441ae2be4fa1ecdc95c10f6f877389870cb740f1f086c
-233a73e66904a8139f221dab329929afc80e611c2e6724a711c3da5db0e95f03
-8fb847bdc80e4f92a8d579b43f7cd98878f357b4591ef02309a7ab937a1ab25f
 e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 Checking out  from repository library
 Starting the BSP launcher...
