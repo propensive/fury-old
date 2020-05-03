@@ -41,18 +41,22 @@ object Policy {
       }).set(version = Ogdl(version + 1)))
     } else ogdl
   }
+  
+  def standardPrivileges: List[Privilege] =
+    List(Privilege(GlobalScope, Permission(ClassRef("java.util.PropertyPermission"), "scala.*")))
 }
 
-case class Policy(version: Int, policy: SortedSet[Grant] = TreeSet()) {
+case class Policy(version: Int, policy: SortedSet[Privilege] = TreeSet()) {
   def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
     Policy(Policy.CurrentVersion, policy.filter {
-      case Grant(DirectoryScope(dir), _) => dir == layout.baseDir.value
-      case Grant(ProjectScope(id), _)    => projectId == id
+      case Privilege(DirectoryScope(dir), _) => dir == layout.baseDir
+      case Privilege(ProjectScope(id), _)    => projectId == id
+      case Privilege(GlobalScope, _)         => true
       //case Grant(LayerScope(hash), _)    => hash == layer.hash
     })
 
   def grant(scope: Scope, permissions: List[Permission]): Policy =
-    copy(policy = policy ++ permissions.map(Grant(scope, _)))
+    copy(policy = policy ++ permissions.map(Privilege(scope, _)))
 
   def obviate(scope: Scope, permissions: List[Permission]): Policy =
     copy(policy = policy.filterNot(permissions.contains))
@@ -65,7 +69,7 @@ case class Policy(version: Int, policy: SortedSet[Grant] = TreeSet()) {
   def save(file: Path): Try[Unit] = file.writeSync {
     val sb = new StringBuilder()
     sb.append("grant {\n")
-    policy.foreach { grant =>
+    (Policy.standardPrivileges ++ policy).foreach { grant =>
       val p = grant.permission
       val actionAddendum = p.action.fold("") { a => s""", "$a"""" }
       sb.append(str""" permission ${p.classRef} "${p.target}"${actionAddendum};""")
