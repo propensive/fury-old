@@ -152,7 +152,7 @@ case class GitDir(env: Environment, dir: Path) {
            _ <- sh"$git remote add origin ${remote.ref}".exec[Try[String]]
            _ <- sh"$git checkout -b ${branch.id}".exec[Try[String]]
            _ <- sh"$git fetch".exec[Try[String]]
-           _ <- sh"$git branch -u 'origin/$branch'".exec[Try[String]]
+           _ <- sh"$git branch -u origin/$branch".exec[Try[String]]
          } yield () }
 
     _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
@@ -177,7 +177,7 @@ case class GitDir(env: Environment, dir: Path) {
   }
 
   def remoteHasCommit(commit: Commit, branch: Branch): Try[Boolean] =
-    sh"$git rev-list 'origin/$branch'".exec[Try[String]].map(_.split("\n").contains(commit.id))
+    sh"$git rev-list origin/$branch".exec[Try[String]].map(_.split("\n").contains(commit.id))
 
   def fetch(branch: Branch): Try[Unit] =
     sh"$git fetch origin $branch".exec[Try[String]].map(_.unit)
@@ -186,8 +186,8 @@ case class GitDir(env: Environment, dir: Path) {
     sh"$git fetch --all".exec[Try[String]].map(_.unit)
 
   def branch: Try[Branch] = sh"$git rev-parse --abbrev-ref HEAD".exec[Try[String]].map(Branch(_))
-  def cat(path: Path): Try[String] = sh"$git show 'HEAD:$path'".exec[Try[String]]
-  def cat(commit: Commit, path: Path): Try[String] = sh"$git show '$commit:$path'".exec[Try[String]]
+  def cat(path: Path): Try[String] = sh"$git show HEAD:$path".exec[Try[String]]
+  def cat(commit: Commit, path: Path): Try[String] = sh"$git show $commit:$path".exec[Try[String]]
   def commit: Try[Commit] = sh"$git rev-parse HEAD".exec[Try[String]].map(Commit(_))
   def commitFromTag(tag: Tag): Try[Commit] = sh"$git rev-parse $tag".exec[Try[String]].map(Commit(_))
   
@@ -221,7 +221,7 @@ case class GitDir(env: Environment, dir: Path) {
     sh"$git ls-tree -r --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List].map(Path(_)))
 
   def branchHead(branch: Branch): Try[Commit] =
-    sh"$git show-ref -s 'heads/$branch'".exec[Try[String]].map(Commit(_))
+    sh"$git show-ref -s heads/$branch".exec[Try[String]].map(Commit(_))
 
-  def getTag(tag: Branch): Try[Commit] = sh"$git show-ref -s 'tags/$tag'".exec[Try[String]].map(Commit(_))
+  def getTag(tag: Branch): Try[Commit] = sh"$git show-ref -s tags/$tag".exec[Try[String]].map(Commit(_))
 }
