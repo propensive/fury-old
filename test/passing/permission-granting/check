@@ -8,10 +8,10 @@ Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
 0
-Set current module to lib
 1902316c584aae1ce14579535200e0705f8b7e36ae7c93299ab01fa2ac384c71
-0
 190
+Set current module to lib
+0
 The following permissions are required to run the build:
 You can grant these permissions with,
   fury permission grant -P <permission hash>

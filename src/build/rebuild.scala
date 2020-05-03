@@ -77,9 +77,8 @@ class SourceWatcher(sources: Set[Path]){
   private val ec: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
   private[this] val changed = new AtomicBoolean(true)
 
-  def isImportant(file: File): Boolean = {
+  def isImportant(file: File): Boolean =
     file.isRegularFile && (file.extension.exists(Set(".scala", ".java").contains))
-  }
 
   val directories: Set[File] = sources.map(src => File(src.value))
 
@@ -98,20 +97,16 @@ class SourceWatcher(sources: Set[Path]){
 
   def clear(): Unit = changed.set(false)
 
-  private[this] lazy val watchers = directories.map( src => new RecursiveFileMonitor(src) {
+  private[this] lazy val watchers = directories.map { src => new RecursiveFileMonitor(src) {
     override def onCreate(file: File, count: Int) = onChange(file)
     override def onModify(file: File, count: Int) = onChange(file)
     override def onDelete(file: File, count: Int) = onChange(file)
-    override def start()(implicit ec: ExecutionContext) : Unit = {
-      Future{ watcher.watch() }(ec)
-    }
-  })
+    override def start()(implicit ec: ExecutionContext): Unit = Future(watcher.watch())(ec)
+  } }
 
   private[this] def onChange(file: File) = {
     val important: Boolean = file.extension.contains(".scala") || file.extension.contains(".java")
-    if(important){
-      changed.set(true)
-    }
+    if(important) changed.set(true)
   }
 
 }

@@ -4,15 +4,15 @@ Set current module to compiler
 Set current project to library
 Setting default compiler for project library to scala/compiler
 Set current module to core
-Cloning repository at ../library
 Checking out src/core from repository library
-Starting the BSP launcher...
-Opening a BSP server connection
-BSP server is listening for incoming connections
 Starting compilation of module library/core
 Successfully compiled module library/core
 0
+IPFS ref: fury://QmRVEyy5eH53Fk9UewRsUvQwTmqJabH6NuLxe9YRcU4Gud
 Initialized an empty layer
+Checking that no modules reference local sources
+Checking that no project names conflict
+Checking that all module references resolve
 platform
 path	/platform
 Layer name .. not found.
