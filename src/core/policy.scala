@@ -43,7 +43,7 @@ object Policy {
   }
   
   def standardPrivileges: List[Privilege] =
-    List(Privilege(GlobalScope, Permission(ClassRef("java.util.PropertyPermission"), "scala.*")))
+    List(Privilege(GlobalScope, Permission(ClassRef("java.util.PropertyPermission"), "scala.*", Some("read"))))
 }
 
 case class Policy(version: Int, policy: SortedSet[Privilege] = TreeSet()) {
