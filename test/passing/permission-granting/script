@@ -9,10 +9,6 @@ fury module add -n core -c scala/compiler -t application -M HelloWorld
 fury source add -s src
 mkdir -p src
 echo 'object HelloWorld extends App { println("All permissions in order!\n") }' > src/hw.scala
-fury permission require -0 -C java.util.PropertyPermission -T scala.maven.version.number -A read
-fury permission require --no-grant -C java.util.PropertyPermission -T scala.version.number -A read
-fury permission require -C java.util.PropertyPermission -T scala.time -A read -0
-fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read --no-grant
 fury clean
 echo $?
 fury module add -n lib -t library

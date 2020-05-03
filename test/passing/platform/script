@@ -33,10 +33,6 @@ fury layer import -i $IPFSREF --name platform
 IPFSREF=
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t application -M HelloWorld
-fury permission require -C java.util.PropertyPermission -T scala.maven.version.number -A read
-fury permission require -C java.util.PropertyPermission -T scala.version.number -A read
-fury permission require -C java.util.PropertyPermission -T scala.time -A read
-fury permission require -C java.util.PropertyPermission -T scala.copyright.string -A read
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury permission require -C java.io.FilePermission -T '.content' -A write
