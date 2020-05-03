@@ -14,7 +14,7 @@ fury binary add -b com.spotify:logging:2.2.6
 fury binary add -b com.spotify:logging:2.2.0 -n logging
 fury binary add -b com.spotify:logging:2.2.0 -n logging-2.2.0
 fury binary add -b org.libj:logging:0.4.2 -n libj-logging
-fury binary list --raw
+fury binary list --raw | LC_ALL=C sort --ignore-case
 fury binary remove -b logging
 echo $?
 fury binary remove -b logging-2.2.0
