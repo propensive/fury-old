@@ -605,13 +605,20 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   def share: Try[ExitStatus] = for {
     layout <- cli.layout
     cli    <- cli.hint(RawArg)
+    cli    <- cli.hint(PublicArg)
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
+    public <- ~call(PublicArg).isSuccess
     raw    <- ~call(RawArg).isSuccess
     _      <- layer.verifyConf(true, conf, quiet = raw)
-    token  <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
-    ref    <- Layer.share(ManagedConfig().service, layer, token)
+
+    ref    <- if(!public) Layer.store(layer)
+              else for {
+                token  <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
+                ref    <- Layer.share(ManagedConfig().service, layer, token)
+              } yield ref
+
     _      <- if(raw) ~log.rawln(str"${ref.ipfsRef.uri}") else ~log.info(msg"Shared at ${ref.ipfsRef.uri}")
   } yield log.await()
 
