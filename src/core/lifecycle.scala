@@ -28,9 +28,7 @@ import scala.util.Try
 
 object Lifecycle {
   
-  trait Shutdown {
-    def shutdown(): Unit
-  }
+  trait Shutdown { def shutdown(): Unit }
 
   trait ResourceHolder {
     type Resource
@@ -43,13 +41,14 @@ object Lifecycle {
   case class Session(cli: Cli, thread: Thread) {
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
-    private var _multiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(Set.empty)
-    def multiplexer = synchronized{ _multiplexer }
-    def multiplexer_=(m: Multiplexer[ModuleRef, CompileEvent]) = synchronized{ _multiplexer = m }
+    private[this] var sessionMultiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(Set.empty)
+    
+    def multiplexer = synchronized(sessionMultiplexer)
+    def multiplexer_=(m: Multiplexer[ModuleRef, CompileEvent]) = synchronized { sessionMultiplexer = m }
   }
 
   private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
-  private[this] val running: HashSet[Session]   = new HashSet()
+  private[this] val running: HashSet[Session] = new HashSet()
   private[this] def busy(): Option[Int] =
     running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
@@ -67,15 +66,14 @@ object Lifecycle {
   }
 
   def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int = {
-    val alreadyLaunched = running.find(_.pid == cli.pid)
-    alreadyLaunched match {
+    running.find(_.pid == cli.pid) match {
       case Some(session) =>
         session.thread.interrupt()
         close(session)
         0
       case None if terminating.get && !whitelisted =>
         println("New tasks cannot be started while Fury is shutting down.")
-        1
+        2
       case _ =>
         val session = Session(cli, Thread.currentThread)
         running.synchronized(running += session)

@@ -49,38 +49,29 @@ object FuryServer {
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
   }
 
-  def main(args: Array[String]): Unit = run(
-      System.in,
-      System.out,
-      System.err,
-      args,
-      {
-        i =>
-        Lifecycle.shutdown()
-        System.exit(i)
-      },
-      Environment(System.getenv.asScala.toMap, Option(System.getenv("PWD")))
+  def main(args: Array[String]): Unit = {
+    def exit(code: Int) = {
+      Lifecycle.shutdown()
+      System.exit(code)
+    }
+    
+    run(System.in, System.out, System.err, args, exit, Environment(System.getenv.asScala.toMap, Option(
+        System.getenv("PWD"))))
+  }
+
+  def nailMain(ctx: NGContext): Unit =
+    run(ctx.in, ctx.out, ctx.err, ctx.getArgs, ctx.exit(_), Environment(
+        ctx.getEnv.stringPropertyNames.asScala.map { k => (k, ctx.getEnv.getProperty(k)) }.toMap, Option(
+        ctx.getWorkingDirectory))
   )
 
-  def nailMain(ctx: NGContext): Unit = run(
-      ctx.in,
-      ctx.out,
-      ctx.err,
-      ctx.getArgs,
-      ctx.exit(_),
-      Environment(ctx.getEnv.stringPropertyNames.asScala.map { k =>
-        (k, ctx.getEnv.getProperty(k))
-      }.toMap, Option(ctx.getWorkingDirectory))
-  )
-
-  def run(
-      in: java.io.InputStream,
-      out: java.io.PrintStream,
-      err: java.io.PrintStream,
-      args: Seq[String],
-      exit: Int => Unit,
-      env: Environment
-    ) =
+  def run(in: java.io.InputStream,
+          out: java.io.PrintStream,
+          err: java.io.PrintStream,
+          args: Seq[String],
+          exit: Int => Unit,
+          env: Environment)
+         : Unit =
     exit {
       val pid = Pid(args.head.toInt)
       implicit val log: Log = Log.log(pid)
@@ -89,10 +80,10 @@ object FuryServer {
           env, pid)
       
       Lifecycle.trackThread(cli, args.lift(1).exists(Set("about", "help")(_))) {
-        val end = invoke(cli).code
+        val exitStatus = invoke(cli).code
         out.flush()
         err.flush()
-        end
+        exitStatus
       }
     }
 
