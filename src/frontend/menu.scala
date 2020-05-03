@@ -141,7 +141,6 @@ object FuryMenu {
       Action('checkout, msg"check out a repository into the working directory", RepoCli(_).checkout,
           shortcut = 'o'),
       
-      Action('commit, msg"commit the current checked-out repo to the layer", RepoCli(_).commit, shortcut = 'c'),
       Action('update, msg"update a source repository", RepoCli(_).update, shortcut = 'u'),
       Action('remove, msg"remove a source repository from the layer", RepoCli(_).remove, shortcut = 'r'),
       Action('fork, msg"fork a managed repository locally", RepoCli(_).fork, shortcut = 'f'),

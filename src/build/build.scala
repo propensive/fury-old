@@ -549,7 +549,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layerRef   <- Layer.resolve(layerName)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
-    _          <- layer.verify
+    _          <- layer.verify(true)
     dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
@@ -587,7 +587,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
-    _             <- layer.verifyConf(conf)
+    _             <- layer.verifyConf(false, conf)
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
@@ -609,7 +609,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer         <- Layer.retrieve(conf)
     call          <- cli.call()
     raw           <- ~call(RawArg).isSuccess
-    _             <- layer.verifyConf(conf)
+    _             <- layer.verifyConf(true, conf)
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     _             <- if(raw) ~log.rawln(str"${ref}") else ~log.info(msg"Shared at ${ref}")
@@ -642,7 +642,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     newLayerRef   <- Layer.resolve(layerName)
     pub           <- Layer.published(layerName)
     newLayer      <- Layer.get(newLayerRef, pub)
-    _             <- newLayer.verify
+    _             <- newLayer.verify(false)
     ref           <- ~Import(nameArg, newLayerRef, pub)
     layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)

@@ -51,23 +51,6 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     _         <- ~log.rawln(table)
   } yield log.await()
 
-  def commit: Try[ExitStatus] = for {
-    layout    <- cli.layout
-    conf      <- Layer.readFuryConf(layout)
-    layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(ServiceArg)
-    call      <- cli.call()
-    service   <- ~call(ServiceArg).toOption.getOrElse(ManagedConfig().service)
-    token     <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(doAuth)
-    _         <- Layer.share(service, layer, token)
-    local     <- layer.local(layout)
-    commit    <- GitDir(layout).commit
-    branch    <- GitDir(layout).branch
-    layer     <- ~(Layer(_.repos(local.id).branch)(layer) = branch)
-    layer     <- ~(Layer(_.repos(local.id).commit)(layer) = commit)
-    _         <- Layer.commit(layer, conf, layout)
-  } yield log.await()
-
   def doAuth: Try[OauthToken] = for {
     // These futures should be managed in the session
     // This was duplicated from build.scala
