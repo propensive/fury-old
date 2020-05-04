@@ -3,8 +3,10 @@ fury://Qme7mvSAMeYShyPxdkzU7mC3PF4w7XDUBXQkiqQXxFzj4Z
 Set current project to example
 Set current module to core
 QmPvaxMFfT777J5g51PQL7fJNCYfYhMoWW7beRDnvnGEnd
-Cloned layer dEJTo3bu into layer2
-core
-layers/QmdEJTo3buMADK5SRTchSgvuddJaDT7dAyq42ApWZs1bHm
-.fury.conf
+Checking that no modules reference local sources
+Checking that no project names conflict
+Checking that all module references resolve
+Cloning layer QmPvaxMFfT777J5g51PQL7fJNCYfYhMoWW7beRDnvnGEnd into layer2
+Saving Fury configuration file layer2/.fury.conf
+Cloning complete
 core

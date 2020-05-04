@@ -8,21 +8,9 @@ fury project add -n example
 fury module add -n core
 IPFSREF=$(fury layer share --raw | cut -d / -f 3)
 echo $IPFSREF
-fury layer export -f ../project.tar.gz > /dev/null
 cd ..
-
-fury layer clone -l fury://$IPFSREF -d layer2
+fury layer clone -i fury://$IPFSREF -f layer2
 cd layer2
 fury module list --raw
 cd ..
-
-tar -tf project.tar.gz
-mkdir layer3
-fury layer extract -f project.tar.gz -d layer3
-cd layer3
-fury module list -p example --raw
-cd ..
-
 diff -q layer1/.fury.conf layer2/.fury.conf
-diff -q layer1/.fury.conf layer3/.fury.conf
-#ipfs ls $IPFSREF/layers
