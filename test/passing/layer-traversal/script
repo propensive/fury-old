@@ -26,7 +26,6 @@ git commit -m 'platform' -q
 fury build run --output linear
 echo $?
 IPFSREF=$(fury layer share --raw)
-echo IPFS ref: $IPFSREF
 cd ../app
 fury layer init
 fury layer import -i $IPFSREF --name platform
