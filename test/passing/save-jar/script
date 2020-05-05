@@ -22,4 +22,4 @@ echo $?
 ls out
 jar tf out/foo-app.jar | LC_ALL=C sort --ignore-case | sed 's/\r$//'
 unzip -qq out/foo-app.jar META-INF/MANIFEST.MF | LC_ALL=C sort --ignore-case | sed 's/\r$//'
-cat META-INF/MANIFEST.MF | sed 's/Created-By: Fury.*/Created-By: Fury/' | sed 's/\r$//'
+md5sum META-INF/MANIFEST.MF

@@ -20,4 +20,4 @@ jar tf out/bar-app.jar | grep Hello | LC_ALL=C sort --ignore-case
 java -jar out/bar-app.jar
 echo $?
 unzip -qq out/bar-app.jar META-INF/MANIFEST.MF | LC_ALL=C sort --ignore-case
-cat META-INF/MANIFEST.MF | sed 's/Created-By: Fury.*/Created-By: Fury/' | sed 's/\r$//'
+md5sum META-INF/MANIFEST.MF
