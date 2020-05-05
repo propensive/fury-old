@@ -1,4 +1,7 @@
 Initialized an empty layer
+Checking that no modules reference local sources
+Checking that no project names conflict
+Checking that all module references resolve
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
