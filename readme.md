@@ -1,5 +1,7 @@
 <img src="doc/logo/render_github.png" alt="Fury">
 
+![CI](https://github.com/propensive/fury/workflows/CI/badge.svg?branch=master)
+
 ### About
 Fury is an experimental dependency manager and build tool for Scala. It is
 still under active development.
