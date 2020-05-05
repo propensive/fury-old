@@ -594,7 +594,7 @@ case class Compilation(target: Target,
     for {
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
-      manifest          = Manifest(bins.map(_.name), module.main.map(_.key))
+      manifest          = JarManifest(bins.map(_.name), module.main.map(_.key))
       dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       enc               = System.getProperty("file.encoding")

@@ -17,18 +17,22 @@
 package fury.utils
 
 import fury.strings._
-import java.util.jar.{Attributes, JarOutputStream, Manifest => JavaManifest}
-import Attributes.Name._
 
-object Manifest {
-  def apply(classpath: Set[String], mainClass: Option[String]): JavaManifest = {
-    val result = new JavaManifest
-    val mainAttributes = result.getMainAttributes
-    mainAttributes.put(MANIFEST_VERSION, "1.0")
-    mainClass.foreach(mainAttributes.put(MAIN_CLASS, _))
-    mainAttributes.put(CLASS_PATH, classpath.to[List].sorted.join(" "))
-    mainAttributes.putValue("Created-By", str"Fury ${FuryVersion.current}")
-    
-    result
+object JarManifest {
+  case class Entry(key: String, value: String) {
+    def content: String = str"$key: $value".drop(1).grouped(70).to[List].join(key.take(1), "\n ", "")
   }
+
+  def apply(classpath: Set[String], mainClass: Option[String]): JarManifest = JarManifest(List(
+    List(Entry("Manifest-Version", "1.0")),
+    List(
+      Entry("Class-Path", classpath.to[List].sorted.join(" ")),
+      Entry("Created-By", str"Fury ${FuryVersion.current}")
+    ),
+    mainClass.to[List].map(Entry("Main-Class", _))
+  ).flatten: _*)
+}
+
+case class JarManifest(entries: JarManifest.Entry*) {
+  def content: String = entries.map(_.content).join("", "\n", "\n")
 }
