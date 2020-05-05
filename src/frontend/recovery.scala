@@ -113,7 +113,7 @@ You can grant these permissions with,
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
           cli.abort(msg"The command '${e.command}' was not recognized.")
-        case BadParamValue(param, arg) =>
+        case exoskeleton.InvalidArgValue(param, arg) =>
           cli.abort(msg"The argument '$arg' was not a valid value for the parameter $param.")
         case InvalidLayer(layer) =>
           cli.abort(msg"The argument '$layer' does not represent a valid layer.")
