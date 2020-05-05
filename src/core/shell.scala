@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.io._, fury.strings._, fury.model._
+import fury.io._, fury.strings._, fury.model._, fury.utils._
 
 import guillotine._
 import mercator._
@@ -25,7 +25,7 @@ import euphemism._
 import scala.util._
 import scala.collection.mutable.HashMap
 import java.util.UUID
-import java.util.jar.{JarFile, Manifest => JManifest}
+import java.util.jar.JarFile
 import java.util.zip.ZipFile
 import java.io._
 
@@ -109,11 +109,11 @@ case class Shell(environment: Environment) {
     }._2)
   }
 
-  def jar(dest: Path, jarInputs: Set[Path], pathInputs: Set[Path], manifest: JManifest): Try[Unit] = {
+  def jar(dest: Path, jarInputs: Set[Path], pathInputs: Set[Path], manifest: JarManifest): Try[Unit] = {
     val zos = new ZipArchiveOutputStream(dest.javaPath.toFile)
     zos.setEncoding("UTF-8")
     zos.putArchiveEntry(new ZipArchiveEntry(JarFile.MANIFEST_NAME))
-    manifest.write(zos)
+    zos.write(manifest.content.getBytes("UTF-8"))
     zos.closeArchiveEntry()
 
     val creator = new ParallelScatterZipCreator()

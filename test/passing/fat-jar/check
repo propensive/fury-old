@@ -27,4 +27,8 @@ HelloWorld$delayedInit$body.class
 HelloWorld.class
 Hello World
 0
-69bc351461e87cb7fce635fd5bbeb392  META-INF/MANIFEST.MF
+Manifest-Version: 1.0
+Class-Path: scala-compiler-2.12.8.jar scala-library-2.12.8.jar scala-re
+ flect-2.12.8.jar scala-xml_2.12-1.0.6.jar
+Created-By: Fury
+Main-Class: HelloWorld
