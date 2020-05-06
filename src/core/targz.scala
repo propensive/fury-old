@@ -21,7 +21,7 @@ import fury.io._
 import java.io._
 import annotation.tailrec
 import scala.util.Try
-import org.kamranzafar.jtar.{TarEntry, TarInputStream, TarOutputStream}
+import org.kamranzafar.jtar.{TarEntry, TarInputStream, TarOutputStream, TarHeader}
 
 import java.util.zip._
 import java.nio.file.attribute.PosixFilePermission
@@ -46,16 +46,17 @@ object TarGz {
     }
   }
 
-  def store(files: Map[Path, Path], destination: Path): Try[Unit] = Try {
+  def store(files: Map[Path, Path], dest: Path): Try[Unit] =
+    store(files.map { case (name, path) => (name.value, path.size.bytes, new FileInputStream(path.javaFile)) },
+        dest)
+
+  def store(files: Iterable[(String, Long, InputStream)], destination: Path): Try[Unit] = Try {
     val fos  = new FileOutputStream(destination.javaFile)
     val gzos = new GZIPOutputStream(fos)
     val out  = new TarOutputStream(gzos)
-    files.foreach { case (name, path) =>
-      val entry = new TarEntry(path.javaFile, name.value)
-      entry.setModTime(0L)
-      out.putNextEntry(entry)
-      val in = new BufferedInputStream(new FileInputStream(path.javaFile))
-      transfer(in, out)
+    files.foreach { case (name, size, in) =>
+      out.putNextEntry(new TarEntry(TarHeader.createHeader(name, size, 0L, false, 438)))
+      transfer(new BufferedInputStream(in), out)
     }
     out.close()
   }
@@ -82,6 +83,8 @@ object TarGz {
     tis.close()
   }
   
+  def untargz(in: InputStream): Try[List[Array[Byte]]] = untar(new GZIPInputStream(in))
+
   def untar(in: InputStream): Try[List[Array[Byte]]] = {
     val tis = new TarInputStream(in)
     val entries = Try {

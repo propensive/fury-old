@@ -90,6 +90,8 @@ case class Path(input: String) {
   def /(child: String): Path = Path(s"$filename/$child")
   def in(root: Path): Path = Path(s"${root.value}/$value")
 
+  def lastModified: Long = javaFile.lastModified()
+
   def empty: Boolean = {
     val filesStream = Files.walk(javaPath)
     try filesStream.allMatch(p => Files.isDirectory(p))

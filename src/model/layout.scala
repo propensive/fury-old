@@ -185,7 +185,8 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val bspConfig: Path = bspDir / "fury.json"
 
   lazy val bloopDir: Path = (baseDir / ".bloop").extant()
-  lazy val confFile: Path = baseDir / ".fury.conf"
+  lazy val confFile: Path = furyDir / "fury.conf"
+  lazy val layerDb: Path = furyDir / "layers.db"
   lazy val confFileBackup: Path = baseDir / ".fury.conf.bak"
 
   lazy val classesDir: Path = (furyDir / "classes").extant()

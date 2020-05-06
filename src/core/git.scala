@@ -179,12 +179,13 @@ case class GitDir(env: Environment, dir: Path) {
   def remoteHasCommit(commit: Commit, branch: Branch): Try[Boolean] =
     sh"$git rev-list origin/$branch".exec[Try[String]].map(_.split("\n").contains(commit.id))
 
-  def fetch(branch: Branch): Try[Unit] =
-    sh"$git fetch origin $branch".exec[Try[String]].map(_.unit)
+  def add(path: Path, force: Boolean = false): Try[Unit] = {
+    val forceArg: List[String] = if(force) List("--force") else Nil
+    sh"$git add $forceArg $path".exec[Try[String]].map(_.unit)
+  }
 
-  def fetch(): Try[Unit] =
-    sh"$git fetch --all".exec[Try[String]].map(_.unit)
-
+  def fetch(branch: Branch): Try[Unit] = sh"$git fetch origin $branch".exec[Try[String]].map(_.unit)
+  def fetch(): Try[Unit] = sh"$git fetch --all".exec[Try[String]].map(_.unit)
   def branch: Try[Branch] = sh"$git rev-parse --abbrev-ref HEAD".exec[Try[String]].map(Branch(_))
   def cat(path: Path): Try[String] = sh"$git show HEAD:$path".exec[Try[String]]
   def cat(commit: Commit, path: Path): Try[String] = sh"$git show $commit:$path".exec[Try[String]]
