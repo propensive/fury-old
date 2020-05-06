@@ -629,10 +629,13 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     call   <- cli.call()
     _      <- layer.verifyConf(true, conf)
     ref    <- Layer.store(layer)
-    _      <- ~log.info(msg"Writing layer database to ${layout.layerDb}")
+    _      <- ~log.info(msg"Writing layer database to ${layout.layerDb.relativizeTo(layout.baseDir)}")
     _      <- Layer.writeDb(layer, layout)
     gitDir <- ~GitDir(layout)
-    _      <- ~log.info(msg"Adding Fury files to ${layout.layerDb} and ${layout.confFile} to current repo")
+
+    _      <- ~log.info(msg"Adding Fury files to ${layout.layerDb.relativizeTo(layout.baseDir)} and "+
+                  msg"${layout.confFile.relativizeTo(layout.baseDir)} to current repo")
+
     _      <- gitDir.add(layout.layerDb, force = true)
     _      <- gitDir.add(layout.confFile, force = true)
   } yield log.await()
