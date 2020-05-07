@@ -22,13 +22,13 @@ install: etc/launcher dist/fury.tar.gz
 	   mkdir -p dist && \
 	   ( sed "s/%VERSION%/$(VERSION)/" "$<" | sed "s/%HASH%//" > "tmp/fury" ) && \
 	   chmod +x "tmp/fury" && \
-	   printf "done\n" || printf "failed\n" \
+	   printf "done\n" || (printf "failed\n" && exit 1) \
 	 ) && \
 	 ( printf "Installing Fury...\n" && \
 	   mkdir -p ~/.local/share/fury/usr/$(VERSION) && \
 	   tar xf dist/fury.tar.gz -C ~/.local/share/fury/usr/$(VERSION) && \
 	   tmp/fury system install && \
-	   printf "Done\n" || printf "Failed\n" \
+	   printf "Done\n" || (printf "Failed\n" && exit 1) \
 	 )
 
 tmp/.version:
