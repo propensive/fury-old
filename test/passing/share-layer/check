@@ -7,6 +7,6 @@ Checking that no modules reference local sources
 Checking that no project names conflict
 Checking that all module references resolve
 Cloning layer QmPvaxMFfT777J5g51PQL7fJNCYfYhMoWW7beRDnvnGEnd into layer2
-Saving Fury configuration file layer2/.fury.conf
+Saving Fury configuration file layer2/.fury/config
 Cloning complete
 core

@@ -19,21 +19,21 @@ fury layer init
 fury layer import -i $IPFSREF --name platform
 IPFSREF=
 fury layer list --raw
-grep path .fury.conf
+grep path .fury/config
 fury layer select -l platform
-grep path .fury.conf
+grep path .fury/config
 fury layer select -l ..
-grep path .fury.conf
+grep path .fury/config
 fury layer select -l ..
 echo $?
-grep path .fury.conf
+grep path .fury/config
 fury layer select -l /platform
-grep path .fury.conf
+grep path .fury/config
 fury layer select -l /..
 echo $?
-grep path .fury.conf
+grep path .fury/config
 fury layer select -l /platform/../..
 echo $?
-grep path .fury.conf
+grep path .fury/config
 fury layer select -l /platform/..
-grep path .fury.conf
+grep path .fury/config

@@ -43,11 +43,6 @@ jobs:
         etc/integration || touch integration.failed
         ! ls -1 integration.failed 2> /dev/null
       timeout-minutes: 10
-    - name: Run community builds
-      run: |
-        etc/community || touch community.failed
-        ! ls -1 community.failed 2> /dev/null
-      timeout-minutes: 15
     - name: Package logs
       if: failure()
       run: find ~/.cache/fury -type f -name '*.log' | tar cvzf logs.tar.gz --files-from -

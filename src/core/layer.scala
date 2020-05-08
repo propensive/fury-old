@@ -30,6 +30,8 @@ import guillotine._
 import scala.collection.mutable.HashMap
 import scala.annotation._
 
+import java.io.ByteArrayInputStream
+
 case class Layer(version: Int,
                  aliases: SortedSet[Alias] = TreeSet(),
                  projects: SortedSet[Project] = TreeSet(),
@@ -160,6 +162,7 @@ case class Layer(version: Int,
 
 object Layer extends Lens.Partial[Layer] {
   private val cache: HashMap[IpfsRef, Layer] = HashMap()
+  private val dbCache: HashMap[Path, Long] = HashMap()
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
   implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
 
@@ -171,6 +174,17 @@ object Layer extends Lens.Partial[Layer] {
     base  <- get(conf.layerRef, conf.published)
     layer <- dereference(base, conf.path)
   } yield layer
+
+  def readDb(layout: Layout)(implicit log: Log): Try[Unit] =
+    if(layout.layerDb.exists && Some(layout.layerDb.lastModified) != dbCache.get(layout.layerDb)) for {
+      inputs <- TarGz.untargz(layout.layerDb.inputStream())
+      _      <- inputs.traverse { bytes => for {
+                  layer <- ~Ogdl.read[Layer](new String(bytes, "UTF-8"), migrate(_))
+                  _     <- store(layer)
+                } yield () }
+      _      <- Try(synchronized { dbCache(layout.layerDb) = layout.layerDb.lastModified })
+    } yield ()
+    else Success(())
 
   private def dereference(layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
     if(path.isEmpty) Success(layer)
@@ -217,16 +231,26 @@ object Layer extends Lens.Partial[Layer] {
       baseRef <- commitNested(conf.parent, pLayer)
     } yield baseRef
 
-  def hashes(layer: Layer)(implicit log: Log): Try[Set[IpfsRef]] = for {
+  def hashes(layer: Layer)(implicit log: Log): Try[Set[LayerRef]] = for {
     layerRef  <- store(layer)
     layers    <- layer.imports.to[List].traverse { ref => Layer.get(ref.layerRef, ref.remote) }
     hashes    <- layers.traverse(hashes(_))
-  } yield hashes.foldLeft(Set[IpfsRef]())(_ ++ _) + layerRef.ipfsRef
+  } yield hashes.foldLeft(Set[LayerRef]())(_ ++ _) + layerRef
+
+  def writeDb(layer: Layer, layout: Layout)(implicit log: Log): Try[Unit] = for {
+    hashes  <- hashes(layer)
+    entries <- hashes.to[List].traverse { ref => for {
+                 layer <- lookup(ref.ipfsRef).ascribe(LayerNotFound(Path(ref.ipfsRef.key)))
+                 bytes <- ~Ogdl.serialize(Ogdl(layer)).getBytes("UTF-8")
+                 in    <- ~(new ByteArrayInputStream(bytes))
+               } yield (ref.ipfsRef.key, bytes.length.toLong, in) }
+    _       <- TarGz.store(entries, layout.layerDb)
+  } yield ()
 
   def share(service: DomainName, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
     ref    <- store(layer)
     hashes <- Layer.hashes(layer)
-    _      <- Service.share(service, ref.ipfsRef, token, hashes - ref.ipfsRef)
+    _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef))
   } yield ref
 
   def published(layerName: LayerName)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
@@ -247,9 +271,12 @@ object Layer extends Lens.Partial[Layer] {
   def pathCompletions()(implicit log: Log): Try[List[String]] = Service.catalog(ManagedConfig().service)
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
-    layout.confFile.lines().map { lines =>
+    layout.confFile.lines().flatMap { lines =>
       if(lines.contains("=======")) Failure(MergeConflicts())
-      else Ogdl.read[FuryConf](layout.confFile, identity(_))
+      else for {
+        _    <- readDb(layout)
+        conf <- ~Ogdl.read[FuryConf](layout.confFile, identity(_))
+      } yield conf
     }.flatten
   
   def showMergeConflicts(layout: Layout)(implicit log: Log) = for {
@@ -257,9 +284,9 @@ object Layer extends Lens.Partial[Layer] {
     (left, right) <- gitDir.mergeConflicts
     common        <- gitDir.mergeBase(left, right)
     _             <- ~log.warn(msg"The layer has merge conflicts")
-    leftSrc       <- gitDir.cat(left, Path(".fury.conf"))
-    commonSrc     <- gitDir.cat(common, Path(".fury.conf"))
-    rightSrc      <- gitDir.cat(right, Path(".fury.conf"))
+    leftSrc       <- gitDir.cat(left, Path(".fury/config"))
+    commonSrc     <- gitDir.cat(common, Path(".fury/config"))
+    rightSrc      <- gitDir.cat(right, Path(".fury/config"))
     leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
     commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
     rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
