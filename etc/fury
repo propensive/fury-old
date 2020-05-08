@@ -55,7 +55,7 @@ stopFury() {
   nailgun "${FURY_MAIN}" "$$" "stop" 2> /dev/null
   case "$?" in
     0)   nailgun ng-stop ;;
-    230) echo "Fury is not running." ;;
+    230) echo "Fury is not running." && exit 1 ;;
     *)   exit 1 ;;
   esac
 }
