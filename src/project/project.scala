@@ -74,7 +74,8 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
                         ModuleRef.parseFull(v, true).ascribe(InvalidValue(v))
                       }.sequence.map(_.headOption)
 
-    projectId      <- call(ProjectNameArg)
+    projectArg     <- call(ProjectNameArg)
+    projectId      <- layer.projects.unique(projectArg)
     license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))
     project        <- ~Project(projectId, license = license, compiler = optCompilerRef)
     layer          <- ~Layer(_.projects).modify(layer)(_ + project)
