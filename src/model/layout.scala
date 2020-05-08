@@ -36,7 +36,9 @@ object Layout {
     val fileSystem = getFileStore(here)
     val parents = Stream.iterate(here.toAbsolutePath)(_.getParent)
     val parentsWithinFs = parents.takeWhile(Option(_).exists(getFileStore(_) == fileSystem))
-    val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve(".fury/config")) }.map(Path(_))
+    val optParent = parentsWithinFs.find { path =>
+      isRegularFile(path.resolve(".fury/config")) || isRegularFile(path.resolve(".fury.conf"))
+    }.map(Path(_))
     
     optParent.ascribe(Unspecified[ProjectId])
   }
