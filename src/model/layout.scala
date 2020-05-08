@@ -36,9 +36,7 @@ object Layout {
     val fileSystem = getFileStore(here)
     val parents = Stream.iterate(here.toAbsolutePath)(_.getParent)
     val parentsWithinFs = parents.takeWhile(Option(_).exists(getFileStore(_) == fileSystem))
-    val optParent = parentsWithinFs.find { path =>
-      isRegularFile(path.resolve(".git/.fury.conf")) || isRegularFile(path.resolve(".fury.conf"))
-    }.map(Path(_))
+    val optParent = parentsWithinFs.find { path => isRegularFile(path.resolve(".fury/config")) }.map(Path(_))
     
     optParent.ascribe(Unspecified[ProjectId])
   }
@@ -185,7 +183,14 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val bspConfig: Path = bspDir / "fury.json"
 
   lazy val bloopDir: Path = (baseDir / ".bloop").extant()
-  lazy val confFile: Path = furyDir / "fury.conf"
+  
+  lazy val confFile: Path = {
+    val newConfFile = furyDir / "config"
+    val oldConfFile = baseDir / ".fury.conf"
+    if(oldConfFile.exists() && !newConfFile.exists()) oldConfFile.moveTo(newConfFile)
+    newConfFile
+  }
+  
   lazy val layerDb: Path = furyDir / "layers.db"
   lazy val confFileBackup: Path = baseDir / ".fury.conf.bak"
 

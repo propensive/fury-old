@@ -113,7 +113,7 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     removed   <- local.flatMap(_.local).fold(Try(List[Path]()))(GitDir(_)(layout.env).trackedFiles)
     bareRepo  <- remote.fetch(layout)
     files     <- bareRepo.lsRoot(commit)
-    remaining <- Try((current -- removed) - Path(".fury.conf"))
+    remaining <- Try((current -- removed) - Path(".fury/config"))
   } yield remaining.intersect(files.to[Set]).to[List]
 
   def doCleanCheckout(layout: Layout)(implicit log: Log): Try[Unit] = for {

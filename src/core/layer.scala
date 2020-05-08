@@ -284,9 +284,9 @@ object Layer extends Lens.Partial[Layer] {
     (left, right) <- gitDir.mergeConflicts
     common        <- gitDir.mergeBase(left, right)
     _             <- ~log.warn(msg"The layer has merge conflicts")
-    leftSrc       <- gitDir.cat(left, Path(".fury.conf"))
-    commonSrc     <- gitDir.cat(common, Path(".fury.conf"))
-    rightSrc      <- gitDir.cat(right, Path(".fury.conf"))
+    leftSrc       <- gitDir.cat(left, Path(".fury/config"))
+    commonSrc     <- gitDir.cat(common, Path(".fury/config"))
+    rightSrc      <- gitDir.cat(right, Path(".fury/config"))
     leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
     commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
     rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
