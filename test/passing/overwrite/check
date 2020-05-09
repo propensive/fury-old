@@ -2,8 +2,9 @@ Initialized an empty layer
 Set current project to foo
 Set current module to bar
 bar
+Cloning repository at ../library
 master
-The repo library already exists.
+The repository library already exists.
 1
 master
 The module bar already exists.
@@ -11,4 +12,4 @@ The module bar already exists.
 bar
 The project foo already exists.
 1
-
+bar
