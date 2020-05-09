@@ -15,5 +15,5 @@ e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
-Successfully compiled test-project/module-a, test-project/module-b, test-project/module-c, test-project/module-d, test-project/module-e
+Successfully compiled test-project/app, test-project/module-a, test-project/module-b, test-project/module-c, test-project/module-d, test-project/module-e
 0
