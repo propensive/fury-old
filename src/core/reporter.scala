@@ -20,7 +20,7 @@ import fury.strings._, fury.model._, fury.utils._
 
 object Reporter {
   implicit val parser: Parser[Reporter] = unapply(_)
-  val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, QuietReporter)
+  val all: List[Reporter] = List(GraphReporter, InterleavingReporter, UnsortedLinearReporter, SortedLinearReporter, QuietReporter)
   final private val reporters: Map[String, Reporter] = all.map { r => r.name -> r }.toMap
   def unapply(string: String): Option[Reporter] = reporters.get(string)
   implicit val stringShow: StringShow[Reporter] = _.name
@@ -47,13 +47,9 @@ object GraphReporter extends Reporter("graph") {
   }
 }
 
-object LinearReporter extends Reporter("linear") {
-  def report(graph: Target.Graph,
-             theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
-            : Unit = {
-    val interleaver = new Interleaver(3000L)
-    multiplexer.stream(50, Some(Tick)).foreach {
+abstract class LinearReporter(name: String) extends Reporter(name){
+
+    protected def logEvent(e: CompileEvent)(implicit log: Log): Unit = e match {
       case StartCompile(ref)                           => log.info(msg"Starting compilation of module $ref")
       case StopCompile(ref, true)                      => log.info(msg"Successfully compiled module $ref")
       case StopCompile(ref, false)                     => log.info(msg"Compilation of module $ref failed")
@@ -61,8 +57,48 @@ object LinearReporter extends Reporter("linear") {
       case Print(ref, line)                            => log.info(line)
       case other                                       => ()
     }
+}
+
+object UnsortedLinearReporter extends LinearReporter("linear") {
+  def report(graph: Target.Graph,
+             theme: Theme,
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+            : Unit = {
+    val interleaver = new Interleaver(3000L)
+    multiplexer.stream(50, Some(Tick)).foreach{logEvent}
   }
 }
+
+object SortedLinearReporter extends LinearReporter("sorted") {
+  import collection.mutable.{PriorityQueue => PQ}
+  type MCE = ModuleCompileEvent
+  private val moduleOrd: Ordering[MCE] = (a: MCE, b: MCE) => (b.ref.id) compareTo (a.ref.id)
+
+  def report(graph: Target.Graph,
+             theme: Theme,
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+            : Unit = {
+    val (started, stopped, otherEvts) = (PQ[MCE]()(moduleOrd), PQ[MCE]()(moduleOrd), PQ[MCE]()(moduleOrd))
+    val interleaver = new Interleaver(3000L)
+    multiplexer.stream(50, Some(Tick)).foreach {
+      case e: StartCompile => started enqueue e
+      case e: StopCompile => stopped enqueue e
+      case d: DiagnosticMsg => otherEvts enqueue d
+      case p: Print => otherEvts enqueue p
+      case _ => ()
+    }
+
+    def logSorted(pq: PQ[MCE]): Unit = pq.headOption match {
+      case Some(e) => logEvent(pq.dequeue); logSorted(pq)
+      case None => ()
+    }
+
+    logSorted(started)
+    logSorted(stopped)
+    logSorted(otherEvts)
+  }
+}
+
 object InterleavingReporter extends Reporter("interleaving") {
   def report(graph: Target.Graph,
              theme: Theme,
