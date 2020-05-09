@@ -217,6 +217,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     commit         <- branchTag.fold(gitDir.commitFromBranch(_), gitDir.commitFromTag(_))
     branch         <- branchTag.fold(Success(_), gitDir.someBranchFromTag(_))
     nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
+    _              <- layer.repos.unique(nameArg)
     repo           <- ~Repo(nameArg, repo, branch, commit, dir)
     layer          <- ~Layer(_.repos).modify(layer)(_ + repo)
     _              <- Layer.commit(layer, conf, layout)

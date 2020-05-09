@@ -1,7 +1,7 @@
 mkdir app
-mkdir library
+mkdir foobar
 
-cd library
+cd foobar
 git init -q
 mkdir -p src/core
 echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
@@ -18,10 +18,10 @@ fury layer init
 fury project add -n foo
 fury module add -n bar
 fury module list --raw
-fury repo add -n library -u ../library -B master
+fury repo add -n foobar -u ../foobar -B master
 fury repo list --raw -c branch/tag
 
-fury repo add -n library -u ../library -B update
+fury repo add -n foobar -u ../foobar -B update
 echo $?
 fury repo list --raw -c branch/tag
 
