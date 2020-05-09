@@ -1,4 +1,4 @@
-Intialized an empty layer
+Initialized an empty layer
 Set current project to scala
 Set current module to compiler
 Set current project to test-project
@@ -15,6 +15,11 @@ e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
+Starting compilation of module test-project/module-a
+Starting compilation of module test-project/module-b
+Starting compilation of module test-project/module-c
+Starting compilation of module test-project/module-d
+Starting compilation of module test-project/module-e
 Successfully compiled module test-project/module-a
 Successfully compiled module test-project/module-b
 Successfully compiled module test-project/module-c
