@@ -1,0 +1,34 @@
+mkdir app
+mkdir library
+
+cd library
+git init -q
+mkdir -p src/core
+echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
+git add .
+git commit -m 'version 1' -q
+
+git checkout -b update -q
+sed -i.bak 's/World/update/' src/core/constants.scala
+git add src
+git commit -m 'version 2' -q
+
+fury layer init
+
+fury project add -n foo
+fury module add -n bar
+fury module list --raw
+fury repo add -n library -u ../library -B master
+fury repo list --raw -c branch/tag
+
+fury repo add -n library -u ../library -B update
+echo $?
+fury repo list --raw -c branch/tag
+
+fury module add -n bar
+echo $?
+fury module list --raw
+
+fury project add -n foo
+echo $?
+fury module list --raw
