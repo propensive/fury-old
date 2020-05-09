@@ -36,5 +36,5 @@ fury dependency add -d module-b
 fury dependency add -d module-c
 fury dependency add -d module-d
 fury dependency add -d module-e
-fury build run --output sorted
+fury build run --output summary
 echo $?
