@@ -143,9 +143,9 @@ object Installation {
   val ipfsInstallDir: Path = installDir / "ipfs"
   val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"
 
-  val cache: Path = Xdg.cache("fury")
-  val config: Path = Xdg.config("fury")
-  val data: Path = Xdg.data("fury")
+  val cache: Path = Xdg.cache("fury").extant()
+  val config: Path = Xdg.config("fury").extant()
+  val data: Path = Xdg.data("fury").extant()
 
   val rootBinDir: Path = (data / "bin").extant()
   val optDir: Path = (data / "opt").extant()
