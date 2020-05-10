@@ -4,6 +4,7 @@ Set current module to compiler
 Set current project to test-project
 Setting default compiler for project test-project to scala/compiler
 Set current module to module-a
+No classes compiled
 Set current module to module-b
 Set current module to module-c
 Set current module to module-d

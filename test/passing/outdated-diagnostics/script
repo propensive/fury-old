@@ -21,7 +21,7 @@ fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury permission require -C java.io.FilePermission -T '.content' -A write
 
-fury build run --output linear
+fury build run --output summary
 echo $?
 
 sed -i.bak 's/val/va/' src/core/constants.scala
@@ -31,5 +31,5 @@ echo $?
 
 mv src/core/constants.scala.bak src/core/constants.scala
 
-fury build run --output linear
+fury build run --output summary
 echo $?

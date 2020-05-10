@@ -81,7 +81,8 @@ object SummaryReporter extends Reporter("summary") {
       case x :: xs => msg"$x," :: commafied(xs, acc)
     }
     
-    val compiledModules = commafied(moduleRefs.toList.sorted).foldLeft(msg"Successfully compiled")((ms,m) => msg"$ms $m")
+    val prefix = if (moduleRefs.isEmpty) msg"No classes compiled" else msg"Successfully compiled"
+    val compiledModules = commafied(moduleRefs.toList.sorted).foldLeft(prefix)((ms,m) => msg"$ms $m")
     log.info(compiledModules)
   }
 }

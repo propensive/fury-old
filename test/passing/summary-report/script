@@ -5,6 +5,7 @@ fury module update -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n test-project
 fury module add -n module-a -c scala/compiler
+fury build run --output summary
 mkdir -p src/module-a
 echo "object ModuleA{ val aVal = 'A' }" > src/module-a/ModuleA.scala 
 fury source add -s src/module-a

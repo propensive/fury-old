@@ -1,2 +1,2 @@
-Results from a compilation should have output in sorted order for testing purposes. 
+Build output should list successfully compiled modules in a single line in sorted order
 

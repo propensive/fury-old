@@ -40,5 +40,5 @@ fury dependency add -d library/core
 fury source add -s src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello World") }' > src/hw.scala
-fury build run --output linear
+fury build run --output summary
 echo $?
