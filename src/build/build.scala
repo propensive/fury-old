@@ -690,7 +690,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer  <- Layer.retrieve(conf)
     cli    <- cli.hint(RawArg)
     cli    <- cli.hint(ImportArg)
-    table  <- ~Tables().differences("This", "That")
+    table  <- ~Tables().differences("Current", "Other")
     cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call   <- cli.call()
     col    <- ~cli.peek(ColumnArg)
@@ -713,7 +713,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli       <- cli.hint(RecursiveArg)
     cli       <- cli.hint(LayerVersionArg)
     cli       <- cli.hint(AllArg)
-    cli       <- cli.hint(ImportArg, layer.imports.map(_.id))
+    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
     call      <- cli.call()
     version   <- ~call(LayerVersionArg).toOption
     recursive <- ~call(RecursiveArg).isSuccess
@@ -791,10 +791,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       cli       <- cli.hint(RawArg)
       table     <- ~Tables().imports
       cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-      cli       <- cli.hint(ImportArg, layer.imports.map(_.id))
+      cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
       call      <- cli.call()
       col       <- ~cli.peek(ColumnArg)
-      importId  <- ~cli.peek(ImportArg)
+      importId  <- ~cli.peek(ImportIdArg)
       raw       <- ~call(RawArg).isSuccess
       rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef, i.remote)) }
       table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
