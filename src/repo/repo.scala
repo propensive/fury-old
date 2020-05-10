@@ -73,14 +73,26 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(GrabArg)
     call     <- cli.call()
     layer    <- if(call(GrabArg).isSuccess) ~layer else for {
-                  repoId   <- call(RepoArg)
-                  repo     <- layer.repos.findBy(repoId)
-                  gitDir   <- ~GitDir((layout.baseDir / ".tmp").uniquify)(cli.env)
-                  _        <- gitDir.clone(repo.remote, branch = repo.branch, commit = repo.commit)
-                  _        <- gitDir.dir.childPaths.traverse { f => f.moveTo(f.parent.parent / f.name) }
-                  _        <- gitDir.dir.delete()
-                  layer    <- ~layer.checkoutSources(repoId)
-                  layer    <- ~(Layer(_.repos).modify(layer)(_ - repo))
+                  repoId <- call(RepoArg)
+
+                  _      <- if((layout.baseDir / ".git").exists()) Failure(AlreadyCheckedOut(repoId))
+                            else Success(())
+
+                  repo   <- layer.repos.findBy(repoId)
+                  gitDir <- ~GitDir((layout.baseDir / ".tmp").uniquify)(cli.env)
+                  _      <- gitDir.clone(repo.remote, branch = repo.branch, commit = repo.commit)
+
+                  _      <- (gitDir.dir.childPaths.flatMap { f =>
+                              if((f.parent.parent / f.name).exists()) List(Path(f.name)) else Nil
+                            }) match {
+                              case Nil => Success(())
+                              case fs  => Failure(WorkingDirectoryConflict(fs))
+                            }
+
+                  _      <- gitDir.dir.childPaths.traverse { f => f.moveTo(f.parent.parent / f.name) }
+                  _      <- gitDir.dir.delete()
+                  layer  <- ~layer.checkoutSources(repoId)
+                  layer  <- ~(Layer(_.repos).modify(layer)(_ - repo))
                 } yield layer
     gitDir   <- ~GitDir(layout.baseDir)(cli.env)
     _        <- gitDir.writePrePushHook()
