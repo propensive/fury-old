@@ -139,7 +139,8 @@ object UiGraph {
           val newState = CompilationInfo(if(success) Successful(None) else Failed, msgs)
           graphState.updateCompilationLog(ref, newState.waive)
         case Print(ref, line) =>
-          graphState.updateCompilationLog(ref, Lens[CompilationInfo](_.msgs).modify(_)(_ :+ OtherMessage(line)))
+          log.info(msg"$line")
+          graphState
         case StopRun(ref) =>
           graphState.updateCompilationLog(ref, _.successful)
         case StartRun(ref) =>
