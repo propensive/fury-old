@@ -68,14 +68,16 @@ object SummaryReporter extends Reporter("summary") {
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
-    val moduleIds = collection.mutable.TreeSet[String]()
+    val moduleRefs = collection.mutable.Set[ModuleRef]()
     multiplexer.stream(50, Some(Tick)).foreach {
-      case StopCompile(ref, true) => moduleIds += ref.id
+      case StopCompile(ref, true) => moduleRefs += ref
       case DiagnosticMsg(ref, message) => log.note(message.msg)
       case _ => ()
     }
-    val summary = moduleIds.foldLeft(new StringBuilder("Successfully compiled "))((sb,m) => sb.append(m + ", "))
-    log.info(summary.dropRight(2).toString)
+
+    val sorted = moduleRefs.toList.sortBy(_.id)
+    val compiledModules = sorted.tail.foldLeft(msg"Successfully compiled ${sorted.head}"){ case (ms,m) => msg"$ms, $m" }
+    log.info(compiledModules)
   }
 }
 
