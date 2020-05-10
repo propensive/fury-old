@@ -75,8 +75,13 @@ object SummaryReporter extends Reporter("summary") {
       case _ => ()
     }
 
-    val sorted = moduleRefs.toList.sortBy(_.id)
-    val compiledModules = sorted.tail.foldLeft(msg"Successfully compiled ${sorted.head}"){ case (ms,m) => msg"$ms, $m" }
+    def commafied(refs: List[ModuleRef], acc: List[UserMsg] = Nil): List[UserMsg] = refs match {
+      case Nil => acc
+      case x :: Nil => msg"$x" :: acc
+      case x :: xs => msg"$x," :: commafied(xs, acc)
+    }
+    
+    val compiledModules = commafied(moduleRefs.toList.sorted).foldLeft(msg"Successfully compiled")((ms,m) => msg"$ms $m")
     log.info(compiledModules)
   }
 }
