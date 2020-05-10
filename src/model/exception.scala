@@ -20,6 +20,7 @@ import fury.strings._, fury.io._
 
 
 case class AlreadyInitialized() extends FuryException
+case class AlreadyCheckedOut(repo: RepoId) extends FuryException
 case class BranchNotFound(commit: Commit) extends FuryException
 case class BspException() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
@@ -92,6 +93,7 @@ case class UnresolvedModules(refs: Map[ModuleRef, Set[ModuleRef]]) extends FuryE
 case class UnknownOs(description: String) extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException
 case class UnspecifiedMain(module: ModuleId) extends FuryException
+case class WorkingDirectoryConflict(fs: List[Path]) extends FuryException
 
 object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
