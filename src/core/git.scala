@@ -44,12 +44,14 @@ object GitDir {
   def apply(layout: Layout): GitDir = GitDir(layout.baseDir)(layout.env)
   implicit val hashable: Hashable[GitDir] = (acc, value) => implicitly[Hashable[Path]].digest(acc, value.dir)
 
-  def sshOrHttps(remote: Remote)(fn: String => Command)(implicit env: Environment): Try[String] =
-    if(useHttps) fn(remote.https).exec[Try[String]]
-    else fn(remote.ssh).exec[Try[String]].orElse { fn(remote.https).exec[Try[String]].map { result =>
+  def sshOrHttps(remote: Remote)(fn: String => Command)(implicit env: Environment): Try[String] = {
+    val neither = env.workDir.flatMap(d => remote.local(Path(d))).getOrElse(remote.ref)
+    if(useHttps) fn(remote.https.getOrElse(neither)).exec[Try[String]]
+    else fn(remote.ssh.getOrElse(neither)).exec[Try[String]].orElse { fn(remote.https.getOrElse(neither)).exec[Try[String]].map { result =>
       useHttps = true
       result
     } }
+  }
 }
 
 object DiffStat {

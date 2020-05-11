@@ -56,7 +56,14 @@ object Remote {
 }
 
 case class Remote(ref: String) {
-  def path(layout: Layout): Path = Installation.reposDir / ((layout.env.workDir.flatMap(d => local(Path(d))), ref).digest[Md5].encoded)
+  def path(layout: Layout): Path = {
+    val localSource = for {
+      base <- layout.env.workDir
+      foo <- local(Path(base))
+    } yield foo
+    val dirName = (localSource -> ref).digest[Md5].encoded
+    Installation.reposDir / dirName
+  }
 
   def equivalentTo(remote: Remote): Boolean = remote.simplified == simplified
 
@@ -71,26 +78,31 @@ case class Remote(ref: String) {
     } yield newCommit
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = {
-    if((path(layout) / ".done").exists) Success(GitDir(path(layout))(layout.env))
-    else fetch(layout)
+    val destination = path(layout)
+    if((destination / ".done").exists) {
+      log.note(str"Remote $this already exists at ${path(layout)}")
+      Success(GitDir(destination)(layout.env))
+    } else fetch(layout)
   }
 
   def fetch(layout: Layout)(implicit log: Log): Try[GitDir] = {
-    val done = path(layout) / ".done"
+    val destination = path(layout)
+    log.note(str"Fetching $this to $destination")
+    val done = destination / ".done"
     
-    if(path(layout).exists && !done.exists) {
+    if(destination.exists && !done.exists) {
       log.info(msg"Found incomplete clone of $this")
-      path(layout).delete()
+      destination.delete()
     }
     
-    if(path(layout).exists) {
+    if(destination.exists) {
       done.delete()
       gitDir(layout).fetch()
       done.touch()
       Success(gitDir(layout))
     } else {
       log.info(msg"Cloning repository at $this")
-      path(layout).mkdir()
+      destination.mkdir()
       gitDir(layout).cloneBare(this).map(gitDir(layout).waive)
     }
   }
@@ -104,24 +116,37 @@ case class Remote(ref: String) {
     case other                                                    => other
   }
 
-  def https: String = simplified match {
+  def local(baseDir: Path): Option[String] = {
+    object ExistingDirectory{
+      def unapply(p: String): Option[Path] = {
+        val absolutePath = baseDir.resolve(Path(p)).absolutePath().get
+        if(absolutePath.directory) Some(absolutePath) else None
+      }
+    }
+    ref match {
+      case r"git@.*" => None
+      case r"https://.*" => None
+      case ExistingDirectory(dir) => Some(str"file://${dir}")
+      case _ => None
+    }
+  }
+
+  def https: Option[String] = simplified.only {
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"https://github.com/$group/$project.git"
     case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"https://gitlab.com/$group/$project.git"
     case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"https://bitbucket.com/$group/$project.git"
-    case other => other
   }
   
-  def ssh: String = simplified match {
+  def ssh: Option[String] = simplified.only {
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"git@bitbucket.com:$group/$project.git"
     case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"git@github.com:$group/$project.git"
     case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"git@gitlab.com:$group/$project.git"
-    case other => other
   }
 
   def projectName: Try[RepoId] = {
