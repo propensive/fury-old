@@ -11,11 +11,7 @@ e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
-Starting compilation of module hello/core
-Successfully compiled module hello/core
-Starting compilation of module hello/app
-Successfully compiled module hello/app
-Hello World!
+Successfully compiled hello/app, hello/core
 0
 Starting compilation of module hello/core
 [E] hello/core>local:src/core/constants.scala:1:20
@@ -24,9 +20,5 @@ Starting compilation of module hello/core
 Compilation of module hello/core failed
 One of the compile tasks failed. Check the logs for details.
 1
-Starting compilation of module hello/core
-Successfully compiled module hello/core
-Starting compilation of module hello/app
-Successfully compiled module hello/app
-Hello World!
+Successfully compiled hello/app, hello/core
 0

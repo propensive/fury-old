@@ -1,0 +1,41 @@
+fury layer init 
+fury project add -n scala
+fury module add -n compiler -t compiler
+fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+fury project add -n test-project
+fury module add -n module-a -c scala/compiler
+fury build run --output summary
+mkdir -p src/module-a
+echo "object ModuleA{ val aVal = 'A' }" > src/module-a/ModuleA.scala 
+fury source add -s src/module-a
+fury module add -n module-b -c scala/compiler
+mkdir src/module-b
+echo "object ModuleB{ val bVal = 'B' }" > src/module-b/ModuleB.scala 
+fury source add -s src/module-b
+fury module add -n module-c -c scala/compiler
+mkdir src/module-c
+echo "object ModuleC{ val cVal = 'C' }" > src/module-c/ModuleC.scala 
+fury source add -s src/module-c
+fury module add -n module-d -c scala/compiler
+mkdir src/module-d
+echo "object ModuleD{ val dVal = 'D' }" > src/module-d/ModuleD.scala 
+fury source add -s src/module-d
+fury module add -n module-e -c scala/compiler
+mkdir src/module-e
+echo "object ModuleE{ val eVal = 'E' }" > src/module-e/ModuleE.scala 
+fury source add -s src/module-e
+fury module add -n app -c scala/compiler -t application -M Runner
+fury permission require -C java.util.PropertyPermission -T test.property -A read
+fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
+fury permission require -C java.io.FilePermission -T '.content' -A write
+mkdir src/app
+echo 'object Runner extends App{println(s"${ModuleA.aVal} ${ModuleB.bVal} ${ModuleC.cVal} ${ModuleD.dVal} ${ModuleE.eVal}")}' > src/app/Runner.scala
+fury source add -s src/app
+fury dependency add -d module-a
+fury dependency add -d module-b
+fury dependency add -d module-c
+fury dependency add -d module-d
+fury dependency add -d module-e
+fury build run --output summary
+echo $?

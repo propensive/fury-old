@@ -11,10 +11,7 @@ e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
-Starting compilation of module foo/lib
-Successfully compiled module foo/lib
-Starting compilation of module foo/app
-Successfully compiled module foo/app
+Successfully compiled foo/app, foo/lib
 Saving JAR file out/foo-app.jar using UTF-8
 Wrote 5 JAR files (total 19.0 MiB) to out
 0

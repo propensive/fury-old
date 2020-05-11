@@ -20,7 +20,7 @@ import fury.strings._, fury.model._, fury.utils._
 
 object Reporter {
   implicit val parser: Parser[Reporter] = unapply(_)
-  val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, QuietReporter)
+  val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, SummaryReporter, QuietReporter)
   final private val reporters: Map[String, Reporter] = all.map { r => r.name -> r }.toMap
   def unapply(string: String): Option[Reporter] = reporters.get(string)
   implicit val stringShow: StringShow[Reporter] = _.name
@@ -52,7 +52,6 @@ object LinearReporter extends Reporter("linear") {
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
-    val interleaver = new Interleaver(3000L)
     multiplexer.stream(50, Some(Tick)).foreach {
       case StartCompile(ref)                           => log.info(msg"Starting compilation of module $ref")
       case StopCompile(ref, true)                      => log.info(msg"Successfully compiled module $ref")
@@ -63,6 +62,31 @@ object LinearReporter extends Reporter("linear") {
     }
   }
 }
+
+object SummaryReporter extends Reporter("summary") {
+  def report(graph: Target.Graph,
+             theme: Theme,
+             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+            : Unit = {
+    val moduleRefs = collection.mutable.Set[ModuleRef]()
+    multiplexer.stream(50, Some(Tick)).foreach {
+      case StopCompile(ref, true) => moduleRefs += ref
+      case DiagnosticMsg(ref, message) => log.note(message.msg)
+      case _ => ()
+    }
+
+    def commafied(refs: List[ModuleRef], acc: List[UserMsg] = Nil): List[UserMsg] = refs match {
+      case Nil => acc
+      case x :: Nil => msg"$x" :: acc
+      case x :: xs => msg"$x," :: commafied(xs, acc)
+    }
+    
+    val prefix = if (moduleRefs.isEmpty) msg"No classes compiled" else msg"Successfully compiled"
+    val compiledModules = commafied(moduleRefs.toList.sorted).foldLeft(prefix)((ms,m) => msg"$ms $m")
+    log.info(compiledModules)
+  }
+}
+
 object InterleavingReporter extends Reporter("interleaving") {
   def report(graph: Target.Graph,
              theme: Theme,

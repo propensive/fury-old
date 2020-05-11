@@ -17,7 +17,7 @@ mkdir -p src/app
 fury source add -s src/app
 echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write(Constants.text); close() } }' > src/app/hw.scala
 mkdir -p out
-fury build run --dir out --output linear
+fury build run --dir out --output summary
 echo $?
 ls out
 jar tf out/foo-app.jar | LC_ALL=C sort --ignore-case
