@@ -56,8 +56,7 @@ object Remote {
 }
 
 case class Remote(ref: String) {
-  def hash: Digest = ref.digest[Md5]
-  def path(layout: Layout): Path = Installation.reposDir / hash.encoded
+  def path(layout: Layout): Path = Installation.reposDir / ((layout.env.workDir.flatMap(d => local(Path(d))), ref).digest[Md5].encoded)
 
   def equivalentTo(remote: Remote): Boolean = remote.simplified == simplified
 

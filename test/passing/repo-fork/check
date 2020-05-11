@@ -4,6 +4,7 @@ Set current module to compiler
 Set current project to library
 Setting default compiler for project library to scala/compiler
 Set current module to core
+Cloning repository at ../library
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
@@ -14,5 +15,7 @@ BSP server is listening for incoming connections
 Successfully compiled hello-world/app, library/core
 0
 Uncommitted changes (1 file changed, 1 insertion(+), 1 deletion(-)) in library-local will not apply to the unforked repo
+Checking out src/core from repository library
 Successfully compiled hello-world/app, library/core
+Hello World!
 0

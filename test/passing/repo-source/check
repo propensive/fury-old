@@ -4,6 +4,7 @@ Set current module to compiler
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
+Cloning repository at ../library
 0
 e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 Checking out  from repository library
