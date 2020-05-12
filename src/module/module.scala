@@ -219,7 +219,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
 }
 
 case class BinaryCli(cli: Cli)(implicit log: Log) {
-  def list: Try[ExitStatus] = for {
+ def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
@@ -313,6 +313,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                         MavenCentral.search(_).toOption.to[Set].flatten)
 
     cli          <- cli.hint(BinSpecArg, binSpecs)
+    cli          <- cli.hint(LocalJarFileArg)
     cli          <- cli.hint(ProjectArg, layer.projects)
     optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
     optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
@@ -323,15 +324,19 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     call         <- cli.call()
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
-    binSpecArg   <- call(BinSpecArg)
+    targetBin    <- call.exactlyOne(BinSpecArg, LocalJarFileArg)
     binName      <- ~call(BinaryNameArg).toOption
     repoId       <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
-    binary       <- Binary(binName, repoId, binSpecArg)
+    cwd          <- cli.pwd
+    binary       <- targetBin match {
+                        case Left(binSpec) => Binary(binName, repoId, binSpec)
+                        case Right(binPath) => Binary(binName, cwd, binPath)
+                    }
     _            <- module.binaries.unique(binary.id)
     layer        <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
     _            <- Layer.commit(layer, conf, layout)
     _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
-  } yield log.await()
+    } yield log.await()
 }
 
 case class OptionCli(cli: Cli)(implicit log: Log) {

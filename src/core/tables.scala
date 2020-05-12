@@ -181,7 +181,8 @@ case class Tables() {
     Heading("Service", _.binRepo),
     Heading("Group", _.group),
     Heading("Artifact", _.artifact),
-    Heading("Version", _.version)
+    Heading("Version", _.version),
+    Heading("Path", _.path)
   )
 
   val imports: Tabulation[(Import, Try[Layer])] = Tabulation(

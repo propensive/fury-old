@@ -29,14 +29,15 @@ object Args {
 
   val AllArg = CliParam[Unit]('a', 'all, "update all repositories")
 
-  val BinaryRepoArg = CliParam[BinRepoId]('r', 'repo, "specify the repository from which to fetch binaries")
+  val BinaryRepoArg = CliParam[BinRepoId]('r', 'repo, "specify the remote repository from which to fetch binaries")
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[BinaryId]('b', 'binary, "specify a binary")
   val ColumnArg = CliParam[String]('c', 'column, "specify the column")
   val PartialBinSpecArg = CliParam[PartialBinSpec]('b', 'binary, "specify a binary")
-  val BinaryNameArg = CliParam[BinaryId]('n', 'name, "specify the name for the binary")
-  val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")
+  val BinaryNameArg = CliParam[BinaryId]('n', 'name, "specify an alias for the binary")
+  val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a remote binary dependency")
+  val LocalJarFileArg = CliParam[JarFile]('l', 'local, "specify a local binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
   

@@ -89,6 +89,7 @@ case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException
 case class UnknownVersion(version: LayerVersion) extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException
+case class UnresolvedBinaryFile(path: Path) extends FuryException
 case class UnresolvedModules(refs: Map[ModuleRef, Set[ModuleRef]]) extends FuryException
 case class UnknownOs(description: String) extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException

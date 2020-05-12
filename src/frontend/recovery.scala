@@ -106,6 +106,8 @@ You can grant these permissions with,
           cli.abort(msg"""The module$plural contains references to local sources.""")
         case RootLayerNotSelected() =>
           cli.abort(msg"A layer can only be published from the root layer (${ImportPath.Root})")
+        case UnresolvedBinaryFile(path) =>
+          cli.abort(msg"Binary file could not be found: $path")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>
