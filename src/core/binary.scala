@@ -32,15 +32,26 @@ object Binary {
   def apply(id: Option[BinaryId], service: BinRepoId, binSpec: BinSpec): Try[Binary] =
     binSpec.string.only {
       case r"$group@([\.\-_a-zA-Z0-9]*)\:$artifact@([\.\-_a-zA-Z0-9]*)\:$version@([\.\-\+_a-zA-Z0-9]*)" =>
-        Binary(id.getOrElse(BinaryId(artifact)), service, group, artifact, version)
+        Binary(id.getOrElse(BinaryId(artifact)), Path("cache"), service, group, artifact, version)
     }.ascribe(InvalidValue(binSpec.string))
+
+  def apply(id: Option[BinaryId], cwd: Path, jar: JarFile): Try[Binary] = { 
+    val NA = ""
+    val absPath = cwd.resolve(jar)
+    val file = jar.path.only { case r"^.*\/(?!.*\/)$filename@(.*).jar" => filename }
+        file.flatMap{_ => absPath.ifExists}
+      .map(p => Binary(id.getOrElse(BinaryId(file.get)), p, BinRepoId.Local, NA, NA, NA))
+      .ascribe(UnresolvedBinaryFile(absPath))
+  }
 
   private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()
 
-  val Jmh = Binary(BinaryId("jmh-core"), BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
+  val Jmh = Binary(BinaryId("jmh-core"), Path("cache"), BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
 }
 
-case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: String, version: String) {
+case class Binary(id: BinaryId, path: Path, binRepo: BinRepoId, group: String, artifact: String, version: String ) {
   def spec = str"$group:$artifact:$version"
   def paths(implicit log: Log): Try[List[Path]] = Coursier.fetch(this)
+  //use downloaderror from recovery.scala
 }
+

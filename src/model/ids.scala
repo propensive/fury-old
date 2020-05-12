@@ -370,6 +370,7 @@ object BinRepoId {
   implicit val msgShow: MsgShow[BinRepoId] = v => UserMsg(_.repo(v.id))
   implicit val stringShow: StringShow[BinRepoId] = _.id
   final val Central: BinRepoId = BinRepoId("central")
+  final val Local: BinRepoId = BinRepoId("local")
   implicit val parser: Parser[BinRepoId] = unapply(_)
 
   def unapply(name: String): Option[BinRepoId] = name.only { case r"[a-z]+" => BinRepoId(name) }
@@ -676,6 +677,19 @@ object BinSpec {
 }
 
 case class BinSpec(string: String)
+
+object JarFile {
+  implicit val msgShow: MsgShow[JarFile] = b => UserMsg(_.binary(b.path))
+  implicit val stringShow: StringShow[JarFile] = _.path
+  implicit val diff: Diff[JarFile] = (l, r) => Diff.stringDiff.diff(l.path, r.path)
+  implicit val parser: Parser[JarFile] = unapply(_)
+  implicit val keyName: KeyName[JarFile] = () => msg"local jar file"
+  implicit val jarPath = (bin: JarFile) => Path(bin.path)
+
+  def unapply(path: String): Option[JarFile] = path.only { case r"^.*\/(?!.*\/)(.*.jar)" => JarFile(path) }
+}
+
+case class JarFile(path: String)
 
 object Version {
   implicit val msgShow: MsgShow[Version] = b => UserMsg(_.version(b.key))
