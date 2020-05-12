@@ -2,18 +2,18 @@ fury layer init
 fury project add -n scala
 fury module add -n compiler -t compiler
 fury module update -C scala.lang.org:scala-compiler:2.12.8
-fury binary add -b org:scala-lang:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n bin-test
-fury module add -n mylib -c scala/compiler
+fury module add -n app -c scala/compiler -t application -M Runner
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
-fury binary add -b org.apache.commons:commons-math-3.6.1
-fury binary add -b org.apache.commons:commons-math:400
-fury binary add -b org.apache.commons:commons-math:3.6.1
+fury binary add -b org.apache.commons:commons-math3-3.6.1
+fury binary add -b org.apache.commons:commons-math3:400
+fury binary add -b org.apache.commons:commons-math3:3.6.1
 echo $?
 fury binary add -l /etc/dummy.asdf
 fury binary add -l /etc/dummy.jar
-fury binary add -l ./bins/commons-io-2.6.jar
+fury binary add -l ./bins/commons-io.jar
 echo $?
 fury binary add -l ./bins/dummy.jar -n commons-io
 fury binary list --raw

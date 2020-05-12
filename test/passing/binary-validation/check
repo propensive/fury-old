@@ -3,17 +3,20 @@ Set current project to scala
 Set current module to compiler
 Set current project to bin-test
 Setting default compiler for project bin-test to scala/compiler
-Set current module to mylib
+Set current module to app
 e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 3ec0e1fb27a66a480065ccbf94030af08b66f3b70cb6e2bdc45d151b0c247085
 Either the --binary (-b) or --local (-l) parameter must be specified.
-Coursier could not complete a download: org.apache.commons:commons-math:400
+Coursier could not complete a download: org.apache.commons:commons-math3:400
 0
 Either the --binary (-b) or --local (-l) parameter must be specified.
 Binary file could not be found: /etc/dummy.jar
 0
-The binary commons-io already exists
+The binary commons-io already exists.
 commons-io
-commons-math
-Successfully compiled bin-test/mylib
+commons-math3
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
+Successfully compiled bin-test/app
 0
