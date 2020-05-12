@@ -10,6 +10,8 @@ BFAILED=0
 AFAILURES=()
 BFAILURES=()
 
+cp ~/.config/fury/config.fury ~/.config/fury/config.fury.bak
+
 runtest() {
   DIR="$1"
   TEST="$2"
@@ -49,6 +51,7 @@ mkdir -pv ~/.cache/fury/policies
 
 fury start
 fury clean
+
 fury config set --theme nocolor --timestamps off
 export LC_COLLATE=C
 if [ "$1" = "" ]; then
@@ -89,3 +92,5 @@ else
     echo "Could not find test $1"
   fi
 fi
+
+cp ~/.config/fury/config.fury.bak ~/.config/fury/config.fury
