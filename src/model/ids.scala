@@ -686,7 +686,7 @@ object JarFile {
   implicit val keyName: KeyName[JarFile] = () => msg"local jar file"
   implicit val jarPath = (bin: JarFile) => Path(bin.path)
 
-  def unapply(path: String): Option[JarFile] = path.only { case r"^.*\/(?!.*\/)(.*.jar)" => JarFile(path) }
+  def unapply(path: String): Option[JarFile] = path.only { case r"([^\*\{\}\[\]]*)\/*(.*).jar" => JarFile(path) }
 }
 
 case class JarFile(path: String)
