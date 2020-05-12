@@ -1,0 +1,3 @@
+Local jars should be includable in a module.
+Local and remote binaries should be validated for syntax 
+and availability when they are added to a module.
