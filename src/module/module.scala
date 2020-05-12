@@ -219,7 +219,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
 }
 
 case class BinaryCli(cli: Cli)(implicit log: Log) {
- def list: Try[ExitStatus] = for {
+  def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)

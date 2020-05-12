@@ -28,8 +28,6 @@ object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
   implicit val stringShow: StringShow[Binary] = b => b.id.key
   implicit def diff: Diff[Binary] = Diff.gen[Binary]
-  implicit val pure = (s: String) => if(s.isEmpty) None else Some(s)
-
 
   def apply(id: Option[BinaryId], service: BinRepoId, binSpec: BinSpec)(implicit log: Log): Try[Binary] ={
     val bin = binSpec.string.only {
@@ -58,7 +56,7 @@ object Binary {
 case class Binary(
   id: BinaryId, 
   binRepo: BinRepoId, 
-  group: String = Binary.NA, //TODO add option wrappers? it ripples through client code :(
+  group: String = Binary.NA, 
   artifact: String = Binary.NA,
   version: String = Binary.NA,
   path: Option[Path] = None
@@ -66,7 +64,9 @@ case class Binary(
   def spec = str"$group:$artifact:$version"
 
   def paths(implicit log: Log): Try[List[Path]] = (binRepo, path) match {
-        case (BinRepoId.Central, _) => Coursier.fetch(this).orElse(Failure(DownloadFailure(spec)))
+        case (BinRepoId.Central, _) => Coursier.fetch(this).recoverWith {
+              case OfflineException() => ~List[Path]()
+        }.orElse(Failure(DownloadFailure(spec)))
         case (BinRepoId.Local, Some(p)) => if(p.exists) Success(List(p)) else Failure(UnresolvedBinaryFile(p))
         case _ => Failure(UnknownBinaryRepository(binRepo))
     }
