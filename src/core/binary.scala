@@ -58,7 +58,7 @@ object Binary {
 case class Binary(
   id: BinaryId, 
   binRepo: BinRepoId, 
-  group: String = Binary.NA,  
+  group: String = Binary.NA, //TODO add option wrappers? it ripples through client code :(
   artifact: String = Binary.NA,
   version: String = Binary.NA,
   path: Option[Path] = None
@@ -66,7 +66,7 @@ case class Binary(
   def spec = str"$group:$artifact:$version"
 
   def paths(implicit log: Log): Try[List[Path]] = (binRepo, path) match {
-        case (BinRepoId.Central, _) => Coursier.fetch(this)
+        case (BinRepoId.Central, _) => Coursier.fetch(this).orElse(Failure(DownloadFailure(spec)))
         case (BinRepoId.Local, Some(p)) => if(p.exists) Success(List(p)) else Failure(UnresolvedBinaryFile(p))
         case _ => Failure(UnknownBinaryRepository(binRepo))
     }
