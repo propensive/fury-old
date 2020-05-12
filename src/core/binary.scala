@@ -40,7 +40,7 @@ object Binary {
 
   def apply(id: Option[BinaryId], cwd: Path, jar: JarFile)(implicit log: Log): Try[Binary] = { 
     val absPath = cwd.resolve(jar)
-    val bin = jar.path.only { case r"^.*\/(?!.*\/)$filename@(.*).jar" => 
+    val bin = absPath.input.only { case r"^.*\/(?!.*\/)$filename@(.*).jar" =>
       Binary(id.getOrElse(BinaryId(filename)), BinRepoId.Local, path = Some(absPath))
     }
     bin.ascribe(InvalidValue(absPath.input)).flatMap(_.paths).map(_ => bin.get)

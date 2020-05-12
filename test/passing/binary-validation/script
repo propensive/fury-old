@@ -13,7 +13,7 @@ fury binary add -b org.apache.commons:commons-math3:3.6.1
 echo $?
 fury binary add -l /etc/dummy.asdf
 fury binary add -l /etc/dummy.jar
-fury binary add -l ./bins/commons-io.jar
+fury binary add -l bins/commons-io.jar
 echo $?
 fury binary add -l ./bins/dummy.jar -n commons-io
 fury binary list --raw
