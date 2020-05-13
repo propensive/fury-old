@@ -34,7 +34,6 @@ object Module {
 case class Module(id: ModuleId,
                   kind: Kind = Lib(),
                   main: Option[ClassRef] = None,
-                  plugin: Option[PluginId] = None,
                   manifest: List[ManifestEntry] = List(),
                   compiler: ModuleRef = ModuleRef.JavaRef,
                   dependencies: SortedSet[ModuleRef] = TreeSet(),

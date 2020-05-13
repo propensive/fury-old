@@ -539,8 +539,7 @@ case class Compilation(target: Target,
     target           <- apply(ref)
     inheritedPlugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
   } yield inheritedPlugins.flatten.to[Set] ++ target.plugin.map { m =>
-      Provenance(PluginDef(m, target.ref, target.main.get), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
-      Origin.Plugin) }
+      Provenance(m, target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin) }
   
   def aggregatedResources(ref: ModuleRef): Try[Set[Source]] = for {
     target    <- apply(ref)
@@ -567,10 +566,10 @@ case class Compilation(target: Target,
     if(Kind.name(target.kind) == Plugin) {
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
-      target.main.foreach { main =>
+      target.plugin.foreach { plugin =>
         file.writeSync(str"""|<plugin>
-                             | <name>${target.plugin.fold("plugin")(_.key)}</name>
-                             | <classname>${main}</classname>
+                             | <name>${plugin.id}</name>
+                             | <classname>${plugin.main}</classname>
                              |</plugin>""".stripMargin)
       }
     }

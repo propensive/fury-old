@@ -41,7 +41,6 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       ref,
       module.kind,
       module.main,
-      module.plugin,
       resolvedProject.layer.repos.map(_.remote).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],

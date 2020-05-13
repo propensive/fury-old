@@ -382,7 +382,7 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.kind, target.main, target.plugin, target.checkouts, target.binaries, target.dependencies,
+        ref, (target.kind, target.main, target.checkouts, target.binaries, target.dependencies,
             target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
             graph(ref).map(hash)).digest[Md5]
       )

@@ -83,18 +83,12 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     moduleArg      <- call(ModuleNameArg)
     moduleId       <- project.modules.unique(moduleArg)
     compilerId     <- ~call(CompilerArg).toOption
+    
     compilerRef    <- compilerId.map(resolveToCompiler(layer, optProject, layout, _))
                           .orElse(project.compiler.map(~_)).getOrElse(~ModuleRef.JavaRef)
+    
     module         = Module(moduleId, compiler = compilerRef)
-    
     module         <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
-    
-    module         <- ~call(MainArg).toOption.fold(module) { m => module.copy(main = if(m.key.isEmpty) None else
-                          Some(m)) }
-
-    module         <- ~call(PluginArg).toOption.fold(module) { p => module.copy(plugin = if(p.key.isEmpty) None
-                          else Some(p)) }
-
     layer          <- ~Layer(_.projects(project.id).modules).modify(layer)(_ + module)
     layer          <- ~(Layer(_.projects(project.id).main)(layer) = Some(module.id))
 
@@ -179,12 +173,6 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     
     layer       <- ~bloopSpec.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(
                        module.id).bloopSpec)(layer) = _)
-
-    layer       <- ~mainClass.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).main)(
-                       layer) = _)
-
-    layer       <- ~pluginName.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(module.id).plugin)(
-                       layer) = _)
 
     layer       <- if(newId.isEmpty || project.main != Some(module.id)) ~layer
                    else ~(Layer(_.projects(project.id).main)(layer) = newId)
