@@ -93,7 +93,7 @@ object Args {
   val LayerVersionArg = CliParam[LayerVersion]('V', 'version, "a specific version of the layer")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
 
-  val BloopSpecArg = CliParam[String]('C', Symbol("compiler-spec"),
+  val SpecArg = CliParam[BloopSpec]('C', Symbol("compiler-spec"),
       "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")

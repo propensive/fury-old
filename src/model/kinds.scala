@@ -64,6 +64,14 @@ object Kind {
 sealed trait Kind {
   def as[T: ClassTag]: Option[T] = this.only { case t: T => t }
   def is[T: ClassTag]: Boolean = this match { case t: T => true case _ => false }
+  
+  def name: KindName = this match {
+    case Lib()        => Lib
+    case App(_)       => App
+    case Plugin(_, _) => Plugin
+    case Compiler(_)  => Compiler
+    case Bench(_)     => Bench
+  }
 }
 
 object Lib extends KindName("lib")

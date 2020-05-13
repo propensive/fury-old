@@ -284,7 +284,7 @@ class Cli(val stdout: java.io.PrintWriter,
     Cli(stdout, args, command, newHints :: optCompletions, env, pid)
   }
 
-  def hint(arg: CliParam) =
+  def hint(arg: CliParam): Success[Cli { type Hinted <: cli.Hinted with arg.type }] =
     Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
 
   private[this] def write(msg: UserMsg): Unit = {

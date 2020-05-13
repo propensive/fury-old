@@ -77,12 +77,18 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(HiddenArg, List("on", "off"))
     cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     cli            <- cli.hint(KindArg, KindName.all)
-    kind           <- ~cli.peek(KindArg)
-    optKind        <- ~None
+    kindName       <- ~cli.peek(KindArg)
+    
+    cli            <- kindName.map {
+                        case Lib      => ~cli
+                        case App      => cli.hint(MainArg)
+                        case Compiler => cli.hint(SpecArg)
+                        case Bench    => cli.hint(MainArg)
+                        case Plugin   => cli.hint(MainArg).flatMap(_.hint(PluginArg))
+                      }.getOrElse(~cli)
+
     call           <- cli.call()
-    main           <- ~call(MainArg).toOption
-    spec           <- ~call(BloopSpecArg).toOption
-    plugin         <- ~call(PluginArg).toOption
+    kind           <- ~kindName.flatMap(Kind.parse(_, cli.peek(MainArg), cli.peek(SpecArg), cli.peek(PluginArg)))
     project        <- optProject.asTry
     moduleArg      <- call(ModuleNameArg)
     moduleId       <- project.modules.unique(moduleArg)
@@ -91,7 +97,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     compilerRef    <- compilerId.map(resolveToCompiler(layer, optProject, layout, _))
                           .orElse(project.compiler.map(~_)).getOrElse(~ModuleRef.JavaRef)
     
-    module         = Module(moduleId, compiler = compilerRef)
+    module         = Module(moduleId, compiler = compilerRef, kind = kind.getOrElse(Lib()))
     module         <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
     layer          <- ~Layer(_.projects(project.id).modules).modify(layer)(_ + module)
     layer          <- ~(Layer(_.projects(project.id).main)(layer) = Some(module.id))
@@ -155,20 +161,27 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                     } yield module }
 
     cli         <- cli.hint(ModuleNameArg, optModuleId.to[List])
-    optKind     <- ~None
+    kindName    <- ~cli.peek(KindArg).orElse(optModule.map(_.kind.name))
+    
+    cli         <- kindName.map {
+                     case Lib      => ~cli
+                     case App      => cli.hint(MainArg)
+                     case Compiler => cli.hint(SpecArg)
+                     case Bench    => cli.hint(MainArg)
+                     case Plugin   => cli.hint(MainArg).flatMap(_.hint(PluginArg))
+                   }.getOrElse(~cli)
+
     call        <- cli.call()
+    kind        <- ~kindName.flatMap(Kind.parse(_, cli.peek(MainArg), cli.peek(SpecArg), cli.peek(PluginArg)))
     compilerId  <- ~call(CompilerArg).toOption
     project     <- optProject.asTry
     module      <- optModule.asTry
     compilerRef <- compilerId.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
     hidden      <- ~call(HiddenArg).toOption
-    mainClass   <- ~cli.peek(MainArg)
-    pluginName  <- ~cli.peek(PluginArg)
     newId       <- ~call(ModuleNameArg).toOption
     name        <- newId.to[List].map(project.modules.unique(_)).sequence.map(_.headOption)
-    bloopSpec   <- cli.peek(BloopSpecArg).to[List].map(_.as[BloopSpec]).sequence.map(_.headOption)
     
-    layer       <- ~optKind.fold(layer)(Layer(_.projects(project.id).modules(module.id).kind)(layer) = _)
+    layer       <- ~kind.fold(layer)(Layer(_.projects(project.id).modules(module.id).kind)(layer) = _)
 
     layer       <- ~compilerRef.fold(layer)(Layer(_.projects(project.id).modules(module.id).compiler)(layer) =
                        _)
