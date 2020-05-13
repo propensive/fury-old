@@ -21,7 +21,7 @@ import fury.model._, fury.io._
 object Target {
     case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
       def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (k, ds) =>
-        (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, targets(d).kind == Compiler) })
+        (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, Kind.name(targets(d).kind) == Compiler) })
       }.toMap
     }
   }
@@ -46,6 +46,8 @@ object Target {
                     resources: List[Source]) {
   
     def id: TargetId = TargetId(ref.projectId, ref.moduleId)
-    def impliedCompiler: ModuleRef = if(kind == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
+    
+    def impliedCompiler: ModuleRef =
+      if(Kind.name(kind) == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
   }
   

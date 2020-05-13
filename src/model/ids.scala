@@ -41,20 +41,66 @@ object ManagedConfig {
   def apply(): Config = config
 }
 
-object Kind {
-  implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
-  implicit val stringShow: StringShow[Kind] = _.name
-  implicit val parser: Parser[Kind] = unapply(_)
-  val all: List[Kind] = List(Library, Compiler, Plugin, Application, Benchmarks)
-  def unapply(str: String): Option[Kind] = all.find(_.name == str)
+object KindName {
+  val all: List[KindName] = List(Lib, App, Plugin, Compiler, Bench)
+  def unapply(string: String): Option[KindName] = all.find(_.name == string)
+  implicit val parser: Parser[KindName] = unapply(_)
+  implicit val stringShow: StringShow[KindName] = _.name
+  implicit val msgShow: MsgShow[KindName] = v => UserMsg(_.param(stringShow.show(v)))
 }
 
-sealed abstract class Kind(val name: String, val needsExecution: Boolean)
-case object Library extends Kind("library", false)
-case object Compiler extends Kind("compiler", false)
-case object Plugin extends Kind("plugin", false)
-case object Application extends Kind("application", true)
-case object Benchmarks extends Kind("benchmarks", true)
+sealed abstract class KindName(val name: String)
+
+object Kind {
+
+  def parse(kindName: KindName, p1: Option[String], p2: Option[String]): Option[Kind] = kindName match {
+    case Lib      => Some(Lib())
+    case App      => p1.flatMap(_.only { case ClassRef(cls) => App(cls) })
+    case Bench    => p1.flatMap(_.only { case ClassRef(cls) => Bench(cls) })
+    case Compiler => p1.flatMap(_.only { case BloopSpec(spec) => Compiler(spec) })
+    case Plugin   => for(ClassRef(cls) <- p1; PluginId(id) <- p2) yield Plugin(id, cls)
+    case _ => None
+  }
+
+  def name(kind: Kind): KindName = kind match {
+    case Lib()        => Lib
+    case App(_)       => App
+    case Plugin(_, _) => Plugin
+    case Compiler(_)  => Compiler
+    case Bench(_)     => Bench
+  }
+
+  implicit def msgShow: MsgShow[Kind] = {
+    case Lib()            => msg"lib"
+    case App(main)        => msg"app${':'}$main"
+    case Plugin(id, main) => msg"plugin${':'}$main"
+    case Compiler(spec)   => msg"compiler${':'}$spec"
+    case Bench(main)      => msg"bench${':'}$main"
+  }
+
+  implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
+
+  def execute(kind: Kind): Boolean = kind match {
+    case App(_) | Bench(_) => true
+    case _                 => false
+  }
+}
+sealed trait Kind
+
+object Lib extends KindName("lib")
+case class Lib() extends Kind
+
+object App extends KindName("app")
+case class App(main: ClassRef) extends Kind
+
+object Plugin extends KindName("plugin")
+case class Plugin(id: PluginId, main: ClassRef) extends Kind
+
+object Compiler extends KindName("compiler")
+case class Compiler(spec: BloopSpec) extends Kind
+
+object Bench extends KindName("bench")
+case class Bench(main: ClassRef) extends Kind
 
 abstract class Key(val kind: UserMsg) { def key: String }
 
@@ -766,7 +812,7 @@ object ExecName {
 
 case class ExecName(key: String) extends Key(msg"executable")
   
-case class Plugin(id: PluginId, ref: ModuleRef, main: ClassRef)
+case class PluginDef(id: PluginId, ref: ModuleRef, main: ClassRef)
 
 object RepoId {
   implicit val msgShow: MsgShow[RepoId] = r => UserMsg(_.repo(r.key))

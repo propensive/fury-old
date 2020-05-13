@@ -164,12 +164,12 @@ You can grant these permissions with,
         case UnspecifiedMain(moduleId: ModuleId) =>
           cli.abort(msg"Main class not defined for module '${moduleId}'.")
         case GraalVMError(message: String) =>
-          cli.abort(msg"Problem with GrallVM:'${message}'. Please double-check the PATH")
+          cli.abort(msg"Problem with GrallVM: '${message}'. Please double-check the PATH")
         case BuildServerError(cause: Throwable) =>
           val stack = rootCause(cause).getStackTrace.mkString("\n  at ")
           cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}$stack")
-        case InvalidKind(expected: Kind) =>
-          cli.abort(msg"The module must be of type '${expected}'.")
+        case InvalidKind(expected: KindName) =>
+          cli.abort(msg"The module must be of type ${expected}.")
         case e: UnknownCompiler =>
           cli.abort(msg"This compiler is not known.")
         case UnknownBinaryRepository(repoId: BinRepoId) =>

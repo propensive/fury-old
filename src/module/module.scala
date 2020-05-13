@@ -76,18 +76,8 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(ModuleNameArg)
     cli            <- cli.hint(HiddenArg, List("on", "off"))
     cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
-    cli            <- cli.hint(KindArg, Kind.all)
-    optKind        <- ~cli.peek(KindArg)
-
-    cli            <- optKind match {
-                        case Some(Application) =>
-                          for (cli <- cli.hint(MainArg)) yield cli
-                        case Some(Plugin) =>
-                          for(cli <- cli.hint(MainArg); cli <- cli.hint(PluginArg)) yield cli
-                        case None | Some(Benchmarks | Library | Compiler) =>
-                          ~cli
-                      }
-
+    cli            <- cli.hint(KindArg, KindName.all)
+    optKind        <- ~None
     call           <- cli.call()
     project        <- optProject.asTry
     moduleArg      <- call(ModuleNameArg)
@@ -96,8 +86,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     compilerRef    <- compilerId.map(resolveToCompiler(layer, optProject, layout, _))
                           .orElse(project.compiler.map(~_)).getOrElse(~ModuleRef.JavaRef)
     module         = Module(moduleId, compiler = compilerRef)
-
-    module         <- ~call(KindArg).toOption.map { k => module.copy(kind = k) }.getOrElse(module)
+    
     module         <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
     
     module         <- ~call(MainArg).toOption.fold(module) { m => module.copy(main = if(m.key.isEmpty) None else
@@ -158,7 +147,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     cli         <- cli.hint(HiddenArg, List("on", "off"))
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
-    cli         <- cli.hint(KindArg, Kind.all)
+    cli         <- cli.hint(KindArg, KindName.all)
     optModuleId =  cli.preview(ModuleArg)(optProject.flatMap(_.main)).toOption
 
     optModule   <- Success { for {
@@ -168,19 +157,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                     } yield module }
 
     cli         <- cli.hint(ModuleNameArg, optModuleId.to[List])
-    optKind     <- ~cli.peek(KindArg).orElse(optModule.map(_.kind))
-    
-    cli         <- optKind match {
-                      case Some(Application) =>
-                        for (cli <- cli.hint(MainArg)) yield cli
-                      case Some(Plugin) =>
-                        for (cli <- cli.hint(MainArg); cli <- cli.hint(PluginArg)) yield cli
-                      case Some(Compiler) =>
-                        for (cli <- cli.hint(BloopSpecArg)) yield cli
-                      case None | Some(Library | Benchmarks) =>
-                        ~cli
-                    }
-
+    optKind     <- ~None
     call        <- cli.call()
     compilerId  <- ~call(CompilerArg).toOption
     project     <- optProject.asTry

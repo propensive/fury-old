@@ -434,13 +434,12 @@ object FuryBuildServer {
   private def moduleRefDisplayName(moduleRef: ModuleRef): String =
     s"${moduleRef.projectId.key}/${moduleRef.moduleId.key}"
 
-  private def moduleKindToBuildTargetTag(kind: Kind): String =
-    kind match {
-      case Library           => BuildTargetTag.LIBRARY
-      case Application       => BuildTargetTag.APPLICATION
-      case Benchmarks        => BuildTargetTag.BENCHMARK
-      case Compiler | Plugin => BuildTargetTag.LIBRARY // mark these NO_IDE?
-    }
+  private def moduleKindToBuildTargetTag(kind: Kind): String = Kind.name(kind) match {
+    case Lib               => BuildTargetTag.LIBRARY
+    case App               => BuildTargetTag.APPLICATION
+    case Bench             => BuildTargetTag.BENCHMARK
+    case Compiler | Plugin => BuildTargetTag.LIBRARY // mark these NO_IDE?
+  }
 
   private def toCompletableFuture[T](f: Future[T])(implicit ec: ExecutionContext): CompletableFuture[T] = {
     val result = new CompletableFuture[T]()

@@ -32,7 +32,7 @@ object Module {
 }
 
 case class Module(id: ModuleId,
-                  kind: Kind = Library,
+                  kind: Kind = Lib(),
                   main: Option[ClassRef] = None,
                   plugin: Option[PluginId] = None,
                   manifest: List[ManifestEntry] = List(),
@@ -50,7 +50,9 @@ case class Module(id: ModuleId,
                   optDefs: SortedSet[OptDef] = TreeSet(),
                   deterministic: Boolean = false) {
 
-  def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
+  def allBinaries: SortedSet[Binary] = if(Kind.name(kind) == Bench) binaries +
+      Binary.Jmh else binaries
+  
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
