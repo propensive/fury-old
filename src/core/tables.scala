@@ -176,19 +176,12 @@ case class Tables() {
     Heading("Path", _.path(env))
   )
 
-  val binaries: Tabulation[Binary] = Tabulation(
+  val binaries: Tabulation[UniqueBinary] = Tabulation(
     Heading("Id", _.id),
-    Heading("Service", _.binRepo),
+    Heading("BinRepo", _.binRepo),
     Heading("Group", _.group),
     Heading("Artifact", _.artifact),
-    Heading("Version", _.version),
-  )
-
-  val jars: Tabulation[JarResource] = Tabulation(
-    Heading("Id", _.id),
-    Heading("Repo", _.repoIdentifier),
-    Heading("Path", _.dir),
-    Heading("Resource", _.glob)
+    Heading("Version", _.version)
   )
 
   val imports: Tabulation[(Import, Try[Layer])] = Tabulation(

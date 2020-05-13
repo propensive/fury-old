@@ -138,6 +138,9 @@ case class JarResource(id: BinaryId, repoId: RepoId, dir: Path, glob: Glob) exte
   def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId, layout).map((dir, _).digest[Md5])
   def base(checkouts: Checkouts, layout: Layout): Try[Path] =
     checkouts(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
+  val binRepo = BinRepoId("local")
+  val group, artifact, version = "-"
+  def paths(implicit log: Log): Try[List[Path]] = ~List(dir)
 }
 
 object JarResource {
