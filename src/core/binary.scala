@@ -60,6 +60,5 @@ case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: Str
     }.orElse(Failure(DownloadFailure(spec)))
     case _ => Failure(UnknownBinaryRepository(binRepo))
   }
-  val dir = Path("-")
 }
 
