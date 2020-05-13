@@ -235,23 +235,19 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     } yield module)
 
     cli         <- cli.hint(RawArg)
-    binTable    <- ~Tables().binaries
-    jarTable    <- ~Tables().jars
+    table       <- ~Tables().binaries
     cli         <- cli.hint(BinaryArg, optModule.map(_.binaries).getOrElse(Nil).map(_.id))
-    cli         <- cli.hint(ColumnArg, binTable.headings.map(_.name.toLowerCase))
+    cli         <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call        <- cli.call()
     col         <- ~cli.peek(ColumnArg)
     binaryId    <- ~cli.peek(BinaryArg)
     raw         <- ~call(RawArg).isSuccess
     project     <- optProject.asTry
     module      <- optModule.asTry
-    bRows        <- ~module.allBinaries.to[List]
-    jRows        <- ~module.allJars.to[List]
-    binTable    <- ~Tables().show(binTable, cli.cols, bRows, raw, col, binaryId, "binary")
-    jarTable    <- ~Tables().show(jarTable, cli.cols, jRows, raw, col, binaryId, "jar")
+    rows        <- ~module.allBinaries.to[List]
+    binTable    <- ~Tables().show(table, cli.cols, rows, raw, col, binaryId, "binary")
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _           <- ~log.rawln(binTable)
-    _           <- ~log.rawln(jarTable)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
@@ -297,12 +293,12 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module)
 
-    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(m=>(m.binaries++m.allJars)).map(_.id))
+    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.allBinaries.map(_.id)))
     call        <- cli.call()
     binaryArg   <- call(BinaryArg)
     module      <- optModule.asTry
     project     <- optProject.asTry
-    binToDel    <- (module.binaries ++ module.allJars).findBy(binaryArg)
+    binToDel    <- module.allBinaries.findBy(binaryArg)
     layer       <- binToDel match {
                       case b: Binary => ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - b)
                       case j: JarResource => ~Layer(_.projects(project.id).modules(module.id).jars).modify(layer)(_ - j)
@@ -327,7 +323,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     cli          <- cli.hint(BinaryNameArg)
-    cli          <- cli.hint(BinaryRepoArg, List(RepoId("central")))
+    cli          <- cli.hint(BinaryRepoArg, List(RepoId("mvn_central")))
     call         <- cli.call()
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
@@ -335,7 +331,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     binName      <- ~call(BinaryNameArg).toOption
     repoId       <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
     cwd          <- cli.pwd
-    ids          <- ~(module.binaries ++ module.allJars)
+    ids          <- ~module.allBinaries
     layer        <- targetBin match {
                         case Left(binSpec) => for {
                           binary <- Binary(binName, repoId, binSpec)

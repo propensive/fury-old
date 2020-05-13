@@ -24,8 +24,14 @@ import kaleidoscope._
 import scala.collection.immutable._
 import scala.util._
 
+//TODO rename me
 trait UniqueBinary {
   val id: BinaryId
+  val binRepo: BinRepoId
+  val group: String
+  val artifact: String
+  val version: String
+  def paths(implicit log: Log): Try[List[Path]]
 }
 
 object Binary {
@@ -54,5 +60,6 @@ case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: Str
     }
     case _ => Failure(UnknownBinaryRepository(binRepo))
   }
+  val dir = Path("-")
 }
 
