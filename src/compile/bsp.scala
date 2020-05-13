@@ -382,7 +382,7 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.kind, target.main, target.checkouts, target.binaries, target.dependencies,
+        ref, (target.kind, target.checkouts, target.binaries, target.dependencies,
             target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
             graph(ref).map(hash)).digest[Md5]
       )
@@ -418,11 +418,14 @@ object FuryBuildServer {
 
     for {
       compiler <- target.compiler
-      bs       <- compiler.bloopSpec
+      compDef  <- compiler.compilerDef
                if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
-      val scalaBuildTarget = new ScalaBuildTarget(bs.org, bs.version, bs.version, ScalaPlatform.JVM, libs)
+      
+      val scalaBuildTarget = new ScalaBuildTarget(compDef.spec.org, compDef.spec.version, compDef.spec.version,
+          ScalaPlatform.JVM, libs)
+
       buildTarget.setDataKind(BuildTargetDataKind.SCALA)
 
       buildTarget.setData(scalaBuildTarget)

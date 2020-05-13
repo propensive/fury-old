@@ -52,9 +52,9 @@ object Bloop {
       compilation.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == compiler).flatMap(
           _.value.transform(optDefs))).getOrElse(Nil)
     
-      val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
-    val compilerOpt = target.compiler.map { compilerTarget =>
-      val spec = compilerTarget.bloopSpec.getOrElse(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))
+    val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
+    val compilerOpt = target.compiler.map { compiler =>
+      val spec = compiler.compilerDef.fold(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))(_.spec)
       Json.of(
         organization = spec.org,
         name = spec.name,
@@ -80,7 +80,7 @@ object Bloop {
         jvmPlatform = Json.of(
           name = "jvm",
           config = Json.of(home = "", options = Nil),
-          mainClass = target.main.to[List]
+          mainClass = Nil
         ),
         resolution = Json.of(modules = Nil)
       )

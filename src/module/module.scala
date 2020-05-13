@@ -171,9 +171,6 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
 
     layer       <- ~hidden.fold(layer)(Layer(_.projects(project.id).modules(module.id).hidden)(layer) = _)
     
-    layer       <- ~bloopSpec.map(Some(_)).fold(layer)(Layer(_.projects(project.id).modules(
-                       module.id).bloopSpec)(layer) = _)
-
     layer       <- if(newId.isEmpty || project.main != Some(module.id)) ~layer
                    else ~(Layer(_.projects(project.id).main)(layer) = newId)
 

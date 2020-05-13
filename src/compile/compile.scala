@@ -592,7 +592,7 @@ case class Compilation(target: Target,
     for {
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
-      manifest          = JarManifest(bins.map(_.name), module.main.map(_.key))
+      manifest          = JarManifest(bins.map(_.name), module.app.map(_.main.key))
       dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       enc               = System.getProperty("file.encoding")
@@ -765,7 +765,7 @@ case class Compilation(target: Target,
     }
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (Kind.name(target.kind) == Bench) "org.openjdk.jmh.Main" else target.main.fold("")(_.key),
+      if (Kind.name(target.kind) == Bench) "org.openjdk.jmh.Main" else target.app.fold("")(_.main.key),
       securePolicy = Kind.name(target.kind) == App,
       env = target.environment,
       properties = target.properties,

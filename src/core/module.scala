@@ -33,7 +33,6 @@ object Module {
 
 case class Module(id: ModuleId,
                   kind: Kind = Lib(),
-                  main: Option[ClassRef] = None,
                   manifest: List[ManifestEntry] = List(),
                   compiler: ModuleRef = ModuleRef.JavaRef,
                   dependencies: SortedSet[ModuleRef] = TreeSet(),
@@ -41,7 +40,6 @@ case class Module(id: ModuleId,
                   sources: SortedSet[Source] = TreeSet(),
                   binaries: SortedSet[Binary] = TreeSet(),
                   resources: SortedSet[Source] = TreeSet(),
-                  bloopSpec: Option[BloopSpec] = None,
                   environment: SortedSet[EnvVar] = TreeSet(),
                   properties: SortedSet[JavaProperty] = TreeSet(),
                   policy: SortedSet[Permission] = TreeSet(),
@@ -51,7 +49,9 @@ case class Module(id: ModuleId,
 
   def allBinaries: SortedSet[Binary] = if(Kind.name(kind) == Bench) binaries +
       Binary.Jmh else binaries
-  
+
+  def app: Option[App] = kind.only { case a@App(_) => a }
+
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }

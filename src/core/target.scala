@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, fury.io._
+import fury.model._, fury.io._, fury.strings._
 
 object Target {
   case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
@@ -28,13 +28,11 @@ object Target {
 
 case class Target(ref: ModuleRef,
                   kind: Kind,
-                  main: Option[ClassRef],
                   repos: List[Remote],
                   checkouts: List[Checkout],
                   binaries: List[Path],
                   dependencies: List[TargetId],
                   compiler: Option[Target],
-                  bloopSpec: Option[BloopSpec],
                   params: List[Opt],
                   permissions: List[Permission],
                   intransitive: Boolean,
@@ -46,10 +44,9 @@ case class Target(ref: ModuleRef,
 
   def id: TargetId = TargetId(ref.projectId, ref.moduleId)
   
-  def plugin: Option[PluginDef] = kind match {
-    case Plugin(id, main) => Some(PluginDef(id, ref, main))
-    case _                => None
-  }
+  def plugin: Option[PluginDef] = kind.only { case Plugin(id, main) => PluginDef(id, ref, main) }
+  def compilerDef: Option[Compiler] = kind.only { case c@Compiler(spec) => c }
+  def app: Option[App] = kind.only { case a@App(_) => a }
 
   def impliedCompiler: ModuleRef =
     if(Kind.name(kind) == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
