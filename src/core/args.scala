@@ -37,7 +37,7 @@ object Args {
   val PartialBinSpecArg = CliParam[PartialBinSpec]('b', 'binary, "specify a binary")
   val BinaryNameArg = CliParam[BinaryId]('n', 'name, "specify an alias for the binary")
   val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a remote binary dependency")
-  val LocalJarFileArg = CliParam[JarFile]('l', 'local, "specify a local binary dependency")
+  val JarPathArg = CliParam[JarPath]('f', 'file, "specify a local binary dependency")
   val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
   

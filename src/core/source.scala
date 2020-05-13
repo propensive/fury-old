@@ -43,6 +43,8 @@ object Source {
         msg"${RepoId("shared")}${':'}$dir${'/'}${'/'}$glob".string(theme)
       case LocalSource(dir, glob) =>
         msg"$dir${'/'}${'/'}$glob".string(theme)
+      case JarResource(binId, repoId, dir, glob) =>
+        msg"$binId{'#'}$repoId${':'}$dir${'/'}${'/'}$glob".string(theme)
     }
   }
 
@@ -129,3 +131,20 @@ case class LocalSource(dir: Path, glob: Glob) extends Source {
   def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.baseDir)
 }
 
+case class JarResource(id: BinaryId, repoId: RepoId, dir: Path, glob: Glob) extends Source with UniqueBinary {
+  def key: String = str"${id}#${repoId}:${dir.value}//$glob"
+  def completion: String = str"${repoId}:${dir.value}"
+  def repoIdentifier: RepoId = repoId
+  def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId, layout).map((dir, _).digest[Md5])
+  def base(checkouts: Checkouts, layout: Layout): Try[Path] =
+    checkouts(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
+}
+
+object JarResource {
+  implicit def diff: Diff[JarResource] = Diff.gen[JarResource]
+  def apply(id: Option[BinaryId], absPath: Path): Try[JarResource] = {
+    absPath.ifExists().flatMap(_.input.only{ case r"^.*\/(?!.*\/)$filename@(.*).jar" =>
+      JarResource(id.getOrElse(BinaryId(filename)), RepoId("local"), absPath, Glob(str"**"))
+    }).ascribe(UnresolvedBinaryFile(absPath))
+  }
+}
