@@ -678,18 +678,17 @@ object BinSpec {
 
 case class BinSpec(string: String)
 
-object JarFile {
-  implicit val msgShow: MsgShow[JarFile] = b => UserMsg(_.binary(b.path))
-  implicit val stringShow: StringShow[JarFile] = _.path
-  implicit val diff: Diff[JarFile] = (l, r) => Diff.stringDiff.diff(l.path, r.path)
-  implicit val parser: Parser[JarFile] = unapply(_)
-  implicit val keyName: KeyName[JarFile] = () => msg"local jar file"
-  implicit val jarPath = (bin: JarFile) => Path(bin.path)
+object JarPath {
+  implicit val msgShow: MsgShow[JarPath] = b => UserMsg(_.binary(b.path))
+  implicit val stringShow: StringShow[JarPath] = _.path
+  implicit val diff: Diff[JarPath] = (l, r) => Diff.stringDiff.diff(l.path, r.path)
+  implicit val parser: Parser[JarPath] = unapply(_)
+  implicit val keyName: KeyName[JarPath] = () => msg"local jar file"
 
-  def unapply(path: String): Option[JarFile] = path.only { case r"([^\*\{\}\[\]]*)\/*(.*).jar" => JarFile(path) }
+  def unapply(path: String): Option[JarPath] = path.only { case r"([^\*\{\}\[\]]*)\/*(.*).jar" => JarPath(path) }
 }
 
-case class JarFile(path: String)
+case class JarPath(path: String)
 
 object Version {
   implicit val msgShow: MsgShow[Version] = b => UserMsg(_.version(b.key))

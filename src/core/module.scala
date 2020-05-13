@@ -41,6 +41,7 @@ case class Module(id: ModuleId,
                   opts: SortedSet[Opt] = TreeSet(),
                   sources: SortedSet[Source] = TreeSet(),
                   binaries: SortedSet[Binary] = TreeSet(),
+                  jars: SortedSet[Source] = TreeSet(),
                   resources: SortedSet[Source] = TreeSet(),
                   bloopSpec: Option[BloopSpec] = None,
                   environment: SortedSet[EnvVar] = TreeSet(),
@@ -50,7 +51,8 @@ case class Module(id: ModuleId,
                   optDefs: SortedSet[OptDef] = TreeSet(),
                   deterministic: Boolean = false) {
 
-  def allBinaries: SortedSet[Binary] = if(kind == Benchmarks) binaries + Binary.Jmh else binaries
+  def allBinaries: SortedSet[Binary] = if (kind == Benchmarks) binaries + Binary.Jmh else binaries
+  def allJars: SortedSet[JarResource] = jars.collect { case src: JarResource => src }
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }

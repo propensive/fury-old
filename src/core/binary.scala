@@ -24,6 +24,10 @@ import kaleidoscope._
 import scala.collection.immutable._
 import scala.util._
 
+trait UniqueBinary {
+  val id: BinaryId
+}
+
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
   implicit val stringShow: StringShow[Binary] = b => b.id.key
@@ -37,39 +41,18 @@ object Binary {
     bin.ascribe(InvalidValue(binSpec.string)).flatMap(_.paths).map(_ => bin.get)
   }
 
-
-  def apply(id: Option[BinaryId], cwd: Path, jar: JarFile)(implicit log: Log): Try[Binary] = { 
-    val absPath = cwd.resolve(jar)
-    val bin = absPath.input.only { case r"^.*\/(?!.*\/)$filename@(.*).jar" =>
-      Binary(id.getOrElse(BinaryId(filename)), BinRepoId.Local, path = Some(absPath))
-    }
-    bin.ascribe(InvalidValue(absPath.input)).flatMap(_.paths).map(_ => bin.get)
-  }
-
   private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()
 
-  val Jmh = Binary(BinaryId("jmh-core"), BinRepoId.Central, group = "org.openjdk.jmh", artifact = "jmh-core", version = "1.21")
-  
-  private[core] val NA = "-"
+  val Jmh = Binary(BinaryId("jmh-core"), BinRepoId.Central, "org.openjdk.jmh", "jmh-core", "1.21")
 }
 
-case class Binary(
-  id: BinaryId, 
-  binRepo: BinRepoId, 
-  group: String = Binary.NA, 
-  artifact: String = Binary.NA,
-  version: String = Binary.NA,
-  path: Option[Path] = None
-) {
-  def spec = str"$group:$artifact:$version"
-
-  def paths(implicit log: Log): Try[List[Path]] = (binRepo, path) match {
-        case (BinRepoId.Central, _) => Coursier.fetch(this).recoverWith {
-              case OfflineException() => ~List[Path]()
-        }.orElse(Failure(DownloadFailure(spec)))
-        case (BinRepoId.Local, Some(p)) => if(p.exists) Success(List(p)) else Failure(UnresolvedBinaryFile(p))
-        case _ => Failure(UnknownBinaryRepository(binRepo))
+case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: String, version: String) extends UniqueBinary {
+  val spec = str"$group:$artifact:$version"
+  def paths(implicit log: Log): Try[List[Path]] = binRepo match {
+    case BinRepoId.Central => Coursier.fetch(this).recoverWith {
+        case OfflineException() => ~List[Path]()
     }
-
+    case _ => Failure(UnknownBinaryRepository(binRepo))
+  }
 }
 

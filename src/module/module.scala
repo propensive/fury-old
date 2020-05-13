@@ -235,19 +235,23 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     } yield module)
 
     cli         <- cli.hint(RawArg)
-    table       <- ~Tables().binaries
+    binTable    <- ~Tables().binaries
+    jarTable    <- ~Tables().jars
     cli         <- cli.hint(BinaryArg, optModule.map(_.binaries).getOrElse(Nil).map(_.id))
-    cli         <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli         <- cli.hint(ColumnArg, binTable.headings.map(_.name.toLowerCase))
     call        <- cli.call()
     col         <- ~cli.peek(ColumnArg)
     binaryId    <- ~cli.peek(BinaryArg)
     raw         <- ~call(RawArg).isSuccess
     project     <- optProject.asTry
     module      <- optModule.asTry
-    rows        <- ~module.allBinaries.to[List]
-    table       <- ~Tables().show(table, cli.cols, rows, raw, col, binaryId, "binary")
+    bRows        <- ~module.allBinaries.to[List]
+    jRows        <- ~module.allJars.to[List]
+    binTable    <- ~Tables().show(binTable, cli.cols, bRows, raw, col, binaryId, "binary")
+    jarTable    <- ~Tables().show(jarTable, cli.cols, jRows, raw, col, binaryId, "jar")
     _           <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _           <- ~log.rawln(table)
+    _           <- ~log.rawln(binTable)
+    _           <- ~log.rawln(jarTable)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
@@ -293,13 +297,16 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module)
 
-    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(_.binaries.map(_.id)))
+    cli         <- cli.hint(BinaryArg, optModule.to[List].flatMap(m=>(m.binaries++m.allJars)).map(_.id))
     call        <- cli.call()
     binaryArg   <- call(BinaryArg)
-    project     <- optProject.asTry
     module      <- optModule.asTry
-    binaryToDel <- module.binaries.findBy(binaryArg)
-    layer       <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - binaryToDel)
+    project     <- optProject.asTry
+    binToDel    <- (module.binaries ++ module.allJars).findBy(binaryArg)
+    layer       <- binToDel match {
+                      case b: Binary => ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - b)
+                      case j: JarResource => ~Layer(_.projects(project.id).modules(module.id).jars).modify(layer)(_ - j)
+                   }
     _           <- Layer.commit(layer, conf, layout)
     _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
   } yield log.await()
@@ -313,7 +320,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
                         MavenCentral.search(_).toOption.to[Set].flatten)
 
     cli          <- cli.hint(BinSpecArg, binSpecs)
-    cli          <- cli.hint(LocalJarFileArg)
+    cli          <- cli.hint(JarPathArg)
     cli          <- cli.hint(ProjectArg, layer.projects)
     optProjectId <- ~cli.peek(ProjectArg).orElse(layer.main)
     optProject   <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
@@ -324,16 +331,21 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     call         <- cli.call()
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
-    targetBin    <- call.exactlyOne(BinSpecArg, LocalJarFileArg)
+    targetBin    <- call.exactlyOne(BinSpecArg, JarPathArg)
     binName      <- ~call(BinaryNameArg).toOption
     repoId       <- ~call(BinaryRepoArg).getOrElse(BinRepoId.Central)
     cwd          <- cli.pwd
-    binary       <- targetBin match {
-                        case Left(binSpec) => Binary(binName, repoId, binSpec)
-                        case Right(binPath) => Binary(binName, cwd, binPath)
+    ids          <- ~(module.binaries ++ module.allJars)
+    layer        <- targetBin match {
+                        case Left(binSpec) => for {
+                          binary <- Binary(binName, repoId, binSpec)
+                          _      <- ids.unique(binary.id)
+                        } yield Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
+                        case Right(jarPath) => for {
+                         jar     <- JarResource(binName, cwd.resolve(Path(jarPath.path)))
+                         _       <- ids.unique(jar.id)
+                        } yield Layer(_.projects(project.id).modules(module.id).jars).modify(layer)(_ + jar) 
                     }
-    _            <- module.binaries.unique(binary.id)
-    layer        <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
     _            <- Layer.commit(layer, conf, layout)
     _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
     } yield log.await()
