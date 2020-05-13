@@ -181,7 +181,11 @@ case class Tables() {
     Heading("BinRepo", _.binRepo),
     Heading("Group", _.group),
     Heading("Artifact", _.artifact),
-    Heading("Version", _.version)
+    Heading("Version", _.version),
+    Heading("Path", b => b match {
+      case b: Binary => "cache"
+      case j: JarResource => j.key
+    })
   )
 
   val imports: Tabulation[(Import, Try[Layer])] = Tabulation(
