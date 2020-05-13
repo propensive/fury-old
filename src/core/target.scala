@@ -21,7 +21,7 @@ import fury.model._, fury.io._, fury.strings._
 object Target {
   case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
     def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (k, ds) =>
-      (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, Kind.name(targets(d).kind) == Compiler) })
+      (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, targets(d).kind.is[Compiler]) })
     }.toMap
   }
 }
@@ -41,13 +41,6 @@ case class Target(ref: ModuleRef,
                   properties: Map[String, String],
                   optDefs: Set[OptDef],
                   resources: List[Source]) {
-
   def id: TargetId = TargetId(ref.projectId, ref.moduleId)
-  
-  def plugin: Option[PluginDef] = kind.only { case Plugin(id, main) => PluginDef(id, ref, main) }
-  def compilerDef: Option[Compiler] = kind.only { case c@Compiler(spec) => c }
-  def app: Option[App] = kind.only { case a@App(_) => a }
-
-  def impliedCompiler: ModuleRef =
-    if(Kind.name(kind) == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
+  def impliedCompiler: ModuleRef = if(kind.is[Compiler]) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
 }

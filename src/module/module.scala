@@ -77,8 +77,12 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(HiddenArg, List("on", "off"))
     cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     cli            <- cli.hint(KindArg, KindName.all)
+    kind           <- ~cli.peek(KindArg)
     optKind        <- ~None
     call           <- cli.call()
+    main           <- ~call(MainArg).toOption
+    spec           <- ~call(BloopSpecArg).toOption
+    plugin         <- ~call(PluginArg).toOption
     project        <- optProject.asTry
     moduleArg      <- call(ModuleNameArg)
     moduleId       <- project.modules.unique(moduleArg)

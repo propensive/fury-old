@@ -18,6 +18,7 @@
 package fury.model
 
 import fury.strings._
+import scala.reflect.ClassTag
 
 object KindName {
   val all: List[KindName] = List(Lib, App, Plugin, Compiler, Bench)
@@ -31,22 +32,19 @@ sealed abstract class KindName(val name: String)
 
 object Kind {
 
-  def parse(kindName: KindName, p1: Option[String], p2: Option[String]): Option[Kind] = kindName match {
-    case Lib      => Some(Lib())
-    case App      => p1.flatMap(_.only { case ClassRef(cls) => App(cls) })
-    case Bench    => p1.flatMap(_.only { case ClassRef(cls) => Bench(cls) })
-    case Compiler => p1.flatMap(_.only { case BloopSpec(spec) => Compiler(spec) })
-    case Plugin   => for(ClassRef(cls) <- p1; PluginId(id) <- p2) yield Plugin(id, cls)
-    case _ => None
-  }
-
-  def name(kind: Kind): KindName = kind match {
-    case Lib()        => Lib
-    case App(_)       => App
-    case Plugin(_, _) => Plugin
-    case Compiler(_)  => Compiler
-    case Bench(_)     => Bench
-  }
+  def parse(kindName: KindName,
+            main: Option[ClassRef] = None,
+            spec: Option[BloopSpec] = None,
+            plugin: Option[PluginId] = None)
+           : Option[Kind] =
+    kindName match {
+      case Lib      => Some(Lib())
+      case App      => main.map(App(_))
+      case Bench    => main.map(Bench(_))
+      case Compiler => spec.map(Compiler(_))
+      case Plugin   => for(m <- main; p <- plugin) yield Plugin(p, m)
+      case _ => None
+    }
 
   implicit def msgShow: MsgShow[Kind] = {
     case Lib()            => msg"lib"
@@ -63,7 +61,10 @@ object Kind {
     case _                 => false
   }
 }
-sealed trait Kind
+sealed trait Kind {
+  def as[T: ClassTag]: Option[T] = this.only { case t: T => t }
+  def is[T: ClassTag]: Boolean = this match { case t: T => true case _ => false }
+}
 
 object Lib extends KindName("lib")
 case class Lib() extends Kind

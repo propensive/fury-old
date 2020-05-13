@@ -251,7 +251,7 @@ object Compilation {
       Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
     }
 
-    def canAffectBuild(target: Target): Boolean = Kind.name(target.kind) != Lib
+    def canAffectBuild(target: Target): Boolean = !target.kind.is[Lib]
 
     for {
       target              <- makeTarget(ref, layout)
@@ -510,7 +510,7 @@ case class Compilation(target: Target,
 
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
-    pOpts       <- ~(if(Kind.name(target.kind) == Plugin) Set(
+    pOpts       <- ~(if(target.kind.is[Plugin]) Set(
                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
                    ) else Set())
@@ -538,8 +538,9 @@ case class Compilation(target: Target,
   def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] = for {
     target           <- apply(ref)
     inheritedPlugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
-  } yield inheritedPlugins.flatten.to[Set] ++ target.plugin.map { m =>
-      Provenance(m, target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin) }
+  } yield inheritedPlugins.flatten.to[Set] ++ target.kind.as[Plugin].map { plugin =>
+      Provenance(PluginDef(plugin.id, ref, plugin.main), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
+          Origin.Plugin) }
   
   def aggregatedResources(ref: ModuleRef): Try[Set[Source]] = for {
     target    <- apply(ref)
@@ -547,7 +548,7 @@ case class Compilation(target: Target,
   } yield inherited.flatten.to[Set] ++ target.resources
   
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
-    val requiredPlugins = requiredTargets(ref).filter { v => Kind.name(v.kind) == Plugin }.flatMap { target =>
+    val requiredPlugins = requiredTargets(ref).filter(_.kind.is[Plugin]).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
     }
     val compilerClasspath = targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
@@ -563,10 +564,10 @@ case class Compilation(target: Target,
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
-    if(Kind.name(target.kind) == Plugin) {
+    if(target.kind.is[Plugin]) {
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
-      target.plugin.foreach { plugin =>
+      target.kind.as[Plugin].foreach { plugin =>
         file.writeSync(str"""|<plugin>
                              | <name>${plugin.id}</name>
                              | <classname>${plugin.main}</classname>
@@ -592,7 +593,7 @@ case class Compilation(target: Target,
     for {
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
-      manifest          = JarManifest(bins.map(_.name), module.app.map(_.main.key))
+      manifest          = JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
       dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       enc               = System.getProperty("file.encoding")
@@ -752,7 +753,7 @@ case class Compilation(target: Target,
                   args: List[String], noSecurity: Boolean)
                  (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
-    if (Kind.name(target.kind) == Bench) {
+    if (target.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
         val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
@@ -765,8 +766,8 @@ case class Compilation(target: Target,
     }
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (Kind.name(target.kind) == Bench) "org.openjdk.jmh.Main" else target.app.fold("")(_.main.key),
-      securePolicy = Kind.name(target.kind) == App,
+      if (target.kind.is[Bench]) "org.openjdk.jmh.Main" else target.kind.as[App].fold("")(_.main.key),
+      securePolicy = target.kind.is[App],
       env = target.environment,
       properties = target.properties,
       policy = globalPolicy.forContext(layout, target.ref.projectId),

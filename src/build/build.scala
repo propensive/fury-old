@@ -364,8 +364,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, false)
-    _            <- if(Kind.name(module.kind) == App) Success(()) else Failure(InvalidKind(App))
-    main         <- module.app.map(_.main).ascribe(UnspecifiedMain(module.id))
+    _            <- if(module.kind.is[App]) Success(()) else Failure(InvalidKind(App))
+    main         <- module.kind.as[App].map(_.main).ascribe(UnspecifiedMain(module.id))
     _            <- ~log.info(msg"Building native image for $exec")
     _            <- compilation.saveNative(module.ref(project), Installation.optDir, layout, main)
     bin          <- ~(Installation.optDir / main.key.toLowerCase)

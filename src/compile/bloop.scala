@@ -54,7 +54,7 @@ object Bloop {
     
     val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
     val compilerOpt = target.compiler.map { compiler =>
-      val spec = compiler.compilerDef.fold(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))(_.spec)
+      val spec = compiler.kind.as[Compiler].fold(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))(_.spec)
       Json.of(
         organization = spec.org,
         name = spec.name,
