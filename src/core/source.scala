@@ -132,7 +132,8 @@ case class LocalSource(dir: Path, glob: Glob) extends Source {
 }
 
 case class JarResource(id: BinaryId, repoId: RepoId, dir: Path, glob: Glob) extends Source with UniqueBinary {
-  def key: String = str"${id}#${repoId}:${dir.value}//$glob"
+  //TODO define appropriate key for jar and other resources
+  def key: String = str"${binRepo}#${repoId}://${glob}/${id}.jar"
   def completion: String = str"${repoId}:${dir.value}"
   def repoIdentifier: RepoId = repoId
   def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId, layout).map((dir, _).digest[Md5])
@@ -147,7 +148,7 @@ object JarResource {
   implicit def diff: Diff[JarResource] = Diff.gen[JarResource]
   def apply(id: Option[BinaryId], absPath: Path): Try[JarResource] = {
     absPath.ifExists().flatMap(_.input.only{ case r"^.*\/(?!.*\/)$filename@(.*).jar" =>
-      JarResource(id.getOrElse(BinaryId(filename)), RepoId("local"), absPath, Glob(str"**"))
+      JarResource(id.getOrElse(BinaryId(filename)), RepoId("file"), absPath, Glob(str"**"))
     }).ascribe(UnresolvedBinaryFile(absPath))
   }
 }
