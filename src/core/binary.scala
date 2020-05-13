@@ -61,4 +61,3 @@ case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: Str
     case _ => Failure(UnknownBinaryRepository(binRepo))
   }
 }
-
