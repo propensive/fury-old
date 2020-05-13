@@ -57,7 +57,7 @@ case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: Str
   def paths(implicit log: Log): Try[List[Path]] = binRepo match {
     case BinRepoId.Central => Coursier.fetch(this).recoverWith {
         case OfflineException() => ~List[Path]()
-    }
+    }.orElse(Failure(DownloadFailure(spec)))
     case _ => Failure(UnknownBinaryRepository(binRepo))
   }
   val dir = Path("-")
