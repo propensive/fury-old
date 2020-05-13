@@ -54,13 +54,7 @@ case class Module(id: ModuleId,
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
-  def sharedSources: SortedSet[SharedSource] = sources.collect { case src: SharedSource => src }
-  def localSources: SortedSet[Path] = sources.collect { case src: LocalSource => src.dir }
  
-  def localResources: Stream[Path] =
-    resources.to[Stream].collect { case src: LocalSource => src.glob(src.dir, src.dir.walkTree) }.flatten
-
-  def sharedResources: Stream[SharedSource] = resources.to[Stream].collect { case src: SharedSource => src }
   
   def externalResources: Stream[ExternalSource] =
     resources.to[Stream].collect { case src: ExternalSource => src }

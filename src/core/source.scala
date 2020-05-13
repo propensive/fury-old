@@ -39,18 +39,12 @@ object Source {
     v match {
       case ExternalSource(repoId, dir, glob) =>
         msg"$repoId${':'}$dir${'/'}${'/'}$glob".string(theme)
-      case SharedSource(dir, glob) =>
-        msg"${RepoId("shared")}${':'}$dir${'/'}${'/'}$glob".string(theme)
       case LocalSource(dir, glob) =>
         msg"$dir${'/'}${'/'}$glob".string(theme)
     }
   }
 
   def unapply(string: String): Option[Source] = string.only {
-    case r"shared:$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
-      SharedSource(Path(dir), Glob(pattern))
-    case r"shared:$dir@([^\*\{\}\[\]]*)" =>
-      SharedSource(Path(dir), Glob.All)
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
       ExternalSource(RepoId(repo), Path(dir), Glob(pattern))
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)" =>
@@ -111,14 +105,6 @@ case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source 
   
   def base(checkouts: Checkouts, layout: Layout): Try[Path] =
     checkouts(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
-}
-
-case class SharedSource(dir: Path, glob: Glob) extends Source {
-  def key: String = str"shared:${dir}//$glob"
-  def completion: String = key
-  def hash(layer: Layer, layout: Layout): Try[Digest] = Success((-2, dir).digest[Md5])
-  def repoIdentifier: RepoId = RepoId("shared")
-  def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.sharedDir)
 }
 
 case class LocalSource(dir: Path, glob: Glob) extends Source {
