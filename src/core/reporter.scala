@@ -88,6 +88,7 @@ object SummaryReporter extends Reporter("summary") {
     log.info(compiledModules)
     prints.foreach{log.info(_)}
   }
+
 }
 
 object InterleavingReporter extends Reporter("interleaving") {
