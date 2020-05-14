@@ -12,7 +12,7 @@ fury clean
 echo $?
 fury permission require -C java.util.PropertyPermission -T foo.bar -A read -0
 fury permission list --raw
-fury module add -n lib -t library
+fury module add -n lib -t lib
 echo $?
 fury dependency add -d core
 fury build run --output linear | grep '^ *[A-Za-z0-9]'
