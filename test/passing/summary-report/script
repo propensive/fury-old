@@ -1,7 +1,6 @@
 fury layer init 
 fury project add -n scala
-fury module add -n compiler -t compiler
-fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n test-project
 fury module add -n module-a -c scala/compiler
