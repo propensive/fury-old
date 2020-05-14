@@ -223,9 +223,7 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def preview(param: CliParam)(default: Option[param.Type] = None): Try[param.Type] = {
     val result = args.get(param.param)
-    if(default.isDefined) result.recover {
-      case _: exoskeleton.MissingArg => default.get
-    } else result
+    if(default.isDefined) result.recover { case _: exoskeleton.MissingArg => default.get } else result
   }
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
