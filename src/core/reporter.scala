@@ -68,10 +68,12 @@ object SummaryReporter extends Reporter("summary") {
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
+    val prints = collection.mutable.ArrayBuffer[String]()
     val moduleRefs = collection.mutable.Set[ModuleRef]()
     multiplexer.stream(50, Some(Tick)).foreach {
       case StopCompile(ref, true) => moduleRefs += ref
       case DiagnosticMsg(ref, message) => log.note(message.msg)
+      case Print(_, line)         => prints += line
       case _ => ()
     }
 
@@ -84,6 +86,7 @@ object SummaryReporter extends Reporter("summary") {
     val prefix = if (moduleRefs.isEmpty) msg"No classes compiled" else msg"Successfully compiled"
     val compiledModules = commafied(moduleRefs.toList.sorted).foldLeft(prefix)((ms,m) => msg"$ms $m")
     log.info(compiledModules)
+    prints.foreach{log.info(_)}
   }
 }
 
