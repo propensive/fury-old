@@ -3,7 +3,7 @@ fury project add -n scala
 fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n example
-fury module add -n app -c scala/compiler -t application -M Print
+fury module add -n app -c scala/compiler -t app -M Print
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury env add -e TEST1='Test message'

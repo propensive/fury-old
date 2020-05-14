@@ -24,7 +24,7 @@ fury module add -n module-e -c scala/compiler
 mkdir src/module-e
 echo "object ModuleE{ val eVal = 'E' }" > src/module-e/ModuleE.scala 
 fury source add -s src/module-e
-fury module add -n app -c scala/compiler -t application -M Runner
+fury module add -n app -c scala/compiler -t app -M Runner
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury permission require -C java.io.FilePermission -T '.content' -A write

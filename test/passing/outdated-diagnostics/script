@@ -10,7 +10,7 @@ mkdir -p src/core
 fury source add -s src/core
 echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
 
-fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury dependency add -d core
 mkdir -p src/app
 fury source add -s src/app

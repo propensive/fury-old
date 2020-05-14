@@ -1,9 +1,9 @@
 fury layer init 
 fury project add -n scala
 fury project add -n hello-world
-fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury module add -n app -c scala/compiler -t app -M HelloWorld
 echo $?
-fury module add -n app -t application -M HelloWorld
+fury module add -n app -t app -M HelloWorld
 fury module update -m app -c scala/compiler
 echo $?
 fury project select -p scala

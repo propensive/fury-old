@@ -7,7 +7,7 @@ fury module add -n lib -c scala/compiler
 mkdir -p src/lib
 fury source add -s src/lib
 echo 'object Constants { val text = "Hello World\n" }' > src/lib/constants.scala
-fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury permission require -C java.io.FilePermission -T '.content' -A write
