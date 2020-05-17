@@ -56,7 +56,7 @@ object Kind {
 
   implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
 
-  def execute(kind: Kind): Boolean = kind match {
+  def needsExec(kind: Kind): Boolean = kind match {
     case App(_) | Bench(_) => true
     case _                 => false
   }

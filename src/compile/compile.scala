@@ -262,7 +262,7 @@ object Compilation {
 
       requiredTargets     =  targetIndex.unzip._2.toSet
       
-      requiredPermissions =  (if(Kind.execute(target.kind)) requiredTargets else requiredTargets -
+      requiredPermissions =  (if(Kind.needsExec(target.kind)) requiredTargets else requiredTargets -
                                  target).flatMap(_.permissions)
 
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
@@ -451,7 +451,7 @@ ${'|'} ${highlightedLine}
       val success = params.getStatus == StatusCode.OK
       broadcast(StopCompile(ref, success))
       Compilation.findBy(targetId).foreach { compilation =>
-        val signal = if(success && Kind.execute(compilation.targets(ref).kind)) StartRun(ref) else StopRun(ref)
+        val signal = if(success && Kind.needsExec(compilation.targets(ref).kind)) StartRun(ref) else StopRun(ref)
         broadcast(signal)
       }
   }
@@ -694,7 +694,7 @@ case class Compilation(target: Target,
 
       (result.get, conn.client)
     }.map {
-      case (compileResult, client) if compileResult.isSuccessful && Kind.execute(target.kind) =>
+      case (compileResult, client) if compileResult.isSuccessful && Kind.needsExec(target.kind) =>
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
         val exitCode = run(target, classDirectories, layout, globalPolicy, args, noSecurity)
@@ -735,7 +735,7 @@ case class Compilation(target: Target,
         multiplexer.close(target.ref)
         Future.successful(required)
       } else {
-        val noCompilation = target.sourcePaths.isEmpty && !Kind.execute(target.kind)
+        val noCompilation = target.sourcePaths.isEmpty && !Kind.needsExec(target.kind)
 
         if(noCompilation) {
           deepDependencies(target.id).foreach { targetId =>
