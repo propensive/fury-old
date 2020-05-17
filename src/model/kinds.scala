@@ -49,7 +49,7 @@ object Kind {
   implicit def msgShow: MsgShow[Kind] = {
     case Lib()            => msg"lib"
     case App(main)        => msg"app${':'}$main"
-    case Plugin(id, main) => msg"plugin${':'}$main"
+    case Plugin(id, main) => msg"plugin${':'}$main${':'}$id"
     case Compiler(spec)   => msg"compiler${':'}$spec"
     case Bench(main)      => msg"bench${':'}$main"
   }
