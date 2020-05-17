@@ -67,7 +67,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     
     _            <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project)))
                         else Success(())
-
+    _            <- layout.classesDir(TargetId(module.ref(project))).delete
     layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
     _            <- Layer.commit(layer, conf, layout)
     _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
