@@ -4,9 +4,6 @@ Set current module to compiler
 Set current project to hello-world
 Setting default compiler for project hello-world to scala3/compiler
 Set current module to app
-c748caf8326e954c0664b6b4b73af730d7a1a7dd0080003dccafea6d29aa30a2
-de4484d63d30da772489c853637fabeeba4ad3e9477ad0718bddf7919758482f
-be0a4c03621cfd7edcbe393b33181af624ed5fbc0392b4768da79fae078430d6
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections

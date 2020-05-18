@@ -8,9 +8,6 @@ fury project add -n hello-world
 fury module add -n app -c scala3/compiler -t application -M HelloWorld
 fury source add -s src
 mkdir -p src
-fury permission require -C java.lang.RuntimePermission -T accessClassInPackage.sun.misc
-fury permission require -C java.lang.RuntimePermission -T accessDeclaredMembers
-fury permission require -C java.lang.reflect.ReflectPermission -T suppressAccessChecks
 #fury build run --output quiet >> /dev/null
 fury build run --output linear
 echo $?
