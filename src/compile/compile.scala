@@ -602,7 +602,6 @@ case class Compilation(target: Target,
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       resources        <- aggregatedResources(ref)
       _                <- resources.traverse(_.copyTo(checkouts, layout, stagingDirectory))
-      
       _                <- Shell(layout.env).jar(path, if(fatJar) bins else Set.empty,
                               stagingDirectory.children.map(stagingDirectory / _).to[Set], manifest)
 
