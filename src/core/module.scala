@@ -54,8 +54,7 @@ case class Module(id: ModuleId,
   private def remoteBinaries: SortedSet[Binary] = if (kind == Benchmarks) binaries + Binary.Jmh else binaries
   private def localJars: SortedSet[JarResource] = jars.collect { case src: JarResource => src }
   def allBinaries: SortedSet[UniqueBinary] = {
-      implicit val binOrd: Ordering[UniqueBinary] = (a,b) => (a.id.key) compareTo (b.id.key)
-      localJars ++ remoteBinaries
+     TreeSet.empty[UniqueBinary](Ordering[BinaryId].on(_.id)) ++ remoteBinaries ++ localJars
   }
   def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
