@@ -12,14 +12,14 @@ Opening a BSP server connection
 BSP server is listening for incoming connections
 Saving JAR file out/cache-test-my-module.jar using UTF-8
 Wrote 5 JAR files (total 19.0 MiB) to out
-META-INF/MANIFEST.MF
 libA/LibA$.class
 libA/LibA.class
 LibB$.class
 LibB.class
+META-INF/MANIFEST.MF
 Saving JAR file out/cache-test-my-module.jar using UTF-8
 Wrote 5 JAR files (total 19.0 MiB) to out
-META-INF/MANIFEST.MF
 libA/LibA$.class
 libA/LibA.class
+META-INF/MANIFEST.MF
 0
