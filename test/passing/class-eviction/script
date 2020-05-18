@@ -14,11 +14,9 @@ echo 'package libA; object LibA { val aVal = "A" }' > src/libA/liba.scala
 mkdir libB
 fury source add -s libB
 echo 'object LibB { val bVal = "B" }' >> libB/libb.scala
-fury build run -F -f out --output quiet | awk '{print $1}'
-jar -tf out/cache-test-my-module.jar | grep LibA
-jar -tf out/cache-test-my-module.jar | grep LibB
+fury build run -f out --output quiet
+jar -tf out/cache-test-my-module.jar
 fury source remove -s libB
-fury build run -F -f out --output quiet | awk '{print $1}'
-jar -tf out/cache-test-my-module.jar | grep LibA
-jar -tf out/cache-test-my-module.jar | grep LibB
+fury build run -f out --output quiet
+jar -tf out/cache-test-my-module.jar
 echo $?
