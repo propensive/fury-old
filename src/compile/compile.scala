@@ -599,10 +599,10 @@ case class Compilation(target: Target,
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       enc               = System.getProperty("file.encoding")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       resources        <- aggregatedResources(ref)
       _                <- resources.traverse(_.copyTo(checkouts, layout, stagingDirectory))
-      
       _                <- Shell(layout.env).jar(path, if(fatJar) bins else Set.empty,
                               stagingDirectory.children.map(stagingDirectory / _).to[Set], manifest)
 
@@ -611,7 +611,7 @@ case class Compilation(target: Target,
       _                 = if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
                           else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
                               ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
-
+      _                <- stagingDirectory.delete
     } yield ()
   }
 

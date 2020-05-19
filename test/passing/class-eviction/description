@@ -1,0 +1,1 @@
+Old class files should be evicted when sources are removed, so that they are not included in classpath during jar creation
