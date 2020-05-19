@@ -29,13 +29,16 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
   
   private def parseKind(kindName: Kind.Id,
                         main: Option[ClassRef],
+                        repl: Option[ClassRef],
                         spec: Option[BloopSpec],
                         plugin: Option[PluginId])
                        : Try[Kind] = kindName match {
     case Lib      => Success(Lib())
     case App      => main.map(App(_)).ascribe(MissingParam(MainArg))
     case Bench    => main.map(Bench(_)).ascribe(MissingParam(MainArg))
-    case Compiler => spec.map(Compiler(_)).ascribe(MissingParam(SpecArg))
+
+    case Compiler => spec.map(Compiler(_, repl.getOrElse(ClassRef("scala.tools.nsc.MainGenericRunner"))))
+                         .ascribe(MissingParam(SpecArg))
 
     case Plugin   => for(m <- main.ascribe(MissingParam(MainArg)); p <- plugin.ascribe(MissingParam(PluginArg)))
                      yield Plugin(p, m)
@@ -53,7 +56,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
   private def hintKindParams(cli: Cli, kindName: Option[Kind.Id]) = kindName.map {
     case Lib      => ~cli
     case App      => cli.hint(MainArg)
-    case Compiler => cli.hint(SpecArg)
+    case Compiler => cli.hint(SpecArg).flatMap(_.hint(ReplArg))
     case Bench    => cli.hint(MainArg)
     case Plugin   => cli.hint(MainArg).flatMap(_.hint(PluginArg))
   }.getOrElse(~cli)
@@ -112,7 +115,10 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(HiddenArg, List("on", "off"))
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     call        <- cli.call()
-    kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(MainArg), cli.peek(SpecArg), cli.peek(PluginArg))
+
+    kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(ReplArg), cli.peek(MainArg), cli.peek(SpecArg),
+                       cli.peek(PluginArg))
+    
     project     <- optProject.asTry
     moduleArg   <- call(ModuleNameArg)
     moduleId    <- project.modules.unique(moduleArg)
@@ -187,8 +193,12 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                        module.kind.as[App].map(_.main)).orElse(module.kind.as[Bench].map(_.main))
 
     specArg     <- ~cli.peek(SpecArg).orElse(module.kind.as[Compiler].map(_.spec))
+    replArg     <- ~cli.peek(ReplArg).orElse(module.kind.as[Compiler].map(_.repl))
     pluginArg   <- ~cli.peek(PluginArg).orElse(module.kind.as[Plugin].map(_.id))
-    kind        <- kindName.to[List].traverse(parseKind(_, mainArg, specArg, pluginArg)).map(_.headOption)
+    
+    kind        <- kindName.to[List].traverse(parseKind(_, mainArg, replArg, specArg, pluginArg)).map(
+                       _.headOption)
+
     compiler    <- compilerId.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
     hidden      <- ~call(HiddenArg).toOption
     newId       <- ~call(ModuleNameArg).toOption

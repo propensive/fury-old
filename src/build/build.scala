@@ -413,14 +413,15 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                           msg"with an incomplete classpath")
                       Success(())
                     } else result
+    compilerMod  <- compilation.universe.getMod(module.compiler)
+    repl         <- ~compilerMod.kind.as[Compiler].get.repl
     classpath    <- ~compilation.classpath(module.ref(project), layout)
     bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
   } yield {
     val cp = classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
     cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
-        str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true """+
-        str"""scala.tools.nsc.MainGenericRunner""")
+        str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
   }
 
   def classpath: Try[ExitStatus] = for {
