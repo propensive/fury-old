@@ -18,7 +18,7 @@ package fury.core
 
 import java.io.ByteArrayInputStream
 
-import fury.strings._, fury.io._, fury.model._
+import fury.text._, fury.io._, fury.model._
 
 import guillotine._, environments.enclosing
 import kaleidoscope._

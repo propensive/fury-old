@@ -14,7 +14,7 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
 import fury.model._
 import probably._
@@ -22,9 +22,9 @@ import probably._
 import scala.language.implicitConversions
 import scala.util.{Success, Try}
 
-object ImportPathTests extends TestApp {
+object ImportPathTests extends Suite() {
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
     val root = ImportPath("/")
     val here = ImportPath(".")
     val parent = ImportPath("..")

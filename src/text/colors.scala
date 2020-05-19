@@ -14,7 +14,7 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.strings
+package fury.text
 
 case class AnsiCode(private val code: String) {
   def apply(): String             = if(code == "") "" else s"\u001b[$code"

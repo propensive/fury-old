@@ -23,7 +23,7 @@ import java.nio.file.StandardCopyOption._
 import java.util.stream.Collectors
 import java.util.zip.{ZipEntry, ZipFile, ZipOutputStream}
 
-import fury.strings._
+import fury.text._
 import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
 
 import scala.util.Try

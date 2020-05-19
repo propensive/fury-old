@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.io._, fury.model._
+import fury.text._, fury.io._, fury.model._
 
 import exoskeleton._
 import guillotine._

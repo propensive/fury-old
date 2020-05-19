@@ -16,7 +16,7 @@
 */
 package fury.ogdl
 
-import fury.strings._
+import fury.text._
 
 import magnolia._
 

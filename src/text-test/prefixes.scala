@@ -14,9 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import fury.strings._
+import fury.text._
 
 import probably._
 
@@ -26,13 +26,13 @@ import java.util.Random
 
 import scala.language.implicitConversions
 
-object StringsTests extends TestApp {
+object StringsTests extends Suite() {
 
   val distinctFirstCharacters = Set("abc", "def", "ghi", "jkl")
   val duplicateFirstCharacter = distinctFirstCharacters + "afz"
   val randomDoubles = new Random(0).doubles.iterator.asScala.map(_.toString).take(1000000).to[Set]
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
     test("distinct trigraphs need just a single character") {
       Compare.uniquePrefixLength(distinctFirstCharacters)
     }.assert(_ == 1)

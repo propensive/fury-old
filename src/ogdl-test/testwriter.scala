@@ -14,7 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.ogdl
+package fury.test
+
+import fury.ogdl._
 
 import probably._
 
@@ -22,7 +24,7 @@ import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.language.implicitConversions
 import scala.util.{Try, Success}
 
-object OgdlWriterTest extends TestApp {
+object OgdlWriterTest extends Suite() {
   private[this] val empty = Ogdl(Vector())
 
   private[this] case class Foo(bar: String, baz: Int)
@@ -33,7 +35,7 @@ object OgdlWriterTest extends TestApp {
 
   private[this] case class Quux(handle: String, data: SortedSet[String])
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
     test("select dynamic") {
       val input = Ogdl(Vector(
         ("scope",Ogdl(Vector(("DirectoryScope",Ogdl(Vector(("xxx",empty))))))),

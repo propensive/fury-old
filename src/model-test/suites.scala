@@ -14,15 +14,18 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import probably.TestApp
+import fury.model._, fury.text._
+import probably._
 
-object Tests {
-  private val testSuites = List[TestApp](
-    ImportPathTests,
-    IdTests
-  )
+import scala.language.implicitConversions
+import scala.util.{Success, Try}
 
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+object ModelTests extends Suite() {
+
+  def run(test: Runner): Unit = {
+    test.suite("Import path tests")(ImportPathTests.run)
+    test.suite("ID tests")(IdTests.run)
+  }
 }

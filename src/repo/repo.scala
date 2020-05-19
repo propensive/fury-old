@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.io._, fury.core._, fury.model._
+import fury.text._, fury.io._, fury.core._, fury.model._
 
 import Args._
 

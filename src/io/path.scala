@@ -16,7 +16,7 @@
 */
 package fury.io
 
-import fury.strings._
+import fury.text._
 import kaleidoscope._
 import mercator._
 

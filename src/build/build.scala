@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.core._, fury.model._, fury.io._, fury.utils._
+import fury.text._, fury.core._, fury.model._, fury.io._, fury.utils._
 
 import exoskeleton._
 import euphemism._

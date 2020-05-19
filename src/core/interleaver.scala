@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._
+import fury.text._, fury.model._
 
 object Interleaver {
   case class MessageBuffer(first: Long, last: Long, messages: Vector[(Long, UserMsg)], terminated: Boolean) {

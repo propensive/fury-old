@@ -14,16 +14,16 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
 import fury.io._
 import probably._
 
 import scala.language.implicitConversions
 
-object PathTests extends TestApp {
+object PathTests extends Suite() {
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
 
     test("fail when trying to write to a directory") {
       tmpDir{ dir =>

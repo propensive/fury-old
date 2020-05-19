@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.strings._, fury.io._
+import fury.text._, fury.io._
 
 import scala.util._
 

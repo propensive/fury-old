@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.io.Path, fury.model._, fury.ogdl._, fury.utils._
+import fury.text._, fury.io.Path, fury.model._, fury.ogdl._, fury.utils._
 
 import euphemism._
 

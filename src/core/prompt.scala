@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._
+import fury.text._
 
 object Prompt {
   def rewrite(string: String): String = string.replaceAll("\u001b\\[[0-9;]*[a-z]", "%{$0%}")

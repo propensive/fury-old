@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, fury.strings._, fury.io._, fury.ogdl._
+import fury.model._, fury.text._, fury.io._, fury.ogdl._
 
 import exoskeleton._
 import kaleidoscope._

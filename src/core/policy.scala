@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.ogdl._, fury.io._, fury.strings._, fury.model._
+import fury.ogdl._, fury.io._, fury.text._, fury.model._
 
 import scala.collection.immutable._
 import scala.util._

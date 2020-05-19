@@ -14,14 +14,16 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import probably.TestApp
+import probably._
 
-object Tests {
-  private val testSuites = List[TestApp](
-      DirectedGraphTest,
-  )
-
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+object AllTests extends Suite() {
+  def run(test: Runner): Unit = {
+    test.suite(ModelTests.run)
+    test.suite(IoTests.run)
+    test.suite(CoreTests.run)
+    test.suite(OgdlTests.run)
+    test.suite(TextTests.run)
+  }
 }

@@ -14,7 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.ogdl
+package fury.test
+
+import fury.ogdl._
 
 import java.nio.ByteBuffer
 import java.nio.ByteBuffer.wrap
@@ -23,10 +25,10 @@ import probably._
 
 import scala.language.implicitConversions
 
-object OgdlSerializerTest extends TestApp {
+object OgdlSerializerTest extends Suite() {
   private[this] val empty = Ogdl(Vector())
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
     test("Empty graph is a newline") {
       write(empty)
     }.assert(_ == "\n")

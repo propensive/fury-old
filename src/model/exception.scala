@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.strings._, fury.io._
+import fury.text._, fury.io._
 
 
 case class AlreadyInitialized() extends FuryException

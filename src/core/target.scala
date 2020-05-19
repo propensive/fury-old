@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, fury.io._, fury.strings._
+import fury.model._, fury.io._, fury.text._
 
 object Target {
   case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
