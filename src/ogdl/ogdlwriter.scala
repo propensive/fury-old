@@ -18,7 +18,7 @@ package fury.ogdl
 
 import fury.strings._
 
-import magnolia.{CaseClass, Magnolia, SealedTrait}
+import magnolia._
 
 import scala.collection.immutable.SortedSet
 import scala.language.experimental.macros
