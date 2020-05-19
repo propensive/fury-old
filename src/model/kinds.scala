@@ -33,11 +33,11 @@ object Kind {
   implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
 
   implicit def msgShow: MsgShow[Kind] = {
-    case Lib()            => msg"lib"
-    case App(main)        => msg"app${':'}$main"
-    case Plugin(id, main) => msg"plugin${':'}$main${':'}$id"
-    case Compiler(spec)   => msg"compiler${':'}$spec"
-    case Bench(main)      => msg"bench${':'}$main"
+    case Lib()                => msg"lib"
+    case App(main)            => msg"app${':'}$main"
+    case Plugin(id, main)     => msg"plugin${':'}$main${':'}$id"
+    case Compiler(spec, repl) => msg"compiler${':'}$spec"
+    case Bench(main)          => msg"bench${':'}$main"
   }
 }
 
@@ -46,11 +46,11 @@ sealed abstract class Kind(val needsExec: Boolean = false) {
   def is[T: ClassTag]: Boolean = this match { case t: T => true case _ => false }
   
   def name: Kind.Id = this match {
-    case Lib()        => Lib
-    case App(_)       => App
-    case Plugin(_, _) => Plugin
-    case Compiler(_)  => Compiler
-    case Bench(_)     => Bench
+    case Lib()          => Lib
+    case App(_)         => App
+    case Plugin(_, _)   => Plugin
+    case Compiler(_, _) => Compiler
+    case Bench(_)       => Bench
   }
 }
 
@@ -64,7 +64,8 @@ object Plugin extends Kind.Id("plugin")
 case class Plugin(id: PluginId, main: ClassRef) extends Kind()
 
 object Compiler extends Kind.Id("compiler")
-case class Compiler(spec: BloopSpec) extends Kind()
+case class Compiler(spec: BloopSpec, repl: ClassRef = ClassRef("scala.tools.nsc.MainGenericRunner")) extends
+    Kind()
 
 object Bench extends Kind.Id("bench")
 case class Bench(main: ClassRef) extends Kind(needsExec = true)
