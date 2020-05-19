@@ -179,13 +179,16 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(ModuleNameArg, optModuleId.to[List])
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     call        <- cli.call()
-    
-    kind        <- kindName.to[List].traverse(parseKind(_, cli.peek(MainArg), cli.peek(SpecArg),
-                       cli.peek(PluginArg))).map(_.headOption)
-
     compilerId  <- ~call(CompilerArg).toOption
     project     <- optProject.asTry
     module      <- optModule.asTry
+    
+    mainArg     <- ~cli.peek(MainArg).orElse(module.kind.as[Plugin].map(_.main)).orElse(
+                       module.kind.as[App].map(_.main)).orElse(module.kind.as[Bench].map(_.main))
+
+    specArg     <- ~cli.peek(SpecArg).orElse(module.kind.as[Compiler].map(_.spec))
+    pluginArg   <- ~cli.peek(PluginArg).orElse(module.kind.as[Plugin].map(_.id))
+    kind        <- kindName.to[List].traverse(parseKind(_, mainArg, specArg, pluginArg)).map(_.headOption)
     compiler    <- compilerId.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
     hidden      <- ~call(HiddenArg).toOption
     newId       <- ~call(ModuleNameArg).toOption
