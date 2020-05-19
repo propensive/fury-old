@@ -56,5 +56,5 @@ case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: Str
   val spec = str"$group:$artifact:$version"
   def paths(implicit log: Log): Try[List[Path]] = Coursier.fetch(this).recover {
     case OfflineException() => List[Path]()
-  }
+  }.orElse(Failure(DownloadFailure(spec)))
 }
