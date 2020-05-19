@@ -67,7 +67,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     
     _            <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project)))
                         else Success(())
-
+    _            <- layout.classesDir(TargetId(module.ref(project))).delete
     layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
     _            <- Layer.commit(layer, conf, layout)
     _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
@@ -78,12 +78,9 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
     (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-
     extSrcs      = layer.repos.map(possibleSourceDirectories(_, layout)).flatten
     localSrcs    = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, Glob.All))
-    sharedSrcs   = layout.sharedDir.relativeSubdirsContaining(isSourceFileName).map(SharedSource(_, Glob.All))
-
-    cli          <- cli.hint(SourceArg, (extSrcs ++ localSrcs ++ sharedSrcs).map(_.completion))
+    cli          <- cli.hint(SourceArg, (extSrcs ++ localSrcs).map(_.completion))
     call         <- cli.call()
     project      <- tryProject
     module       <- tryModule

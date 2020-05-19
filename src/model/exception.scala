@@ -37,8 +37,6 @@ case class EnvPathNotSet() extends FuryException
 case class EnvHomeNotSet() extends FuryException
 case class ExecutionFailure(exitCode: Int) extends FuryException
 case class GraalVMError(message: String) extends FuryException
-case class HistoryMissing() extends FuryException
-case class HistoryCorrupt() extends FuryException
 case class HttpBadGateway(uri: Uri) extends FuryException
 case class HttpBadRequest(uri: Uri) extends FuryException
 case class HttpError(code: Int, uri: Uri) extends FuryException
@@ -53,7 +51,7 @@ case class HttpUnauthorized(uri: Uri) extends FuryException
 case class ImportHasNoRemote() extends FuryException
 case class ImportOnlyFileOrRef() extends FuryException
 case class InitFailure() extends FuryException
-case class InvalidKind(expected: Kind) extends FuryException
+case class InvalidKind(expected: Kind.Id) extends FuryException
 case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class InvalidVersion() extends FuryException

@@ -1,7 +1,7 @@
 fury layer init
 fury layer import -i fury://furore.dev/propensive/scala
 fury project add -n hello-world
-fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury module add -n app -c scala/compiler -t app -M HelloWorld
 echo $?
 fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1

@@ -39,7 +39,7 @@ object Repo {
     dest   <- Try((Xdg.runtimeDir / str"${repoId.key}.bak").uniquify())
     files  <- gitDir.trackedFiles
     _      <- ~log.info(msg"Moving working directory contents to $dest")
-    _      <- files.traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
+    _      <- files.filter(_ != Path(".fury")).traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
     _      <- (layout.baseDir / ".git").moveTo(dest / ".git")
     _      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield Repo(repoId, remote, branch, commit, None)

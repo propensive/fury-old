@@ -166,7 +166,7 @@ object Layer extends Lens.Partial[Layer] {
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
   implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
 
-  val CurrentVersion: Int = 8
+  val CurrentVersion: Int = 9
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
@@ -349,6 +349,24 @@ object Layer extends Lens.Partial[Layer] {
     if(version < CurrentVersion) {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
+        case 8 =>
+          Try(ogdl.set(projects = ogdl.projects.map { project =>
+            project.set(modules = project.modules.map { module =>
+              lazy val main = Try(ClassRef(module.main.Some()))
+              lazy val plugin = Try(PluginId(module.plugin.Some()))
+              
+              lazy val spec = Try(BloopSpec(module.bloopSpec.Some.org(), module.bloopSpec.Some.name(),
+                  module.bloopSpec.Some.version()))
+              
+              module.set(kind = (module.kind() match {
+                case "Application" => Ogdl[Kind](App(main.get))
+                case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
+                case "Benchmarks"  => Ogdl[Kind](Bench(main.get))
+                case "Compiler"    => Ogdl[Kind](Compiler(spec.get))
+                case _             => Ogdl[Kind](Lib())
+              }))
+            })
+          })).getOrElse(ogdl)
         case 7 =>
           Try(ogdl.set(repos = ogdl.repos.map { repo =>
             repo.set(remote = repo.repo)

@@ -109,12 +109,7 @@ case class Tables() {
       Heading("Binaries", m => m.allBinaries.size),
       Heading("Compiler", _.compiler),
       Heading("Options", m => m.opts.size),
-      Heading("Type", _.kind),
-      Heading("Details", m => m.kind match {
-        case Compiler => m.bloopSpec.fold(msg"${'-'}") { c => msg"$c" }
-        case Application => m.main.fold(msg"${'-'}") { a => msg"$a" }
-        case _ => msg"${'-'}"
-      })
+      Heading("Type", _.kind)
     )
 
   val aliases: Tabulation[Alias] = Tabulation(

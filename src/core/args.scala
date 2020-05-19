@@ -93,7 +93,7 @@ object Args {
   val LayerVersionArg = CliParam[LayerVersion]('V', 'version, "a specific version of the layer")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
 
-  val BloopSpecArg = CliParam[String]('C', Symbol("compiler-spec"),
+  val SpecArg = CliParam[BloopSpec]('C', Symbol("compiler-spec"),
       "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
@@ -121,10 +121,7 @@ object Args {
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
   val RepoUrlArg = CliParam[Remote]('u', 'url, "specify a URL")
   val RepoUrlStringArg = CliParam[String]('u', 'url, "specify a URL")
-
-  val KindArg = CliParam[Kind]('t', 'type,
-      "Type of module (library, application, plugin, compiler, benchmarks)")
-
+  val KindArg = CliParam[Kind.Id]('t', 'type, "Type of module (lib, app, plugin, compiler, bench)")
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
   val VersionArg = CliParam[Version]('v', 'version, "The published version of the binary")
   val WaitArg = CliParam[Unit]('W', 'wait, "Wait for the first successful compilation")

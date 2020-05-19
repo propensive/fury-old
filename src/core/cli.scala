@@ -223,9 +223,7 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def preview(param: CliParam)(default: Option[param.Type] = None): Try[param.Type] = {
     val result = args.get(param.param)
-    if(default.isDefined) result.recover {
-      case _: exoskeleton.MissingArg => default.get
-    } else result
+    if(default.isDefined) result.recover { case _: exoskeleton.MissingArg => default.get } else result
   }
 
   def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
@@ -284,7 +282,7 @@ class Cli(val stdout: java.io.PrintWriter,
     Cli(stdout, args, command, newHints :: optCompletions, env, pid)
   }
 
-  def hint(arg: CliParam) =
+  def hint(arg: CliParam): Success[Cli { type Hinted <: cli.Hinted with arg.type }] =
     Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
 
   private[this] def write(msg: UserMsg): Unit = {

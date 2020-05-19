@@ -382,7 +382,7 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.kind, target.main, target.plugin, target.checkouts, target.binaries, target.dependencies,
+        ref, (target.kind, target.checkouts, target.binaries, target.dependencies,
             target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
             graph(ref).map(hash)).digest[Md5]
       )
@@ -418,11 +418,14 @@ object FuryBuildServer {
 
     for {
       compiler <- target.compiler
-      bs       <- compiler.bloopSpec
+      compDef  <- compiler.kind.as[Compiler]
                if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
-      val scalaBuildTarget = new ScalaBuildTarget(bs.org, bs.version, bs.version, ScalaPlatform.JVM, libs)
+      
+      val scalaBuildTarget = new ScalaBuildTarget(compDef.spec.org, compDef.spec.version, compDef.spec.version,
+          ScalaPlatform.JVM, libs)
+
       buildTarget.setDataKind(BuildTargetDataKind.SCALA)
 
       buildTarget.setData(scalaBuildTarget)
@@ -435,12 +438,9 @@ object FuryBuildServer {
     s"${moduleRef.projectId.key}/${moduleRef.moduleId.key}"
 
   private def moduleKindToBuildTargetTag(kind: Kind): String =
-    kind match {
-      case Library           => BuildTargetTag.LIBRARY
-      case Application       => BuildTargetTag.APPLICATION
-      case Benchmarks        => BuildTargetTag.BENCHMARK
-      case Compiler | Plugin => BuildTargetTag.LIBRARY // mark these NO_IDE?
-    }
+    if(kind.is[App]) BuildTargetTag.APPLICATION
+    else if(kind.is[Bench]) BuildTargetTag.BENCHMARK
+    else BuildTargetTag.LIBRARY
 
   private def toCompletableFuture[T](f: Future[T])(implicit ec: ExecutionContext): CompletableFuture[T] = {
     val result = new CompletableFuture[T]()

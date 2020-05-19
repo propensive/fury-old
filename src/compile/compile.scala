@@ -251,8 +251,7 @@ object Compilation {
       Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
     }
 
-    def canAffectBuild(target: Target): Boolean =
-      Set[Kind](Compiler, Application, Plugin, Benchmarks).contains(target.kind)
+    def canAffectBuild(target: Target): Boolean = !target.kind.is[Lib]
 
     for {
       target              <- makeTarget(ref, layout)
@@ -263,7 +262,7 @@ object Compilation {
 
       requiredTargets     =  targetIndex.unzip._2.toSet
       
-      requiredPermissions =  (if(target.kind.needsExecution) requiredTargets else requiredTargets -
+      requiredPermissions =  (if(target.kind.needsExec) requiredTargets else requiredTargets -
                                  target).flatMap(_.permissions)
 
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
@@ -452,7 +451,7 @@ ${'|'} ${highlightedLine}
       val success = params.getStatus == StatusCode.OK
       broadcast(StopCompile(ref, success))
       Compilation.findBy(targetId).foreach { compilation =>
-        val signal = if(success && compilation.targets(ref).kind.needsExecution) StartRun(ref) else StopRun(ref)
+        val signal = if(success && compilation.targets(ref).kind.needsExec) StartRun(ref) else StopRun(ref)
         broadcast(signal)
       }
   }
@@ -511,7 +510,7 @@ case class Compilation(target: Target,
 
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
-    pOpts       <- ~(if(target.kind == Plugin) Set(
+    pOpts       <- ~(if(target.kind.is[Plugin]) Set(
                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
                    ) else Set())
@@ -536,12 +535,12 @@ case class Compilation(target: Target,
       Origin.Module(target.ref))) ++ target.compiler.to[Set].flatMap { c => c.optDefs.map(Provenance(_, c.ref,
       Origin.Compiler)) }
 
-  def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[Plugin]]] = for {
+  def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] = for {
     target           <- apply(ref)
     inheritedPlugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
-  } yield inheritedPlugins.flatten.to[Set] ++ target.plugin.map { m =>
-      Provenance(Plugin(m, target.ref, target.main.get), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
-      Origin.Plugin) }
+  } yield inheritedPlugins.flatten.to[Set] ++ target.kind.as[Plugin].map { plugin =>
+      Provenance(PluginDef(plugin.id, ref, plugin.main), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
+          Origin.Plugin) }
   
   def aggregatedResources(ref: ModuleRef): Try[Set[Source]] = for {
     target    <- apply(ref)
@@ -549,7 +548,7 @@ case class Compilation(target: Target,
   } yield inherited.flatten.to[Set] ++ target.resources
   
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
-    val requiredPlugins = requiredTargets(ref).filter(_.kind == Plugin).flatMap { target =>
+    val requiredPlugins = requiredTargets(ref).filter(_.kind.is[Plugin]).flatMap { target =>
       Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
     }
     val compilerClasspath = targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
@@ -565,13 +564,13 @@ case class Compilation(target: Target,
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
-    if(target.kind == Plugin) {
+    if(target.kind.is[Plugin]) {
       val file = layout.classesDir(target.id) / "scalac-plugin.xml"
 
-      target.main.foreach { main =>
+      target.kind.as[Plugin].foreach { plugin =>
         file.writeSync(str"""|<plugin>
-                             | <name>${target.plugin.fold("plugin")(_.key)}</name>
-                             | <classname>${main}</classname>
+                             | <name>${plugin.id}</name>
+                             | <classname>${plugin.main}</classname>
                              |</plugin>""".stripMargin)
       }
     }
@@ -594,15 +593,15 @@ case class Compilation(target: Target,
     for {
       entity           <- universe.entity(ref.projectId)
       module           <- entity.project(ref.moduleId)
-      manifest          = JarManifest(bins.map(_.name), module.main.map(_.key))
+      manifest          = JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
       dest              = destination.extant()
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       enc               = System.getProperty("file.encoding")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       resources        <- aggregatedResources(ref)
       _                <- resources.traverse(_.copyTo(checkouts, layout, stagingDirectory))
-      
       _                <- Shell(layout.env).jar(path, if(fatJar) bins else Set.empty,
                               stagingDirectory.children.map(stagingDirectory / _).to[Set], manifest)
 
@@ -611,7 +610,7 @@ case class Compilation(target: Target,
       _                 = if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
                           else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
                               ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
-
+      _                <- stagingDirectory.delete
     } yield ()
   }
 
@@ -695,7 +694,7 @@ case class Compilation(target: Target,
 
       (result.get, conn.client)
     }.map {
-      case (compileResult, client) if compileResult.isSuccessful && target.kind.needsExecution =>
+      case (compileResult, client) if compileResult.isSuccessful && target.kind.needsExec =>
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
         val exitCode = run(target, classDirectories, layout, globalPolicy, args, noSecurity)
@@ -736,7 +735,7 @@ case class Compilation(target: Target,
         multiplexer.close(target.ref)
         Future.successful(required)
       } else {
-        val noCompilation = target.sourcePaths.isEmpty && !target.kind.needsExecution
+        val noCompilation = target.sourcePaths.isEmpty && !target.kind.needsExec
 
         if(noCompilation) {
           deepDependencies(target.id).foreach { targetId =>
@@ -754,7 +753,7 @@ case class Compilation(target: Target,
                   args: List[String], noSecurity: Boolean)
                  (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
-    if (target.kind == Benchmarks) {
+    if (target.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
         val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
@@ -767,8 +766,8 @@ case class Compilation(target: Target,
     }
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
-      if (target.kind == Benchmarks) "org.openjdk.jmh.Main" else target.main.fold("")(_.key),
-      securePolicy = target.kind == Application,
+      if (target.kind.is[Bench]) "org.openjdk.jmh.Main" else target.kind.as[App].fold("")(_.main.key),
+      securePolicy = target.kind.is[App],
       env = target.environment,
       properties = target.properties,
       policy = globalPolicy.forContext(layout, target.ref.projectId),
