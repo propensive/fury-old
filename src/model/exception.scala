@@ -37,8 +37,6 @@ case class EnvPathNotSet() extends FuryException
 case class EnvHomeNotSet() extends FuryException
 case class ExecutionFailure(exitCode: Int) extends FuryException
 case class GraalVMError(message: String) extends FuryException
-case class HistoryMissing() extends FuryException
-case class HistoryCorrupt() extends FuryException
 case class HttpBadGateway(uri: Uri) extends FuryException
 case class HttpBadRequest(uri: Uri) extends FuryException
 case class HttpError(code: Int, uri: Uri) extends FuryException

@@ -32,20 +32,6 @@ sealed abstract class KindName(val name: String)
 
 object Kind {
 
-  def parse(kindName: KindName,
-            main: Option[ClassRef] = None,
-            spec: Option[BloopSpec] = None,
-            plugin: Option[PluginId] = None)
-           : Option[Kind] =
-    kindName match {
-      case Lib      => Some(Lib())
-      case App      => main.map(App(_))
-      case Bench    => main.map(Bench(_))
-      case Compiler => spec.map(Compiler(_))
-      case Plugin   => for(m <- main; p <- plugin) yield Plugin(p, m)
-      case _ => None
-    }
-
   implicit def msgShow: MsgShow[Kind] = {
     case Lib()            => msg"lib"
     case App(main)        => msg"app${':'}$main"
