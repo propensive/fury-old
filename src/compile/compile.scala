@@ -20,7 +20,7 @@ import java.io._
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.channels._
-import java.util.concurrent.{CompletableFuture, ExecutionException}
+import java.util.concurrent.{CompletableFuture, ExecutionException, TimeoutException}
 
 import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
@@ -42,8 +42,8 @@ import scala.collection.JavaConverters._
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.HashMap
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future, Promise}
-import scala.concurrent.duration.Duration
+import scala.concurrent._
+import scala.concurrent.duration._
 import scala.language.higherKinds
 import scala.reflect.{ClassTag, classTag}
 import scala.util._
@@ -669,12 +669,10 @@ case class Compilation(target: Target,
 
     BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
 
-      val result: Try[CompileResult] = {
-        for {
-          res <- wrapServerErrors(conn.server.buildTargetCompile(params))
-          opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
-        } yield CompileResult(res, opts)
-      }
+      val result: Try[CompileResult] = for {
+        res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
+        opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
+      } yield CompileResult(res, opts)
 
       val responseOriginId = result.get.bspCompileResult.getOriginId
       if(responseOriginId != originId.key){
@@ -695,9 +693,12 @@ case class Compilation(target: Target,
       (result.get, conn.client)
     }.map {
       case (compileResult, client) if compileResult.isSuccessful && target.kind.needsExec =>
+        val timeout = target.kind.as[App].fold(0)(_.timeout)
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
-        val exitCode = run(target, classDirectories, layout, globalPolicy, args, noSecurity)
+        val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity)))
+        val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
+        val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
         client.broadcast(StopRun(target.ref))
         compileResult.copy(exitCode = Some(exitCode))
       case (otherResult, _) =>

@@ -106,6 +106,9 @@ object Args {
   val RetryArg = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
   val ReplArg = CliParam[ClassRef]('R', 'repl, "REPL class to use for console")
   
+  val TimeoutArg = CliParam[Int]('T', 'timeout,
+      "stop application if it is still running after this time (seconds)")
+  
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")

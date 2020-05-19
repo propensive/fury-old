@@ -356,7 +356,9 @@ object Layer extends Lens.Partial[Layer] {
                 case "Compiler" =>
                   val c = module.kind.Compiler
                   module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.org(), c.name(), c.version()))))
-                case other      => module
+                case "App" =>
+                  module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0)))
+                case other => module
               } 
             })
           })).getOrElse(ogdl)
@@ -371,7 +373,7 @@ object Layer extends Lens.Partial[Layer] {
                   module.bloopSpec.Some.version()))
               
               module.set(kind = (module.kind() match {
-                case "Application" => Ogdl[Kind](App(main.get))
+                case "Application" => Ogdl[Kind](App(main.get, 0))
                 case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
                 case "Benchmarks"  => Ogdl[Kind](Bench(main.get))
                 case "Compiler"    => Ogdl[Kind](Compiler(spec.get))
