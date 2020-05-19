@@ -83,8 +83,9 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
                   _      <- gitDir.clone(repo.remote, branch = repo.branch, commit = repo.commit)
 
                   _      <- (gitDir.dir.childPaths.flatMap { f =>
+                              log.info(f.toString)
                               if((f.parent.parent / f.name).exists()) List(Path(f.name)) else Nil
-                            }) match {
+                            }).filterNot(_ == Path(".fury")) match {
                               case Nil => Success(())
                               case fs  => Failure(WorkingDirectoryConflict(fs))
                             }
