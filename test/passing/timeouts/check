@@ -1,0 +1,8 @@
+Successfully compiled hello-world/app
+Waiting five seconds...
+Timeout was not applied.
+0
+Successfully compiled hello-world/app2
+Waiting five seconds...
+One of the run tasks failed (exit code 124). Check the logs for details.
+1
