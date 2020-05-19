@@ -168,7 +168,7 @@ You can grant these permissions with,
         case BuildServerError(cause: Throwable) =>
           val stack = rootCause(cause).getStackTrace.mkString("\n  at ")
           cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}$stack")
-        case InvalidKind(expected: KindName) =>
+        case InvalidKind(expected: Kind.Id) =>
           cli.abort(msg"The module must be of type ${expected}.")
         case e: UnknownCompiler =>
           cli.abort(msg"This compiler is not known.")
@@ -194,10 +194,6 @@ You can grant these permissions with,
           cli.abort(msg"Binary not found.")
         case UnspecifiedBinary(possibleBinaries) =>
           cli.abort(msg"Unable to identify target binary: ${"\n\t"}${possibleBinaries.mkString("\n\t")}")
-        case HistoryMissing() =>
-          cli.abort(msg"The history of changes is missing.")
-        case HistoryCorrupt() =>
-          cli.abort(msg"The history of changes is corrupt.")
         case HttpBadRequest(url) =>
           cli.abort(msg"HTTP error 401 (Bad Request) when attempting to access $url.")
         case HttpUnauthorized(url) => 

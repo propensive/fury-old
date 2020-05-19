@@ -20,17 +20,18 @@ package fury.model
 import fury.strings._
 import scala.reflect.ClassTag
 
-object KindName {
-  val all: List[KindName] = List(Lib, App, Plugin, Compiler, Bench)
-  def unapply(string: String): Option[KindName] = all.find(_.name == string)
-  implicit val parser: Parser[KindName] = unapply(_)
-  implicit val stringShow: StringShow[KindName] = _.name
-  implicit val msgShow: MsgShow[KindName] = v => UserMsg(_.param(stringShow.show(v)))
-}
-
-sealed abstract class KindName(val name: String)
-
 object Kind {
+  object Id {
+    def unapply(string: String): Option[Id] = ids.find(_.name == string)
+    implicit val parser: Parser[Id] = unapply(_)
+    implicit val stringShow: StringShow[Id] = _.name
+    implicit val msgShow: MsgShow[Id] = v => UserMsg(_.param(stringShow.show(v)))
+  }
+
+  sealed abstract class Id(val name: String)
+  
+  val ids: List[Id] = List(Lib, App, Plugin, Compiler, Bench)
+  implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
 
   implicit def msgShow: MsgShow[Kind] = {
     case Lib()            => msg"lib"
@@ -39,19 +40,13 @@ object Kind {
     case Compiler(spec)   => msg"compiler${':'}$spec"
     case Bench(main)      => msg"bench${':'}$main"
   }
-
-  implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
-
-  def needsExec(kind: Kind): Boolean = kind match {
-    case App(_) | Bench(_) => true
-    case _                 => false
-  }
 }
-sealed trait Kind {
+
+sealed abstract class Kind(val needsExec: Boolean = false) {
   def as[T: ClassTag]: Option[T] = this.only { case t: T => t }
   def is[T: ClassTag]: Boolean = this match { case t: T => true case _ => false }
   
-  def name: KindName = this match {
+  def name: Kind.Id = this match {
     case Lib()        => Lib
     case App(_)       => App
     case Plugin(_, _) => Plugin
@@ -60,17 +55,17 @@ sealed trait Kind {
   }
 }
 
-object Lib extends KindName("lib")
-case class Lib() extends Kind
+object Lib extends Kind.Id("lib")
+case class Lib() extends Kind()
 
-object App extends KindName("app")
-case class App(main: ClassRef) extends Kind
+object App extends Kind.Id("app")
+case class App(main: ClassRef) extends Kind(needsExec = true)
 
-object Plugin extends KindName("plugin")
-case class Plugin(id: PluginId, main: ClassRef) extends Kind
+object Plugin extends Kind.Id("plugin")
+case class Plugin(id: PluginId, main: ClassRef) extends Kind()
 
-object Compiler extends KindName("compiler")
-case class Compiler(spec: BloopSpec) extends Kind
+object Compiler extends Kind.Id("compiler")
+case class Compiler(spec: BloopSpec) extends Kind()
 
-object Bench extends KindName("bench")
-case class Bench(main: ClassRef) extends Kind
+object Bench extends Kind.Id("bench")
+case class Bench(main: ClassRef) extends Kind(needsExec = true)

@@ -121,7 +121,7 @@ object Args {
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
   val RepoUrlArg = CliParam[Remote]('u', 'url, "specify a URL")
   val RepoUrlStringArg = CliParam[String]('u', 'url, "specify a URL")
-  val KindArg = CliParam[KindName]('t', 'type, "Type of module (lib, app, plugin, compiler, bench)")
+  val KindArg = CliParam[Kind.Id]('t', 'type, "Type of module (lib, app, plugin, compiler, bench)")
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
   val VersionArg = CliParam[Version]('v', 'version, "The published version of the binary")
   val WaitArg = CliParam[Unit]('W', 'wait, "Wait for the first successful compilation")
