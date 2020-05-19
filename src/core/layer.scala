@@ -166,7 +166,7 @@ object Layer extends Lens.Partial[Layer] {
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
   implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
 
-  val CurrentVersion: Int = 9
+  val CurrentVersion: Int = 10
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
@@ -349,7 +349,19 @@ object Layer extends Lens.Partial[Layer] {
     if(version < CurrentVersion) {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
-        case 8 =>
+        case 9 =>
+          Try(ogdl.set(projects = ogdl.projects.map { project =>
+            project.set(modules = project.modules.map { module =>
+              module.kind() match {
+                case "Compiler" =>
+                  val c = module.kind.Compiler
+                  module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.org(), c.name(), c.version()))))
+                case other      => module
+              } 
+            })
+          })).getOrElse(ogdl)
+
+        case 8 => // Expires 19 November 2020
           Try(ogdl.set(projects = ogdl.projects.map { project =>
             project.set(modules = project.modules.map { module =>
               lazy val main = Try(ClassRef(module.main.Some()))
@@ -367,19 +379,23 @@ object Layer extends Lens.Partial[Layer] {
               }))
             })
           })).getOrElse(ogdl)
+          
         case 7 =>
           Try(ogdl.set(repos = ogdl.repos.map { repo =>
             repo.set(remote = repo.repo)
           })).getOrElse(ogdl)
+          
         case 6 =>
           // FIXME: This is a lazy solution
           Try(ogdl.set(repos = ogdl.repos.map { repo =>
             repo.set(branch = repo.track, remote = repo.repo)
           })).getOrElse(ogdl)
+          
         case 0 | 1 | 2 | 3 | 4 | 5 =>
           log.fail(msg"Cannot migrate from layers earlier than version 6")
           // FIXME: Handle this better
           throw new Exception()
+          
         case _ => null: Ogdl
       }).set(version = Ogdl(version + 1)))
     } else ogdl

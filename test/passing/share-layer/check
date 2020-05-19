@@ -1,12 +1,12 @@
 Initialized an empty layer
-fury://QmfGy2Qkm2W15VVSrbwNRSJ7uVa9mxLsgauMmLpopMm42b
+fury://QmTowarZvqAjdRCatXv4DecCzM27vJYvFWauNNfrSGCU5S
 Set current project to example
 Set current module to core
-Qmf5guaP3ENv3NGB4gAVA2M1BvM2LUkzHNQjj7nTarQ6Co
+QmQDfuf7Zvkvu2NaavbPKB1aeR2yDNtvGjM2gF8VrTbNKA
 Checking that no modules reference local sources
 Checking that no project names conflict
 Checking that all module references resolve
-Cloning layer Qmf5guaP3ENv3NGB4gAVA2M1BvM2LUkzHNQjj7nTarQ6Co into layer2
+Cloning layer QmQDfuf7Zvkvu2NaavbPKB1aeR2yDNtvGjM2gF8VrTbNKA into layer2
 Saving Fury configuration file layer2/.fury/config
 Cloning complete
 core

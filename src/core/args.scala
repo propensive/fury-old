@@ -104,6 +104,7 @@ object Args {
   val RepoArg = CliParam[RepoId]('r', 'repo, "specify a repository")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
   val RetryArg = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
+  val ReplArg = CliParam[ClassRef]('R', 'repl, "REPL class to use for console")
   
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
