@@ -41,7 +41,7 @@ object Recovery {
           cli.abort(msg"Could not start the bloop server.")
         case WorkingDirectoryConflict(files) =>
           cli.abort(msg"""Checking out repo into the current working directory would overwrite the files """+
-              msg"""${files.foldLeft(msg"${'{'}") { (a, b) => msg"$a${','} $b" }}${'}'}.""")
+              msg"""${'{'}${files.map { f => msg"$f" }.reduce { (a, b) => msg"$a${','} $b" }}${'}'}.""")
         case AlreadyCheckedOut(repo) =>
           val grabArg: CliParam = Args.GrabArg
           cli.abort(msg"""There is already a Git repo checked out in the working directory. Use """+
