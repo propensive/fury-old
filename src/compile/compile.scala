@@ -716,8 +716,9 @@ case class Compilation(target: Target,
               globalPolicy: Policy,
               args: List[String],
               pipelining: Boolean,
-              noSecurity: Boolean)(implicit log: Log)
-  : Map[TargetId, Future[CompileResult]] = {
+              noSecurity: Boolean)
+             (implicit log: Log)
+             : Map[TargetId, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
