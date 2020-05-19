@@ -1,15 +1,4 @@
-fury layer init 
-fury project add -n scala
-fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
-fury binary add -b org.scala-lang:scala-compiler:2.12.8
-fury project add -n hello-world
-fury module add -n app -c scala/compiler -t app -M HelloWorld
-fury permission require -C java.util.PropertyPermission -T test.property -A read
-fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
-fury permission require -C java.io.FilePermission -T '.content' -A write
-fury source add -s src
-mkdir -p src
-echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { println("Hello World\n"); close() } }' > src/hw.scala
+fury permission grant -P 86d
 fury build run --output linear
 echo $?
 cat .content
