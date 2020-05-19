@@ -116,7 +116,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     call        <- cli.call()
 
-    kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(ReplArg), cli.peek(MainArg), cli.peek(SpecArg),
+    kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(MainArg), cli.peek(ReplArg), cli.peek(SpecArg),
                        cli.peek(PluginArg))
     
     project     <- optProject.asTry
