@@ -7,7 +7,7 @@
 #
 
 version="0.16.0"
-ipfsHash="QmWtL5ydfoJBBhzpvTP7vj9DqPknBkgjuhNHnXyFQqHbMu"
+ipfsHash="QmSmRGoVxXCgtYHZ9FLMVj7Uob5kr8AG3RAUpFs4Xz2n8S"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
