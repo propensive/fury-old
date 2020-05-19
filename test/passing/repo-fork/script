@@ -11,8 +11,7 @@ git commit -m 'version 1' -q
 cd ../app
 fury layer init
 fury project add -n scala
-fury module add -n compiler -t compiler
-fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n library
 fury module add -n core -c scala/compiler
@@ -21,7 +20,7 @@ fury repo fork -r library -f library-local
 sed -i.bak 's/World/fork/' library-local/src/core/constants.scala
 fury source add -s library:src/core
 fury project add -n hello-world
-fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury dependency add -d library/core
 mkdir -p src/app
 fury source add -s src/app

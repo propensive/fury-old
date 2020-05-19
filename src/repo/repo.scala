@@ -243,6 +243,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     cli       <- cli.hint(DirArg)
     cli       <- cli.hint(RepoUrlArg, GitHub.repos(cli.peek(RepoUrlStringArg)).getOrElse(Nil))
     cli       <- cli.hint(RepoArg, layer.repos)
+    cli       <- cli.hint(RepoNameArg)
     optRepo   <- ~cli.peek(RepoArg).flatMap(layer.repos.findBy(_).toOption)
     branches  <- optRepo.to[List].map(_.remote.path(layout)).map(GitDir(_)(layout.env).branches).sequence
     tags      <- optRepo.to[List].map(_.remote.path(layout)).map(GitDir(_)(layout.env).tags).sequence

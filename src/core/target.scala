@@ -16,36 +16,31 @@
 */
 package fury.core
 
-import fury.model._, fury.io._
+import fury.model._, fury.io._, fury.strings._
 
 object Target {
-    case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
-      def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (k, ds) =>
-        (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, targets(d).kind == Compiler) })
-      }.toMap
-    }
+  case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
+    def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (k, ds) =>
+      (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, targets(d).kind.is[Compiler]) })
+    }.toMap
   }
-  
-  case class Target(ref: ModuleRef,
-                    kind: Kind,
-                    main: Option[ClassRef],
-                    plugin: Option[PluginId],
-                    repos: List[Remote],
-                    checkouts: List[Checkout],
-                    binaries: List[Path],
-                    dependencies: List[TargetId],
-                    compiler: Option[Target],
-                    bloopSpec: Option[BloopSpec],
-                    params: List[Opt],
-                    permissions: List[Permission],
-                    intransitive: Boolean,
-                    sourcePaths: List[Path],
-                    environment: Map[String, String],
-                    properties: Map[String, String],
-                    optDefs: Set[OptDef],
-                    resources: List[Source]) {
-  
-    def id: TargetId = TargetId(ref.projectId, ref.moduleId)
-    def impliedCompiler: ModuleRef = if(kind == Compiler) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
-  }
-  
+}
+
+case class Target(ref: ModuleRef,
+                  kind: Kind,
+                  repos: List[Remote],
+                  checkouts: List[Checkout],
+                  binaries: List[Path],
+                  dependencies: List[TargetId],
+                  compiler: Option[Target],
+                  params: List[Opt],
+                  permissions: List[Permission],
+                  intransitive: Boolean,
+                  sourcePaths: List[Path],
+                  environment: Map[String, String],
+                  properties: Map[String, String],
+                  optDefs: Set[OptDef],
+                  resources: List[Source]) {
+  def id: TargetId = TargetId(ref.projectId, ref.moduleId)
+  def impliedCompiler: ModuleRef = if(kind.is[Compiler]) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
+}
