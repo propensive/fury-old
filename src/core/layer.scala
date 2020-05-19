@@ -351,17 +351,17 @@ object Layer extends Lens.Partial[Layer] {
       migrate((version match {
         case 9 =>
           Try(ogdl.set(projects = ogdl.projects.map { project =>
-            project.set(modules = project.modules.map { module => module.kind() match {
-              case "Compiler" =>
-                val newKind = Compiler(BloopSpec(module.kind.org(), module.kind.name(), module.kind.version()))
-                
-                module.set(kind = Ogdl[Kind](newKind))
-
-              case other      => module
-            } })
+            project.set(modules = project.modules.map { module =>
+              module.kind() match {
+                case "Compiler" =>
+                  val c = module.kind.Compiler
+                  module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.org(), c.name(), c.version()))))
+                case other      => module
+              } 
+            })
           })).getOrElse(ogdl)
 
-        case 8 =>
+        case 8 => // Expires 19 November 2020
           Try(ogdl.set(projects = ogdl.projects.map { project =>
             project.set(modules = project.modules.map { module =>
               lazy val main = Try(ClassRef(module.main.Some()))
