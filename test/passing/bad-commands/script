@@ -7,11 +7,10 @@ echo $?
 fury project add -n scala
 fury project list --raw
 echo $?
-fury module add -n compiler -t compiler
-fury module update -C scala-lang.org:scala-compiler:2.12.8
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
-fury module add -n app -c scala/compiler -t application -M HelloWorld
+fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury source add -s src
 mkdir -p src
 echo 'object HelloWorld extends App { println("Hello world!") }' > src/hello.scala
@@ -25,8 +24,8 @@ fury -m foo/bar --output linear
 echo $?
 fury permission require -0 -C java.util.PropertyPermission -T scala.maven.version.number -A read
 fury --output linear --output linear | grep '^ *[A-Za-z0-9]'
-fury module update -m baz -t library
+fury module update -m baz -t lib
 echo $?
-fury module update -t library
+fury module update -t lib
 fury --output linear
 echo $?

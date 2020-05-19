@@ -41,21 +41,6 @@ object ManagedConfig {
   def apply(): Config = config
 }
 
-object Kind {
-  implicit val msgShow: MsgShow[Kind] = v => UserMsg { t => v.name }
-  implicit val stringShow: StringShow[Kind] = _.name
-  implicit val parser: Parser[Kind] = unapply(_)
-  val all: List[Kind] = List(Library, Compiler, Plugin, Application, Benchmarks)
-  def unapply(str: String): Option[Kind] = all.find(_.name == str)
-}
-
-sealed abstract class Kind(val name: String, val needsExecution: Boolean)
-case object Library extends Kind("library", false)
-case object Compiler extends Kind("compiler", false)
-case object Plugin extends Kind("plugin", false)
-case object Application extends Kind("application", true)
-case object Benchmarks extends Kind("benchmarks", true)
-
 abstract class Key(val kind: UserMsg) { def key: String }
 
 object ProjectId {
@@ -766,7 +751,7 @@ object ExecName {
 
 case class ExecName(key: String) extends Key(msg"executable")
   
-case class Plugin(id: PluginId, ref: ModuleRef, main: ClassRef)
+case class PluginDef(id: PluginId, ref: ModuleRef, main: ClassRef)
 
 object RepoId {
   implicit val msgShow: MsgShow[RepoId] = r => UserMsg(_.repo(r.key))
