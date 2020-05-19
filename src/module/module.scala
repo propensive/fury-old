@@ -323,7 +323,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
     moduleId     <- cli.preview(ModuleArg)(optProject.flatMap(_.main))
     cli          <- cli.hint(BinaryNameArg)
-    cli          <- cli.hint(BinaryRepoArg, List(RepoId("mvn_central")))
+    cli          <- cli.hint(BinaryRepoArg, List(RepoId("central")))
     call         <- cli.call()
     project      <- optProject.asTry
     module       <- project.modules.findBy(moduleId)
