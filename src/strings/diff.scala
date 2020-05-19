@@ -24,7 +24,7 @@ object Diff extends Diff_1 {
 
   type Typeclass[T] = Diff[T]
 
-  def combine[T: StringShow](caseClass: CaseClass[Diff, T]): Diff[T] =
+  def combine[T: StringShow](caseClass: ReadOnlyCaseClass[Diff, T]): Diff[T] =
     (l, r) =>
       caseClass.parameters.flatMap { param =>
         param.typeclass.diff(param.dereference(l), param.dereference(r)).map { d =>
@@ -114,7 +114,7 @@ case class Difference(entity: UserMsg, label: UserMsg, left: UserMsg, right: Use
 object EntityName extends EntityName_1 {
   type Typeclass[T] = EntityName[T]
 
-  def combine[T](caseClass: CaseClass[EntityName, T]): EntityName[T] =
+  def combine[T](caseClass: ReadOnlyCaseClass[EntityName, T]): EntityName[T] =
     EntityName(msg"${caseClass.typeName.short.toLowerCase}")
 
   implicit def gen[T]: EntityName[T] = macro Magnolia.gen[T]
