@@ -1,10 +1,6 @@
-Initialized an empty layer
-Set current project to scala
-Set current module to compiler
-Set current project to hello-world
-Setting default compiler for project hello-world to scala/compiler
-Set current module to app
-86dd1afef5ff30893a715c62702d27e2b479c2a32be773f000902f93e5bb0f6e
+Starting the BSP launcher...
+Opening a BSP server connection
+BSP server is listening for incoming connections
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 0
