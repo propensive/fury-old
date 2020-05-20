@@ -16,20 +16,19 @@
 */
 package fury.test
 
+import fury.io._, fury.utils._
+
+import java.nio.ByteBuffer
+import java.nio.ByteBuffer.wrap
+
 import probably._
-import mercator._
+import fury.core._
 
-import scala.concurrent._, duration._
+import scala.language.implicitConversions
 
-object AllTests extends Suite() {
+object CoreTests extends Suite() {
+
   def run(test: Runner): Unit = {
-    implicit val ec: ExecutionContext = ExecutionContext.global
-    Await.result(List(
-      Future(test.suite("Model tests")(ModelTests.run)),
-      Future(test.suite("I/O tests")(IoTests.run)),
-      Future(test.suite("Core tests")(CoreTests.run)),
-      Future(test.suite("OGDL tests")(OgdlTests.run)),
-      Future(test.suite("Text tests")(TextTests.run)),
-    ).sequence, Duration.Inf)
+    test.suite("DAG tests")(DirectedGraphTest.run)
   }
 }
