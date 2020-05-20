@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.io._, fury.strings._, fury.model._, fury.utils._
+import fury.io._, fury.text._, fury.model._, fury.utils._
 
 import guillotine._
 import mercator._

@@ -14,14 +14,21 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import probably.TestApp
+import fury.io._, fury.utils._
 
-object Tests {
-  private val testSuites = List[TestApp](
-      DirectedGraphTest,
-  )
+import java.nio.ByteBuffer
+import java.nio.ByteBuffer.wrap
 
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+import probably._
+import fury.core._
+
+import scala.language.implicitConversions
+
+object CoreTests extends Suite() {
+
+  def run(test: Runner): Unit = {
+    test.suite("DAG tests")(DirectedGraphTest.run)
+  }
 }

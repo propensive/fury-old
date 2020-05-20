@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._, fury.io._
+import fury.text._, fury.model._, fury.io._
 
 import escritoire.{Ansi => _, _}
 import kaleidoscope._

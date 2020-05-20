@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.core._, fury.strings._, fury.model._
+import fury.core._, fury.text._, fury.model._
 
 import com.facebook.nailgun.NGContext
 import exoskeleton._

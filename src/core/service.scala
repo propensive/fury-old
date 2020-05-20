@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.io._, fury.model._, fury.strings._
+import fury.io._, fury.model._, fury.text._
 
 import euphemism._
 import antiphony._

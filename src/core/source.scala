@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.ogdl._, fury.io._, fury.model._, fury.strings._
+import fury.ogdl._, fury.io._, fury.model._, fury.text._
 
 import gastronomy._
 import kaleidoscope._

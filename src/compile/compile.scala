@@ -30,7 +30,7 @@ import fury.core.UiGraph.CompilerDiagnostic
 import fury.core.Lifecycle.Session
 import fury.io._
 import fury.model._
-import fury.strings._
+import fury.text._
 import fury.utils._
 import gastronomy._
 import kaleidoscope._

@@ -14,15 +14,22 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import probably.TestApp
+import probably._
+import mercator._
 
-object Tests {
-  private val testSuites = List[TestApp](
-    ImportPathTests,
-    IdTests
-  )
+import scala.concurrent._, duration._
 
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+object AllTests extends Suite() {
+  def run(test: Runner): Unit = {
+    implicit val ec: ExecutionContext = ExecutionContext.global
+    Await.result(List(
+      Future(test.suite("Model tests")(ModelTests.run)),
+      Future(test.suite("I/O tests")(IoTests.run)),
+      Future(test.suite("Core tests")(CoreTests.run)),
+      Future(test.suite("OGDL tests")(OgdlTests.run)),
+      Future(test.suite("Text tests")(TextTests.run)),
+    ).sequence, Duration.Inf)
+  }
 }

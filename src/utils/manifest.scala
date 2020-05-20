@@ -16,7 +16,7 @@
 */
 package fury.utils
 
-import fury.strings._
+import fury.text._
 
 object JarManifest {
   case class Entry(key: String, value: String) {

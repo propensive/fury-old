@@ -14,18 +14,16 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import fury.ogdl.{OgdlParserTest, OgdlReaderTest, OgdlSerializerTest, OgdlWriterTest}
-import probably.TestApp
+import fury.ogdl._
+import probably._
 
-object Tests {
-  private val testSuites = List[TestApp](
-      OgdlParserTest,
-      OgdlSerializerTest,
-      OgdlWriterTest,
-      OgdlReaderTest
-  )
-
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+object OgdlTests extends Suite() {
+  def run(test: Runner): Unit = {
+    test.suite("OGDL Parser tests")(OgdlParserTest.run(_))
+    test.suite("OGDL Serializer tests")(OgdlSerializerTest.run(_))
+    test.suite("OGDL Writer tests")(OgdlWriterTest.run(_))
+    test.suite("OGDL Reader tests")(OgdlReaderTest.run(_))
+  }
 }

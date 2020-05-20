@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.core._, fury.strings._, fury.model._
+import fury.core._, fury.text._, fury.model._
 
 import java.util.concurrent.atomic.AtomicBoolean
 

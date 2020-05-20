@@ -17,7 +17,7 @@
 package fury.core
 
 import fury.model._, UiGraph.DiagnosticMessage, fury.io._, fury.ogdl._
-import fury.strings.FuryException
+import fury.text.FuryException
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 

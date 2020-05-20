@@ -14,17 +14,17 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import fury.model._, fury.strings._
+import fury.model._, fury.text._
 import probably._
 
 import scala.language.implicitConversions
 import scala.util.{Success, Try}
 
-object IdTests extends TestApp {
+object IdTests extends Suite() {
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
 
     test("binary ids") {
       "foo.bar:baz-quux_2.12:1.2.3-RC4".as[BinaryId].isFailure &&

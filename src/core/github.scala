@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._, fury.utils._, fury.io._
+import fury.text._, fury.model._, fury.utils._, fury.io._
 
 import euphemism._
 import kaleidoscope._

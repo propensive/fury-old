@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._, fury.utils._
+import fury.text._, fury.model._, fury.utils._
 
 object Reporter {
   implicit val parser: Parser[Reporter] = unapply(_)

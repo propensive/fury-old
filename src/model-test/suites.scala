@@ -16,42 +16,16 @@
 */
 package fury.test
 
-import fury.io._
+import fury.model._, fury.text._
 import probably._
 
 import scala.language.implicitConversions
+import scala.util.{Success, Try}
 
-object PathTests extends Suite() {
+object ModelTests extends Suite() {
 
   def run(test: Runner): Unit = {
-
-    /*test("fail when trying to write to a directory") {
-      tmpDir(_.writeSync("Writing to a directory..."))
-    }.assert(_.isFailure)*/
-
-    test("mark a file as executable") {
-      tmpDir { dir =>
-        val file = (dir / "foo")
-        file.touch()
-        file.setExecutable(true)
-      }
-    }.assert(_.isSuccess)
-
-    test("fail to mark a system file as executable") {
-      val file = Path("/etc") / "passwd"
-      file.touch()
-      file.setExecutable(true)
-    }.assert(_.isFailure)
-
-  }
-
-  def tmpDir[T](fn: Path => T): T = {
-    val file = java.io.File.createTempFile("fury-test", "dir")
-    file.delete()
-    file.mkdir()
-    val path = Path(file)
-    val result = fn(path)
-    path.delete()
-    result
+    test.suite("Import path tests")(ImportPathTests.run)
+    test.suite("ID tests")(IdTests.run)
   }
 }

@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.strings._, fury.model._
+import fury.text._, fury.model._
 
 import scala.util._
 import scala.collection.immutable.SortedSet

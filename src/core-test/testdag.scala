@@ -14,7 +14,7 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
 import fury.io._, fury.utils._
 
@@ -26,9 +26,9 @@ import fury.core._
 
 import scala.language.implicitConversions
 
-object DirectedGraphTest extends TestApp {
+object DirectedGraphTest extends Suite() {
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
     test("Graph with no edges has no cycles") {
       DirectedGraph[Int](Map(1 -> Set()))
     }.assert(!_.hasCycle(1))

@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.strings._
+import fury.text._
 import scala.reflect.ClassTag
 
 object Kind {

@@ -20,7 +20,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
 import fury.io._
-import fury.strings._
+import fury.text._
 
 import scala.language.experimental.macros
 import scala.language.higherKinds

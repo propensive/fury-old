@@ -14,9 +14,7 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.ogdl
-
-import fury.ogdl._
+package fury.test
 
 import fury.ogdl._
 
@@ -27,10 +25,10 @@ import probably._
 
 import scala.language.implicitConversions
 
-object OgdlParserTest extends TestApp {
+object OgdlParserTest extends Suite() {
   private[this] val empty = Ogdl(Vector())
 
-  override def tests(): Unit = {
+  def run(test: Runner): Unit = {
     test("Not terminated input is an empty graph") {
       read("ignored")
     }.assert(_ == empty)

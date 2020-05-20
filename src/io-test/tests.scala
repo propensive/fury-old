@@ -14,14 +14,12 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.test
 
-import probably.TestApp
+import probably._
 
-object Tests {
-  private val testSuites = List[TestApp](
-    PathTests
-  )
-
-  def main(args: Array[String]): Unit = testSuites.map(_.execute()).find(_.value != 0).foreach(_.exit())
+object IoTests extends Suite {
+  def run(test: Runner): Unit = {
+    test.suite("Path tests")(PathTests.run)
+  }
 }
