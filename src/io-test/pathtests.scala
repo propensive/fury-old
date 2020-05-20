@@ -25,7 +25,7 @@ object PathTests extends Suite() {
 
   def run(test: Runner): Unit = {
 
-    /*test("fail when trying to write to a directory") {
+    test("fail when trying to write to a directory") {
       println(java.io.File.createTempFile("eg", "dir"))
       tmpDir(_.writeSync("Writing to a directory..."))
     }.assert(_.isFailure)
@@ -36,7 +36,7 @@ object PathTests extends Suite() {
         file.touch()
         file.setExecutable(true)
       }
-    }.assert(_.isSuccess)*/
+    }.assert(_.isSuccess)
 
     test("fail to mark a system file as executable") {
       val file = Path("/etc") / "passwd"
