@@ -1,0 +1,4 @@
+fury build run -m app --output summary
+echo $?
+fury build run -m app2 --output summary
+echo $?

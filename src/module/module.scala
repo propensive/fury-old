@@ -30,11 +30,12 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
   private def parseKind(kindName: Kind.Id,
                         main: Option[ClassRef],
                         repl: Option[ClassRef],
+                        timeout: Option[Int],
                         spec: Option[BloopSpec],
                         plugin: Option[PluginId])
                        : Try[Kind] = kindName match {
     case Lib      => Success(Lib())
-    case App      => main.map(App(_)).ascribe(MissingParam(MainArg))
+    case App      => main.map(App(_, timeout.getOrElse(0))).ascribe(MissingParam(MainArg))
     case Bench    => main.map(Bench(_)).ascribe(MissingParam(MainArg))
 
     case Compiler => spec.map(Compiler(_, repl.getOrElse(ClassRef("scala.tools.nsc.MainGenericRunner"))))
@@ -55,7 +56,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
   
   private def hintKindParams(cli: Cli, kindName: Option[Kind.Id]) = kindName.map {
     case Lib      => ~cli
-    case App      => cli.hint(MainArg)
+    case App      => cli.hint(MainArg).flatMap(_.hint(TimeoutArg, List("0")))
     case Compiler => cli.hint(SpecArg).flatMap(_.hint(ReplArg))
     case Bench    => cli.hint(MainArg)
     case Plugin   => cli.hint(MainArg).flatMap(_.hint(PluginArg))
@@ -116,8 +117,8 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     call        <- cli.call()
 
-    kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(MainArg), cli.peek(ReplArg), cli.peek(SpecArg),
-                       cli.peek(PluginArg))
+    kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(MainArg), cli.peek(ReplArg),
+                       cli.peek(TimeoutArg), cli.peek(SpecArg), cli.peek(PluginArg))
     
     project     <- optProject.asTry
     moduleArg   <- call(ModuleNameArg)
@@ -194,10 +195,11 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
 
     specArg     <- ~cli.peek(SpecArg).orElse(module.kind.as[Compiler].map(_.spec))
     replArg     <- ~cli.peek(ReplArg).orElse(module.kind.as[Compiler].map(_.repl))
+    timeoutArg  <- ~cli.peek(TimeoutArg).orElse(module.kind.as[App].map(_.timeout))
     pluginArg   <- ~cli.peek(PluginArg).orElse(module.kind.as[Plugin].map(_.id))
     
-    kind        <- kindName.to[List].traverse(parseKind(_, mainArg, replArg, specArg, pluginArg)).map(
-                       _.headOption)
+    kind        <- kindName.to[List].traverse(parseKind(_, mainArg, replArg, timeoutArg, specArg,
+                       pluginArg)).map(_.headOption)
 
     compiler    <- compilerId.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
     hidden      <- ~call(HiddenArg).toOption

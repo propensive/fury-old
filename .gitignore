@@ -15,7 +15,6 @@ test/tmp/
 log
 tmp
 opt/
-project
 target
 lib
 test-lib
