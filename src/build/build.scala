@@ -580,39 +580,68 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(RawArg)
     cli           <- cli.hint(BreakingArg)
     cli           <- cli.hint(PublicArg)
+    cli           <- cli.hint(DescriptionArg)
+    cli           <- cli.hint(ForceArg)
     call          <- cli.call()
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     layer         <- Layer.retrieve(conf)
-    defaultId     <- Try(conf.published.map(_.url.path).flatMap(RemoteLayerId.unapply(_)))
+    base          <- Layer.get(conf.layerRef, None)
+    
+    currentPub    <- if(conf.path.isEmpty) ~conf.published else for {
+                       parent <- Layer.dereference(base, conf.path.init)
+                       imprt  <- parent.imports.findBy(conf.path.last)
+                     } yield imprt.remote
+
+    defaultId     <- Try(currentPub.map(_.url.path).flatMap(RemoteLayerId.unapply(_)))
     remoteLayerId <- call(RemoteLayerArg).toOption.orElse(defaultId).ascribe(MissingParam(RemoteLayerArg))
     breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
-    _             <- layer.verifyConf(false, conf)
+    force         <- ~call(ForceArg).isSuccess
+    description   <- ~call(DescriptionArg).toOption
+    _             <- layer.verifyConf(false, conf, quiet = false, force)
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
     ref           <- Layer.share(ManagedConfig().service, layer, token)
+    
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
                          breaking, public, conf.published.fold(0)(_.version.major),
-                         conf.published.fold(0)(_.version.minor), token)
+                         conf.published.fold(0)(_.version.minor), description, token)
+
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
-                       log.info(msg"Shared layer at ${IpfsRef(ref.key)}")
+                       log.info(msg"Shared layer ${LayerRef(ref.key)}")
                        
                        ~log.info(msg"Published version ${pub.version}${if(public) " " else
                            " privately "}to ${pub.url}")
                      }
-    _             <- Layer.saveFuryConf(FuryConf(ref, ImportPath.Root, Some(pub)), layout)
+
+    _             <- conf.path match {
+                       case ImportPath.Root =>
+                         Layer.saveFuryConf(FuryConf(ref, conf.path, Some(pub)), layout)
+                       case path            => for {
+                         parent <- Layer.dereference(base, path.init)
+                         imprt  <- parent.imports.findBy(path.last)
+                         parent <- ~parent.copy(imports = parent.imports + imprt.copy(remote = Some(pub)))
+
+                         _      <- Layer.commit(parent, conf.copy(path = conf.path.init,
+                                       published = conf.published), layout, false)
+                         conf   <- Layer.readFuryConf(layout)
+                         _      <- Layer.saveFuryConf(conf.copy(path = path), layout)
+                       } yield ()
+                     }
   } yield log.await()
 
   def share: Try[ExitStatus] = for {
     layout <- cli.layout
     cli    <- cli.hint(RawArg)
     cli    <- cli.hint(PublicArg)
+    cli    <- cli.hint(ForceArg)
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
+    force  <- ~call(ForceArg).isSuccess
     public <- ~call(PublicArg).isSuccess
     raw    <- ~call(RawArg).isSuccess
-    _      <- layer.verifyConf(false, conf, quiet = raw)
+    _      <- layer.verifyConf(false, conf, quiet = raw, force)
 
     ref    <- if(!public) Layer.store(layer)
               else for {
@@ -628,17 +657,18 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
-    _      <- layer.verifyConf(true, conf)
+    _      <- layer.verifyConf(true, conf, quiet = false, force = false)
     ref    <- Layer.store(layer)
     _      <- ~log.info(msg"Writing layer database to ${layout.layerDb.relativizeTo(layout.baseDir)}")
     _      <- Layer.writeDb(layer, layout)
     gitDir <- ~GitDir(layout)
 
     _      <- ~log.info(msg"Adding Fury files to ${layout.layerDb.relativizeTo(layout.baseDir)} and "+
-                  msg"${layout.confFile.relativizeTo(layout.baseDir)} to current repo")
+                  msg"${layout.confFile.relativizeTo(layout.baseDir)} to the current repo.")
 
     _      <- gitDir.add(layout.layerDb, force = true)
     _      <- gitDir.add(layout.confFile, force = true)
+    _      <- ~log.info(msg"Don't forget to run ${ExecName("git commit")} to commit the layer to the repo.")
   } yield log.await()
 
   def addImport: Try[ExitStatus] = for {
@@ -734,7 +764,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion]): Try[FuryConf] = for {
-    _                  <- if(conf.path != ImportPath.Root) Failure(RootLayerNotSelected()) else Success(())
+
+    _                  <- if(conf.path != ImportPath.Root) Failure(RootLayerNotSelected(conf.path))
+                          else Success(())
+    
     published          <- conf.published.ascribe(ImportHasNoRemote())
     (newPub, artifact) <- getNewLayer(published, version, ImportPath.Root)
     newLayer           <- Layer.get(artifact.layerRef, Some(newPub))

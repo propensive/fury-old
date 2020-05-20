@@ -95,6 +95,7 @@ object Service {
           public: Boolean,
           major: Int,
           minor: Int,
+          description: Option[String],
           token: OauthToken)
          (implicit log: Log)
          : Try[PublishedLayer] = {
@@ -102,11 +103,12 @@ object Service {
     val url = Https(service) / "tag"
     
     case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
-        public: Boolean, breaking: Boolean)
+        public: Boolean, breaking: Boolean, description: Option[String])
 
     case class Response(path: String, ref: String, version: FullVersion)
 
-    val request = Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking)
+    val request = Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking,
+        description)
     
     for {
       ipfs <- Ipfs.daemon(false)

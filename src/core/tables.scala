@@ -184,7 +184,8 @@ case class Tables() {
     Heading("Ref", _._1.layerRef),
     Heading("Projects", s => s._2.toOption.fold(msg"${'-'}")(_.projects.size)),
     Heading("Repos", s => s._2.toOption.fold(msg"${'-'}")(_.repoIds.size)),
-    Heading("Imports", s => s._2.toOption.fold(msg"${'-'}")(_.imports.size))
+    Heading("Imports", s => s._2.toOption.fold(msg"${'-'}")(_.imports.size)),
+    Heading("Published as", s => s._1.remote.fold(msg"${'-'}") { pub => msg"${pub}" })
   )
 
   def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation[Project](

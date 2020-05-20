@@ -152,7 +152,7 @@ case class ImportPath(path: String) {
 
 object PublishedLayer {
   implicit val msgShow: MsgShow[PublishedLayer] =
-    publishedLayer => UserMsg { theme => theme.layer(publishedLayer.url.path.value)}
+    pl => UserMsg { theme => theme.layer(pl.url.path.value)+msg"${'@'}${pl.version}".string(theme) }
   
   implicit val stringShow: StringShow[PublishedLayer] = pl => str"${pl.url}@${pl.version}"
 
