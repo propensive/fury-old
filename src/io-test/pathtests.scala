@@ -25,8 +25,8 @@ object PathTests extends Suite() {
 
   def run(test: Runner): Unit = {
 
-    // Temporarily commented-out because they are producing strange results in Probably
     /*test("fail when trying to write to a directory") {
+      println(java.io.File.createTempFile("eg", "dir"))
       tmpDir(_.writeSync("Writing to a directory..."))
     }.assert(_.isFailure)
 
