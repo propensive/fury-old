@@ -5,19 +5,20 @@ Set current module to compiler
 Set current project to hello-world
 Setting default compiler for project hello-world to scala/compiler
 Set current module to app
-e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
+Cloning repository at ../library
+Checking out src/core from repository library
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
-Starting compilation of module hello-world/app
-Successfully compiled module hello-world/app
+Successfully compiled hello-world/app
 Hello World!
 0
-Starting compilation of module hello-world/app
-Successfully compiled module hello-world/app
+Successfully compiled hello-world/app
 Hello World!
 0
-Starting compilation of module hello-world/app
-Successfully compiled module hello-world/app
+Repository ../library updated to new commit 
+Repository library checked out to commit 
+Checking out src/core from repository library
+Successfully compiled hello-world/app
 Hello update!
 0
