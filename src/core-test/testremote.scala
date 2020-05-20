@@ -16,20 +16,30 @@
 */
 package fury.test
 
-import fury.io._, fury.utils._
-
-import java.nio.ByteBuffer
-import java.nio.ByteBuffer.wrap
-
 import probably._
+
 import fury.core._
 
 import scala.language.implicitConversions
 
-object CoreTests extends Suite() {
+object RemoteNameTest extends Suite() {
 
   def run(test: Runner): Unit = {
-    test.suite("DAG tests")(DirectedGraphTest.run)
-    test.suite("Remote name tests")(RemoteNameTest.run)
+    test("Simplified form of HTTPS remote") {
+      Remote("https://github.com/propensive/fury.git").simplified
+    }.assert(_ == "gh:propensive/fury")
+
+    test("Simplified form of SSH remote") {
+      Remote("git@github.com:propensive/fury.git").simplified
+    }.assert(_ == "gh:propensive/fury")
+
+    test("SSH address for a HTTPS remote") {
+      Remote("https://gitlab.com/propensive/fury.git").ssh
+    }.assert(_ == Some("git@gitlab.com:propensive/fury.git"))
+
+    test("HTTPS address for a SSH remote") {
+      Remote("git@bitbucket.com:propensive/fury.git").https
+    }.assert(_ == Some("https://bitbucket.com/propensive/fury.git"))
   }
+
 }
