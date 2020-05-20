@@ -130,7 +130,7 @@ case class FrontEnd(cli: Cli)(implicit log: Log) {
 
   private def removeFromSet[T](items: SortedSet[T], item: T): SortedSet[T] = items - item
   private def addToSet[T](items: SortedSet[T], item: T): SortedSet[T] = items + item
-  private def commit(layer: Layer): Try[Unit] = (Try(layer), conf, layout) >>= (Layer.commit(_, _, _))
+  private def commit(layer: Layer): Try[Unit] = (Try(layer), conf, layout) >>= (Layer.commit(_, _, _).map(_.unit))
   private def finish[T](result: T): ExitStatus = log.await()
 
   object Resources {

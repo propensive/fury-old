@@ -86,9 +86,13 @@ case class Layer(version: Int,
     missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
-  def verifyConf(local: Boolean, conf: FuryConf, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
-    _         <- ~log.infoWhen(!quiet)(msg"Checking that the root layer is selected")
-    _         <- if(conf.path == ImportPath.Root) Success(()) else Failure(RootLayerNotSelected())
+  def verifyConf(local: Boolean, conf: FuryConf, quiet: Boolean, force: Boolean)
+                (implicit log: Log)
+                : Try[Unit] = for {
+    
+    _         <- if(force || conf.path == ImportPath.Root) Success(())
+                 else Failure(RootLayerNotSelected(conf.path))
+
     _         <- verify(local, quiet)
   } yield ()
 
@@ -186,7 +190,7 @@ object Layer extends Lens.Partial[Layer] {
     } yield ()
     else Success(())
 
-  private def dereference(layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
+  def dereference(layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
     if(path.isEmpty) Success(layer)
     else for {
       layerImport <- layer.imports.findBy(path.head)
@@ -213,15 +217,17 @@ object Layer extends Lens.Partial[Layer] {
 
   def commit(layer: Layer, conf: FuryConf, layout: Layout, force: Boolean = false)
             (implicit log: Log)
-            : Try[Unit] = for {
+            : Try[LayerRef] = for {
     baseRef  <- commitNested(conf, layer)
     base     <- get(baseRef, conf.published)
     layer    <- ~base.copy(previous = Some(conf.layerRef))
     previous <- retrieve(conf)
-    _        <- if(!Layer.diff(previous, layer).isEmpty || force)
-                    store(layer).flatMap { baseRef => saveFuryConf(conf.copy(layerRef = baseRef), layout) }
-                else Success(())
-    } yield ()
+    ref      <- if(!Layer.diff(previous, layer).isEmpty || force)
+                    store(layer).flatMap { baseRef =>
+                  saveFuryConf(conf.copy(layerRef = baseRef), layout).map(_.layerRef)
+                }
+                else Success(baseRef)
+    } yield ref
 
   private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =
     if(conf.path.isEmpty) store(layer) else for {

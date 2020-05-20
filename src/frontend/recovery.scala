@@ -104,8 +104,9 @@ You can grant these permissions with,
         case LayerContainsLocalSources(refs) =>
           val plural = if(refs.size > 1) "s" else ""
           cli.abort(msg"""The module$plural contains references to local sources.""")
-        case RootLayerNotSelected() =>
-          cli.abort(msg"A layer can only be published from the root layer (${ImportPath.Root})")
+        case RootLayerNotSelected(path) =>
+          cli.abort(msg"The selected layer is not a root layer (${ImportPath.Root}). To publish this layer "+
+              msg"($path) anyway, please specify the ${Args.ForceArg: CliParam} parameter.")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>
