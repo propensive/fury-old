@@ -168,9 +168,6 @@ publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	    printf "Copying new launcher script to root directory..." && \
 	    cp dist/fury fury && \
 	    rm .version && \
-	    git add .fury.conf fury && \
-	    git commit -m "Updated layer file and launcher for version $(VERSION)" && \
-	    git push && \
 	    printf "Done\n" || ( printf "Failed\n" && exit 1 ) \
 	 ) && \
 	 printf "$(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
