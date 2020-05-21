@@ -54,12 +54,12 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     _         <- if(available.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
   } yield moduleRef
   
-  private def hintKindParams(cli: Cli, kindName: Option[Kind.Id]) = kindName.map {
+  private def hintKindParams(cli: Cli, mains: Set[ClassRef], kindName: Option[Kind.Id]) = kindName.map {
     case Lib      => ~cli
-    case App      => cli.hint(MainArg).flatMap(_.hint(TimeoutArg, List("0")))
-    case Compiler => cli.hint(SpecArg).flatMap(_.hint(ReplArg))
-    case Bench    => cli.hint(MainArg)
-    case Plugin   => cli.hint(MainArg).flatMap(_.hint(PluginArg))
+    case App      => cli.hint(MainArg, mains).flatMap(_.hint(TimeoutArg, List("0")))
+    case Compiler => cli.hint(SpecArg).flatMap(_.hint(ReplArg, mains))
+    case Bench    => cli.hint(MainArg, mains)
+    case Plugin   => cli.hint(MainArg, mains).flatMap(_.hint(PluginArg))
   }.getOrElse(~cli)
 
   def select: Try[ExitStatus] = for {
@@ -111,7 +111,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     optProject  <- ~projectId.flatMap(layer.projects.findBy(_).toOption)
     cli         <- cli.hint(KindArg, Kind.ids)
     kindName    <- ~cli.peek(KindArg)
-    cli         <- hintKindParams(cli, kindName)
+    cli         <- hintKindParams(cli, Set(), kindName)
     cli         <- cli.hint(ModuleNameArg)
     cli         <- cli.hint(HiddenArg, List("on", "off"))
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
@@ -179,9 +179,10 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                      moduleId <- optModuleId
                      module   <- project.modules.findBy(moduleId).toOption
                    } yield module }
-
     kindName    <- ~cli.peek(KindArg).orElse(optModule.map(_.kind.name))
-    cli         <- hintKindParams(cli, kindName)
+    targetId    <- ~projectId.flatMap { p => optModuleId.map(TargetId(p, _)) }
+    mainClasses <- ~targetId.map { t => Asm.executableClasses(layout.classesDir(t)) }.to[Set].flatten
+    cli         <- hintKindParams(cli, mainClasses, kindName)
     cli         <- cli.hint(HiddenArg, List("on", "off"))
     cli         <- cli.hint(ModuleNameArg, optModuleId.to[List])
     cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))

@@ -132,7 +132,6 @@ object Installation {
 
   } yield execPath / name.key
 
-
   val installDir: Path = Path(System.getProperty("fury.home"))
   val installVersion: String = installDir.name
 
