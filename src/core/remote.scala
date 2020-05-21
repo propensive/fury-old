@@ -142,11 +142,11 @@ case class Remote(ref: String) {
   
   def ssh: Option[String] = simplified.only {
     case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
-      str"git@bitbucket.com:$group/$project.git"
-    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"git@github.com:$group/$project.git"
-    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
       str"git@gitlab.com:$group/$project.git"
+    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+      str"git@bitbucket.com:$group/$project.git"
   }
 
   def projectName: Try[RepoId] = {
