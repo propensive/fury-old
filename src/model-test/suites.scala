@@ -16,14 +16,9 @@
 */
 package fury.test
 
-import fury.model._, fury.text._
 import probably._
 
-import scala.language.implicitConversions
-import scala.util.{Success, Try}
-
 object ModelTests extends Suite() {
-
   def run(test: Runner): Unit = {
     test.suite("Import path tests")(ImportPathTests.run)
     test.suite("ID tests")(IdTests.run)

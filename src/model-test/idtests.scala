@@ -19,8 +19,7 @@ package fury.test
 import fury.model._, fury.text._
 import probably._
 
-import scala.language.implicitConversions
-import scala.util.{Success, Try}
+import scala.util.Success
 
 object IdTests extends Suite() {
 

@@ -29,7 +29,7 @@ object AllTests extends Suite() {
       Future(test.suite("I/O tests")(IoTests.run)),
       Future(test.suite("Core tests")(CoreTests.run)),
       Future(test.suite("OGDL tests")(OgdlTests.run)),
-      Future(test.suite("Text tests")(TextTests.run)),
+      Future(test.suite("Text tests")(TextTests.run))
     ).sequence, Duration.Inf)
   }
 }

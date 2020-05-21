@@ -19,8 +19,6 @@ package fury.test
 import fury.io._
 import probably._
 
-import scala.language.implicitConversions
-
 object PathTests extends Suite() {
 
   def run(test: Runner): Unit = {
