@@ -16,13 +16,9 @@
 */
 package fury.test
 
-import fury.io._, fury.utils._
-
-import java.nio.ByteBuffer
-import java.nio.ByteBuffer.wrap
+import fury.utils._
 
 import probably._
-import fury.core._
 
 import scala.language.implicitConversions
 

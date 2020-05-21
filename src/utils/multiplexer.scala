@@ -23,7 +23,7 @@ final class Multiplexer[K, V](keys: Set[K]) {
   private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
   private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
 
-  def finished: Boolean = closed.forall(identity)
+  private def finished: Boolean = closed.forall(identity)
 
   def start(): Unit = show = true
 

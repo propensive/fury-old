@@ -16,18 +16,9 @@
 */
 package fury.test
 
-import fury.io._, fury.utils._
-
-import java.nio.ByteBuffer
-import java.nio.ByteBuffer.wrap
-
 import probably._
-import fury.core._
-
-import scala.language.implicitConversions
 
 object CoreTests extends Suite() {
-
   def run(test: Runner): Unit = {
     test.suite("DAG tests")(DirectedGraphTest.run)
     test.suite("Remote name tests")(RemoteNameTest.run)

@@ -19,7 +19,6 @@ package fury.test
 import fury.model._
 import probably._
 
-import scala.language.implicitConversions
 import scala.util.{Success, Try}
 
 object ImportPathTests extends Suite() {

@@ -181,10 +181,13 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
     val conn = BloopServer.synchronized {
       connections.get(dir)
     }.getOrElse {
+      log.note(msg"Opening a new BSP connection at $dir")
       val tracePath: Option[Path] = if(ManagedConfig().trace) {
-        Some(layout.logsDir / str"${java.time.LocalDateTime.now().toString}.log")
+        val path = layout.logsDir / s"${java.time.LocalDateTime.now().toString}.log"
+        log.note(str"BSP trace log is at $path")
+        Some(path)
       } else None
-      
+
       val newConnection =
         Await.result(connect(dir, compilation, targetId, layout, trace = tracePath), Duration.Inf)
       

@@ -20,8 +20,6 @@ import probably._
 
 import fury.core._
 
-import scala.language.implicitConversions
-
 object RemoteNameTest extends Suite() {
 
   def run(test: Runner): Unit = {
