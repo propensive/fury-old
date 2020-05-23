@@ -31,7 +31,10 @@ object MsgShow {
   implicit val stackTraceElement: MsgShow[StackTraceElement] = ste => UserMsg(_.gray(ste.toString))
 }
 
-trait MsgShow[T] { def show(value: T): UserMsg }
+trait MsgShow[T] {
+  def show(value: T): UserMsg
+  def plain(value: T): String = show(value).string(Theme.NoColor)
+}
 
 object Ansi {
 

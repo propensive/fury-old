@@ -75,18 +75,16 @@ case class Tables() {
     case Origin.Compiler    => theme.italic(theme.param("compiler"))
   }
 
-  private def refinedModuleDep(universe: Universe, projectId: ProjectId): AnsiShow[SortedSet[ModuleRef]] =
+  private def refinedModuleDep(universe: Universe, projectId: ProjectId): AnsiShow[SortedSet[Dependency]] =
     _.map {
-      case ref@ModuleRef(id, intransitive, _) =>
+      case Dependency(ref, intransitive, hidden, exports) =>
         val extra = (if(intransitive) msg"*" else msg"")
         val missing = if(universe.getMod(ref).isFailure) msg" ${theme.hazard("!")}" else msg""
         if(ref.projectId == projectId) msg"${theme.module(ref.moduleId.key)}$extra$missing"
         else msg"${theme.project(ref.projectId.key)}${'/'}${theme.module(ref.moduleId.key)}$extra$missing"
     }.foldLeft(msg"")(_ + _ + "\n").string(theme)
 
-  implicit private def compilerRef(
-      implicit show: AnsiShow[ModuleRef]
-    ): AnsiShow[Option[ModuleRef]] = {
+  implicit private def compilerRef(implicit show: AnsiShow[ModuleRef]): AnsiShow[Option[ModuleRef]] = {
     case None      => s"${Ansi.yellow("java")}"
     case Some(ref) => show.show(ref)
   }
@@ -119,8 +117,8 @@ case class Tables() {
     Heading("Arguments", _.args.mkString("'", "', '", "'"))
   )
 
-  val dependencies: Tabulation[ModuleRef] = Tabulation[ModuleRef](
-    Heading("Dependency", identity),
+  val dependencies: Tabulation[Dependency] = Tabulation[Dependency](
+    Heading("Dependency", _.ref),
     Heading("Intransitive", _.intransitive)
   )
 

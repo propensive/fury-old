@@ -205,10 +205,10 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val undoStack: Path = (furyDir / "history").extantParents()
 
-  def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
-  def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
-  def workDir(targetId: TargetId): Path = (workDir / targetId.key).extant()
-  def benchmarksDir(targetId: TargetId): Path = (benchmarksDir / targetId.key).extant()
-  def classesDir(targetId: TargetId): Path = (classesDir / targetId.key).extant()
-  def resourcesDir(targetId: TargetId): Path = (resourcesDir / targetId.key).extant()
+  def bloopConfig(ref: ModuleRef): Path = bloopDir.extant() / str"${ref.fsSafe}.json"
+  def outputDir(ref: ModuleRef): Path = (analysisDir / ref.fsSafe).extant()
+  def workDir(ref: ModuleRef): Path = (workDir / ref.fsSafe).extant()
+  def benchmarksDir(ref: ModuleRef): Path = (benchmarksDir / ref.fsSafe).extant()
+  def classesDir(ref: ModuleRef): Path = (classesDir / ref.fsSafe).extant()
+  def resourcesDir(ref: ModuleRef): Path = (resourcesDir / ref.fsSafe).extant()
 }

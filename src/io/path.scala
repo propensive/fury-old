@@ -34,6 +34,7 @@ import java.io.{ Closeable, InputStream, File => JavaFile }
 object Path {
 
   implicit val stringShow: StringShow[Path] = _.value
+  implicit val msgShow: MsgShow[Path] = path => UserMsg(_.path(path.value))
   implicit val diff: Diff[Path] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
   implicit val parser: Parser[Path] = unapply(_)
 

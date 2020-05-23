@@ -224,50 +224,44 @@ object Compilation {
 
   private val requestOrigins: collection.mutable.Map[RequestOriginId, Compilation] = TrieMap()
 
-  def findBy(targetId: TargetId): Iterable[Compilation] = requestOrigins.values.filter(_.target.id == targetId)
+  def findBy(ref: ModuleRef): Iterable[Compilation] = requestOrigins.values.filter(_.target.ref == ref)
 
-  def mkCompilation(layer: Layer,
-                    ref: ModuleRef,
-                    layout: Layout,
-                    noSecurity: Boolean)(implicit log: Log)
-  : Try[Compilation] = for {
-
+  def mkCompilation(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
+                   (implicit log: Log)
+                   : Try[Compilation] = for {
     hierarchy   <- layer.hierarchy()
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
-    compilation <- fromUniverse(universe, ref, layout)
+    compilation <- fromUniverse(universe, ref.dependency, layout)
     _           <- policy.checkAll(compilation.requiredPermissions, noSecurity)
     _           <- compilation.generateFiles(layout)
   } yield compilation
 
-  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Compilation] = {
+  def fromUniverse(universe: Universe, dependency: Dependency, layout: Layout)
+                  (implicit log: Log)
+                  : Try[Compilation] = {
     import universe._
 
-    def directDependencies(target: Target): Set[TargetId] =
-      (target.dependencies ++ target.compiler.map(_.id)).to[Set]
+    def directDependencies(target: Target): Set[Dependency] =
+      (target.dependencies ++ target.compiler.map(_.dependency)).to[Set]
 
     def graph(target: Target): Try[Target.Graph] = for {
-      requiredModules <- dependencies(ref, layout)
+      requiredModules <- dependencies(dependency.ref, layout)
       requiredTargets <- requiredModules.traverse(makeTarget(_, layout))
     } yield {
-      val targetGraph = (requiredTargets + target).map { t => t.id -> directDependencies(t) }
-      Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
+      val targetGraph = (requiredTargets + target).map { t => t.ref -> directDependencies(t) }
+      Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.ref -> t }.toMap)
     }
 
     def canAffectBuild(target: Target): Boolean = !target.kind.is[Lib]
 
     for {
-      target              <- makeTarget(ref, layout)
+      target              <- makeTarget(dependency, layout)
       graph               <- graph(target)
-      
-      targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref,
-                                 layout).map(t => targetId -> t) }
-
-      requiredTargets     =  targetIndex.unzip._2.toSet
-      
-      requiredPermissions =  (if(target.kind.needsExec) requiredTargets else requiredTargets -
-                                 target).flatMap(_.permissions)
-
+      targetIndex         <- graph.dependencies.keys.traverse { ref => makeTarget(ref.dependency, layout).map(ref -> _) }
+      requiredTargets     <- ~targetIndex.unzip._2.toSet
+      exclusions          <- if(target.kind.needsExec) ~Set() else ~Set(target)
+      requiredPermissions <- ~(requiredTargets -- exclusions).flatMap(_.permissions)
       checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
@@ -295,10 +289,9 @@ object Compilation {
     compilationCache(layout.furyDir)
   }
 
-  def syncCompilation(layer: Layer,
-                      ref: ModuleRef,
-                      layout: Layout,
-                      noSecurity: Boolean)(implicit log: Log): Try[Compilation] = {
+  def syncCompilation(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
+                     (implicit log: Log)
+                     : Try[Compilation] = {
     val compilation = mkCompilation(layer, ref, layout, noSecurity)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
@@ -437,11 +430,11 @@ ${'|'} ${highlightedLine}
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
-    val targetId = getCompileTargetId(params.getData)
-    broadcast(StartCompile(targetId.ref))
+    val ref = getCompileTargetId(params.getData).ref
+    broadcast(StartCompile(ref))
     for {
-      compilation <- Compilation.findBy(targetId)
-      dependencyTargetId <- compilation.deepDependencies(targetId)
+      compilation <- Compilation.findBy(ref)
+      dependencyTargetId <- compilation.deepDependencies(ref)
     } yield {
       broadcast(NoCompile(dependencyTargetId.ref))  
     }
@@ -453,7 +446,7 @@ ${'|'} ${highlightedLine}
       val ref = targetId.ref
       val success = params.getStatus == StatusCode.OK
       broadcast(StopCompile(ref, success))
-      Compilation.findBy(targetId).foreach { compilation =>
+      Compilation.findBy(targetId.ref).foreach { compilation =>
         val signal = if(success && compilation.targets(ref).kind.needsExec) StartRun(ref) else StopRun(ref)
         broadcast(signal)
       }
@@ -472,7 +465,7 @@ case class Compilation(target: Target,
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  lazy val deepDependencies: Map[TargetId, Set[TargetId]] = {
+  lazy val deepDependencies: Map[ModuleRef, Set[Dependency]] = {
     @tailrec
     def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
       if(next.isEmpty) aggregated
@@ -482,7 +475,8 @@ case class Compilation(target: Target,
       }
     }
     targetIndex.map { case (targetId, _) =>
-      targetId -> flatten[TargetId](Set.empty, graph.dependencies(_).to[Set], Set(targetId))
+      targetId.ref -> flatten[Dependency](Set.empty, d => graph.dependencies(d.ref).to[Set],
+          Set(target.dependency))
     }
   }
 
@@ -497,7 +491,7 @@ case class Compilation(target: Target,
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
     requiredTargets(ref).flatMap { target =>
-      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+      Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
     } ++ targets(ref).binaries
   }
 
@@ -514,7 +508,7 @@ case class Compilation(target: Target,
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
     inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
     pOpts       <- ~(if(target.kind.is[Plugin]) Set(
-                     Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
+                     Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.ref)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
                    ) else Set())
   } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
@@ -552,23 +546,21 @@ case class Compilation(target: Target,
   
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind.is[Plugin]).flatMap { target =>
-      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+      Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
     }
     val compilerClasspath = targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
     compilerClasspath ++ requiredPlugins
   }
 
-  private def requiredTargets(ref: ModuleRef): Set[Target] = {
-    val requiredIds = deepDependencies(targets(ref).id)
-    requiredIds.map(targetIndex.apply)
-  }
+  private def requiredTargets(ref: ModuleRef): Set[Target] =
+    deepDependencies(ref).map { d => targetIndex(TargetId(d.ref)) }
 
-  def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
+  def allSources: Set[Path] = targets.values.to[Set].flatMap(_.sourcePaths.to[Set])
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
     if(target.kind.is[Plugin]) {
-      val file = layout.classesDir(target.id) / "scalac-plugin.xml"
+      val file = layout.classesDir(target.ref) / "scalac-plugin.xml"
 
       target.kind.as[Plugin].foreach { plugin =>
         file.writeSync(str"""|<plugin>
@@ -620,25 +612,25 @@ case class Compilation(target: Target,
   private[this] def aggregateCompileResults(ref: ModuleRef,
                                             compileResults: Set[Path],
                                             layout: Layout): Try[Path] = {
-    val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
+    val stagingDirectory = layout.workDir(ref) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
   def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
     classesDirs ++ targets(ref).compiler.to[Set].map { compilerTarget =>
-      layout.resourcesDir(compilerTarget.id)
+      layout.resourcesDir(compilerTarget.ref)
     } ++ classpath(ref, layout)
 
   def runtimeClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
     targets(ref).compiler.to[Set].flatMap { compilerTarget =>
-      Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
-    } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
+      Set(layout.classesDir(compilerTarget.ref), layout.resourcesDir(compilerTarget.ref))
+    } ++ classpath(ref, layout) + layout.classesDir(ref) + layout.resourcesDir(ref)
 
   def cleanCache(moduleRef: ModuleRef, layout: Layout)(implicit log: Log): Try[CleanCacheResult] = {
     val target = targets(moduleRef)
-    val furyTargetIds = deepDependencies(target.id).toList
+    val furyTargetIds = deepDependencies(target.ref).toList
     val bspTargetIds = furyTargetIds.map { dep =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
+      new BuildTargetIdentifier(str"file://${layout.workDir(dep.ref).value}?id=${dep.ref}")
     }
     val params = new CleanCacheParams(bspTargetIds.asJava)
 
@@ -657,14 +649,14 @@ case class Compilation(target: Target,
   : Future[CompileResult] = Future.fromTry {
     val originId = Compilation.nextOriginId(this)
 
-    val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+    val uri: String = str"file://${layout.workDir(target.ref).value}?id=${target.ref.fsSafe}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     params.setOriginId(originId.key)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
-    val furyTargetIds = deepDependencies(target.id).toList
+    val furyTargetIds = deepDependencies(target.ref).toList
     
     val bspTargetIds = furyTargetIds.map { dep =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
+      new BuildTargetIdentifier(str"file://${layout.workDir(dep.ref).value}?id=${dep.ref.fsSafe}")
     }
     
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
@@ -685,8 +677,8 @@ case class Compilation(target: Target,
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
         val bti = soi.getTarget
         val classDir = soi.getClassDirectory
-        val targetId = bspToFury(bti)
-        val permanentClassesDir = layout.classesDir(targetId)
+        val dependency = bspToFury(bti)
+        val permanentClassesDir = layout.classesDir(dependency.ref)
         val temporaryClassesDir = Path(new URI(classDir))
         temporaryClassesDir.copyTo(permanentClassesDir)
         //TODO the method setClassDirectory modifies a mutable structure. Consider refactoring
@@ -743,7 +735,7 @@ case class Compilation(target: Target,
         val noCompilation = target.sourcePaths.isEmpty && !target.kind.needsExec
 
         if(noCompilation) {
-          deepDependencies(target.id).foreach { targetId =>
+          deepDependencies(target.ref).foreach { targetId =>
             multiplexer.fire(targetId.ref, NoCompile(targetId.ref))
           }
           Future.successful(required)
@@ -760,8 +752,8 @@ case class Compilation(target: Target,
     val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
-        Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
-        val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+        Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))
+        val javaSources = layout.benchmarksDir(target.ref).findChildren(_.endsWith(".java"))
 
         Shell(layout.env).javac(
           classpath(target.ref, layout).to[List].map(_.value),
@@ -783,7 +775,7 @@ case class Compilation(target: Target,
       multiplexer.fire(target.ref, Print(target.ref, ln))
     }.await()
 
-    deepDependencies(target.id).foreach { targetId =>
+    deepDependencies(target.ref).foreach { targetId =>
       multiplexer.fire(targetId.ref, NoCompile(targetId.ref))
     }
 

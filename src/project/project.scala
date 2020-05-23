@@ -71,7 +71,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     compilerId     <- ~cli.peek(DefaultCompilerArg)
     
     optCompilerRef <- compilerId.to[List].map { v =>
-                        ModuleRef.parseFull(v, true).ascribe(InvalidValue(v))
+                        ModuleRef.unapply(v).ascribe(InvalidValue(v))
                       }.sequence.map(_.headOption)
 
     projectArg     <- call(ProjectNameArg)
@@ -118,7 +118,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer          <- ~licenseArg.fold(layer)(Layer(_.projects(project.id).license)(layer) = _)
     descriptionArg <- ~call(DescriptionArg).toOption
     layer          <- ~descriptionArg.fold(layer)(Layer(_.projects(project.id).description)(layer) = _)
-    compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true))
+    compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.unapply(_))
     layer          <- ~compilerArg.map(Some(_)).fold(layer)(Layer(_.projects(project.id).compiler)(layer) = _)
     nameArg        <- ~call(ProjectNameArg).toOption
     newId          <- ~nameArg.flatMap(layer.projects.unique(_).toOption)

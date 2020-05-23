@@ -42,6 +42,7 @@ case class Project(id: ProjectId,
 
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
+  def dependencies: List[Dependency] = modules.to[List].map(_.ref(this).dependency)
 
   def compilerRefs: List[ModuleRef] =
     modules.to[List].collect { case m if m.kind.is[Compiler] => m.ref(this) }

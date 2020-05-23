@@ -30,7 +30,7 @@ object Kind {
   sealed abstract class Id(val name: String)
   
   val ids: List[Id] = List(Lib, App, Plugin, Compiler, Bench)
-  implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
+  implicit def stringShow: StringShow[Kind] = msgShow.show(_).plain
 
   implicit def msgShow: MsgShow[Kind] = {
     case Lib()                => msg"lib"

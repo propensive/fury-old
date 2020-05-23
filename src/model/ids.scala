@@ -27,7 +27,7 @@ import scala.collection.immutable.ListMap
 
 import language.higherKinds
 
-import scala.collection.immutable.SortedSet
+import scala.collection.immutable.{SortedSet, TreeSet}
 
 object ManagedConfig {
   private var config: Config =
@@ -330,7 +330,7 @@ case class Pid(pid: Int)
 case class TargetId(key: String) extends AnyVal {
   def moduleId: ModuleId = ModuleId(key.split("_")(1))
   def projectId: ProjectId = ProjectId(key.split("_")(0))
-  def ref: ModuleRef = ModuleRef(projectId, moduleId, false, false)
+  def ref: ModuleRef = ModuleRef(projectId, moduleId)
 }
 
 case class RequestOriginId private(pid: Pid, counter: Int) {
@@ -673,15 +673,49 @@ object Version {
 
 case class Version(key: String) extends Key("version")
 
+object Export {
+  case class Classes(path: Path) extends Export
+  case class JarFile(path: Path) extends Export
+  case class Sources(path: Path) extends Export
+
+  implicit val msgShow: MsgShow[Export] = {
+    case Classes(path: Path) => UserMsg { t => msg"$path${'/'}${'/'}".string(t)+t.italic("{classes}") }
+    case JarFile(path: Path) => msg"$path"
+    case Sources(path: Path) => UserMsg { t => msg"$path${'/'}${'/'}".string(t)+t.italic("{sources}") }
+  }
+
+  implicit val stringShow: StringShow[Export] = msgShow.show(_).plain
+  implicit val ord: Ordering[Export] = Ordering.by(stringShow.show)
+  implicit val diff: Diff[Export] = Diff.gen[Export]
+  implicit val keyName: KeyName[Export] = () => msg"export"
+  implicit val fieldIndex: Index[Export] = FieldIndex("path")
+}
+
+sealed trait Export { def path: Path }
+
+object Dependency {
+  implicit val msgShow: MsgShow[Dependency] = dep => msg"${dep.ref}${if(dep.intransitive) msg"*" else msg""}"
+  implicit val stringShow: StringShow[Dependency] = msgShow.show(_).plain
+  implicit val diff: Diff[Dependency] = Diff.gen[Dependency]
+  implicit val keyName: KeyName[Dependency] = () => msg"dependency"
+  implicit val ogdlWriter: OgdlWriter[Dependency] = OgdlWriter.gen[Dependency]
+  implicit val fieldIndex: Index[Dependency] = FieldIndex[Dependency]("ref")
+}
+
+case class Dependency(ref: ModuleRef,
+                      intransitive: Boolean = false,
+                      hidden: Boolean = false,
+                      exports: SortedSet[Export] = TreeSet())
+
 object ModuleRef {
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
-  implicit val parser: Parser[ModuleRef] = parseFull(_, false)
+  implicit val parser: Parser[ModuleRef] = unapply(_)
+  implicit val keyName: KeyName[ModuleRef] = () => msg"ref"
   
-  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false, false)
+  val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"))
 
-  def apply(projectId: ProjectId, moduleId: ModuleId, intransitive: Boolean, hidden: Boolean): ModuleRef =
-    ModuleRef(str"${projectId.key}/${moduleId.key}", intransitive, hidden)
+  def apply(projectId: ProjectId, moduleId: ModuleId): ModuleRef = ModuleRef(str"$projectId/$moduleId")
 
   implicit val diff: Diff[ModuleRef] =
     (l, r) => if(l == r) Nil else List(Difference(msg"ref", msg"", msg"$l", msg"$r"))
@@ -691,30 +725,25 @@ object ModuleRef {
       msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}".string(theme)
     }
 
-  def parseFull(string: String, intransitive: Boolean): Option[ModuleRef] = string.only {
+  def unapply(string: String): Option[ModuleRef] = string.only {
     case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
-      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive, false)
+      ModuleRef(ProjectId(projectId), ModuleId(moduleId))
   }
 
-  def parse(projectId: ProjectId, string: String, intransitive: Boolean): Option[ModuleRef] = string.only {
+  def parse(projectId: ProjectId, string: String): Option[ModuleRef] = string.only {
     case r"$projectId@([a-z](-?[a-z0-9]+)*)\/$moduleId@([a-z](-?[a-z0-9]+)*)" =>
-      ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive, false)
+      ModuleRef(ProjectId(projectId), ModuleId(moduleId))
     case r"[a-z](-?[a-z0-9]+)*" =>
-      ModuleRef(projectId, ModuleId(string), intransitive, false)
+      ModuleRef(projectId, ModuleId(string))
   }
 }
 
-case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) {
-
+case class ModuleRef(id: String) {
   def projectId: ProjectId = ProjectId(id.split("/")(0))
   def moduleId: ModuleId = ModuleId(id.split("/")(1))
-
-  override def equals(that: Any): Boolean =
-    that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
-
-  def hide = copy(hidden = true)
-  override def hashCode: Int = projectId.hashCode + moduleId.hashCode
+  def dependency: Dependency = Dependency(this, false, false, TreeSet())
   override def toString: String = str"$projectId/$moduleId"
+  def fsSafe: String = str"${projectId}_${moduleId}"
 }
 
 object ClassRef {

@@ -29,7 +29,7 @@ object Diff extends Diff_1 {
       caseClass.parameters.flatMap { param =>
         param.typeclass.diff(param.dereference(l), param.dereference(r)).map { d =>
           d.copy(label =
-              if(d.label.string(Theme.NoColor).isEmpty) msg"${param.label}" else msg"${d.label}")
+              if(d.label.length == 0) msg"${param.label}" else msg"${d.label}")
         }
       }
 

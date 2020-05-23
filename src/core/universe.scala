@@ -27,27 +27,26 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
-  def makeTarget(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Target] =
+  def makeTarget(dependency: Dependency, layout: Layout)(implicit log: Log): Try[Target] =
     for {
+      ref             <- ~dependency.ref
       resolvedProject <- entity(ref.projectId)
       module          <- resolvedProject.project(ref.moduleId)
       compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
-                         else makeTarget(module.compiler, layout).map(Some(_))
+                         else makeTarget(module.compiler.dependency, layout).map(Some(_))
       binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
-      dependencies    =  module.dependencies.map { dep => TargetId(dep) }
       checkouts       <- checkout(ref, layout)
       sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
     } yield Target(
-      ref,
+      dependency,
       module.kind,
       resolvedProject.layer.repos.map(_.remote).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],
-      dependencies.to[List],
+      module.dependencies.to[List],
       compiler,
       module.opts.to[List],
       module.policy.to[List],
-      ref.intransitive,
       sources.to[List],
       module.environment.map { e => (e.id, e.value) }.toMap,
       module.properties.map { p => (p.id, p.value) }.toMap,
@@ -66,18 +65,18 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def ++(that: Universe): Universe = Universe(entities ++ that.entities)
 
-  private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
-    resolveTransitiveDependencies(forbidden = Set.empty, ref, layout)
+  def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =
+    resolveTransitively(forbidden = Set.empty, ref.dependency, layout)
 
-  private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout):
-      Try[Set[ModuleRef]] = for {
-    entity   <- entity(ref.projectId)
-    module   <- entity.project(ref.moduleId)
+  private[this] def resolveTransitively(forbidden: Set[Dependency], dependency: Dependency, layout: Layout):
+      Try[Set[Dependency]] = for {
+    entity   <- entity(dependency.ref.projectId)
+    module   <- entity.project(dependency.ref.moduleId)
     deps     =  module.dependencies ++ module.compilerDependencies
     repeated =  deps.intersect(forbidden)
-    _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
-    tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _,
-                    layout).filter(!_.contains(ref))).sequence
+    _        <- if(repeated.isEmpty) Success() else Failure(CyclesInDependencies(repeated.map(_.ref)))
+    tDeps    <- deps.map(resolveTransitively(forbidden + dependency, _,
+                    layout).filter(!_.contains(dependency))).sequence
   } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
