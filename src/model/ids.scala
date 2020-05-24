@@ -341,7 +341,7 @@ object Pid {
 case class Pid(pid: Int)
 
 case class RequestOriginId private(pid: Pid, counter: Int) {
-  val key = s"fury-${pid.pid}-${counter}"
+  val key = str"fury-${pid.pid}-${counter}"
 }
 
 object RequestOriginId {
@@ -351,7 +351,7 @@ object RequestOriginId {
 
   def unapply(originId: String): Option[RequestOriginId] = {
     originId.only {
-      case r"fury-$pid@([0-9]+)-$counter@([0-9]+)" =>RequestOriginId(Pid(pid.toInt), counter.toInt)
+      case r"fury-$pid@([0-9]+)-$counter@([0-9]+)" => RequestOriginId(Pid(pid.toInt), counter.toInt)
     }
   }
 }

@@ -424,7 +424,11 @@ ${'|'} ${highlightedLine}
 
   private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef = {
     val report = convertDataTo[CompileTask](taskNotificationData)
-    report.getTarget.getUri.as[ModuleRef].get
+    val params = new java.net.URI(report.getTarget.getUri).getRawQuery.split("^").map(_.split("=", 2)).map {
+      param => param(0) -> param(1)
+    }.toMap
+
+    ModuleRef(params("id").split("_", 2).mkString("/"))
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
@@ -651,15 +655,14 @@ case class Compilation(target: Target,
                     noSecurity: Boolean)(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
     val originId = Compilation.nextOriginId(this)
-
-    val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref}"
+    val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     params.setOriginId(originId.key)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
     val furyTargetIds = deepDependencies(target.ref).toList
     
     val bspTargetIds = furyTargetIds.map { ref =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref}")
+      new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
     }
     
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
