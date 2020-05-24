@@ -31,7 +31,7 @@ object Bloop {
   def generateFiles(compilation: Compilation, layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     new CollOps(compilation.targets.values.map { target =>
       for {
-        path       <- layout.bloopConfig(target.id).mkParents()
+        path       <- layout.bloopConfig(target.ref).mkParents()
         jsonString <- makeConfig(target, compilation, layout)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
@@ -68,13 +68,13 @@ object Bloop {
       version = "1.0.0",
       project = Json.of(
         scala = compilerOpt,
-        name = target.id.key,
-        directory = layout.workDir(target.id).value,
+        name = target.ref.urlSafe,
+        directory = layout.workDir(target.ref).value,
         sources = target.sourcePaths.map(_.value),
-        dependencies = compilation.graph.dependencies(target.id).map(_.key),
+        dependencies = compilation.graph.dependencies(target.ref),
         classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
-        out = str"${layout.outputDir(target.id).value}",
-        classesDir = str"${layout.classesDir(target.id).value}",
+        out = str"${layout.outputDir(target.ref).value}",
+        classesDir = str"${layout.classesDir(target.ref).value}",
         java = Json.of(options = Nil),
         test = Json.of(frameworks = Nil, options = Json.of(excludes = Nil, arguments = Nil)),
         jvmPlatform = Json.of(

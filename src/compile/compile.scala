@@ -86,13 +86,13 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   
   private def connect(dir: Path,
                       compilation: Compilation,
-                      targetId: TargetId,
+                      ref: ModuleRef,
                       layout: Layout,
                       trace: Option[Path] = None)
                      (implicit log: Log): Future[Connection] =
     singleTasking { promise =>
 
-      val traceOut = trace.map{ path => new FileOutputStream(path.javaFile, true) }
+      val traceOut = trace.map { path => new FileOutputStream(path.javaFile, true) }
       val serverIoPipe = Pipe.open()
       val serverIn = Channels.newInputStream(serverIoPipe.source())
       val clientOut = {
@@ -173,14 +173,12 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, compilation: Compilation, targetId: TargetId, layout: Layout)
+  def borrow[T](dir: Path, compilation: Compilation, ref: ModuleRef, layout: Layout)
                (fn: Connection => T)
                (implicit log: Log)
                : Try[T] = {
 
-    val conn = BloopServer.synchronized {
-      connections.get(dir)
-    }.getOrElse {
+    val conn = BloopServer.synchronized(connections.get(dir)).getOrElse {
       log.note(msg"Opening a new BSP connection at $dir")
       val tracePath: Option[Path] = if(ManagedConfig().trace) {
         val path = layout.logsDir / s"${java.time.LocalDateTime.now().toString}.log"
@@ -189,7 +187,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       } else None
 
       val newConnection =
-        Await.result(connect(dir, compilation, targetId, layout, trace = tracePath), Duration.Inf)
+        Await.result(connect(dir, compilation, ref, layout, trace = tracePath), Duration.Inf)
       
       connections += dir -> newConnection
       newConnection
@@ -224,7 +222,7 @@ object Compilation {
 
   private val requestOrigins: collection.mutable.Map[RequestOriginId, Compilation] = TrieMap()
 
-  def findBy(targetId: TargetId): Iterable[Compilation] = requestOrigins.values.filter(_.target.id == targetId)
+  def findBy(ref: ModuleRef): Iterable[Compilation] = requestOrigins.values.filter(_.target.ref == ref)
 
   def mkCompilation(layer: Layer,
                     ref: ModuleRef,
@@ -243,15 +241,15 @@ object Compilation {
   def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Compilation] = {
     import universe._
 
-    def directDependencies(target: Target): Set[TargetId] =
-      (target.dependencies ++ target.compiler.map(_.id)).to[Set]
+    def directDependencies(target: Target): Set[ModuleRef] =
+      (target.dependencies ++ target.compiler.map(_.ref)).to[Set]
 
     def graph(target: Target): Try[Target.Graph] = for {
       requiredModules <- dependencies(ref, layout)
       requiredTargets <- requiredModules.traverse(makeTarget(_, layout))
     } yield {
-      val targetGraph = (requiredTargets + target).map { t => t.id -> directDependencies(t) }
-      Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.id -> t }.toMap)
+      val targetGraph = (requiredTargets + target).map { t => t.ref -> directDependencies(t) }
+      Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.ref -> t }.toMap)
     }
 
     def canAffectBuild(target: Target): Boolean = !target.kind.is[Lib]
@@ -260,21 +258,20 @@ object Compilation {
       target              <- makeTarget(ref, layout)
       graph               <- graph(target)
       
-      targetIndex         <- graph.dependencies.keys.traverse { targetId => makeTarget(targetId.ref,
-                                 layout).map(t => targetId -> t) }
+      targetIndex         <- graph.dependencies.keys.traverse { ref => makeTarget(ref, layout).map(ref -> _) }
 
       requiredTargets     =  targetIndex.unzip._2.toSet
       
       requiredPermissions =  (if(target.kind.needsExec) requiredTargets else requiredTargets -
                                  target).flatMap(_.permissions)
 
-      checkouts           <- graph.dependencies.keys.traverse { targetId => checkout(targetId.ref, layout) }
+      checkouts           <- graph.dependencies.keys.traverse { ref => checkout(ref, layout) }
     } yield {
       val moduleRefToTarget = (requiredTargets ++ target.compiler).map(t => t.ref -> t).toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       
-      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.id).to[Set] +
-          TargetId(ref)).connections
+      val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.ref).to[Set] +
+          ref).connections
       
       Compilation(target, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
           moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
@@ -346,7 +343,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
   }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-    val targetId: TargetId = params.getBuildTarget.getUri.as[TargetId].get
+    val ref: ModuleRef = params.getBuildTarget.getUri.as[ModuleRef].get
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     val compilation = for {
       idString    <- Option(params.getOriginId)
@@ -397,9 +394,9 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
       } }
 
       broadcast(DiagnosticMsg(
-        targetId.ref,
+        ref,
         CompilerDiagnostic(
-          msg"""$severity ${targetId.ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum +
+          msg"""$severity ${ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum +
               1).toString}
 ${'|'} ${UserMsg(
             theme =>
@@ -421,39 +418,37 @@ ${'|'} ${highlightedLine}
   private[this] def convertDataTo[A: ClassTag](data: Object): A = {
     val gson = new Gson()
     val json = data.asInstanceOf[JsonElement]
-    val report =
-      gson.fromJson[A](json, classTag[A].runtimeClass)
-    report
+    
+    gson.fromJson[A](json, classTag[A].runtimeClass)
   }
 
-  private[this] def getCompileTargetId(taskNotificationData: AnyRef): TargetId = {
+  private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef = {
     val report = convertDataTo[CompileTask](taskNotificationData)
-    report.getTarget.getUri.as[TargetId].get
+    report.getTarget.getUri.as[ModuleRef].get
   }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
-    val targetId = getCompileTargetId(params.getData)
-    broadcast(CompilationProgress(targetId.ref, params.getProgress.toDouble / params.getTotal))
+    val ref = getCompileRef(params.getData)
+    broadcast(CompilationProgress(ref, params.getProgress.toDouble / params.getTotal))
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
-    val targetId = getCompileTargetId(params.getData)
-    broadcast(StartCompile(targetId.ref))
+    val ref = getCompileRef(params.getData)
+    broadcast(StartCompile(ref))
     for {
-      compilation <- Compilation.findBy(targetId)
-      dependencyTargetId <- compilation.deepDependencies(targetId)
+      compilation <- Compilation.findBy(ref)
+      dependencyRef <- compilation.deepDependencies(ref)
     } yield {
-      broadcast(NoCompile(dependencyTargetId.ref))  
+      broadcast(NoCompile(dependencyRef))  
     }
   }
 
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
     case TaskDataKind.COMPILE_REPORT =>
-      val targetId = getCompileTargetId(params.getData)
-      val ref = targetId.ref
+      val ref = getCompileRef(params.getData)
       val success = params.getStatus == StatusCode.OK
       broadcast(StopCompile(ref, success))
-      Compilation.findBy(targetId).foreach { compilation =>
+      Compilation.findBy(ref).foreach { compilation =>
         val signal = if(success && compilation.targets(ref).kind.needsExec) StartRun(ref) else StopRun(ref)
         broadcast(signal)
       }
@@ -462,17 +457,17 @@ ${'|'} ${highlightedLine}
 
 case class Compilation(target: Target, 
                        graph: Target.Graph,
-                       subgraphs: Map[TargetId, Set[TargetId]],
+                       subgraphs: Map[ModuleRef, Set[ModuleRef]],
                        checkouts: Checkouts,
                        targets: Map[ModuleRef, Target],
-                       targetIndex: Map[TargetId, Target],
+                       targetIndex: Map[ModuleRef, Target],
                        requiredPermissions: Set[Permission],
                        universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
-  lazy val deepDependencies: Map[TargetId, Set[TargetId]] = {
+  lazy val deepDependencies: Map[ModuleRef, Set[ModuleRef]] = {
     @tailrec
     def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
       if(next.isEmpty) aggregated
@@ -482,14 +477,14 @@ case class Compilation(target: Target,
       }
     }
     targetIndex.map { case (targetId, _) =>
-      targetId -> flatten[TargetId](Set.empty, graph.dependencies(_).to[Set], Set(targetId))
+      targetId -> flatten[ModuleRef](Set.empty, graph.dependencies(_).to[Set], Set(targetId))
     }
   }
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
-    checkouts.checkouts.traverse(_.get(layout)).map{ _ => ()}
+    checkouts.checkouts.traverse(_.get(layout)).map(_ => ())
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.generateFiles(this, layout)
@@ -497,7 +492,7 @@ case class Compilation(target: Target,
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
     requiredTargets(ref).flatMap { target =>
-      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+      Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
     } ++ targets(ref).binaries
   }
 
@@ -512,9 +507,9 @@ case class Compilation(target: Target,
                        ModuleRef.JavaRef), Origin.Module(target.ref)))
 
     removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
-    inherited   <- target.dependencies.map(_.ref).traverse(persistentOpts(_, layout)).map(_.flatten)
+    inherited   <- target.dependencies.traverse(persistentOpts(_, layout)).map(_.flatten)
     pOpts       <- ~(if(target.kind.is[Plugin]) Set(
-                     Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.id)}"), persistent = true,
+                     Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.ref)}"), persistent = true,
                          remove = false), target.compiler.fold(ModuleRef.JavaRef)(_.ref), Origin.Plugin)
                    ) else Set())
   } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
@@ -533,42 +528,42 @@ case class Compilation(target: Target,
 
   def aggregatedOptDefs(ref: ModuleRef): Try[Set[Provenance[OptDef]]] = for {
     target  <- this(ref)
-    optDefs <- target.dependencies.map(_.ref).traverse(aggregatedOptDefs(_))
+    optDefs <- target.dependencies.traverse(aggregatedOptDefs(_))
   } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Provenance(_, target.impliedCompiler,
       Origin.Module(target.ref))) ++ target.compiler.to[Set].flatMap { c => c.optDefs.map(Provenance(_, c.ref,
       Origin.Compiler)) }
 
   def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] = for {
     target           <- apply(ref)
-    inheritedPlugins <- target.dependencies.map(_.ref).traverse(aggregatedPlugins(_))
+    inheritedPlugins <- target.dependencies.traverse(aggregatedPlugins(_))
   } yield inheritedPlugins.flatten.to[Set] ++ target.kind.as[Plugin].map { plugin =>
       Provenance(PluginDef(plugin.id, ref, plugin.main), target.compiler.fold(ModuleRef.JavaRef)(_.ref),
           Origin.Plugin) }
   
   def aggregatedResources(ref: ModuleRef): Try[Set[Source]] = for {
     target    <- apply(ref)
-    inherited <- target.dependencies.map(_.ref).traverse(aggregatedResources(_))
+    inherited <- target.dependencies.traverse(aggregatedResources(_))
   } yield inherited.flatten.to[Set] ++ target.resources
   
   def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
     val requiredPlugins = requiredTargets(ref).filter(_.kind.is[Plugin]).flatMap { target =>
-      Set(layout.classesDir(target.id), layout.resourcesDir(target.id)) ++ target.binaries
+      Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
     }
     val compilerClasspath = targets(ref).compiler.to[Set].flatMap { c => classpath(c.ref, layout) }
     compilerClasspath ++ requiredPlugins
   }
 
   private def requiredTargets(ref: ModuleRef): Set[Target] = {
-    val requiredIds = deepDependencies(targets(ref).id)
+    val requiredIds = deepDependencies(ref)
     requiredIds.map(targetIndex.apply)
   }
 
-  def allSources: Set[Path] = targets.values.to[Set].flatMap{x: Target => x.sourcePaths.to[Set]}
+  def allSources: Set[Path] = targets.values.to[Set].flatMap(_.sourcePaths.to[Set])
 
   def writePlugin(ref: ModuleRef, layout: Layout): Unit = {
     val target = targets(ref)
     if(target.kind.is[Plugin]) {
-      val file = layout.classesDir(target.id) / "scalac-plugin.xml"
+      val file = layout.classesDir(target.ref) / "scalac-plugin.xml"
 
       target.kind.as[Plugin].foreach { plugin =>
         file.writeSync(str"""|<plugin>
@@ -620,29 +615,29 @@ case class Compilation(target: Target,
   private[this] def aggregateCompileResults(ref: ModuleRef,
                                             compileResults: Set[Path],
                                             layout: Layout): Try[Path] = {
-    val stagingDirectory = layout.workDir(targets(ref).id) / "staging"
+    val stagingDirectory = layout.workDir(ref) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
 
   def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
     classesDirs ++ targets(ref).compiler.to[Set].map { compilerTarget =>
-      layout.resourcesDir(compilerTarget.id)
+      layout.resourcesDir(compilerTarget.ref)
     } ++ classpath(ref, layout)
 
   def runtimeClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
     targets(ref).compiler.to[Set].flatMap { compilerTarget =>
-      Set(layout.classesDir(compilerTarget.id), layout.resourcesDir(compilerTarget.id))
-    } ++ classpath(ref, layout) + layout.classesDir(targets(ref).id) + layout.resourcesDir(targets(ref).id)
+      Set(layout.classesDir(compilerTarget.ref), layout.resourcesDir(compilerTarget.ref))
+    } ++ classpath(ref, layout) + layout.classesDir(ref) + layout.resourcesDir(ref)
 
   def cleanCache(moduleRef: ModuleRef, layout: Layout)(implicit log: Log): Try[CleanCacheResult] = {
     val target = targets(moduleRef)
-    val furyTargetIds = deepDependencies(target.id).toList
-    val bspTargetIds = furyTargetIds.map { dep =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
+    val furyTargetIds = deepDependencies(target.ref).toList
+    val bspTargetIds = furyTargetIds.map { ref =>
+      new BuildTargetIdentifier(str"file://${layout.workDir(ref).value}?id=${ref}")
     }
     val params = new CleanCacheParams(bspTargetIds.asJava)
 
-    BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
+    BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
       val result: Try[CleanCacheResult] = wrapServerErrors(conn.server.buildTargetCleanCache(params))
       result.get
     }
@@ -657,20 +652,20 @@ case class Compilation(target: Target,
   : Future[CompileResult] = Future.fromTry {
     val originId = Compilation.nextOriginId(this)
 
-    val uri: String = str"file://${layout.workDir(target.id).value}?id=${target.id.key}"
+    val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     params.setOriginId(originId.key)
     if(pipelining) params.setArguments(List("--pipeline").asJava)
-    val furyTargetIds = deepDependencies(target.id).toList
+    val furyTargetIds = deepDependencies(target.ref).toList
     
-    val bspTargetIds = furyTargetIds.map { dep =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(dep).value}?id=${dep.key}")
+    val bspTargetIds = furyTargetIds.map { ref =>
+      new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref}")
     }
     
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-    BloopServer.borrow(layout.baseDir, this, target.id, layout) { conn =>
+    BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
 
       val result: Try[CompileResult] = for {
         res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
@@ -678,8 +673,8 @@ case class Compilation(target: Target,
       } yield CompileResult(res, opts)
 
       val responseOriginId = result.get.bspCompileResult.getOriginId
-      if(responseOriginId != originId.key){
-        log.warn(s"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
+      if(responseOriginId != originId.key) {
+        log.warn(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
       }
 
       result.get.scalacOptions.getItems.asScala.foreach { case soi =>
@@ -714,22 +709,22 @@ case class Compilation(target: Target,
 
 
   def compile(moduleRef: ModuleRef,
-              futures: Map[TargetId, Future[CompileResult]] = Map(),
+              futures: Map[ModuleRef, Future[CompileResult]] = Map(),
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
               pipelining: Boolean,
               noSecurity: Boolean)
              (implicit log: Log)
-             : Map[TargetId, Future[CompileResult]] = {
+             : Map[ModuleRef, Future[CompileResult]] = {
     val target = targets(moduleRef)
 
-    val newFutures = subgraphs(target.id).foldLeft(futures) { (futures, dependencyTarget) =>
-      if(futures.contains(dependencyTarget)) futures
-      else compile(dependencyTarget.ref, futures, layout, globalPolicy, args, pipelining, noSecurity)
+    val newFutures = subgraphs(target.ref).foldLeft(futures) { (futures, dependencyRef) =>
+      if(futures.contains(dependencyRef)) futures
+      else compile(dependencyRef, futures, layout, globalPolicy, args, pipelining, noSecurity)
     }
 
-    val dependencyFutures = Future.sequence(subgraphs(target.id).map(newFutures))
+    val dependencyFutures = Future.sequence(subgraphs(target.ref).map(newFutures))
 
     val multiplexer = Lifecycle.currentSession.multiplexer
     multiplexer.start()
@@ -743,15 +738,15 @@ case class Compilation(target: Target,
         val noCompilation = target.sourcePaths.isEmpty && !target.kind.needsExec
 
         if(noCompilation) {
-          deepDependencies(target.id).foreach { targetId =>
-            multiplexer.fire(targetId.ref, NoCompile(targetId.ref))
+          deepDependencies(target.ref).foreach { ref =>
+            multiplexer.fire(ref, NoCompile(ref))
           }
           Future.successful(required)
         } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity)
       }
     }
 
-    newFutures.updated(target.id, future)
+    newFutures.updated(target.ref, future)
   }
 
   private def run(target: Target, classDirectories: Set[Path], layout: Layout, globalPolicy: Policy,
@@ -760,8 +755,8 @@ case class Compilation(target: Target,
     val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
-        Jmh.instrument(classDirectory, layout.benchmarksDir(target.id), layout.resourcesDir(target.id))
-        val javaSources = layout.benchmarksDir(target.id).findChildren(_.endsWith(".java"))
+        Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))
+        val javaSources = layout.benchmarksDir(target.ref).findChildren(_.endsWith(".java"))
 
         Shell(layout.env).javac(
           classpath(target.ref, layout).to[List].map(_.value),
@@ -783,9 +778,7 @@ case class Compilation(target: Target,
       multiplexer.fire(target.ref, Print(target.ref, ln))
     }.await()
 
-    deepDependencies(target.id).foreach { targetId =>
-      multiplexer.fire(targetId.ref, NoCompile(targetId.ref))
-    }
+    deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
 
     multiplexer.close(target.ref)
     multiplexer.fire(target.ref, StopRun(target.ref))

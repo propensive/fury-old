@@ -113,7 +113,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
                             ds   <- universe.dependencies(ref, layout)
                             arts <- (ds + ref).map { d => universe.makeTarget(d, layout) }.sequence
                           } yield arts.map { a =>
-                            (a.ref, (a.dependencies.map(_.ref): List[ModuleRef]) ++ (a.compiler
+                            (a.ref, (a.dependencies: List[ModuleRef]) ++ (a.compiler
                                 .map(_.ref.hide): Option[ModuleRef]))
                           }
                         }.sequence.map(_.flatten.toMap)
@@ -410,7 +410,7 @@ object FuryBuildServer {
     val id = struct.buildTarget(target.ref)
     val tags = List(moduleKindToBuildTargetTag(target.kind))
     val languageIds = List("java", "scala") // TODO get these from somewhere?
-    val dependencies = target.dependencies.map(_.ref).map(struct.buildTarget)
+    val dependencies = target.dependencies.map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
     val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)

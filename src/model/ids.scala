@@ -22,12 +22,10 @@ import kaleidoscope._
 import gastronomy._
 
 import scala.util._
-import scala.collection.immutable.ListMap
-
+import scala.collection.immutable.{ListMap, SortedSet}
+import scala.collection.mutable.HashSet
 
 import language.higherKinds
-
-import scala.collection.immutable.SortedSet
 
 object ManagedConfig {
   private var config: Config =
@@ -298,24 +296,39 @@ case class Config(showContext: Boolean = true,
                   token: Option[OauthToken] = None)
 
 object TargetId {
-  implicit val stringShow: StringShow[TargetId] = _.key
-  
-  def apply(projectId: ProjectId, moduleId: ModuleId): TargetId =
-    TargetId(str"${projectId}_${moduleId}")
-  
-  def apply(ref: ModuleRef): TargetId =
-    TargetId(ref.projectId, ref.moduleId)
 
-  implicit val keyName: KeyName[TargetId] = () => msg"target"
+  implicit val uriParser: Parser[ModuleRef] = parse(_)
 
-  implicit val uriParser: Parser[TargetId] = parse(_)
-
-  private[this] def parse(bspUri: String): Option[TargetId] = {
+  private def parse(bspUri: String): Option[ModuleRef] = {
     val uriQuery =
       new java.net.URI(bspUri).getRawQuery.split("&").map(_.split("=", 2)).map { x => x(0) -> x(1) }.toMap
     
-    uriQuery.get("id").map(TargetId(_))
+    uriQuery.get("id").map(ModuleRef(_))
   }
+}
+
+object BuildId {
+  private val active: HashSet[BuildId] = HashSet()
+  
+  def assign[T](path: Path)(block: BuildId => T): T = {
+    val buildId: BuildId = active.synchronized {
+      val possibleIds = Stream.from(0).map((path, _).digest[Sha256].encoded[Hex].take(12)).map(BuildId(_))
+      val buildId: BuildId = possibleIds.find(!active(_)).get
+      active += buildId
+      
+      buildId
+    }
+
+    try block(buildId) catch {
+      case e: Throwable =>
+        synchronized { active -= buildId }
+
+        throw e
+    }
+  }
+}
+
+case class BuildId(key: String) {
 
 }
 
@@ -326,12 +339,6 @@ object Pid {
     pid => UserMsg { theme => msg"${theme.active(stringShow.show(pid))}".string(theme) }
 }
 case class Pid(pid: Int)
-
-case class TargetId(key: String) extends AnyVal {
-  def moduleId: ModuleId = ModuleId(key.split("_")(1))
-  def projectId: ProjectId = ProjectId(key.split("_")(0))
-  def ref: ModuleRef = ModuleRef(projectId, moduleId, false, false)
-}
 
 case class RequestOriginId private(pid: Pid, counter: Int) {
   val key = s"fury-${pid.pid}-${counter}"
@@ -677,6 +684,7 @@ object ModuleRef {
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
   implicit val parser: Parser[ModuleRef] = parseFull(_, false)
+  implicit val keyName: KeyName[ModuleRef] = () => msg"ref"
   
   val JavaRef = ModuleRef(ProjectId("java"), ModuleId("compiler"), false, false)
 
@@ -708,6 +716,8 @@ case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean 
 
   def projectId: ProjectId = ProjectId(id.split("/")(0))
   def moduleId: ModuleId = ModuleId(id.split("/")(1))
+
+  def urlSafe: String = str"${projectId}_${moduleId}"
 
   override def equals(that: Any): Boolean =
     that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
