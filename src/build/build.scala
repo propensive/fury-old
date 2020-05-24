@@ -474,7 +474,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
       val future = compilation.compile(moduleRef, Map(), layout,
-        globalPolicy, compileArgs, pipelining, noSecurity).apply(TargetId(moduleRef)).andThen {
+        globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes

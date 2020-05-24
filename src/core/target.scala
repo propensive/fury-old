@@ -19,9 +19,9 @@ package fury.core
 import fury.model._, fury.io._, fury.text._
 
 object Target {
-  case class Graph(dependencies: Map[TargetId, Set[TargetId]], targets: Map[TargetId, Target]) {
-    def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (k, ds) =>
-      (UiGraph.Key(k.ref), ds.map { d => UiGraph.Key(d.ref, targets(d).kind.is[Compiler]) })
+  case class Graph(dependencies: Map[ModuleRef, Set[ModuleRef]], targets: Map[ModuleRef, Target]) {
+    def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (ref, dependencies) =>
+      (UiGraph.Key(ref), dependencies.map { dRef => UiGraph.Key(ref, targets(dRef).kind.is[Compiler]) })
     }.toMap
   }
 }
@@ -31,7 +31,7 @@ case class Target(ref: ModuleRef,
                   repos: List[Remote],
                   checkouts: List[Checkout],
                   binaries: List[Path],
-                  dependencies: List[TargetId],
+                  dependencies: List[ModuleRef],
                   compiler: Option[Target],
                   params: List[Opt],
                   permissions: List[Permission],
@@ -41,6 +41,5 @@ case class Target(ref: ModuleRef,
                   properties: Map[String, String],
                   optDefs: Set[OptDef],
                   resources: List[Source]) {
-  def id: TargetId = TargetId(ref.projectId, ref.moduleId)
   def impliedCompiler: ModuleRef = if(kind.is[Compiler]) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
 }

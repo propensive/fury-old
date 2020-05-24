@@ -180,7 +180,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                      module   <- project.modules.findBy(moduleId).toOption
                    } yield module }
     kindName    <- ~cli.peek(KindArg).orElse(optModule.map(_.kind.name))
-    targetId    <- ~projectId.flatMap { p => optModuleId.map(TargetId(p, _)) }
+    targetId    <- ~projectId.flatMap { p => optModuleId.map(m => ModuleRef(p, m, false, false)) }
     mainClasses <- ~targetId.map { t => Asm.executableClasses(layout.classesDir(t)) }.to[Set].flatten
     cli         <- hintKindParams(cli, mainClasses, kindName)
     cli         <- cli.hint(HiddenArg, List("on", "off"))
