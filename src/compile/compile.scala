@@ -343,7 +343,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
   }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-    val ref: ModuleRef = params.getBuildTarget.getUri.as[ModuleRef].get
+    val ref = extractModuleRef(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     val compilation = for {
       idString    <- Option(params.getOriginId)
@@ -393,6 +393,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
         case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
       } }
 
+      
       broadcast(DiagnosticMsg(
         ref,
         CompilerDiagnostic(
@@ -413,7 +414,7 @@ ${'|'} ${highlightedLine}
     }
   }
 
-  override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = {}
+  override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = ()
 
   private[this] def convertDataTo[A: ClassTag](data: Object): A = {
     val gson = new Gson()
@@ -422,9 +423,11 @@ ${'|'} ${highlightedLine}
     gson.fromJson[A](json, classTag[A].runtimeClass)
   }
 
-  private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef = {
-    val report = convertDataTo[CompileTask](taskNotificationData)
-    val params = new java.net.URI(report.getTarget.getUri).getRawQuery.split("^").map(_.split("=", 2)).map {
+  private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef =
+    extractModuleRef(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
+
+  private[this] def extractModuleRef(uri: String) = {
+    val params = new java.net.URI(uri).getRawQuery.split("^").map(_.split("=", 2)).map {
       param => param(0) -> param(1)
     }.toMap
 
@@ -637,7 +640,7 @@ case class Compilation(target: Target,
     val target = targets(moduleRef)
     val furyTargetIds = deepDependencies(target.ref).toList
     val bspTargetIds = furyTargetIds.map { ref =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(ref).value}?id=${ref}")
+      new BuildTargetIdentifier(str"file://${layout.workDir(ref).value}?id=${ref.urlSafe}")
     }
     val params = new CleanCacheParams(bspTargetIds.asJava)
 
