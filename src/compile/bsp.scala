@@ -278,7 +278,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
         val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty,
             pipelining = false, noSecurity = false)
         
-        val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
+        val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(BuildResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
         reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
@@ -287,7 +287,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
     }
     get(allResults.map{ s =>
       toCompletableFuture(Future.successful {
-        CompileResult.merge(s.toList).asBsp
+        BuildResult.merge(s.toList).asBsp
       })
     })
   }

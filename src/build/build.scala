@@ -328,18 +328,18 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                       }
 
     future         <- if(watch || waiting) Try(r.start()).flatten else r.action()
-  } yield log.await(Await.result(future, duration.Duration.Inf).isSuccessful)
+  } yield log.await(Await.result(future, duration.Duration.Inf).success)
 
   private def repeater(sources: Set[Path], onceOnly: Boolean)
-                      (fn: => Try[Future[CompileResult]])
-                      : Repeater[Try[Future[CompileResult]]] =
-    new Repeater[Try[Future[CompileResult]]] {
+                      (fn: => Try[Future[BuildResult]])
+                      : Repeater[Try[Future[BuildResult]]] =
+    new Repeater[Try[Future[BuildResult]]] {
       private[this] val watcher = new SourceWatcher(sources)
       override def repeatCondition(): Boolean = watcher.hasChanges
 
-      def continue(res: Try[Future[CompileResult]]) = !onceOnly
+      def continue(res: Try[Future[BuildResult]]) = !onceOnly
 
-      override def start(): Try[Future[CompileResult]] = try {
+      override def start(): Try[Future[BuildResult]] = try {
         watcher.start()
         super.start()
       } catch {
@@ -467,7 +467,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 reporter: Reporter,
                                 theme: Theme,
                                 noSecurity: Boolean)
-                               (implicit log: Log): Try[Future[CompileResult]] = {
+                               (implicit log: Log): Try[Future[BuildResult]] = {
     for {
       _            <- build.checkoutAll(layout)
     } yield {

@@ -26,7 +26,7 @@ import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
 import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
-import fury.core.UiGraph.CompilerDiagnostic
+import fury.core.UiGraph.CompileIssue
 import fury.core.Lifecycle.Session
 import fury.io._
 import fury.model._
@@ -396,7 +396,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
       
       broadcast(DiagnosticMsg(
         ref,
-        CompilerDiagnostic(
+        CompileIssue(
           msg"""$severity ${ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum +
               1).toString}
 ${'|'} ${UserMsg(
@@ -436,7 +436,7 @@ ${'|'} ${highlightedLine}
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val ref = getCompileRef(params.getData)
-    broadcast(CompilationProgress(ref, params.getProgress.toDouble / params.getTotal))
+    broadcast(Progress(ref, params.getProgress.toDouble / params.getTotal))
   }
 
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
@@ -602,8 +602,7 @@ case class Build(target: Target,
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
       enc               = System.getProperty("file.encoding")
       _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
-
-      stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
+      stagingDirectory <- aggregateResults(ref, srcs, layout)
       resources        <- aggregatedResources(ref)
       _                <- resources.traverse(_.copyTo(checkouts, layout, stagingDirectory))
       _                <- Shell(layout.env).jar(path, if(fatJar) bins else Set.empty,
@@ -614,13 +613,12 @@ case class Build(target: Target,
       _                 = if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
                           else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
                               ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
-      _                <- stagingDirectory.delete
+
+      _                <- stagingDirectory.delete()
     } yield ()
   }
 
-  private[this] def aggregateCompileResults(ref: ModuleRef,
-                                            compileResults: Set[Path],
-                                            layout: Layout): Try[Path] = {
+  private[this] def aggregateResults(ref: ModuleRef, compileResults: Set[Path], layout: Layout): Try[Path] = {
     val stagingDirectory = layout.workDir(ref) / "staging"
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(stagingDirectory))) yield stagingDirectory
   }
@@ -655,7 +653,7 @@ case class Build(target: Target,
                     globalPolicy: Policy,
                     args: List[String],
                     noSecurity: Boolean)(implicit log: Log)
-  : Future[CompileResult] = Future.fromTry {
+  : Future[BuildResult] = Future.fromTry {
     val originId = Build.nextOriginId(this)
     val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
@@ -672,12 +670,12 @@ case class Build(target: Target,
 
     BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
 
-      val result: Try[CompileResult] = for {
+      val result: Try[BuildResult] = for {
         res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
         opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
-      } yield CompileResult(res, opts)
+      } yield BuildResult(res, opts, None)
 
-      val responseOriginId = result.get.bspCompileResult.getOriginId
+      val responseOriginId = result.get.bspResult.getOriginId
       if(responseOriginId != originId.key) {
         log.warn(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
       }
@@ -695,7 +693,7 @@ case class Build(target: Target,
 
       (result.get, conn.client)
     }.map {
-      case (compileResult, client) if compileResult.isSuccessful && target.kind.needsExec =>
+      case (compileResult, client) if compileResult.success && target.kind.needsExec =>
         val timeout = target.kind.as[App].fold(0)(_.timeout)
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
@@ -714,14 +712,14 @@ case class Build(target: Target,
 
 
   def compile(moduleRef: ModuleRef,
-              futures: Map[ModuleRef, Future[CompileResult]] = Map(),
+              futures: Map[ModuleRef, Future[BuildResult]] = Map(),
               layout: Layout,
               globalPolicy: Policy,
               args: List[String],
               pipelining: Boolean,
               noSecurity: Boolean)
              (implicit log: Log)
-             : Map[ModuleRef, Future[CompileResult]] = {
+             : Map[ModuleRef, Future[BuildResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.ref).foldLeft(futures) { (futures, dependencyRef) =>
@@ -734,8 +732,8 @@ case class Build(target: Target,
     val multiplexer = Lifecycle.currentSession.multiplexer
     multiplexer.start()
 
-    val future = dependencyFutures.map(CompileResult.merge).flatMap { required =>
-      if(!required.isSuccessful) {
+    val future = dependencyFutures.map(BuildResult.merge).flatMap { required =>
+      if(!required.success) {
         multiplexer.fire(target.ref, SkipCompile(target.ref))
         multiplexer.close(target.ref)
         Future.successful(required)
