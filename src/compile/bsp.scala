@@ -108,15 +108,14 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       layer          <- Layer.retrieve(conf)
       hierarchy      <- layer.hierarchy()
       universe       <- hierarchy.universe
-      graph          <- layer.projects.flatMap(_.moduleRefs).map { ref =>
-                          for {
-                            ds   <- universe.dependencies(ref, layout)
-                            arts <- (ds + ref).map { d => universe.makeTarget(d, layout) }.sequence
-                          } yield arts.map { a =>
-                            (a.ref, (a.dependencies: List[ModuleRef]) ++ (a.compiler
-                                .map(_.ref.hide): Option[ModuleRef]))
-                          }
-                        }.sequence.map(_.flatten.toMap)
+
+      graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {
+                          ds   <- universe.dependencies(ref, layout)
+                          arts <- (ds + ref).map(universe.makeTarget(_, layout)).sequence
+                        } yield arts.map { a =>
+                          (a.ref, (a.module.dependencies.to[List]) ++ (a.compiler.map(_.ref.hide)))
+                        } }.sequence.map(_.flatten.toMap)
+      
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
       targets       <- graph.keys.map { key =>
@@ -382,7 +381,7 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.module.kind, target.checkouts, target.binaries, target.dependencies,
+        ref, (target.module.kind, target.checkouts, target.binaries, target.module.dependencies.to[List],
             target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
             graph(ref).map(hash)).digest[Md5]
       )
@@ -410,10 +409,12 @@ object FuryBuildServer {
     val id = struct.buildTarget(target.ref)
     val tags = List(moduleKindToBuildTargetTag(target.module.kind))
     val languageIds = List("java", "scala") // TODO get these from somewhere?
-    val dependencies = target.dependencies.map(struct.buildTarget)
+    val dependencies = target.module.dependencies.map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
-    val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
+    val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.to[List].asJava,
+        capabilities)
+
     buildTarget.setDisplayName(moduleRefDisplayName(ref))
 
     for {
