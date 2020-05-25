@@ -260,9 +260,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     moduleRef    =  module.ref(project)
 
-    compilation  <- Compilation.syncCompilation(layer, moduleRef, layout, noSecurity = true)
+    build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true)
 
-    result    <- compilation.cleanCache(moduleRef, layout)
+    result       <- build.cleanCache(moduleRef, layout)
   } yield {
     Option(result.getMessage()).foreach(log.info(_))
     val success = result.getCleaned()
@@ -305,11 +305,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _              <- Inotify.check(watch || waiting)
     noSecurity      = call(NoSecurityArg).isSuccess
     _              <- call.atMostOne(WatchArg, WaitArg)
-    compilation    <- Compilation.syncCompilation(layer, module.ref(project), layout, noSecurity)
+    build          <- Build.syncBuild(layer, module.ref(project), layout, noSecurity)
 
-    r               = repeater(compilation.allSources, waiting) {
+    r               = repeater(build.allSources, waiting) {
                         for {
-                          task <- compileOnce(compilation, layer, module.ref(project), layout, globalPolicy,
+                          task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
                                       if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
                                       ManagedConfig().pipelining), reporter, ManagedConfig().theme,
                                       noSecurity)
@@ -318,7 +318,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                             for {
                               compileResult  <- completed
                               compileSuccess <- compileResult.asTry
-                              _              <- (dir.map { dir => compilation.saveJars(module.ref(project),
+                              _              <- (dir.map { dir => build.saveJars(module.ref(project),
                                                     compileSuccess.classDirectories, dir in layout.pwd, layout,
                                                     fatJar)
                                                 }).getOrElse(Success(()))
@@ -328,18 +328,18 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                       }
 
     future         <- if(watch || waiting) Try(r.start()).flatten else r.action()
-  } yield log.await(Await.result(future, duration.Duration.Inf).isSuccessful)
+  } yield log.await(Await.result(future, duration.Duration.Inf).success)
 
   private def repeater(sources: Set[Path], onceOnly: Boolean)
-                      (fn: => Try[Future[CompileResult]])
-                      : Repeater[Try[Future[CompileResult]]] =
-    new Repeater[Try[Future[CompileResult]]] {
+                      (fn: => Try[Future[BuildResult]])
+                      : Repeater[Try[Future[BuildResult]]] =
+    new Repeater[Try[Future[BuildResult]]] {
       private[this] val watcher = new SourceWatcher(sources)
       override def repeatCondition(): Boolean = watcher.hasChanges
 
-      def continue(res: Try[Future[CompileResult]]) = !onceOnly
+      def continue(res: Try[Future[BuildResult]]) = !onceOnly
 
-      override def start(): Try[Future[CompileResult]] = try {
+      override def start(): Try[Future[BuildResult]] = try {
         watcher.start()
         super.start()
       } catch {
@@ -363,16 +363,16 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     exec         <- call(ExecNameArg)
     project      <- tryProject
     module       <- tryModule
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, false)
+    build        <- Build.syncBuild(layer, module.ref(project), layout, false)
     _            <- module.kind.as[App].ascribe(InvalidKind(App))
     main         <- module.kind.as[App].map(_.main).ascribe(UnspecifiedMain(module.id))
     _            <- ~log.info(msg"Building native image for $exec")
-    _            <- compilation.saveNative(module.ref(project), Installation.optDir, layout, main)
+    _            <- build.saveNative(module.ref(project), Installation.optDir, layout, main)
     bin          <- ~(Installation.optDir / main.key.toLowerCase)
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
     globalPolicy <- ~Policy.read(log)
-    _            <- Try(Shell(cli.env).runJava(compilation.classpath(module.ref(project), layout).to[List].map(_.value),
+    _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project), layout).to[List].map(_.value),
                         "exoskeleton.Generate", false, Map("FPATH" -> Installation.completionsDir.value), Map(),
                         globalPolicy, layout, List(exec.key), true)(log.info(_)).await())
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
@@ -395,11 +395,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, noSecurity)
+    build        <- Build.syncBuild(layer, module.ref(project), layout, noSecurity)
     
     result       <- for {
                       globalPolicy <- ~Policy.read(log)
-                      task <- compileOnce(compilation, layer, module.ref(project), layout,
+                      task <- compileOnce(build, layer, module.ref(project), layout,
                                   globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
                                   ManagedConfig().theme, noSecurity)
                     } yield { task.transform { completed => for {
@@ -413,10 +413,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                           msg"with an incomplete classpath")
                       Success(())
                     } else result
-    compilerMod  <- compilation.universe.getMod(module.compiler)
+    compilerMod  <- build.universe.getMod(module.compiler)
     repl         <- ~compilerMod.kind.as[Compiler].get.repl
-    classpath    <- ~compilation.classpath(module.ref(project), layout)
-    bootCp       <- ~compilation.bootClasspath(module.ref(project), layout)
+    classpath    <- ~build.classpath(module.ref(project), layout)
+    bootCp       <- ~build.bootClasspath(module.ref(project), layout)
   } yield {
     val cp = classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
@@ -434,8 +434,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     singleColumn <- ~call(SingleColumnArg).isSuccess
     project      <- tryProject
     module       <- tryModule
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, false)
-    classpath    <- ~compilation.classpath(module.ref(project), layout)
+    build        <- Build.syncBuild(layer, module.ref(project), layout, false)
+    classpath    <- ~build.classpath(module.ref(project), layout)
   } yield {
     val separator = if(singleColumn) "\n" else ":"
     log.rawln(classpath.map(_.value).join(separator))
@@ -450,14 +450,14 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call         <- cli.call()
     project      <- tryProject
     module       <- tryModule
-    compilation  <- Compilation.syncCompilation(layer, module.ref(project), layout, false)
+    build        <- Build.syncBuild(layer, module.ref(project), layout, false)
     
-    _            <- ~UiGraph.draw(compilation.graph.links, true,
+    _            <- ~UiGraph.draw(build.graph.links, true,
                         Map())(ManagedConfig().theme).foreach(log.info(_))
 
   } yield log.await()
 
-  private[this] def compileOnce(compilation: Compilation,
+  private[this] def compileOnce(build: Build,
                                 layer: Layer,
                                 moduleRef: ModuleRef,
                                 layout: Layout,
@@ -467,19 +467,19 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 reporter: Reporter,
                                 theme: Theme,
                                 noSecurity: Boolean)
-                               (implicit log: Log): Try[Future[CompileResult]] = {
+                               (implicit log: Log): Try[Future[BuildResult]] = {
     for {
-      _            <- compilation.checkoutAll(layout)
+      _            <- build.checkoutAll(layout)
     } yield {
-      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
+      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
-      val future = compilation.compile(moduleRef, Map(), layout,
+      val future = build.compile(moduleRef, Map(), layout,
         globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes
       }
-      reporter.report(compilation.graph, theme, multiplexer)
+      reporter.report(build.graph, theme, multiplexer)
       future
     }
   }

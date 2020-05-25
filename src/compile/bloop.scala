@@ -28,31 +28,29 @@ object Bloop {
     layout.bloopDir.ifExists().fold(Try(false))(_.findChildren(_.endsWith(".json")).map(_.delete()
         ).sequence.map(_.contains(true)))
 
-  def generateFiles(compilation: Compilation, layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
-    new CollOps(compilation.targets.values.map { target =>
+  def generateFiles(build: Build, layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
+    new CollOps(build.targets.values.map { target =>
       for {
         path       <- layout.bloopConfig(target.ref).mkParents()
-        jsonString <- makeConfig(target, compilation, layout)
+        jsonString <- makeConfig(target, build, layout)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(target: Target, compilation: Compilation, layout: Layout)
-                        (implicit log: Log)
-                        : Try[String] = {
+  private def makeConfig(target: Target, build: Build, layout: Layout)(implicit log: Log): Try[String] = {
 
-    compilation.writePlugin(target.ref, layout)
-    val classpath = compilation.classpath(target.ref, layout)
+    build.writePlugin(target.ref, layout)
+    val classpath = build.classpath(target.ref, layout)
     val compiler = target.compiler.fold(ModuleRef.JavaRef)(_.ref)
     
-    val optDefs = compilation.aggregatedOptDefs(target.ref).getOrElse(Set()).filter(_.compiler ==
+    val optDefs = build.aggregatedOptDefs(target.ref).getOrElse(Set()).filter(_.compiler ==
         compiler).map(_.value)
     
     val opts: List[String] =
-      compilation.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == compiler).flatMap(
+      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == compiler).flatMap(
           _.value.transform(optDefs))).getOrElse(Nil)
     
-    val compilerClasspath = target.compiler.map { _ => compilation.bootClasspath(target.ref, layout) }
+    val compilerClasspath = target.compiler.map { _ => build.bootClasspath(target.ref, layout) }
     val compilerOpt = target.compiler.map { compiler =>
       val spec = compiler.kind.as[Compiler].fold(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))(_.spec)
       Json.of(
@@ -71,7 +69,7 @@ object Bloop {
         name = target.ref.urlSafe,
         directory = layout.workDir(target.ref).value,
         sources = target.sourcePaths.map(_.value),
-        dependencies = compilation.graph.dependencies(target.ref).map(_.urlSafe),
+        dependencies = build.graph.dependencies(target.ref).map(_.urlSafe),
         classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
         out = str"${layout.outputDir(target.ref).value}",
         classesDir = str"${layout.classesDir(target.ref).value}",

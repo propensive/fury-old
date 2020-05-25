@@ -125,14 +125,14 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
 
-  private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
+  private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {
     for {
       //FIXME remove duplication with structure
-      conf        <- Layer.readFuryConf(layout)
-      layer       <- Layer.retrieve(conf)
-      module      <- structure.moduleRef(bti)
-      compilation <- Compilation.syncCompilation(layer, module, layout, noSecurity = false)
-    } yield compilation
+      conf   <- Layer.readFuryConf(layout)
+      layer  <- Layer.retrieve(conf)
+      module <- structure.moduleRef(bti)
+      build  <- Build.syncBuild(layer, module, layout, noSecurity = false)
+    } yield build
   }
   
   private[this] var reporter: Reporter = _
@@ -268,7 +268,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       for {
         globalPolicy <- ~Policy.read(log)
         struct <- structure
-        compilation <- getCompilation(struct, bspTargetId)
+        compilation <- getBuild(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
         val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
@@ -278,7 +278,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
         val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty,
             pipelining = false, noSecurity = false)
         
-        val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
+        val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(BuildResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
         reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
@@ -287,7 +287,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
     }
     get(allResults.map{ s =>
       toCompletableFuture(Future.successful {
-        CompileResult.merge(s.toList).asBsp
+        BuildResult.merge(s.toList).asBsp
       })
     })
   }
@@ -378,7 +378,7 @@ object FuryBuildServer {
 
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
 
-    // TODO unify this with Compilation.hash
+    // TODO unify this with Build.hash
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(

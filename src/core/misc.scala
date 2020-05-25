@@ -16,10 +16,10 @@
 */
 package fury.core
 
-import fury.model._, UiGraph.DiagnosticMessage, fury.io._, fury.ogdl._
+import fury.model._, UiGraph.Issue, fury.io._, fury.ogdl._
 import fury.text.FuryException
 
-import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
+import ch.epfl.scala.bsp4j._
 
 import scala.collection.JavaConverters._
 import scala.util._
@@ -39,56 +39,55 @@ sealed trait CompileEvent
 case object Tick extends CompileEvent
 sealed trait ModuleCompileEvent extends CompileEvent { val ref: ModuleRef }
 case class StartCompile(ref: ModuleRef) extends ModuleCompileEvent
-case class CompilationProgress(ref: ModuleRef, progress: Double) extends ModuleCompileEvent
+case class Progress(ref: ModuleRef, progress: Double) extends ModuleCompileEvent
 case class StopCompile(ref: ModuleRef, success: Boolean) extends ModuleCompileEvent
 case class NoCompile(ref: ModuleRef) extends ModuleCompileEvent
 case class SkipCompile(ref: ModuleRef) extends ModuleCompileEvent
 case class Print(ref: ModuleRef, line: String) extends ModuleCompileEvent
 case class StartRun(ref: ModuleRef) extends ModuleCompileEvent
 case class StopRun(ref: ModuleRef) extends ModuleCompileEvent
-case class DiagnosticMsg(ref: ModuleRef, msg: DiagnosticMessage) extends ModuleCompileEvent
+case class DiagnosticMsg(ref: ModuleRef, issue: Issue) extends ModuleCompileEvent
 
-case class CompileResult(bspCompileResult: BspCompileResult,
-                         scalacOptions: ScalacOptionsResult,
-                         exitCode: Option[Int] = None) {
+case class BuildResult(bspResult: CompileResult, scalacOptions: ScalacOptionsResult, exitCode: Option[Int]) {
 
-  def isSuccessful: Boolean = bspCompileResult.getStatusCode == StatusCode.OK && exitCode.forall(_ == 0)
+  def success: Boolean = bspResult.getStatusCode == StatusCode.OK && exitCode.forall(_ == 0)
 
   def classDirectories: Set[Path] = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
     Path(new URI(x.getClassDirectory))
   }
 
-  def asTry: Try[CompileResult] =
-    if (isSuccessful) Success(this)
+  def asTry: Try[BuildResult] =
+    if(success) Success(this)
     else Failure(exitCode.fold[FuryException](CompilationFailure())(ExecutionFailure(_)))
 
-  def asBsp: BspCompileResult = {
-    println(bspCompileResult)
+  def asBsp: CompileResult = {
+    println(bspResult)
     println(exitCode)
     
-    val bspResult = new BspCompileResult(if(exitCode.exists(_ != 0)) StatusCode.ERROR else
-        bspCompileResult.getStatusCode)
+    val compileResult = new CompileResult(if(exitCode.exists(_ != 0)) StatusCode.ERROR else
+        bspResult.getStatusCode)
     
-    bspResult.setOriginId(bspCompileResult.getOriginId)
-    bspResult.setDataKind(bspCompileResult.getDataKind)
-    bspResult.setData(bspCompileResult.getData)
-    bspResult
+    compileResult.setOriginId(bspResult.getOriginId)
+    compileResult.setDataKind(bspResult.getDataKind)
+    compileResult.setData(bspResult.getData)
+
+    compileResult
   }
 }
 
-object CompileResult {
-  def merge(results: Iterable[CompileResult]): CompileResult = {
-    CompileResult(merge(results.map(_.bspCompileResult)), merge(results.map(_.scalacOptions)),
+object BuildResult {
+  def merge(results: Iterable[BuildResult]): BuildResult = {
+    BuildResult(merge(results.map(_.bspResult)), merge(results.map(_.scalacOptions)),
         merge(results.map(_.exitCode)))
   }
 
-  private def merge(results: Iterable[BspCompileResult]): BspCompileResult = {
+  private def merge(results: Iterable[CompileResult]): CompileResult = {
     val distinctStatuses = results.map(_.getStatusCode).toSet
     
     val aggregatedStatus = List(StatusCode.CANCELLED, StatusCode.ERROR,
         StatusCode.OK).find(distinctStatuses.contains)
     
-    val mergedResult = new BspCompileResult(aggregatedStatus.getOrElse(StatusCode.OK))
+    val mergedResult = new CompileResult(aggregatedStatus.getOrElse(StatusCode.OK))
     results.headOption.foreach { res =>
       //TODO think of a better way to merge those fields
       mergedResult.setOriginId(res.getOriginId)

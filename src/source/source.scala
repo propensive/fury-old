@@ -70,7 +70,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     _            <- layout.classesDir(module.ref(project)).delete()
     layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
     _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _            <- ~Build.asyncBuild(layer, module.ref(project), layout)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -94,7 +94,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     source       <- ~Source.rewriteLocal(source, localId)
     layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))
     _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _            <- ~Build.asyncBuild(layer, module.ref(project), layout)
   } yield log.await()
 
   private[this] def isSourceFileName(name: String): Boolean = name.endsWith(".scala") || name.endsWith(".java")
