@@ -35,43 +35,9 @@ object UiGraph {
 
   case class CompilationInfo(state: CompileState, msgs: List[DiagnosticMessage]) {
     def failed(): CompilationInfo = CompilationInfo(Failed, msgs)
-    
-    def progress(n: Double): CompilationInfo =
-      if(state == Failed) this else CompilationInfo(Compiling(n), msgs)
-    
-    def skipped: CompilationInfo =
-      if(state == Failed) this else CompilationInfo(Skipped, msgs)
-    
-    def successful: CompilationInfo =
-      if(state == Failed) this else CompilationInfo(Successful(None), msgs)
-  }
-
-  object Key {
-    implicit def apply[T: MsgShow: StringShow](v: T): Key = apply(v, false)
-    def apply[T: MsgShow: StringShow](v: T, hide: Boolean = false): Key = new Key {
-      protected type Type = T
-      protected val value: Type = v
-      protected val show: StringShow[Type] = implicitly
-      protected val msgShow: MsgShow[Type] = implicitly
-      val hidden = hide
-    }
-  }
-
-  trait Key {
-    protected type Type
-    protected val value: Type
-    protected val show: StringShow[Type]
-    protected val msgShow: MsgShow[Type]
-    def userMsg: UserMsg = msgShow.show(value)
-    def string: String = show.show(value)
-    def hidden: Boolean
-
-    override def equals(that: Any): Boolean = that match {
-      case that: Key => that.value == value
-      case _              => false
-    }
-    
-    override def hashCode: Int = value.hashCode
+    def progress(n: Double): CompilationInfo = if(state == Failed) this else CompilationInfo(Compiling(n), msgs)
+    def skipped: CompilationInfo = if(state == Failed) this else CompilationInfo(Skipped, msgs)
+    def successful: CompilationInfo = if(state == Failed) this else CompilationInfo(Successful(None), msgs)
   }
 
   sealed abstract class CompileState(val completion: Double)
@@ -83,11 +49,11 @@ object UiGraph {
   case object Executing                          extends CompileState(1.0)
 
   private case class GraphState(changed: Boolean,
-                        graph: Map[Key, Set[Key]],
+                        graph: Map[ModuleRef, Set[ModuleRef]],
                         stream: Iterator[CompileEvent],
-                        compilationLogs: Map[Key, CompilationInfo])(implicit log: Log) {
+                        compilationLogs: Map[ModuleRef, CompilationInfo])(implicit log: Log) {
 
-    def updateCompilationLog(ref: Key, f: CompilationInfo => CompilationInfo): GraphState = {
+    def updateCompilationLog(ref: ModuleRef, f: CompilationInfo => CompilationInfo): GraphState = {
       val previousState = compilationLogs.getOrElse(ref, CompilationInfo(state = Compiling(0), msgs = Nil))
       this.copy(compilationLogs = compilationLogs.updated(ref, f(previousState)), changed = true)
     }
@@ -112,7 +78,7 @@ object UiGraph {
               graphState.compilationLogs.values.map(_.state.completion).sum/graphState.compilationLogs.size
             
             val current = graphState.compilationLogs.collect { case (r, s) if s.state.isInstanceOf[Compiling] =>
-                str"${r.string}" }.to[List].sorted.join(", ")
+                str"${r}" }.to[List].sorted.join(", ")
 
             log.raw { Ansi.title {
               if(!current.isEmpty) str"Fury: Building ${(completion*100).toInt}% ($current)" else str"Fury"
@@ -163,7 +129,7 @@ object UiGraph {
           case CompilationInfo(Failed | Successful(_), out) if !out.isEmpty =>
             log.info(UserMsg { theme =>
               List(
-                msg"Output from ${ref.userMsg}",
+                msg"Output from $ref",
               ).map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
             out.foreach { msg => log.info(msg.msg) }
@@ -174,25 +140,25 @@ object UiGraph {
   }
 
 
-  def live(graph: Map[Key, Set[Key]],
+  def live(graph: Map[ModuleRef, Set[ModuleRef]],
            stream: Iterator[CompileEvent])
           (implicit log: Log, theme: Theme)
-          : Unit = {
+          : Unit =
     live(GraphState(changed = true, graph, stream, Map()))
-  }
 
-  def draw(graph: Map[Key, Set[Key]],
+  def draw(graph: Map[ModuleRef, Set[ModuleRef]],
            describe: Boolean,
-           state: Map[Key, CompilationInfo] = Map())
+           state: Map[ModuleRef, CompilationInfo] = Map())
           (implicit theme: Theme)
           : Vector[String] = {
-    def sort(todo: Map[Key, Set[Key]], done: List[Key]): List[Key] =
+
+    def sort(todo: Map[ModuleRef, Set[ModuleRef]], done: List[ModuleRef]): List[ModuleRef] =
       if(todo.isEmpty) done else {
         val node = todo.find { case (k, v) => (v -- done).isEmpty }.get._1
         sort((todo - node).mapValues(_.filter(_ != node)), node :: done)
       }
 
-    val nodes: List[(Key, Int)] = sort(graph, Nil).reverse.zipWithIndex
+    val nodes: List[(ModuleRef, Int)] = sort(graph, Nil).reverse.zipWithIndex
 
     val array: Array[Array[Char]] =
       Array.range(0, nodes.length).map { len =>
@@ -218,7 +184,7 @@ object UiGraph {
 
     val namedLines = array.zip(nodes).map {
       case (chs, (key, _)) =>
-        val text: UserMsg = key.userMsg
+        val text: UserMsg = msg"$key"
 
         val errors = state.get(key) match {
           case Some(CompilationInfo(Failed, msgs)) =>

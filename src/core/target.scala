@@ -20,8 +20,8 @@ import fury.model._, fury.io._, fury.text._
 
 object Target {
   case class Graph(dependencies: Map[ModuleRef, Set[ModuleRef]], targets: Map[ModuleRef, Target]) {
-    def links: Map[UiGraph.Key, Set[UiGraph.Key]] = dependencies.map { case (ref, dependencies) =>
-      (UiGraph.Key(ref), dependencies.map { dRef => UiGraph.Key(ref, targets(dRef).kind.is[Compiler]) })
+    def links: Map[ModuleRef, Set[ModuleRef]] = dependencies.map { case (ref, dependencies) =>
+      (ref, dependencies.map { dRef => if(targets(dRef).kind.is[Compiler]) dRef.hide else dRef })
     }.toMap
   }
 }
