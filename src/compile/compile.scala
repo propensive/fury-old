@@ -224,38 +224,38 @@ object Build {
 
   def findBy(ref: ModuleRef): Iterable[Build] = requestOrigins.values.filter(_.target.ref == ref)
 
-  def mkBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
-             (implicit log: Log)
-             : Try[Build] = for {
+  def apply(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
+           (implicit log: Log)
+           : Try[Build] = for {
 
-    hierarchy   <- layer.hierarchy()
-    universe    <- hierarchy.universe
-    policy      <- ~Policy.read(log)
-    build       <- fromUniverse(universe, ref, layout)
-    _           <- policy.checkAll(build.requiredPermissions, noSecurity)
-    _           <- build.generateFiles(layout)
+    hierarchy <- layer.hierarchy()
+    universe  <- hierarchy.universe
+    build     <- Build(universe, ref, layout)
+    _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
+    _         <- build.generateFiles(layout)
   } yield build
 
-  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Build] = {
-    import universe._
-
+  def apply(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Build] = {
     def directDependencies(target: Target): Set[ModuleRef] = target.module.dependencies + target.compiler
     def canAffectBuild(target: Target): Boolean = !target.module.kind.is[Lib]
 
     def graph(target: Target): Try[Target.Graph] = for {
-      requiredModules <- dependencies(ref, layout)
-      requiredTargets <- requiredModules.traverse(makeTarget(_, layout))
+      requiredModules <- universe.dependencies(ref, layout)
+      requiredTargets <- requiredModules.traverse(universe.makeTarget(_, layout))
     } yield {
       val targetGraph = (requiredTargets + target).map { t => t.ref -> directDependencies(t) }
       Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.ref -> t }.toMap)
     }
 
     for {
-      target              <- makeTarget(ref, layout)
+      target              <- universe.makeTarget(ref, layout)
       graph               <- graph(target)
-      targetIndex         <- graph.dependencies.keys.traverse { ref => makeTarget(ref, layout).map(ref -> _) }
+
+      targetIndex         <- graph.dependencies.keys.traverse { ref =>
+                                 universe.makeTarget(ref, layout).map(ref -> _) }
+      
       requiredTargets     =  targetIndex.unzip._2.to[Set]
-      checkouts           <- graph.dependencies.keys.traverse(checkout(_, layout))
+      checkouts           <- graph.dependencies.keys.traverse(universe.checkout(_, layout))
       
       requiredPermissions =  (if(target.module.kind.needsExec) requiredTargets else requiredTargets -
                                  target).flatMap(_.permissions)
@@ -272,13 +272,8 @@ object Build {
   }
 
   def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
-
-    def fn: Future[Try[Build]] = Future(mkBuild(layer, ref, layout, false))
-
-    buildCache(layout.furyDir) = buildCache.get(layout.furyDir) match {
-      case Some(future) => future.transformWith(fn.waive)
-      case None         => fn
-    }
+    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false))
+    buildCache(layout.furyDir) = buildCache.get(layout.furyDir).fold(fn)(_.transformWith(fn.waive))
 
     buildCache(layout.furyDir)
   }
@@ -286,7 +281,7 @@ object Build {
   def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
                (implicit log: Log)
                : Try[Build] = {
-    val build = mkBuild(layer, ref, layout, noSecurity)
+    val build = Build(layer, ref, layout, noSecurity)
     buildCache(layout.furyDir) = Future.successful(build)
     build
   }
@@ -298,7 +293,6 @@ object Build {
   }
 
   def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
-
 }
 
 class FuryBuildClient(layout: Layout) extends BuildClient {
@@ -464,6 +458,7 @@ case class Build(target: Target,
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   lazy val deepDependencies: Map[ModuleRef, Set[ModuleRef]] = {
+    
     @tailrec
     def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
       if(next.isEmpty) aggregated
@@ -472,6 +467,7 @@ case class Build(target: Target,
         flatten(aggregated + node, children, next - node ++ children(node))
       }
     }
+    
     targetIndex.map { case (targetId, _) =>
       targetId -> flatten[ModuleRef](Set.empty, graph.dependencies(_).to[Set], Set(targetId))
     }
@@ -486,56 +482,61 @@ case class Build(target: Target,
     Bloop.generateFiles(this, layout)
   }
 
-  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = {
+  def classpath(ref: ModuleRef, layout: Layout): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
     requiredTargets(ref).flatMap { target =>
       Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
     } ++ targets(ref).binaries
   }
 
-  def persistentOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
-    target      <- this(ref)
-    compiler    <- apply(target.compiler)
-    compileOpts <- ~compiler.optDefs.filter(_.persistent).map(_.opt(compiler.ref, Origin.Compiler))
-    refParams   <- ~target.params.filter(_.persistent).map(Provenance(_, compiler.ref, Origin.Module(target.ref)))
-    removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
-    inherited   <- target.module.dependencies.to[List].traverse(persistentOpts(_, layout)).map(_.flatten)
+  def persistentOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] =
+    ref.javac.fold(Try(Set[Provenance[Opt]]())) { ref => for {
+      target      <- apply(ref)
+      compiler    <- apply(target.compiler)
+      compileOpts <- ~compiler.optDefs.filter(_.persistent).map(_.opt(compiler.ref, Origin.Compiler))
+      refParams   <- ~target.params.filter(_.persistent).map(Provenance(_, compiler.ref, Origin.Module(target.ref)))
+      removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
+      inherited   <- target.module.dependencies.to[List].traverse(persistentOpts(_, layout)).map(_.flatten)
 
-    pOpts       <- ~(if(target.module.kind.is[Plugin]) Set(
-                     Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.ref)}"), persistent = true,
-                         remove = false), target.compiler, Origin.Plugin)
-                   ) else Set())
+      pOpts       <- ~(if(target.module.kind.is[Plugin]) Set(
+                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.ref)}"), persistent = true,
+                          remove = false), target.compiler, Origin.Plugin)
+                    ) else Set())
 
-  } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
-      _.value.id)
+    } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
+        _.value.id) }
 
-  def aggregatedOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] = for {
-    target    <- apply(ref)
-    compiler  <- ~target.compiler
-    tmpParams <- ~target.params.filter(!_.persistent).map(Provenance(_, compiler, Origin.Local))
-    removals  <- ~tmpParams.filter(_.value.remove).map(_.value.id)
-    opts      <- persistentOpts(ref, layout)
-  } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id)
+  def aggregatedOpts(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Set[Provenance[Opt]]] =
+    ref.javac.fold(Try(Set[Provenance[Opt]]())) { ref => for {
+      target    <- apply(ref)
+      compiler  <- ~target.compiler
+      tmpParams <- ~target.params.filter(!_.persistent).map(Provenance(_, compiler, Origin.Local))
+      removals  <- ~tmpParams.filter(_.value.remove).map(_.value.id)
+      opts      <- persistentOpts(ref, layout)
+    } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id) }
 
-  def aggregatedOptDefs(ref: ModuleRef): Try[Set[Provenance[OptDef]]] = for {
-    target  <- this(ref)
-    optDefs <- target.module.dependencies.to[List].traverse(aggregatedOptDefs(_))
-  } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Provenance(_, target.compiler,
-      Origin.Module(target.ref))) ++ apply(target.compiler).toOption.to[Set].flatMap { c =>
-      c.optDefs.map(Provenance(_, c.ref, Origin.Compiler)) }
+  def aggregatedOptDefs(ref: ModuleRef): Try[Set[Provenance[OptDef]]] =
+    ref.javac.fold(Try(Set[Provenance[OptDef]]())) { ref => for {
+      target  <- apply(ref)
+      optDefs <- target.module.dependencies.to[List].traverse(aggregatedOptDefs(_))
+    } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Provenance(_, target.compiler,
+        Origin.Module(target.ref))) ++ apply(target.compiler).toOption.to[Set].flatMap { c =>
+        c.optDefs.map(Provenance(_, c.ref, Origin.Compiler)) } }
 
-  def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] = for {
-    target           <- apply(ref)
-    inheritedPlugins <- target.module.dependencies.to[List].traverse(aggregatedPlugins(_))
-  } yield inheritedPlugins.flatten.to[Set] ++ target.module.kind.as[Plugin].map { plugin =>
-      Provenance(PluginDef(plugin.id, ref, plugin.main), apply(target.compiler).toOption.fold(ModuleRef.JavaRef)
-          (_.ref), Origin.Plugin) }
+  def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] =
+    ref.javac.fold(Try(Set[Provenance[PluginDef]]())) { ref => for {
+      target           <- apply(ref)
+      inheritedPlugins <- target.module.dependencies.to[List].traverse(aggregatedPlugins(_))
+    } yield inheritedPlugins.flatten.to[Set] ++ target.module.kind.as[Plugin].map { plugin =>
+        Provenance(PluginDef(plugin.id, ref, plugin.main), target.compiler, Origin.Plugin)
+    } }
   
-  def aggregatedResources(ref: ModuleRef): Try[Set[Source]] = for {
-    target    <- apply(ref)
-    inherited <- target.module.dependencies.to[List].traverse(aggregatedResources(_))
-  } yield inherited.flatten.to[Set] ++ target.resources
+  def aggregatedResources(ref: ModuleRef): Try[Set[Source]] =
+    ref.javac.fold(Try(Set[Source]())) { ref => for {
+      target    <- apply(ref)
+      inherited <- target.module.dependencies.to[List].traverse(aggregatedResources(_))
+    } yield inherited.flatten.to[Set] ++ target.resources }
   
-  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = {
+  def bootClasspath(ref: ModuleRef, layout: Layout): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
     val requiredPlugins = requiredTargets(ref).filter(_.module.kind.is[Plugin]).flatMap { target =>
       Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
     }
@@ -545,7 +546,8 @@ case class Build(target: Target,
     compilerClasspath ++ requiredPlugins
   }
 
-  private def requiredTargets(ref: ModuleRef): Set[Target] = deepDependencies(ref).map(targetIndex.apply)
+  private def requiredTargets(ref: ModuleRef): Set[Target] =
+    ref.javac.fold(Set[Target]()) { ref => deepDependencies(ref).map(targetIndex.apply) }
 
   def allSources: Set[Path] = targets.values.to[Set].flatMap(_.sourcePaths.to[Set])
 

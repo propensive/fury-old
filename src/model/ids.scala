@@ -716,8 +716,8 @@ case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean 
 
   def projectId: ProjectId = ProjectId(id.split("/")(0))
   def moduleId: ModuleId = ModuleId(id.split("/")(1))
-
   def urlSafe: String = str"${projectId}_${moduleId}"
+  def javac: Option[ModuleRef] = if(this == ModuleRef.JavaRef) None else Some(this)
 
   override def equals(that: Any): Boolean =
     that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
