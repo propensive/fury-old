@@ -41,20 +41,21 @@ object Bloop {
 
     build.writePlugin(target.ref, layout)
     val classpath = build.classpath(target.ref, layout)
-    val compiler = target.compiler.fold(ModuleRef.JavaRef)(_.ref)
     
     val optDefs = build.aggregatedOptDefs(target.ref).getOrElse(Set()).filter(_.compiler ==
-        compiler).map(_.value)
+        target.compiler).map(_.value)
     
     val opts: List[String] =
-      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == compiler).flatMap(
+      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == target.compiler).flatMap(
           _.value.transform(optDefs))).getOrElse(Nil)
     
-    val compilerClasspath = target.compiler.map { _ => build.bootClasspath(target.ref, layout) }
-    val compilerOpt = target.compiler.map { compiler =>
+    val compilerClasspath = build(target.compiler).map { _ => build.bootClasspath(target.ref, layout) }
+    
+    val compilerOpt = build(target.compiler).map { compiler =>
       val spec = compiler.module.kind.as[Compiler].fold {
         BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")
       } (_.spec)
+
       Json.of(
         organization = spec.org,
         name = spec.name,
@@ -62,7 +63,7 @@ object Bloop {
         options = opts,
         jars = compilerClasspath.get.map(_.value)
       )
-    }
+    }.toOption
 
     val result = Json.of(
       version = "1.0.0",

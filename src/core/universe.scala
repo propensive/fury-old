@@ -31,8 +31,6 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     for {
       resolvedProject <- entity(ref.projectId)
       module          <- resolvedProject.project(ref.moduleId)
-      compiler        <- if(module.compiler == ModuleRef.JavaRef) Success(None)
-                         else makeTarget(module.compiler, layout).map(Some(_))
       binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
       checkouts       <- checkout(ref, layout)
       sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
@@ -42,7 +40,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       resolvedProject.layer.repos.map(_.remote).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],
-      compiler,
+      module.compiler,
       module.opts.to[List],
       module.policy.to[List],
       ref.intransitive,

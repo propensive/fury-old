@@ -113,7 +113,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
                           ds   <- universe.dependencies(ref, layout)
                           arts <- (ds + ref).map(universe.makeTarget(_, layout)).sequence
                         } yield arts.map { a =>
-                          (a.ref, (a.module.dependencies.to[List]) ++ (a.compiler.map(_.ref.hide)))
+                          (a.ref, (a.module.dependencies.to[List]) :+ a.compiler.hide)
                         } }.sequence.map(_.flatten.toMap)
       
       allModuleRefs  = graph.keys
@@ -382,7 +382,7 @@ object FuryBuildServer {
       val target = targets(ref)
       hashes.getOrElseUpdate(
         ref, (target.module.kind, target.checkouts, target.binaries, target.module.dependencies.to[List],
-            target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
+            hash(target.compiler), target.params, target.intransitive, target.sourcePaths,
             graph(ref).map(hash)).digest[Md5]
       )
     }
@@ -405,7 +405,6 @@ object FuryBuildServer {
   }
 
   private def toTarget(target: Target, struct: Structure) = {
-    val ref = target.ref
     val id = struct.buildTarget(target.ref)
     val tags = List(moduleKindToBuildTargetTag(target.module.kind))
     val languageIds = List("java", "scala") // TODO get these from somewhere?
@@ -415,11 +414,11 @@ object FuryBuildServer {
     val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.to[List].asJava,
         capabilities)
 
-    buildTarget.setDisplayName(moduleRefDisplayName(ref))
+    buildTarget.setDisplayName(moduleRefDisplayName(target.ref))
 
     for {
-      compiler <- target.compiler
-      compDef  <- compiler.module.kind.as[Compiler]
+      compiler <- ~struct.targets(target.compiler)
+      compDef  <- compiler.module.kind.as[Compiler].ascribe(ModuleIsNotCompiler(target.ref, compiler.ref))
                if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava

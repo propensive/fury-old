@@ -31,7 +31,7 @@ case class Target(ref: ModuleRef,
                   repos: List[Remote],
                   checkouts: List[Checkout],
                   binaries: List[Path],
-                  compiler: Option[Target],
+                  compiler: ModuleRef,
                   params: List[Opt],
                   permissions: List[Permission],
                   intransitive: Boolean,
@@ -39,6 +39,4 @@ case class Target(ref: ModuleRef,
                   environment: Map[String, String],
                   properties: Map[String, String],
                   optDefs: Set[OptDef],
-                  resources: List[Source]) {
-  def impliedCompiler: ModuleRef = if(module.kind.is[Compiler]) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
-}
+                  resources: List[Source])

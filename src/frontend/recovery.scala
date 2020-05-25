@@ -107,6 +107,8 @@ You can grant these permissions with,
         case RootLayerNotSelected(path) =>
           cli.abort(msg"The selected layer is not a root layer (${ImportPath.Root}). To publish this layer "+
               msg"($path) anyway, please specify the ${Args.ForceArg: CliParam} parameter.")
+        case ModuleIsNotCompiler(ref, compRef) =>
+          cli.abort(msg"The module $ref specifies a module ($compRef) which is not a compiler)")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>
