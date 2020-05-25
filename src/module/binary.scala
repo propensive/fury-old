@@ -69,7 +69,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     binary     <- module.binaries.findBy(binaryArg)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - binary)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
   } yield log.await()
 
   def remove: Try[ExitStatus] = for {
@@ -90,7 +90,7 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     deletion   <- module.binaries.findBy(binaryArg)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - deletion)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
@@ -116,6 +116,6 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     _          <- module.binaries.unique(binary.id)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
   } yield log.await()
 }

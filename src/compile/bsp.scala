@@ -125,14 +125,14 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
 
-  private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
+  private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {
     for {
       //FIXME remove duplication with structure
-      conf        <- Layer.readFuryConf(layout)
-      layer       <- Layer.retrieve(conf)
-      module      <- structure.moduleRef(bti)
-      compilation <- Compilation.syncCompilation(layer, module, layout, noSecurity = false)
-    } yield compilation
+      conf   <- Layer.readFuryConf(layout)
+      layer  <- Layer.retrieve(conf)
+      module <- structure.moduleRef(bti)
+      build  <- Build.syncBuild(layer, module, layout, noSecurity = false)
+    } yield build
   }
   
   private[this] var reporter: Reporter = _
@@ -268,7 +268,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       for {
         globalPolicy <- ~Policy.read(log)
         struct <- structure
-        compilation <- getCompilation(struct, bspTargetId)
+        compilation <- getBuild(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)
       } yield {
         val multiplexer = new Multiplexer[ModuleRef, CompileEvent](compilation.targets.map(_._1).to[Set])
@@ -378,7 +378,7 @@ object FuryBuildServer {
 
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
 
-    // TODO unify this with Compilation.hash
+    // TODO unify this with Build.hash
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(

@@ -77,7 +77,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     layer     <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - moduleRef)
     _         <- Layer.commit(layer, conf, layout)
   } yield {
-    Compilation.asyncCompilation(layer, moduleRef, layout)
+    Build.asyncBuild(layer, moduleRef, layout)
     log.await()
   }
 
@@ -114,7 +114,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     
     _                <- Layer.commit(layer, conf, layout)
   } yield {
-    Compilation.asyncCompilation(layer, moduleRef, layout)
+    Build.asyncBuild(layer, moduleRef, layout)
     log.await()
   }
 }
@@ -221,8 +221,8 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     module          <- tryModule
     hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
-    compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
-    permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
+    build         <- Build.fromUniverse(universe, module.ref(project), layout)
+    permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
     force         =  call(ForceArg).isSuccess
                          
     layer         <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_.diff(
@@ -265,8 +265,8 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
     hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
-    compilation   <- Compilation.fromUniverse(universe, module.ref(project), layout)
-    permissions   <- permHashes.traverse(_.resolve(compilation.requiredPermissions))
+    build         <- Build.fromUniverse(universe, module.ref(project), layout)
+    permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
     policy        =  Policy.read(log)
     newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
     _             <- Policy.save(newPolicy)

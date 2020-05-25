@@ -85,7 +85,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
   private def connect(dir: Path,
-                      compilation: Compilation,
+                      build: Build,
                       ref: ModuleRef,
                       layout: Layout,
                       trace: Option[Path] = None)
@@ -173,7 +173,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, compilation: Compilation, ref: ModuleRef, layout: Layout)
+  def borrow[T](dir: Path, build: Build, ref: ModuleRef, layout: Layout)
                (fn: Connection => T)
                (implicit log: Log)
                : Try[T] = {
@@ -187,7 +187,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       } else None
 
       val newConnection =
-        Await.result(connect(dir, compilation, ref, layout, trace = tracePath), Duration.Inf)
+        Await.result(connect(dir, build, ref, layout, trace = tracePath), Duration.Inf)
       
       connections += dir -> newConnection
       newConnection
@@ -216,29 +216,29 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   }
 }
 
-object Compilation {
+object Build {
 
-  private val compilationCache: collection.mutable.Map[Path, Future[Try[Compilation]]] = TrieMap()
+  private val buildCache: collection.mutable.Map[Path, Future[Try[Build]]] = TrieMap()
 
-  private val requestOrigins: collection.mutable.Map[RequestOriginId, Compilation] = TrieMap()
+  private val requestOrigins: collection.mutable.Map[RequestOriginId, Build] = TrieMap()
 
-  def findBy(ref: ModuleRef): Iterable[Compilation] = requestOrigins.values.filter(_.target.ref == ref)
+  def findBy(ref: ModuleRef): Iterable[Build] = requestOrigins.values.filter(_.target.ref == ref)
 
-  def mkCompilation(layer: Layer,
-                    ref: ModuleRef,
-                    layout: Layout,
-                    noSecurity: Boolean)(implicit log: Log)
-  : Try[Compilation] = for {
+  def mkBuild(layer: Layer,
+              ref: ModuleRef,
+              layout: Layout,
+              noSecurity: Boolean)(implicit log: Log)
+  : Try[Build] = for {
 
     hierarchy   <- layer.hierarchy()
     universe    <- hierarchy.universe
     policy      <- ~Policy.read(log)
-    compilation <- fromUniverse(universe, ref, layout)
-    _           <- policy.checkAll(compilation.requiredPermissions, noSecurity)
-    _           <- compilation.generateFiles(layout)
-  } yield compilation
+    build       <- fromUniverse(universe, ref, layout)
+    _           <- policy.checkAll(build.requiredPermissions, noSecurity)
+    _           <- build.generateFiles(layout)
+  } yield build
 
-  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Compilation] = {
+  def fromUniverse(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Build] = {
     import universe._
 
     def directDependencies(target: Target): Set[ModuleRef] =
@@ -273,41 +273,41 @@ object Compilation {
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.ref).to[Set] +
           ref).connections
       
-      Compilation(target, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
+      Build(target, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
           moduleRefToTarget, targetIndex.toMap, requiredPermissions.toSet, universe)
     }
   }
 
-  def asyncCompilation(layer: Layer, ref: ModuleRef, layout: Layout)
+  def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)
                       (implicit log: Log)
-                      : Future[Try[Compilation]] = {
+                      : Future[Try[Build]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(layer, ref, layout, false))
+    def fn: Future[Try[Build]] = Future(mkBuild(layer, ref, layout, false))
 
-    compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
+    buildCache(layout.furyDir) = buildCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
       case None         => fn
     }
 
-    compilationCache(layout.furyDir)
+    buildCache(layout.furyDir)
   }
 
-  def syncCompilation(layer: Layer,
-                      ref: ModuleRef,
-                      layout: Layout,
-                      noSecurity: Boolean)(implicit log: Log): Try[Compilation] = {
-    val compilation = mkCompilation(layer, ref, layout, noSecurity)
-    compilationCache(layout.furyDir) = Future.successful(compilation)
-    compilation
+  def syncBuild(layer: Layer,
+                ref: ModuleRef,
+                layout: Layout,
+                noSecurity: Boolean)(implicit log: Log): Try[Build] = {
+    val build = mkBuild(layer, ref, layout, noSecurity)
+    buildCache(layout.furyDir) = Future.successful(build)
+    build
   }
 
-  def nextOriginId(compilation: Compilation)(implicit log: Log): RequestOriginId = {
+  def nextOriginId(build: Build)(implicit log: Log): RequestOriginId = {
     val originId = RequestOriginId.next(log.pid)
-    requestOrigins(originId) = compilation
+    requestOrigins(originId) = build
     originId
   }
 
-  def findOrigin(originId: RequestOriginId): Option[Compilation] = requestOrigins.get(originId)
+  def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
 
 }
 
@@ -326,32 +326,32 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = {
     val ref = for {
-      idString    <- Option(params.getOriginId)
-      originId    <- RequestOriginId.unapply(idString)
-      compilation <- Compilation.findOrigin(originId)
-    } yield compilation.target.ref
+      idString <- Option(params.getOriginId)
+      originId <- RequestOriginId.unapply(idString)
+      build    <- Build.findOrigin(originId)
+    } yield build.target.ref
     broadcast(Print(ref.get, params.getMessage))
   }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = {
     val ref = for {
-      idString    <- Option(params.getOriginId)
-      originId    <- RequestOriginId.unapply(idString)
-      compilation <- Compilation.findOrigin(originId)
-    } yield compilation.target.ref
+      idString <- Option(params.getOriginId)
+      originId <- RequestOriginId.unapply(idString)
+      build    <- Build.findOrigin(originId)
+    } yield build.target.ref
     broadcast(Print(ref.get, params.getMessage))
   }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val ref = extractModuleRef(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val compilation = for {
-      idString    <- Option(params.getOriginId)
-      originId    <- RequestOriginId.unapply(idString)
-      compilation <- Compilation.findOrigin(originId)
-    } yield compilation
+    val build = for {
+      idString <- Option(params.getOriginId)
+      originId <- RequestOriginId.unapply(idString)
+      build    <- Build.findOrigin(originId)
+    } yield build
 
-    val repos = compilation match {
+    val repos = build match {
       case Some(c) => c.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
       case None =>
         //FIXME
@@ -442,12 +442,11 @@ ${'|'} ${highlightedLine}
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val ref = getCompileRef(params.getData)
     broadcast(StartCompile(ref))
+    
     for {
-      compilation <- Compilation.findBy(ref)
-      dependencyRef <- compilation.deepDependencies(ref)
-    } yield {
-      broadcast(NoCompile(dependencyRef))  
-    }
+      build         <- Build.findBy(ref)
+      dependencyRef <- build.deepDependencies(ref)
+    } yield broadcast(NoCompile(dependencyRef))  
   }
 
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
@@ -455,21 +454,21 @@ ${'|'} ${highlightedLine}
       val ref = getCompileRef(params.getData)
       val success = params.getStatus == StatusCode.OK
       broadcast(StopCompile(ref, success))
-      Compilation.findBy(ref).foreach { compilation =>
-        val signal = if(success && compilation.targets(ref).kind.needsExec) StartRun(ref) else StopRun(ref)
+      Build.findBy(ref).foreach { build =>
+        val signal = if(success && build.targets(ref).kind.needsExec) StartRun(ref) else StopRun(ref)
         broadcast(signal)
       }
   }
 }
 
-case class Compilation(target: Target, 
-                       graph: Target.Graph,
-                       subgraphs: Map[ModuleRef, Set[ModuleRef]],
-                       checkouts: Checkouts,
-                       targets: Map[ModuleRef, Target],
-                       targetIndex: Map[ModuleRef, Target],
-                       requiredPermissions: Set[Permission],
-                       universe: Universe) {
+case class Build(target: Target, 
+                 graph: Target.Graph,
+                 subgraphs: Map[ModuleRef, Set[ModuleRef]],
+                 checkouts: Checkouts,
+                 targets: Map[ModuleRef, Target],
+                 targetIndex: Map[ModuleRef, Target],
+                 requiredPermissions: Set[Permission],
+                 universe: Universe) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
@@ -657,7 +656,7 @@ case class Compilation(target: Target,
                     args: List[String],
                     noSecurity: Boolean)(implicit log: Log)
   : Future[CompileResult] = Future.fromTry {
-    val originId = Compilation.nextOriginId(this)
+    val originId = Build.nextOriginId(this)
     val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     params.setOriginId(originId.key)
@@ -770,6 +769,7 @@ case class Compilation(target: Target,
           javaSources.map(_.value).to[List])
       }
     }
+    
     val exitCode = Shell(layout.env).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
       if (target.kind.is[Bench]) "org.openjdk.jmh.Main" else target.kind.as[App].fold("")(_.main.key),
@@ -791,5 +791,4 @@ case class Compilation(target: Target,
 
     exitCode
   }
-
 }

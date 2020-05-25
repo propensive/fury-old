@@ -141,7 +141,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                    } else Try(layer)
 
     _           <- Layer.commit(layer, conf, layout)
-    _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _           <- ~Build.asyncBuild(layer, module.ref(project), layout)
     _           <- ~log.info(msg"Set current module to ${module.id}")
   } yield log.await()
 
@@ -160,7 +160,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     layer      <- ~Layer(_.projects(project.id).modules).modify(layer)(_.evict(module.id))
     layer      <- ~Layer(_.projects(project.id).main).modify(layer)(_.filterNot(_ == moduleId))
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
   } yield log.await()
 
   def update: Try[ExitStatus] = for {
@@ -215,6 +215,6 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
 
     layer       <- ~name.fold(layer)(Layer(_.projects(project.id).modules(module.id).id)(layer) = _)
     _           <- Layer.commit(layer, conf, layout)
-    _           <- ~Compilation.asyncCompilation(layer, module.ref(project), layout)
+    _           <- ~Build.asyncBuild(layer, module.ref(project), layout)
   } yield log.await()
 }
