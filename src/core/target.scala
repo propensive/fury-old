@@ -21,13 +21,13 @@ import fury.model._, fury.io._, fury.text._
 object Target {
   case class Graph(dependencies: Map[ModuleRef, Set[ModuleRef]], targets: Map[ModuleRef, Target]) {
     def links: Map[ModuleRef, Set[ModuleRef]] = dependencies.map { case (ref, dependencies) =>
-      (ref, dependencies.map { dRef => if(targets(dRef).kind.is[Compiler]) dRef.hide else dRef })
+      (ref, dependencies.map { dRef => if(targets(dRef).module.kind.is[Compiler]) dRef.hide else dRef })
     }.toMap
   }
 }
 
 case class Target(ref: ModuleRef,
-                  kind: Kind,
+                  module: Module,
                   repos: List[Remote],
                   checkouts: List[Checkout],
                   binaries: List[Path],
@@ -41,5 +41,5 @@ case class Target(ref: ModuleRef,
                   properties: Map[String, String],
                   optDefs: Set[OptDef],
                   resources: List[Source]) {
-  def impliedCompiler: ModuleRef = if(kind.is[Compiler]) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
+  def impliedCompiler: ModuleRef = if(module.kind.is[Compiler]) ref else compiler.fold(ModuleRef.JavaRef)(_.ref)
 }

@@ -382,7 +382,7 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.kind, target.checkouts, target.binaries, target.dependencies,
+        ref, (target.module.kind, target.checkouts, target.binaries, target.dependencies,
             target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
             graph(ref).map(hash)).digest[Md5]
       )
@@ -408,7 +408,7 @@ object FuryBuildServer {
   private def toTarget(target: Target, struct: Structure) = {
     val ref = target.ref
     val id = struct.buildTarget(target.ref)
-    val tags = List(moduleKindToBuildTargetTag(target.kind))
+    val tags = List(moduleKindToBuildTargetTag(target.module.kind))
     val languageIds = List("java", "scala") // TODO get these from somewhere?
     val dependencies = target.dependencies.map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
@@ -418,7 +418,7 @@ object FuryBuildServer {
 
     for {
       compiler <- target.compiler
-      compDef  <- compiler.kind.as[Compiler]
+      compDef  <- compiler.module.kind.as[Compiler]
                if compiler.binaries.nonEmpty
     } yield {
       val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava

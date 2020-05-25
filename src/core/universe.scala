@@ -39,7 +39,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
       sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
     } yield Target(
       ref,
-      module.kind,
+      module,
       resolvedProject.layer.repos.map(_.remote).to[List],
       checkouts.checkouts.to[List],
       binaries.to[List],
