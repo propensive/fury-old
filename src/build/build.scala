@@ -288,6 +288,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(ModuleArg, autocProject.to[List].flatMap(_.modules))
     cli            <- cli.hint(DirArg)
     cli            <- cli.hint(FatJarArg)
+    cli            <- cli.hint(JsArg)
     cli            <- cli.hint(ReporterArg, Reporter.all)
     call           <- cli.call()
     dir            <- ~call(DirArg).toOption
@@ -297,7 +298,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     moduleId       <- moduleRef.map(~_.moduleId).getOrElse(cli.preview(ModuleArg)(project.main))
     module         <- project.modules.findBy(moduleId)
     pipelining     <- ~call(PipeliningArg).toOption
-    fatJar          = call(FatJarArg).isSuccess
+    output         <- call.atMostOne(FatJarArg, JsArg).map(_.map { v => if(v.isLeft) FatJarArg else JsArg })
     globalPolicy   <- ~Policy.read(log)
     reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     watch           = call(WatchArg).isSuccess
@@ -320,7 +321,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                               compileSuccess <- compileResult.asTry
                               _              <- (dir.map { dir => build.saveJars(module.ref(project),
                                                     compileSuccess.classDirectories, dir in layout.pwd, layout,
-                                                    fatJar)
+                                                    output)
                                                 }).getOrElse(Success(()))
                             } yield compileSuccess
                           }
