@@ -19,10 +19,12 @@ package fury.core
 import fury.model._, fury.io._, fury.text._
 
 object Target {
-  case class Graph(dependencies: Map[ModuleRef, Set[ModuleRef]], targets: Map[ModuleRef, Target]) {
+  case class Graph(deps: Map[ModuleRef, Set[ModuleRef]], targets: Map[ModuleRef, Target]) {
     def links: Map[ModuleRef, Set[ModuleRef]] = dependencies.map { case (ref, dependencies) =>
       (ref, dependencies.map { dRef => if(targets(dRef).module.kind.is[Compiler]) dRef.hide else dRef })
     }.toMap
+
+    lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
   }
 }
 
