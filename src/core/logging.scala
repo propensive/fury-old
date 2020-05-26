@@ -43,7 +43,6 @@ object LogStyle {
   }
 }
 
-
 case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean], logLevel: Boolean,
     showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean) {
 
@@ -168,5 +167,4 @@ class Log(private[this] val output: LogStyle, val pid: Pid) {
     flush(force = true)
     if(success) Done else Abort
   }
-
 }

@@ -1,0 +1,2 @@
+fury build save --output summary --js -f out.js
+node out.js
