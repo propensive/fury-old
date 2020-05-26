@@ -65,6 +65,7 @@ object Args {
   val PublicArg = CliParam[Unit]('P', 'public, "this layer should be published publicly")
   val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
+  val JsArg = CliParam[Unit]('e', 'js, "use Scala.JS to output an JavaScript file")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
