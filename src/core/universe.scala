@@ -21,11 +21,18 @@ import fury.model._, fury.text._
 import mercator._
 
 import scala.util._
+import scala.collection.immutable.TreeSet
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
-  def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
+
+  private val JavaLayer: Layer = Layer(projects = TreeSet(Project(ProjectId("java"))))
+
+  def entity(id: ProjectId): Try[Entity] = id match {
+    case ProjectId("java") => Try(Entity(Project(ProjectId("java")), JavaLayer))
+    case other             => entities.get(id).ascribe(ItemNotFound(id))
+  }
 
   def makeTarget(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Target] =
     for {

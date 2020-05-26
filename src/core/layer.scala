@@ -32,7 +32,7 @@ import scala.annotation._
 
 import java.io.ByteArrayInputStream
 
-case class Layer(version: Int,
+case class Layer(version: Int = Layer.CurrentVersion,
                  aliases: SortedSet[Alias] = TreeSet(),
                  projects: SortedSet[Project] = TreeSet(),
                  repos: SortedSet[Repo] = TreeSet(),
