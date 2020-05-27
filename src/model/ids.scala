@@ -24,6 +24,7 @@ import gastronomy._
 import scala.util._
 import scala.collection.immutable.{ListMap, SortedSet}
 import scala.collection.mutable.HashSet
+import scala.reflect.ClassTag
 
 import language.higherKinds
 
@@ -699,6 +700,8 @@ object ModuleRef {
       msg"${theme.project(ref.projectId.key)}${theme.gray("/")}${theme.module(ref.moduleId.key)}".string(theme)
     }
 
+  def unapply(string: String) = parseFull(string, false)
+
   def parseFull(string: String, intransitive: Boolean): Option[ModuleRef] = string.only {
     case r"$projectId@([a-z][a-z0-9\-]*[a-z0-9])\/$moduleId@([a-z][a-z0-9\-]*[a-z0-9])" =>
       ModuleRef(ProjectId(projectId), ModuleId(moduleId), intransitive, false)
@@ -711,6 +714,33 @@ object ModuleRef {
       ModuleRef(projectId, ModuleId(string), intransitive, false)
   }
 }
+
+object CompilerRef {
+  implicit val msgShow: MsgShow[CompilerRef] = {
+    case Javac(n)         => msg"java:$n"
+    case BspCompiler(ref) => msg"$ref"
+  }
+
+  implicit val stringShow: StringShow[CompilerRef] = msgShow.show(_).string(Theme.NoColor)
+  implicit val diff: Diff[CompilerRef] = Diff.gen[CompilerRef]
+  implicit val parser: Parser[CompilerRef] = unapply(_)
+
+  def unapply(str: String): Option[CompilerRef] = str.only {
+    case r"java:$int@([0-9]+)" => Javac(int.toInt)
+    case ModuleRef(ref)        => BspCompiler(ref)
+  }
+}
+
+sealed abstract class CompilerRef(ref: Option[ModuleRef]) {
+  def apply(): Set[ModuleRef] = ref.to[Set]
+  def as[T: ClassTag]: Option[T] = this.only { case value: T => value }
+  def is[T: ClassTag]: Boolean = as[T].isDefined
+}
+
+object Javac { val Versions: Set[Javac] = Set(8, 9, 10, 11, 12, 13, 13).map(Javac(_)) }
+
+case class Javac(major: Int) extends CompilerRef(None)
+case class BspCompiler(ref: ModuleRef) extends CompilerRef(Some(ref))
 
 case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) {
 
@@ -882,11 +912,11 @@ object OptDef {
 }
 
 case class OptDef(id: OptId, description: String, transform: List[String], persistent: Boolean) {
-  def opt(compiler: ModuleRef, source: Origin): Provenance[Opt] =
+  def opt(compiler: CompilerRef, source: Origin): Provenance[Opt] =
     Provenance(Opt(id, persistent = true, remove = false), compiler, source)
 }
 
-case class Provenance[T](value: T, compiler: ModuleRef, source: Origin)
+case class Provenance[T](value: T, compiler: CompilerRef, source: Origin)
 
 object OptId {
   implicit val stringShow: StringShow[OptId] = _.key

@@ -113,11 +113,11 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
                           ds   <- universe.dependencies(ref, layout)
                           arts <- (ds + ref).map(universe.makeTarget(_, layout)).sequence
                         } yield arts.map { a =>
-                          (a.ref, (a.module.dependencies.to[List]) :+ a.compiler.hide)
+                          (a.ref, (a.module.dependencies.to[List]) ++ a.compiler().map(_.hide))
                         } }.sequence.map(_.flatten.toMap)
       
       allModuleRefs  = graph.keys
-      modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
+      modules       <- allModuleRefs.traverse { ref => universe(ref).map((ref, _)) }
       targets       <- graph.keys.map { key =>
                          universe.makeTarget(key, layout).map(key -> _)
                        }.sequence.map(_.toMap)
@@ -382,8 +382,8 @@ object FuryBuildServer {
       val target = targets(ref)
       hashes.getOrElseUpdate(
         ref, (target.module.kind, target.checkouts, target.binaries, target.module.dependencies.to[List],
-            hash(target.compiler), target.params, target.intransitive, target.sourcePaths,
-            graph(ref).map(hash)).digest[Md5]
+            target.module.compiler, target.params, target.intransitive,
+            target.sourcePaths, graph(ref).map(hash)).digest[Md5]
       )
     }
 
@@ -404,38 +404,37 @@ object FuryBuildServer {
     }
   }
 
-  private def toTarget(target: Target, struct: Structure) = {
+  private def toTarget(target: Target, struct: Structure): BuildTarget = {
     val id = struct.buildTarget(target.ref)
     val tags = List(moduleKindToBuildTargetTag(target.module.kind))
-    val languageIds = List("java", "scala") // TODO get these from somewhere?
+    val languageIds = List("java", "scala")
     val dependencies = target.module.dependencies.map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
     val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.to[List].asJava,
         capabilities)
 
-    buildTarget.setDisplayName(moduleRefDisplayName(target.ref))
+    buildTarget.setDisplayName(str"${target.ref}")
 
-    for {
-      compiler <- ~struct.targets(target.compiler)
-      compDef  <- compiler.module.kind.as[Compiler].ascribe(ModuleIsNotCompiler(target.ref, compiler.ref))
-               if compiler.binaries.nonEmpty
-    } yield {
-      val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
-      
-      val scalaBuildTarget = new ScalaBuildTarget(compDef.spec.org, compDef.spec.version, compDef.spec.version,
-          ScalaPlatform.JVM, libs)
+    target.compiler().foreach { compiler =>
+      for {
+        compiler <- ~struct.targets(compiler)
+        compDef  <- compiler.module.kind.as[Compiler].ascribe(ModuleIsNotCompiler(target.ref, compiler.ref))
+                if compiler.binaries.nonEmpty
+      } yield {
+        val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
+        
+        val scalaBuildTarget = new ScalaBuildTarget(compDef.spec.org, compDef.spec.version, compDef.spec.version,
+            ScalaPlatform.JVM, libs)
 
-      buildTarget.setDataKind(BuildTargetDataKind.SCALA)
+        buildTarget.setDataKind(BuildTargetDataKind.SCALA)
 
-      buildTarget.setData(scalaBuildTarget)
+        buildTarget.setData(scalaBuildTarget)
+      }
     }
 
     buildTarget
   }
-
-  private def moduleRefDisplayName(moduleRef: ModuleRef): String =
-    s"${moduleRef.projectId.key}/${moduleRef.moduleId.key}"
 
   private def moduleKindToBuildTargetTag(kind: Kind): String =
     if(kind.is[App]) BuildTargetTag.APPLICATION

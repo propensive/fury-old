@@ -151,6 +151,8 @@ You can grant these permissions with,
           cli.abort(msg"The repository ${repo} has uncommitted changes ($changes).")
         case RemoteNotSynched(repo, remote) =>
           cli.abort(msg"The repository ${repo} has not been synchronized with its remote, $remote.")
+        case NoRepl(compiler) =>
+          cli.abort(msg"The compiler $compiler does not have a REPL.")
         case CannotUpdateRepo(repo) =>
           cli.abort(msg"Could not update the repository $repo.")
         case ConflictingFiles(files) =>

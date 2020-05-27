@@ -79,7 +79,7 @@ case class Tables() {
     _.map {
       case ref@ModuleRef(id, intransitive, _) =>
         val extra = (if(intransitive) msg"*" else msg"")
-        val missing = if(universe.getMod(ref).isFailure) msg" ${theme.hazard("!")}" else msg""
+        val missing = if(universe(ref).isFailure) msg" ${theme.hazard("!")}" else msg""
         if(ref.projectId == projectId) msg"${theme.module(ref.moduleId.key)}$extra$missing"
         else msg"${theme.project(ref.projectId.key)}${'/'}${theme.module(ref.moduleId.key)}$extra$missing"
     }.foldLeft(msg"")(_ + _ + "\n").string(theme)

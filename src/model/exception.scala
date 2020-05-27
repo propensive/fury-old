@@ -71,6 +71,7 @@ case class ModuleAlreadyExists(module: ModuleId) extends FuryException
 case class NoLatestVersion() extends FuryException
 case class NoOtherLayer() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
+case class NoRepl(compiler: CompilerRef) extends FuryException
 case class NoSourcesError(repoId: RepoId, commit: Commit, sources: UserMsg) extends FuryException
 case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException

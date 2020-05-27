@@ -83,7 +83,7 @@ case class Layer(version: Int = Layer.CurrentVersion,
     project    <- projects.to[List]
     module     <- project.modules
     dependency <- module.dependencies
-    missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
+    missing    <- if(universe(dependency).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
   def verifyConf(local: Boolean, conf: FuryConf, quiet: Boolean, force: Boolean)

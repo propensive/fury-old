@@ -236,7 +236,7 @@ object Build {
   } yield build
 
   def apply(universe: Universe, ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Build] = {
-    def directDependencies(target: Target): Set[ModuleRef] = target.module.dependencies + target.compiler
+    def directDependencies(target: Target): Set[ModuleRef] = target.module.dependencies ++ target.compiler()
     def canAffectBuild(target: Target): Boolean = !target.module.kind.is[Lib]
 
     def graph(target: Target): Try[Target.Graph] = for {
@@ -260,7 +260,7 @@ object Build {
       requiredPermissions =  (if(target.module.kind.needsExec) requiredTargets else requiredTargets -
                                  target).flatMap(_.permissions)
     } yield {
-      val moduleRefToTarget = (requiredTargets + graph.targets(target.compiler)).map { t => t.ref -> t }.toMap
+      val moduleRefToTarget = (requiredTargets ++ target.compiler().map(graph.targets(_))).map { t => t.ref -> t }.toMap
       val intermediateTargets = requiredTargets.filter(canAffectBuild)
       
       val subgraphs = DirectedGraph(graph.dependencies).subgraph(intermediateTargets.map(_.ref).to[Set] +
@@ -475,6 +475,11 @@ case class Build(target: Target,
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
 
+  def apply(compiler: CompilerRef): Try[Option[Target]] = compiler match {
+    case Javac(_)         => Success(None)
+    case BspCompiler(ref) => apply(ref).map(Some(_))
+  }
+
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
     checkouts.checkouts.traverse(_.get(layout)).map(_ => ())
 
@@ -492,8 +497,8 @@ case class Build(target: Target,
     ref.javac.fold(Try(Set[Provenance[Opt]]())) { ref => for {
       target      <- apply(ref)
       compiler    <- apply(target.compiler)
-      compileOpts <- ~compiler.optDefs.filter(_.persistent).map(_.opt(compiler.ref, Origin.Compiler))
-      refParams   <- ~target.params.filter(_.persistent).map(Provenance(_, compiler.ref, Origin.Module(target.ref)))
+      compileOpts <- ~compiler.to[Set].flatMap(_.optDefs.filter(_.persistent).map(_.opt(target.module.compiler, Origin.Compiler)))
+      refParams   <- ~target.params.filter(_.persistent).map(Provenance(_, target.module.compiler, Origin.Module(target.ref)))
       removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
       inherited   <- target.module.dependencies.to[List].traverse(persistentOpts(_, layout)).map(_.flatten)
 
@@ -519,8 +524,8 @@ case class Build(target: Target,
       target  <- apply(ref)
       optDefs <- target.module.dependencies.to[List].traverse(aggregatedOptDefs(_))
     } yield optDefs.flatten.to[Set] ++ target.optDefs.map(Provenance(_, target.compiler,
-        Origin.Module(target.ref))) ++ apply(target.compiler).toOption.to[Set].flatMap { c =>
-        c.optDefs.map(Provenance(_, c.ref, Origin.Compiler)) } }
+        Origin.Module(target.ref))) ++ target.compiler().flatMap { ref =>
+        apply(ref).get.optDefs.map(Provenance(_, target.compiler, Origin.Compiler)) } }
 
   def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] =
     ref.javac.fold(Try(Set[Provenance[PluginDef]]())) { ref => for {
@@ -541,7 +546,7 @@ case class Build(target: Target,
       Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
     }
 
-    val compilerClasspath = classpath(targets(ref).compiler, layout)
+    val compilerClasspath = targets(ref).compiler().flatMap(classpath(_, layout))
     
     compilerClasspath ++ requiredPlugins
   }
@@ -613,10 +618,10 @@ case class Build(target: Target,
   }
 
   def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path], layout: Layout): Set[Path] =
-    (classesDirs + layout.resourcesDir(targets(ref).compiler)) ++ classpath(ref, layout)
+    classesDirs ++ targets(ref).compiler().map(layout.resourcesDir(_)) ++ classpath(ref, layout)
 
   def runtimeClasspath(ref: ModuleRef, layout: Layout): Set[Path] =
-    Set(layout.classesDir(targets(ref).compiler), layout.resourcesDir(targets(ref).compiler)) ++
+    targets(ref).compiler().flatMap { c => Set(layout.resourcesDir(c), layout.classesDir(c)) } ++
         classpath(ref, layout) + layout.classesDir(ref) + layout.resourcesDir(ref)
 
   def cleanCache(moduleRef: ModuleRef, layout: Layout)(implicit log: Log): Try[CleanCacheResult] = {

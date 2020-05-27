@@ -29,6 +29,7 @@ object MsgShow {
   implicit val int: MsgShow[Int] = v => UserMsg(_.number(v.toString))
   implicit val char: MsgShow[Char] = ch => UserMsg(_.gray(ch.toString))
   implicit val stackTraceElement: MsgShow[StackTraceElement] = ste => UserMsg(_.gray(ste.toString))
+  implicit val bigDecimal: MsgShow[BigDecimal] = bd => UserMsg { _ => bd.toString }
 }
 
 trait MsgShow[T] { def show(value: T): UserMsg }

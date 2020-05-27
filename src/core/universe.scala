@@ -85,7 +85,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
-  def getMod(ref: ModuleRef): Try[Module] = for {
+  def apply(ref: ModuleRef): Try[Module] = for {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
   } yield module

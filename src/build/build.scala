@@ -417,8 +417,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                           msg"with an incomplete classpath")
                       Success(())
                     } else result
-    compilerMod  <- build.universe.getMod(module.compiler)
-    repl         <- ~compilerMod.kind.as[Compiler].get.repl
+    compilerMod  <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
+    repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
     classpath    <- ~build.classpath(module.ref(project), layout)
     bootCp       <- ~build.bootClasspath(module.ref(project), layout)
   } yield {

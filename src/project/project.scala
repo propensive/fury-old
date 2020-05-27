@@ -68,12 +68,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(LicenseArg, License.standardLicenses)
     cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     call           <- cli.call()
-    compilerId     <- ~cli.peek(DefaultCompilerArg)
-    
-    optCompilerRef <- compilerId.to[List].map { v =>
-                        ModuleRef.parseFull(v, true).ascribe(InvalidValue(v))
-                      }.sequence.map(_.headOption)
-
+    optCompilerRef <- ~cli.peek(DefaultCompilerArg)
     projectArg     <- call(ProjectNameArg)
     projectId      <- layer.projects.unique(projectArg)
     license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))
@@ -118,7 +113,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     layer          <- ~licenseArg.fold(layer)(Layer(_.projects(project.id).license)(layer) = _)
     descriptionArg <- ~call(DescriptionArg).toOption
     layer          <- ~descriptionArg.fold(layer)(Layer(_.projects(project.id).description)(layer) = _)
-    compilerArg    <- ~call(DefaultCompilerArg).toOption.flatMap(ModuleRef.parseFull(_, true))
+    compilerArg    <- ~call(DefaultCompilerArg).toOption
     layer          <- ~compilerArg.map(Some(_)).fold(layer)(Layer(_.projects(project.id).compiler)(layer) = _)
     nameArg        <- ~call(ProjectNameArg).toOption
     newId          <- ~nameArg.flatMap(layer.projects.unique(_).toOption)

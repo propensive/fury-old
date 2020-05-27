@@ -45,14 +45,18 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
                      yield Plugin(p, m)
   }
   
-  private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, reference: String)
+  private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, ref: CompilerRef)
                                (implicit log: Log)
-                               : Try[ModuleRef] = for {
-    project   <- optProject.asTry
-    moduleRef <- ModuleRef.parse(project.id, reference, true).ascribe(InvalidValue(reference))
-    available  = layer.compilerRefs(layout) :+ ModuleRef.JavaRef
-    _         <- if(available.contains(moduleRef)) ~() else Failure(UnknownModule(moduleRef))
-  } yield moduleRef
+                               : Try[CompilerRef] =
+    ref match {
+      case Javac(n) =>
+        Success(ref)
+      case ref@BspCompiler(_) => for {
+        project   <- optProject.asTry
+        available  = layer.compilerRefs(layout)
+        _         <- if(available.contains(ref.ref)) Success(ref) else Failure(UnknownModule(ref.ref))
+      } yield ref
+    }
   
   private def hintKindParams(cli: Cli, mains: Set[ClassRef], kindName: Option[Kind.Id]) = kindName.map {
     case Lib      => ~cli
@@ -114,7 +118,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli         <- hintKindParams(cli, Set(), kindName)
     cli         <- cli.hint(ModuleNameArg)
     cli         <- cli.hint(HiddenArg, List("on", "off"))
-    cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
+    cli         <- cli.hint(CompilerArg, Javac.Versions ++ layer.compilerRefs(layout).map(BspCompiler(_)))
     call        <- cli.call()
 
     kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(MainArg), cli.peek(ReplArg),
@@ -123,20 +127,19 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     project     <- optProject.asTry
     moduleArg   <- call(ModuleNameArg)
     moduleId    <- project.modules.unique(moduleArg)
-    compilerId  <- ~call(CompilerArg).toOption
-    
-    compilerRef <- compilerId.map(resolveToCompiler(layer, optProject, layout, _))
-                        .orElse(project.compiler.map(~_)).getOrElse(~ModuleRef.JavaRef)
-    
-    module      = Module(moduleId, compiler = compilerRef, kind = kind)
+    compilerRef <- ~call(CompilerArg).toOption
+    _           <- ~compilerRef.map(resolveToCompiler(layer, optProject, layout, _))
+    defaultComp <- ~layer.compilerRefs(layout).map(BspCompiler(_)).headOption
+    compiler    <- ~compilerRef.orElse(defaultComp).getOrElse(Javac(8))
+    module      = Module(moduleId, compiler = compiler, kind = kind)
     module      <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
     layer       <- ~Layer(_.projects(project.id).modules).modify(layer)(_ + module)
     layer       <- ~(Layer(_.projects(project.id).main)(layer) = Some(module.id))
 
     layer       <- if(project.compiler.isEmpty && compilerRef != ModuleRef.JavaRef) {
                      ~Layer(_.projects(project.id).compiler).modify(layer) { v =>
-                       log.info(msg"Setting default compiler for project ${project.id} to ${compilerRef}")
-                       Some(compilerRef)
+                       log.info(msg"Setting default compiler for ${project.id} to ${compiler}")
+                       Some(compiler)
                      }
                    } else Try(layer)
 
@@ -185,7 +188,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     cli         <- hintKindParams(cli, mainClasses, kindName)
     cli         <- cli.hint(HiddenArg, List("on", "off"))
     cli         <- cli.hint(ModuleNameArg, optModuleId.to[List])
-    cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
+    cli         <- cli.hint(CompilerArg, Javac.Versions ++ layer.compilerRefs(layout).map(BspCompiler(_)))
     call        <- cli.call()
     compilerId  <- ~call(CompilerArg).toOption
     project     <- optProject.asTry
