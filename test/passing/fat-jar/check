@@ -2,7 +2,7 @@ Initialized an empty layer
 Set current project to scala
 Set current module to compiler
 Set current project to bar
-Setting default compiler for project bar to scala/compiler
+Setting default compiler for bar to scala/compiler
 Set current module to app
 e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 3ec0e1fb27a66a480065ccbf94030af08b66f3b70cb6e2bdc45d151b0c247085

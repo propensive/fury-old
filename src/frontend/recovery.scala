@@ -140,8 +140,6 @@ You can grant these permissions with,
         case OgdlReadException(path, e) =>
           cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
         case e: ItemNotFound =>
-          log.info(e.toString)
-          e.getStackTrace.map(_.toString).foreach(log.warn(_))
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case RepoNotForked(repo) =>
           cli.abort(msg"The repository ${repo} has not been forked.")

@@ -2,7 +2,7 @@ Initialized an empty layer
 Set current project to scala
 Set current module to compiler
 Set current project to library
-Setting default compiler for project library to scala/compiler
+Setting default compiler for library to scala/compiler
 Set current module to core
 Cloning repository at ../library
 Checking out src/core from repository library
@@ -17,7 +17,7 @@ Checking that no modules reference local sources
 Checking that no project names conflict
 Checking that all module references resolve
 Set current project to hello-world
-Setting default compiler for project hello-world to scala/compiler
+Setting default compiler for hello-world to scala/compiler
 Set current module to app
 e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 3ec0e1fb27a66a480065ccbf94030af08b66f3b70cb6e2bdc45d151b0c247085
