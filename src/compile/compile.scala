@@ -251,11 +251,14 @@ object Build {
       target              <- universe.makeTarget(ref, layout)
       graph               <- graph(target)
 
-      targetIndex         <- graph.dependencies.keys.traverse { ref =>
+      targetIndex         <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse { ref =>
+                                 log.note(msg"Attempting to make target for $ref")
                                  universe.makeTarget(ref, layout).map(ref -> _) }
       
       requiredTargets     =  targetIndex.unzip._2.to[Set]
-      checkouts           <- graph.dependencies.keys.traverse(universe.checkout(_, layout))
+
+      checkouts           <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(
+                                 universe.checkout(_, layout))
       
       requiredPermissions =  (if(target.module.kind.needsExec) requiredTargets else requiredTargets -
                                  target).flatMap(_.permissions)

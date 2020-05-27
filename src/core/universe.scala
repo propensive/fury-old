@@ -26,13 +26,7 @@ import scala.collection.immutable.TreeSet
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
-
-  private val JavaLayer: Layer = Layer(projects = TreeSet(Project(ProjectId("java"))))
-
-  def entity(id: ProjectId): Try[Entity] = id match {
-    case ProjectId("java") => Try(Entity(Project(ProjectId("java")), JavaLayer))
-    case other             => entities.get(id).ascribe(ItemNotFound(id))
-  }
+  def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
   def makeTarget(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Target] =
     for {
@@ -70,17 +64,17 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ++(that: Universe): Universe = Universe(entities ++ that.entities)
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
-    resolveTransitiveDependencies(forbidden = Set.empty, ref, layout)
+    resolveTransitiveDependencies(forbidden = Set.empty, ref, layout).map(_.filter(_ != ModuleRef.JavaRef))
 
   private[this] def resolveTransitiveDependencies(forbidden: Set[ModuleRef], ref: ModuleRef, layout: Layout):
       Try[Set[ModuleRef]] = for {
-    entity   <- entity(ref.projectId)
-    module   <- entity.project(ref.moduleId)
-    deps     =  module.dependencies ++ module.compilerDependencies
-    repeated =  deps.intersect(forbidden)
-    _        <- if (repeated.isEmpty) ~() else Failure(CyclesInDependencies(repeated))
-    tDeps    <- deps.map(resolveTransitiveDependencies(forbidden + ref, _,
-                    layout).filter(!_.contains(ref))).sequence
+    entity  <- entity(ref.projectId)
+    module  <- entity.project(ref.moduleId)
+    deps    =  module.dependencies ++ module.compilerDependencies
+    repeats =  deps.intersect(forbidden)
+    _       <- if(repeats.isEmpty) ~() else Failure(CyclesInDependencies(repeats))
+    tDeps   <- deps.map(resolveTransitiveDependencies(forbidden + ref, _,
+                   layout).filter(!_.contains(ref))).sequence
   } yield deps ++ tDeps.flatten
 
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit

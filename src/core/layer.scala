@@ -32,7 +32,7 @@ import scala.annotation._
 
 import java.io.ByteArrayInputStream
 
-case class Layer(version: Int = Layer.CurrentVersion,
+case class Layer(version: Int,
                  aliases: SortedSet[Alias] = TreeSet(),
                  projects: SortedSet[Project] = TreeSet(),
                  repos: SortedSet[Repo] = TreeSet(),
@@ -222,11 +222,10 @@ object Layer extends Lens.Partial[Layer] {
     base     <- get(baseRef, conf.published)
     layer    <- ~base.copy(previous = Some(conf.layerRef))
     previous <- retrieve(conf)
-    ref      <- if(!Layer.diff(previous, layer).isEmpty || force)
-                    store(layer).flatMap { baseRef =>
+    
+    ref      <- if(!Layer.diff(previous, layer).isEmpty || force) store(layer).flatMap { baseRef =>
                   saveFuryConf(conf.copy(layerRef = baseRef), layout).map(_.layerRef)
-                }
-                else Success(baseRef)
+                } else Success(baseRef)
     } yield ref
 
   private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =
@@ -316,7 +315,7 @@ object Layer extends Lens.Partial[Layer] {
   def diff(left: Layer, right: Layer): List[Difference] =
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
-  def init(layout: Layout)(implicit log: Log): Try[Unit] = {
+  def init(layout: Layout)(implicit log: Log): Try[Unit] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
@@ -327,7 +326,6 @@ object Layer extends Lens.Partial[Layer] {
       conf     <- saveFuryConf(FuryConf(ref), layout)
       _        <- ~log.info(msg"Initialized an empty layer")
     } yield () }
-  }
 
   private final val confComments: String =
     str"""# This is a Fury configuration file. It contains significant

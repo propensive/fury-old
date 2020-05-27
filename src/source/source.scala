@@ -82,12 +82,13 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     localSrcs    = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, Glob.All))
     cli          <- cli.hint(SourceArg, (extSrcs ++ localSrcs).map(_.completion))
     call         <- cli.call()
+
     project      <- tryProject
     module       <- tryModule
     source       <- call(SourceArg)
 
     localId      =  for {
-                      localRepo <- Remote.local(layout).toOption
+                      localRepo  <- Remote.local(layout).toOption
                       layerMatch <- layer.repos.find(_.remote.simplified == localRepo.simplified)
                     } yield layerMatch.id
 

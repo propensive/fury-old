@@ -722,8 +722,9 @@ object CompilerRef {
   }
 
   implicit val stringShow: StringShow[CompilerRef] = msgShow.show(_).string(Theme.NoColor)
-  implicit val diff: Diff[CompilerRef] = Diff.gen[CompilerRef]
   implicit val parser: Parser[CompilerRef] = unapply(_)
+
+  implicit def diff: Diff[CompilerRef] = (l, r) => Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
 
   def unapply(str: String): Option[CompilerRef] = str.only {
     case r"java:$int@([0-9]+)" => Javac(int.toInt)
