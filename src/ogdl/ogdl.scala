@@ -31,7 +31,6 @@ import scala.util.control.NonFatal
 
 import java.util.NoSuchElementException
 
-case class OgdlException(error: String) extends FuryException
 case class OgdlReadException(path: Path, cause: Throwable) extends FuryException {
   initCause(cause)
 }
@@ -40,9 +39,12 @@ final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
   def apply(): String                     = values.head._1
   def applyDynamic(key: String)(): String = selectDynamic(key).apply()
   
-  def selectDynamic(key: String): Ogdl    = try values.find(_._1 == key).get._2 catch {
-    case e: NoSuchElementException => throw OgdlException(str"Element $key not found")
+  def selectDynamic(key: String): Ogdl = try values.find(_._1 == key).get._2 catch {
+    case e: NoSuchElementException =>
+      throw OgdlException(List(key), msg"Element not found in ${this}")
   }
+
+  def has(key: String): Boolean = values.exists(_._1 == key)
 
   // FIXME: Change the type of `set` to `"set"` when upgrading to Scala 2.13.x
   def applyDynamicNamed(set: String)(updates: (String, Ogdl)*): Ogdl =
@@ -56,14 +58,40 @@ final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
         }
     })
 
-  def map(fn: Ogdl => Ogdl) =
+  def map(fn: Ogdl => Ogdl): Ogdl =
     Ogdl(values.map {
       case ("", v) => ("", v)
       case (k, v)  => (k, fn(v))
     })
+
+  override def toString: String = {
+    val content = values.map {
+      case (k, Ogdl(Vector())) => str""""$k""""
+      case (k, v)        => str"$k=${v.toString}"
+    }.mkString(",")
+
+    if(values.length == 1) content else str"{${content}}"
+  }
 }
 
 object Ogdl {
+
+  implicit val stringShow: StringShow[Ogdl] = _.toString
+  implicit val msgShow: MsgShow[Ogdl] = { ogdl => UserMsg { theme =>
+    val content = ogdl.values.map {
+      case (k, Ogdl(Vector())) =>
+        if(k.contains(' ')) msg"${'"'}${theme.lineNo(k)}${'"'}" else msg"${theme.lineNo(k)}"
+      
+      case (k, Ogdl(Vector((one, Ogdl(Vector()))))) =>
+        msg"${theme.project(k)}${'='}${if(one.isEmpty || one.contains(' '))
+            msg"${'"'}${theme.lineNo(one)}${'"'}" else msg"${theme.lineNo(one)}"}"
+      
+      case (k, v) =>
+        msg"${theme.project(k)}${'='}$v"
+    }.reduce(_ + msg"${','} " + _)
+
+    msg"${'{'}${content}${'}'}".string(theme)
+  } }
 
   def apply[T: OgdlWriter](value: T): Ogdl = implicitly[OgdlWriter[T]].write(value)
 
@@ -101,11 +129,11 @@ object Ogdl {
       path.writeSync(sb.toString)
     }.flatten.recoverWith { case e: Exception => Failure(FileWriteError(path, e)) }
 
-  def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): T = {
+  def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): Try[T] = {
     val buffer = ByteBuffer.wrap(string.bytes)
     val ogdl   = OgdlParser.parse(buffer)
 
-    implicitly[OgdlReader[T]].read(preprocessor(ogdl))
+    Try(implicitly[OgdlReader[T]].read(preprocessor(ogdl)))
   }
 
   def read[T: OgdlReader](path: Path, preprocessor: Ogdl => Ogdl): Try[T] =

@@ -170,7 +170,7 @@ object Layer extends Lens.Partial[Layer] {
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
   implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
 
-  val CurrentVersion: Int = 10
+  val CurrentVersion: Int = 11
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
@@ -183,7 +183,7 @@ object Layer extends Lens.Partial[Layer] {
     if(layout.layerDb.exists && Some(layout.layerDb.lastModified) != dbCache.get(layout.layerDb)) for {
       inputs <- TarGz.untargz(layout.layerDb.inputStream())
       _      <- inputs.traverse { bytes => for {
-                  layer <- ~Ogdl.read[Layer](new String(bytes, "UTF-8"), migrate(_))
+                  layer <- Ogdl.read[Layer](new String(bytes, "UTF-8"), migrate(_))
                   _     <- store(layer)
                 } yield () }
       _      <- Try(synchronized { dbCache(layout.layerDb) = layout.layerDb.lastModified })
@@ -205,7 +205,7 @@ object Layer extends Lens.Partial[Layer] {
                }
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
-      layer <- Try(Ogdl.read[Layer](data, migrate(_)))
+      layer <- Ogdl.read[Layer](data, migrate(_))
       _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
     } yield layer }
 
@@ -293,9 +293,9 @@ object Layer extends Lens.Partial[Layer] {
     leftSrc       <- gitDir.cat(left, Path(".fury/config"))
     commonSrc     <- gitDir.cat(common, Path(".fury/config"))
     rightSrc      <- gitDir.cat(right, Path(".fury/config"))
-    leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
-    commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
-    rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
+    leftConf      <- Ogdl.read[FuryConf](leftSrc, identity(_))
+    commonConf    <- Ogdl.read[FuryConf](commonSrc, identity(_))
+    rightConf     <- Ogdl.read[FuryConf](rightSrc, identity(_))
     leftLayer     <- Layer.get(leftConf.layerRef, leftConf.published)
     commonLayer   <- Layer.get(commonConf.layerRef, commonConf.published)
     rightLayer    <- Layer.get(rightConf.layerRef, rightConf.published)
@@ -350,61 +350,94 @@ object Layer extends Lens.Partial[Layer] {
     _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
   } yield conf
 
+  private def migrateModules(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
+    migrateProjects(root) { project =>
+      if(project.has("modules")) project.set(modules = project.modules.map(fn(_))) else project
+    }
+  
+  private def migrateRepos(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
+    if(root.has("repos")) root.set(repos = root.repos.map(fn(_))) else root
+  
+  private def migrateProjects(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
+    if(root.has("projects")) root.set(projects = root.projects.map(fn(_))) else root
+
   private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
     val version = Try(ogdl.version().toInt).getOrElse(1)
     if(version < CurrentVersion) {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
-        case 9 =>
-          Try(ogdl.set(projects = ogdl.projects.map { project =>
-            project.set(modules = project.modules.map { module =>
-              module.kind() match {
-                case "Compiler" =>
-                  val c = module.kind.Compiler
-                  module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.org(), c.name(), c.version()))))
-                case "App" =>
-                  module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0)))
-                case other => module
-              } 
+        case 10 =>
+          val updatedModules = migrateModules(ogdl) { module =>
+            val newValue = Ogdl[CompilerRef] {
+              if(!module.has("compiler")) Javac(8) else BspCompiler(ModuleRef(module.compiler.id()))
+            }
+            log.note(msg"Updated compiler reference for module ${module} to $newValue")
+            module.set(compiler = newValue)
+          }
+
+          migrateProjects(updatedModules) { project =>
+            val newProject = project.set(compiler = Ogdl[Option[CompilerRef]] {
+              if(project.has("compiler")) Some(BspCompiler(ModuleRef(project.compiler.Some.value.id())))
+              else None
             })
-          })).getOrElse(ogdl)
+
+            log.note(msg"Updated project compiler reference for project ${project} to ${newProject}")
+            newProject
+          }
+
+        case 9 =>
+          migrateModules(ogdl) { module =>
+            if(!module.has("kind")) module else module.kind() match {
+              case "Compiler" =>
+                val c = module.kind.Compiler
+                log.note(msg"Updated compiler type for module ${module}")
+                module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.spec.org(), c.spec.name(), c.spec.version()))))
+
+              case "App" =>
+                log.note(msg"Updated app type for module ${module}")
+                module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0)))
+              
+              case other =>
+                module
+            } 
+          }
 
         case 8 => // Expires 19 November 2020
-          Try(ogdl.set(projects = ogdl.projects.map { project =>
-            project.set(modules = project.modules.map { module =>
-              lazy val main = Try(ClassRef(module.main.Some()))
-              lazy val plugin = Try(PluginId(module.plugin.Some()))
-              
-              lazy val spec = Try(BloopSpec(module.bloopSpec.Some.org(), module.bloopSpec.Some.name(),
-                  module.bloopSpec.Some.version()))
-              
-              module.set(kind = (module.kind() match {
-                case "Application" => Ogdl[Kind](App(main.get, 0))
-                case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
-                case "Benchmarks"  => Ogdl[Kind](Bench(main.get))
-                case "Compiler"    => Ogdl[Kind](Compiler(spec.get))
-                case _             => Ogdl[Kind](Lib())
-              }))
-            })
-          })).getOrElse(ogdl)
+          migrateModules(ogdl) { module =>
+            lazy val main = Try(ClassRef(module.main.Some()))
+            lazy val plugin = Try(PluginId(module.plugin.Some()))
+            
+            lazy val spec = Try(BloopSpec(module.bloopSpec.Some.org(), module.bloopSpec.Some.name(),
+                module.bloopSpec.Some.version()))
+            
+            log.note(msg"Updated module type for module ${module}")
+            if(!module.has("kind")) module else module.set(kind = (module.kind() match {
+              case "Application" => Ogdl[Kind](App(main.get, 0))
+              case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
+              case "Benchmarks"  => Ogdl[Kind](Bench(main.get))
+              case "Compiler"    => Ogdl[Kind](Compiler(spec.get))
+              case _             => Ogdl[Kind](Lib())
+            }))
+          }
           
         case 7 =>
-          Try(ogdl.set(repos = ogdl.repos.map { repo =>
+          migrateRepos(ogdl) { repo =>
+            log.note(msg"Renamed repo to remote in repo ${repo}")
             repo.set(remote = repo.repo)
-          })).getOrElse(ogdl)
+          }
           
         case 6 =>
-          // FIXME: This is a lazy solution
-          Try(ogdl.set(repos = ogdl.repos.map { repo =>
+          migrateRepos(ogdl) { repo =>
+            log.note(msg"Renamed branch to track for repo ${repo}")
             repo.set(branch = repo.track, remote = repo.repo)
-          })).getOrElse(ogdl)
+          }
           
         case 0 | 1 | 2 | 3 | 4 | 5 =>
           log.fail(msg"Cannot migrate from layers earlier than version 6")
           // FIXME: Handle this better
           throw new Exception()
           
-        case _ => null: Ogdl
+        case _ => Ogdl(Vector())
       }).set(version = Ogdl(version + 1)))
     } else ogdl
   }

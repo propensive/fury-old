@@ -129,17 +129,17 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     moduleId    <- project.modules.unique(moduleArg)
     compilerRef <- ~call(CompilerArg).toOption
     _           <- ~compilerRef.map(resolveToCompiler(layer, optProject, layout, _))
-    defaultComp <- ~layer.compilerRefs(layout).map(BspCompiler(_)).headOption
-    compiler    <- ~compilerRef.orElse(defaultComp).getOrElse(Javac(8))
-    module      = Module(moduleId, compiler = compiler, kind = kind)
+    defaultComp <- ~layer.compilerRefs(layout).map(BspCompiler(_)).headOption.getOrElse(Javac(8))
+    compiler    <- compilerRef.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
+    module      = Module(moduleId, compiler = compiler.getOrElse(defaultComp), kind = kind)
     module      <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
     layer       <- ~Layer(_.projects(project.id).modules).modify(layer)(_ + module)
     layer       <- ~(Layer(_.projects(project.id).main)(layer) = Some(module.id))
 
-    layer       <- if(project.compiler.isEmpty && compilerRef != ModuleRef.JavaRef) {
+    layer       <- if(project.compiler.isEmpty && compilerRef.isDefined) {
                      ~Layer(_.projects(project.id).compiler).modify(layer) { v =>
-                       log.info(msg"Setting default compiler for ${project.id} to ${compiler}")
-                       Some(compiler)
+                       log.info(msg"Setting default compiler for ${project.id} to ${module.compiler}")
+                       Some(module.compiler)
                      }
                    } else Try(layer)
 

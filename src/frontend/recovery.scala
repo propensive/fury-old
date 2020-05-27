@@ -135,11 +135,13 @@ You can grant these permissions with,
           cli.abort(msg"Source ${source} is not defined in ${module}.")
         case e: IpfsTimeout =>
           cli.abort(msg"An IPFS operation timed out.")
-        case OgdlException(error) =>
-          cli.abort(msg"Failed to read OGDL: $error.")
+        case OgdlException(path, msg) =>
+          cli.abort(msg"Failed to read OGDL path ${path.mkString(".")}: $msg")
         case OgdlReadException(path, e) =>
           cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
         case e: ItemNotFound =>
+          log.info(e.toString)
+          e.getStackTrace.map(_.toString).foreach(log.warn(_))
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case RepoNotForked(repo) =>
           cli.abort(msg"The repository ${repo} has not been forked.")

@@ -24,36 +24,40 @@ import scala.collection.generic.CanBuildFrom
 import scala.language.experimental.macros
 import scala.language.higherKinds
 
-trait OgdlReader[T] {
-  def read(ogdl: Ogdl): T
-}
+trait OgdlReader[T] { def read(ogdl: Ogdl): T }
+
+case class OgdlException(path: List[String], message: UserMsg) extends FuryException
 
 object OgdlReader {
   type Typeclass[T] = OgdlReader[T]
 
+  private def prefix[T](label: String)(fn: => T): T = try fn catch {
+    case OgdlException(path, msg) => throw OgdlException(label :: path, msg)
+  }
+
   def combine[T](caseClass: CaseClass[OgdlReader, T]): OgdlReader[T] = {
-    case ogdl @ Ogdl(list) =>
+    case ogdl@Ogdl(list) =>
       val map = list.toMap
-      if(caseClass.isValueClass || caseClass.parameters.length == 1)
-        caseClass.construct(_.typeclass.read(ogdl))
-      else
-        caseClass.construct { param =>
-          if(map.contains(param.label)) param.typeclass.read(map(param.label))
-          else
-            param.default.getOrElse(
-                throw new RuntimeException(s"missing value ${param.label} in ${list}"))
+      if(caseClass.isValueClass || caseClass.parameters.length == 1) caseClass.construct { p =>
+        try p.typeclass.read(ogdl) catch {
+          case OgdlException(path, message) => throw OgdlException(p.label :: path, message)
         }
+      }
+      else caseClass.construct { param =>
+        if(map.contains(param.label)) prefix(param.label)(param.typeclass.read(map(param.label)))
+        else param.default.getOrElse(throw OgdlException(List(param.label), msg"Missing value in $ogdl"))
+      }
   }
 
   def dispatch[T](sealedTrait: SealedTrait[OgdlReader, T]): OgdlReader[T] = {
     case Ogdl(Vector((typeName, map))) =>
-      sealedTrait.subtypes
-        .find(_.typeName.short == typeName)
-        .getOrElse {
-          throw new RuntimeException(s"type $typeName not recognized")
-        }
-        .typeclass
-        .read(map)
+      prefix(typeName) { sealedTrait.subtypes.find(_.typeName.short == typeName).getOrElse {
+        throw OgdlException(List(str"[$typeName]"), msg"Subtype not recognized")
+      }.typeclass.read(map) }
+
+    case other =>
+      throw OgdlException(List(
+          str"[${sealedTrait.typeName.short}]"), msg"Expected a valid subtype, but found $other.")
   }
 
   implicit val string: OgdlReader[String] = _()
@@ -61,48 +65,51 @@ object OgdlReader {
   implicit val long: OgdlReader[Long] = _().toLong
   implicit val boolean: OgdlReader[Boolean] = _().toBoolean
   implicit val theme: OgdlReader[Theme] = ogdl => Theme.unapply(ogdl()).getOrElse(Theme.Full)
+  
+  implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader: Index]
+                          (implicit cbf: CanBuildFrom[Nothing, T, Coll[T]])
+                          : OgdlReader[Coll[T]] =
+    implicitly[Index[T]] match {
+      case fi@FieldIndex(idx) =>
+        prefix(idx)(complexTraversable[Coll, T](implicitly[OgdlReader[T]], fi, cbf).read(_))
 
-  implicit def traversable[Coll[t] <: Traversable[t], T: OgdlReader: Index](
-  implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
-  ): OgdlReader[Coll[T]] = implicitly[Index[T]] match {
-      case fi@FieldIndex(_) => complexTraversable[Coll, T](implicitly[OgdlReader[T]], fi, cbf).read(_)
-      case si@SelfIndexed() => simpleTraversable[Coll, T](implicitly[OgdlReader[T]], si, cbf).read(_)
+      case si@SelfIndexed() =>
+        simpleTraversable[Coll, T](implicitly[OgdlReader[T]], si, cbf).read(_)
     }
 
-  private def simpleTraversable[Coll[t] <: Traversable[t], T: OgdlReader: SelfIndexed](
-      implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
-    ): OgdlReader[Coll[T]] = {
+  private def simpleTraversable[Coll[t] <: Traversable[t], T: OgdlReader: SelfIndexed]
+                               (implicit cbf: CanBuildFrom[Nothing, T, Coll[T]])
+                               : OgdlReader[Coll[T]] = {
     case Ogdl(vector) =>
       if(vector.isEmpty) Vector[T]().to[Coll]
-      else {
-        vector.head match {
-          case (f, r) =>
-            val first = implicitly[OgdlReader[T]].read(Ogdl(f))
-            val rest = simpleTraversable[Coll, T].read(r)
-            (first +: rest.toSeq).to[Coll]
-        }
+      else vector.head match { case (f, r) =>
+        val first = implicitly[OgdlReader[T]].read(Ogdl(f))
+        val rest = simpleTraversable[Coll, T].read(r)
+        (first +: rest.toSeq).to[Coll]
       }
   }
 
-  private def complexTraversable[Coll[t] <: Traversable[t], T: OgdlReader: FieldIndex](
-      implicit cbf: CanBuildFrom[Nothing, T, Coll[T]]
-    ): OgdlReader[Coll[T]] = {
+  private def complexTraversable[Coll[t] <: Traversable[t], T: OgdlReader: FieldIndex]
+                                (implicit cbf: CanBuildFrom[Nothing, T, Coll[T]])
+                                : OgdlReader[Coll[T]] = {
     case Ogdl(vector) =>
       if(vector.head._1 == "") Vector[T]().to[Coll]
-      else
-        vector.map { element =>
-          val index = implicitly[FieldIndex[T]]
-          val data: Ogdl = element match {
-            case ("kvp", kvp) =>
-              val key = Ogdl(Vector(index.field -> kvp.selectDynamic(index.field)))
-              val rest = kvp.selectDynamic("value")
-              Ogdl(key.values ++ rest.values)
-            case (single, rest) =>
-              val key = Ogdl(Vector(index.field -> Ogdl(Vector(single -> Ogdl(Vector())))))
-              Ogdl(key.values ++ rest.values)
-          }
-          implicitly[OgdlReader[T]].read(data)
-        }.to[Coll]
+      else vector.map { element =>
+        val index = implicitly[FieldIndex[T]]
+        
+        val data: Ogdl = element match {
+          case ("kvp", kvp) =>
+            val key = Ogdl(Vector(index.field -> kvp.selectDynamic(index.field)))
+            val rest = kvp.selectDynamic("value")
+            Ogdl(key.values ++ rest.values)
+
+          case (single, rest) =>
+            val key = Ogdl(Vector(index.field -> Ogdl(Vector(single -> Ogdl(Vector())))))
+            Ogdl(key.values ++ rest.values)
+        }
+
+        prefix(element._1)(implicitly[OgdlReader[T]].read(data))
+      }.to[Coll]
   }
 
   implicit def gen[T]: OgdlReader[T] = macro Magnolia.gen[T]
