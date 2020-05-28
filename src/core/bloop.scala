@@ -32,12 +32,12 @@ object Bloop {
     new CollOps(build.targets.values.map { target =>
       for {
         path       <- layout.bloopConfig(target.ref).mkParents()
-        jsonString <- makeConfig(target, build, layout)
+        jsonString <- makeConfig(build)(target, layout)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(target: Target, build: Build, layout: Layout)(implicit log: Log): Try[String] = {
+  private def makeConfig(build: Build)(target: build.Target, layout: Layout)(implicit log: Log): Try[String] = {
 
     build.writePlugin(target.ref, layout)
     val classpath = build.classpath(target.ref, layout)

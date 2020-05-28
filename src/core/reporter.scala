@@ -27,7 +27,7 @@ object Reporter {
 }
 
 abstract class Reporter(val name: String) {
-  def report(graph: Target.Graph,
+  def report(graph: Build.Graph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit
@@ -37,7 +37,7 @@ object GraphReporter extends Reporter("graph") {
 
   private def timeString(t: Long): String = if(t >= 10000) s"${t / 1000}s" else s"${t}ms"
 
-  def report(graph: Target.Graph,
+  def report(graph: Build.Graph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
@@ -48,7 +48,7 @@ object GraphReporter extends Reporter("graph") {
 }
 
 object LinearReporter extends Reporter("linear") {
-  def report(graph: Target.Graph,
+  def report(graph: Build.Graph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
@@ -64,7 +64,7 @@ object LinearReporter extends Reporter("linear") {
 }
 
 object SummaryReporter extends Reporter("summary") {
-  def report(graph: Target.Graph,
+  def report(graph: Build.Graph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
@@ -92,7 +92,7 @@ object SummaryReporter extends Reporter("summary") {
 }
 
 object InterleavingReporter extends Reporter("interleaving") {
-  def report(graph: Target.Graph,
+  def report(graph: Build.Graph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
@@ -124,7 +124,7 @@ object InterleavingReporter extends Reporter("interleaving") {
 
 object QuietReporter extends Reporter("quiet") {
 
-  def report(graph: Target.Graph,
+  def report(graph: Build.Graph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit =
