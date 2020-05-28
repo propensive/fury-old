@@ -173,6 +173,6 @@ publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	 printf "$(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
 
 test:
-	#tmp/fury test --disable-security-manager --output linear
+	tmp/fury test --disable-security-manager --output linear
 
 .PHONY: run publish pinata pinata-launcher clean uninstall icons tmp/.version test

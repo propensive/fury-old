@@ -36,7 +36,7 @@ case class OgdlReadException(path: Path, cause: Throwable) extends FuryException
 }
 
 final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
-  def apply(): String                     = values.head._1
+  def apply(): String = values.head._1
   def applyDynamic(key: String)(): String = selectDynamic(key).apply()
   
   def selectDynamic(key: String): Ogdl = try values.find(_._1 == key).get._2 catch {
@@ -44,6 +44,7 @@ final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
       throw OgdlException(List(key), msg"Element not found in ${this}")
   }
 
+  def apply(key: String): Ogdl = selectDynamic(key)
   def has(key: String): Boolean = values.exists(_._1 == key)
 
   // FIXME: Change the type of `set` to `"set"` when upgrading to Scala 2.13.x
@@ -51,18 +52,17 @@ final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
     Ogdl(updates.foldLeft(values) {
       case (vs, (key, value)) =>
         vs.indexWhere(_._1 == key) match {
-          case -1 =>
-            vs :+ (key, value)
-          case idx =>
-            vs.patch(idx, Vector((key, value)), 1)
+          case -1  => vs :+ (key, value)
+          case idx => vs.patch(idx, Vector((key, value)), 1)
         }
     })
 
-  def map(fn: Ogdl => Ogdl): Ogdl =
-    Ogdl(values.map {
-      case ("", v) => ("", v)
-      case (k, v)  => (k, fn(v))
-    })
+  def map(fn: Ogdl => Ogdl): Ogdl = Ogdl(values.map {
+    case ("", v) => ("", v)
+    case (k, v)  => (k, fn(v))
+  })
+
+  def `*`: Vector[String] = values.map(_._1)
 
   override def toString: String = {
     val content = values.map {

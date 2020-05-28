@@ -26,22 +26,23 @@ import scala.collection.immutable.SortedSet
 import scala.util._
 
 case class DependencyCli(cli: Cli)(implicit log: Log) {
-
   def list: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli     <- cli.hint(RawArg)
-    table   =  Tables().dependencies
-    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    cli     <- cli.hint(LinkArg, tryModule.map(_.dependencies).getOrElse(Set.empty))
-    call    <- cli.call()
-    col     =  cli.peek(ColumnArg)
-    dep     =  cli.peek(LinkArg)
-    raw     =  call(RawArg).isSuccess
-    project   <- tryProject
-    module    <- tryModule
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    cli          <- cli.hint(RawArg)
+    table         = Tables().dependencies
+    cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli          <- cli.hint(LinkArg, tryModule.map(_.dependencies).getOrElse(Set.empty))
+    call         <- cli.call()
+    col           = cli.peek(ColumnArg)
+    dep           = cli.peek(LinkArg)
+    raw           = call(RawArg).isSuccess
+    project      <- tryProject
+    module       <- tryModule
   } yield {
     val rows = module.dependencies.to[List].sorted
     log.infoWhen(!raw)(conf.focus(project.id, module.id))
@@ -50,65 +51,65 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
   }
 
   def remove: Try[ExitStatus] = for {
-    layout          <- cli.layout
-    conf            <- Layer.readFuryConf(layout)
-    layer           <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.retrieve(conf)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
 
-    dependencyLinks  = for(project <- tryProject; module <- tryModule)
-                       yield (module.dependencies.filter(_.ref.projectId != project.id).map(_.ref.id) ++
-                           module.dependencies.filter(_.ref.projectId == project.id).map(_.ref.moduleId.key))
+    links         = for(project <- tryProject; module <- tryModule)
+                    yield (module.dependencies.filter(_.ref.projectId != project.id).map(_.ref.id) ++
+                        module.dependencies.filter(_.ref.projectId == project.id).map(_.ref.moduleId.key))
     
-    cli             <- cli.hint(LinkArg, dependencyLinks.getOrElse(Set.empty))    
-    cli             <- cli.hint(ForceArg)
-    call            <- cli.call()
-    linkArg         <- call(LinkArg)
-    project         <- tryProject
-    module          <- tryModule
-    moduleRef       <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
-    dependency      <- module.dependencies.findBy(moduleRef)
-    force           <- ~call(ForceArg).isSuccess
-    layer           <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - dependency)
-    _               <- Layer.commit(layer, conf, layout)
-  } yield {
-    Build.asyncBuild(layer, moduleRef, layout)
-    log.await()
-  }
+    cli          <- cli.hint(LinkArg, links.getOrElse(Set.empty))    
+    cli          <- cli.hint(ForceArg)
+    call         <- cli.call()
+    linkArg      <- call(LinkArg)
+    project      <- tryProject
+    module       <- tryModule
+    moduleRef    <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
+    dependency   <- module.dependencies.findBy(moduleRef)
+    force        <- ~call(ForceArg).isSuccess
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - dependency)
+    _            <- Layer.commit(layer, conf, layout)
+    _            <- ~Build.asyncBuild(layer, moduleRef, layout)
+  } yield log.await()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    hierarchy        <- layer.hierarchy()
-    universe         <- hierarchy.universe
-    allRefs = for {
-      project <- tryProject
-      module <- tryModule      
-    } yield {
-      val fromOtherProjects = for {
-        otherRef <- layer.deepModuleRefs(universe) if !(otherRef.hidden || module.dependencies.contains(otherRef))
-      } yield otherRef.id
-      val fromSameProject = for {
-        otherModule <- project.modules if !module.dependencies.exists(_.ref.moduleId == otherModule.id)
-      } yield otherModule.id.key
-      fromOtherProjects ++ fromSameProject
-    }
-    cli          <- cli.hint(LinkArg, allRefs.getOrElse(Set.empty))
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    hierarchy    <- layer.hierarchy()
+    universe     <- hierarchy.universe
+    
+    allRefs       = for(project <- tryProject; module <- tryModule)
+                    yield {
+                      val fromOtherProjects = for {
+                        otherRef <- layer.deepModuleRefs(universe)
+                                if !(otherRef.hidden || module.dependencies.map(_.ref).contains(otherRef))
+                      } yield otherRef.id
+                      val fromSameProject = for {
+                        otherModule <- project.modules if !module.dependencies.exists(_.ref.moduleId == otherModule.id)
+                      } yield otherModule.id.key
+                      fromOtherProjects ++ fromSameProject
+                    }
+
+    cli          <- cli.hint(LinkArg, allRefs.getOrElse(Set()))
     cli          <- cli.hint(IntransitiveArg)
     call         <- cli.call()
     project      <- tryProject
     module       <- tryModule
-    intransitive =  call(IntransitiveArg).isSuccess
+    intransitive  = call(IntransitiveArg).isSuccess
     linkArg      <- call(LinkArg)
-    moduleRef    <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
-    dependency   <- module.dependencies.findBy(moduleRef)
-    layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + dependency)
+    ref          <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Dependency(ref))
     _            <- Layer.commit(layer, conf, layout)
-  } yield {
-    Build.asyncBuild(layer, moduleRef, layout)
-    log.await()
-  }
+    _            <- ~Build.asyncBuild(layer, ref, layout)
+  } yield log.await()
 }
 
 case class EnvCli(cli: Cli)(implicit log: Log) {
@@ -116,7 +117,9 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(RawArg)
     table        <- ~Tables().envs
     cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
@@ -138,7 +141,9 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(EnvArg, tryModule.map(_.environment).getOrElse(Nil))
     cli          <- cli.hint(ForceArg)
     call         <- cli.call()
@@ -151,83 +156,90 @@ case class EnvCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
-    layout          <- cli.layout
-    conf            <- Layer.readFuryConf(layout)
-    layer           <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    importedLayers  = layer.importedLayers.toOption
-    allLayers       = layer :: importedLayers.toList.flatten
-    allModules      = allLayers.map(_.moduleRefs).flatten
-    cli             <- cli.hint(EnvArg)
-    call            <- cli.call()
-    project         <- tryProject
-    module          <- tryModule
-    envArg          <- call(EnvArg)
-    layer           <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ + envArg)
-    _               <- Layer.commit(layer, conf, layout)
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.retrieve(conf)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    imported      = layer.importedLayers.toOption
+    allLayers     = layer :: imported.toList.flatten
+    allModules    = allLayers.map(_.moduleRefs).flatten
+    cli          <- cli.hint(EnvArg)
+    call         <- cli.call()
+    project      <- tryProject
+    module       <- tryModule
+    envArg       <- call(EnvArg)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ + envArg)
+    _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }
 
 case class PermissionCli(cli: Cli)(implicit log: Log) {
   
   def require: Try[ExitStatus] = for {
-    layout          <- cli.layout
-    conf            <- Layer.readFuryConf(layout)
-    layer           <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli             <- cli.hint(ScopeArg, ScopeId.All)
-    cli             <- cli.hint(NoGrantArg)
-    cli             <- cli.hint(ClassArg, Permission.Classes)
-    cli             <- cli.hint(PermissionTargetArg)
-    cli             <- cli.hint(ActionArg, List("read", "write", "read,write"))
-    call            <- cli.call()
-    scopeId         =  call(ScopeArg).getOrElse(ScopeId.Project)
-    project         <- tryProject
-    module          <- tryModule
-    classArg        <- call(ClassArg)
-    targetArg       <- call(PermissionTargetArg)
-    actionArg       =  call(ActionArg).toOption
-    grant           =  call(NoGrantArg).isFailure
-    permission      =  Permission(str"${classArg.key}:${targetArg}", actionArg)
-    layer           <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_ +
-                           permission)
-    _               <- Layer.commit(layer, conf, layout)
-    policy          <- ~Policy.read(log)
-    newPolicy       =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
-    _               <- Policy.save(newPolicy)
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.retrieve(conf)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    cli          <- cli.hint(ScopeArg, ScopeId.All)
+    cli          <- cli.hint(NoGrantArg)
+    cli          <- cli.hint(ClassArg, Permission.Classes)
+    cli          <- cli.hint(PermissionTargetArg)
+    cli          <- cli.hint(ActionArg, List("read", "write", "read,write"))
+    call         <- cli.call()
+    scopeId      =  call(ScopeArg).getOrElse(ScopeId.Project)
+    project      <- tryProject
+    module       <- tryModule
+    classArg     <- call(ClassArg)
+    targetArg    <- call(PermissionTargetArg)
+    actionArg    =  call(ActionArg).toOption
+    grant        =  call(NoGrantArg).isFailure
+    permission   =  Permission(str"${classArg.key}:${targetArg}", actionArg)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_ + permission)
+    _            <- Layer.commit(layer, conf, layout)
+    policy       <- ~Policy.read(log)
+    newPolicy    =  if(grant) policy.grant(Scope(scopeId, layout, project.id), List(permission)) else policy
+    _            <- Policy.save(newPolicy)
   } yield {
     log.info(msg"${PermissionHash(permission.hash)}")
     log.await()
   }
 
   def obviate: Try[ExitStatus] = for {
-    layout        <- cli.layout
-    conf          <- Layer.readFuryConf(layout)
-    layer         <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli           <- cli.hint(PermissionArg, tryModule.map(_.policyEntries).getOrElse(Set.empty))
-    cli           <- cli.hint(ForceArg)
-    call          <- cli.call()
-    permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
-    project         <- tryProject
-    module          <- tryModule
-    hierarchy     <- layer.hierarchy()
-    universe      <- hierarchy.universe
-    build         <- Build(universe, Dependency(module.ref(project)), layout)
-    permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
-    force         =  call(ForceArg).isSuccess
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.retrieve(conf)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    cli          <- cli.hint(PermissionArg, tryModule.map(_.policyEntries).getOrElse(Set.empty))
+    cli          <- cli.hint(ForceArg)
+    call         <- cli.call()
+    permHashes   <- call(PermissionArg).map(_.map(PermissionHash(_)))
+    project      <- tryProject
+    module       <- tryModule
+    hierarchy    <- layer.hierarchy()
+    universe     <- hierarchy.universe
+    build        <- Build(universe, Dependency(module.ref(project)), layout)
+    permissions  <- permHashes.traverse(_.resolve(build.requiredPermissions))
+    force        =  call(ForceArg).isSuccess
                          
-    layer         <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_.diff(
-                         permissions.to[Set]))
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).policy).modify(layer)(_.diff(
+                        permissions.to[Set]))
 
-    _             <- Layer.commit(layer, conf, layout)
+    _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
   
   def list: Try[ExitStatus] = for {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+    (cli,
+     tryProject, 
+     tryModule)   <- cli.askProjectAndModule(layer)
     cli           <- cli.hint(RawArg)
     table         <- ~Tables().permissions
     cli           <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
@@ -247,7 +259,9 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     layout        <- cli.layout
     conf          <- Layer.readFuryConf(layout)
     layer         <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+    (cli,
+     tryProject,
+     tryModule)   <- cli.askProjectAndModule(layer)
     cli           <- cli.hint(ScopeArg, ScopeId.All)
     cli           <- cli.hint(PermissionArg, tryModule.map(_.policyEntries).getOrElse(Set.empty))
     call          <- cli.call()
@@ -270,17 +284,19 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli     <- cli.hint(RawArg)
-    table   <- ~Tables().props
-    cli     <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    cli     <- cli.hint(PropArg, tryModule.map(_.properties).getOrElse(Nil))
-    call    <- cli.call()
-    raw     <- ~call(RawArg).isSuccess
-    col     <- ~cli.peek(ColumnArg)
-    prop    <- ~cli.peek(PropArg)
-    project <- tryProject
-    module  <- tryModule    
+    (cli,
+     tryProject,
+      tryModule) <- cli.askProjectAndModule(layer)
+    cli          <- cli.hint(RawArg)
+    table        <- ~Tables().props
+    cli          <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli          <- cli.hint(PropArg, tryModule.map(_.properties).getOrElse(Nil))
+    call         <- cli.call()
+    raw          <- ~call(RawArg).isSuccess
+    col          <- ~cli.peek(ColumnArg)
+    prop         <- ~cli.peek(PropArg)
+    project      <- tryProject
+    module       <- tryModule    
   } yield {
     val rows = module.properties.to[List].sorted
     log.infoWhen(!raw)(conf.focus(project.id, module.id))
@@ -292,31 +308,35 @@ case class PropertyCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli       <- cli.hint(PropArg, tryModule.map(_.properties).getOrElse(Set.empty))
-    cli       <- cli.hint(ForceArg)
-    call      <- cli.call()
-    propArg   <- call(PropArg)
-    project   <- tryProject
-    module    <- tryModule
-    force     <- ~call(ForceArg).isSuccess
-    layer     <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ - propArg)
-    _         <- Layer.commit(layer, conf, layout)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    cli          <- cli.hint(PropArg, tryModule.map(_.properties).getOrElse(Set.empty))
+    cli          <- cli.hint(ForceArg)
+    call         <- cli.call()
+    propArg      <- call(PropArg)
+    project      <- tryProject
+    module       <- tryModule
+    force        <- ~call(ForceArg).isSuccess
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ - propArg)
+    _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    importedLayers   = layer.importedLayers.toOption
-    allLayers        = layer :: importedLayers.toList.flatten
-    cli             <- cli.hint(PropArg)
-    call            <- cli.call()
-    project   <- tryProject
-    module    <- tryModule
-    propArg         <- call(PropArg)
-    layer           <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ + propArg)
-    _               <- Layer.commit(layer, conf, layout)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    imported      = layer.importedLayers.toOption
+    allLayers     = layer :: imported.toList.flatten
+    cli          <- cli.hint(PropArg)
+    call         <- cli.call()
+    project      <- tryProject
+    module       <- tryModule
+    propArg      <- call(PropArg)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ + propArg)
+    _            <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }

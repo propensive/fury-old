@@ -352,7 +352,7 @@ object Layer extends Lens.Partial[Layer] {
     migrateProjects(root) { project =>
       if(project.has("modules")) project.set(modules = project.modules.map(fn(_))) else project
     }
-  
+
   private def migrateRepos(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
     if(root.has("repos")) root.set(repos = root.repos.map(fn(_))) else root
   
@@ -365,7 +365,8 @@ object Layer extends Lens.Partial[Layer] {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
         case 10 =>
-          val updatedModules = migrateModules(ogdl) { module =>
+          val step1 = migrateModules(ogdl) { module =>
+            log.note(msg"Old module = $module")
             val newValue = Ogdl[CompilerRef] {
               if(!module.has("compiler")) Javac(8) else BspCompiler(ModuleRef(module.compiler.id()))
             }
@@ -373,7 +374,7 @@ object Layer extends Lens.Partial[Layer] {
             module.set(compiler = newValue)
           }
 
-          migrateProjects(updatedModules) { project =>
+          val step2 = migrateProjects(step1) { project =>
             val newProject = project.set(compiler = Ogdl[Option[CompilerRef]] {
               if(project.has("compiler")) Some(BspCompiler(ModuleRef(project.compiler.Some.value.id())))
               else None
@@ -381,6 +382,12 @@ object Layer extends Lens.Partial[Layer] {
 
             log.note(msg"Updated project compiler reference for project ${project} to ${newProject}")
             newProject
+          }
+
+          migrateModules(step2) { module =>
+            if(module.has("dependencies")) module.set(dependencies = Ogdl(module.dependencies.*.map { d =>
+              Dependency(ModuleRef(d))
+            }.to[SortedSet])) else module
           }
 
         case 9 =>

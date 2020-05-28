@@ -747,7 +747,7 @@ object Dependency {
   implicit val msgShow: MsgShow[Dependency] = d => msg"${d.ref}"
   implicit val stringShow: StringShow[Dependency] = msgShow.show(_).string(Theme.NoColor)
   implicit val diff: Diff[Dependency] = (l, r) => Diff.stringDiff.diff(l.ref.id, r.ref.id)
-  implicit val index: Index[Dependency] = FieldIndex("ref")
+  implicit val index: Index[Dependency] = FieldIndex("id")
 }
 
 case class Dependency(ref: ModuleRef) {

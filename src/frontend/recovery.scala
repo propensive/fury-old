@@ -194,7 +194,8 @@ You can grant these permissions with,
         case e: AlreadyInitialized =>
           cli.abort(msg"Fury is already initialized in this directory. Use ${Args.ForceArg: CliParam} to override.")
         case CyclesInDependencies(refs) =>
-          cli.abort(msg"There are dependency cycles containing : [${refs.mkString}]")
+          cli.abort(msg"There build graph contains cycles involving ${'{'}${refs.map { d => msg"$d" }.reduce {
+              (l, r) => msg"$l${','} $r"}}${'}'}")
         case UnspecifiedBinary(Nil) =>
           cli.abort(msg"Binary not found.")
         case UnspecifiedBinary(possibleBinaries) =>
