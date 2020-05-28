@@ -20,7 +20,7 @@ import fury.io._, fury.model._
 
 import mercator._
 
-import coursier.{Module => CModule, _}
+import coursier.{Module => CModule, Dependency => CDependency, _}
 
 import scala.util._
 
@@ -32,7 +32,7 @@ object Coursier {
 
   private def mkRequest(binary: Binary): Try[List[Path]] = {
     
-    val dependency = Dependency(
+    val dependency = CDependency(
       module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
       version = binary.version
     ).withExclusions(if(binary.group == "org.scala-lang") Set.empty else ScalaCore)
