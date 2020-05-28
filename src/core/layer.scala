@@ -79,11 +79,11 @@ case class Layer(version: Int,
   def deepModuleRefs(universe: Universe): Set[ModuleRef] =
     universe.entities.values.flatMap(_.project.moduleRefs).to[Set]
 
-  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[ModuleRef]] = { for {
+  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[Dependency]] = { for {
     project    <- projects.to[List]
     module     <- project.modules
     dependency <- module.dependencies
-    missing    <- if(universe(dependency).isSuccess) Nil else List((module.ref(project), dependency))
+    missing    <- if(universe(dependency.ref).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
   def verifyConf(local: Boolean, conf: FuryConf, quiet: Boolean, force: Boolean)

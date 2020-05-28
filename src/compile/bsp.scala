@@ -111,15 +111,15 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
 
       graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {
                           ds   <- universe.dependencies(ref, layout)
-                          arts <- (ds + ref).map(universe.makeTarget(_, layout)).sequence
+                          arts <- (ds + Dependency(ref)).map(universe.makeTarget(_, layout)).sequence
                         } yield arts.map { a =>
                           (a.ref, (a.module.dependencies.to[List]) ++ a.compiler().map(_.hide))
                         } }.sequence.map(_.flatten.toMap)
       
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe(ref).map((ref, _)) }
-      targets       <- graph.keys.map { key =>
-                         universe.makeTarget(key, layout).map(key -> _)
+      targets       <- graph.keys.map { ref =>
+                         universe.makeTarget(Dependency(ref), layout).map(ref -> _)
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
@@ -371,24 +371,24 @@ object FuryBuildServer {
   class Cancelator { var cancel: () => Unit = () => () }
 
   case class Structure(modules: Map[ModuleRef, Module],
-                       graph: Map[ModuleRef, List[ModuleRef]],
+                       graph: Map[ModuleRef, List[Dependency]],
                        checkouts: Checkouts,
                        targets: Map[ModuleRef, Target]) {
 
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
 
     // TODO unify this with Build.hash
-    def hash(ref: ModuleRef): Digest = {
-      val target = targets(ref)
+    def hash(dependency: Dependency): Digest = {
+      val target = targets(dependency.ref)
       hashes.getOrElseUpdate(
-        ref, (target.module.kind, target.checkouts, target.binaries, target.module.dependencies.to[List],
-            target.module.compiler, target.params, target.intransitive,
-            target.sourcePaths, graph(ref).map(hash)).digest[Md5]
+        dependency.ref, (target.module.kind, target.checkouts, target.binaries,
+            target.module.dependencies.to[List], target.module.compiler, target.params,
+            target.intransitive, target.sourcePaths, graph(dependency.ref).map(hash(_))).digest[Md5]
       )
     }
 
-    def buildTarget(ref: ModuleRef): BuildTargetIdentifier = {
-      val uri = s"fury:${hash(ref).toString}"
+    def buildTarget(dependency: Dependency): BuildTargetIdentifier = {
+      val uri = s"fury:${hash(dependency).toString}"
       new BuildTargetIdentifier(uri.toString)
     }
 
@@ -400,12 +400,12 @@ object FuryBuildServer {
       
       val digest = Digest(Bytes(bytes))
       
-      modules.find { case (ref, _) => hash(ref) == digest }.map(_._1).ascribe(ItemNotFound(ModuleId(id)))
+      modules.find { case (ref, _) => hash(Dependency(ref)) == digest }.map(_._1).ascribe(ItemNotFound(ModuleId(id)))
     }
   }
 
   private def toTarget(target: Target, struct: Structure): BuildTarget = {
-    val id = struct.buildTarget(target.ref)
+    val id = struct.buildTarget(target.dependency)
     val tags = List(moduleKindToBuildTargetTag(target.module.kind))
     val languageIds = List("java", "scala")
     val dependencies = target.module.dependencies.map(struct.buildTarget)
@@ -418,7 +418,7 @@ object FuryBuildServer {
 
     target.compiler().foreach { compiler =>
       for {
-        compiler <- ~struct.targets(compiler)
+        compiler <- ~struct.targets(compiler.ref)
         compDef  <- compiler.module.kind.as[Compiler].ascribe(ModuleIsNotCompiler(target.ref, compiler.ref))
                 if compiler.binaries.nonEmpty
       } yield {

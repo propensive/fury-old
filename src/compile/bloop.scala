@@ -72,7 +72,7 @@ object Bloop {
         name = target.ref.urlSafe,
         directory = layout.workDir(target.ref).value,
         sources = target.sourcePaths.map(_.value),
-        dependencies = build.graph.dependencies(target.ref).map(_.urlSafe),
+        dependencies = build.graph.dependencies(target.ref).map(_.ref.urlSafe),
         classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
         out = str"${layout.outputDir(target.ref).value}",
         classesDir = str"${layout.classesDir(target.ref).value}",

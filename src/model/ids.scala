@@ -733,7 +733,7 @@ object CompilerRef {
 }
 
 sealed abstract class CompilerRef(ref: Option[ModuleRef]) {
-  def apply(): Set[ModuleRef] = ref.to[Set]
+  def apply(): Set[Dependency] = ref.to[Set].map(Dependency(_))
   def as[T: ClassTag]: Option[T] = this.only { case value: T => value }
   def is[T: ClassTag]: Boolean = as[T].isDefined
 }
@@ -743,7 +743,23 @@ object Javac { val Versions: Set[Javac] = Set(8, 9, 10, 11, 12, 13, 13).map(Java
 case class Javac(major: Int) extends CompilerRef(None)
 case class BspCompiler(ref: ModuleRef) extends CompilerRef(Some(ref))
 
-case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) {
+object Dependency {
+  implicit val msgShow: MsgShow[Dependency] = d => msg"${d.ref}"
+  implicit val stringShow: StringShow[Dependency] = msgShow.show(_).string(Theme.NoColor)
+  implicit val diff: Diff[Dependency] = (l, r) => Diff.stringDiff.diff(l.ref.id, r.ref.id)
+  implicit val index: Index[Dependency] = FieldIndex("ref")
+}
+
+case class Dependency(ref: ModuleRef) {
+  def intransitive = ref.intransitive
+  def hidden = ref.hidden
+
+  def hide = copy(ref = ref.copy(hidden = true))
+}
+
+case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) extends Key(msg"ref") {
+
+  def key: String = id
 
   def projectId: ProjectId = ProjectId(id.split("/")(0))
   def moduleId: ModuleId = ModuleId(id.split("/")(1))

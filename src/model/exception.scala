@@ -28,7 +28,7 @@ case class CannotUndo() extends FuryException
 case class CannotUpdateRepo(repo: RepoId) extends FuryException
 case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
-case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
+case class CyclesInDependencies(cycle: Set[Dependency]) extends FuryException
 case class CommitNotInRepo(commit: Commit) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class DnsResolutionFailure() extends FuryException
@@ -89,7 +89,7 @@ case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException
 case class UnknownVersion(version: LayerVersion) extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException
-case class UnresolvedModules(refs: Map[ModuleRef, Set[ModuleRef]]) extends FuryException
+case class UnresolvedModules(refs: Map[ModuleRef, Set[Dependency]]) extends FuryException
 case class UnknownOs(description: String) extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException
 case class UnspecifiedMain(module: ModuleId) extends FuryException

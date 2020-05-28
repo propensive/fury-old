@@ -50,32 +50,26 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
   }
 
   def remove: Try[ExitStatus] = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.retrieve(conf)
+    layout          <- cli.layout
+    conf            <- Layer.readFuryConf(layout)
+    layer           <- Layer.retrieve(conf)
     (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    dependencyLinks      = for {
-      project  <- tryProject
-      module <- tryModule
-    } yield {
-      val fromOtherProjects = for {
-        ref <- module.dependencies if ref.projectId != project.id
-      } yield ref.id
-      val fromSameProject = for {
-        ref <- module.dependencies if ref.projectId == project.id
-      } yield ref.moduleId.key
-      fromOtherProjects ++ fromSameProject
-    }
-    cli       <- cli.hint(LinkArg, dependencyLinks.getOrElse(Set.empty))    
-    cli       <- cli.hint(ForceArg)
-    call      <- cli.call()
-    linkArg   <- call(LinkArg)
-    project   <- tryProject
-    module    <- tryModule
-    moduleRef <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
-    force     <- ~call(ForceArg).isSuccess
-    layer     <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - moduleRef)
-    _         <- Layer.commit(layer, conf, layout)
+
+    dependencyLinks  = for(project <- tryProject; module <- tryModule)
+                       yield (module.dependencies.filter(_.ref.projectId != project.id).map(_.ref.id) ++
+                           module.dependencies.filter(_.ref.projectId == project.id).map(_.ref.moduleId.key))
+    
+    cli             <- cli.hint(LinkArg, dependencyLinks.getOrElse(Set.empty))    
+    cli             <- cli.hint(ForceArg)
+    call            <- cli.call()
+    linkArg         <- call(LinkArg)
+    project         <- tryProject
+    module          <- tryModule
+    moduleRef       <- ModuleRef.parse(project.id, linkArg, false).ascribe(InvalidValue(linkArg))
+    dependency      <- module.dependencies.findBy(moduleRef)
+    force           <- ~call(ForceArg).isSuccess
+    layer           <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - dependency)
+    _               <- Layer.commit(layer, conf, layout)
   } yield {
     Build.asyncBuild(layer, moduleRef, layout)
     log.await()
@@ -96,23 +90,21 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
         otherRef <- layer.deepModuleRefs(universe) if !(otherRef.hidden || module.dependencies.contains(otherRef))
       } yield otherRef.id
       val fromSameProject = for {
-        otherModule <- project.modules if !module.dependencies.exists(_.moduleId == otherModule.id)
+        otherModule <- project.modules if !module.dependencies.exists(_.ref.moduleId == otherModule.id)
       } yield otherModule.id.key
       fromOtherProjects ++ fromSameProject
     }
-    cli              <- cli.hint(LinkArg, allRefs.getOrElse(Set.empty))
-    cli              <- cli.hint(IntransitiveArg)
-    call             <- cli.call()
-    project          <- tryProject
-    module           <- tryModule
-    intransitive     =  call(IntransitiveArg).isSuccess
-    linkArg          <- call(LinkArg)
-    moduleRef        <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
-
-    layer            <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ +
-                            moduleRef)
-    
-    _                <- Layer.commit(layer, conf, layout)
+    cli          <- cli.hint(LinkArg, allRefs.getOrElse(Set.empty))
+    cli          <- cli.hint(IntransitiveArg)
+    call         <- cli.call()
+    project      <- tryProject
+    module       <- tryModule
+    intransitive =  call(IntransitiveArg).isSuccess
+    linkArg      <- call(LinkArg)
+    moduleRef    <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
+    dependency   <- module.dependencies.findBy(moduleRef)
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + dependency)
+    _            <- Layer.commit(layer, conf, layout)
   } yield {
     Build.asyncBuild(layer, moduleRef, layout)
     log.await()
@@ -221,7 +213,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     module          <- tryModule
     hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
-    build         <- Build(universe, module.ref(project), layout)
+    build         <- Build(universe, Dependency(module.ref(project)), layout)
     permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
     force         =  call(ForceArg).isSuccess
                          
@@ -265,7 +257,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
     hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
-    build         <- Build(universe, module.ref(project), layout)
+    build         <- Build(universe, Dependency(module.ref(project)), layout)
     permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
     policy        =  Policy.read(log)
     newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
