@@ -378,17 +378,17 @@ object FuryBuildServer {
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
 
     // TODO unify this with Build.hash
-    def hash(dependency: Dependency): Digest = {
-      val target = targets(dependency.ref)
+    def hash(ref: ModuleRef): Digest = {
+      val target = targets(ref)
       hashes.getOrElseUpdate(
-        dependency.ref, (target.module.kind, target.checkouts, target.binaries,
+        ref, (target.module.kind, target.checkouts, target.binaries,
             target.module.dependencies.to[List], target.module.compiler, target.params,
-            target.intransitive, target.sourcePaths, graph(dependency.ref).map(hash(_))).digest[Md5]
+            target.intransitive, target.sourcePaths, graph(ref).map(_.ref).map(hash(_))).digest[Md5]
       )
     }
 
-    def buildTarget(dependency: Dependency): BuildTargetIdentifier = {
-      val uri = s"fury:${hash(dependency).toString}"
+    def buildTarget(ref: ModuleRef): BuildTargetIdentifier = {
+      val uri = s"fury:${hash(ref).toString}"
       new BuildTargetIdentifier(uri.toString)
     }
 
@@ -400,15 +400,15 @@ object FuryBuildServer {
       
       val digest = Digest(Bytes(bytes))
       
-      modules.find { case (ref, _) => hash(Dependency(ref)) == digest }.map(_._1).ascribe(ItemNotFound(ModuleId(id)))
+      modules.find { case (ref, _) => hash(ref) == digest }.map(_._1).ascribe(ItemNotFound(ModuleId(id)))
     }
   }
 
   private def toTarget(target: Target, struct: Structure): BuildTarget = {
-    val id = struct.buildTarget(target.dependency)
+    val id = struct.buildTarget(target.ref)
     val tags = List(moduleKindToBuildTargetTag(target.module.kind))
     val languageIds = List("java", "scala")
-    val dependencies = target.module.dependencies.map(struct.buildTarget)
+    val dependencies = target.module.dependencies.map(_.ref).map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
     val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.to[List].asJava,

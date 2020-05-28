@@ -188,9 +188,9 @@ You can grant these permissions with,
         case ExecutionFailure(exitCode) =>
           cli.abort(msg"One of the run tasks failed (exit code $exitCode). Check the logs for details.")
         case e: ModuleAlreadyExists =>
-          cli.abort(msg"The module '${e.module}' already exists.")
+          cli.abort(msg"The module ${e.module} already exists.")
         case e: ProjectAlreadyExists =>
-          cli.abort(msg"The project '${e.project}' already exists.")
+          cli.abort(msg"The project ${e.project} already exists.")
         case e: AlreadyInitialized =>
           cli.abort(msg"Fury is already initialized in this directory. Use ${Args.ForceArg: CliParam} to override.")
         case CyclesInDependencies(refs) =>

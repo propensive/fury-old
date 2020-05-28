@@ -29,7 +29,7 @@ object Target {
 }
 
 case class Target(ref: ModuleRef,
-                  dependency: Dependency,
+                  //dependency: Dependency,
                   module: Module,
                   repos: List[Remote],
                   checkouts: List[Checkout],
