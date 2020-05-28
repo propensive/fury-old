@@ -38,7 +38,7 @@ case class Project(id: ProjectId,
                    main: Option[ModuleId] = None,
                    license: LicenseId = License.unknown,
                    description: String = "",
-                   compiler: Option[ModuleRef] = None) {
+                   compiler: Option[CompilerRef] = None) {
 
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))

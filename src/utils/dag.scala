@@ -18,15 +18,15 @@ package fury.utils
 
 import scala.annotation.tailrec
 
-case class DirectedGraph[T](connections: Map[T, Set[T]]) {
+case class Dag[T](connections: Map[T, Set[T]]) {
 
-  def remove(element: T): DirectedGraph[T] = {
+  def remove(element: T): Dag[T] = {
     val pointingTo = connections(element)
     val noFromEdge = connections - element
-    DirectedGraph(noFromEdge.mapValues { map => if(map(element)) map ++ pointingTo - element else map })
+    Dag(noFromEdge.mapValues { map => if(map(element)) map ++ pointingTo - element else map })
   }
 
-  def subgraph(verticesToLeave: Set[T]): DirectedGraph[T] =
+  def subgraph(verticesToLeave: Set[T]): Dag[T] =
     (connections.keySet &~ verticesToLeave).foldRight(this) { (element, graph) => graph.remove(element) }
 
   def neighbours(start: T): Set[T] = connections.getOrElse(start, Set())

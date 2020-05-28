@@ -3,5 +3,5 @@ Set current project to hello-world
 Set current module to m1
 Set current module to m2
 Set current module to m3
-There are dependency cycles containing : [hello-world/m3]
+There build graph contains cycles involving {hello-world/m3}
 1

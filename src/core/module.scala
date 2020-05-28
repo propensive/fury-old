@@ -34,8 +34,8 @@ object Module {
 case class Module(id: ModuleId,
                   kind: Kind = Lib(),
                   manifest: List[ManifestEntry] = List(),
-                  compiler: ModuleRef = ModuleRef.JavaRef,
-                  dependencies: SortedSet[ModuleRef] = TreeSet(),
+                  compiler: CompilerRef = Javac(8),
+                  dependencies: SortedSet[Dependency] = TreeSet(),
                   opts: SortedSet[Opt] = TreeSet(),
                   sources: SortedSet[Source] = TreeSet(),
                   binaries: SortedSet[Binary] = TreeSet(),
@@ -48,7 +48,12 @@ case class Module(id: ModuleId,
                   deterministic: Boolean = false) {
 
   def allBinaries: SortedSet[Binary] = if(kind.is[Bench]) binaries + Binary.Jmh else binaries
-  def compilerDependencies: Set[ModuleRef] = Set(compiler).filter(_ != ModuleRef.JavaRef).map(_.hide)
+  
+  def compilerDependencies: Set[Dependency] = compiler match  {
+    case BspCompiler(ref) => Set(Dependency(ref.hide))
+    case _                => Set()
+  }
+  
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
   def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
   

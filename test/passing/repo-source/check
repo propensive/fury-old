@@ -2,7 +2,7 @@ Initialized an empty layer
 Set current project to scala
 Set current module to compiler
 Set current project to hello-world
-Setting default compiler for project hello-world to scala/compiler
+Setting default compiler for hello-world to scala/compiler
 Set current module to app
 Cloning repository at ../library
 0

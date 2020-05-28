@@ -22,62 +22,62 @@ import probably._
 
 import scala.language.implicitConversions
 
-object DirectedGraphTest extends Suite() {
+object DagTest extends Suite() {
 
   def run(test: Runner): Unit = {
     test("Graph with no edges has no cycles") {
-      DirectedGraph[Int](Map(1 -> Set()))
+      Dag[Int](Map(1 -> Set()))
     }.assert(!_.hasCycle(1))
 
     test("Single vertex pointing to itself is a cycle") {
-      DirectedGraph[Int](Map(1 -> Set(1)))
+      Dag[Int](Map(1 -> Set(1)))
     }.assert(_.hasCycle(1))
 
     test("Two vertices pointing to each other build a cycle") {
-      DirectedGraph[Int](Map(1 -> Set(2), 2 -> Set(1)))
+      Dag[Int](Map(1 -> Set(2), 2 -> Set(1)))
     }.assert(_.hasCycle(1))
 
     test("Two vertices with one connection") {
-      DirectedGraph[Int](Map(1 -> Set(2)))
+      Dag[Int](Map(1 -> Set(2)))
     }.assert(!_.hasCycle(1))
 
     test("Find a cycle not containing startpoint") {
-      DirectedGraph(Map(1 -> Set(2), 2 -> Set(3), 3 -> Set(4), 4 -> Set(2)))
+      Dag(Map(1 -> Set(2), 2 -> Set(3), 3 -> Set(4), 4 -> Set(2)))
     }.assert(_.findCycle(1) == Some(List(1, 2, 3, 4, 2)))
 
     test("Diamond without cycles") {
-      DirectedGraph(Map(1 -> Set(2, 3), 2 -> Set(4), 3 -> Set(4)))
+      Dag(Map(1 -> Set(2, 3), 2 -> Set(4), 3 -> Set(4)))
     }.assert(!_.hasCycle(1))
 
     test("single element") {
-      DirectedGraph(Map(1 -> Set.empty[Int])).subgraph(Set(1))
-    }.assert(_ == DirectedGraph(Map(1 -> Set.empty[Int])))
+      Dag(Map(1 -> Set.empty[Int])).subgraph(Set(1))
+    }.assert(_ == Dag(Map(1 -> Set.empty[Int])))
 
     test("two separate elements") {
-      val input = DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int]))
+      val input = Dag(Map(1 -> Set(2), 2 -> Set.empty[Int]))
       input.subgraph(Set(1, 2))
-    }.assert { _ == DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
+    }.assert { _ == Dag(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
 
     test("two related elements") {
-      val input = DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int]))
+      val input = Dag(Map(1 -> Set(2), 2 -> Set.empty[Int]))
       input.subgraph(Set(1))
-    }.assert { _ == DirectedGraph(Map(1 -> Set.empty[Int])) }
+    }.assert { _ == Dag(Map(1 -> Set.empty[Int])) }
 
     test("remove two elements") {
-      val input = DirectedGraph(Map(1 -> Set(2), 2 -> Set(3), 3 -> Set.empty[Int]))
+      val input = Dag(Map(1 -> Set(2), 2 -> Set(3), 3 -> Set.empty[Int]))
       input.subgraph(Set(1))
-    }.assert { _ == DirectedGraph(Map(1 -> Set.empty[Int])) }
+    }.assert { _ == Dag(Map(1 -> Set.empty[Int])) }
 
     test("remove one element of three") {
-      val input = DirectedGraph(Map(1 -> Set(2), 2 -> Set(3), 3 -> Set.empty[Int]))
+      val input = Dag(Map(1 -> Set(2), 2 -> Set(3), 3 -> Set.empty[Int]))
       input.subgraph(Set(1, 2))
-    }.assert { _ == DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
+    }.assert { _ == Dag(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
 
     test("remove two element of four") {
       val input =
-        DirectedGraph(Map(1 -> Set(2, 4), 2 -> Set(3, 4), 3 -> Set(4), 4 -> Set.empty[Int]))
+        Dag(Map(1 -> Set(2, 4), 2 -> Set(3, 4), 3 -> Set(4), 4 -> Set.empty[Int]))
       input.subgraph(Set(1, 2))
-    }.assert { _ == DirectedGraph(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
+    }.assert { _ == Dag(Map(1 -> Set(2), 2 -> Set.empty[Int])) }
 
   }
 }

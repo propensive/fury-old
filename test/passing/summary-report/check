@@ -2,7 +2,7 @@ Initialized an empty layer
 Set current project to scala
 Set current module to compiler
 Set current project to test-project
-Setting default compiler for project test-project to scala/compiler
+Setting default compiler for test-project to scala/compiler
 Set current module to module-a
 No classes compiled
 Set current module to module-b

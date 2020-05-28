@@ -38,7 +38,7 @@ case class Shell(environment: Environment) {
   implicit private[this] val defaultEnvironment: Environment = environment
 
   def runJava(classpath: List[String],
-              main: String,
+              main: ClassRef,
               securePolicy: Boolean,
               env: Map[String, String],
               properties: Map[String, String],
@@ -68,8 +68,8 @@ case class Shell(environment: Environment) {
     val classpathStr = classpath.mkString(":")
     
     val cmd =
-      if(securePolicy) sh"java $propArgs -cp $classpathStr $main $args"
-      else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} $main $args"
+      if(securePolicy) sh"java $propArgs -cp $classpathStr ${main.key} $args"
+      else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} ${main.key} $args"
 
     cmd.async(output(_), output(_))
   }

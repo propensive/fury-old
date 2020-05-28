@@ -107,6 +107,8 @@ You can grant these permissions with,
         case RootLayerNotSelected(path) =>
           cli.abort(msg"The selected layer is not a root layer (${ImportPath.Root}). To publish this layer "+
               msg"($path) anyway, please specify the ${Args.ForceArg: CliParam} parameter.")
+        case ModuleIsNotCompiler(ref, compRef) =>
+          cli.abort(msg"The module $ref specifies a module ($compRef) which is not a compiler)")
         case DownloadFailure(msg) =>
           cli.abort(msg"Coursier could not complete a download: $msg")
         case DnsResolutionFailure() =>
@@ -133,8 +135,8 @@ You can grant these permissions with,
           cli.abort(msg"Source ${source} is not defined in ${module}.")
         case e: IpfsTimeout =>
           cli.abort(msg"An IPFS operation timed out.")
-        case OgdlException(error) =>
-          cli.abort(msg"Failed to read OGDL: $error.")
+        case OgdlException(path, msg) =>
+          cli.abort(msg"Failed to read OGDL path ${path.mkString(".")}: $msg")
         case OgdlReadException(path, e) =>
           cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
         case e: ItemNotFound =>
@@ -149,6 +151,8 @@ You can grant these permissions with,
           cli.abort(msg"The repository ${repo} has uncommitted changes ($changes).")
         case RemoteNotSynched(repo, remote) =>
           cli.abort(msg"The repository ${repo} has not been synchronized with its remote, $remote.")
+        case NoRepl(compiler) =>
+          cli.abort(msg"The compiler $compiler does not have a REPL.")
         case CannotUpdateRepo(repo) =>
           cli.abort(msg"Could not update the repository $repo.")
         case ConflictingFiles(files) =>
@@ -184,13 +188,14 @@ You can grant these permissions with,
         case ExecutionFailure(exitCode) =>
           cli.abort(msg"One of the run tasks failed (exit code $exitCode). Check the logs for details.")
         case e: ModuleAlreadyExists =>
-          cli.abort(msg"The module '${e.module}' already exists.")
+          cli.abort(msg"The module ${e.module} already exists.")
         case e: ProjectAlreadyExists =>
-          cli.abort(msg"The project '${e.project}' already exists.")
+          cli.abort(msg"The project ${e.project} already exists.")
         case e: AlreadyInitialized =>
           cli.abort(msg"Fury is already initialized in this directory. Use ${Args.ForceArg: CliParam} to override.")
         case CyclesInDependencies(refs) =>
-          cli.abort(msg"There are dependency cycles containing : [${refs.mkString}]")
+          cli.abort(msg"There build graph contains cycles involving ${'{'}${refs.map { d => msg"$d" }.reduce {
+              (l, r) => msg"$l${','} $r"}}${'}'}")
         case UnspecifiedBinary(Nil) =>
           cli.abort(msg"Binary not found.")
         case UnspecifiedBinary(possibleBinaries) =>

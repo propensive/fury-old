@@ -31,7 +31,7 @@ case class ProjectSpec(project: Project, repos: Map[RepoId, Repo])
 case class Entity(project: Project, layer: Layer) {
   def spec: ProjectSpec = {
     val repoIds = project.allRepoIds
-    ProjectSpec(project, layer.repos.to[List].filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
+    ProjectSpec(project, layer.repos.filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
   }
 }
 
@@ -52,7 +52,7 @@ case class BuildResult(bspResult: CompileResult, scalacOptions: ScalacOptionsRes
 
   def success: Boolean = bspResult.getStatusCode == StatusCode.OK && exitCode.forall(_ == 0)
 
-  def classDirectories: Set[Path] = scalacOptions.getItems.asScala.toSet.map { x: ScalacOptionsItem =>
+  def classDirectories: Set[Path] = scalacOptions.getItems.asScala.to[Set].map { x: ScalacOptionsItem =>
     Path(new URI(x.getClassDirectory))
   }
 
@@ -61,9 +61,6 @@ case class BuildResult(bspResult: CompileResult, scalacOptions: ScalacOptionsRes
     else Failure(exitCode.fold[FuryException](CompilationFailure())(ExecutionFailure(_)))
 
   def asBsp: CompileResult = {
-    println(bspResult)
-    println(exitCode)
-    
     val compileResult = new CompileResult(if(exitCode.exists(_ != 0)) StatusCode.ERROR else
         bspResult.getStatusCode)
     
@@ -76,10 +73,9 @@ case class BuildResult(bspResult: CompileResult, scalacOptions: ScalacOptionsRes
 }
 
 object BuildResult {
-  def merge(results: Iterable[BuildResult]): BuildResult = {
+  def merge(results: Iterable[BuildResult]): BuildResult =
     BuildResult(merge(results.map(_.bspResult)), merge(results.map(_.scalacOptions)),
         merge(results.map(_.exitCode)))
-  }
 
   private def merge(results: Iterable[CompileResult]): CompileResult = {
     val distinctStatuses = results.map(_.getStatusCode).toSet
@@ -94,16 +90,15 @@ object BuildResult {
       mergedResult.setDataKind(res.getDataKind)
       mergedResult.setData(res.getData)
     }
+
     mergedResult
   }
 
-  private def merge(results: Iterable[ScalacOptionsResult]): ScalacOptionsResult = {
+  private def merge(results: Iterable[ScalacOptionsResult]): ScalacOptionsResult =
     new ScalacOptionsResult(results.flatMap(_.getItems.asScala).toList.asJava)
-  }
 
   private def merge(exitCodes: Iterable[Option[Int]]): Option[Int] = {
     val allCodes = exitCodes.flatten
-    if (allCodes.isEmpty) None
-    else allCodes.find(_ != 0).orElse(Some(0))
+    if (allCodes.isEmpty) None else allCodes.find(_ != 0).orElse(Some(0))
   }
 }

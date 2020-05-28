@@ -41,25 +41,28 @@ object Bloop {
 
     build.writePlugin(target.ref, layout)
     val classpath = build.classpath(target.ref, layout)
-    val compiler = target.compiler.fold(ModuleRef.JavaRef)(_.ref)
     
     val optDefs = build.aggregatedOptDefs(target.ref).getOrElse(Set()).filter(_.compiler ==
-        compiler).map(_.value)
+        target.module.compiler).map(_.value)
     
     val opts: List[String] =
-      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == compiler).flatMap(
-          _.value.transform(optDefs))).getOrElse(Nil)
+      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler ==
+          target.module.compiler).flatMap(_.value.transform(optDefs))).getOrElse(Nil)
     
-    val compilerClasspath = target.compiler.map { _ => build.bootClasspath(target.ref, layout) }
-    val compilerOpt = target.compiler.map { compiler =>
-      val spec = compiler.kind.as[Compiler].fold(BloopSpec("org.scala-lang", "scala-compiler", "2.12.8"))(_.spec)
-      Json.of(
+    val compilerClasspath = build(target.module.compiler).map { _ => build.bootClasspath(target.ref, layout) }
+    
+    val compilerOpt: Option[Json] = build(target.module.compiler).toOption.flatMap { compiler =>
+      val spec: Option[BloopSpec] = compiler.map(_.module.kind.as[Compiler].fold {
+        BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")
+      } (_.spec))
+
+      spec.map { spec => Json.of(
         organization = spec.org,
         name = spec.name,
         version = spec.version,
         options = opts,
         jars = compilerClasspath.get.map(_.value)
-      )
+      ) }
     }
 
     val result = Json.of(
@@ -69,7 +72,7 @@ object Bloop {
         name = target.ref.urlSafe,
         directory = layout.workDir(target.ref).value,
         sources = target.sourcePaths.map(_.value),
-        dependencies = build.graph.dependencies(target.ref).map(_.urlSafe),
+        dependencies = build.graph.dependencies(target.ref).map(_.ref.urlSafe),
         classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
         out = str"${layout.outputDir(target.ref).value}",
         classesDir = str"${layout.classesDir(target.ref).value}",

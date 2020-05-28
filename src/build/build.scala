@@ -373,9 +373,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
     globalPolicy <- ~Policy.read(log)
-    _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project), layout).to[List].map(_.value),
-                        "exoskeleton.Generate", false, Map("FPATH" -> Installation.completionsDir.value), Map(),
-                        globalPolicy, layout, List(exec.key), true)(log.info(_)).await())
+
+    _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project),
+                        layout).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
+                        Installation.completionsDir.value), Map(), globalPolicy, layout, List(exec.key),
+                        true)(log.info(_)).await())
+
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
 
@@ -414,8 +417,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                           msg"with an incomplete classpath")
                       Success(())
                     } else result
-    compilerMod  <- build.universe.getMod(module.compiler)
-    repl         <- ~compilerMod.kind.as[Compiler].get.repl
+    compilerMod  <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
+    repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
     classpath    <- ~build.classpath(module.ref(project), layout)
     bootCp       <- ~build.bootClasspath(module.ref(project), layout)
   } yield {
@@ -469,9 +472,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 theme: Theme,
                                 noSecurity: Boolean)
                                (implicit log: Log): Try[Future[BuildResult]] = {
-    for {
-      _            <- build.checkoutAll(layout)
-    } yield {
+    for(_ <- build.checkoutAll(layout)) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
       val future = build.compile(moduleRef, Map(), layout,
@@ -481,10 +482,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
           compRes
       }
       reporter.report(build.graph, theme, multiplexer)
+
       future
     }
   }
-
 }
 
 case class LayerCli(cli: Cli)(implicit log: Log) {

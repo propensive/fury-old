@@ -28,7 +28,7 @@ case class CannotUndo() extends FuryException
 case class CannotUpdateRepo(repo: RepoId) extends FuryException
 case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
-case class CyclesInDependencies(cycle: Set[ModuleRef]) extends FuryException
+case class CyclesInDependencies(cycle: Set[Dependency]) extends FuryException
 case class CommitNotInRepo(commit: Commit) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class DnsResolutionFailure() extends FuryException
@@ -64,12 +64,14 @@ case class LayersFailure(layer: ImportPath) extends FuryException
 case class LayerNotFound(path: Path) extends FuryException
 case class LayerContainsLocalSources(refs: List[ModuleRef]) extends FuryException
 case class NoRepoCheckedOut() extends FuryException
+case class ModuleIsNotCompiler(ref: ModuleRef, compRef: ModuleRef) extends FuryException
 case class MergeConflicts() extends FuryException
 case class MissingCommand() extends FuryException
 case class ModuleAlreadyExists(module: ModuleId) extends FuryException
 case class NoLatestVersion() extends FuryException
 case class NoOtherLayer() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
+case class NoRepl(compiler: CompilerRef) extends FuryException
 case class NoSourcesError(repoId: RepoId, commit: Commit, sources: UserMsg) extends FuryException
 case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException
@@ -87,7 +89,7 @@ case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException
 case class UnknownVersion(version: LayerVersion) extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException
-case class UnresolvedModules(refs: Map[ModuleRef, Set[ModuleRef]]) extends FuryException
+case class UnresolvedModules(refs: Map[ModuleRef, Set[Dependency]]) extends FuryException
 case class UnknownOs(description: String) extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException
 case class UnspecifiedMain(module: ModuleId) extends FuryException

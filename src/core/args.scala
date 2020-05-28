@@ -37,7 +37,7 @@ object Args {
   val PartialBinSpecArg = CliParam[PartialBinSpec]('b', 'binary, "specify a binary")
   val BinaryNameArg = CliParam[BinaryId]('n', 'name, "specify the name for the binary")
   val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")
-  val CompilerArg = CliParam[String]('c', 'compiler, "specify a compiler")
+  val CompilerArg = CliParam[CompilerRef]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
   
   val IgnoreErrorsArg = CliParam[Unit]('I', Symbol("ignore-errors"),
@@ -50,7 +50,7 @@ object Args {
     
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
-  val DefaultCompilerArg = CliParam[String]('c', 'compiler, "specify a default compiler")
+  val DefaultCompilerArg = CliParam[CompilerRef]('c', 'compiler, "specify a default compiler")
   val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
   val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
   val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")

@@ -108,19 +108,18 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       layer          <- Layer.retrieve(conf)
       hierarchy      <- layer.hierarchy()
       universe       <- hierarchy.universe
-      graph          <- layer.projects.flatMap(_.moduleRefs).map { ref =>
-                          for {
-                            ds   <- universe.dependencies(ref, layout)
-                            arts <- (ds + ref).map { d => universe.makeTarget(d, layout) }.sequence
-                          } yield arts.map { a =>
-                            (a.ref, (a.dependencies: List[ModuleRef]) ++ (a.compiler
-                                .map(_.ref.hide): Option[ModuleRef]))
-                          }
-                        }.sequence.map(_.flatten.toMap)
+
+      graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {
+                          ds   <- universe.dependencies(ref, layout)
+                          arts <- (ds.map(_.ref) + ref).traverse(Target(_, universe, layout))
+                        } yield arts.map { a =>
+                          (a.ref, (a.module.dependencies.to[List]) ++ a.module.compiler().map(_.hide))
+                        } }.sequence.map(_.flatten.toMap)
+      
       allModuleRefs  = graph.keys
-      modules       <- allModuleRefs.traverse { ref => universe.getMod(ref).map((ref, _)) }
-      targets       <- graph.keys.map { key =>
-                         universe.makeTarget(key, layout).map(key -> _)
+      modules       <- allModuleRefs.traverse { ref => universe(ref).map((ref, _)) }
+      targets       <- graph.keys.map { ref =>
+                         Target(ref, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
@@ -319,11 +318,11 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
                                      : Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
       val art = struct.targets(ref)
-      val params = art.params.map(_.parameter)
+      val params = art.module.opts.map(_.parameter)
       val paths = art.binaries.map(_.javaPath.toUri.toString)
       val classesDir = layout.classesDir.javaPath.toAbsolutePath.toUri.toString
       
-      new ScalacOptionsItem(target, params.asJava, paths.asJava, classesDir)
+      new ScalacOptionsItem(target, params.to[List].asJava, paths.asJava, classesDir)
     }
 
   override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams)
@@ -372,7 +371,7 @@ object FuryBuildServer {
   class Cancelator { var cancel: () => Unit = () => () }
 
   case class Structure(modules: Map[ModuleRef, Module],
-                       graph: Map[ModuleRef, List[ModuleRef]],
+                       graph: Map[ModuleRef, List[Dependency]],
                        checkouts: Checkouts,
                        targets: Map[ModuleRef, Target]) {
 
@@ -382,9 +381,9 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.kind, target.checkouts, target.binaries, target.dependencies,
-            target.compiler.map { c => hash(c.ref) }, target.params, target.intransitive, target.sourcePaths,
-            graph(ref).map(hash)).digest[Md5]
+        ref, (target.module.kind, target.checkouts.checkouts.to[List], target.binaries,
+            target.module.dependencies.to[List], target.module.compiler, target.module.opts.to[List],
+            target.sourcePaths, graph(ref).map(_.ref).map(hash(_))).digest[Md5]
       )
     }
 
@@ -398,44 +397,43 @@ object FuryBuildServer {
 
       // TODO depends on assumption about how digest is encoded
       val bytes = java.util.Base64.getDecoder.decode(id)
-      
       val digest = Digest(Bytes(bytes))
       
       modules.find { case (ref, _) => hash(ref) == digest }.map(_._1).ascribe(ItemNotFound(ModuleId(id)))
     }
   }
 
-  private def toTarget(target: Target, struct: Structure) = {
-    val ref = target.ref
+  private def toTarget(target: Target, struct: Structure): BuildTarget = {
     val id = struct.buildTarget(target.ref)
-    val tags = List(moduleKindToBuildTargetTag(target.kind))
-    val languageIds = List("java", "scala") // TODO get these from somewhere?
-    val dependencies = target.dependencies.map(struct.buildTarget)
+    val tags = List(moduleKindToBuildTargetTag(target.module.kind))
+    val languageIds = List("java", "scala")
+    val dependencies = target.module.dependencies.map(_.ref).map(struct.buildTarget)
     val capabilities = new BuildTargetCapabilities(true, false, false)
 
-    val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.asJava, capabilities)
-    buildTarget.setDisplayName(moduleRefDisplayName(ref))
+    val buildTarget = new BuildTarget(id, tags.asJava, languageIds.asJava, dependencies.to[List].asJava,
+        capabilities)
 
-    for {
-      compiler <- target.compiler
-      compDef  <- compiler.kind.as[Compiler]
-               if compiler.binaries.nonEmpty
-    } yield {
-      val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
-      
-      val scalaBuildTarget = new ScalaBuildTarget(compDef.spec.org, compDef.spec.version, compDef.spec.version,
-          ScalaPlatform.JVM, libs)
+    buildTarget.setDisplayName(str"${target.ref}")
 
-      buildTarget.setDataKind(BuildTargetDataKind.SCALA)
+    target.module.compiler().foreach { compiler =>
+      for {
+        compiler <- ~struct.targets(compiler.ref)
+        compDef  <- compiler.module.kind.as[Compiler].ascribe(ModuleIsNotCompiler(target.ref, compiler.ref))
+                if compiler.binaries.nonEmpty
+      } yield {
+        val libs = compiler.binaries.map(_.javaPath.toAbsolutePath.toUri.toString).asJava
+        
+        val scalaBuildTarget = new ScalaBuildTarget(compDef.spec.org, compDef.spec.version, compDef.spec.version,
+            ScalaPlatform.JVM, libs)
 
-      buildTarget.setData(scalaBuildTarget)
+        buildTarget.setDataKind(BuildTargetDataKind.SCALA)
+
+        buildTarget.setData(scalaBuildTarget)
+      }
     }
 
     buildTarget
   }
-
-  private def moduleRefDisplayName(moduleRef: ModuleRef): String =
-    s"${moduleRef.projectId.key}/${moduleRef.moduleId.key}"
 
   private def moduleKindToBuildTargetTag(kind: Kind): String =
     if(kind.is[App]) BuildTargetTag.APPLICATION

@@ -79,11 +79,11 @@ case class Layer(version: Int,
   def deepModuleRefs(universe: Universe): Set[ModuleRef] =
     universe.entities.values.flatMap(_.project.moduleRefs).to[Set]
 
-  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[ModuleRef]] = { for {
+  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[Dependency]] = { for {
     project    <- projects.to[List]
     module     <- project.modules
     dependency <- module.dependencies
-    missing    <- if(universe.getMod(dependency).isSuccess) Nil else List((module.ref(project), dependency))
+    missing    <- if(universe(dependency.ref).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
   def verifyConf(local: Boolean, conf: FuryConf, quiet: Boolean, force: Boolean)
@@ -118,16 +118,14 @@ case class Layer(version: Int,
   } yield Hierarchy(this, imps)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
-    imports.to[List].map { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.sequence.map(_.toMap)
+    imports.to[List].traverse { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.map(_.toMap)
 
   def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
   
   def importTree(implicit log: Log): Try[List[ImportPath]] = for {
-    imports    <- resolvedImports
-    importList <- imports.to[List].map { case (id, layer) =>
-                    layer.importTree.map { is => is.map(_.prefix(id)) }
-                  }.sequence.map(_.flatten)
-  } yield (ImportPath.Root :: importList)
+    imports <- resolvedImports
+    imports <- imports.traverse { case (id, layer) => layer.importTree.map(_.map(_.prefix(id))) }.map(_.flatten)
+  } yield ImportPath.Root :: imports.to[List]
 
   def allProjects(layout: Layout)(implicit log: Log): Try[List[Project]] = {
     @tailrec
@@ -170,7 +168,7 @@ object Layer extends Lens.Partial[Layer] {
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
   implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
 
-  val CurrentVersion: Int = 10
+  val CurrentVersion: Int = 11
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
@@ -183,7 +181,7 @@ object Layer extends Lens.Partial[Layer] {
     if(layout.layerDb.exists && Some(layout.layerDb.lastModified) != dbCache.get(layout.layerDb)) for {
       inputs <- TarGz.untargz(layout.layerDb.inputStream())
       _      <- inputs.traverse { bytes => for {
-                  layer <- ~Ogdl.read[Layer](new String(bytes, "UTF-8"), migrate(_))
+                  layer <- Ogdl.read[Layer](new String(bytes, "UTF-8"), migrate(_))
                   _     <- store(layer)
                 } yield () }
       _      <- Try(synchronized { dbCache(layout.layerDb) = layout.layerDb.lastModified })
@@ -205,7 +203,7 @@ object Layer extends Lens.Partial[Layer] {
                }
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
-      layer <- Try(Ogdl.read[Layer](data, migrate(_)))
+      layer <- Ogdl.read[Layer](data, migrate(_))
       _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
     } yield layer }
 
@@ -222,11 +220,10 @@ object Layer extends Lens.Partial[Layer] {
     base     <- get(baseRef, conf.published)
     layer    <- ~base.copy(previous = Some(conf.layerRef))
     previous <- retrieve(conf)
-    ref      <- if(!Layer.diff(previous, layer).isEmpty || force)
-                    store(layer).flatMap { baseRef =>
+    
+    ref      <- if(!Layer.diff(previous, layer).isEmpty || force) store(layer).flatMap { baseRef =>
                   saveFuryConf(conf.copy(layerRef = baseRef), layout).map(_.layerRef)
-                }
-                else Success(baseRef)
+                } else Success(baseRef)
     } yield ref
 
   private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =
@@ -293,9 +290,9 @@ object Layer extends Lens.Partial[Layer] {
     leftSrc       <- gitDir.cat(left, Path(".fury/config"))
     commonSrc     <- gitDir.cat(common, Path(".fury/config"))
     rightSrc      <- gitDir.cat(right, Path(".fury/config"))
-    leftConf      <- ~Ogdl.read[FuryConf](leftSrc, identity(_))
-    commonConf    <- ~Ogdl.read[FuryConf](commonSrc, identity(_))
-    rightConf     <- ~Ogdl.read[FuryConf](rightSrc, identity(_))
+    leftConf      <- Ogdl.read[FuryConf](leftSrc, identity(_))
+    commonConf    <- Ogdl.read[FuryConf](commonSrc, identity(_))
+    rightConf     <- Ogdl.read[FuryConf](rightSrc, identity(_))
     leftLayer     <- Layer.get(leftConf.layerRef, leftConf.published)
     commonLayer   <- Layer.get(commonConf.layerRef, commonConf.published)
     rightLayer    <- Layer.get(rightConf.layerRef, rightConf.published)
@@ -316,7 +313,7 @@ object Layer extends Lens.Partial[Layer] {
   def diff(left: Layer, right: Layer): List[Difference] =
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
-  def init(layout: Layout)(implicit log: Log): Try[Unit] = {
+  def init(layout: Layout)(implicit log: Log): Try[Unit] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
@@ -327,7 +324,6 @@ object Layer extends Lens.Partial[Layer] {
       conf     <- saveFuryConf(FuryConf(ref), layout)
       _        <- ~log.info(msg"Initialized an empty layer")
     } yield () }
-  }
 
   private final val confComments: String =
     str"""# This is a Fury configuration file. It contains significant
@@ -350,61 +346,101 @@ object Layer extends Lens.Partial[Layer] {
     _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
   } yield conf
 
+  private def migrateModules(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
+    migrateProjects(root) { project =>
+      if(project.has("modules")) project.set(modules = project.modules.map(fn(_))) else project
+    }
+
+  private def migrateRepos(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
+    if(root.has("repos")) root.set(repos = root.repos.map(fn(_))) else root
+  
+  private def migrateProjects(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
+    if(root.has("projects")) root.set(projects = root.projects.map(fn(_))) else root
+
   private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
     val version = Try(ogdl.version().toInt).getOrElse(1)
     if(version < CurrentVersion) {
       log.note(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
-        case 9 =>
-          Try(ogdl.set(projects = ogdl.projects.map { project =>
-            project.set(modules = project.modules.map { module =>
-              module.kind() match {
-                case "Compiler" =>
-                  val c = module.kind.Compiler
-                  module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.org(), c.name(), c.version()))))
-                case "App" =>
-                  module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0)))
-                case other => module
-              } 
+        case 10 =>
+          val step1 = migrateModules(ogdl) { module =>
+            log.note(msg"Old module = $module")
+            val newValue = Ogdl[CompilerRef] {
+              if(!module.has("compiler")) Javac(8) else BspCompiler(ModuleRef(module.compiler.id()))
+            }
+            log.note(msg"Updated compiler reference for module ${module} to $newValue")
+            module.set(compiler = newValue)
+          }
+
+          val step2 = migrateProjects(step1) { project =>
+            val newProject = project.set(compiler = Ogdl[Option[CompilerRef]] {
+              if(project.has("compiler")) Some(BspCompiler(ModuleRef(project.compiler.Some.value.id())))
+              else None
             })
-          })).getOrElse(ogdl)
+
+            log.note(msg"Updated project compiler reference for project ${project} to ${newProject}")
+            newProject
+          }
+
+          migrateModules(step2) { module =>
+            if(module.has("dependencies")) module.set(dependencies = Ogdl(module.dependencies.*.map { d =>
+              Dependency(ModuleRef(d))
+            }.to[SortedSet])) else module
+          }
+
+        case 9 =>
+          migrateModules(ogdl) { module =>
+            if(!module.has("kind")) module else module.kind() match {
+              case "Compiler" =>
+                val c = module.kind.Compiler
+                log.note(msg"Updated compiler type for module ${module}")
+                module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.spec.org(), c.spec.name(), c.spec.version()))))
+
+              case "App" =>
+                log.note(msg"Updated app type for module ${module}")
+                module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0)))
+              
+              case other =>
+                module
+            } 
+          }
 
         case 8 => // Expires 19 November 2020
-          Try(ogdl.set(projects = ogdl.projects.map { project =>
-            project.set(modules = project.modules.map { module =>
-              lazy val main = Try(ClassRef(module.main.Some()))
-              lazy val plugin = Try(PluginId(module.plugin.Some()))
-              
-              lazy val spec = Try(BloopSpec(module.bloopSpec.Some.org(), module.bloopSpec.Some.name(),
-                  module.bloopSpec.Some.version()))
-              
-              module.set(kind = (module.kind() match {
-                case "Application" => Ogdl[Kind](App(main.get, 0))
-                case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
-                case "Benchmarks"  => Ogdl[Kind](Bench(main.get))
-                case "Compiler"    => Ogdl[Kind](Compiler(spec.get))
-                case _             => Ogdl[Kind](Lib())
-              }))
-            })
-          })).getOrElse(ogdl)
+          migrateModules(ogdl) { module =>
+            lazy val main = Try(ClassRef(module.main.Some()))
+            lazy val plugin = Try(PluginId(module.plugin.Some()))
+            
+            lazy val spec = Try(BloopSpec(module.bloopSpec.Some.org(), module.bloopSpec.Some.name(),
+                module.bloopSpec.Some.version()))
+            
+            log.note(msg"Updated module type for module ${module}")
+            if(!module.has("kind")) module else module.set(kind = (module.kind() match {
+              case "Application" => Ogdl[Kind](App(main.get, 0))
+              case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
+              case "Benchmarks"  => Ogdl[Kind](Bench(main.get))
+              case "Compiler"    => Ogdl[Kind](Compiler(spec.get))
+              case _             => Ogdl[Kind](Lib())
+            }))
+          }
           
         case 7 =>
-          Try(ogdl.set(repos = ogdl.repos.map { repo =>
+          migrateRepos(ogdl) { repo =>
+            log.note(msg"Renamed repo to remote in repo ${repo}")
             repo.set(remote = repo.repo)
-          })).getOrElse(ogdl)
+          }
           
         case 6 =>
-          // FIXME: This is a lazy solution
-          Try(ogdl.set(repos = ogdl.repos.map { repo =>
+          migrateRepos(ogdl) { repo =>
+            log.note(msg"Renamed branch to track for repo ${repo}")
             repo.set(branch = repo.track, remote = repo.repo)
-          })).getOrElse(ogdl)
+          }
           
         case 0 | 1 | 2 | 3 | 4 | 5 =>
           log.fail(msg"Cannot migrate from layers earlier than version 6")
           // FIXME: Handle this better
           throw new Exception()
           
-        case _ => null: Ogdl
+        case _ => Ogdl(Vector())
       }).set(version = Ogdl(version + 1)))
     } else ogdl
   }

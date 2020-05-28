@@ -48,7 +48,7 @@ object UiGraph {
   case object Executing extends BuildState(1.0)
 
   private case class GraphState(changed: Boolean,
-                                graph: Map[ModuleRef, Set[ModuleRef]],
+                                graph: Map[ModuleRef, Set[Dependency]],
                                 stream: Iterator[CompileEvent],
                                 buildLogs: Map[ModuleRef, BuildInfo])
                                (implicit log: Log) {
@@ -132,19 +132,19 @@ object UiGraph {
     }
   }
 
-  def live(graph: Map[ModuleRef, Set[ModuleRef]], stream: Iterator[CompileEvent])
+  def live(graph: Map[ModuleRef, Set[Dependency]], stream: Iterator[CompileEvent])
           (implicit log: Log, theme: Theme)
           : Unit =
     live(GraphState(changed = true, graph, stream, Map()))
 
-  def draw(graph: Map[ModuleRef, Set[ModuleRef]], describe: Boolean, state: Map[ModuleRef, BuildInfo] = Map())
+  def draw(graph: Map[ModuleRef, Set[Dependency]], describe: Boolean, state: Map[ModuleRef, BuildInfo] = Map())
           (implicit theme: Theme)
           : Vector[String] = {
 
-    def sort(todo: Map[ModuleRef, Set[ModuleRef]], done: List[ModuleRef]): List[ModuleRef] =
+    def sort(todo: Map[ModuleRef, Set[Dependency]], done: List[ModuleRef]): List[ModuleRef] =
       if(todo.isEmpty) done else {
-        val node = todo.find { case (k, v) => (v -- done).isEmpty }.get._1
-        sort((todo - node).mapValues(_.filter(_ != node)), node :: done)
+        val node = todo.find { case (k, v) => (v.map(_.ref) -- done).isEmpty }.get._1
+        sort((todo - node).mapValues(_.filter(_.ref != node)), node :: done)
       }
 
     val nodes: List[(ModuleRef, Int)] = sort(graph, Nil).reverse.zipWithIndex
@@ -162,9 +162,9 @@ object UiGraph {
       case (node, i) =>
         array(i)(2*i + 1) = '»'
         graph(node).filter(!_.hidden).foreach { dep =>
-          overwrite(2*indexes(dep) + 1, i, East | North)
-          for (j <- (2*indexes(dep) + 1) to (2*i - 1)) overwrite(j + 1, i, East | West)
-          for (j <- (indexes(dep) + 1) to (i - 1)) overwrite(2*indexes(dep) + 1, j, North | South)
+          overwrite(2*indexes(dep.ref) + 1, i, East | North)
+          for (j <- (2*indexes(dep.ref) + 1) to (2*i - 1)) overwrite(j + 1, i, East | West)
+          for (j <- (indexes(dep.ref) + 1) to (i - 1)) overwrite(2*indexes(dep.ref) + 1, j, North | South)
         }
     }
 

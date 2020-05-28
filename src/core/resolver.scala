@@ -28,6 +28,7 @@ object Resolver {
   implicit val imports: Resolver[Import, ImportId] = _ == _.id
   implicit val binary: Resolver[Binary, BinaryId] = _ == _.id
   implicit val optDef: Resolver[OptDef, OptId] = _ == _.id
+  implicit val dependency: Resolver[Dependency, ModuleRef] = _ == _.ref
   implicit val source: Resolver[Source, Source] = _ == _
 }
 
