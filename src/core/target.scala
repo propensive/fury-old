@@ -16,7 +16,11 @@
 */
 package fury.core
 
+import mercator._
+
 import fury.model._, fury.io._, fury.text._
+
+import scala.util._
 
 object Target {
   case class Graph(deps: Map[ModuleRef, Set[Dependency]], targets: Map[ModuleRef, Target]) {
@@ -26,20 +30,23 @@ object Target {
 
     lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
   }
+
+  def apply(ref: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log): Try[Target] = for {
+      entity    <- universe.entity(ref.projectId)
+      module    <- entity.project(ref.moduleId)
+      binaries  <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
+      checkouts <- universe.checkout(ref, layout)
+      sources   <- module.sources.to[List].traverse(_.dir(checkouts, layout))
+    } yield Target(ref, module, entity, checkouts, sources, binaries )
 }
 
 case class Target(ref: ModuleRef,
-                  //dependency: Dependency,
                   module: Module,
-                  repos: List[Remote],
-                  checkouts: List[Checkout],
-                  binaries: List[Path],
-                  compiler: CompilerRef,
-                  params: List[Opt],
-                  permissions: List[Permission],
-                  intransitive: Boolean,
+                  entity: Entity,
+                  checkouts: Checkouts,
                   sourcePaths: List[Path],
-                  environment: Map[String, String],
-                  properties: Map[String, String],
-                  optDefs: Set[OptDef],
-                  resources: List[Source])
+                  binaries: List[Path]) {
+  lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
+  lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
+  lazy val repos: List[Remote] = entity.layer.repos.map(_.remote).to[List]
+}

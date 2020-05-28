@@ -43,15 +43,15 @@ object Bloop {
     val classpath = build.classpath(target.ref, layout)
     
     val optDefs = build.aggregatedOptDefs(target.ref).getOrElse(Set()).filter(_.compiler ==
-        target.compiler).map(_.value)
+        target.module.compiler).map(_.value)
     
     val opts: List[String] =
-      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler == target.compiler).flatMap(
-          _.value.transform(optDefs))).getOrElse(Nil)
+      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler ==
+          target.module.compiler).flatMap(_.value.transform(optDefs))).getOrElse(Nil)
     
-    val compilerClasspath = build(target.compiler).map { _ => build.bootClasspath(target.ref, layout) }
+    val compilerClasspath = build(target.module.compiler).map { _ => build.bootClasspath(target.ref, layout) }
     
-    val compilerOpt: Option[Json] = build(target.compiler).toOption.flatMap { compiler =>
+    val compilerOpt: Option[Json] = build(target.module.compiler).toOption.flatMap { compiler =>
       val spec: Option[BloopSpec] = compiler.map(_.module.kind.as[Compiler].fold {
         BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")
       } (_.spec))

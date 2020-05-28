@@ -183,7 +183,7 @@ case class RepoCli(cli: Cli)(implicit log: Log) {
     optRepos  <- call(RepoArg).toOption.map(SortedSet(_)).orElse(all.map(_ =>
                       layer.repos.map(_.id))).ascribe(MissingParam(RepoArg))
 
-    repos     <- optRepos.map(layer.repo(_, layout)).sequence
+    repos     <- optRepos.traverse(layer.repo(_, layout))
     succeeded <- ~repos.map(_.pull(layout)(log)).forall(_.isSuccess)
 
     newRepos  <- repos.traverse { repo => for {

@@ -111,15 +111,15 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
 
       graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {
                           ds   <- universe.dependencies(ref, layout)
-                          arts <- (ds + Dependency(ref)).map(universe.makeTarget(_, layout)).sequence
+                          arts <- (ds.map(_.ref) + ref).traverse(Target(_, universe, layout))
                         } yield arts.map { a =>
-                          (a.ref, (a.module.dependencies.to[List]) ++ a.compiler().map(_.hide))
+                          (a.ref, (a.module.dependencies.to[List]) ++ a.module.compiler().map(_.hide))
                         } }.sequence.map(_.flatten.toMap)
       
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe(ref).map((ref, _)) }
       targets       <- graph.keys.map { ref =>
-                         universe.makeTarget(Dependency(ref), layout).map(ref -> _)
+                         Target(ref, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
       checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
@@ -318,11 +318,11 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
                                      : Try[ScalacOptionsItem] =
     struct.moduleRef(target).map { ref =>
       val art = struct.targets(ref)
-      val params = art.params.map(_.parameter)
+      val params = art.module.opts.map(_.parameter)
       val paths = art.binaries.map(_.javaPath.toUri.toString)
       val classesDir = layout.classesDir.javaPath.toAbsolutePath.toUri.toString
       
-      new ScalacOptionsItem(target, params.asJava, paths.asJava, classesDir)
+      new ScalacOptionsItem(target, params.to[List].asJava, paths.asJava, classesDir)
     }
 
   override def buildTargetScalacOptions(scalacOptionsParams: ScalacOptionsParams)
@@ -381,9 +381,9 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.module.kind, target.checkouts, target.binaries,
-            target.module.dependencies.to[List], target.module.compiler, target.params,
-            target.intransitive, target.sourcePaths, graph(ref).map(_.ref).map(hash(_))).digest[Md5]
+        ref, (target.module.kind, target.checkouts.checkouts.to[List], target.binaries,
+            target.module.dependencies.to[List], target.module.compiler, target.module.opts.to[List],
+            target.sourcePaths, graph(ref).map(_.ref).map(hash(_))).digest[Md5]
       )
     }
 
@@ -397,7 +397,6 @@ object FuryBuildServer {
 
       // TODO depends on assumption about how digest is encoded
       val bytes = java.util.Base64.getDecoder.decode(id)
-      
       val digest = Digest(Bytes(bytes))
       
       modules.find { case (ref, _) => hash(ref) == digest }.map(_._1).ascribe(ItemNotFound(ModuleId(id)))
@@ -416,7 +415,7 @@ object FuryBuildServer {
 
     buildTarget.setDisplayName(str"${target.ref}")
 
-    target.compiler().foreach { compiler =>
+    target.module.compiler().foreach { compiler =>
       for {
         compiler <- ~struct.targets(compiler.ref)
         compDef  <- compiler.module.kind.as[Compiler].ascribe(ModuleIsNotCompiler(target.ref, compiler.ref))

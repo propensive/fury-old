@@ -28,30 +28,6 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
 
-  def makeTarget(dependency: Dependency, layout: Layout)(implicit log: Log): Try[Target] =
-    for {
-      resolvedProject <- entity(dependency.ref.projectId)
-      module          <- resolvedProject.project(dependency.ref.moduleId)
-      binaries        <- module.allBinaries.map(_.paths).sequence.map(_.flatten)
-      checkouts       <- checkout(dependency.ref, layout)
-      sources         <- module.sources.map(_.dir(checkouts, layout)).sequence
-    } yield Target(
-      dependency.ref,
-      module,
-      resolvedProject.layer.repos.map(_.remote).to[List],
-      checkouts.checkouts.to[List],
-      binaries.to[List],
-      module.compiler,
-      module.opts.to[List],
-      module.policy.to[List],
-      dependency.ref.intransitive,
-      sources.to[List],
-      module.environment.map { e => (e.id, e.value) }.toMap,
-      module.properties.map { p => (p.id, p.value) }.toMap,
-      module.optDefs,
-      module.resources.to[List]
-    )
-
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Checkouts] = for {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)

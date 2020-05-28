@@ -118,16 +118,14 @@ case class Layer(version: Int,
   } yield Hierarchy(this, imps)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
-    imports.to[List].map { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.sequence.map(_.toMap)
+    imports.to[List].traverse { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.map(_.toMap)
 
   def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
   
   def importTree(implicit log: Log): Try[List[ImportPath]] = for {
-    imports    <- resolvedImports
-    importList <- imports.to[List].map { case (id, layer) =>
-                    layer.importTree.map { is => is.map(_.prefix(id)) }
-                  }.sequence.map(_.flatten)
-  } yield (ImportPath.Root :: importList)
+    imports <- resolvedImports
+    imports <- imports.traverse { case (id, layer) => layer.importTree.map(_.map(_.prefix(id))) }.map(_.flatten)
+  } yield ImportPath.Root :: imports.to[List]
 
   def allProjects(layout: Layout)(implicit log: Log): Try[List[Project]] = {
     @tailrec
