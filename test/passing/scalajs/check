@@ -5,3 +5,6 @@ Successfully compiled frontend/app
 Hello Scala.JS
 Saving Javascript file target/frontend-app.js using UTF-8
 Hello Scala.JS
+{"bin":"main.js","name":"frontend-app","version":"0.0.1"}
+#!/usr/bin/env node
+var launcher = require('./frontend-app.js');

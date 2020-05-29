@@ -1,2 +1,8 @@
 fury build save --output summary --js -f target
 node target/frontend-app.js
+cd target
+cat package.json
+echo ""
+cat main.js
+echo ""
+cd ..

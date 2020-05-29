@@ -589,12 +589,39 @@ case class Build(target: Target,
       }
     }
 
+    def packageJson(bin: Option[String]): euphemism.Json = {
+      //TODO move this to fury.utils.ScalaJs
+      import euphemism._
+      Json.of(
+        name = s"${ref.projectId.key}-${ref.moduleId.key}",
+        version = "0.0.1",
+        bin = bin
+      )
+    }
+
     def saveJs(staging: Path, module: Module): Try[Unit] = {
+      val jsName = str"${ref.projectId.key}-${ref.moduleId.key}.js"
       val dest = destination.extant()
-      val path = dest / str"${ref.projectId.key}-${ref.moduleId.key}.js"
+      val path = dest / jsName
       val enc  = System.getProperty("file.encoding")
+      val launcherName = "main.js"
+      val json = packageJson(if(module.kind.needsExec) Some(launcherName) else None)
       log.info(msg"Saving Javascript file ${path.relativizeTo(layout.baseDir)} using ${enc}")
-      ScalaJs.link(module.kind.as[App].map(_.main.key), List(staging) ++ bins, path)
+      for {
+        _ <- ScalaJs.link(module.kind.as[App].map(_.main.key), List(staging) ++ bins, path)
+        _ <- (dest / "package.json").writeSync(json.toString())
+        _ <- if(module.kind.needsExec) saveJsLauncher(launcherName, jsName) else ~()
+      } yield ()
+    }
+
+    def saveJsLauncher(launcherName: String, mainFile: String): Try[Unit] = {
+      val launcherPath = destination / launcherName
+      val launcherScript = s"""#!/usr/bin/env node
+                              |var launcher = require('./$mainFile');""".stripMargin
+      for {
+        _ <- launcherPath.writeSync(launcherScript)
+        _ <- launcherPath.setExecutable(true)
+      } yield ()
     }
 
     for {
