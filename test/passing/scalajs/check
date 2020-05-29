@@ -3,5 +3,5 @@ Opening a BSP server connection
 BSP server is listening for incoming connections
 Successfully compiled frontend/app
 Hello Scala.JS
-Saving JavaScript to out.js
+Saving Javascript file target/frontend-app.js using UTF-8
 Hello Scala.JS
