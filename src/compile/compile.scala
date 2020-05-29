@@ -570,30 +570,38 @@ case class Build(target: Target,
     val fatJar = out == Some(Args.FatJarArg)
     val js = out == Some(Args.JsArg)
 
-    def saveJar(staging: Path, entity: Entity, module: Module): Try[Path] = for {
-      manifest         <- ~JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
-      dest              = destination.extant()
-      path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      enc               = System.getProperty("file.encoding")
-      _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
-      resources        <- aggregatedResources(ref)
-      _                <- resources.traverse(_.copyTo(checkouts, layout, staging))
-      _                <- if(!js) Shell(layout.env).jar(path, if(fatJar) bins else Set.empty,
-                              staging.children.map(staging / _).to[Set], manifest) else ~()
+    def saveJar(staging: Path, module: Module): Try[Unit] = {
+      val dest = destination.extant()
+      val path = dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar"
+      val enc = System.getProperty("file.encoding")
+      val manifest = JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
+      val jarInputs: Set[Path] = if(fatJar) bins else Set.empty
+      log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+      for {
+        resources        <- aggregatedResources(ref)
+        _                <- resources.traverse(_.copyTo(checkouts, layout, staging))
+        _                <- Shell(layout.env).jar(path, jarInputs, staging.children.map(staging / _).to[Set], manifest)
+        _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
+      } yield {
+        if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
+        else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
+        ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
+      }
+    }
 
-      _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
-      _                 = if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
-                          else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
-                              ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
-    } yield path
+    def saveJs(staging: Path, module: Module): Try[Unit] = {
+      val dest = destination.extant()
+      val path = dest / str"${ref.projectId.key}-${ref.moduleId.key}.js"
+      val enc  = System.getProperty("file.encoding")
+      log.info(msg"Saving Javascript file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+      ScalaJs.link(module.kind.as[App].map(_.main.key), List(staging) ++ bins, path)
+    }
 
     for {
       staging <- aggregateResults(ref, srcs, layout)
       entity  <- universe.entity(ref.projectId)
       module  <- entity.project(ref.moduleId)
-      path    <- if(!js) saveJar(staging, entity, module) else ~()
-      _       <- if(js) ~log.info(msg"Saving JavaScript to ${destination.relativizeTo(layout.baseDir)}") else ~()
-      _       <- if(js) ScalaJs.link(module.kind.as[App].map(_.main.key), List(staging) ++ bins, destination) else ~()
+      _       <- if(!js) saveJar(staging, module) else saveJs(staging, module)
       _       <- staging.delete()
     } yield ()
   }

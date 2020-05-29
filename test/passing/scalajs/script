@@ -1,2 +1,2 @@
-fury build save --output summary --js -f out.js
-node out.js
+fury build save --output summary --js -f target
+node target/frontend-app.js
