@@ -149,6 +149,9 @@ You can grant these permissions with,
           cli.abort(msg"The repository ${repo} is already forked to ${dir}.")
         case RepoDirty(repo, changes) =>
           cli.abort(msg"The repository ${repo} has uncommitted changes ($changes).")
+        case UntrackedFiles(files) =>
+          val fileSet = files.map { f => msg"$f" }.reduce(_ + msg"${','} " + _)
+          cli.abort(msg"The directory contains untracked file${if(files.size == 1) "" else "s"} ${fileSet}")
         case RemoteNotSynched(repo, remote) =>
           cli.abort(msg"The repository ${repo} has not been synchronized with its remote, $remote.")
         case NoRepl(compiler) =>
@@ -156,8 +159,9 @@ You can grant these permissions with,
         case CannotUpdateRepo(repo) =>
           cli.abort(msg"Could not update the repository $repo.")
         case ConflictingFiles(files) =>
-          cli.abort(msg"The directory contains files which would be overwritten by checking out the repository"+
-              msg" here.")
+          val fileSet = files.map { f => msg"$f" }.reduce(_ + msg"${','} " + _)
+          cli.abort(msg"The directory contains the file${if(files.size == 1) "" else "s"} ${fileSet} which "+
+              msg"would be overwritten by checking out the repository here.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
         case CommitNotInRepo(commit) =>
