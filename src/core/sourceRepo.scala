@@ -29,9 +29,9 @@ object Repo {
 
   def checkin(layout: Layout, repoId: RepoId)(implicit log: Log): Try[Repo] = for {
     gitDir <- ~GitDir(layout)
-    dirty  <- gitDir.diffShortStat()
-    _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(repoId, dirty.get.value))
     commit <- gitDir.commit
+    dirty  <- gitDir.diffShortStat(Some(commit))
+    _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(repoId, dirty.get.value))
     branch <- gitDir.branch
     remote <- gitDir.remote
     pushed <- gitDir.remoteHasCommit(commit, branch)
@@ -72,7 +72,8 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
 
   def changes(layout: Layout)(implicit log: Log): Try[Option[DiffStat]] = for {
     repoDir <- localDir(layout).map(Success(_)).getOrElse(remote.fetch(layout))
-    changes <- repoDir.diffShortStat()
+    commit  <- repoDir.commit
+    changes <- repoDir.diffShortStat(Some(commit))
   } yield changes
 
   def pull(layout: Layout)(implicit log: Log): Try[Commit] =

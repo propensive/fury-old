@@ -16,22 +16,23 @@
 */
 package fury.io
 
+import fury.text._
+import mercator._
+
+import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
+import org.apache.commons.compress.parallel.InputStreamSupplier
+import org.apache.commons.compress.archivers.zip.UnixStat
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+
+import scala.util.Try
+import scala.collection.JavaConverters._
+
 import java.io.InputStream
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Paths, SimpleFileVisitor, Path => JavaPath}
 import java.nio.file.StandardCopyOption._
 import java.util.stream.Collectors
 import java.util.zip.{ZipEntry, ZipFile, ZipOutputStream}
-
-import fury.text._
-import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
-
-import scala.util.Try
-import org.apache.commons.compress.parallel.InputStreamSupplier
-import org.apache.commons.compress.archivers.zip.UnixStat
-import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
-import mercator._
-import scala.collection.JavaConverters._
 
 object Zipper {
 
