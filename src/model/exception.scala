@@ -81,6 +81,7 @@ case class ProjectConflict(ids: Set[ProjectId]) extends FuryException
 case class RemoteNotSynched(repo: RepoId, remote: String) extends FuryException
 case class RepoAlreadyForked(repo: RepoId, dir: Path) extends FuryException
 case class RepoDirty(repo: RepoId, changes: String) extends FuryException
+case class UntrackedFiles(files: List[Path]) extends FuryException
 case class RepoNotForked(repo: RepoId) extends FuryException
 case class RepoNotFound(base: Path) extends FuryException
 case class RootLayerNotSelected(path: ImportPath) extends FuryException

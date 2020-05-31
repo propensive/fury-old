@@ -28,20 +28,22 @@ object Repo {
   implicit def diff: Diff[Repo] = Diff.gen[Repo]
 
   def checkin(layout: Layout, repoId: RepoId)(implicit log: Log): Try[Repo] = for {
-    gitDir <- ~GitDir(layout)
-    dirty  <- gitDir.diffShortStat()
-    _      <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(repoId, dirty.get.value))
-    commit <- gitDir.commit
-    branch <- gitDir.branch
-    remote <- gitDir.remote
-    pushed <- gitDir.remoteHasCommit(commit, branch)
-    _      <- if(pushed) Try(()) else Failure(RemoteNotSynched(repoId, remote.ref))
-    dest   <- Try((Xdg.runtimeDir / str"${repoId.key}.bak").uniquify())
-    files  <- gitDir.trackedFiles
-    _      <- ~log.info(msg"Moving working directory contents to $dest")
-    _      <- files.filter(_ != Path(".fury")).traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
-    _      <- (layout.baseDir / ".git").moveTo(dest / ".git")
-    _      <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
+    gitDir    <- ~GitDir(layout)
+    commit    <- gitDir.commit
+    dirty     <- gitDir.diffShortStat(Some(commit))
+    untracked <- gitDir.untrackedFiles
+    _         <- if(dirty.isEmpty) Try(()) else Failure(RepoDirty(repoId, dirty.get.value))
+    _         <- if(untracked.isEmpty) Try(()) else Failure(UntrackedFiles(untracked))
+    branch    <- gitDir.branch
+    remote    <- gitDir.remote
+    pushed    <- gitDir.remoteHasCommit(commit, branch)
+    _         <- if(pushed) Try(()) else Failure(RemoteNotSynched(repoId, remote.ref))
+    dest      <- Try((Xdg.runtimeDir / str"${repoId.key}.bak").uniquify())
+    files     <- gitDir.trackedFiles
+    _         <- ~log.info(msg"Moving working directory contents to $dest")
+    _         <- files.filter(_ != Path(".fury")).traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
+    _         <- (layout.baseDir / ".git").moveTo(dest / ".git")
+    _         <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield Repo(repoId, remote, branch, commit, None)
 
   def local(layout: Layout, layer: Layer)(implicit log: Log): Try[Option[Repo]] = {
@@ -72,7 +74,8 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
 
   def changes(layout: Layout)(implicit log: Log): Try[Option[DiffStat]] = for {
     repoDir <- localDir(layout).map(Success(_)).getOrElse(remote.fetch(layout))
-    changes <- repoDir.diffShortStat()
+    commit  <- repoDir.commit
+    changes <- repoDir.diffShortStat(Some(commit))
   } yield changes
 
   def pull(layout: Layout)(implicit log: Log): Try[Commit] =

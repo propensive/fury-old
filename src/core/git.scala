@@ -223,6 +223,9 @@ case class GitDir(env: Environment, dir: Path) {
   def allTrackedFiles: Try[List[Path]] =
     sh"$git ls-tree -r --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List].map(Path(_)))
 
+  def untrackedFiles: Try[List[Path]] =
+    sh"$git ls-files --exclude-standard --others".exec[Try[String]].map(_.split("\n").to[List].map(Path(_)))
+
   def branchHead(branch: Branch): Try[Commit] =
     sh"$git show-ref -s heads/$branch".exec[Try[String]].map(Commit(_))
 
