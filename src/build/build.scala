@@ -760,7 +760,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _         <- call.atMostOne(AllArg, LayerVersionArg)
     _         <- call.atMostOne(AllArg, ImportIdArg)
     conf      <- if(current) updateCurrent(layer, conf, version) else ~conf
-    layer     <- Layer.retrieve(conf)
     layer     <- updateAll(layer, ImportPath.Empty, imports, recursive, if(current) None else version)
     _         <- Layer.commit(layer, conf, layout, force = true)
   } yield log.await()
