@@ -33,6 +33,8 @@ import java.text.DecimalFormat
 import language.higherKinds
 import scala.util.control.NonFatal
 
+import java.io.InputStream
+
 case class ConfigCli(cli: Cli)(implicit log: Log) {
   def set: Try[ExitStatus] = for {
     cli      <- cli.hint(ThemeArg, Theme.all)
@@ -313,7 +315,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                           task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
                                       if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
                                       ManagedConfig().pipelining), reporter, ManagedConfig().theme,
-                                      noSecurity)
+                                      noSecurity, cli.stdin)
                         } yield {
                           task.transform { completed =>
                             for {
@@ -358,7 +360,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(ExecNameArg)
     call         <- cli.call()
     exec         <- call(ExecNameArg)
@@ -373,11 +377,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
     globalPolicy <- ~Policy.read(log)
+    ref          <- ~module.ref(project)
 
-    _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project),
+    _            <- Java.run(ref.key, build.classpath(ref,
                         layout).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
                         Installation.completionsDir.value), Map(), globalPolicy, layout, List(exec.key),
-                        true)(log.info(_)).await())
+                        noSecurity = true, System.in, log.raw(_), false)(implicitly[Log],
+                        implicitly[ExecutionContext], cli.env)
 
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
@@ -386,7 +392,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
     layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(PipeliningArg, List("on", "off"))
     cli          <- cli.hint(NoSecurityArg)
     cli          <- cli.hint(IgnoreErrorsArg)
@@ -405,7 +413,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                       globalPolicy <- ~Policy.read(log)
                       task <- compileOnce(build, layer, module.ref(project), layout,
                                   globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
-                                  ManagedConfig().theme, noSecurity)
+                                  ManagedConfig().theme, noSecurity, cli.stdin)
                     } yield { task.transform { completed => for {
                       compileResult  <- completed
                       compileSuccess <- compileResult.asTry
@@ -470,13 +478,14 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 pipelining: Boolean,
                                 reporter: Reporter,
                                 theme: Theme,
-                                noSecurity: Boolean)
+                                noSecurity: Boolean,
+                                stdin: InputStream)
                                (implicit log: Log): Try[Future[BuildResult]] = {
     for(_ <- build.checkoutAll(layout)) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
-      val future = build.compile(moduleRef, Map(), layout,
-        globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
+      val future = build.compile(moduleRef, Map(), layout, globalPolicy, compileArgs, pipelining,
+          noSecurity, stdin).apply(moduleRef).andThen {
         case compRes =>
           multiplexer.closeAll()
           compRes

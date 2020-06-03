@@ -24,55 +24,25 @@ import euphemism._
 
 import scala.util._
 import scala.collection.mutable.HashMap
+
+import scala.concurrent._
+
 import java.util.UUID
 import java.util.jar.JarFile
 import java.util.zip.ZipFile
 import java.io._
+import java.net._
+import java.security.{Permission => JPermission}
 
 import org.apache.commons.compress.archivers.zip.{ParallelScatterZipCreator, ZipArchiveEntry,
     ZipArchiveOutputStream}
 
 import java.util.zip.ZipInputStream
 
+case class ExitVm(exit: Int) extends SecurityException()
+
 case class Shell(environment: Environment) {
   implicit private[this] val defaultEnvironment: Environment = environment
-
-  def runJava(classpath: List[String],
-              main: ClassRef,
-              securePolicy: Boolean,
-              env: Map[String, String],
-              properties: Map[String, String],
-              policy: Policy,
-              layout: Layout,
-              args: List[String],
-              noSecurity: Boolean)
-             (output: String => Unit)
-             : Running = {
-    layout.sharedDir.mkdir()
-
-    implicit val defaultEnvironment: Environment =
-      Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
-
-    val policyFile = Installation.policyDir.extant() / UUID.randomUUID().toString
-    policy.save(policyFile).get
-
-    val allProperties: Map[String, String] = {
-      val withPolicy = if(noSecurity) properties else
-          properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)
-      
-      withPolicy.updated("fury.sharedDir", layout.sharedDir.value)
-    }
-
-    val propArgs = allProperties.map { case (k, v) => if(v.isEmpty) str"-D$k" else str"-D$k=$v" }.to[List]
-
-    val classpathStr = classpath.mkString(":")
-    
-    val cmd =
-      if(securePolicy) sh"java $propArgs -cp $classpathStr ${main.key} $args"
-      else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} ${main.key} $args"
-
-    cmd.async(output(_), output(_))
-  }
 
   def javac(classpath: List[String], dest: String, sources: List[String]) =
     sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]

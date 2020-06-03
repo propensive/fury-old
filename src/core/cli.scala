@@ -41,7 +41,7 @@ object NoCommand { def unapply(cli: Cli): Boolean = cli.args.isEmpty }
 abstract class Cmd(val cmd: String, val description: String) {
 
   def unapply(cli: Cli): Option[Cli] = cli.args.headOption.flatMap { head =>
-    if(head == cmd) Some(Cli(cli.stdout, cli.args.tail, cli.command, cli.optCompletions, cli.env,
+    if(head == cmd) Some(Cli(cli.stdout, cli.stdin, cli.args.tail, cli.command, cli.optCompletions, cli.env,
         cli.pid)) else None
   }
 
@@ -85,16 +85,18 @@ abstract class CliParam(val shortName: Char,
 object Cli {
 
   def apply[H <: CliParam](stdout: java.io.PrintWriter,
+                           stdin: java.io.InputStream,
                            args: ParamMap,
                            command: Option[Int],
                            optCompletions: List[Cli.OptCompletion],
                            env: Environment,
                            pid: Pid) =
-    new Cli(stdout, args, command, optCompletions, env, pid) { type Hinted <: H }
+    new Cli(stdout, stdin, args, command, optCompletions, env, pid) { type Hinted <: H }
 
   def asCompletion[H <: CliParam](menu: => Menu)(cli: Cli) = {
     val newCli = Cli[H](
       cli.stdout,
+      cli.stdin,
       ParamMap(cli.args.suffix.map(_.value).tail: _*),
       cli.args(Args.ParamNoArg).toOption,
       cli.optCompletions,
@@ -151,6 +153,7 @@ trait Descriptor[T] {
 }
 
 class Cli(val stdout: java.io.PrintWriter,
+          val stdin: java.io.InputStream,
           val args: ParamMap,
           val command: Option[Int],
           val optCompletions: List[Cli.OptCompletion],
@@ -236,14 +239,14 @@ class Cli(val stdout: java.io.PrintWriter,
   def completion: Boolean = command.isDefined
   
   def prefix(str: String): Cli { type Hinted <: cli.Hinted } =
-    Cli(stdout, ParamMap((str :: args.args.to[List]): _*), command, optCompletions, env, pid)
+    Cli(stdout, stdin, ParamMap((str :: args.args.to[List]): _*), command, optCompletions, env, pid)
   
   def tail: Cli { type Hinted <: cli.Hinted } = {
     
     val newArgs = if(args.headOption.map(_.length) == Some(2)) ParamMap(args.args.head.tail +:
         args.args.tail: _*) else args.tail
     
-    Cli(stdout, newArgs, command, optCompletions, env, pid)
+    Cli(stdout, stdin, newArgs, command, optCompletions, env, pid)
   }
   
   def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] =
@@ -272,18 +275,18 @@ class Cli(val stdout: java.io.PrintWriter,
           : Try[Cli { type Hinted <: cli.Hinted with arg.type }] = {
     val newHints = Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
-    Success(Cli(stdout, args, command, newHints :: optCompletions, env, pid)) 
+    Success(Cli(stdout, stdin, args, command, newHints :: optCompletions, env, pid)) 
   }
 
   def -<(arg: CliParam)
         (implicit hinter: arg.Hinter, stringShow: StringShow[arg.Type], descriptor: Descriptor[arg.Type])
         : Cli { type Hinted <: cli.Hinted with arg.type } = {
     val newHints = Cli.OptCompletion(arg, descriptor.wrap(stringShow, hinter.hints))
-    Cli(stdout, args, command, newHints :: optCompletions, env, pid)
+    Cli(stdout, stdin, args, command, newHints :: optCompletions, env, pid)
   }
 
   def hint(arg: CliParam): Success[Cli { type Hinted <: cli.Hinted with arg.type }] =
-    Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
+    Success(Cli(stdout, stdin, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
 
   private[this] def write(msg: UserMsg): Unit = {
     stdout.println(msg.string(ManagedConfig().theme))

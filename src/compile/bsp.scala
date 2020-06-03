@@ -275,7 +275,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
         session.multiplexer = multiplexer
         
         val compilationTasks = compilation.compile(moduleRef, Map.empty, layout, globalPolicy, List.empty,
-            pipelining = false, noSecurity = false)
+            pipelining = false, noSecurity = false, System.in)
         
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(BuildResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}

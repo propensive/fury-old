@@ -16,25 +16,21 @@
 */
 package fury.core
 
-import java.io._
-import java.net.URI
-import java.nio.charset.StandardCharsets
-import java.nio.channels._
-import java.util.concurrent.{CompletableFuture, ExecutionException, TimeoutException}
-
-import bloop.launcher.LauncherMain
-import bloop.launcher.LauncherStatus._
-import ch.epfl.scala.bsp4j.{CompileResult => _, _}
-import com.google.gson.{Gson, JsonElement}
 import fury.core.UiGraph.CompileIssue
 import fury.core.Lifecycle.Session
 import fury.io._
 import fury.model._
 import fury.text._
 import fury.utils._
+
+import guillotine._
 import gastronomy._
 import kaleidoscope._
 import mercator._
+
+import bloop.launcher.LauncherMain
+import ch.epfl.scala.bsp4j.{CompileResult => _, _}
+import com.google.gson.{Gson, JsonElement}
 import org.eclipse.lsp4j.jsonrpc.Launcher
 
 import scala.annotation.tailrec
@@ -48,6 +44,12 @@ import scala.language.higherKinds
 import scala.reflect.{ClassTag, classTag}
 import scala.util._
 import scala.util.control.NonFatal
+
+import java.io._
+import java.net.URI
+import java.nio.charset.StandardCharsets
+import java.nio.channels._
+import java.util.concurrent.{CompletableFuture, ExecutionException, TimeoutException}
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 
@@ -664,7 +666,9 @@ case class Build(target: Target,
                     pipelining: Boolean,
                     globalPolicy: Policy,
                     args: List[String],
-                    noSecurity: Boolean)(implicit log: Log)
+                    noSecurity: Boolean,
+                    stdin: InputStream,
+                    capture: Boolean)(implicit log: Log)
   : Future[BuildResult] = Future.fromTry {
     val originId = Build.nextOriginId(this)
     val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
@@ -709,7 +713,8 @@ case class Build(target: Target,
         val timeout = target.module.kind.as[App].fold(0)(_.timeout)
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
-        val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity)))
+        val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity,
+            stdin)))
         val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
         val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
         client.broadcast(StopRun(target.ref))
@@ -729,14 +734,15 @@ case class Build(target: Target,
               globalPolicy: Policy,
               args: List[String],
               pipelining: Boolean,
-              noSecurity: Boolean)
+              noSecurity: Boolean,
+              stdin: InputStream)
              (implicit log: Log)
              : Map[ModuleRef, Future[BuildResult]] = {
     val target = targets(moduleRef)
 
     val newFutures = subgraphs(target.ref).foldLeft(futures) { (futures, dependencyRef) =>
       if(futures.contains(dependencyRef)) futures
-      else compile(dependencyRef, futures, layout, globalPolicy, args, pipelining, noSecurity)
+      else compile(dependencyRef, futures, layout, globalPolicy, args, pipelining, noSecurity, stdin)
     }
 
     val dependencyFutures = Future.sequence(subgraphs(target.ref).map(newFutures))
@@ -757,7 +763,7 @@ case class Build(target: Target,
             multiplexer.fire(ref, NoCompile(ref))
           }
           Future.successful(required)
-        } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity)
+        } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity, stdin, true)
       }
     }
 
@@ -765,8 +771,11 @@ case class Build(target: Target,
   }
 
   private def run(target: Target, classDirectories: Set[Path], layout: Layout, globalPolicy: Policy,
-                  args: List[String], noSecurity: Boolean)
+                  args: List[String], noSecurity: Boolean, stdin: InputStream)
                  (implicit log: Log): Int = {
+
+    implicit val env: Environment = layout.env
+
     val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.module.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
@@ -779,19 +788,31 @@ case class Build(target: Target,
           javaSources.map(_.value).to[List])
       }
     }
-    
-    val exitCode = Shell(layout.env).runJava(
-      jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
+
+    val runtimeClasspath = 
+      jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value)
+
+    val classRef = 
       if(target.module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
-      else target.module.kind.as[App].fold(ClassRef(""))(_.main),
+      else target.module.kind.as[App].fold(ClassRef(""))(_.main)
+
+    def output(line: String): Unit = multiplexer.fire(target.ref, Print(target.ref, line))
+
+    val exitCode = Java.run(
+      "jmh",
+      runtimeClasspath,
+      classRef,
       securePolicy = target.module.kind.is[App],
       env = target.environment,
       properties = target.properties,
       policy = globalPolicy.forContext(layout, target.ref.projectId),
       layout = layout,
       args,
-      noSecurity
-    ) { ln => multiplexer.fire(target.ref, Print(target.ref, ln)) }.await()
+      noSecurity,
+      stdin,
+      output,
+      true
+    ).get
 
     deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
 

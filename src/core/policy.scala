@@ -52,6 +52,13 @@ object Policy {
 }
 
 case class Policy(version: Int, policy: SortedSet[Privilege] = TreeSet()) {
+
+  def check(classRef: ClassRef, target: String, actions: Set[String]): Boolean = {
+    policy.filter(_.permission.classRef == classRef).filter { p =>
+      target.matches(p.permission.target.replaceAll("""*""", """.*"""))
+    }.nonEmpty
+  }
+
   def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
     Policy(Policy.CurrentVersion, policy.filter {
       case Privilege(DirectoryScope(dir), _) => dir == layout.baseDir

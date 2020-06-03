@@ -733,7 +733,7 @@ object CompilerRef {
 }
 
 sealed abstract class CompilerRef(ref: Option[ModuleRef]) {
-  def apply(): Set[Dependency] = ref.to[Set].map(Dependency(_))
+  def apply(): Set[Dependency] = ref.to[Set].map(_.hide).map(Dependency(_))
   def as[T: ClassTag]: Option[T] = this.only { case value: T => value }
   def is[T: ClassTag]: Boolean = as[T].isDefined
 }
@@ -941,7 +941,7 @@ object OptId {
   implicit val parser: Parser[OptId] = unapply(_)
   
   def unapply(value: String): Option[OptId] =
-    value.only { case r"[a-zA-Z0-9\-\.\:]+" => OptId(value) }
+    value.only { case r"[a-zA-Z0-9\-\.\:\,]+" => OptId(value) }
 }
 
 case class OptId(key: String) extends Key(msg"option")

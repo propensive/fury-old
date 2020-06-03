@@ -30,6 +30,8 @@ import scala.concurrent._, duration._
 
 import scala.util._
 
+import java.{io => ji}
+
 object FuryServer {
 
   def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
@@ -41,10 +43,10 @@ object FuryServer {
     } yield layer
 
     val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
-        def action(cli: Cli) = BuildCli(cli).compile(Some(alias.module), alias.args)
+      def action(cli: Cli) = BuildCli(cli).compile(Some(alias.module), alias.args)
 
-        Action(Symbol(alias.id.key), msg"${alias.description}", (cli: Cli) => action(cli))
-      }
+      Action(Symbol(alias.id.key), msg"${alias.description}", (cli: Cli) => action(cli))
+    }
 
     Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
   }
@@ -65,19 +67,20 @@ object FuryServer {
         ctx.getWorkingDirectory))
   )
 
-  def run(in: java.io.InputStream,
-          out: java.io.PrintStream,
-          err: java.io.PrintStream,
+  def run(in: ji.InputStream,
+          out: ji.PrintStream,
+          err: ji.PrintStream,
           args: Seq[String],
           exit: Int => Unit,
           env: Environment)
          : Unit =
     exit {
+      System.setSecurityManager(Sandbox)
       val pid = Pid(args.head.toInt)
       implicit val log: Log = Log.log(pid)
       
-      val cli = Cli(new java.io.PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil,
-          env, pid)
+      val cli = Cli(new java.io.PrintWriter(out), in, ParamMap(args.tail: _*), command = None,
+          optCompletions = Nil, env, pid)
       
       Lifecycle.trackThread(cli, args.lift(1).exists(Set("about", "help")(_))) {
         val exitStatus = invoke(cli).code
