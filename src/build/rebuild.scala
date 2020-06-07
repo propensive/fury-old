@@ -28,7 +28,6 @@ import fury.utils.Threads
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util._
 
-
 object Inotify {
   private var done: Boolean = false
   def check(watching: Boolean)(implicit log: Log): Try[Unit] = {
@@ -108,5 +107,4 @@ class SourceWatcher(sources: Set[Path]){
     val important: Boolean = file.extension.contains(".scala") || file.extension.contains(".java")
     if(important) changed.set(true)
   }
-
 }
