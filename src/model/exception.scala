@@ -21,6 +21,7 @@ import fury.text._, fury.io._
 
 case class AlreadyInitialized() extends FuryException
 case class AlreadyCheckedOut(repo: RepoId) extends FuryException
+case class BadRequest() extends FuryException
 case class BranchNotFound(commit: Commit) extends FuryException
 case class BspException() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException

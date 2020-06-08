@@ -17,7 +17,10 @@
 package fury.model
 
 import fury.text._
+
 import scala.reflect.ClassTag
+
+import javax.script._
 
 object Kind {
   object Id {
@@ -65,7 +68,9 @@ case class Plugin(id: PluginId, main: ClassRef) extends Kind()
 
 object Compiler extends Kind.Id("compiler")
 case class Compiler(spec: BloopSpec, repl: ClassRef = ClassRef("scala.tools.nsc.MainGenericRunner")) extends
-    Kind()
+    Kind() {
+  def scriptEngine: AbstractScriptEngine = ???
+}
 
 object Bench extends Kind.Id("bench")
 case class Bench(main: ClassRef) extends Kind(needsExec = true)

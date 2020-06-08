@@ -46,6 +46,7 @@ object FuryMenu {
     Menu('build, msg"perform build actions", 'run)(
       Action('classpath, msg"show a classpath for a module", BuildCli(_).classpath),
       Action('console, msg"launch the console for this build", BuildCli(_).console),
+      Action('eval, msg"evaluate code within this build", BuildCli(_).eval),
       Action('run, msg"compile a module", BuildCli(_).compile(None)),
       // FIXME: This should be retained only temporarily
       Action('save, msg"save a module", BuildCli(_).compile(None)),

@@ -39,6 +39,7 @@ object Args {
   val BinSpecArg = CliParam[BinSpec]('b', 'binary, "specify a binary dependency")
   val CompilerArg = CliParam[CompilerRef]('c', 'compiler, "specify a compiler")
   val ClassArg = CliParam[ClassRef]('C', 'class, "specify a class name")
+  val CodeArg = CliParam[String]('c', 'code, "specify code to evaluate")
   
   val IgnoreErrorsArg = CliParam[Unit]('I', Symbol("ignore-errors"),
       "ignore compilation errors and launch the console anyway")

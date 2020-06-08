@@ -1,0 +1,47 @@
+<html>
+ <head>
+  <title>Editor </title>
+  <script src="out/editor-core.js" type="application/javascript"></script>
+  <style>
+   @import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;600&display=swap');
+   textarea, #codeDiv, #panel {
+     background-color: rgb(0, 0, 30);
+     margin: auto !important;
+     color: white;
+     width: 600px;
+     height: 400px;
+     font-family: "Inconsolata";
+     font-weight: 400;
+     caret-color: yellow;
+     font-size: 19px !important;
+     letter-spacing: 1px;
+     padding: 10px;
+     white-space: pre-wrap;
+     border: none !important !important;
+   }
+   .text { color: lightblue; }
+   .comment { color: #77aa00; font-style: italic; }
+   .gray { color: #777; }
+   .hidden { display: none; }
+   .eattention { background-color: #aaaa66; color: black; }
+   .attention { font-weight: 600; background-color: #aaaa66; color: black; }
+   .error { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: red; }
+   .info { text-decoration: underline;
+           text-decoration-style: dotted;
+           text-decoration-color: cornflowerblue;
+           cursor: pointer; }
+   #panel { height: 20px; border-top: solid 1px #666; }
+   #working { white-space: pre-wrap; }
+  </style>
+ </head>
+ <body onload="bind()">
+  <div id="codeDiv" spellcheck="false" contentEditable="true"></div>
+  <div id="panel"></div>
+  <textarea id="area" rows="10" cols="100">//(
+import hidden._
+//)
+object /*!(*/Main/*)!*/:
+  def action(s: /*?[java.lang.String](*/String/*)?*/): /*?[scala.Unit](*/Unit/*)?*/ = ???  
+  </textarea>
+ </body>
+</html>

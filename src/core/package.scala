@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.text._, fury.io._
+import fury.text._, fury.io._, fury.model._
 
 import contextual._
 import escritoire._
@@ -24,12 +24,25 @@ import gastronomy._
 import guillotine._
 import mercator._
 import optometry._
+import euphemism._
+import quarantine._
+import antiphony._
 
 import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions
 import scala.util._
 
+import scala.concurrent._
+
 package object core extends GuillotineExtensions {
+  
+  implicit object domain extends Domain[FuryException] {
+    implicit val access: Access.Mitigator[this.type] = Access.mitigate(this) { case e => BadRequest() }
+    implicit val parseException: ParseException.Mitigator[this.type] = ParseException.mitigate(this) { case e => BadRequest() }
+  }
+
+  val httpServer = Future(ApiServer.server.bind(9753))(ExecutionContext.global)
+
   implicit def resolverExt[T](items: Traversable[T]): ResolverExt[T] = new ResolverExt[T](items)
 
   implicit def sortedSetExt[T](set: SortedSet[T]): SortedSetExt[T] = new SortedSetExt[T](set)

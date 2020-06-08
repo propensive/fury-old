@@ -170,6 +170,49 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
 
+  def eval: Try[ExitStatus] = for {
+    layout       <- cli.layout
+    conf         <- Layer.readFuryConf(layout)
+    layer        <- Layer.retrieve(conf)
+    (cli,
+     tryProject,
+     tryModule)  <- cli.askProjectAndModule(layer)
+    cli          <- cli.hint(NoSecurityArg)
+    cli          <- cli.hint(IgnoreErrorsArg)
+    cli          <- cli.hint(CodeArg)
+    cli          <- cli.hint(ReporterArg, Reporter.all)
+    call         <- cli.call()
+    force        <- ~call(IgnoreErrorsArg).isSuccess
+    reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
+    noSecurity   <- ~call(NoSecurityArg).isSuccess
+    project      <- tryProject
+    module       <- tryModule
+    
+    build        <- Build.syncBuild(layer, module.ref(project), layout, noSecurity)
+    
+    result       <- for {
+                      policy <- ~Policy.read(log)
+                      task   <- compileOnce(build, layer, module.ref(project), layout, policy, Nil,
+                                    ManagedConfig().pipelining, reporter, ManagedConfig().theme, noSecurity)
+                    } yield { task.transform { completed => for { result  <- completed; success <- result.asTry } yield success } }
+
+    result       <- Try(Try(Await.result(result, Duration.Inf)))
+    _            <- if(force) {
+                      if(result.isFailure) log.warn(msg"Errors occurred during compilation; launching console "+
+                          msg"with an incomplete classpath")
+                      Success(())
+                    } else result
+    compiler     <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
+    repl         <- compiler.map(_.kind.as[Compiler].get.repl)
+    classpath    <- ~build.classpath(module.ref(project), layout)
+    bootCp       <- ~build.bootClasspath(module.ref(project), layout)
+  } yield {
+    val cp = classpath.map(_.value).join(":")
+    val bcp = bootCp.map(_.value).join(":")
+    cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
+        str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
+  }
+
   def console: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
