@@ -1,0 +1,12 @@
+fury layer init | sed "s|$(pwd)/||"
+fury project add -n scala
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.13.2
+fury binary add -b org.scala-lang:scala-compiler:2.13.2
+fury binary add -b org.scala-lang:scala-library:2.13.2
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t app -M HelloWorld
+fury source add -s src
+mkdir -p src
+#fury build run --output quiet >> /dev/null
+fury build run --output linear
+echo $?
