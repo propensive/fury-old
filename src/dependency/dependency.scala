@@ -83,7 +83,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     (cli,
      tryProject,
      tryModule)  <- cli.askProjectAndModule(layer)
-    hierarchy    <- layer.hierarchy(ImportPath.Root)
+    hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
     
     allRefs       = for(project <- tryProject; module <- tryModule)
@@ -221,7 +221,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes   <- call(PermissionArg).map(_.map(PermissionHash(_)))
     project      <- tryProject
     module       <- tryModule
-    hierarchy    <- layer.hierarchy(ImportPath.Root)
+    hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
     build        <- Build(universe, Dependency(module.ref(project)), layout)
     permissions  <- permHashes.traverse(_.resolve(build.requiredPermissions))
@@ -269,7 +269,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     project       <- tryProject
     module        <- tryModule
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
-    hierarchy     <- layer.hierarchy(ImportPath.Root)
+    hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
     build         <- Build(universe, Dependency(module.ref(project)), layout)
     permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))

@@ -54,7 +54,7 @@ case class ProjectCli(cli: Cli)(implicit log: Log) {
     projectId   <- ~cli.peek(ProjectArg)
     col         <- ~cli.peek(ColumnArg)
     raw         <- ~call(RawArg).isSuccess
-    hierarchy   <- layer.hierarchy(ImportPath.Empty)
+    hierarchy   <- layer.hierarchy()
     universe    <- hierarchy.universe
     rows        <- ~universe.entities.values
     table       <- ~Tables().show(table, cli.cols, rows, raw, col, projectId, "project")

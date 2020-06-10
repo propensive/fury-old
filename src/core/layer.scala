@@ -110,7 +110,7 @@ case class Layer(version: Int,
   def compilerRefs(layout: Layout)(implicit log: Log): List[ModuleRef] =
     allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def hierarchy(importPath: ImportPath)(implicit log: Log): Try[Hierarchy] = for {
+  def hierarchy(importPath: ImportPath = ImportPath.Empty)(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.map { ref => for {
       layer        <- Layer.get(ref.layerRef, ref.remote)
       tree         <- layer.hierarchy(importPath / ref.id)

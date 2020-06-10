@@ -42,7 +42,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     raw          <- ~call(RawArg).isSuccess
     project      <- tryProject
     module       <- tryModule
-    hierarchy    <- layer.hierarchy(ImportPath.Root)
+    hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
     checkouts    <- universe.checkout(module.ref(project), layout)
   } yield {

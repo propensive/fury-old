@@ -92,7 +92,7 @@ case class ModuleCli(cli: Cli)(implicit log: Log) {
     optProject <- ~projectId.flatMap(layer.projects.findBy(_).toOption)
     project    <- optProject.asTry
     cli        <- cli.hint(ModuleArg, project.modules.map(_.id))
-    universe   <- layer.hierarchy(ImportPath.Root).flatMap(_.universe)
+    universe   <- layer.hierarchy().flatMap(_.universe)
     table      <- ~Tables().modules(project.id, project.main, universe)
     cli        <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     cli        <- cli.hint(RawArg)
