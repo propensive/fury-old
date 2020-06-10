@@ -228,7 +228,7 @@ object Build {
            (implicit log: Log)
            : Try[Build] = for {
 
-    hierarchy <- layer.hierarchy()
+    hierarchy <- layer.hierarchy(ImportPath.Root)
     universe  <- hierarchy.universe
     build     <- Build(universe, dependency, layout)
     _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)

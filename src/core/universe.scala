@@ -31,13 +31,20 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Checkouts] = for {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
-    repos  <- (module.externalSources ++ module.externalResources).to[List]
-                  .groupBy(_.repoId).map { case (k, v) => entity.layer.repo(k, layout).map(_ -> v) }.sequence
+
+    repos  <- (module.externalSources ++ module.externalResources).to[List].groupBy(_.repoId).map {
+                case (k, v) => entity.layers.head._2.repo(k).map(_ -> v)
+              }.sequence
+
   } yield Checkouts(repos.map { case (repo, paths) =>
     Checkout(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths.map(_.dir).to[List])
   }.to[Set])
 
-  def ++(that: Universe): Universe = Universe(entities ++ that.entities)
+  def ++(that: Universe): Universe = Universe {
+    that.entities.foldLeft(entities) { case (entities, (id, entity)) =>
+      entities.updated(id, entities.get(id).fold(entity) { e => e.copy(layers = e.layers ++ entity.layers) })
+    }
+  }
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =
     transitiveDependencies(forbidden = Set.empty, Dependency(ref), layout).map(_.filter(_.ref != ModuleRef.JavaRef))

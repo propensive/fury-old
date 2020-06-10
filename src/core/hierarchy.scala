@@ -20,11 +20,11 @@ import fury.model._
 
 import scala.util._
 
-case class Hierarchy(layer: Layer, inherited: Set[Hierarchy]) {
+case class Hierarchy(layer: Layer, path: ImportPath, inherited: Set[Hierarchy]) {
   lazy val universe: Try[Universe] = {
     val localProjectIds = layer.projects.map(_.id)
 
-    def merge(universe: Try[Universe], hierarchy: Hierarchy) = for {
+    def merge(universe: Try[Universe], hierarchy: Hierarchy): Try[Universe] = for {
       projects             <- universe
       nextProjects         <- hierarchy.universe
       potentialConflictIds  = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
@@ -42,7 +42,7 @@ case class Hierarchy(layer: Layer, inherited: Set[Hierarchy]) {
     val empty: Try[Universe] = Success(Universe())
 
     for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
-      val layerEntities = layer.projects.map { project => project.id -> Entity(project, layer) }
+      val layerEntities = layer.projects.map { project => project.id -> Entity(project, Map(path -> layer)) }
       allInherited ++ Universe(layerEntities.toMap)
     }
   }

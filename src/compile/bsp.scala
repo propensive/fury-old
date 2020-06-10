@@ -106,7 +106,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
     for {
       conf           <- Ogdl.read[FuryConf](layout.confFile, identity(_))
       layer          <- Layer.retrieve(conf)
-      hierarchy      <- layer.hierarchy()
+      hierarchy      <- layer.hierarchy(ImportPath.Root)
       universe       <- hierarchy.universe
 
       graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {

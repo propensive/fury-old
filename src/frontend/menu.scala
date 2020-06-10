@@ -158,7 +158,6 @@ object FuryMenu {
       Action('import, msg"import an external layer", LayerCli(_).addImport, shortcut = 'i'),
       Action('init, msg"initialize a new Fury layer", LayerCli(_).init, needsLayer = false),
       Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
-      Action('projects, msg"show all available projects", LayerCli(_).projects),
       Action('publish, msg"publish a layer", LayerCli(_).publish),
       Action('pull, msg"update the layer to a more recent version", LayerCli(_).pull, shortcut = 'p'),
       Action('unimport, msg"remove a previously imported layer", LayerCli(_).unimport),

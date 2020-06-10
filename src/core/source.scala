@@ -101,7 +101,7 @@ case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source 
   def key: String = str"${repoId}:${dir.value}//$glob"
   def completion: String = str"${repoId}:${dir.value}"
   def repoIdentifier: RepoId = repoId
-  def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId, layout).map((dir, _).digest[Md5])
+  def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId).map((dir, _).digest[Md5])
   
   def base(checkouts: Checkouts, layout: Layout): Try[Path] =
     checkouts(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
