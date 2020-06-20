@@ -42,15 +42,13 @@ case class Layer(version: Int,
                  previous: Option[LayerRef] = None) { layer =>
 
   def apply(id: ProjectId) = projects.findBy(id)
-  def repo(repoId: RepoId): Try[Repo] = repos.findBy(repoId)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
-  def repoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
       module.copy(sources = module.sources.map {
-        case ExternalSource(`repoId`, dir, glob) => LocalSource(dir, glob)
+        case RepoSource(`repoId`, dir, glob) => LocalSource(dir, glob)
         case other => other
       })
     })
@@ -59,16 +57,11 @@ case class Layer(version: Int,
   def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
       module.copy(sources = module.sources.map {
-        case LocalSource(dir, glob) => ExternalSource(repoId, dir, glob)
+        case LocalSource(dir, glob) => RepoSource(repoId, dir, glob)
         case other => other
       })
     })
   })
-
-  def uniqueRepoId(baseDir: Path): RepoId = {
-    val unnamed = Stream.from(1).map { n => RepoId(str"repo-$n") }
-    (mainRepo.to[Stream] ++: RepoId.unapply(baseDir.name) ++: unnamed).filter(!repos.contains(_)).head
-  }
 
   def localSources: List[ModuleRef] = for {
     project           <- projects.to[List]
@@ -151,15 +144,6 @@ case class Layer(version: Int,
     commit <- gitDir.commit
     branch <- gitDir.branch
   } yield Repo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
-
-  def local(layout: Layout): Try[Repo] =
-    localRepo(layout).flatMap { r => repos.find(_.remote.equivalentTo(r.remote)).ascribe(NoRepoCheckedOut()) }
-
-  def allRepos(layout: Layout): SortedSet[Repo] =
-    (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
-      repos.map(_.remote.simplified).contains(r.remote.simplified)
-    }) ++ repos
-
 }
 
 object Layer extends Lens.Partial[Layer] {

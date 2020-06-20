@@ -46,16 +46,16 @@ object Repo {
     _         <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield Repo(repoId, remote, branch, commit, None)
 
-  def local(layout: Layout, layer: Layer)(implicit log: Log): Try[Option[Repo]] = {
+  /*def local(layout: Layout, project: Project)(implicit log: Log): Try[Option[Repo]] = {
     val gitDir = GitDir(layout)
     if(gitDir.commit.isFailure) Success(None)
     else for {
-      repoId <- ~layer.uniqueRepoId(layout.baseDir)
+      repoId <- ~project.uniqueRepoId(layout.baseDir)
       remote <- gitDir.remote
       branch <- gitDir.branch
       commit <- gitDir.commit
     } yield Some(Repo(repoId, remote, branch, commit, None))
-  }
+  }*/
 }
 
 case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
@@ -89,12 +89,9 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     commit <- dir.commit
   } yield Commit(commit.id)
 
-  def sourceCandidates(layout: Layout)
-                      (pred: String => Boolean)
-                      (implicit log: Log)
-                      : Try[Set[Source]] =
+  def sourceCandidates(layout: Layout)(pred: String => Boolean)(implicit log: Log): Try[Set[Source]] =
     listFiles(layout).map(_.filter { f => pred(f.filename) }.map { p =>
-        ExternalSource(id, p.parent, Glob.All): Source }.to[Set])
+        RepoSource(id, p.parent, Glob.All): Source }.to[Set])
   
   def unfork(layout: Layout)(implicit log: Log): Try[Repo] = {
     for {

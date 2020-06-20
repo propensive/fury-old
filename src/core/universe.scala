@@ -33,7 +33,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     module <- entity.project(ref.moduleId)
 
     repos  <- (module.externalSources ++ module.externalResources).to[List].groupBy(_.repoId).map {
-                case (k, v) => entity.layers.head._2.repo(k).map(_ -> v)
+                case (k, v) => entity.layers.head._2.repos.findBy(k).map(_ -> v)
               }.sequence
 
   } yield Checkouts(repos.map { case (repo, paths) =>

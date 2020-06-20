@@ -183,7 +183,6 @@ case class Tables() {
     Heading("ID", _._1.id),
     Heading("Ref", _._1.layerRef),
     Heading("Projects", s => s._2.toOption.fold(msg"${'-'}")(_.projects.size)),
-    Heading("Repos", s => s._2.toOption.fold(msg"${'-'}")(_.repoIds.size)),
     Heading("Imports", s => s._2.toOption.fold(msg"${'-'}")(_.imports.size)),
     Heading("Published as", s => s._1.remote.fold(msg"${'-'}") { pub => msg"${pub}" })
   )

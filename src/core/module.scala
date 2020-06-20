@@ -55,10 +55,10 @@ case class Module(id: ModuleId,
   }
   
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
-  def externalSources: SortedSet[ExternalSource] = sources.collect { case src: ExternalSource => src }
+  def externalSources: SortedSet[RepoSource] = sources.collect { case src: RepoSource => src }
   
-  def externalResources: Stream[ExternalSource] =
-    resources.to[Stream].collect { case src: ExternalSource => src }
+  def externalResources: Stream[RepoSource] =
+    resources.to[Stream].collect { case src: RepoSource => src }
 
   def policyEntries: Set[PermissionEntry] = {
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)

@@ -25,18 +25,15 @@ case class Hierarchy(layer: Layer, path: ImportPath, inherited: Set[Hierarchy]) 
     val localProjectIds = layer.projects.map(_.id)
 
     def merge(universe: Try[Universe], hierarchy: Hierarchy): Try[Universe] = for {
-      projects             <- universe
-      nextProjects         <- hierarchy.universe
-      potentialConflictIds  = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+      projects           <- universe
+      nextProjects       <- hierarchy.universe
+      conflictCandidates  = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
+      conflictIds         = conflictCandidates.filter { id => projects.entity(id) != nextProjects.entity(id) }
 
-      conflictIds           = potentialConflictIds.filter { id =>
-                                projects.entity(id).map(_.spec) != nextProjects.entity(id).map(_.spec)
-                              }
-
-      allProjects          <- conflictIds match {
-                                case x if x.isEmpty => Success(projects ++ nextProjects)
-                                case _ => Failure(ProjectConflict(conflictIds/*, h1 = this, h2 = hierarchy*/))
-                              }
+      allProjects        <- conflictIds match {
+                              case x if x.isEmpty => Success(projects ++ nextProjects)
+                              case _ => Failure(ProjectConflict(conflictIds/*, h1 = this, h2 = hierarchy*/))
+                            }
     } yield allProjects
 
     val empty: Try[Universe] = Success(Universe())

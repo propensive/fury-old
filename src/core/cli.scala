@@ -20,6 +20,8 @@ import fury.text._, fury.io._, fury.model._
 
 import exoskeleton._
 import guillotine._
+import escritoire._
+import mercator._
 
 import scala.util._
 
@@ -217,9 +219,11 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def forceLog(msg: UserMsg): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, pid)
 
-  def action(blk: Call => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap(blk)
+  def action(blk: => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap { _ => blk }
 
   def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
+
+  def get(param: CliParam): Try[param.Type] = args.get(param.param).toOption.ascribe(MissingParam(param))
 
   def preview(param: CliParam)(default: Option[param.Type] = None): Try[param.Type] = {
     val result = args.get(param.param)
@@ -303,7 +307,6 @@ class Cli(val stdout: java.io.PrintWriter,
     }.getOrElse {
       args.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }
     }
-
 }
 
 case class Completions(completions: List[Cli.OptCompletion] = Nil) {
@@ -314,4 +317,90 @@ case class Completions(completions: List[Cli.OptCompletion] = Nil) {
   }
 
   def hint(arg: CliParam): Completions = copy(completions = Cli.OptCompletion(arg, "()") :: completions)
+}
+
+abstract class CliApi {
+  import Args._
+
+  implicit def log: Log
+  def cli: Cli
+  lazy val getProjectId: Try[ProjectId] = cli.get(ProjectArg)
+  lazy val getLayout: Try[Layout] = cli.layout
+  lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
+  lazy val getLayer: Try[Layer] = conf >>= Layer.retrieve
+  lazy val layerProjectOpt: Try[Option[Project]] = getLayer >>= (_.mainProject)
+  lazy val layerProject: Try[Project] = layerProjectOpt.flatMap(_.ascribe(MissingParam(ProjectArg)))
+  lazy val layerProjectIds: List[ProjectId] = (getLayer >> (_.projects.to[List])).getOrElse(List()).map(_.id)
+  lazy val cliProject: Try[Project] = (getLayer, getProjectId) >>= (_.projects.findBy(_))
+  lazy val getProject: Try[Project] = cliProject.orElse(layerProject)
+
+  lazy val getRepoId: Try[RepoId] = cli.get(RepoArg)
+  lazy val layerRepoIdOpt: Try[Option[RepoId]] = (getLayer >> (_.mainRepo))
+
+  lazy val layerRepoOpt: Try[Option[Repo]] = (getLayer, layerRepoIdOpt) >>= { (layer, repoIdOpt) =>
+    repoIdOpt.map(layer.repos.findBy(_)).sequence
+  }
+
+  lazy val layerRepo: Try[Repo] = layerRepoOpt.flatMap(_.ascribe(MissingParam(RepoArg)))
+  lazy val cliRepo: Try[Repo] = (getLayer, getRepoId) >>= (_.repos.findBy(_))
+  lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
+
+  lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
+
+  lazy val getModuleId: Try[ModuleId] = cli.get(ModuleArg)
+  lazy val cliModule: Try[Module] = (getProject, getModuleId) >>= (_.modules.findBy(_))
+  lazy val layerModuleOpt: Try[Option[Module]] = getProject >>= (_.mainModule)
+  lazy val layerModule: Try[Module] = layerModuleOpt.flatMap(_.ascribe(MissingParam(ModuleArg)))
+  lazy val projectModuleIds: List[ModuleId] = (getProject >> (_.modules.to[List])).getOrElse(List()).map(_.id)
+  lazy val projectRepoIds: List[RepoId] = (getLayer >> (_.repos.to[List])).getOrElse(List()).map(_.id)
+  lazy val getModule: Try[Module] = cliModule.orElse(layerModule)
+  lazy val raw: Boolean = cli.get(RawArg).isSuccess
+  lazy val column: Option[String] = cli.peek(ColumnArg)
+  lazy val repoName: Try[RepoId] = cli.get(RepoNameArg)
+
+  lazy val branches: Try[List[Branch]] = getGitDir >>= (_.branches)
+  lazy val tags: Try[List[Tag]] = getGitDir >>= (_.tags)
+
+  lazy val path: Try[Path] = cli.get(PathArg)
+  lazy val absPath: Try[Path] = (path, getLayout) >> (_ in _.pwd)
+
+  lazy val getBranch: Try[Branch] = cli.get(BranchArg)
+  lazy val getTag: Try[Tag] = cli.get(TagArg)
+  lazy val getRemote: Try[Remote] = cli.get(RepoUrlArg)
+
+  lazy val branchCommit: Try[Commit] = (getGitDir, getBranch) >>= (_.commitFromBranch(_))
+  lazy val tagCommit: Try[Commit] = (getGitDir, getTag) >>= (_.commitFromTag(_))
+
+  lazy val cliCommit: Try[Commit] = branchCommit.orElse(tagCommit)
+
+  lazy val getResource: Try[Source] = cli.get(ResourceArg)
+
+  def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
+
+  def finish[T](value: T): ExitStatus = log.await()
+
+  lazy val gitDestPath: Try[GitDir] = for {
+    layout  <- getLayout
+    absPath <- absPath
+    _       <- ~absPath.mkdir()
+    _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty directory exists"))
+  } yield GitDir(absPath)(layout.env)
+
+  def cols: Int = Terminal.columns(cli.env).getOrElse(100)
+
+  implicit lazy val rawHints: RawArg.Hinter = RawArg.hint(())
+  implicit lazy val projectHints: ProjectArg.Hinter = ProjectArg.hint(layerProjectIds: _*)
+  implicit lazy val moduleHints: ModuleArg.Hinter = ModuleArg.hint(projectModuleIds: _*)
+  implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
+  implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
+  implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
+  implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
+  implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
+  implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
+  
+  implicit lazy val repoUrl: RepoUrlArg.Hinter =
+    RepoUrlArg.hint(GitHub.repos(cli.peek(RepoUrlStringArg)).map(_.map(Remote(_))))
+  
+  def printTable[T, S: MsgShow](table: Tabulation[T], rows: Traversable[T], id: Option[S], name: String): Unit =
+    log.rawln(Tables().show(table, cols, rows, raw, column, id, name))
 }

@@ -26,16 +26,7 @@ import scala.util._
 
 import java.net.URI
 
-case class ProjectSpec(project: Project, repos: Map[RepoId, Repo])
-
-case class Entity(project: Project, layers: Map[ImportPath, Layer]) {
-  def spec: ProjectSpec = {
-    val repoIds = project.allRepoIds
-    ProjectSpec(project, repos.filter(repoIds contains _.id).map { r => (r.id, r) }.toMap)
-  }
-
-  def repos: Set[Repo] = layers.head._2.repos
-}
+case class Entity(project: Project, layers: Map[ImportPath, Layer])
 
 sealed trait CompileEvent
 case object Tick extends CompileEvent

@@ -286,12 +286,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(PipeliningArg, List("on", "off"))
     autocProject   <- ~autocProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli            <- cli.hint(ModuleArg, autocProject.to[List].flatMap(_.modules))
-    cli            <- cli.hint(DirArg)
+    cli            <- cli.hint(PathArg)
     cli            <- cli.hint(FatJarArg)
     cli            <- cli.hint(JsArg)
     cli            <- cli.hint(ReporterArg, Reporter.all)
     call           <- cli.call()
-    dir            <- ~call(DirArg).toOption
+    dir            <- ~call(PathArg).toOption
     optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(layer.main))
     optProject     <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     project        <- optProject.asTry
@@ -523,7 +523,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       Failure(LayersFailure(path))
 
   def cloneLayer: Try[ExitStatus] = for {
-    cli        <- cli.hint(DirArg)
+    cli        <- cli.hint(PathArg)
     cli        <- cli.hint(EditorArg)
     cli        <- cli.hint(DocsArg)
     cli        <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
@@ -535,7 +535,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
     _          <- layer.verify(true, ImportPath.Root)
-    dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
+    dir        <- call(PathArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
     _          <- ~log.info(msg"Cloning layer $layerName into ${if(useDocsDir) dir else dir.relativizeTo(pwd)}")

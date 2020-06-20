@@ -37,7 +37,7 @@ object Source {
 
   implicit val msgShow: MsgShow[Source] = v => UserMsg { theme =>
     v match {
-      case ExternalSource(repoId, dir, glob) =>
+      case RepoSource(repoId, dir, glob) =>
         msg"$repoId${':'}$dir${'/'}${'/'}$glob".string(theme)
       case LocalSource(dir, glob) =>
         msg"$dir${'/'}${'/'}$glob".string(theme)
@@ -46,20 +46,20 @@ object Source {
 
   def unapply(string: String): Option[Source] = string.only {
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
-      ExternalSource(RepoId(repo), Path(dir), Glob(pattern))
+      RepoSource(RepoId(repo), Path(dir), Glob(pattern))
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)" =>
-      ExternalSource(RepoId(repo), Path(dir), Glob.All)
+      RepoSource(RepoId(repo), Path(dir), Glob.All)
     case r"$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
       LocalSource(Path(dir), Glob(pattern))
     case r"$dir@([^\*\{\}\[\]]*)" =>
       LocalSource(Path(dir), Glob.All)
   }
 
-  def repoId(src: Source): Option[RepoId] = src.only { case ExternalSource(repoId, _, _) => repoId }
+  def repoId(src: Source): Option[RepoId] = src.only { case RepoSource(repoId, _, _) => repoId }
 
   def rewriteLocal(source: Source, localId: Option[RepoId]): Source =
     localId.fold(source) { repoId => source match {
-      case LocalSource(dir, glob) => ExternalSource(repoId, dir, glob)
+      case LocalSource(dir, glob) => RepoSource(repoId, dir, glob)
       case source => source
     } }
 }
@@ -97,11 +97,13 @@ sealed abstract class Source extends Key(msg"source") {
   } yield lines.map(_.size).sum
 }
 
-case class ExternalSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
+case class RepoSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
   def key: String = str"${repoId}:${dir.value}//$glob"
   def completion: String = str"${repoId}:${dir.value}"
   def repoIdentifier: RepoId = repoId
-  def hash(layer: Layer, layout: Layout): Try[Digest] = layer.repo(repoId).map((dir, _).digest[Md5])
+  
+  def hash(layer: Layer, layout: Layout): Try[Digest] =
+    layer.repos.findBy(repoId).map((dir, _).digest[Md5])
   
   def base(checkouts: Checkouts, layout: Layout): Try[Path] =
     checkouts(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
