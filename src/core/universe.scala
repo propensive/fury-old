@@ -27,6 +27,7 @@ import scala.collection.immutable.TreeSet
 case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
+  def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)
 
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Checkouts] = for {
     entity <- entity(ref.projectId)

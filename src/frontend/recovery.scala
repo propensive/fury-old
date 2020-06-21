@@ -31,12 +31,12 @@ object Recovery {
       err match {
         case EarlyCompletions() =>
           Done
-        case ProjectConflict(ps/*, h1, h2*/) =>
+        case ProjectConflict(ps, left, right) =>
           val projectIds = ps.toSeq.sortBy(_.key).map { x => msg"$x" }
           val message = msg"Your dependency tree contains references to two or more conflicting projects: "
           val beginning = projectIds.tail.foldLeft(message + projectIds.head)(_ + ", " + _)
-          //val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
-          cli.abort(beginning)//+ ending)
+          val ending = msg". The first conflict was found between layers ${left} and ${right}"
+          cli.abort(msg"$beginning$ending")
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
         case WorkingDirectoryConflict(files) =>
