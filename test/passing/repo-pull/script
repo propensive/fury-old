@@ -17,7 +17,7 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t app -M HelloWorld
-fury repo add -n library -u ../library -B trunk
+fury repo add -n library -r ../library -B trunk
 fury source add -s library:src/core
 mkdir -p src/app
 echo 'object HelloWorld extends App{ val y = Constants.x; println(y) }' > src/app/HelloWorld.scala

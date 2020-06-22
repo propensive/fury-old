@@ -114,12 +114,12 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   
   lazy val resources = getModule >> (_.resources)
   
-  def resourcesLens(projectId: ProjectId, moduleId: ModuleId) =
-    Lens[Layer](_.projects(projectId).modules(moduleId).resources)
+  def resourcesLens(project: Project, module: Module) =
+    Lens[Layer](_.projects(project.id).modules(module.id).resources)
 
   def list: Try[ExitStatus] =
     (cli -< ProjectArg -< RawArg -< ModuleArg -< ColumnArg -< ResourceArg).action {
-      if(!raw) (conf, get(ProjectArg), get(ModuleArg)) >> (_.focus(_, _)) >> (log.info(_))
+      if(!raw) (conf, getProject >> (_.id), getModule >> (_.id)) >> (_.focus(_, _)) >> (log.info(_))
 
       
       resources >> (Tables().show(table, cli.cols, _, raw, column, getResource.toOption, "resource")) >>
@@ -127,7 +127,7 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
-    val lens = (get(ProjectArg), get(ModuleArg)) >> resourcesLens
+    val lens = (getProject, getModule) >> resourcesLens
 
     (resources, getResource) >> removeFromSet >>= { resources =>
       (getLayer, lens) >> Layer.set(resources) >> commit >> finish
@@ -135,7 +135,7 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
-    val lens = (get(ProjectArg), get(ModuleArg)) >> resourcesLens
+    val lens = (getProject, getModule) >> resourcesLens
     (resources, getResource) >> addToSet >>= { resources =>
       (getLayer, lens) >> Layer.set(resources) >> commit >> finish
     }
