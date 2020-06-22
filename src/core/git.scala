@@ -75,6 +75,14 @@ case class RemoteGitDir(env: Environment, remote: Remote) {
 
   def branches(): Try[List[Branch]] = GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --heads $r"
       }.map(parseRefSpec(_).map(_.name).map(Branch(_)))
+  
+  def findCommit(branch: Branch): Try[Option[Commit]] =
+    GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --heads $r"
+  }.map(parseRefSpec(_).find(_.name == branch.id).map(_.commit))
+  
+  def findCommit(tag: Tag): Try[Option[Commit]] =
+    GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --tags $r"
+  }.map(parseRefSpec(_).find(_.name == tag.id).map(_.commit))
 }
 
 case class GitDir(env: Environment, dir: Path) {
@@ -194,10 +202,8 @@ case class GitDir(env: Environment, dir: Path) {
   def cat(path: Path): Try[String] = sh"$git show HEAD:$path".exec[Try[String]]
   def cat(commit: Commit, path: Path): Try[String] = sh"$git show $commit:$path".exec[Try[String]]
   def commit: Try[Commit] = sh"$git rev-parse HEAD".exec[Try[String]].map(Commit(_))
-  def commitFromTag(tag: Tag): Try[Commit] = sh"$git rev-parse $tag".exec[Try[String]].map(Commit(_))
-  
-  def commitFromBranch(branch: Branch): Try[Commit] =
-    sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_))
+  def findCommit(tag: Tag): Try[Commit] = sh"$git rev-parse $tag".exec[Try[String]].map(Commit(_))
+  def findCommit(branch: Branch): Try[Commit] = sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_))
 
   def branchesFromCommit(commit: Commit): Try[List[Branch]] =
     sh"$git branch --contains $commit".exec[Try[String]].map { out =>
@@ -214,7 +220,7 @@ case class GitDir(env: Environment, dir: Path) {
       bs.find(_ == Branch.master).orElse(bs.headOption).ascribe(BranchNotFound(commit))
     }
 
-  def someBranchFromTag(tag: Tag): Try[Branch] = commitFromTag(tag).flatMap(someBranchFromCommit(_))
+  def someBranchFromTag(tag: Tag): Try[Branch] = findCommit(tag).flatMap(someBranchFromCommit(_))
 
   def trackedFiles: Try[List[Path]] =
     sh"$git ls-tree --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List].map(Path(_)))

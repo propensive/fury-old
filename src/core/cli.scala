@@ -324,8 +324,8 @@ abstract class CliApi {
 
   implicit def log: Log
   def cli: Cli
-
   def get(arg: CliParam): Try[arg.Type] = cli.get(arg)
+  
   lazy val getLayout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
   lazy val getLayer: Try[Layer] = conf >>= Layer.retrieve
@@ -334,7 +334,6 @@ abstract class CliApi {
   lazy val layerProjectIds: List[ProjectId] = (getLayer >> (_.projects.to[List])).getOrElse(List()).map(_.id)
   lazy val cliProject: Try[Project] = (getLayer, get(ProjectArg)) >>= (_.projects.findBy(_))
   lazy val getProject: Try[Project] = cliProject.orElse(layerProject)
-
   lazy val getRepoId: Try[RepoId] = cli.get(RepoArg)
   lazy val layerRepoIdOpt: Try[Option[RepoId]] = (getLayer >> (_.mainRepo))
 
@@ -345,9 +344,8 @@ abstract class CliApi {
   lazy val layerRepo: Try[Repo] = layerRepoOpt.flatMap(_.ascribe(MissingParam(RepoArg)))
   lazy val cliRepo: Try[Repo] = (getLayer, getRepoId) >>= (_.repos.findBy(_))
   lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
-
   lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
-
+  lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
   lazy val cliModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
   lazy val layerModuleOpt: Try[Option[Module]] = getProject >>= (_.mainModule)
   lazy val layerModule: Try[Module] = layerModuleOpt.flatMap(_.ascribe(MissingParam(ModuleArg)))
@@ -356,25 +354,15 @@ abstract class CliApi {
   lazy val getModule: Try[Module] = cliModule.orElse(layerModule)
   lazy val raw: Boolean = cli.get(RawArg).isSuccess
   lazy val column: Option[String] = cli.peek(ColumnArg)
-
-  lazy val branches: Try[List[Branch]] = getGitDir >>= (_.branches)
-  lazy val tags: Try[List[Tag]] = getGitDir >>= (_.tags)
-
-  lazy val path: Try[Path] = cli.get(PathArg)
-  lazy val absPath: Try[Path] = (path, getLayout) >> (_ in _.pwd)
-
-  lazy val getTag: Try[Tag] = cli.get(TagArg)
-  lazy val getRemote: Try[Remote] = cli.get(RemoteArg)
-
-  lazy val branchCommit: Try[Commit] = (getGitDir, get(BranchArg)) >>= (_.commitFromBranch(_))
-  lazy val tagCommit: Try[Commit] = (getGitDir, get(TagArg)) >>= (_.commitFromTag(_))
-
+  lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)
+  lazy val tags: Try[List[Tag]] = remoteGitDir >>= (_.tags)
+  lazy val absPath: Try[Path] = (get(PathArg), getLayout) >> (_ in _.pwd)
+  lazy val branchCommit: Try[Commit] = (getGitDir, get(BranchArg)) >>= (_.findCommit(_))
+  lazy val tagCommit: Try[Commit] = (getGitDir, get(TagArg)) >>= (_.findCommit(_))
   lazy val cliCommit: Try[Commit] = branchCommit.orElse(tagCommit)
-
   lazy val getResource: Try[Source] = cli.get(ResourceArg)
 
   def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
-
   def finish[T](value: T): ExitStatus = log.await()
 
   lazy val gitDestPath: Try[GitDir] = for {

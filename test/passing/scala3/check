@@ -4,6 +4,7 @@ Set current module to compiler
 Set current project to hello-world
 Setting default compiler for hello-world to scala3/compiler
 Set current module to app
+Attempting to run Scala 3 compiler twice to work around race condition in Bloop
 Starting the BSP launcher...
 Opening a BSP server connection
 BSP server is listening for incoming connections
