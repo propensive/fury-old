@@ -119,7 +119,7 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   def list: Try[ExitStatus] =
     (cli -< ProjectArg -< RawArg -< ModuleArg -< ColumnArg -< ResourceArg).action {
-      if(!raw) (conf, getProjectId, getModuleId) >> (_.focus(_, _)) >> (log.info(_))
+      if(!raw) (conf, get(ProjectArg), get(ModuleArg)) >> (_.focus(_, _)) >> (log.info(_))
 
       
       resources >> (Tables().show(table, cli.cols, _, raw, column, getResource.toOption, "resource")) >>
@@ -127,7 +127,7 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
-    val lens = (getProjectId, getModuleId) >> resourcesLens
+    val lens = (get(ProjectArg), get(ModuleArg)) >> resourcesLens
 
     (resources, getResource) >> removeFromSet >>= { resources =>
       (getLayer, lens) >> Layer.set(resources) >> commit >> finish
@@ -135,7 +135,7 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
-    val lens = (getProjectId, getModuleId) >> resourcesLens
+    val lens = (get(ProjectArg), get(ModuleArg)) >> resourcesLens
     (resources, getResource) >> addToSet >>= { resources =>
       (getLayer, lens) >> Layer.set(resources) >> commit >> finish
     }
