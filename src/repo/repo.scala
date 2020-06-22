@@ -116,11 +116,11 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     repo    <- getRepo
 
     gitDir  <- {
-                for {
-                  _ <- Try(absPath.mkdir())
-                  _ <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
-                } yield GitDir(absPath)(layout.env)
-              }.orElse(Failure(exoskeleton.InvalidArgValue("dir", absPath.value)))
+                 for {
+                   _ <- Try(absPath.mkdir())
+                   _ <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
+                 } yield GitDir(absPath)(layout.env)
+               }.orElse(Failure(exoskeleton.InvalidArgValue("dir", absPath.value)))
 
     bareRepo <- getGitDir
 

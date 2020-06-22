@@ -326,6 +326,7 @@ abstract class CliApi {
   def cli: Cli
   def get(arg: CliParam): Try[arg.Type] = cli.get(arg)
   def opt(arg: CliParam): Option[arg.Type] = cli.get(arg).toOption
+  def has(arg: CliParam): Boolean = cli.get(arg).toOption.isDefined
   
   lazy val getLayout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
@@ -336,6 +337,9 @@ abstract class CliApi {
   lazy val cliProject: Try[Project] = (getLayer, get(ProjectArg)) >>= (_.projects.findBy(_))
   lazy val getProject: Try[Project] = cliProject.orElse(layerProject)
   lazy val layerRepoIdOpt: Try[Option[RepoId]] = (getLayer >> (_.mainRepo))
+  lazy val hierarchy: Try[Hierarchy] = getLayer >>= (_.hierarchy()(log))
+  lazy val universe: Try[Universe] = hierarchy >>= (_.universe)
+
 
   lazy val layerRepoOpt: Try[Option[Repo]] = (getLayer, layerRepoIdOpt) >>= { (layer, repoIdOpt) =>
     repoIdOpt.map(layer.repos.findBy(_)).sequence
@@ -379,6 +383,7 @@ abstract class CliApi {
   def cols: Int = Terminal.columns(cli.env).getOrElse(100)
 
   implicit lazy val rawHints: RawArg.Hinter = RawArg.hint()
+  implicit lazy val forceHints: ForceArg.Hinter = ForceArg.hint()
   implicit lazy val projectHints: ProjectArg.Hinter = ProjectArg.hint(layerProjectIds: _*)
   implicit lazy val moduleHints: ModuleArg.Hinter = ModuleArg.hint(projectModuleIds: _*)
   implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
@@ -388,6 +393,13 @@ abstract class CliApi {
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
   implicit lazy val grabHints: GrabArg.Hinter = GrabArg.hint()
   implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
+  implicit lazy val licenseHints: LicenseArg.Hinter = LicenseArg.hint(License.standardLicenses.map(_.id))
+  
+  implicit lazy val defaultCompilerHints: DefaultCompilerArg.Hinter =
+    DefaultCompilerArg.hint((getLayer, getLayout) >> (Javac(8) :: _.compilerRefs(_).map(BspCompiler(_))))
+  
+  implicit lazy val projectNameHints: ProjectNameArg.Hinter =
+    ProjectNameArg.hint(getLayout >> (_.baseDir.name) >> (ProjectId(_)) >> (List(_)))
   
   implicit lazy val repoUrl: RemoteArg.Hinter =
     RemoteArg.hint(GitHub.repos(cli.peek(UnparsedRemoteArg)).map(_.map(Remote(_))))

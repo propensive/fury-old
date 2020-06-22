@@ -753,14 +753,11 @@ object Dependency {
 case class Dependency(ref: ModuleRef) {
   def intransitive = ref.intransitive
   def hidden = ref.hidden
-
   def hide = copy(ref = ref.copy(hidden = true))
 }
 
 case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) extends Key(msg"ref") {
-
   def key: String = id
-
   def projectId: ProjectId = ProjectId(id.split("/")(0))
   def moduleId: ModuleId = ModuleId(id.split("/")(1))
   def urlSafe: String = str"${projectId}_${moduleId}"
