@@ -100,35 +100,6 @@ case class GitDir(env: Environment, dir: Path) {
 
   def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_))
 
-  def writePrePushHook()(implicit log: Log): Try[Unit] = for {
-    file <- Try((if((dir / ".git").exists()) dir / ".git" else dir) / "hooks" / "pre-push")
-    _    <- ~log.info("Adding Git pre-push hook to offer to share layer before push")
-    _    <- file.writeSync(
-              """|#!/bin/sh
-                 |remote="$1"
-                 |url="$2"
-                 |ask() {
-                 |  printf 'You are pushing a commit containing a new layer.\n'
-                 |  printf 'Would you like to share the layer publicly [Yn]? '
-                 |  exec < /dev/tty
-                 |  read answer
-                 |  exec <^- 2> /dev/null
-                 |  case $answer in
-                 |    ''|yes|YES|Yes|Y|y) return 0 ;;
-                 |    *                 ) return 1 ;;
-                 |  esac
-                 |}
-                 |while read local_ref local_sha remote_ref remote_sha
-                 |do
-                 |  git --no-pager diff --name-only $local_ref..$remote_ref -- .fury.conf && \
-                 |      ask && fury layer share
-                 |done
-                 |exit 0
-                 |""".stripMargin
-            )
-    _    <- file.setExecutable(true)
-  } yield ()
-
   def diffShortStat(other: Option[Commit] = None): Try[Option[DiffStat]] = { other match {
     case None =>
       sh"git --work-tree $dir -C ${dir / ".git"} diff --shortstat"

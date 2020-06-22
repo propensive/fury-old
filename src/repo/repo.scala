@@ -43,7 +43,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     (cli -< RawArg -< ColumnArg -< RepoArg).action { for {
       table <- getTable
       rows  <- getLayer >> (_.repos)
-      _      = printTable(table, rows, getRepoId.toOption, "repo")
+      _      = printTable(table, rows, get(RepoArg).toOption, "repo")
     } yield log.await() }
   }
   
@@ -63,23 +63,20 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   def checkin: Try[ExitStatus] = (cli -< RepoNameArg).action {
     for {
-      layout    <- getLayout
-      repo      <- get(RepoNameArg) >>= (Repo.checkin(layout, _))
-      newLayer  <- getLayer >> (Layer(_.repos).modify(_)(_ + repo))
-      newLayer  <- ~newLayer.copy(mainRepo = None)
-      newLayer  <- ~newLayer.checkinSources(repo.id)
-      _         <- conf >>= (Layer.commit(newLayer, _, layout))
+      layout <- getLayout
+      repo   <- get(RepoNameArg) >>= (Repo.checkin(layout, _))
+      layer  <- getLayer >> (Layer(_.repos).modify(_)(_ + repo))
+      layer  <- ~layer.copy(mainRepo = None).checkinSources(repo.id)
+      _      <- commit(layer)
     } yield log.await()
   }
 
-  def checkout: Try[ExitStatus] = for {
+  def checkout: Try[ExitStatus] = (cli -< RepoArg -< GrabArg).action { for {
     layout    <- getLayout
     layer     <- getLayer
-    cli       <- cli.hint(RepoArg, layer.repos.map(_.id))
-    cli       <- cli.hint(GrabArg)
     call      <- cli.call()
-    layer     <- if(call(GrabArg).isSuccess) ~layer else for {
-                   repoId <- call(RepoArg)
+    layer     <- if(get(GrabArg).isSuccess) ~layer else for {
+                   repoId <- get(RepoArg)
  
                    _      <- if((layout.baseDir / ".git").exists()) Failure(AlreadyCheckedOut(repoId))
                              else Success(())
@@ -89,7 +86,6 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
                    _      <- gitDir.clone(repo.remote, branch = repo.branch, commit = repo.commit)
  
                    _      <- (gitDir.dir.childPaths.flatMap { f =>
-                               log.info(f.toString)
                                if((f.parent.parent / f.name).exists()) List(Path(f.name)) else Nil
                              }).filterNot(_ == Path(".fury")) match {
                                case Nil => Success(())
@@ -102,44 +98,39 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
                    layer  <- ~(Layer(_.repos).modify(layer)(_ - repo))
                  } yield layer
     gitDir   <- ~GitDir(layout.baseDir)(cli.env)
-    _        <- gitDir.writePrePushHook()
-    layer    <- ~layer.copy(mainRepo = Some(call(RepoArg).getOrElse(RepoId(layout))))
+    layer    <- ~layer.copy(mainRepo = Some(get(RepoArg).getOrElse(RepoId(layout))))
     _        <- commit(layer)
-  } yield log.await()
+  } yield log.await() }
   
-  def unfork: Try[ExitStatus] = (cli -< RepoArg).action {
-    for {
-      repo      <- getRepo
-      _         <- repo.isForked()
-      newRepo   <- getLayout >>= (repo.unfork(_))
-      layer     <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
-      _         <- commit(layer)
-    } yield log.await()
-  }
+  def unfork: Try[ExitStatus] = (cli -< RepoArg).action { for {
+    repo      <- getRepo
+    _         <- repo.isForked()
+    newRepo   <- getLayout >>= (repo.unfork(_))
+    layer     <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
+    _         <- commit(layer)
+  } yield log.await() }
 
-  def fork: Try[ExitStatus] = (cli -< PathArg -< ProjectArg -< RepoArg).action {
-    for {
-      absPath <- absPath
-      layout  <- getLayout
-      repo    <- getRepo
+  def fork: Try[ExitStatus] = (cli -< PathArg -< ProjectArg -< RepoArg).action { for {
+    absPath <- absPath
+    layout  <- getLayout
+    repo    <- getRepo
 
-      gitDir  <- {
-                  for {
-                    _ <- Try(absPath.mkdir())
-                    _ <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
-                  } yield GitDir(absPath)(layout.env)
-                }.orElse(Failure(exoskeleton.InvalidArgValue("dir", absPath.value)))
+    gitDir  <- {
+                for {
+                  _ <- Try(absPath.mkdir())
+                  _ <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty dir exists"))
+                } yield GitDir(absPath)(layout.env)
+              }.orElse(Failure(exoskeleton.InvalidArgValue("dir", absPath.value)))
 
-      bareRepo <- getGitDir
+    bareRepo <- getGitDir
 
-      _       <- ~gitDir.sparseCheckout(bareRepo.dir, List(), branch = repo.branch, commit = repo.commit,
-                    Some(repo.remote))
+    _       <- ~gitDir.sparseCheckout(bareRepo.dir, List(), branch = repo.branch, commit = repo.commit,
+                  Some(repo.remote))
 
-      newRepo <- ~repo.copy(local = Some(gitDir.dir))
-      layer   <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
-      _       <- commit(layer)
-    } yield log.await()
-  }
+    newRepo <- ~repo.copy(local = Some(gitDir.dir))
+    layer   <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
+    _       <- commit(layer)
+  } yield log.await() }
 
   def pull: Try[ExitStatus] = for {
     layout    <- cli.layout
@@ -191,54 +182,31 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   } yield log.await()
 
-  def add: Try[ExitStatus] = {
-    (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg).action {
-    for {
-      layout         <- cli.layout
-      conf           <- Layer.readFuryConf(layout)
-      layer          <- Layer.retrieve(conf)
-      cli            <- cli.hint(RemoteArg, GitHub.repos(cli.peek(UnparsedRemoteArg)).getOrElse(Nil))
-      cli            <- cli.hint(PathArg)
-      projectNameOpt <- ~cli.peek(RemoteArg).flatMap(_.projectName.toOption)
-      cli            <- cli.hint(RepoNameArg, projectNameOpt)
-      optRepo        <- ~cli.peek(RemoteArg)
-      optGitDir      <- ~optRepo.map(RemoteGitDir(cli.env, _))
-      tags           <- ~optGitDir.map(_.tags().getOrElse(Nil)).getOrElse(Nil)
-      branches       <- ~optGitDir.map(_.branches().getOrElse(Nil)).getOrElse(Nil)
-      cli            <- cli.hint(BranchArg, branches)
-      cli            <- cli.hint(TagArg, tags)
-      call           <- cli.call()
-      dir            <- ~call(PathArg).toOption
-      branchTag      <- call.atMostOne(BranchArg, TagArg).map(_.getOrElse(Left(Branch.master)))
-      repo           <- call(RemoteArg)
-      gitDir         <- ~RemoteGitDir(cli.env, repo)
-      suggested      <- repo.projectName
-      gitDir         <- repo.fetch(layout)
-      commit         <- branchTag.fold(gitDir.findCommit(_), gitDir.findCommit(_))
-      branch         <- branchTag.fold(Success(_), gitDir.someBranchFromTag(_))
-      nameArg        <- ~call(RepoNameArg).getOrElse(suggested)
-      _              <- layer.repos.unique(nameArg)
-      repo           <- ~Repo(nameArg, repo, branch, commit, dir)
-      layer          <- ~Layer(_.repos).modify(layer)(_ + repo)
-      _              <- Layer.commit(layer, conf, layout)
-    } yield log.await()
-    }
-  }
+  def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
+    layer     <- getLayer
+    gitDir    <- getGitDir
+    refSpec   <- refSpec
+    gitCommit <- refSpec.fold(gitDir.findCommit(_), gitDir.findCommit(_))
+    branch    <- refSpec.fold(Success(_), gitDir.someBranchFromTag(_))
+    repo      <- (uniqueRepoName, get(RemoteArg), get(PathArg) >> (Some(_))) >> (Repo(_, _, branch, gitCommit, _))
+    layer     <- ~Layer(_.repos).modify(layer)(_ + repo)
+    _         <- commit(layer)
+  } yield log.await() }
 
   def update: Try[ExitStatus] =
-    (cli -< PathArg -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action {
-      for {
-        layer  <- getLayer
-        //branchTag <- call.atMostOne(BranchArg, TagArg).map(_.getOrElse(Left(Branch.master)))
-        repo  <- getRepo
-        layer <- ~cliCommit.toOption.fold(layer)(Layer(_.repos(repo.id).commit)(layer) = _)
-        layer <- ~get(RepoNameArg).toOption.fold(layer)(Layer(_.repos(repo.id).id)(layer) = _)
-        layer <- ~get(RemoteArg).toOption.fold(layer)(Layer(_.repos(repo.id).remote)(layer) = _)
-        layer <- ~get(BranchArg).toOption.fold(layer)(Layer(_.repos(repo.id).branch)(layer) = _)
-        layer <- ~get(PathArg).toOption.fold(layer) { path => Layer(_.repos(repo.id).local)(layer) = Some(path) }
-        _     <- commit(layer)
-      } yield log.await()
-    }
+    (cli -< PathArg -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
+      layer     <- getLayer
+      repo      <- getRepo
+      gitDir    <- getGitDir
+      refSpec   <- refSpec
+      gitCommit <- refSpec.fold(gitDir.findCommit(_), gitDir.findCommit(_))
+      layer     <- ~cliCommit.toOption.fold(layer)(Layer(_.repos(repo.id).commit)(layer) = _)
+      layer     <- ~opt(RepoNameArg).fold(layer)(Layer(_.repos(repo.id).id)(layer) = _)
+      layer     <- ~opt(RemoteArg).fold(layer)(Layer(_.repos(repo.id).remote)(layer) = _)
+      layer     <- ~opt(BranchArg).fold(layer)(Layer(_.repos(repo.id).branch)(layer) = _)
+      layer     <- ~opt(PathArg).fold(layer) { path => Layer(_.repos(repo.id).local)(layer) = Some(path) }
+      _         <- commit(layer)
+    } yield log.await() }
 
   def remove: Try[ExitStatus] = (cli -< RepoArg).action { for {
     repo     <- getRepo

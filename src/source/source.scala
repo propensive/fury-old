@@ -122,21 +122,21 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
       if(!raw) (conf, getProject >> (_.id), getModule >> (_.id)) >> (_.focus(_, _)) >> (log.info(_))
 
       
-      resources >> (Tables().show(table, cli.cols, _, raw, column, getResource.toOption, "resource")) >>
+      resources >> (Tables().show(table, cli.cols, _, raw, column, get(ResourceArg).toOption, "resource")) >>
           (log.rawln(_)) >> { x => log.await() }
     }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
     val lens = (getProject, getModule) >> resourcesLens
 
-    (resources, getResource) >> removeFromSet >>= { resources =>
+    (resources, get(ResourceArg)) >> removeFromSet >>= { resources =>
       (getLayer, lens) >> Layer.set(resources) >> commit >> finish
     }
   }
 
   def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
     val lens = (getProject, getModule) >> resourcesLens
-    (resources, getResource) >> addToSet >>= { resources =>
+    (resources, get(ResourceArg)) >> addToSet >>= { resources =>
       (getLayer, lens) >> Layer.set(resources) >> commit >> finish
     }
   }
