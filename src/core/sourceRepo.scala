@@ -67,8 +67,8 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
   def branch(layout: Layout)(implicit log: Log): Branch =
     localDir(layout).flatMap(_.branch.toOption).getOrElse(branch)
 
-  def fullCheckout(layout: Layout)(implicit log: Log): Checkout =
-    Checkout(id, remote, localDir(layout), commit, branch, List())
+  def fullCheckout(layout: Layout)(implicit log: Log): Snapshot =
+    Snapshot(id, remote, localDir(layout), commit, branch, List())
 
   def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env))
 

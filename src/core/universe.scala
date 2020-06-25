@@ -29,7 +29,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
   def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)
 
-  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Checkouts] = for {
+  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
 
@@ -37,9 +37,12 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
                 case (k, v) => entity.layers.head._2.repos.findBy(k).map(_ -> v)
               }.sequence
 
-  } yield Checkouts(repos.map { case (repo, paths) =>
-    Checkout(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths.map(_.dir).to[List])
-  }.to[Set])
+  } yield Snapshots(repos.map { case (repo, paths) =>
+    val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch,
+        paths.map(_.dir).to[List])
+    
+    snapshot.hash -> snapshot
+  }.toMap)
 
   def ++(that: Universe): Universe = Universe {
     that.entities.foldLeft(entities) { case (entities, (id, entity)) =>

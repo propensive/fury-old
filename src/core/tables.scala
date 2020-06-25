@@ -124,13 +124,13 @@ case class Tables() {
     Heading("Intransitive", _.intransitive)
   )
 
-  def sources(checkouts: Checkouts, layout: Layout): Tabulation[Source] = Tabulation(
+  def sources(snapshots: Snapshots, layout: Layout): Tabulation[Source] = Tabulation(
     Heading("Repo", _.repoIdentifier),
     Heading("Path", _.dir),
     Heading("Sources", _.glob),
-    Heading("Files", _.fileCount(checkouts, layout).getOrElse(0)),
-    Heading("Size", _.totalSize(checkouts, layout).getOrElse(ByteSize(0))),
-    Heading("Lines", _.linesOfCode(checkouts, layout).getOrElse(0))
+    Heading("Files", _.fileCount(snapshots, layout).getOrElse(0)),
+    Heading("Size", _.totalSize(snapshots, layout).getOrElse(ByteSize(0))),
+    Heading("Lines", _.linesOfCode(snapshots, layout).getOrElse(0))
   )
 
   val resources: Tabulation[Source] = Tabulation(
@@ -209,5 +209,13 @@ case class Tables() {
     Heading("Commit", _.commit),
     Heading("Path", _.local),
     Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout).toOption.flatten)
+  )
+
+  val snapshots: Tabulation[Snapshot] = Tabulation(
+    Heading("ID", _.hash),
+    Heading("Remote", _.remote),
+    //Heading("Local", _.local),
+    Heading("Commit", _.commit),
+    Heading("Branch", _.branch)
   )
 }

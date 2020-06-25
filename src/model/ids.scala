@@ -756,6 +756,14 @@ case class Dependency(ref: ModuleRef) {
   def hide = copy(ref = ref.copy(hidden = true))
 }
 
+object SnapshotHash {
+  implicit val msgShow: MsgShow[SnapshotHash] = sh => UserMsg(_.repo(sh.hash.encoded[Base64].take(4)))
+}
+
+case class SnapshotHash(hash: Digest) extends Key(msg"snapshot") {
+  def key: String = hash.encoded[Base64]
+}
+
 case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) extends Key(msg"ref") {
   def key: String = id
   def projectId: ProjectId = ProjectId(id.split("/")(0))

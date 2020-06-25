@@ -43,7 +43,7 @@ object Target {
 case class Target(ref: ModuleRef,
                   module: Module,
                   entity: Entity,
-                  checkouts: Checkouts,
+                  snapshots: Snapshots,
                   sourcePaths: List[Path],
                   binaries: List[Path]) {
   lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap

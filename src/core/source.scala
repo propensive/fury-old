@@ -72,27 +72,27 @@ sealed abstract class Source extends Key(msg"source") {
   def glob: Glob
   def repoIdentifier: RepoId
 
-  def base(checkouts: Checkouts, layout: Layout): Try[Path]
-  def dir(checkouts: Checkouts, layout: Layout): Try[Path] = base(checkouts, layout).map(dir in _)
+  def base(snapshots: Snapshots, layout: Layout): Try[Path]
+  def dir(snapshots: Snapshots, layout: Layout): Try[Path] = base(snapshots, layout).map(dir in _)
   
-  def files(checkouts: Checkouts, layout: Layout): Try[Stream[Path]] =
-    dir(checkouts, layout).map { dir => glob(dir, dir.walkTree) }
+  def files(snapshots: Snapshots, layout: Layout): Try[Stream[Path]] =
+    dir(snapshots, layout).map { dir => glob(dir, dir.walkTree) }
   
-  def copyTo(checkouts: Checkouts, layout: Layout, destination: Path)(implicit log: Log): Try[Unit] = for {
-    baseDir  <- dir(checkouts, layout)
-    allFiles <- files(checkouts, layout)
+  def copyTo(snapshots: Snapshots, layout: Layout, destination: Path)(implicit log: Log): Try[Unit] = for {
+    baseDir  <- dir(snapshots, layout)
+    allFiles <- files(snapshots, layout)
     _        <- allFiles.to[List].map { f =>
                   f.relativizeTo(baseDir).in(destination).mkParents().map(f.copyTo(_))
                 }.sequence
   } yield ()
 
-  def fileCount(checkouts: Checkouts, layout: Layout): Try[Int] = files(checkouts, layout).map(_.length)
+  def fileCount(snapshots: Snapshots, layout: Layout): Try[Int] = files(snapshots, layout).map(_.length)
 
-  def totalSize(checkouts: Checkouts, layout: Layout): Try[ByteSize] =
-    files(checkouts, layout).map(_.map(_.size).reduce(_ + _))
+  def totalSize(snapshots: Snapshots, layout: Layout): Try[ByteSize] =
+    files(snapshots, layout).map(_.map(_.size).reduce(_ + _))
 
-  def linesOfCode(checkouts: Checkouts, layout: Layout): Try[Int] = for {
-    pathStream <- files(checkouts, layout)
+  def linesOfCode(snapshots: Snapshots, layout: Layout): Try[Int] = for {
+    pathStream <- files(snapshots, layout)
     lines      <- pathStream.traverse(_.lines)
   } yield lines.map(_.size).sum
 }
@@ -102,8 +102,8 @@ case class RepoSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
   def completion: String = str"${repoId}:${dir.value}"
   def repoIdentifier: RepoId = repoId
   def hash(layer: Layer): Try[Digest] = layer.repos.findBy(repoId).map((dir, _).digest[Md5])
-  def base(checkouts: Checkouts, layout: Layout): Try[Path] =
-    checkouts(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
+  def base(snapshots: Snapshots, layout: Layout): Try[Path] =
+    snapshots(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
 }
 
 case class LocalSource(dir: Path, glob: Glob) extends Source {
@@ -111,6 +111,6 @@ case class LocalSource(dir: Path, glob: Glob) extends Source {
   def completion: String = dir.value
   def hash(layer: Layer): Try[Digest] = Success((-1, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("local")
-  def base(checkouts: Checkouts, layout: Layout): Try[Path] = Success(layout.baseDir)
+  def base(snapshots: Snapshots, layout: Layout): Try[Path] = Success(layout.baseDir)
 }
 

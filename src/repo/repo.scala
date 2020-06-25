@@ -43,7 +43,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     (cli -< RawArg -< ColumnArg -< RepoArg).action { for {
       table <- getTable
       rows  <- getLayer >> (_.repos)
-      _      = printTable(table, rows, get(RepoArg).toOption, "repo")
+      _      = printTable(table, rows, opt(RepoArg), "repo")
     } yield log.await() }
   }
   
@@ -102,13 +102,15 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     _        <- commit(layer)
   } yield log.await() }
   
-  def unfork: Try[ExitStatus] = (cli -< RepoArg).action { for {
-    repo      <- getRepo
-    _         <- repo.isForked()
-    newRepo   <- getLayout >>= (repo.unfork(_))
-    layer     <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
-    _         <- commit(layer)
-  } yield log.await() }
+  def unfork: Try[ExitStatus] = (cli -< RepoArg).action {
+    for {
+      repo      <- getRepo
+      _         <- repo.isForked()
+      newRepo   <- getLayout >>= (repo.unfork(_))
+      layer     <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
+      _         <- commit(layer)
+    } yield log.await()
+  }
 
   def fork: Try[ExitStatus] = (cli -< PathArg -< ProjectArg -< RepoArg).action { for {
     absPath <- absPath
@@ -154,7 +156,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     _         <- call.atMostOne(TagArg, AllArg)
     _         <- call.atMostOne(CommitArg, AllArg)
     gitDir    <- tryDir
-    commit    <- ~tagCommit.map(_.fold(gitDir.findCommit(_), Success(_)).toOption)
+    gitCommit <- ~tagCommit.map(_.fold(gitDir.findCommit(_), Success(_)).toOption)
     
     optRepos  <- call(RepoArg).toOption.map(SortedSet(_)).orElse(all.map(_ =>
                       layer.repos.map(_.id))).ascribe(MissingParam(RepoArg))
@@ -165,7 +167,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     newRepos  <- repos.traverse { repo => for {
                    gitDir <- ~repo.remote.gitDir(layout)
                    
-                   commit <- commit.flatten.ascribe(CannotUpdateRepo(repo.id)).orElse(
+                   commit <- gitCommit.flatten.ascribe(CannotUpdateRepo(repo.id)).orElse(
                                  gitDir.findCommit(repo.branch))
 
                  } yield (repo.copy(commit = commit), repo) }
@@ -174,7 +176,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
                    case (newRepo, oldRepo) => Layer(_.repos).modify(layer)(_ - oldRepo + newRepo) }
                  }
 
-    _         <- Layer.commit(newLayer, conf, layout)
+    _         <- commit(newLayer)
 
     _         <- ~newRepos.foreach { case (newRepo, _) =>
                     log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
@@ -183,14 +185,12 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await()
 
   def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
-    layer     <- getLayer
     gitDir    <- getGitDir
     refSpec   <- refSpec
-    gitCommit <- refSpec.fold(gitDir.findCommit(_), gitDir.findCommit(_))
+    gitCommit <- cliCommit
     branch    <- refSpec.fold(Success(_), gitDir.someBranchFromTag(_))
     repo      <- (uniqueRepoName, get(RemoteArg), get(PathArg) >> (Some(_))) >> (Repo(_, _, branch, gitCommit, _))
-    layer     <- ~Layer(_.repos).modify(layer)(_ + repo)
-    _         <- commit(layer)
+    _         <- getLayer >> (Layer(_.repos).modify(_)(_ + repo)) >> commit
   } yield log.await() }
 
   def update: Try[ExitStatus] =

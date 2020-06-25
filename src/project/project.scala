@@ -34,22 +34,22 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
   implicit lazy val columnHints: ColumnArg.Hinter =
     ColumnArg.hint(getTable.map(_.headings.map(_.name.toLowerCase)))
 
-  def select: Try[ExitStatus] = (cli -< ProjectArg -< ForceArg).action {
+  def select: Try[ExitStatus] = (cli -< ProjectArg).action {
     (getLayer, getProject >> (_.id) >> (Some(_))) >> (Layer(_.main)(_) = _) >> commit >> finish
   }
 
   def list: Try[ExitStatus] = (cli -< ProjectArg -< RawArg -< ColumnArg).action { for {
     col     <- ~cli.peek(ColumnArg)
     rows    <- universe >> (_.entities.values)
-    project <- ~getProject.toOption
+    project <- ~cliProject.toOption
     table   <- getTable >> (Tables().show(_, cli.cols, rows, has(RawArg), col, project >> (_.id), "project"))
     _       <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
     _       <- ~log.rawln(table)
   } yield log.await() }
 
   def add: Try[ExitStatus] = (cli -< ProjectNameArg -< LicenseArg -< DefaultCompilerArg).action { for {
-    project <- (getProject >> (_.id), get(LicenseArg)) >>
-                   (Project(_, TreeSet(), None, _, "", opt(DefaultCompilerArg)))
+    project <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, opt(LicenseArg).getOrElse(License.unknown),
+                   "", opt(DefaultCompilerArg)))
     
     layer   <- getLayer >>
                    (Layer(_.projects).modify(_)(_ + project)) >>
@@ -98,3 +98,15 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     _              <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }
+
+/*case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApp {
+  import Args._
+
+  lazy val getTable = 
+
+  def repos: Try[ExitStatus] = (cli).action {
+    for {
+
+    } yield log.await()
+  }
+}*/

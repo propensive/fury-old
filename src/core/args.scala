@@ -125,7 +125,7 @@ object Args {
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
-  val RemoteArg = CliParam[Remote]('r', 'remote, "specify a remote URL")
+  val RemoteArg = CliParam[Remote]('R', 'remote, "specify a remote URL")
   val UnparsedRemoteArg = CliParam[String]('r', 'url, "specify a remote URL")
   val KindArg = CliParam[Kind.Id]('t', 'type, "Type of module (lib, app, plugin, compiler, bench)")
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")

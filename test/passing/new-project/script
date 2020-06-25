@@ -1,0 +1,3 @@
+fury layer init
+fury project add -n foo
+fury project list --raw

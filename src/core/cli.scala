@@ -182,6 +182,15 @@ class Cli(val stdout: java.io.PrintWriter,
     }
   }
 
+  def atMostOne(param1: CliParam, param2: CliParam)
+                (implicit ev: Hinted <:< param1.type with param2.type)
+                : Try[Option[Either[param1.Type, param2.Type]]] = {
+    val left = args.get(param1.param).toOption
+    val right = args.get(param2.param).toOption
+    if(left.isDefined && right.isDefined) Failure(BadParams(param1, param2))
+    else Success(left.map(Left(_)).orElse(right.map(Right(_))))
+  }
+  
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
   private lazy val logStyle: LogStyle = LogStyle(stdout, debug = false)
@@ -340,11 +349,10 @@ abstract class CliApi {
   lazy val hierarchy: Try[Hierarchy] = getLayer >>= (_.hierarchy()(log))
   lazy val universe: Try[Universe] = hierarchy >>= (_.universe)
 
+  def layerRepo(layer: Layer, repoIdOpt: Option[RepoId]): Try[Option[Repo]] =
+    repoIdOpt.traverse(layer.repos.findBy(_))
 
-  lazy val layerRepoOpt: Try[Option[Repo]] = (getLayer, layerRepoIdOpt) >>= { (layer, repoIdOpt) =>
-    repoIdOpt.map(layer.repos.findBy(_)).sequence
-  }
-
+  lazy val layerRepoOpt: Try[Option[Repo]] = (getLayer, layerRepoIdOpt) >>= layerRepo
   lazy val layerRepo: Try[Repo] = layerRepoOpt.flatMap(_.ascribe(MissingParam(RepoArg)))
   lazy val cliRepo: Try[Repo] = (getLayer, get(RepoArg)) >>= (_.repos.findBy(_))
   lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
