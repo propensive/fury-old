@@ -912,7 +912,6 @@ object Branch {
   implicit val msgShow: MsgShow[Branch] = v => UserMsg(_.version(v.id))
   implicit val stringShow: StringShow[Branch] = _.id
   implicit val parser: Parser[Branch] = unapply(_)
-  val master: Branch = Branch("master")
   def unapply(value: String): Option[Branch] = Some(Branch(value))
 }
 

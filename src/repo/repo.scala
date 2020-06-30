@@ -185,10 +185,10 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await()
 
   def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
-    gitDir    <- getGitDir
-    refSpec   <- refSpec
+    refSpec   <- getRefSpec
     gitCommit <- cliCommit
-    branch    <- refSpec.fold(Success(_), gitDir.someBranchFromTag(_))
+    remoteDir <- getRemoteDir
+    branch    <- refSpec.fold(Success(_), remoteDir.someBranchFromTag(_))
     repo      <- (uniqueRepoName, get(RemoteArg), get(PathArg) >> (Some(_))) >> (Repo(_, _, branch, gitCommit, _))
     _         <- getLayer >> (Layer(_.repos).modify(_)(_ + repo)) >> commit
   } yield log.await() }
@@ -198,7 +198,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
       layer     <- getLayer
       repo      <- getRepo
       gitDir    <- getGitDir
-      refSpec   <- refSpec
+      refSpec   <- getRefSpec
       gitCommit <- refSpec.fold(gitDir.findCommit(_), gitDir.findCommit(_))
       layer     <- ~cliCommit.toOption.fold(layer)(Layer(_.repos(repo.id).commit)(layer) = _)
       layer     <- ~opt(RepoNameArg).fold(layer)(Layer(_.repos(repo.id).id)(layer) = _)

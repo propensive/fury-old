@@ -187,9 +187,7 @@ case class GitDir(env: Environment, dir: Path) {
     }
 
   def someBranchFromCommit(commit: Commit): Try[Branch] =
-    branchesFromCommit(commit).flatMap { bs =>
-      bs.find(_ == Branch.master).orElse(bs.headOption).ascribe(BranchNotFound(commit))
-    }
+    branchesFromCommit(commit).flatMap(_.headOption.ascribe(BranchNotFound(commit)))
 
   def someBranchFromTag(tag: Tag): Try[Branch] = findCommit(tag).flatMap(someBranchFromCommit(_))
 

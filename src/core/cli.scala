@@ -357,6 +357,9 @@ abstract class CliApi {
   lazy val cliRepo: Try[Repo] = (getLayer, get(RepoArg)) >>= (_.repos.findBy(_))
   lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
   lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
+  
+  lazy val getRemoteDir = (get(RemoteArg), getLayout) >>= (_.fetch(_))
+  
   lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
   lazy val cliModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
   lazy val layerModuleOpt: Try[Option[Module]] = getProject >>= (_.mainModule)
@@ -371,7 +374,7 @@ abstract class CliApi {
   lazy val absPath: Try[Path] = (get(PathArg), getLayout) >> (_ in _.pwd)
   lazy val branchCommit: Try[Option[Commit]] = (remoteGitDir, get(BranchArg)) >>= (_.findCommit(_))
   lazy val tagCommit: Try[Option[Commit]] = (remoteGitDir, get(TagArg)) >>= (_.findCommit(_))
-  lazy val refSpec: Try[Either[Branch, Tag]] = get(BranchArg).map(Left(_)).orElse(get(TagArg).map(Right(_)))
+  lazy val getRefSpec: Try[Either[Branch, Tag]] = get(BranchArg).map(Left(_)).orElse(get(TagArg).map(Right(_)))
   lazy val newRepoName: Try[RepoId] = get(RemoteArg) >> (_.projectName) >>= (get(RepoNameArg).orElse(_))
   lazy val uniqueRepoName: Try[RepoId] = (getLayer, newRepoName) >>= (_.repos.unique(_))
 
