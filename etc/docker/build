@@ -12,7 +12,7 @@ ENV GRAAL_HOME "/opt/graalvm-ce-${GRAAL_VERSION}"
 RUN apt-get -qq install gcc libz-dev > /dev/null
 
 # Install IPFS
-RUN sh -c "cd /opt && curl -s -L https://dist.ipfs.io/go-ipfs/v0.4.22/go-ipfs_v0.4.22_linux-amd64.tar.gz | tar zxf - go-ipfs/ipfs"
+RUN sh -c "cd /opt && curl -s -L https://dist.ipfs.io/go-ipfs/v0.6.0/go-ipfs_v0.6.0_linux-amd64.tar.gz | tar zxf - go-ipfs/ipfs"
 
 # Set up mirror for Maven Central
 RUN mkdir -p /root/.config/coursier/
