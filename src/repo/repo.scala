@@ -43,7 +43,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     (cli -< RawArg -< ColumnArg -< RepoArg).action { for {
       table <- getTable
       rows  <- getLayer >> (_.repos)
-      _      = printTable(table, rows, opt(RepoArg), "repo")
+      repo  <- opt(RepoArg).sequence >> (printTable(table, rows, _, "repo"))
     } yield log.await() }
   }
   
@@ -134,84 +134,79 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     _       <- commit(layer)
   } yield log.await() }
 
-  def pull: Try[ExitStatus] = for {
-    layout    <- cli.layout
-    conf      <- Layer.readFuryConf(layout)
-    layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(RepoArg, layer.repos)
-    cli       <- cli.hint(AllArg, List[String]())
-    
-    tryDir     = for {
-                   repoId     <- cli.preview(RepoArg)()
-                   repo       <- layer.repos.findBy(repoId)
-                   dir        <- repo.remote.fetch(layout)
-                 } yield dir
-
-    cli       <- cli.hint(TagArg, tryDir.flatMap(_.tags).getOrElse(Nil))
-    cli       <- cli.hint(CommitArg, tryDir.flatMap(_.allCommits).getOrElse(Nil))
-    call      <- cli.call()
-    all       <- ~call(AllArg).toOption
-    tag       <- ~call(TagArg).toOption
-    tagCommit <- call.atMostOne(TagArg, CommitArg)
-    _         <- call.atMostOne(TagArg, AllArg)
-    _         <- call.atMostOne(CommitArg, AllArg)
-    gitDir    <- tryDir
-    gitCommit <- ~tagCommit.map(_.fold(gitDir.findCommit(_), Success(_)).toOption)
-    
-    optRepos  <- call(RepoArg).toOption.map(SortedSet(_)).orElse(all.map(_ =>
-                      layer.repos.map(_.id))).ascribe(MissingParam(RepoArg))
-
-    repos     <- optRepos.traverse(layer.repos.findBy(_))
-    succeeded <- ~repos.map(_.pull(layout)(log)).forall(_.isSuccess)
-
-    newRepos  <- repos.traverse { repo => for {
-                   gitDir <- ~repo.remote.gitDir(layout)
-                   
-                   commit <- gitCommit.flatten.ascribe(CannotUpdateRepo(repo.id)).orElse(
-                                 gitDir.findCommit(repo.branch))
-
-                 } yield (repo.copy(commit = commit), repo) }
-
-    newLayer   = newRepos.foldLeft(layer) { (layer, repoDiff) => repoDiff match {
-                   case (newRepo, oldRepo) => Layer(_.repos).modify(layer)(_ - oldRepo + newRepo) }
-                 }
-
-    _         <- commit(newLayer)
-
-    _         <- ~newRepos.foreach { case (newRepo, _) =>
-                    log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
-                  }
-
-  } yield log.await()
-
   def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
-    refSpec   <- getRefSpec
-    gitCommit <- cliCommit
-    remoteDir <- getRemoteDir
-    branch    <- refSpec.fold(Success(_), remoteDir.someBranchFromTag(_))
-    repo      <- (uniqueRepoName, get(RemoteArg), get(PathArg) >> (Some(_))) >> (Repo(_, _, branch, gitCommit, _))
-    _         <- getLayer >> (Layer(_.repos).modify(_)(_ + repo)) >> commit
+    layout   <- getLayout
+    refSpec  <- cli.atMostOne(BranchArg, TagArg)
+    layer    <- (getLayer, get(RemoteArg), uniqueRepoName) >>= (RepoApi(_).add(_, _, refSpec, layout))
+    _        <- commit(layer)
   } yield log.await() }
 
   def update: Try[ExitStatus] =
-    (cli -< PathArg -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
-      layer     <- getLayer
-      repo      <- getRepo
-      gitDir    <- getGitDir
-      refSpec   <- getRefSpec
-      gitCommit <- refSpec.fold(gitDir.findCommit(_), gitDir.findCommit(_))
-      layer     <- ~cliCommit.toOption.fold(layer)(Layer(_.repos(repo.id).commit)(layer) = _)
-      layer     <- ~opt(RepoNameArg).fold(layer)(Layer(_.repos(repo.id).id)(layer) = _)
-      layer     <- ~opt(RemoteArg).fold(layer)(Layer(_.repos(repo.id).remote)(layer) = _)
-      layer     <- ~opt(BranchArg).fold(layer)(Layer(_.repos(repo.id).branch)(layer) = _)
-      layer     <- ~opt(PathArg).fold(layer) { path => Layer(_.repos(repo.id).local)(layer) = Some(path) }
-      _         <- commit(layer)
+    (cli -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
+      repo     <- getRepo
+      oldId    <- ~repo.id
+      spec     <- cli.atMostOne(BranchArg, TagArg)
+      newId    <- opt(RepoNameArg).sequence
+      remote   <- opt(RemoteArg).sequence
+      layer    <- (getLayer, getLayout) >>= (RepoApi(_).update(oldId, newId, remote, spec, _))
+      _        <- commit(layer)
     } yield log.await() }
 
-  def remove: Try[ExitStatus] = (cli -< RepoArg).action { for {
-    repo     <- getRepo
-    project  <- getProject
-    newLayer <- getLayer >> (Layer(_.repos).modify(_)(_ - repo))
-    _        <- commit(newLayer)
-  } yield log.await() }
+  def pull: Try[ExitStatus] =
+    (cli -< RepoArg -< AllArg).action { for {
+      repos <- cli.exactlyOne(RepoArg, AllArg).map(_.fold(Some(_), _ => None))
+      layer <- (getLayer, getLayout) >>= (RepoApi(_).pull(repos, _))
+      _     <- commit(layer)
+    } yield log.await() }
+
+  def remove: Try[ExitStatus] = (cli -< RepoArg).action {
+    ((getLayer, getRepo >> (_.id)) >>= (RepoApi(_).remove(_)) >>= commit) >> finish
+  }
+}
+
+case class RepoApi(layer: Layer) {
+
+  def remove(id: RepoId): Try[Layer] =
+    layer.repos.findBy(id).map { r => Layer(_.repos).modify(layer)(_ - r) }
+
+  def add(remote: Remote, name: RepoId, refSpec: Option[Either[Branch, Tag]], layout: Layout)
+         (implicit log: Log)
+         : Try[Layer] = for {
+    gitDir <- remote.fetch(layout)
+    branch <- refSpec.map(_.fold(gitDir.checkBranch(_), gitDir.someBranchFromTag(_))).sequence
+    branch <- branch.map(~_).getOrElse(gitDir.branch)
+    commit <- refSpec.map(_.fold({ _ => gitDir.findCommit(branch) }, gitDir.findCommit(_))).getOrElse(gitDir.commit)
+  } yield Layer(_.repos).modify(layer)(_ + Repo(name, remote, branch, commit, None))
+
+  def pull(repo: Option[RepoId], layout: Layout)(implicit log: Log): Try[Layer] = for {
+    repos    <- repo.fold(~layer.repos.to[List])(layer.repos.findBy(_).map(List(_)))
+    
+    newRepos <- repos.traverse { repo => for {
+                  gitDir <- repo.remote.fetch(layout)
+                  commit <- gitDir.findCommit(repo.branch)
+                  msg    <- gitDir.message(commit)
+
+                  _       = if(commit != repo.commit)
+                              log.info(msg"Updated ${repo.id} to head of ${repo.branch}, $commit ($msg)")
+
+                } yield repo.copy(commit = commit) }
+    
+  } yield newRepos.foldLeft(layer) { (layer, next) => Layer(_.repos(next.id))(layer) = next }
+  
+  def update(id: RepoId,
+             name: Option[RepoId],
+             remote: Option[Remote],
+             refSpec: Option[Either[Branch, Tag]],
+             layout: Layout)
+            (implicit log: Log)
+            : Try[Layer] = for {
+    repo   <- layer.repos.findBy(id)
+    repo   <- ~name.fold(repo)(Repo(_.id)(repo) = _)
+    repo   <- ~remote.fold(repo)(Repo(_.remote)(repo) = _)
+    gitDir <- repo.remote.fetch(layout)
+    commit <- refSpec.map(_.fold(gitDir.findCommit(_), gitDir.findCommit(_))).sequence
+    branch <- refSpec.map(_.fold(gitDir.checkBranch(_), gitDir.someBranchFromTag(_))).sequence
+    repo   <- ~branch.fold(repo)(Repo(_.branch)(repo) = _)
+    repo   <- ~commit.fold(repo)(Repo(_.commit)(repo) = _)
+  } yield Layer(_.repos(id))(layer) = repo
 }

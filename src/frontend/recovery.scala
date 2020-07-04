@@ -91,6 +91,8 @@ You can grant these permissions with,
           cli.abort(e.getMessage)
         case BadParams(arg1, arg2) =>
           cli.abort(msg"""The ${arg1} parameter cannot be used at the same time as ${arg2}.""")
+        case BadParamValue(param, value) =>
+          cli.abort(msg"""The value '$value' is not valid for the parameter $param""")
         case MissingParamChoice(param1, param2) =>
           cli.abort(msg"""Either the ${param1} or ${param2} parameter must be specified.""")
         case MissingParam(param) =>
@@ -115,6 +117,8 @@ You can grant these permissions with,
           cli.abort(msg"Coursier could not download a file because DNS resolution failed.")
         case BranchNotFound(commit) =>
           cli.abort(msg"A branch corresponding to the commit $commit could not be found.")
+        case BranchDoesNotExist(branch) =>
+          cli.abort(msg"The branch $branch does not exist.")
         case OfflineException() =>
           cli.abort(msg"Coursier could not download a file because you appear to be offline.")
         case UnknownVersion(v) =>

@@ -182,14 +182,15 @@ class Cli(val stdout: java.io.PrintWriter,
     }
   }
 
-  def atMostOne(param1: CliParam, param2: CliParam)
-                (implicit ev: Hinted <:< param1.type with param2.type)
-                : Try[Option[Either[param1.Type, param2.Type]]] = {
+  def atMostOne(param1: CliParam, param2: CliParam): Try[Option[Either[param1.Type, param2.Type]]] = {
     val left = args.get(param1.param).toOption
     val right = args.get(param2.param).toOption
     if(left.isDefined && right.isDefined) Failure(BadParams(param1, param2))
     else Success(left.map(Left(_)).orElse(right.map(Right(_))))
   }
+  
+  def exactlyOne(param1: CliParam, param2: CliParam): Try[Either[param1.Type, param2.Type]] =
+    atMostOne(param1, param2).flatMap(_.ascribe(MissingParamChoice(param1, param2)))
   
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
@@ -232,7 +233,12 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
 
-  def get(param: CliParam): Try[param.Type] = args.get(param.param).toOption.ascribe(MissingParam(param))
+  def get(param: CliParam): Try[param.Type] = args.get(param.param) match {
+    case Success(value)                        => Success(value)
+    case Failure(MissingArg(_))                => Failure(MissingParam(param))
+    case Failure(InvalidArgValue(value, name)) => Failure(BadParamValue(param, value))
+    case _                                     => Failure(BadParamValue(param, ""))
+  }
 
   def preview(param: CliParam)(default: Option[param.Type] = None): Try[param.Type] = {
     val result = args.get(param.param)
@@ -334,7 +340,13 @@ abstract class CliApi {
   implicit def log: Log
   def cli: Cli
   def get(arg: CliParam): Try[arg.Type] = cli.get(arg)
-  def opt(arg: CliParam): Option[arg.Type] = cli.get(arg).toOption
+  
+  def opt(arg: CliParam): Option[Try[arg.Type]] = cli.get(arg) match {
+    case Success(value)               => Some(Success(value))
+    case Failure(MissingParam(param)) => None
+    case other                        => Some(other)
+  }
+
   def has(arg: CliParam): Boolean = cli.get(arg).toOption.isDefined
   
   lazy val getLayout: Try[Layout] = cli.layout
@@ -349,17 +361,16 @@ abstract class CliApi {
   lazy val hierarchy: Try[Hierarchy] = getLayer >>= (_.hierarchy()(log))
   lazy val universe: Try[Universe] = hierarchy >>= (_.universe)
 
-  def layerRepo(layer: Layer, repoIdOpt: Option[RepoId]): Try[Option[Repo]] =
+  def layerRepoOpt(layer: Layer, repoIdOpt: Option[RepoId]): Try[Option[Repo]] =
     repoIdOpt.traverse(layer.repos.findBy(_))
 
-  lazy val layerRepoOpt: Try[Option[Repo]] = (getLayer, layerRepoIdOpt) >>= layerRepo
+  def layerRepo(layer: Layer, repoId: RepoId): Try[Repo] = layer.repos.findBy(repoId)
+  lazy val layerRepoOpt: Try[Option[Repo]] = (getLayer, layerRepoIdOpt) >>= layerRepoOpt
   lazy val layerRepo: Try[Repo] = layerRepoOpt.flatMap(_.ascribe(MissingParam(RepoArg)))
   lazy val cliRepo: Try[Repo] = (getLayer, get(RepoArg)) >>= (_.repos.findBy(_))
   lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
   lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
-  
-  lazy val getRemoteDir = (get(RemoteArg), getLayout) >>= (_.fetch(_))
-  
+  lazy val fetchRemote: Try[GitDir] = (get(RemoteArg), getLayout) >>= (_.fetch(_))
   lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
   lazy val cliModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
   lazy val layerModuleOpt: Try[Option[Module]] = getProject >>= (_.mainModule)
@@ -372,15 +383,16 @@ abstract class CliApi {
   lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)
   lazy val tags: Try[List[Tag]] = remoteGitDir >>= (_.tags)
   lazy val absPath: Try[Path] = (get(PathArg), getLayout) >> (_ in _.pwd)
-  lazy val branchCommit: Try[Option[Commit]] = (remoteGitDir, get(BranchArg)) >>= (_.findCommit(_))
-  lazy val tagCommit: Try[Option[Commit]] = (remoteGitDir, get(TagArg)) >>= (_.findCommit(_))
-  lazy val getRefSpec: Try[Either[Branch, Tag]] = get(BranchArg).map(Left(_)).orElse(get(TagArg).map(Right(_)))
+  lazy val defaultBranch: Try[Branch] = fetchRemote >>= (_.branch)
+  lazy val newBranch: Try[Branch] = get(BranchArg).orElse(defaultBranch)
   lazy val newRepoName: Try[RepoId] = get(RemoteArg) >> (_.projectName) >>= (get(RepoNameArg).orElse(_))
   lazy val uniqueRepoName: Try[RepoId] = (getLayer, newRepoName) >>= (_.repos.unique(_))
+  lazy val tagCommit: Option[Try[Commit]] = opt(TagArg).map((fetchRemote, _) >>= (_.findCommit(_)))
+  lazy val branchCommit: Option[Try[Commit]] = opt(BranchArg).map((fetchRemote, _) >>= (_.findCommit(_)))
+  lazy val defaultBranchCommit: Try[Commit] = fetchRemote.flatMap(_.commit)
+  lazy val cliCommit: Option[Try[Commit]] = (branchCommit, tagCommit) >> (_.orElse(_))
+  lazy val gitCommit: Try[Commit] = cliCommit.getOrElse(defaultBranchCommit)
 
-  lazy val cliCommit: Try[Commit] =
-    branchCommit.orElse(tagCommit) >>= (_.ascribe(MissingParamChoice(BranchArg, CommitArg)))
-  
   def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
   def finish[T](value: T): ExitStatus = log.await()
 
@@ -403,6 +415,7 @@ abstract class CliApi {
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
   implicit lazy val grabHints: GrabArg.Hinter = GrabArg.hint()
+  implicit lazy val allHints: AllArg.Hinter = AllArg.hint()
   implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
   implicit lazy val licenseHints: LicenseArg.Hinter = LicenseArg.hint(License.standardLicenses.map(_.id))
   

@@ -1,0 +1,4 @@
+fury clean repositories
+fury clean sources
+fury repo add -R gh:propensive/.sample -n sample -B fork
+fury --output summary

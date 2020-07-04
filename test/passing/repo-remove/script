@@ -1,0 +1,5 @@
+fury clean repositories
+fury clean sources
+fury repo list --raw
+fury repo remove -r sample
+fury repo list --raw

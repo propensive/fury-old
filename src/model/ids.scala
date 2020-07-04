@@ -908,6 +908,8 @@ case class LicenseId(key: String) extends Key(msg"license")
 
 case class License(id: LicenseId, name: String)
 
+trait RefSpec
+
 object Branch {
   implicit val msgShow: MsgShow[Branch] = v => UserMsg(_.version(v.id))
   implicit val stringShow: StringShow[Branch] = _.id
@@ -915,7 +917,7 @@ object Branch {
   def unapply(value: String): Option[Branch] = Some(Branch(value))
 }
 
-case class Branch(id: String)
+case class Branch(id: String) extends RefSpec
 
 object Tag {
   implicit val msgShow: MsgShow[Tag] = v => UserMsg(_.version(v.id))
@@ -924,7 +926,7 @@ object Tag {
   def unapply(value: String): Option[Tag] = Some(Tag(value))
 }
 
-case class Tag(id: String)
+case class Tag(id: String) extends RefSpec
 
 object OptDef {
   implicit val stringShow: StringShow[OptDef] = _.transform.mkString(" ")
@@ -957,7 +959,7 @@ object Commit {
   def unapply(value: String): Option[Commit] = value.only { case r"[0-9a-f]{7,40}" => Commit(value) }
 }
 
-case class Commit(id: String)
+case class Commit(id: String) extends RefSpec
 
 object DomainName {
   implicit val stringShow: StringShow[DomainName] = _.value

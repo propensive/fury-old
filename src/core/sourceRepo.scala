@@ -18,11 +18,12 @@ package fury.core
 
 import fury.model._, fury.io._, fury.text._, fury.ogdl._
 import mercator._
+import optometry._
 
 import scala.util._
 
 
-object Repo {
+object Repo extends Lens.Partial[Repo] {
   implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[Repo] = _.id.key
   implicit def diff: Diff[Repo] = Diff.gen[Repo]

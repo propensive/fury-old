@@ -177,14 +177,19 @@ case class GitDir(env: Environment, dir: Path) {
   def findCommit(branch: Branch): Try[Commit] = sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_))
 
   def branchesFromCommit(commit: Commit): Try[List[Branch]] =
-    sh"$git branch --contains $commit".exec[Try[String]].map { out =>
-      out.split("\n").to[List].map(_.drop(2)).map(Branch(_))
+    sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].map { out =>
+      out.split("\n").to[List].map(Branch(_))
     }
 
+  def checkBranch(branch: Branch): Try[Branch] =
+    branches.flatMap(_.find(_ == branch).ascribe(BranchDoesNotExist(branch)))
+
   def contains(commit: Commit): Try[Unit] =
-    sh"$git branch --contains $commit".exec[Try[String]].map(_.unit).recoverWith { case e =>
+    sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].map(_.unit).recoverWith { case e =>
       Failure(CommitNotInRepo(commit))
     }
+
+  def message(commit: Commit): Try[String] = sh"$git log --pretty=%s -1 $commit".exec[Try[String]]
 
   def someBranchFromCommit(commit: Commit): Try[Branch] =
     branchesFromCommit(commit).flatMap(_.headOption.ascribe(BranchNotFound(commit)))

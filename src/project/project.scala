@@ -48,15 +48,16 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await() }
 
   def add: Try[ExitStatus] = (cli -< ProjectNameArg -< LicenseArg -< DefaultCompilerArg).action { for {
-    project <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, opt(LicenseArg).getOrElse(License.unknown),
-                   "", opt(DefaultCompilerArg)))
+    optLicense  <- opt(LicenseArg).getOrElse(~License.unknown)
+    optCompiler <- opt(DefaultCompilerArg).sequence
+    project     <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, optLicense, "", optCompiler))
     
-    layer   <- getLayer >>
-                   (Layer(_.projects).modify(_)(_ + project)) >>
-                   (Layer(_.main)(_) = Some(project.id))
+    layer       <- getLayer >>
+                       (Layer(_.projects).modify(_)(_ + project)) >>
+                       (Layer(_.main)(_) = Some(project.id))
 
-    _       <- commit(layer)
-    _       <- ~log.info(msg"Set current project to ${project.id}")
+    _           <- commit(layer)
+    _           <- ~log.info(msg"Set current project to ${project.id}")
   } yield log.await() }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ForceArg).action { for {
