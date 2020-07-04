@@ -228,7 +228,7 @@ abstract class Installable(name: ExecName) extends Software(name) {
 }
 
 object IpfsSoftware extends Installable(ExecName("ipfs")) {
-  def installVersion = "0.4.22"
+  def installVersion = "0.6.0"
   def description: String = "InterPlanetary File System"
   def website = Https(Path("ipfs.io"))
   def managedPath: Path = base / "go-ipfs" / "ipfs"
