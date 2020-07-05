@@ -110,9 +110,9 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       val logging: PrintStream = log.stream { str =>
         (if(str.indexOf("[D]") == 9) str.drop(17) else str) match {
           case r"Starting the bsp launcher.*" =>
-            log.info(msg"Starting the BSP launcher...")
+            log.note(msg"Starting the BSP launcher...")
           case r"Opening a bsp server connection with.*" =>
-            log.info(msg"Opening a BSP server connection")
+            log.note(msg"Opening a BSP server connection")
           case r"Waiting for a connection at" =>
             log.info(msg"Waiting for a socket connection")
           case r"Loading project from .*" => None
@@ -122,7 +122,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
           case r"Creating a scala instance from Bloop" =>
             log.info("Instantiating a new instance of the Scala compiler")
           case r"The server is listening for incoming connections.*" =>
-            log.info(msg"BSP server is listening for incoming connections")
+            log.note(msg"BSP server is listening for incoming connections")
           case r"Waiting.*" => None
           case r"Starting thread.*" => None
           case r"Deduplicating compilation of .*" => None

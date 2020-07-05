@@ -48,8 +48,8 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await() }
 
   def add: Try[ExitStatus] = (cli -< ProjectNameArg -< LicenseArg -< DefaultCompilerArg).action { for {
-    optLicense  <- opt(LicenseArg).getOrElse(~License.unknown)
-    optCompiler <- opt(DefaultCompilerArg).sequence
+    optLicense  <- opt(LicenseArg).map(_.getOrElse(License.unknown))
+    optCompiler <- opt(DefaultCompilerArg)
     project     <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, optLicense, "", optCompiler))
     
     layer       <- getLayer >>
@@ -99,15 +99,3 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     _              <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }
-
-/*case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApp {
-  import Args._
-
-  lazy val getTable = 
-
-  def repos: Try[ExitStatus] = (cli).action {
-    for {
-
-    } yield log.await()
-  }
-}*/

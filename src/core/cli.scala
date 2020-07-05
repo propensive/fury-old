@@ -192,6 +192,13 @@ class Cli(val stdout: java.io.PrintWriter,
   def exactlyOne(param1: CliParam, param2: CliParam): Try[Either[param1.Type, param2.Type]] =
     atMostOne(param1, param2).flatMap(_.ascribe(MissingParamChoice(param1, param2)))
   
+  def atLeastOne(param1: CliParam, param2: CliParam): Try[(Option[param1.Type], Option[param2.Type])] = {
+    val left = args.get(param1.param).toOption
+    val right = args.get(param2.param).toOption
+    if(left.isDefined || right.isDefined) Success((left, right))
+    else Failure(MissingParamChoice(param1, param2))
+  }
+  
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
   private lazy val logStyle: LogStyle = LogStyle(stdout, debug = false)
@@ -341,10 +348,10 @@ abstract class CliApi {
   def cli: Cli
   def get(arg: CliParam): Try[arg.Type] = cli.get(arg)
   
-  def opt(arg: CliParam): Option[Try[arg.Type]] = cli.get(arg) match {
-    case Success(value)               => Some(Success(value))
-    case Failure(MissingParam(param)) => None
-    case other                        => Some(other)
+  def opt(arg: CliParam): Try[Option[arg.Type]] = cli.get(arg) match {
+    case Success(value)               => Success(Some(value))
+    case Failure(MissingParam(param)) => Success(None)
+    case other                        => other.map(Some(_))
   }
 
   def has(arg: CliParam): Boolean = cli.get(arg).toOption.isDefined
@@ -383,26 +390,38 @@ abstract class CliApi {
   lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)
   lazy val tags: Try[List[Tag]] = remoteGitDir >>= (_.tags)
   lazy val absPath: Try[Path] = (get(PathArg), getLayout) >> (_ in _.pwd)
+  
+  lazy val relPath: Try[Path] =
+    (get(PathArg), getLayout) >> { (path, layout) => path.in(layout.pwd).relativizeTo(layout.baseDir) }
+  
+  lazy val relPathOpt: Try[Option[Path]] = (opt(PathArg), getLayout) >> { (path, layout) =>
+    path.map { p => p.in(layout.pwd).relativizeTo(layout.baseDir) }
+  }
+  
+  lazy val absPathOpt: Try[Option[Path]] =
+    (opt(PathArg), getLayout) >> { (path, layout) => path.map { p => p.in(layout.pwd) } }
+  
   lazy val defaultBranch: Try[Branch] = fetchRemote >>= (_.branch)
   lazy val newBranch: Try[Branch] = get(BranchArg).orElse(defaultBranch)
   lazy val newRepoName: Try[RepoId] = get(RemoteArg) >> (_.projectName) >>= (get(RepoNameArg).orElse(_))
-  lazy val uniqueRepoName: Try[RepoId] = (getLayer, newRepoName) >>= (_.repos.unique(_))
-  lazy val tagCommit: Option[Try[Commit]] = opt(TagArg).map((fetchRemote, _) >>= (_.findCommit(_)))
-  lazy val branchCommit: Option[Try[Commit]] = opt(BranchArg).map((fetchRemote, _) >>= (_.findCommit(_)))
+  lazy val repoNameFromPath: Try[RepoId] = get(PathArg) >> (_.name.toLowerCase) >> (RepoId(_))
+  
+  lazy val findUniqueRepoName: Try[RepoId] =
+    (getLayer, newRepoName.orElse(repoNameFromPath)) >>= (_.repos.unique(_))
+  
   lazy val defaultBranchCommit: Try[Commit] = fetchRemote.flatMap(_.commit)
-  lazy val cliCommit: Option[Try[Commit]] = (branchCommit, tagCommit) >> (_.orElse(_))
-  lazy val gitCommit: Try[Commit] = cliCommit.getOrElse(defaultBranchCommit)
+
+  lazy val pathGitDir: Try[GitDir] = for {
+    layout <- getLayout
+    path   <- relPathOpt
+    gitDir <- (path >> (GitDir(_)(layout.env))).ascribe(PathNotGitDir())
+  } yield gitDir
+
+  lazy val pathRemote: Try[Remote] = pathGitDir >>= (_.remote)
+  lazy val pathBranch: Try[Branch] = pathGitDir >>= (_.branch)
 
   def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
   def finish[T](value: T): ExitStatus = log.await()
-
-  lazy val gitDestPath: Try[GitDir] = for {
-    layout  <- getLayout
-    absPath <- absPath
-    _       <- ~absPath.mkdir()
-    _       <- if(absPath.empty) Success(()) else Failure(new Exception("Non-empty directory exists"))
-  } yield GitDir(absPath)(layout.env)
-
   def cols: Int = Terminal.columns(cli.env).getOrElse(100)
 
   implicit lazy val rawHints: RawArg.Hinter = RawArg.hint()

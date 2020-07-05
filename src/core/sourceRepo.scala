@@ -46,17 +46,6 @@ object Repo extends Lens.Partial[Repo] {
     _         <- (layout.baseDir / ".git").moveTo(dest / ".git")
     _         <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield Repo(repoId, remote, branch, commit, None)
-
-  /*def local(layout: Layout, project: Project)(implicit log: Log): Try[Option[Repo]] = {
-    val gitDir = GitDir(layout)
-    if(gitDir.commit.isFailure) Success(None)
-    else for {
-      repoId <- ~project.uniqueRepoId(layout.baseDir)
-      remote <- gitDir.remote
-      branch <- gitDir.branch
-      commit <- gitDir.commit
-    } yield Some(Repo(repoId, remote, branch, commit, None))
-  }*/
 }
 
 case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
@@ -71,7 +60,8 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
   def fullCheckout(layout: Layout)(implicit log: Log): Snapshot =
     Snapshot(id, remote, localDir(layout), commit, branch, List())
 
-  def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env))
+  def localDir(layout: Layout)(implicit log: Log): Option[GitDir] =
+    local.map { p => GitDir(p in layout.baseDir)(layout.env) }
 
   def changes(layout: Layout)(implicit log: Log): Try[Option[DiffStat]] = for {
     repoDir <- localDir(layout).map(Success(_)).getOrElse(remote.fetch(layout))

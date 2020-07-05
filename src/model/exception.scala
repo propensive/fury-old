@@ -18,7 +18,6 @@ package fury.model
 
 import fury.text._, fury.io._
 
-
 case class AlreadyInitialized() extends FuryException
 case class AlreadyCheckedOut(repo: RepoId) extends FuryException
 case class BranchNotFound(commit: Commit) extends FuryException
@@ -32,6 +31,7 @@ case class CompilationFailure() extends FuryException
 case class CyclesInDependencies(cycle: Set[Dependency]) extends FuryException
 case class CommitNotInRepo(commit: Commit) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
+case class PathNotGitDir() extends FuryException
 case class DnsResolutionFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
 case class EnvPathNotSet() extends FuryException
@@ -70,6 +70,7 @@ case class MergeConflicts() extends FuryException
 case class MissingCommand() extends FuryException
 case class ModuleAlreadyExists(module: ModuleId) extends FuryException
 case class NoLatestVersion() extends FuryException
+case class NoRemoteInferred() extends FuryException
 case class NoOtherLayer() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
 case class NoRepl(compiler: CompilerRef) extends FuryException

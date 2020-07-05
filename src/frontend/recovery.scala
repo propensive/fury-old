@@ -94,7 +94,7 @@ You can grant these permissions with,
         case BadParamValue(param, value) =>
           cli.abort(msg"""The value '$value' is not valid for the parameter $param""")
         case MissingParamChoice(param1, param2) =>
-          cli.abort(msg"""Either the ${param1} or ${param2} parameter must be specified.""")
+          cli.abort(msg"""Either ${param1} or ${param2} must be specified.""")
         case MissingParam(param) =>
           cli.abort(msg"""The ${param} parameter is required.""")
         case CannotUndo() =>
@@ -127,6 +127,8 @@ You can grant these permissions with,
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
           cli.abort(msg"The command '${e.command}' was not recognized.")
+        case NoRemoteInferred() =>
+          cli.abort(msg"A remote was not specified, and could not be inferred from the path.")
         case exoskeleton.InvalidArgValue(param, arg) =>
           cli.abort(msg"The argument '$arg' was not a valid value for the parameter $param.")
         case InvalidLayer(layer) =>
@@ -143,6 +145,8 @@ You can grant these permissions with,
           cli.abort(msg"Failed to read OGDL path ${path.mkString(".")}: $msg")
         case OgdlReadException(path, e) =>
           cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
+        case PathNotGitDir() =>
+          cli.abort(msg"The path is not a valid git directory")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
         case RepoNotForked(repo) =>

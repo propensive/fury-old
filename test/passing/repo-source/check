@@ -8,10 +8,6 @@ Cloning repository at ../library
 0
 e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
 Checking out  from repository library
-Starting the BSP launcher...
-Opening a BSP server connection
-BSP server is listening for incoming connections
-Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello World!
 0

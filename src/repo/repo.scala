@@ -43,7 +43,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     (cli -< RawArg -< ColumnArg -< RepoArg).action { for {
       table <- getTable
       rows  <- getLayer >> (_.repos)
-      repo  <- opt(RepoArg).sequence >> (printTable(table, rows, _, "repo"))
+      repo  <- opt(RepoArg) >> (printTable(table, rows, _, "repo"))
     } yield log.await() }
   }
   
@@ -135,29 +135,32 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await() }
 
   def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
-    layout   <- getLayout
-    refSpec  <- cli.atMostOne(BranchArg, TagArg)
-    layer    <- (getLayer, get(RemoteArg), uniqueRepoName) >>= (RepoApi(_).add(_, _, refSpec, layout))
-    _        <- commit(layer)
+    layout  <- getLayout
+    refSpec <- cli.atMostOne(BranchArg, TagArg)
+    _       <- cli.atLeastOne(RemoteArg, PathArg)
+    _       <- cli.atMostOne(PathArg, BranchArg)
+    _       <- cli.atMostOne(PathArg, TagArg)
+    id      <- findUniqueRepoName
+    remote  <- get(RemoteArg).orElse(pathRemote).toOption.ascribe(NoRemoteInferred())
+    path    <- relPathOpt
+    layer   <- getLayer >>= (RepoApi(_).add(remote, id, refSpec, path, layout))
+    _       <- commit(layer)
   } yield log.await() }
 
   def update: Try[ExitStatus] =
     (cli -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
-      repo     <- getRepo
-      oldId    <- ~repo.id
-      spec     <- cli.atMostOne(BranchArg, TagArg)
-      newId    <- opt(RepoNameArg).sequence
-      remote   <- opt(RemoteArg).sequence
-      layer    <- (getLayer, getLayout) >>= (RepoApi(_).update(oldId, newId, remote, spec, _))
-      _        <- commit(layer)
+      repo    <- getRepo
+      refSpec <- cli.atMostOne(BranchArg, TagArg)
+      newId   <- opt(RepoNameArg)
+      remote  <- opt(RemoteArg)
+      _       <- (getLayer, getLayout) >>= (RepoApi(_).update(repo.id, newId, remote, refSpec, _)) >>= commit
     } yield log.await() }
 
   def pull: Try[ExitStatus] =
-    (cli -< RepoArg -< AllArg).action { for {
-      repos <- cli.exactlyOne(RepoArg, AllArg).map(_.fold(Some(_), _ => None))
-      layer <- (getLayer, getLayout) >>= (RepoApi(_).pull(repos, _))
-      _     <- commit(layer)
-    } yield log.await() }
+    (cli -< RepoArg -< AllArg).action {
+      val repos = cli.exactlyOne(RepoArg, AllArg).map(_.fold(Some(_), _ => None))
+      ((getLayer, repos, getLayout) >>= (RepoApi(_).pull(_, _)) >>= commit) >> finish
+    }
 
   def remove: Try[ExitStatus] = (cli -< RepoArg).action {
     ((getLayer, getRepo >> (_.id)) >>= (RepoApi(_).remove(_)) >>= commit) >> finish
@@ -166,17 +169,17 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
 case class RepoApi(layer: Layer) {
 
-  def remove(id: RepoId): Try[Layer] =
-    layer.repos.findBy(id).map { r => Layer(_.repos).modify(layer)(_ - r) }
+  def remove(id: RepoId): Try[Layer] = layer.repos.findBy(id).map { r => Layer(_.repos).modify(layer)(_ - r) }
 
-  def add(remote: Remote, name: RepoId, refSpec: Option[Either[Branch, Tag]], layout: Layout)
+  def add(remote: Remote, id: RepoId, refSpec: Option[Either[Branch, Tag]], path: Option[Path], layout: Layout)
          (implicit log: Log)
          : Try[Layer] = for {
     gitDir <- remote.fetch(layout)
+    
     branch <- refSpec.map(_.fold(gitDir.checkBranch(_), gitDir.someBranchFromTag(_))).sequence
     branch <- branch.map(~_).getOrElse(gitDir.branch)
-    commit <- refSpec.map(_.fold({ _ => gitDir.findCommit(branch) }, gitDir.findCommit(_))).getOrElse(gitDir.commit)
-  } yield Layer(_.repos).modify(layer)(_ + Repo(name, remote, branch, commit, None))
+    commit <- refSpec.map(_.fold(_ => gitDir.findCommit(branch), gitDir.findCommit(_))).getOrElse(gitDir.commit)
+  } yield Layer(_.repos).modify(layer)(_ + Repo(id, remote, branch, commit, path))
 
   def pull(repo: Option[RepoId], layout: Layout)(implicit log: Log): Try[Layer] = for {
     repos    <- repo.fold(~layer.repos.to[List])(layer.repos.findBy(_).map(List(_)))
