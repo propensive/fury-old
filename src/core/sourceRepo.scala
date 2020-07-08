@@ -96,18 +96,26 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     listFiles(layout).map(_.filter { f => pred(f.filename) }.map { p =>
         ExternalSource(id, p.parent, Glob.All): Source }.to[Set])
   
-  def unfork(layout: Layout)(implicit log: Log): Try[Repo] = for {
-    _          <- if(local.isDefined) Success(()) else Failure(RepoNotForked(id))
-    dir        <- ~local.get
-    forkCommit <- GitDir(dir)(layout.env).commit
-    relDir     <- ~(dir.relativizeTo(layout.pwd))
-    _          <- Try(if(forkCommit != commit) log.info(msg"Updating $id commit to $forkCommit of $relDir"))
-    changes    <- changes(layout)
-    
-    _          <- Try(changes.foreach { cs => log.warn(
-                      msg"Uncommitted changes ($cs) in $relDir will not apply to the unforked repo") })
-
-  } yield copy(local = None, commit = forkCommit)
+  def unfork(layout: Layout)(implicit log: Log): Try[Repo] = {
+    for {
+      dir        <- local.ascribe(RepoNotForked(id))
+      relDir     =  dir.relativizeTo(layout.pwd)
+      forkCommit =  GitDir(dir)(layout.env).commit
+      goalCommit <- if(forkCommit.isFailure) {
+        log.warn(msg"Unforking $id from $relDir which does not exist or is not a Git repository")
+        ~commit
+      } else forkCommit.flatMap{ fc =>
+        if(fc != commit) log.info(msg"Updating $id commit to $fc of $relDir")
+        for {
+          changes    <- changes(layout)
+        } yield {
+          changes.foreach { cs => log.warn(
+            msg"Uncommitted changes ($cs) in $relDir will not apply to the unforked repo") }
+          fc
+        }
+      }
+    } yield copy(local = None, commit = goalCommit)
+  }
 
   def conflict(layout: Layout, local: Option[Repo])
               (implicit log: Log)
