@@ -101,18 +101,18 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
       dir        <- local.ascribe(RepoNotForked(id))
       relDir     =  dir.relativizeTo(layout.pwd)
       forkCommit =  GitDir(dir)(layout.env).commit
-      goalCommit <- if(forkCommit.isFailure) {
-        log.warn(msg"Unforking $id from $relDir which does not exist or is not a Git repository")
-        ~commit
-      } else forkCommit.flatMap{ fc =>
-        if(fc != commit) log.info(msg"Updating $id commit to $fc of $relDir")
-        for {
-          changes    <- changes(layout)
-        } yield {
-          changes.foreach { cs => log.warn(
-            msg"Uncommitted changes ($cs) in $relDir will not apply to the unforked repo") }
-          fc
-        }
+      goalCommit <- forkCommit match {
+        case Success(fc) =>
+          if(fc != commit) log.info(msg"Updating $id commit to $fc of $relDir")
+          changes(layout).map{ changes =>
+            changes.foreach{ cs =>
+              log.warn(msg"Uncommitted changes ($cs) in $relDir will not apply to the unforked repo")
+            }
+            fc
+          }
+        case Failure(_) =>
+          log.warn(msg"Unforking $id from $relDir which does not exist or is not a Git repository")
+          ~commit
       }
     } yield copy(local = None, commit = goalCommit)
   }
