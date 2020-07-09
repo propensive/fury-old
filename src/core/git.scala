@@ -152,7 +152,8 @@ case class GitDir(env: Environment, dir: Path) {
 
     _ <- ~remote.foreach { remote => for {
            _ <- sh"$git remote remove origin".exec[Try[String]]
-           _ <- sh"$git remote add origin ${remote.ref}".exec[Try[String]]
+           fullRef = remote.https.getOrElse(remote.ref)
+           _ <- sh"$git remote add origin ${fullRef}".exec[Try[String]]
            _ <- sh"$git checkout -b ${branch.id}".exec[Try[String]]
            _ <- sh"$git fetch".exec[Try[String]]
            _ <- sh"$git branch -u origin/$branch".exec[Try[String]]
