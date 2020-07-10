@@ -26,3 +26,5 @@ Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello World!
 0
+Reverted to layer
+Unforking library from library-local which does not exist or is not a Git repository

@@ -31,4 +31,7 @@ echo $?
 fury repo unfork -r library
 fury build run --output linear
 echo $?
+fury undo | sed -E 's/ [a-zA-Z0-9]+$//'
+rm -rf library-local
+fury repo unfork -r library
 
