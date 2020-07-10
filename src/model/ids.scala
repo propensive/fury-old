@@ -42,6 +42,8 @@ object ManagedConfig {
 
 abstract class Key(val kind: UserMsg) { def key: String }
 
+case class RepoRef(repoId: RepoId, layer: ImportPath)
+
 object ProjectId {
   implicit val msgShow: MsgShow[ProjectId] = p => UserMsg(_.project(p.key))
   implicit val stringShow: StringShow[ProjectId] = _.key

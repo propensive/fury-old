@@ -358,15 +358,17 @@ abstract class CliApi {
   
   lazy val getLayout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
-  lazy val getLayer: Try[Layer] = conf >>= Layer.retrieve
+  lazy val getLayer: Try[Layer] = (getHierarchy, getPointer) >>= (_(_))
+  lazy val getPointer: Try[ImportPath] = (opt(LayerArg), conf >> (_.path)) >> (_.getOrElse(_))
+  lazy val getBaseLayer: Try[Layer] = conf >> (_.layerRef) >>= (Layer.get(_, None))
   lazy val layerProjectOpt: Try[Option[Project]] = getLayer >>= (_.mainProject)
   lazy val layerProject: Try[Project] = layerProjectOpt.flatMap(_.ascribe(MissingParam(ProjectArg)))
   lazy val layerProjectIds: List[ProjectId] = (getLayer >> (_.projects.to[List])).getOrElse(List()).map(_.id)
   lazy val cliProject: Try[Project] = (getLayer, get(ProjectArg)) >>= (_.projects.findBy(_))
   lazy val getProject: Try[Project] = cliProject.orElse(layerProject)
   lazy val layerRepoIdOpt: Try[Option[RepoId]] = (getLayer >> (_.mainRepo))
-  lazy val hierarchy: Try[Hierarchy] = getLayer >>= (_.hierarchy()(log))
-  lazy val universe: Try[Universe] = hierarchy >>= (_.universe)
+  lazy val getHierarchy: Try[Hierarchy] = getBaseLayer >>= (_.hierarchy()(log))
+  lazy val universe: Try[Universe] = getHierarchy >>= (_.universe)
 
   def layerRepoOpt(layer: Layer, repoIdOpt: Option[RepoId]): Try[Option[Repo]] =
     repoIdOpt.traverse(layer.repos.findBy(_))
@@ -421,6 +423,7 @@ abstract class CliApi {
   lazy val pathBranch: Try[Branch] = pathGitDir >>= (_.branch)
 
   def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
+  def commit(hierarchy: Hierarchy): Try[LayerRef] = (getPointer, getLayout) >>= (hierarchy.save(_, _))
   def finish[T](value: T): ExitStatus = log.await()
   def cols: Int = Terminal.columns(cli.env).getOrElse(100)
 
@@ -437,6 +440,7 @@ abstract class CliApi {
   implicit lazy val allHints: AllArg.Hinter = AllArg.hint()
   implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
   implicit lazy val licenseHints: LicenseArg.Hinter = LicenseArg.hint(License.standardLicenses.map(_.id))
+  implicit lazy val pointerHints: LayerArg.Hinter = LayerArg.hint(Nil) // FIXME
   
   implicit lazy val defaultCompilerHints: DefaultCompilerArg.Hinter =
     DefaultCompilerArg.hint((getLayer, getLayout) >> (Javac(8) :: _.compilerRefs(_).map(BspCompiler(_))))

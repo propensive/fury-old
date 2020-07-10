@@ -19,12 +19,13 @@ package fury.core
 import fury.model._, fury.text._
 
 import mercator._
+import gastronomy._
 
 import scala.util._
 import scala.collection.immutable.TreeSet
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
-case class Universe(entities: Map[ProjectId, Entity] = Map()) {
+case class Universe(entities: Map[ProjectId, Entity], repoSets: Map[Commit, Set[RepoRef]]) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
   def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)
@@ -44,10 +45,16 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     snapshot.hash -> snapshot
   }.toMap)
 
-  def ++(that: Universe): Universe = Universe {
-    that.entities.foldLeft(entities) { case (entities, (id, entity)) =>
+  def ++(that: Universe): Universe = {
+    val newEntities = that.entities.foldLeft(entities) { case (entities, (id, entity)) =>
       entities.updated(id, entities.get(id).fold(entity) { e => e.copy(layers = e.layers ++ entity.layers) })
     }
+
+    val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>
+      acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)
+    }
+
+    Universe(newEntities, newRepoSets)
   }
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =

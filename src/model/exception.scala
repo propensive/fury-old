@@ -63,6 +63,7 @@ case class NotAuthenticated() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: ImportPath) extends FuryException
 case class LayerNotFound(path: Path) extends FuryException
+case class CantResolveLayer(path: ImportPath) extends FuryException
 case class LayerContainsLocalSources(refs: List[ModuleRef]) extends FuryException
 case class NoRepoCheckedOut() extends FuryException
 case class ModuleIsNotCompiler(ref: ModuleRef, compRef: ModuleRef) extends FuryException

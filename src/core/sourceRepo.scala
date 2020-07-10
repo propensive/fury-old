@@ -54,6 +54,8 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     files  <- localDir(layout).fold(gitDir.lsTree(commit))(Success(gitDir.dir.children.map(Path(_))).waive)
   } yield files
 
+  def ref(layer: ImportPath): RepoRef = RepoRef(id, layer)
+
   def branch(layout: Layout)(implicit log: Log): Branch =
     localDir(layout).flatMap(_.branch.toOption).getOrElse(branch)
 

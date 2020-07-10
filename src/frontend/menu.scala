@@ -149,6 +149,9 @@ object FuryMenu {
       Action('pull, msg"pull the latest remote version of the source repo", RepoCli(_).pull, shortcut = 'p')
     ),
     Action('undo, msg"undo the previous modification", LayerCli(_).undo),
+    Menu('universe, msg"make universal changes", 'list, shortcut = 'u')(
+      Action('repos, msg"show repo sets in use", UniverseCli(_).list, shortcut = 'l')
+    ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
       Action('commit, msg"commit the layer to the current repository", LayerCli(_).commit, shortcut = 'm'),

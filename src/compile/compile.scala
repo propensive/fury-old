@@ -115,23 +115,32 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
             log.note(msg"Opening a BSP server connection")
           case r"Waiting for a connection at" =>
             log.info(msg"Waiting for a socket connection")
-          case r"Loading project from .*" => None
-          case r"Loading previous analysis for .*" => None
-          case r".*detected in file:.*" => None
-          case r"  => .*" => None
+          case r"Loading project from .*" =>
+            None
+          case r"Loading previous analysis for .*" =>
+            None
+          case r".*detected in file:.*" =>
+            None
+          case r"  => .*" =>
+            None
           case r"Creating a scala instance from Bloop" =>
             log.info("Instantiating a new instance of the Scala compiler")
           case r"The server is listening for incoming connections.*" =>
             log.note(msg"BSP server is listening for incoming connections")
-          case r"Waiting.*" => None
-          case r"Starting thread.*" => None
-          case r"Deduplicating compilation of .*" => None
+          case r"Waiting.*" =>
+            None
+          case r"Starting thread.*" =>
+            None
+          case r"Deduplicating compilation of .*" =>
+            None
           case r"No server running at .*" =>
             log.info("Could not detect a BSP server running locally")
-          case r"Command: .*" => None
+          case r"Command: .*" =>
+            None
           case r"A bloop installation has been detected.*" =>
             log.info("Detected an existing Bloop installation")
-          case "\n" => None
+          case "\n" =>
+            None
           case other =>
             log.note(msg"${'['}bsp${']'} ${other}")
         }

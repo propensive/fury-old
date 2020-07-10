@@ -16,31 +16,56 @@
 */
 package fury.core
 
-import fury.model._
+import fury.model._, fury.text._
+
+import mercator._
 
 import scala.util._
 
-case class Hierarchy(layer: Layer, path: ImportPath, inherited: Set[Hierarchy]) {
+case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hierarchy]) {
   lazy val universe: Try[Universe] = {
     val localProjectIds = layer.projects.map(_.id)
 
-    def merge(universe: Try[Universe], hierarchy: Hierarchy): Try[Universe] = for {
+    def merge(universe: Try[Universe], hierarchy: (ImportId, Hierarchy)): Try[Universe] = for {
       projects     <- universe
-      nextProjects <- hierarchy.universe
+      nextProjects <- hierarchy._2.universe
       candidates    = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
       conflictIds   = candidates.filter { id => projects.spec(id) != nextProjects.spec(id) }
 
       allProjects  <- conflictIds.to[List] match {
                         case Nil => Success(projects ++ nextProjects)
-                        case _   => Failure(ProjectConflict(conflictIds, path, hierarchy.path))
+                        case _   => Failure(ProjectConflict(conflictIds, path, hierarchy._2.path))
                       }
     } yield allProjects
 
-    val empty: Try[Universe] = Success(Universe())
+    val empty: Try[Universe] = Success(Universe(Map(), Map()))
 
-    for(allInherited <- inherited.foldLeft(empty)(merge)) yield {
+    for(allChildren <- children.foldLeft(empty)(merge)) yield {
       val layerEntities = layer.projects.map { project => project.id -> Entity(project, Map(path -> layer)) }
-      allInherited ++ Universe(layerEntities.toMap)
+      allChildren ++ Universe(layerEntities.toMap, layer.repoSets(path))
     }
   }
+
+  def apply(importPath: ImportPath): Try[Layer] =
+    if(importPath.isEmpty) Success(layer)
+    else children.get(importPath.head).ascribe(CantResolveLayer(importPath)).flatMap(_(importPath.tail))
+
+  def update(importPath: ImportPath, newLayer: Layer)(implicit log: Log): Try[Hierarchy] =
+    if(importPath.isEmpty) Success(copy(layer = newLayer))
+    else children.get(importPath.head).ascribe(CantResolveLayer(importPath)).flatMap { hierarchy =>
+      hierarchy.update(importPath.tail, newLayer).flatMap { h => Layer.store(newLayer).map { ref =>
+        copy(
+          children = children.updated(importPath.head, h),
+          layer = Layer(_.imports(importPath.head).layerRef)(layer) = ref
+        )
+      } }
+    }
+  
+  def save(importPath: ImportPath, layout: Layout)(implicit log: Log): Try[LayerRef] =
+    children.values.to[List].traverse(_.save(importPath, layout)).flatMap { _ =>
+      Layer.store(layer).flatMap { ref =>
+        if(path == ImportPath.Root) Layer.saveFuryConf(FuryConf(ref, importPath), layout).map(ref.waive)
+        else Success(ref)
+      }
+    }
 }

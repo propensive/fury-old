@@ -149,6 +149,8 @@ You can grant these permissions with,
           cli.abort(msg"The path is not a valid git directory")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
+        case CantResolveLayer(path) =>
+          cli.abort(msg"Can't resolve layer $path")
         case RepoNotForked(repo) =>
           cli.abort(msg"The repository ${repo} has not been forked.")
         case RepoNotFound(base) =>

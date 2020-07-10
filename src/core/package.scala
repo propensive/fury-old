@@ -63,35 +63,32 @@ package object core extends GuillotineExtensions {
     def >>[S](that: T => S): F[S] = monad.map(that(_))
   }
   
-  implicit class FlatMapPair[F[_]: Monadic, T1, T2](monadPair: (F[T1], F[T2])) {
-    def >>=[S](that: (T1, T2) => F[S]): F[S] = for {
-      t1 <- monadPair._1
-      t2 <- monadPair._2
-      s  <- that(t1, t2)
-    } yield s
+  implicit class FlatMap2[F[_]: Monadic, T1, T2](monad2: (F[T1], F[T2])) {
+    def >>=[S](that: (T1, T2) => F[S]): F[S] =
+      for(t1 <- monad2._1; t2 <- monad2._2; s <- that(t1, t2)) yield s
     
-    def >>[S](that: (T1, T2) => S): F[S] = for {
-      t1 <- monadPair._1
-      t2 <- monadPair._2
-    } yield that(t1, t2)
+    def >>[S](that: (T1, T2) => S): F[S] = for(t1 <- monad2._1; t2 <- monad2._2) yield that(t1, t2)
   }
   
-  implicit class FlatMapTriple[F[_]: Monadic, T1, T2, T3](monadTriple: (F[T1], F[T2], F[T3])) {
-    def >>=[S](that: (T1, T2, T3) => F[S]): F[S] = for {
-      t1 <- monadTriple._1
-      t2 <- monadTriple._2
-      t3 <- monadTriple._3
-      s  <- that(t1, t2, t3)
-    } yield s
+  implicit class FlatMap3[F[_]: Monadic, T1, T2, T3](monad3: (F[T1], F[T2], F[T3])) {
+    def >>=[S](that: (T1, T2, T3) => F[S]): F[S] =
+      for(t1 <- monad3._1; t2 <- monad3._2; t3 <- monad3._3; s <- that(t1, t2, t3)) yield s
     
-    def >>[S](that: (T1, T2, T3) => S): F[S] = for {
-      t1 <- monadTriple._1
-      t2 <- monadTriple._2
-      t3 <- monadTriple._3
-    } yield that(t1, t2, t3)
+    def >>[S](that: (T1, T2, T3) => S): F[S] =
+      for(t1 <- monad3._1; t2 <- monad3._2; t3 <- monad3._3) yield that(t1, t2, t3)
+  }
+
+  implicit class FlatMap4[F[_]: Monadic, T1, T2, T3, T4](monad4: (F[T1], F[T2], F[T3], F[T4])) {
+    def >>=[S](that: (T1, T2, T3, T4) => F[S]): F[S] =
+      for(t1 <- monad4._1; t2 <- monad4._2; t3 <- monad4._3; t4 <- monad4._4; s  <- that(t1, t2, t3, t4))
+      yield s
+    
+    def >>[S](that: (T1, T2, T3, T4) => S): F[S] =
+      for(t1 <- monad4._1; t2 <- monad4._2; t3 <- monad4._3; t4 <- monad4._4) yield that(t1, t2, t3, t4)
   }
 
   type Id[A] = A
+
   implicit def lensOptic[A, AId](id: AId)(implicit resolver: Resolver[A, AId]): Optic[SortedSet, Id, A] =
     new Optic[SortedSet, Id, A]("focus") {
       def map[B](v: SortedSet[A])(fn: A => B): B     = fn(v.find(resolver.matchOn(id, _)).get)

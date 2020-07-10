@@ -54,6 +54,9 @@ case class Layer(version: Int,
     })
   })
 
+  def repoSets(path: ImportPath): Map[Commit, Set[RepoRef]] =
+    repos.groupBy(_.commit).mapValues(_.map(_.ref(path)))
+
   def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
       module.copy(sources = module.sources.map {
@@ -104,11 +107,10 @@ case class Layer(version: Int,
     allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
   def hierarchy(importPath: ImportPath = ImportPath.Empty)(implicit log: Log): Try[Hierarchy] = for {
-    imps <- imports.map { ref => for {
-      layer        <- Layer.get(ref.layerRef, ref.remote)
-      tree         <- layer.hierarchy(importPath / ref.id)
-    } yield tree }.sequence
-  } yield Hierarchy(this, importPath, imps)
+    imps <- imports.to[Set].traverse { ref =>
+      Layer.get(ref.layerRef, ref.remote) >>= (_.hierarchy(importPath / ref.id).map(ref.id -> _))
+    }
+  } yield Hierarchy(this, importPath, imps.toMap)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
     imports.to[List].traverse { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.map(_.toMap)

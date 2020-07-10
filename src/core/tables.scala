@@ -218,4 +218,11 @@ case class Tables() {
     Heading("Commit", _.commit),
     Heading("Branch", _.branch)
   )
+
+  val repoSets: Tabulation[(Commit, Set[RepoRef])] = Tabulation(
+    Heading("Commit", _._1),
+    Heading("IDs", _._2.map(_.repoId).to[Set].map { id => id: UserMsg }.reduce { (l, r) => msg"$l, $r" }),
+    Heading("Layers", _._2.map(_.layer: UserMsg).reduce { (l, r) => l+"\n"+r })
+  )
+    
 }
