@@ -359,7 +359,8 @@ abstract class CliApi {
   lazy val getLayout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
   lazy val getLayer: Try[Layer] = (getHierarchy, getPointer) >>= (_(_))
-  lazy val getPointer: Try[ImportPath] = (opt(LayerArg), conf >> (_.path)) >> (_.getOrElse(_))
+  lazy val getPointer: Try[ImportPath] = (opt(LayerArg), confPointer) >> (_.getOrElse(_))
+  lazy val confPointer: Try[ImportPath] = conf >> (_.path)
   lazy val getBaseLayer: Try[Layer] = conf >> (_.layerRef) >>= (Layer.get(_, None))
   lazy val layerProjectOpt: Try[Option[Project]] = getLayer >>= (_.mainProject)
   lazy val layerProject: Try[Project] = layerProjectOpt.flatMap(_.ascribe(MissingParam(ProjectArg)))
@@ -423,7 +424,7 @@ abstract class CliApi {
   lazy val pathBranch: Try[Branch] = pathGitDir >>= (_.branch)
 
   def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
-  def commit(hierarchy: Hierarchy): Try[LayerRef] = (getPointer, getLayout) >>= (hierarchy.save(_, _))
+  def commit(hierarchy: Hierarchy): Try[LayerRef] = (confPointer, getLayout) >>= (hierarchy.save(_, _))
   def finish[T](value: T): ExitStatus = log.await()
   def cols: Int = Terminal.columns(cli.env).getOrElse(100)
 

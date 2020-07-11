@@ -53,7 +53,7 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
   def update(importPath: ImportPath, newLayer: Layer)(implicit log: Log): Try[Hierarchy] =
     if(importPath.isEmpty) Success(copy(layer = newLayer))
     else children.get(importPath.head).ascribe(CantResolveLayer(importPath)).flatMap { hierarchy =>
-      hierarchy.update(importPath.tail, newLayer).flatMap { h => Layer.store(newLayer).map { ref =>
+      hierarchy.update(importPath.tail, newLayer).flatMap { h => Layer.store(h.layer).map { ref =>
         copy(
           children = children.updated(importPath.head, h),
           layer = Layer(_.imports(importPath.head).layerRef)(layer) = ref
@@ -64,8 +64,7 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
   def save(importPath: ImportPath, layout: Layout)(implicit log: Log): Try[LayerRef] =
     children.values.to[List].traverse(_.save(importPath, layout)).flatMap { _ =>
       Layer.store(layer).flatMap { ref =>
-        if(path == ImportPath.Root) Layer.saveFuryConf(FuryConf(ref, importPath), layout).map(ref.waive)
-        else Success(ref)
+        if(path.isEmpty) Layer.saveFuryConf(FuryConf(ref, importPath), layout).map(ref.waive) else Success(ref)
       }
     }
 }

@@ -40,7 +40,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     implicit val columnHints: ColumnArg.Hinter =
       ColumnArg.hint(getTable.map(_.headings.map(_.name.toLowerCase)))
 
-    (cli -< RawArg -< ColumnArg -< RepoArg).action { for {
+    (cli -< RawArg -< ColumnArg -< RepoArg -< LayerArg).action { for {
       rows  <- getLayer >> (_.repos)
       repo  <- (getTable, opt(RepoArg)) >> (printTable(_, rows, _, "repo"))
     } yield log.await() }
@@ -60,7 +60,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     token    <- json.token.as[String].to[Try]
   } yield OauthToken(token)
 
-  def checkin: Try[ExitStatus] = (cli -< RepoNameArg).action {
+  def checkin: Try[ExitStatus] = (cli -< RepoNameArg -< LayerArg).action {
     for {
       layout <- getLayout
       repo   <- get(RepoNameArg) >>= (Repo.checkin(layout, _))
@@ -70,7 +70,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     } yield log.await()
   }
 
-  def checkout: Try[ExitStatus] = (cli -< RepoArg -< GrabArg).action { for {
+  def checkout: Try[ExitStatus] = (cli -< RepoArg -< GrabArg -< LayerArg).action { for {
     layout    <- getLayout
     layer     <- getLayer
     call      <- cli.call()
@@ -101,7 +101,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     _        <- commit(layer)
   } yield log.await() }
   
-  def unfork: Try[ExitStatus] = (cli -< RepoArg).action {
+  def unfork: Try[ExitStatus] = (cli -< RepoArg -< LayerArg).action {
     for {
       repo      <- getRepo
       _         <- repo.isForked()
@@ -111,7 +111,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     } yield log.await()
   }
 
-  def fork: Try[ExitStatus] = (cli -< PathArg -< ProjectArg -< RepoArg).action { for {
+  def fork: Try[ExitStatus] = (cli -< LayerArg -< PathArg -< ProjectArg -< RepoArg).action { for {
     absPath <- absPath
     layout  <- getLayout
     repo    <- getRepo
@@ -134,20 +134,20 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await() }
 
   def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg -< LayerArg).action { for {
-    layout    <- getLayout
-    refSpec   <- cli.atMostOne(BranchArg, TagArg)
-    _         <- cli.atLeastOne(RemoteArg, PathArg)
-    _         <- cli.atMostOne(PathArg, BranchArg)
-    _         <- cli.atMostOne(PathArg, TagArg)
-    id        <- findUniqueRepoName
-    remote    <- get(RemoteArg).orElse(pathRemote).toOption.ascribe(NoRemoteInferred())
-    path      <- relPathOpt
-    hierarchy <- (getHierarchy, getPointer) >>= (RepoApi(_).add(_, remote, id, refSpec, path, layout))
-    _         <- getPointer >>= (hierarchy.save(_, layout))
+    layout  <- getLayout
+    refSpec <- cli.atMostOne(BranchArg, TagArg)
+    _       <- cli.atLeastOne(RemoteArg, PathArg)
+    _       <- cli.atMostOne(PathArg, BranchArg)
+    _       <- cli.atMostOne(PathArg, TagArg)
+    id      <- findUniqueRepoName
+    remote  <- get(RemoteArg).orElse(pathRemote).toOption.ascribe(NoRemoteInferred())
+    path    <- relPathOpt
+    pointer <- getPointer
+    _       <- getHierarchy >>= (RepoApi(_).add(pointer, remote, id, refSpec, path, layout)) >>= commit
   } yield log.await() }
 
   def update: Try[ExitStatus] =
-    (cli -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
+    (cli -< LayerArg -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
       repo    <- getRepo
       refSpec <- cli.atMostOne(BranchArg, TagArg)
       newId   <- opt(RepoNameArg)
@@ -159,7 +159,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     } yield log.await() }
 
   def pull: Try[ExitStatus] =
-    (cli -< RepoArg -< AllArg).action {
+    (cli -< LayerArg -< RepoArg -< AllArg).action {
       val repos = cli.exactlyOne(RepoArg, AllArg).map(_.fold(Some(_), _ => None))
       ((getHierarchy, getPointer, repos, getLayout) >>= (RepoApi(_).pull(_, _, _)) >>= commit) >> finish
     }
