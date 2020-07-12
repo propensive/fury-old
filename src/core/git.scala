@@ -189,6 +189,20 @@ case class GitDir(env: Environment, dir: Path) {
       Failure(CommitNotInRepo(commit))
     }
 
+  def checkCommit(commit: Commit): Try[Commit] = contains(commit).map(commit.waive)
+
+  def resolve(refSpec: RefSpec): Try[Commit] = refSpec match {
+    case c: Commit => checkCommit(c)
+    case t: Tag    => findCommit(t)
+    case b: Branch => findCommit(b)
+  }
+
+  def chooseBranch(refSpec: RefSpec): Try[Branch] = refSpec match {
+    case c: Commit => someBranchFromCommit(c)
+    case b: Branch => checkBranch(b)
+    case t: Tag    => someBranchFromTag(t)
+  }
+
   def message(commit: Commit): Try[String] = sh"$git log --pretty=%s -1 $commit".exec[Try[String]]
 
   def someBranchFromCommit(commit: Commit): Try[Branch] =

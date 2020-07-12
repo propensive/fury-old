@@ -150,7 +150,8 @@ object FuryMenu {
     ),
     Action('undo, msg"undo the previous modification", LayerCli(_).undo),
     Menu('universe, msg"make universal changes", 'list, shortcut = 'u')(
-      Action('repos, msg"show repo sets in use", UniverseCli(_).list, shortcut = 'l')
+      Action('repos, msg"show repo sets in use", UniverseCli(_).list, shortcut = 'l'),
+      Action(Symbol("update-repo"), msg"update repos universally", UniverseCli(_).update, shortcut = 'r')
     ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),

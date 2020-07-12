@@ -29,7 +29,7 @@ import language.higherKinds
 
 case class EarlyCompletions() extends FuryException
 case class BadParams(param1: CliParam, param2: CliParam) extends FuryException
-case class MissingParamChoice(param1: CliParam, param2: CliParam) extends FuryException
+case class MissingParamChoice(param: CliParam*) extends FuryException
 case class MissingParam(param: CliParam) extends FuryException
 case class BadParamValue(param: CliParam, value: String) extends FuryException
 
@@ -408,7 +408,10 @@ abstract class CliApi {
   lazy val newBranch: Try[Branch] = get(BranchArg).orElse(defaultBranch)
   lazy val newRepoName: Try[RepoId] = get(RemoteArg) >> (_.projectName) >>= (get(RepoNameArg).orElse(_))
   lazy val repoNameFromPath: Try[RepoId] = get(PathArg) >> (_.name.toLowerCase) >> (RepoId(_))
-  
+  lazy val allCommits: Try[List[Commit]] = getGitDir >>= (_.allCommits)
+
+  lazy val universeRepos: Try[Set[RepoSetId]] = universe >> (_.repoSets.keySet)
+
   lazy val findUniqueRepoName: Try[RepoId] =
     (getLayer, newRepoName.orElse(repoNameFromPath)) >>= (_.repos.unique(_))
   
@@ -442,6 +445,8 @@ abstract class CliApi {
   implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
   implicit lazy val licenseHints: LicenseArg.Hinter = LicenseArg.hint(License.standardLicenses.map(_.id))
   implicit lazy val pointerHints: LayerArg.Hinter = LayerArg.hint(Nil) // FIXME
+  implicit lazy val commitHints: CommitArg.Hinter = CommitArg.hint(allCommits)
+  implicit lazy val repoSetHints: RepoSetArg.Hinter = RepoSetArg.hint(universeRepos)
   
   implicit lazy val defaultCompilerHints: DefaultCompilerArg.Hinter =
     DefaultCompilerArg.hint((getLayer, getLayout) >> (Javac(8) :: _.compilerRefs(_).map(BspCompiler(_))))

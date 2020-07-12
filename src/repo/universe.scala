@@ -25,21 +25,54 @@ import scala.util._
 case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   import Args._
 
-  lazy val table: Tabulation[(Commit, Set[RepoRef])] = Tables().repoSets
+  lazy val table: Tabulation[(RepoSetId, Set[RepoRef])] = Tables().repoSets
 
   implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
-  implicit val commitHints: CommitArg.Hinter = CommitArg.hint(universe >> (_.repoSets.map(_._1)))
 
-  def list: Try[ExitStatus] = (cli -< CommitArg -< RawArg -< ColumnArg).action { for {
-    col    <- ~cli.peek(ColumnArg)
-    rows   <- universe >> (_.repoSets.to[List])
-    commit <- opt(CommitArg)
-    table  <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, commit >> (_.id), "commit")
-    _      <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
-    _      <- ~log.rawln(table)
+  def list: Try[ExitStatus] = (cli -< RepoSetArg -< RawArg -< ColumnArg).action { for {
+    col       <- ~cli.peek(ColumnArg)
+    rows      <- universe >> (_.repoSets.to[List])
+    repoSetId <- opt(RepoSetArg)
+    table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, repoSetId >> (_.key), "commit")
+    _         <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
+    _         <- ~log.rawln(table)
   } yield log.await() }
 
-  def update: Try[ExitStatus] = (cli -< CommitArg -< TagArg -< BranchArg).action {
-    ???
+  def update: Try[ExitStatus] = (cli -< RepoSetArg -< CommitArg -< TagArg -< BranchArg).action {
+    for {
+      _         <- cli.atMostOne(BranchArg, TagArg)
+      _         <- cli.atMostOne(CommitArg, BranchArg)
+      _         <- cli.atMostOne(CommitArg, TagArg)
+      refSpec   <- (opt(BranchArg), opt(TagArg), opt(CommitArg)) >> (_.orElse(_).orElse(_))
+      refSpec   <- refSpec.ascribe(MissingParamChoice(BranchArg, TagArg, CommitArg))
+      universe  <- universe
+      repoSetId <- get(RepoSetArg)
+      repos     <- universe.repoSets.get(repoSetId).ascribe(ItemNotFound(repoSetId))
+      hierarchy <- getHierarchy
+      someLayer <- hierarchy(repos.head.layer)
+      someRepo  <- someLayer.repos.findBy(repos.head.repoId)
+      _         <- (getHierarchy, getLayout) >>= (UniverseApi(_).update(repoSetId, refSpec, _)) >>= commit
+    } yield log.await()
   }
+}
+
+case class UniverseApi(hierarchy: Hierarchy) {
+  def update(repoSetId: RepoSetId, refSpec: RefSpec, layout: Layout)(implicit log: Log): Try[Hierarchy] = for {
+    repoSets  <- hierarchy.universe >> (_.repoSets)
+    repos     <- repoSets.get(repoSetId).ascribe(ItemNotFound(repoSetId))
+    someLayer <- hierarchy(repos.head.layer)
+    someRepo  <- someLayer.repos.findBy(repos.head.repoId)
+    gitDir    <- someRepo.remote.fetch(layout)
+    commit    <- gitDir.resolve(refSpec)
+    branch    <- gitDir.chooseBranch(refSpec)
+    hierarchy <- repos.foldLeft(Try(hierarchy)) { case (getHierarchy, RepoRef(repoId, layerRef)) =>
+                   for {
+                     hierarchy <- getHierarchy
+                     layer     <- hierarchy(layerRef)
+                     layer     <- Try(Layer(_.repos(repoId).commit)(layer) = commit)
+                     layer     <- Try(Layer(_.repos(repoId).branch)(layer) = branch)
+                     hierarchy <- hierarchy(layerRef) = layer
+                   } yield hierarchy
+                 }
+  } yield hierarchy
 }

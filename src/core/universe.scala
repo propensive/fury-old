@@ -25,7 +25,7 @@ import scala.util._
 import scala.collection.immutable.TreeSet
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
-case class Universe(entities: Map[ProjectId, Entity], repoSets: Map[Commit, Set[RepoRef]]) {
+case class Universe(entities: Map[ProjectId, Entity], repoSets: Map[RepoSetId, Set[RepoRef]]) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
   def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)

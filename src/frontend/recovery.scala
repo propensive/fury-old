@@ -93,8 +93,9 @@ You can grant these permissions with,
           cli.abort(msg"""The ${arg1} parameter cannot be used at the same time as ${arg2}.""")
         case BadParamValue(param, value) =>
           cli.abort(msg"""The value '$value' is not valid for the parameter $param""")
-        case MissingParamChoice(param1, param2) =>
-          cli.abort(msg"""Either ${param1} or ${param2} must be specified.""")
+        case MissingParamChoice(param@_*) =>
+          val paramsTxt = param.map { p => msg"$p" }.reduce(_+msg"${','} "+_)
+          cli.abort(msg"""One of ${'{'}${paramsTxt}${'}'} must be specified.""")
         case MissingParam(param) =>
           cli.abort(msg"""The ${param} parameter is required.""")
         case CannotUndo() =>

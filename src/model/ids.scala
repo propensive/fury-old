@@ -44,6 +44,15 @@ abstract class Key(val kind: UserMsg) { def key: String }
 
 case class RepoRef(repoId: RepoId, layer: ImportPath)
 
+object RepoSetId {
+  implicit val stringShow: StringShow[RepoSetId] = _.key
+  implicit val msgShow: MsgShow[RepoSetId] = r => UserMsg(_.version(r.key))
+  implicit val parser: Parser[RepoSetId] = unapply(_)
+  def unapply(value: String): Option[RepoSetId] = value.only { case r"[0-9a-f]{7}" => RepoSetId(value) }
+}
+
+case class RepoSetId(key: String) extends Key(msg"commit")
+
 object ProjectId {
   implicit val msgShow: MsgShow[ProjectId] = p => UserMsg(_.project(p.key))
   implicit val stringShow: StringShow[ProjectId] = _.key
@@ -910,7 +919,7 @@ case class LicenseId(key: String) extends Key(msg"license")
 
 case class License(id: LicenseId, name: String)
 
-trait RefSpec
+sealed trait RefSpec extends Product with Serializable
 
 object Branch {
   implicit val msgShow: MsgShow[Branch] = v => UserMsg(_.version(v.id))
@@ -961,7 +970,10 @@ object Commit {
   def unapply(value: String): Option[Commit] = value.only { case r"[0-9a-f]{7,40}" => Commit(value) }
 }
 
-case class Commit(id: String) extends RefSpec
+case class Commit(id: String) extends Key(msg"commit") with RefSpec {
+  def key: String = id
+  def repoSetId: RepoSetId = RepoSetId(id.take(7))
+}
 
 object DomainName {
   implicit val stringShow: StringShow[DomainName] = _.value

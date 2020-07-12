@@ -54,8 +54,8 @@ case class Layer(version: Int,
     })
   })
 
-  def repoSets(path: ImportPath): Map[Commit, Set[RepoRef]] =
-    repos.groupBy(_.commit).mapValues(_.map(_.ref(path)))
+  def repoSets(path: ImportPath): Map[RepoSetId, Set[RepoRef]] =
+    repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path)))
 
   def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>

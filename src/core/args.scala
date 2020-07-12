@@ -44,9 +44,10 @@ object Args {
       "ignore compilation errors and launch the console anyway")
 
   val CommitArg = CliParam[Commit]('c', 'commit, "the Git commit hash")
+  val RepoSetArg = CliParam[RepoSetId]('r', 'repo, "the commit hash of the collection of repos")
 
   val GrabArg = CliParam[Unit]('C', 'commandeer,
-      "have Fury commandeer the Git repository in the working directory")
+      "have Fury commandeer the Git repo in the working directory")
     
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
@@ -68,7 +69,7 @@ object Args {
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val JsArg = CliParam[Unit]('e', 'js, "use Scala.JS to output an JavaScript file")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
-  val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
+  val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repo aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
