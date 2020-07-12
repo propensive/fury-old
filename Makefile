@@ -10,12 +10,12 @@ fury: dist/fury publish
 clean:
 	@printf "$(MK) Cleaning tmp, dist directories..." && \
 	 rm -rf .version tmp dist && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 uninstall:
 	@printf "$(MK) Removing all previous installations of Fury..."
 	@rm -rf $(HOME)/.local/share/fury/usr/$() $(HOME)/.local/share/fury/downloads && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 install: etc/launcher dist/fury.tar.gz 
 	@( printf "$(MK) Rewriting Fury launcher script for local use..." && \
@@ -36,7 +36,7 @@ tmp/.version:
 	 mkdir -p tmp && \
 	 printf "$(VERSION)\n" > "$@" && \
 	 printf "$(shell date +%s)" >> "$@" && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/lib/fury.jar: $(wildcard src/**/*.scala) tmp/.version
 	@printf "$(MK) Cloning the Fury layer over IPFS...\n" && \
@@ -47,7 +47,7 @@ tmp/lib/fury.jar: $(wildcard src/**/*.scala) tmp/.version
 	 mv tmp/lib/fury-frontend.jar "$@" && \
 	 jar uf "$@" -C tmp .version && \
 	 touch "$@" && \
-	 printf "$(MK) Done\n" || printf "$(MK) Failed\n"
+	 printf "$(MK) Done\n" || (printf "$(MK) Failed\n" && exit 1)
 
 tmp/bin/fury: etc/fury
 	@printf "$(MK) Copying Fury runner script..." && \
@@ -59,19 +59,19 @@ tmp/script/_fury: etc/completion/zsh/_fury
 	@printf "$(MK) Copying zsh completion script..." && \
 	 mkdir -p tmp/script && \
 	 cp "$<" "$@" && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/bin/procname.c: etc/procname.c
 	@printf "$(MK) Copying Procname C wrapper..." && \
 	 mkdir -p tmp/bin && \
 	 cp "$<" "$@" && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/bin/ng.c:
 	@printf "$(MK) Downloading Nailgun C client..." && \
 	 mkdir -p tmp/bin && \
 	 curl -Lso "$@" https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/c/ng.c && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/bin/ng.py:
 	@printf "$(MK) Downloading Nailgun Python client..." && \
@@ -79,14 +79,14 @@ tmp/bin/ng.py:
 	 curl -Lso "$@" https://raw.githubusercontent.com/facebook/nailgun/master/nailgun-client/py/ng.py && \
 	 sed -i.bak '1 s/$$/2.7/' "$@" && rm "$@.bak" && \
 	 chmod +x "$@" && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/etc: etc/icons/hicolor/16x16/apps/fury-icon.png etc/icons/hicolor/48x48/apps/fury-icon.png etc/icons/hicolor/128x128/apps/fury-icon.png 
 	@printf "$(MK) Copying Fury icons..." && \
 	 mkdir -p tmp/etc && \
 	 cp -r etc/icons tmp/etc/icons && \
 	 touch tmp/etc && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 icons: doc/logo/render_1000px.png
 	@printf "$(MK) Resizing logo for Fury icons..." && \
@@ -94,18 +94,18 @@ icons: doc/logo/render_1000px.png
 	 convert doc/logo/render_1000px.png -resize 16x16 etc/icons/hicolor/16x16/apps/fury-icon.png && \
 	 convert doc/logo/render_1000px.png -resize 48x48 etc/icons/hicolor/48x48/apps/fury-icon.png && \
 	 convert doc/logo/render_1000px.png -resize 128x128 etc/icons/hicolor/128x128/apps/fury-icon.png && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury tmp/etc tmp/etc
 	@printf "$(MK) Creating bundle file..." && \
 	 mkdir -p dist && \
 	 tar czf "$@" -C tmp .version lib bin etc script && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/.bundle.ipfs: dist/fury.tar.gz
 	@printf "$(MK) Adding $(shell tput -Tansi sitm)Fury bundle $(VERSION)$(shell tput -Tansi sgr0) to IPFS..." & \
 	 ipfs add -q "$<" > "$@" && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 dist/fury: etc/launcher tmp/.bundle.ipfs
 	@printf "$(MK) Rewriting Fury launcher script..." && \
@@ -113,12 +113,12 @@ dist/fury: etc/launcher tmp/.bundle.ipfs
 	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
 	 sed "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" "$@.tmp" > "$@" && \
 	 chmod +x "$@" && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/.launcher.ipfs: dist/fury
 	@printf "$(MK) Adding $(shell tput -Tansi sitm)Fury launcher $(VERSION)$(shell tput -Tansi sgr0) to IPFS..." && \
 	 ipfs add -q "$<" > "$@" && \
-	 printf "done\n" || printf "failed\n"
+	 printf "done\n" || (printf "failed\n" && exit 1)
 
 pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
 	@( echo $(VERSION) | grep -q '-' && printf "$(MK) Not pinning snapshot release of Fury bundle.\n" ) || \

@@ -149,9 +149,19 @@ object FuryMenu {
       Action('pull, msg"pull the latest remote version of the source repo", RepoCli(_).pull, shortcut = 'p')
     ),
     Action('undo, msg"undo the previous modification", LayerCli(_).undo),
-    Menu('universe, msg"make universal changes", 'list, shortcut = 'u')(
-      Action('repos, msg"show repo sets in use", UniverseCli(_).list, shortcut = 'l'),
-      Action(Symbol("update-repo"), msg"update repos universally", UniverseCli(_).update, shortcut = 'r')
+    Menu('universe, msg"make universal changes", 'projects, shortcut = 'u')(
+      Menu('repos, msg"view and modify repositories", 'list, shortcut = 'r')(
+        Action('list, msg"show repositories in use", UniverseCli(_).repos.list, shortcut = 'l'),
+        Action('update, msg"update repos universally", UniverseCli(_).repos.update, shortcut = 'u')
+      ),
+      Menu('projects, msg"view and modify projects", 'list, shortcut = 'p')(
+        Action('list, msg"show all projects", UniverseCli(_).projects.list, shortcut = 'l'),
+        Action('prolfierate, msg"update projects universally", UniverseCli(_).projects.proliferate, shortcut = 'u')
+      ),
+      /*Menu('imports, msg"view and modify layer imports", 'list, shortcut = 'i')(
+        Action('list, msg"show all layer imports", UniverseCli(_).imports.list, shortcut = 'l'),
+        Action('update, msg"update layer imports universally", UniverseCli(_).imports.update, shortcut = 'u')
+      )*/
     ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
