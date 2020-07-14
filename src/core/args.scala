@@ -79,6 +79,7 @@ object Args {
   val ImportArg = CliParam[LayerName]('i', 'layer, "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('l', 'layer, "specify a layer to unimport")
   val LayerArg = CliParam[ImportPath]('l', 'layer, "specify the layer")
+  val LayerRefArg = CliParam[ShortLayerRef]('i', 'import, "specify the import by its hash")
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg = CliParam[ClassRef]('M', 'main, "specify a main class")

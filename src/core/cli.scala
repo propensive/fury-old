@@ -411,6 +411,7 @@ abstract class CliApi {
   lazy val allCommits: Try[List[Commit]] = getGitDir >>= (_.allCommits)
 
   lazy val universeRepos: Try[Set[RepoSetId]] = universe >> (_.repoSets.keySet)
+  lazy val universeLayers: Try[Set[ShortLayerRef]] = universe >> (_.imports.keySet)
 
   lazy val findUniqueRepoName: Try[RepoId] =
     (getLayer, newRepoName.orElse(repoNameFromPath)) >>= (_.repos.unique(_))
@@ -442,11 +443,13 @@ abstract class CliApi {
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
   implicit lazy val grabHints: GrabArg.Hinter = GrabArg.hint()
   implicit lazy val allHints: AllArg.Hinter = AllArg.hint()
+  implicit lazy val importHints: ImportArg.Hinter = ImportArg.hint()
   implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
   implicit lazy val licenseHints: LicenseArg.Hinter = LicenseArg.hint(License.standardLicenses.map(_.id))
   implicit lazy val pointerHints: LayerArg.Hinter = LayerArg.hint(Nil) // FIXME
   implicit lazy val commitHints: CommitArg.Hinter = CommitArg.hint(allCommits)
   implicit lazy val repoSetHints: RepoSetArg.Hinter = RepoSetArg.hint(universeRepos)
+  implicit lazy val layerRefHints: LayerRefArg.Hinter = LayerRefArg.hint(universeLayers)
   
   implicit lazy val defaultCompilerHints: DefaultCompilerArg.Hinter =
     DefaultCompilerArg.hint((getLayer, getLayout) >> (Javac(8) :: _.compilerRefs(_).map(BspCompiler(_))))

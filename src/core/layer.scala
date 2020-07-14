@@ -54,8 +54,11 @@ case class Layer(version: Int,
     })
   })
 
-  def repoSets(path: ImportPath): Map[RepoSetId, Set[RepoRef]] =
-    repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path)))
+  def localUniverse(path: ImportPath): Universe = Universe(
+    entities = projects.map { project => project.id -> Entity(project, Map(path -> this)) }.toMap,
+    repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
+    imports = imports.map { i => i.layerRef.short -> LayerEntity(i.layerRef.short, Map(path -> i)) }.toMap
+  )
 
   def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>

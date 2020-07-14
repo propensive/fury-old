@@ -24,8 +24,12 @@ import gastronomy._
 import scala.util._
 import scala.collection.immutable.TreeSet
 
+object Universe { def apply(): Universe = Universe(Map(), Map(), Map()) }
+
 /** A Universe represents a the fully-resolved set of projects available in the layer */
-case class Universe(entities: Map[ProjectId, Entity], repoSets: Map[RepoSetId, Set[RepoRef]]) {
+case class Universe(entities: Map[ProjectId, Entity],
+                    repoSets: Map[RepoSetId, Set[RepoRef]],
+                    imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
   def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)
@@ -46,15 +50,19 @@ case class Universe(entities: Map[ProjectId, Entity], repoSets: Map[RepoSetId, S
   }.toMap)
 
   def ++(that: Universe): Universe = {
-    val newEntities = that.entities.foldLeft(entities) { case (entities, (id, entity)) =>
-      entities.updated(id, entities.get(id).fold(entity) { e => e.copy(layers = e.layers ++ entity.layers) })
+    val newEntities = that.entities.foldLeft(entities) { case (acc, (id, entity)) =>
+      acc.updated(id, acc.get(id).fold(entity) { e => e.copy(layers = e.layers ++ entity.layers) })
     }
 
     val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>
       acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)
     }
 
-    Universe(newEntities, newRepoSets)
+    val newImports = that.imports.foldLeft(imports) { case (acc, (layerRef, entity)) =>
+      acc.updated(layerRef, acc.getOrElse(layerRef, entity) + entity.imports)
+    }
+
+    Universe(newEntities, newRepoSets, newImports)
   }
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =

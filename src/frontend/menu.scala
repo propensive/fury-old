@@ -158,10 +158,10 @@ object FuryMenu {
         Action('list, msg"show all projects", UniverseCli(_).projects.list, shortcut = 'l'),
         Action('prolfierate, msg"update projects universally", UniverseCli(_).projects.proliferate, shortcut = 'u')
       ),
-      /*Menu('imports, msg"view and modify layer imports", 'list, shortcut = 'i')(
+      Menu('imports, msg"view and modify layer imports", 'list, shortcut = 'i')(
         Action('list, msg"show all layer imports", UniverseCli(_).imports.list, shortcut = 'l'),
-        Action('update, msg"update layer imports universally", UniverseCli(_).imports.update, shortcut = 'u')
-      )*/
+        Action('pull, msg"update layer imports universally", UniverseCli(_).imports.pull, shortcut = 'p')
+      )
     ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),

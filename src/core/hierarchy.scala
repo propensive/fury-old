@@ -38,12 +38,7 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
                       }
     } yield allProjects
 
-    val empty: Try[Universe] = Success(Universe(Map(), Map()))
-
-    for(allChildren <- children.foldLeft(empty)(merge)) yield {
-      val layerEntities = layer.projects.map { project => project.id -> Entity(project, Map(path -> layer)) }
-      allChildren ++ Universe(layerEntities.toMap, layer.repoSets(path))
-    }
+    for(allChildren <- children.foldLeft(Try(Universe()))(merge)) yield allChildren ++ layer.localUniverse(path)
   }
 
   def apply(importPath: ImportPath): Try[Layer] =

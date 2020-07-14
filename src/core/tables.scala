@@ -30,13 +30,13 @@ case class Tables() {
   implicit val theme: Theme = ManagedConfig().theme
 
   def show[T, S: MsgShow](table: Tabulation[T],
-                             cols: Int,
-                             rows: Traversable[T],
-                             raw: Boolean,
-                             column: Option[String] = None,
-                             row: Option[S] = None,
-                             main: String = "id")
-                            : String = {
+                          cols: Int,
+                          rows: Traversable[T],
+                          raw: Boolean,
+                          column: Option[String] = None,
+                          row: Option[S] = None,
+                          main: String = "id")
+                         : String = {
 
     val mainHeading = table.headings.find(_.name.toLowerCase == main.toLowerCase).getOrElse(table.headings(0))
     val showRows = row.fold(rows) { row => rows.filter { r =>
@@ -66,6 +66,12 @@ case class Tables() {
   implicit private def option[T: AnsiShow]: AnsiShow[Option[T]] = {
     case None    => "-"
     case Some(v) => implicitly[AnsiShow[T]].show(v)
+  }
+
+  implicit private def set[T: MsgShow]: AnsiShow[Set[T]] = _.to[List] match {
+    case Nil       => "-"
+    case List(one) => msg"$one".string(theme)
+    case many      => many.map { v => msg"$v" }.reduce(_+"\n"+_).string(theme)
   }
 
   implicit private val origin: AnsiShow[Origin] = {
@@ -224,5 +230,11 @@ case class Tables() {
     Heading("IDs", _._2.map(_.repoId).to[Set].map { id => id: UserMsg }.reduce { (l, r) => msg"$l, $r" }),
     Heading("Layers", _._2.map(_.layer: UserMsg).reduce { (l, r) => l+"\n"+r })
   )
-    
+  
+  val layerRefs: Tabulation[LayerEntity] = Tabulation(
+    Heading("Import", _.ref),
+    Heading("IDs", _.ids),
+    Heading("Remotes", _.published),
+    Heading("Layers", _.imports.keySet.map { v => v: UserMsg }.reduce { (l, r) => l+"\n"+r })
+  )
 }

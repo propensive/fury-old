@@ -164,7 +164,8 @@ object PublishedLayer {
   implicit val msgShow: MsgShow[PublishedLayer] =
     pl => UserMsg { theme => theme.layer(pl.url.path.value)+msg"${'@'}${pl.version}".string(theme) }
   
-  implicit val stringShow: StringShow[PublishedLayer] = pl => str"${pl.url}@${pl.version}"
+  implicit val stringShow: StringShow[PublishedLayer] =
+    pl => msg"${pl.url}@${pl.version}".string(Theme.NoColor)
 
   implicit val keyName: KeyName[PublishedLayer] = () => msg"layer"
   implicit val diff: Diff[PublishedLayer] = (l, r) => 
@@ -295,7 +296,30 @@ object LayerRef {
   }
 }
 
-case class LayerRef(key: String) extends Key(msg"layer") { def ipfsRef: IpfsRef = IpfsRef(key) }
+case class LayerRef(key: String) extends Key(msg"layer") {
+  def ipfsRef: IpfsRef = IpfsRef(key)
+  def short: ShortLayerRef = ShortLayerRef(key.drop(2).take(8))
+}
+
+object ShortLayerRef {
+  implicit val stringShow: StringShow[ShortLayerRef] = _.key
+  implicit val msgShow: MsgShow[ShortLayerRef] = lr => UserMsg(_.layer(stringShow.show(lr)))
+  implicit val diff: Diff[ShortLayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[ShortLayerRef] = unapply(_)
+
+  def unapply(value: String): Option[ShortLayerRef] =
+    value.only { case r"[a-zA-Z0-9]{8}" => ShortLayerRef(value) }
+}
+
+case class ShortLayerRef(key: String) extends Key(msg"layer") {
+  def matches(layerRef: LayerRef): Boolean = layerRef.key.take(8) == key
+}
+
+case class LayerEntity(ref: ShortLayerRef, imports: Map[ImportPath, Import]) {
+  def +(newImports: Map[ImportPath, Import]) = copy(imports = imports ++ newImports)
+  def ids: Set[ImportId] = imports.values.map(_.id).to[Set]
+  def published: Set[PublishedLayer] = imports.values.flatMap(_.remote).to[Set]
+}
 
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
@@ -572,6 +596,12 @@ object Import {
 case class Import(id: ImportId, layerRef: LayerRef, remote: Option[PublishedLayer] = None)
 
 object LayerName {
+  implicit val stringShow: StringShow[LayerName] = {
+    case layerName: IpfsRef => IpfsRef.stringShow.show(layerName)
+    case layerName: FuryUri => FuryUri.stringShow.show(layerName)
+    case layerName: FileInput => FileInput.stringShow.show(layerName)
+  }
+  
   implicit val msgShow: MsgShow[LayerName] = {
     case layerName: IpfsRef => IpfsRef.msgShow.show(layerName)
     case layerName: FuryUri => FuryUri.msgShow.show(layerName)
