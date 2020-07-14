@@ -35,6 +35,11 @@ object OgdlWriterTest extends Suite() {
 
   private[this] case class Quux(handle: String, data: SortedSet[String])
 
+  private[this] sealed trait X
+  private[this] case class X1(foo: String) extends X
+  private[this] case class X2(bar: Int) extends X
+  private[this] implicit val ord3: Ordering[X] = Ordering[String].on[X](_.toString)
+
   def run(test: Runner): Unit = {
     test("select dynamic") {
       val input = Ogdl(Vector(
@@ -114,5 +119,33 @@ object OgdlWriterTest extends Suite() {
       ("handle",Ogdl(Vector(("Q",empty)))),
       ("data",Ogdl(Vector(("A", Ogdl(Vector(("B", Ogdl(Vector(("C", empty))))))))))
     ))))
+
+    test("trait") {
+      val input: X = X1("abc")
+      Try(Ogdl(input))
+    }.assert(_ == Success(Ogdl(Vector(
+      ("X1",Ogdl(Vector(("abc", empty))))
+    ))))
+
+    test("list of trait") {
+      val input: List[X] = List(X1("abc"), X2(123))
+      val x = Try(Ogdl(input))
+      println(x)
+      x
+    }.assert(_ == Success(Ogdl(Vector(
+      ("X1",Ogdl(Vector(("abc", empty)))),
+      ("X2",Ogdl(Vector(("123", empty))))
+    ))))
+
+//    test("sorted set of trait") {
+//      val input: SortedSet[X] = TreeSet(X1("abc"), X2(123))
+//      val x = Try(Ogdl(input))
+//      println(x)
+//      x
+//    }.assert(_ == Success(Ogdl(Vector(
+//      ("X1",Ogdl(Vector(("abc", empty)))),
+//      ("X2",Ogdl(Vector(("123", empty))))
+//    ))))
+
   }
 }
