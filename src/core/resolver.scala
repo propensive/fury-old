@@ -26,6 +26,7 @@ object Resolver {
   implicit val project: Resolver[Project, ProjectId] = _ == _.id
   implicit val repo: Resolver[Repo, RepoId] = _ == _.id
   implicit val imports: Resolver[Import, ImportId] = _ == _.id
+  implicit val importByShortRef: Resolver[Import, ShortLayerRef] = _.key == _.layerRef.key.drop(2).take(8)
   implicit val binary: Resolver[Binary, BinaryId] = _ == _.id
   implicit val optDef: Resolver[OptDef, OptId] = _ == _.id
   implicit val dependency: Resolver[Dependency, ModuleRef] = _ == _.ref

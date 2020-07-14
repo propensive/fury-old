@@ -156,7 +156,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
       universe    <- hierarchy.universe
       layerEntity <- universe.imports.get(layerRef).ascribe(ItemNotFound(layerRef))
       someLayer   <- hierarchy(layerEntity.imports.head._1)
-      someImport  <- someLayer.imports.find(_.layerRef.key.startsWith(layerRef.key)).ascribe(ItemNotFound(layerRef))
+      someImport  <- someLayer.imports.findBy(layerRef)
       importName  <- input.orElse(someImport.remote.map(_.url)).ascribe(NoRemoteInferred())
       newLayerRef <- Layer.resolve(importName)
       pub         <- Layer.published(importName)

@@ -76,8 +76,8 @@ object Args {
       "specify if this dependency should not be included transitively")
 
   val KeyArg = CliParam[String]('k', 'key, "GPG key")
-  val ImportArg = CliParam[LayerName]('i', 'layer, "specify an external layer to import")
-  val ImportIdArg = CliParam[ImportId]('l', 'layer, "specify a layer to unimport")
+  val ImportArg = CliParam[LayerName]('l', 'layer, "specify an external layer to import")
+  val ImportIdArg = CliParam[ImportId]('i', 'import, "specify an import by ID")
   val LayerArg = CliParam[ImportPath]('l', 'layer, "specify the layer")
   val LayerRefArg = CliParam[ShortLayerRef]('i', 'import, "specify the import by its hash")
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")

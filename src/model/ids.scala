@@ -311,9 +311,7 @@ object ShortLayerRef {
     value.only { case r"[a-zA-Z0-9]{8}" => ShortLayerRef(value) }
 }
 
-case class ShortLayerRef(key: String) extends Key(msg"layer") {
-  def matches(layerRef: LayerRef): Boolean = layerRef.key.take(8) == key
-}
+case class ShortLayerRef(key: String) extends Key(msg"layer")
 
 case class LayerEntity(ref: ShortLayerRef, imports: Map[ImportPath, Import]) {
   def +(newImports: Map[ImportPath, Import]) = copy(imports = imports ++ newImports)
