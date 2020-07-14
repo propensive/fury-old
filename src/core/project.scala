@@ -42,11 +42,8 @@ case class Project(id: ProjectId,
 
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
+  def compilerRefs: List[ModuleRef] = modules.to[List].collect { case m if m.kind.is[Compiler] => m.ref(this) }
+  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect { case RepoSource(repoId, _, _) => repoId }
 
-  def compilerRefs: List[ModuleRef] =
-    modules.to[List].collect { case m if m.kind.is[Compiler] => m.ref(this) }
-
-  def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect {
-    case ExternalSource(repoId, _, _) => repoId
-  }
+  def mainModule: Try[Option[Module]] = main.traverse(modules.findBy(_))
 }

@@ -44,9 +44,10 @@ object Args {
       "ignore compilation errors and launch the console anyway")
 
   val CommitArg = CliParam[Commit]('c', 'commit, "the Git commit hash")
+  val RepoSetArg = CliParam[RepoSetId]('r', 'repo, "the commit hash of the collection of repos")
 
   val GrabArg = CliParam[Unit]('C', 'commandeer,
-      "have Fury commandeer the Git repository in the working directory")
+      "have Fury commandeer the Git repo in the working directory")
     
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
@@ -54,7 +55,8 @@ object Args {
   val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
   val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
   val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")
-  val DirArg = CliParam[Path]('f', 'dir, "specify the new repository destination directory")
+  val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
+  val PathArg = CliParam[Path]('p', 'path, "specify the path")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
@@ -67,7 +69,7 @@ object Args {
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val JsArg = CliParam[Unit]('e', 'js, "use Scala.JS to output an JavaScript file")
   val FileArg = CliParam[Path]('f', 'file, "destination file")
-  val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repository aliases instead of SSH")
+  val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repo aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
 
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
@@ -77,6 +79,7 @@ object Args {
   val ImportArg = CliParam[LayerName]('i', 'layer, "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('l', 'layer, "specify a layer to unimport")
   val LayerArg = CliParam[ImportPath]('l', 'layer, "specify the layer")
+  val LayerRefArg = CliParam[ShortLayerRef]('i', 'import, "specify the import by its hash")
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg = CliParam[ClassRef]('M', 'main, "specify a main class")
@@ -124,8 +127,8 @@ object Args {
   val ThemeArg = CliParam[Theme]('T', 'theme, "specify a color theme")
   val TimestampsArg = CliParam[Boolean]('L', 'timestamps, "show timestamps (on, off)")
   val UrlArg = CliParam[String]('u', 'url, "specify a URL")
-  val RepoUrlArg = CliParam[Remote]('u', 'url, "specify a URL")
-  val RepoUrlStringArg = CliParam[String]('u', 'url, "specify a URL")
+  val RemoteArg = CliParam[Remote]('R', 'remote, "specify a remote URL")
+  val UnparsedRemoteArg = CliParam[String]('r', 'url, "specify a remote URL")
   val KindArg = CliParam[Kind.Id]('t', 'type, "Type of module (lib, app, plugin, compiler, bench)")
   val VerboseArg = CliParam[Unit]('v', 'verbose, "Show more output")
   val VersionArg = CliParam[Version]('v', 'version, "The published version of the binary")

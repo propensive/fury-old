@@ -24,9 +24,6 @@ You can grant these permissions with,
   fury permission grant -P <permission hash>
 The module has not been specified.
 1
-Starting the BSP launcher...
-Opening a BSP server connection
-BSP server is listening for incoming connections
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 0

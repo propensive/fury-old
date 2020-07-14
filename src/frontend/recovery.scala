@@ -31,12 +31,12 @@ object Recovery {
       err match {
         case EarlyCompletions() =>
           Done
-        case ProjectConflict(ps/*, h1, h2*/) =>
+        case ProjectConflict(ps, left, right) =>
           val projectIds = ps.toSeq.sortBy(_.key).map { x => msg"$x" }
           val message = msg"Your dependency tree contains references to two or more conflicting projects: "
           val beginning = projectIds.tail.foldLeft(message + projectIds.head)(_ + ", " + _)
-          //val ending = msg". The conflicting hierarchies are located at ${h1.dir} and ${h2.dir}"
-          cli.abort(beginning)//+ ending)
+          val ending = msg". The first conflict was found between layers ${left} and ${right}"
+          cli.abort(msg"$beginning$ending")
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
         case WorkingDirectoryConflict(files) =>
@@ -91,8 +91,11 @@ You can grant these permissions with,
           cli.abort(e.getMessage)
         case BadParams(arg1, arg2) =>
           cli.abort(msg"""The ${arg1} parameter cannot be used at the same time as ${arg2}.""")
-        case MissingParamChoice(param1, param2) =>
-          cli.abort(msg"""Either the ${param1} or ${param2} parameter must be specified.""")
+        case BadParamValue(param, value) =>
+          cli.abort(msg"""The value '$value' is not valid for the parameter $param""")
+        case MissingParamChoice(param@_*) =>
+          val paramsTxt = param.map { p => msg"$p" }.reduce(_+msg"${','} "+_)
+          cli.abort(msg"""One of ${'{'}${paramsTxt}${'}'} must be specified.""")
         case MissingParam(param) =>
           cli.abort(msg"""The ${param} parameter is required.""")
         case CannotUndo() =>
@@ -115,6 +118,8 @@ You can grant these permissions with,
           cli.abort(msg"Coursier could not download a file because DNS resolution failed.")
         case BranchNotFound(commit) =>
           cli.abort(msg"A branch corresponding to the commit $commit could not be found.")
+        case BranchDoesNotExist(branch) =>
+          cli.abort(msg"The branch $branch does not exist.")
         case OfflineException() =>
           cli.abort(msg"Coursier could not download a file because you appear to be offline.")
         case UnknownVersion(v) =>
@@ -123,6 +128,8 @@ You can grant these permissions with,
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
           cli.abort(msg"The command '${e.command}' was not recognized.")
+        case NoRemoteInferred() =>
+          cli.abort(msg"A remote was not specified, and could not be inferred from the path.")
         case exoskeleton.InvalidArgValue(param, arg) =>
           cli.abort(msg"The argument '$arg' was not a valid value for the parameter $param.")
         case InvalidLayer(layer) =>
@@ -139,8 +146,12 @@ You can grant these permissions with,
           cli.abort(msg"Failed to read OGDL path ${path.mkString(".")}: $msg")
         case OgdlReadException(path, e) =>
           cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
+        case PathNotGitDir() =>
+          cli.abort(msg"The path is not a valid git directory")
         case e: ItemNotFound =>
           cli.abort(msg"The ${e.kind} ${e.item} was not found.")
+        case CantResolveLayer(path) =>
+          cli.abort(msg"Can't resolve layer $path")
         case RepoNotForked(repo) =>
           cli.abort(msg"The repository ${repo} has not been forked.")
         case RepoNotFound(base) =>

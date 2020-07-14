@@ -19,81 +19,55 @@ package fury
 import fury.text._, fury.io._, fury.core._, fury.model._
 
 import guillotine._
+import escritoire._
 import optometry._
 import mercator._
 import scala.util._
 
-import scala.collection.immutable.SortedSet
+import scala.collection.immutable.{SortedSet, TreeSet}
 
-case class ProjectCli(cli: Cli)(implicit log: Log) {
+case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
   import Args._
 
-  def select: Try[ExitStatus] = for {
-    layout      <- cli.layout
-    conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.retrieve(conf)
-    cli         <- cli.hint(ProjectArg, layer.projects)
-    cli         <- cli.hint(ForceArg)
-    call        <- cli.call()
-    projectId   <- ~cli.peek(ProjectArg)
-    projectId   <- projectId.asTry
-    force       <- ~call(ForceArg).isSuccess
-    layer       <- ~(Layer(_.main)(layer) = Some(projectId))
-    _           <- Layer.commit(layer, conf, layout)
-  } yield log.await()
+  lazy val getTable: Try[Tabulation[Entity]] = getLayer >> (_.main) >> (Tables().entities(_))
+  
+  implicit lazy val columnHints: ColumnArg.Hinter =
+    ColumnArg.hint(getTable.map(_.headings.map(_.name.toLowerCase)))
 
-  def list: Try[ExitStatus] = for {
-    layout      <- cli.layout
-    conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.retrieve(conf)
-    cli         <- cli.hint(ProjectArg, layer.projects)
-    cli         <- cli.hint(RawArg)
-    table       <- ~Tables().projects(layer.main)
-    cli         <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    call        <- cli.call()
-    projectId   <- ~cli.peek(ProjectArg)
-    col         <- ~cli.peek(ColumnArg)
-    raw         <- ~call(RawArg).isSuccess
-    rows        <- ~layer.projects.to[List]
-    table       <- ~Tables().show(table, cli.cols, rows, raw, col, projectId, "project")
-    _           <- ~log.infoWhen(!raw)(conf.focus())
-    _           <- ~log.rawln(table)
-  } yield log.await()
+  def select: Try[ExitStatus] = (cli -< ProjectArg).action {
+    (getLayer, getProject >> (_.id) >> (Some(_))) >> (Layer(_.main)(_) = _) >> commit >> finish
+  }
 
-  def add: Try[ExitStatus] = for {
-    layout         <- cli.layout
-    conf           <- Layer.readFuryConf(layout)
-    layer          <- Layer.retrieve(conf)
-    cli            <- cli.hint(ProjectNameArg, List(layout.baseDir.name))
-    cli            <- cli.hint(LicenseArg, License.standardLicenses)
-    cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
-    call           <- cli.call()
-    optCompilerRef <- ~cli.peek(DefaultCompilerArg)
-    projectArg     <- call(ProjectNameArg)
-    projectId      <- layer.projects.unique(projectArg)
-    license        <- Success(call(LicenseArg).toOption.getOrElse(License.unknown))
-    project        <- ~Project(projectId, license = license, compiler = optCompilerRef)
-    layer          <- ~Layer(_.projects).modify(layer)(_ + project)
-    layer          <- ~(Layer(_.main)(layer) = Some(project.id))
-    _              <- Layer.commit(layer, conf, layout)
-    _              <- ~log.info(msg"Set current project to ${project.id}")
-  } yield log.await()
+  def list: Try[ExitStatus] = (cli -< ProjectArg -< RawArg -< ColumnArg).action { for {
+    col     <- ~cli.peek(ColumnArg)
+    rows    <- universe >> (_.entities.values)
+    project <- ~cliProject.toOption
+    table   <- getTable >> (Tables().show(_, cli.cols, rows, has(RawArg), col, project >> (_.id), "project"))
+    _       <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
+    _       <- ~log.rawln(table)
+  } yield log.await() }
 
-  def remove: Try[ExitStatus] = for {
-    layout      <- cli.layout
-    conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.retrieve(conf)
-    cli         <- cli.hint(ProjectArg, layer.projects)
-    cli         <- cli.hint(ForceArg)
-    call        <- cli.call()
-    projectId   <- call(ProjectArg)
-    project     <- layer.projects.findBy(projectId)
-    force       <- ~call(ForceArg).isSuccess
-    layer       <- ~Layer(_.projects).modify(layer)(_.evict(project.id))
-    layer       <- ~Layer(_.main).modify(layer) { v => if(v == Some(projectId)) None else v }
-    _           <- Layer.commit(layer, conf, layout)
-  } yield log.await()
+  def add: Try[ExitStatus] = (cli -< ProjectNameArg -< LicenseArg -< DefaultCompilerArg).action { for {
+    optLicense  <- opt(LicenseArg).map(_.getOrElse(License.unknown))
+    optCompiler <- opt(DefaultCompilerArg)
+    project     <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, optLicense, "", optCompiler))
+    
+    layer       <- getLayer >>
+                       (Layer(_.projects).modify(_)(_ + project)) >>
+                       (Layer(_.main)(_) = Some(project.id))
 
+    _           <- commit(layer)
+    _           <- ~log.info(msg"Set current project to ${project.id}")
+  } yield log.await() }
+
+  def remove: Try[ExitStatus] = (cli -< ProjectArg -< ForceArg).action { for {
+    project <- getProject
+    layer   <- getLayer >> (Layer(_.projects).modify(_)(_.evict(project.id)))
+    layer   <- ~Layer(_.main).modify(layer) { v => if(v == Some(project.id)) None else v }
+    _       <- commit(layer)
+  } yield log.await() }
+
+  // FIXME: Todo
   def update: Try[ExitStatus] = for {
     layout         <- cli.layout
     conf           <- Layer.readFuryConf(layout)

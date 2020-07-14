@@ -147,6 +147,7 @@ object StringShow {
   implicit val long: StringShow[Long] = _.toString
   implicit val int: StringShow[Int] = _.toString
   implicit val bigDecimal: StringShow[BigDecimal] = _.toString
+  implicit val unit: StringShow[Unit] = _ => "*"
 }
 
 trait StringShow[-T] { def show(value: T): String }

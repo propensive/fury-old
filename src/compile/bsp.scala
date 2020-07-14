@@ -121,8 +121,8 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       targets       <- graph.keys.map { ref =>
                          Target(ref, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
-      checkouts     <- graph.keys.map(universe.checkout(_, layout)).sequence
-    } yield Structure(modules.toMap, graph, checkouts.foldLeft(Checkouts(Set()))(_ ++ _), targets)
+      snapshots     <- graph.keys.map(universe.checkout(_, layout)).sequence
+    } yield Structure(modules.toMap, graph, snapshots.foldLeft(Snapshots(Map()))(_ ++ _), targets)
 
   private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {
     for {
@@ -372,7 +372,7 @@ object FuryBuildServer {
 
   case class Structure(modules: Map[ModuleRef, Module],
                        graph: Map[ModuleRef, List[Dependency]],
-                       checkouts: Checkouts,
+                       snapshots: Snapshots,
                        targets: Map[ModuleRef, Target]) {
 
     private[this] val hashes: mutable.HashMap[ModuleRef, Digest] = new mutable.HashMap()
@@ -381,7 +381,7 @@ object FuryBuildServer {
     def hash(ref: ModuleRef): Digest = {
       val target = targets(ref)
       hashes.getOrElseUpdate(
-        ref, (target.module.kind, target.checkouts.checkouts.to[List], target.binaries,
+        ref, (target.module.kind, target.snapshots.snapshots.to[List], target.binaries,
             target.module.dependencies.to[List], target.module.compiler, target.module.opts.to[List],
             target.sourcePaths, graph(ref).map(_.ref).map(hash(_))).digest[Md5]
       )

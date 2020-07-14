@@ -1,0 +1,4 @@
+fury project list --raw
+fury project remove --project foo
+echo '---'
+fury project list --raw

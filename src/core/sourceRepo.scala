@@ -18,11 +18,12 @@ package fury.core
 
 import fury.model._, fury.io._, fury.text._, fury.ogdl._
 import mercator._
+import optometry._
 
 import scala.util._
 
 
-object Repo {
+object Repo extends Lens.Partial[Repo] {
   implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[Repo] = _.id.key
   implicit def diff: Diff[Repo] = Diff.gen[Repo]
@@ -45,17 +46,6 @@ object Repo {
     _         <- (layout.baseDir / ".git").moveTo(dest / ".git")
     _         <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield Repo(repoId, remote, branch, commit, None)
-
-  def local(layout: Layout, layer: Layer)(implicit log: Log): Try[Option[Repo]] = {
-    val gitDir = GitDir(layout)
-    if(gitDir.commit.isFailure) Success(None)
-    else for {
-      repoId <- ~layer.uniqueRepoId(layout.baseDir)
-      remote <- gitDir.remote
-      branch <- gitDir.branch
-      commit <- gitDir.commit
-    } yield Some(Repo(repoId, remote, branch, commit, None))
-  }
 }
 
 case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
@@ -64,13 +54,16 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     files  <- localDir(layout).fold(gitDir.lsTree(commit))(Success(gitDir.dir.children.map(Path(_))).waive)
   } yield files
 
+  def ref(layer: ImportPath): RepoRef = RepoRef(id, layer)
+
   def branch(layout: Layout)(implicit log: Log): Branch =
     localDir(layout).flatMap(_.branch.toOption).getOrElse(branch)
 
-  def fullCheckout(layout: Layout)(implicit log: Log): Checkout =
-    Checkout(id, remote, localDir(layout), commit, branch, List())
+  def fullCheckout(layout: Layout)(implicit log: Log): Snapshot =
+    Snapshot(id, remote, localDir(layout), commit, branch, List())
 
-  def localDir(layout: Layout)(implicit log: Log): Option[GitDir] = local.map(GitDir(_)(layout.env))
+  def localDir(layout: Layout)(implicit log: Log): Option[GitDir] =
+    local.map { p => GitDir(p in layout.baseDir)(layout.env) }
 
   def changes(layout: Layout)(implicit log: Log): Try[Option[DiffStat]] = for {
     repoDir <- localDir(layout).map(Success(_)).getOrElse(remote.fetch(layout))
@@ -89,12 +82,9 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     commit <- dir.commit
   } yield Commit(commit.id)
 
-  def sourceCandidates(layout: Layout)
-                      (pred: String => Boolean)
-                      (implicit log: Log)
-                      : Try[Set[Source]] =
+  def sourceCandidates(layout: Layout)(pred: String => Boolean)(implicit log: Log): Try[Set[Source]] =
     listFiles(layout).map(_.filter { f => pred(f.filename) }.map { p =>
-        ExternalSource(id, p.parent, Glob.All): Source }.to[Set])
+        RepoSource(id, p.parent, Glob.All): Source }.to[Set])
   
   def unfork(layout: Layout)(implicit log: Log): Try[Repo] = {
     for {

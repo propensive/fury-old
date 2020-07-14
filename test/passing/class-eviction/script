@@ -13,9 +13,9 @@ echo 'package libA; object LibA { val aVal = "A" }' > src/libA/liba.scala
 mkdir libB
 fury source add -s libB
 echo 'object LibB { val bVal = "B" }' >> libB/libb.scala
-fury build run -f out --output quiet
+fury build run --path out --output quiet
 jar -tf out/cache-test-my-module.jar | LC_ALL=A sort --ignore-case
 fury source remove -s libB
-fury build run -f out --output quiet
+fury build run --path out --output quiet
 jar -tf out/cache-test-my-module.jar | LC_ALL=A sort --ignore-case
 echo $?

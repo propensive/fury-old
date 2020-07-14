@@ -42,7 +42,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     raw          <- ~call(RawArg).isSuccess
     project      <- tryProject
     module       <- tryModule
-    hierarchy    <- layer.hierarchy
+    hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
     checkouts    <- universe.checkout(module.ref(project), layout)
   } yield {
@@ -104,67 +104,40 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     repo.sourceCandidates(layout)(isSourceFileName).getOrElse(Set.empty)
 }
 
-case class FrontEnd(cli: Cli)(implicit log: Log) {
- 
-  lazy val layout: Try[Layout] = cli.layout
-  lazy val conf: Try[FuryConf] = layout >>= Layer.readFuryConf
-  lazy val layer: Try[Layer] = conf >>= (Layer.retrieve(_))
+case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
-  lazy val projectId: Try[ProjectId] = layer >>= (cli.preview(ProjectArg)() orElse _.main.asTry)
-  lazy val project: Try[Project] = (layer, projectId) >>= (_.projects.findBy(_))
-  lazy val moduleId: Try[ModuleId] = project >>= (cli.preview(ModuleArg)() orElse _.main.asTry)
-  lazy val module: Try[Module] = (project, moduleId) >>= (_.modules.findBy(_))
-
-  implicit val projectHints: ProjectArg.Hinter = ProjectArg.hint(layer >> (_.projects.map(_.id)))
-  implicit val moduleHints: ModuleArg.Hinter = ModuleArg.hint(project >> (_.modules.map(_.id)))
-  implicit val sourceHints: SourceArg.Hinter = SourceArg.hint(module >> (_.resources))
-  implicit val rawHints: RawArg.Hinter = RawArg.hint(())
-
-  implicit val showUnit: StringShow[Unit] = _ => "*"
-
-  lazy val resources: Try[SortedSet[Source]] = module >> (_.resources)
-
-  def resourcesLens(projectId: ProjectId, moduleId: ModuleId) =
-    Lens[Layer](_.projects(projectId).modules(moduleId).resources)
-
-  lazy val resource: Try[Source] = cli.preview(SourceArg)()
+  lazy val table = Tables().resources
+  implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(~table.headings.map(_.name.toLowerCase))
 
   private def removeFromSet[T](items: SortedSet[T], item: T): SortedSet[T] = items - item
   private def addToSet[T](items: SortedSet[T], item: T): SortedSet[T] = items + item
-  private def commit(layer: Layer): Try[Unit] = (Try(layer), conf, layout) >>= (Layer.commit(_, _, _).map(_.unit))
-  private def finish[T](result: T): ExitStatus = log.await()
+  
+  lazy val resources = getModule >> (_.resources)
+  
+  def resourcesLens(project: Project, module: Module) =
+    Lens[Layer](_.projects(project.id).modules(module.id).resources)
 
-  object Resources {
-    lazy val table = Tables().resources
-    implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(~table.headings.map(_.name.toLowerCase))
-    
-    def list: Try[ExitStatus] = {
-      (cli -< ProjectArg -< RawArg -< ModuleArg -< ColumnArg -< SourceArg).action { implicit call =>
-        val raw = RawArg().isSuccess
-        val column = ColumnArg().toOption
-        if(!raw) (conf, projectId, moduleId) >> (_.focus(_, _)) >> (log.info(_))
+  def list: Try[ExitStatus] =
+    (cli -< ProjectArg -< RawArg -< ModuleArg -< ColumnArg -< ResourceArg).action {
+      if(!raw) (conf, getProject >> (_.id), getModule >> (_.id)) >> (_.focus(_, _)) >> (log.info(_))
 
-        
-        resources >> (Tables().show(table, cli.cols, _, raw, column, resource.toOption, "source")) >>
-            (log.rawln(_)) >> finish
-      }
+      
+      resources >> (Tables().show(table, cli.cols, _, raw, column, get(ResourceArg).toOption, "resource")) >>
+          (log.rawln(_)) >> { x => log.await() }
     }
 
-    def remove: Try[ExitStatus] = {
-      implicit val sourceHints: SourceArg.Hinter = SourceArg.hint()
-      (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
-        val lens = (projectId, moduleId) >> resourcesLens
-        (resources, SourceArg()) >> removeFromSet >>= { resources =>
-          (layer, lens) >> Layer.set(resources) >> commit >> finish
-        }
-      }
-    }
+  def remove: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
+    val lens = (getProject, getModule) >> resourcesLens
 
-    def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< SourceArg).action { implicit call =>
-      val lens = (projectId, moduleId) >> resourcesLens
-      (resources, SourceArg()) >> addToSet >>= { resources =>
-        (layer, lens) >> Layer.set(resources) >> commit >> finish
-      }
+    (resources, get(ResourceArg)) >> removeFromSet >>= { resources =>
+      (getLayer, lens) >> Layer.set(resources) >> commit >> finish
+    }
+  }
+
+  def add: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
+    val lens = (getProject, getModule) >> resourcesLens
+    (resources, get(ResourceArg)) >> addToSet >>= { resources =>
+      (getLayer, lens) >> Layer.set(resources) >> commit >> finish
     }
   }
 }

@@ -10,7 +10,7 @@ mkdir -p src/app
 fury source add -s src/app
 echo 'object HelloWorld extends App { println("Hello World") }' > src/app/hw.scala
 mkdir -p out
-fury build run --dir out --output linear -F
+fury build run --path out --output linear -F
 echo $?
 ls out
 # Listing of all contents is too large, so we'll just check if a few classes from the Scala library are there.

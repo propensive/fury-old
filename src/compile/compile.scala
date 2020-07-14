@@ -110,28 +110,37 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       val logging: PrintStream = log.stream { str =>
         (if(str.indexOf("[D]") == 9) str.drop(17) else str) match {
           case r"Starting the bsp launcher.*" =>
-            log.info(msg"Starting the BSP launcher...")
+            log.note(msg"Starting the BSP launcher...")
           case r"Opening a bsp server connection with.*" =>
-            log.info(msg"Opening a BSP server connection")
+            log.note(msg"Opening a BSP server connection")
           case r"Waiting for a connection at" =>
             log.info(msg"Waiting for a socket connection")
-          case r"Loading project from .*" => None
-          case r"Loading previous analysis for .*" => None
-          case r".*detected in file:.*" => None
-          case r"  => .*" => None
+          case r"Loading project from .*" =>
+            None
+          case r"Loading previous analysis for .*" =>
+            None
+          case r".*detected in file:.*" =>
+            None
+          case r"  => .*" =>
+            None
           case r"Creating a scala instance from Bloop" =>
             log.info("Instantiating a new instance of the Scala compiler")
           case r"The server is listening for incoming connections.*" =>
-            log.info(msg"BSP server is listening for incoming connections")
-          case r"Waiting.*" => None
-          case r"Starting thread.*" => None
-          case r"Deduplicating compilation of .*" => None
+            log.note(msg"BSP server is listening for incoming connections")
+          case r"Waiting.*" =>
+            None
+          case r"Starting thread.*" =>
+            None
+          case r"Deduplicating compilation of .*" =>
+            None
           case r"No server running at .*" =>
             log.info("Could not detect a BSP server running locally")
-          case r"Command: .*" => None
+          case r"Command: .*" =>
+            None
           case r"A bloop installation has been detected.*" =>
             log.info("Detected an existing Bloop installation")
-          case "\n" => None
+          case "\n" =>
+            None
           case other =>
             log.note(msg"${'['}bsp${']'} ${other}")
         }
@@ -256,7 +265,7 @@ object Build {
                      }
       
       targets      = targetIndex.unzip._2.to[Set]
-      checkouts   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, layout))
+      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, layout))
       policy       = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     } yield {
       val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
@@ -264,7 +273,7 @@ object Build {
       
       val subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(intermediateTargets.map(_.ref).to[Set] + dependency.ref).connections
       
-      Build(target, graph, subgraphs, checkouts.foldLeft(Checkouts(Set()))(_ ++ _),
+      Build(target, graph, subgraphs, snapshots.foldLeft(Snapshots())(_ ++ _),
           moduleRefToTarget, targetIndex.toMap, policy.to[Set], universe)
     }
   }
@@ -324,7 +333,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     } yield build
 
     val repos = build match {
-      case Some(c) => c.checkouts.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
+      case Some(c) => c.snapshots.snapshots.map { case (hash, snapshot) => (snapshot.path.value, snapshot.repoId)}.toMap
       case None    => Map()
     }
 
@@ -434,7 +443,7 @@ ${'|'} ${highlightedLine}
 case class Build(target: Target, 
                  graph: Target.Graph,
                  subgraphs: Map[ModuleRef, Set[ModuleRef]],
-                 checkouts: Checkouts,
+                 snapshots: Snapshots,
                  targets: Map[ModuleRef, Target],
                  targetIndex: Map[ModuleRef, Target],
                  requiredPermissions: Set[Permission],
@@ -467,7 +476,7 @@ case class Build(target: Target,
   }
 
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
-    checkouts.checkouts.traverse(_.get(layout)).map(_ => ())
+    snapshots.snapshots.traverse { case (hash, snapshot) => snapshot.get(layout) }.map { _ => () }
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
     Bloop.generateFiles(this, layout)
@@ -579,7 +588,7 @@ case class Build(target: Target,
       log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
       for {
         resources        <- aggregatedResources(ref)
-        _                <- resources.traverse(_.copyTo(checkouts, layout, staging))
+        _                <- resources.traverse(_.copyTo(snapshots, layout, staging))
         _                <- Shell(layout.env).jar(path, jarInputs, staging.children.map(staging / _).to[Set], manifest)
         _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
       } yield {

@@ -42,6 +42,17 @@ object ManagedConfig {
 
 abstract class Key(val kind: UserMsg) { def key: String }
 
+case class RepoRef(repoId: RepoId, layer: ImportPath)
+
+object RepoSetId {
+  implicit val stringShow: StringShow[RepoSetId] = _.key
+  implicit val msgShow: MsgShow[RepoSetId] = r => UserMsg(_.version(r.key))
+  implicit val parser: Parser[RepoSetId] = unapply(_)
+  def unapply(value: String): Option[RepoSetId] = value.only { case r"[0-9a-f]{7}" => RepoSetId(value) }
+}
+
+case class RepoSetId(key: String) extends Key(msg"commit")
+
 object ProjectId {
   implicit val msgShow: MsgShow[ProjectId] = p => UserMsg(_.project(p.key))
   implicit val stringShow: StringShow[ProjectId] = _.key
@@ -153,7 +164,8 @@ object PublishedLayer {
   implicit val msgShow: MsgShow[PublishedLayer] =
     pl => UserMsg { theme => theme.layer(pl.url.path.value)+msg"${'@'}${pl.version}".string(theme) }
   
-  implicit val stringShow: StringShow[PublishedLayer] = pl => str"${pl.url}@${pl.version}"
+  implicit val stringShow: StringShow[PublishedLayer] =
+    pl => msg"${pl.url}@${pl.version}".string(Theme.NoColor)
 
   implicit val keyName: KeyName[PublishedLayer] = () => msg"layer"
   implicit val diff: Diff[PublishedLayer] = (l, r) => 
@@ -284,7 +296,30 @@ object LayerRef {
   }
 }
 
-case class LayerRef(key: String) extends Key(msg"layer") { def ipfsRef: IpfsRef = IpfsRef(key) }
+case class LayerRef(key: String) extends Key(msg"layer") {
+  def ipfsRef: IpfsRef = IpfsRef(key)
+  def short: ShortLayerRef = ShortLayerRef(key.drop(2).take(8))
+}
+
+object ShortLayerRef {
+  implicit val stringShow: StringShow[ShortLayerRef] = _.key
+  implicit val msgShow: MsgShow[ShortLayerRef] = lr => UserMsg(_.layer(stringShow.show(lr)))
+  implicit val diff: Diff[ShortLayerRef] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[ShortLayerRef] = unapply(_)
+
+  def unapply(value: String): Option[ShortLayerRef] =
+    value.only { case r"[a-zA-Z0-9]{8}" => ShortLayerRef(value) }
+}
+
+case class ShortLayerRef(key: String) extends Key(msg"layer") {
+  def matches(layerRef: LayerRef): Boolean = layerRef.key.take(8) == key
+}
+
+case class LayerEntity(ref: ShortLayerRef, imports: Map[ImportPath, Import]) {
+  def +(newImports: Map[ImportPath, Import]) = copy(imports = imports ++ newImports)
+  def ids: Set[ImportId] = imports.values.map(_.id).to[Set]
+  def published: Set[PublishedLayer] = imports.values.flatMap(_.remote).to[Set]
+}
 
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
@@ -561,6 +596,12 @@ object Import {
 case class Import(id: ImportId, layerRef: LayerRef, remote: Option[PublishedLayer] = None)
 
 object LayerName {
+  implicit val stringShow: StringShow[LayerName] = {
+    case layerName: IpfsRef => IpfsRef.stringShow.show(layerName)
+    case layerName: FuryUri => FuryUri.stringShow.show(layerName)
+    case layerName: FileInput => FileInput.stringShow.show(layerName)
+  }
+  
   implicit val msgShow: MsgShow[LayerName] = {
     case layerName: IpfsRef => IpfsRef.msgShow.show(layerName)
     case layerName: FuryUri => FuryUri.msgShow.show(layerName)
@@ -753,14 +794,19 @@ object Dependency {
 case class Dependency(ref: ModuleRef) {
   def intransitive = ref.intransitive
   def hidden = ref.hidden
-
   def hide = copy(ref = ref.copy(hidden = true))
 }
 
+object SnapshotHash {
+  implicit val msgShow: MsgShow[SnapshotHash] = sh => UserMsg(_.repo(sh.hash.encoded[Base64].take(4)))
+}
+
+case class SnapshotHash(hash: Digest) extends Key(msg"snapshot") {
+  def key: String = hash.encoded[Base64]
+}
+
 case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) extends Key(msg"ref") {
-
   def key: String = id
-
   def projectId: ProjectId = ProjectId(id.split("/")(0))
   def moduleId: ModuleId = ModuleId(id.split("/")(1))
   def urlSafe: String = str"${projectId}_${moduleId}"
@@ -903,15 +949,16 @@ case class LicenseId(key: String) extends Key(msg"license")
 
 case class License(id: LicenseId, name: String)
 
+sealed trait RefSpec extends Product with Serializable
+
 object Branch {
   implicit val msgShow: MsgShow[Branch] = v => UserMsg(_.version(v.id))
   implicit val stringShow: StringShow[Branch] = _.id
   implicit val parser: Parser[Branch] = unapply(_)
-  val master: Branch = Branch("master")
   def unapply(value: String): Option[Branch] = Some(Branch(value))
 }
 
-case class Branch(id: String)
+case class Branch(id: String) extends RefSpec
 
 object Tag {
   implicit val msgShow: MsgShow[Tag] = v => UserMsg(_.version(v.id))
@@ -920,7 +967,7 @@ object Tag {
   def unapply(value: String): Option[Tag] = Some(Tag(value))
 }
 
-case class Tag(id: String)
+case class Tag(id: String) extends RefSpec
 
 object OptDef {
   implicit val stringShow: StringShow[OptDef] = _.transform.mkString(" ")
@@ -953,7 +1000,10 @@ object Commit {
   def unapply(value: String): Option[Commit] = value.only { case r"[0-9a-f]{7,40}" => Commit(value) }
 }
 
-case class Commit(id: String)
+case class Commit(id: String) extends Key(msg"commit") with RefSpec {
+  def key: String = id
+  def repoSetId: RepoSetId = RepoSetId(id.take(7))
+}
 
 object DomainName {
   implicit val stringShow: StringShow[DomainName] = _.value

@@ -1,0 +1,1 @@
+fury repo add -R gh:propensive/.sample -n sample -B three

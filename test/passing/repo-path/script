@@ -1,0 +1,5 @@
+git clone git@github.com:propensive/.sample sample
+fury repo add -n sample -p sample
+head -n1 sample/src/hello.scala
+fury --output summary
+fury repo list --column path --repo sample --raw

@@ -286,12 +286,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     cli            <- cli.hint(PipeliningArg, List("on", "off"))
     autocProject   <- ~autocProjectId.flatMap(layer.projects.findBy(_).toOption)
     cli            <- cli.hint(ModuleArg, autocProject.to[List].flatMap(_.modules))
-    cli            <- cli.hint(DirArg)
+    cli            <- cli.hint(PathArg)
     cli            <- cli.hint(FatJarArg)
     cli            <- cli.hint(JsArg)
     cli            <- cli.hint(ReporterArg, Reporter.all)
     call           <- cli.call()
-    dir            <- ~call(DirArg).toOption
+    dir            <- ~call(PathArg).toOption
     optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(layer.main))
     optProject     <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
     project        <- optProject.asTry
@@ -496,24 +496,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _      =  Bsp.createConfig(layout)
   } yield log.await()
 
-  def projects: Try[ExitStatus] = for {
-    layout    <- cli.layout
-    conf      <- Layer.readFuryConf(layout)
-    layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(RawArg)
-    cli       <- cli.hint(ProjectArg, layer.projects.map(_.id))
-    table     <- ~Tables().projects(None)
-    cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    call      <- cli.call()
-    col       <- ~cli.peek(ColumnArg)
-    projectId <- ~cli.peek(ProjectArg)
-    raw       <- ~call(RawArg).isSuccess
-    projects  <- layer.allProjects(layout)
-    table     <- ~Tables().show(table, cli.cols, projects.distinct, raw, col, projectId, "project")
-    _         <- ~log.infoWhen(!raw)(conf.focus())
-    _         <- ~log.rawln(table)
-  } yield log.await()
-
   def select: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
@@ -541,7 +523,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       Failure(LayersFailure(path))
 
   def cloneLayer: Try[ExitStatus] = for {
-    cli        <- cli.hint(DirArg)
+    cli        <- cli.hint(PathArg)
     cli        <- cli.hint(EditorArg)
     cli        <- cli.hint(DocsArg)
     cli        <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
@@ -552,8 +534,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layerRef   <- Layer.resolve(layerName)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
-    _          <- layer.verify(true)
-    dir        <- call(DirArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
+    _          <- layer.verify(true, ImportPath.Root)
+    dir        <- call(PathArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
     _          <- ~log.info(msg"Cloning layer $layerName into ${if(useDocsDir) dir else dir.relativizeTo(pwd)}")
@@ -601,7 +583,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     raw           <- ~call(RawArg).isSuccess
     force         <- ~call(ForceArg).isSuccess
     description   <- ~call(DescriptionArg).toOption
-    _             <- layer.verifyConf(false, conf, quiet = false, force)
+    _             <- layer.verifyConf(false, conf, ImportPath.Root, quiet = false, force)
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     
@@ -643,7 +625,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     force  <- ~call(ForceArg).isSuccess
     public <- ~call(PublicArg).isSuccess
     raw    <- ~call(RawArg).isSuccess
-    _      <- layer.verifyConf(false, conf, quiet = raw, force)
+    _      <- layer.verifyConf(false, conf, ImportPath.Root, quiet = raw, force)
 
     ref    <- if(!public) Layer.store(layer)
               else for {
@@ -659,7 +641,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
-    _      <- layer.verifyConf(true, conf, quiet = false, force = false)
+    _      <- layer.verifyConf(true, conf, ImportPath.Root, quiet = false, force = false)
     ref    <- Layer.store(layer)
     _      <- ~log.info(msg"Writing layer database to ${layout.layerDb.relativizeTo(layout.baseDir)}")
     _      <- Layer.writeDb(layer, layout)
@@ -688,7 +670,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     newLayerRef   <- Layer.resolve(layerName)
     pub           <- Layer.published(layerName)
     newLayer      <- Layer.get(newLayerRef, pub)
-    _             <- newLayer.verify(false)
+    _             <- newLayer.verify(false, ImportPath.Root)
     ref           <- ~Import(nameArg, newLayerRef, pub)
     layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)

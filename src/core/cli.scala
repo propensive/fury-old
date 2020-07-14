@@ -20,6 +20,8 @@ import fury.text._, fury.io._, fury.model._
 
 import exoskeleton._
 import guillotine._
+import escritoire._
+import mercator._
 
 import scala.util._
 
@@ -27,7 +29,7 @@ import language.higherKinds
 
 case class EarlyCompletions() extends FuryException
 case class BadParams(param1: CliParam, param2: CliParam) extends FuryException
-case class MissingParamChoice(param1: CliParam, param2: CliParam) extends FuryException
+case class MissingParamChoice(param: CliParam*) extends FuryException
 case class MissingParam(param: CliParam) extends FuryException
 case class BadParamValue(param: CliParam, value: String) extends FuryException
 
@@ -180,6 +182,23 @@ class Cli(val stdout: java.io.PrintWriter,
     }
   }
 
+  def atMostOne(param1: CliParam, param2: CliParam): Try[Option[Either[param1.Type, param2.Type]]] = {
+    val left = args.get(param1.param).toOption
+    val right = args.get(param2.param).toOption
+    if(left.isDefined && right.isDefined) Failure(BadParams(param1, param2))
+    else Success(left.map(Left(_)).orElse(right.map(Right(_))))
+  }
+  
+  def exactlyOne(param1: CliParam, param2: CliParam): Try[Either[param1.Type, param2.Type]] =
+    atMostOne(param1, param2).flatMap(_.ascribe(MissingParamChoice(param1, param2)))
+  
+  def atLeastOne(param1: CliParam, param2: CliParam): Try[(Option[param1.Type], Option[param2.Type])] = {
+    val left = args.get(param1.param).toOption
+    val right = args.get(param2.param).toOption
+    if(left.isDefined || right.isDefined) Success((left, right))
+    else Failure(MissingParamChoice(param1, param2))
+  }
+  
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
   private lazy val logStyle: LogStyle = LogStyle(stdout, debug = false)
@@ -217,9 +236,16 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def forceLog(msg: UserMsg): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, pid)
 
-  def action(blk: Call => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap(blk)
+  def action(blk: => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap { _ => blk }
 
   def peek(param: CliParam): Option[param.Type] = args.get(param.param).toOption
+
+  def get(param: CliParam): Try[param.Type] = args.get(param.param) match {
+    case Success(value)                        => Success(value)
+    case Failure(MissingArg(_))                => Failure(MissingParam(param))
+    case Failure(InvalidArgValue(value, name)) => Failure(BadParamValue(param, value))
+    case _                                     => Failure(BadParamValue(param, ""))
+  }
 
   def preview(param: CliParam)(default: Option[param.Type] = None): Try[param.Type] = {
     val result = args.get(param.param)
@@ -303,7 +329,6 @@ class Cli(val stdout: java.io.PrintWriter,
     }.getOrElse {
       args.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }
     }
-
 }
 
 case class Completions(completions: List[Cli.OptCompletion] = Nil) {
@@ -314,4 +339,127 @@ case class Completions(completions: List[Cli.OptCompletion] = Nil) {
   }
 
   def hint(arg: CliParam): Completions = copy(completions = Cli.OptCompletion(arg, "()") :: completions)
+}
+
+abstract class CliApi {
+  import Args._
+
+  implicit def log: Log
+  def cli: Cli
+  def get(arg: CliParam): Try[arg.Type] = cli.get(arg)
+  
+  def opt(arg: CliParam): Try[Option[arg.Type]] = cli.get(arg) match {
+    case Success(value)               => Success(Some(value))
+    case Failure(MissingParam(param)) => Success(None)
+    case other                        => other.map(Some(_))
+  }
+
+  def has(arg: CliParam): Boolean = cli.get(arg).toOption.isDefined
+  
+  lazy val getLayout: Try[Layout] = cli.layout
+  lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
+  lazy val getLayer: Try[Layer] = (getHierarchy, getPointer) >>= (_(_))
+  lazy val getPointer: Try[ImportPath] = (opt(LayerArg), confPointer) >> (_.getOrElse(_))
+  lazy val confPointer: Try[ImportPath] = conf >> (_.path)
+  lazy val getBaseLayer: Try[Layer] = conf >> (_.layerRef) >>= (Layer.get(_, None))
+  lazy val layerProjectOpt: Try[Option[Project]] = getLayer >>= (_.mainProject)
+  lazy val layerProject: Try[Project] = layerProjectOpt.flatMap(_.ascribe(MissingParam(ProjectArg)))
+  lazy val layerProjectIds: List[ProjectId] = (getLayer >> (_.projects.to[List])).getOrElse(List()).map(_.id)
+  lazy val cliProject: Try[Project] = (getLayer, get(ProjectArg)) >>= (_.projects.findBy(_))
+  lazy val getProject: Try[Project] = cliProject.orElse(layerProject)
+  lazy val layerRepoIdOpt: Try[Option[RepoId]] = (getLayer >> (_.mainRepo))
+  lazy val getHierarchy: Try[Hierarchy] = getBaseLayer >>= (_.hierarchy()(log))
+  lazy val universe: Try[Universe] = getHierarchy >>= (_.universe)
+
+  def layerRepoOpt(layer: Layer, repoIdOpt: Option[RepoId]): Try[Option[Repo]] =
+    repoIdOpt.traverse(layer.repos.findBy(_))
+
+  def layerRepo(layer: Layer, repoId: RepoId): Try[Repo] = layer.repos.findBy(repoId)
+  lazy val layerRepoOpt: Try[Option[Repo]] = (getLayer, layerRepoIdOpt) >>= layerRepoOpt
+  lazy val layerRepo: Try[Repo] = layerRepoOpt.flatMap(_.ascribe(MissingParam(RepoArg)))
+  lazy val cliRepo: Try[Repo] = (getLayer, get(RepoArg)) >>= (_.repos.findBy(_))
+  lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
+  lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
+  lazy val fetchRemote: Try[GitDir] = (get(RemoteArg), getLayout) >>= (_.fetch(_))
+  lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
+  lazy val cliModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
+  lazy val layerModuleOpt: Try[Option[Module]] = getProject >>= (_.mainModule)
+  lazy val layerModule: Try[Module] = layerModuleOpt.flatMap(_.ascribe(MissingParam(ModuleArg)))
+  lazy val projectModuleIds: List[ModuleId] = (getProject >> (_.modules.to[List])).getOrElse(List()).map(_.id)
+  lazy val projectRepoIds: List[RepoId] = (getLayer >> (_.repos.to[List])).getOrElse(List()).map(_.id)
+  lazy val getModule: Try[Module] = cliModule.orElse(layerModule)
+  lazy val raw: Boolean = cli.get(RawArg).isSuccess
+  lazy val column: Option[String] = cli.peek(ColumnArg)
+  lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)
+  lazy val tags: Try[List[Tag]] = remoteGitDir >>= (_.tags)
+  lazy val absPath: Try[Path] = (get(PathArg), getLayout) >> (_ in _.pwd)
+  
+  lazy val relPath: Try[Path] =
+    (get(PathArg), getLayout) >> { (path, layout) => path.in(layout.pwd).relativizeTo(layout.baseDir) }
+  
+  lazy val relPathOpt: Try[Option[Path]] = (opt(PathArg), getLayout) >> { (path, layout) =>
+    path.map { p => p.in(layout.pwd).relativizeTo(layout.baseDir) }
+  }
+  
+  lazy val absPathOpt: Try[Option[Path]] =
+    (opt(PathArg), getLayout) >> { (path, layout) => path.map { p => p.in(layout.pwd) } }
+  
+  lazy val defaultBranch: Try[Branch] = fetchRemote >>= (_.branch)
+  lazy val newBranch: Try[Branch] = get(BranchArg).orElse(defaultBranch)
+  lazy val newRepoName: Try[RepoId] = get(RemoteArg) >> (_.projectName) >>= (get(RepoNameArg).orElse(_))
+  lazy val repoNameFromPath: Try[RepoId] = get(PathArg) >> (_.name.toLowerCase) >> (RepoId(_))
+  lazy val allCommits: Try[List[Commit]] = getGitDir >>= (_.allCommits)
+
+  lazy val universeRepos: Try[Set[RepoSetId]] = universe >> (_.repoSets.keySet)
+  lazy val universeLayers: Try[Set[ShortLayerRef]] = universe >> (_.imports.keySet)
+
+  lazy val findUniqueRepoName: Try[RepoId] =
+    (getLayer, newRepoName.orElse(repoNameFromPath)) >>= (_.repos.unique(_))
+  
+  lazy val defaultBranchCommit: Try[Commit] = fetchRemote.flatMap(_.commit)
+
+  lazy val pathGitDir: Try[GitDir] = for {
+    layout <- getLayout
+    path   <- relPathOpt
+    gitDir <- (path >> (GitDir(_)(layout.env))).ascribe(PathNotGitDir())
+  } yield gitDir
+
+  lazy val pathRemote: Try[Remote] = pathGitDir >>= (_.remote)
+  lazy val pathBranch: Try[Branch] = pathGitDir >>= (_.branch)
+
+  def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
+  def commit(hierarchy: Hierarchy): Try[LayerRef] = (confPointer, getLayout) >>= (hierarchy.save(_, _))
+  def finish[T](value: T): ExitStatus = log.await()
+  def cols: Int = Terminal.columns(cli.env).getOrElse(100)
+
+  implicit lazy val rawHints: RawArg.Hinter = RawArg.hint()
+  implicit lazy val forceHints: ForceArg.Hinter = ForceArg.hint()
+  implicit lazy val projectHints: ProjectArg.Hinter = ProjectArg.hint(layerProjectIds: _*)
+  implicit lazy val moduleHints: ModuleArg.Hinter = ModuleArg.hint(projectModuleIds: _*)
+  implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
+  implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
+  implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
+  implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
+  implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
+  implicit lazy val grabHints: GrabArg.Hinter = GrabArg.hint()
+  implicit lazy val allHints: AllArg.Hinter = AllArg.hint()
+  implicit lazy val importHints: ImportArg.Hinter = ImportArg.hint()
+  implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
+  implicit lazy val licenseHints: LicenseArg.Hinter = LicenseArg.hint(License.standardLicenses.map(_.id))
+  implicit lazy val pointerHints: LayerArg.Hinter = LayerArg.hint(Nil) // FIXME
+  implicit lazy val commitHints: CommitArg.Hinter = CommitArg.hint(allCommits)
+  implicit lazy val repoSetHints: RepoSetArg.Hinter = RepoSetArg.hint(universeRepos)
+  implicit lazy val layerRefHints: LayerRefArg.Hinter = LayerRefArg.hint(universeLayers)
+  
+  implicit lazy val defaultCompilerHints: DefaultCompilerArg.Hinter =
+    DefaultCompilerArg.hint((getLayer, getLayout) >> (Javac(8) :: _.compilerRefs(_).map(BspCompiler(_))))
+  
+  implicit lazy val projectNameHints: ProjectNameArg.Hinter =
+    ProjectNameArg.hint(getLayout >> (_.baseDir.name) >> (ProjectId(_)) >> (List(_)))
+  
+  implicit lazy val repoUrl: RemoteArg.Hinter =
+    RemoteArg.hint(GitHub.repos(cli.peek(UnparsedRemoteArg)).map(_.map(Remote(_))))
+  
+  def printTable[T, S: MsgShow](table: Tabulation[T], rows: Traversable[T], id: Option[S], name: String): Unit =
+    log.rawln(Tables().show(table, cols, rows, raw, column, id, name))
 }

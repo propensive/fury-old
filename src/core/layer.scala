@@ -42,33 +42,32 @@ case class Layer(version: Int,
                  previous: Option[LayerRef] = None) { layer =>
 
   def apply(id: ProjectId) = projects.findBy(id)
-  def repo(repoId: RepoId, layout: Layout): Try[Repo] = repos.findBy(repoId)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
-  def repoIds: SortedSet[RepoId] = repos.map(_.id)
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
       module.copy(sources = module.sources.map {
-        case ExternalSource(`repoId`, dir, glob) => LocalSource(dir, glob)
+        case RepoSource(`repoId`, dir, glob) => LocalSource(dir, glob)
         case other => other
       })
     })
   })
+
+  def localUniverse(path: ImportPath): Universe = Universe(
+    entities = projects.map { project => project.id -> Entity(project, Map(path -> this)) }.toMap,
+    repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
+    imports = imports.map { i => i.layerRef.short -> LayerEntity(i.layerRef.short, Map(path -> i)) }.toMap
+  )
 
   def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
       module.copy(sources = module.sources.map {
-        case LocalSource(dir, glob) => ExternalSource(repoId, dir, glob)
+        case LocalSource(dir, glob) => RepoSource(repoId, dir, glob)
         case other => other
       })
     })
   })
-
-  def uniqueRepoId(baseDir: Path): RepoId = {
-    val unnamed = Stream.from(1).map { n => RepoId(str"repo-$n") }
-    (mainRepo.to[Stream] ++: RepoId.unapply(baseDir.name) ++: unnamed).filter(!repos.contains(_)).head
-  }
 
   def localSources: List[ModuleRef] = for {
     project           <- projects.to[List]
@@ -86,22 +85,22 @@ case class Layer(version: Int,
     missing    <- if(universe(dependency.ref).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
-  def verifyConf(local: Boolean, conf: FuryConf, quiet: Boolean, force: Boolean)
+  def verifyConf(local: Boolean, conf: FuryConf, importPath: ImportPath, quiet: Boolean, force: Boolean)
                 (implicit log: Log)
                 : Try[Unit] = for {
     
     _         <- if(force || conf.path == ImportPath.Root) Success(())
                  else Failure(RootLayerNotSelected(conf.path))
 
-    _         <- verify(local, quiet)
+    _         <- verify(local, importPath, quiet)
   } yield ()
 
-  def verify(local: Boolean, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
+  def verify(local: Boolean, ref: ImportPath, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
     _         <- ~log.infoWhen(!quiet)(msg"Checking that no modules reference local sources")
     localSrcs <- ~localSources
     _         <- if(localSrcs.isEmpty || local) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
     _         <- ~log.infoWhen(!quiet)(msg"Checking that no project names conflict")
-    universe  <- hierarchy().flatMap(_.universe)
+    universe  <- hierarchy(ref).flatMap(_.universe)
     _         <- ~log.infoWhen(!quiet)(msg"Checking that all module references resolve")
     missing   <- ~unresolvedModules(universe)
     _         <- if(missing.isEmpty) Success(()) else Failure(UnresolvedModules(missing))
@@ -110,12 +109,11 @@ case class Layer(version: Int,
   def compilerRefs(layout: Layout)(implicit log: Log): List[ModuleRef] =
     allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def hierarchy()(implicit log: Log): Try[Hierarchy] = for {
-    imps <- imports.map { ref => for {
-      layer        <- Layer.get(ref.layerRef, ref.remote)
-      tree         <- layer.hierarchy()
-    } yield tree }.sequence
-  } yield Hierarchy(this, imps)
+  def hierarchy(importPath: ImportPath = ImportPath.Empty)(implicit log: Log): Try[Hierarchy] = for {
+    imps <- imports.to[Set].traverse { ref =>
+      Layer.get(ref.layerRef, ref.remote) >>= (_.hierarchy(importPath / ref.id).map(ref.id -> _))
+    }
+  } yield Hierarchy(this, importPath, imps.toMap)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
     imports.to[List].traverse { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.map(_.toMap)
@@ -151,15 +149,6 @@ case class Layer(version: Int,
     commit <- gitDir.commit
     branch <- gitDir.branch
   } yield Repo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
-
-  def local(layout: Layout): Try[Repo] =
-    localRepo(layout).flatMap { r => repos.find(_.remote.equivalentTo(r.remote)).ascribe(NoRepoCheckedOut()) }
-
-  def allRepos(layout: Layout): SortedSet[Repo] =
-    (localRepo(layout).toOption.to[SortedSet].filterNot { r =>
-      repos.map(_.remote.simplified).contains(r.remote.simplified)
-    }) ++ repos
-
 }
 
 object Layer extends Lens.Partial[Layer] {

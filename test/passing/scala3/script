@@ -7,6 +7,7 @@ fury project add -n hello-world
 fury module add -n app -c scala3/compiler -t app -M HelloWorld
 fury source add -s src
 mkdir -p src
-#fury build run --output quiet >> /dev/null
+echo Attempting to run Scala 3 compiler twice to work around race condition in Bloop
+fury build run --output quiet >> /dev/null
 fury build run --output linear
 echo $?

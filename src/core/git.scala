@@ -75,6 +75,14 @@ case class RemoteGitDir(env: Environment, remote: Remote) {
 
   def branches(): Try[List[Branch]] = GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --heads $r"
       }.map(parseRefSpec(_).map(_.name).map(Branch(_)))
+  
+  def findCommit(branch: Branch): Try[Option[Commit]] =
+    GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --heads $r"
+  }.map(parseRefSpec(_).find(_.name == branch.id).map(_.commit))
+  
+  def findCommit(tag: Tag): Try[Option[Commit]] =
+    GitDir.sshOrHttps(remote) { r => sh"git ls-remote --refs --tags $r"
+  }.map(parseRefSpec(_).find(_.name == tag.id).map(_.commit))
 }
 
 case class GitDir(env: Environment, dir: Path) {
@@ -91,35 +99,6 @@ case class GitDir(env: Environment, dir: Path) {
   } yield ()
 
   def remote: Try[Remote] = sh"$git config --get remote.origin.url".exec[Try[String]].map(Remote.parse(_))
-
-  def writePrePushHook()(implicit log: Log): Try[Unit] = for {
-    file <- Try((if((dir / ".git").exists()) dir / ".git" else dir) / "hooks" / "pre-push")
-    _    <- ~log.info("Adding Git pre-push hook to offer to share layer before push")
-    _    <- file.writeSync(
-              """|#!/bin/sh
-                 |remote="$1"
-                 |url="$2"
-                 |ask() {
-                 |  printf 'You are pushing a commit containing a new layer.\n'
-                 |  printf 'Would you like to share the layer publicly [Yn]? '
-                 |  exec < /dev/tty
-                 |  read answer
-                 |  exec <^- 2> /dev/null
-                 |  case $answer in
-                 |    ''|yes|YES|Yes|Y|y) return 0 ;;
-                 |    *                 ) return 1 ;;
-                 |  esac
-                 |}
-                 |while read local_ref local_sha remote_ref remote_sha
-                 |do
-                 |  git --no-pager diff --name-only $local_ref..$remote_ref -- .fury.conf && \
-                 |      ask && fury layer share
-                 |done
-                 |exit 0
-                 |""".stripMargin
-            )
-    _    <- file.setExecutable(true)
-  } yield ()
 
   def diffShortStat(other: Option[Commit] = None): Try[Option[DiffStat]] = { other match {
     case None =>
@@ -194,27 +173,42 @@ case class GitDir(env: Environment, dir: Path) {
   def cat(path: Path): Try[String] = sh"$git show HEAD:$path".exec[Try[String]]
   def cat(commit: Commit, path: Path): Try[String] = sh"$git show $commit:$path".exec[Try[String]]
   def commit: Try[Commit] = sh"$git rev-parse HEAD".exec[Try[String]].map(Commit(_))
-  def commitFromTag(tag: Tag): Try[Commit] = sh"$git rev-parse $tag".exec[Try[String]].map(Commit(_))
-  
-  def commitFromBranch(branch: Branch): Try[Commit] =
-    sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_))
+  def findCommit(tag: Tag): Try[Commit] = sh"$git rev-parse $tag".exec[Try[String]].map(Commit(_))
+  def findCommit(branch: Branch): Try[Commit] = sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_))
 
   def branchesFromCommit(commit: Commit): Try[List[Branch]] =
-    sh"$git branch --contains $commit".exec[Try[String]].map { out =>
-      out.split("\n").to[List].map(_.drop(2)).map(Branch(_))
+    sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].map { out =>
+      out.split("\n").to[List].map(Branch(_))
     }
 
+  def checkBranch(branch: Branch): Try[Branch] =
+    branches.flatMap(_.find(_ == branch).ascribe(BranchDoesNotExist(branch)))
+
   def contains(commit: Commit): Try[Unit] =
-    sh"$git branch --contains $commit".exec[Try[String]].map(_.unit).recoverWith { case e =>
+    sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].map(_.unit).recoverWith { case e =>
       Failure(CommitNotInRepo(commit))
     }
 
-  def someBranchFromCommit(commit: Commit): Try[Branch] =
-    branchesFromCommit(commit).flatMap { bs =>
-      bs.find(_ == Branch.master).orElse(bs.headOption).ascribe(BranchNotFound(commit))
-    }
+  def checkCommit(commit: Commit): Try[Commit] = contains(commit).map(commit.waive)
 
-  def someBranchFromTag(tag: Tag): Try[Branch] = commitFromTag(tag).flatMap(someBranchFromCommit(_))
+  def resolve(refSpec: RefSpec): Try[Commit] = refSpec match {
+    case c: Commit => checkCommit(c)
+    case t: Tag    => findCommit(t)
+    case b: Branch => findCommit(b)
+  }
+
+  def chooseBranch(refSpec: RefSpec): Try[Branch] = refSpec match {
+    case c: Commit => someBranchFromCommit(c)
+    case b: Branch => checkBranch(b)
+    case t: Tag    => someBranchFromTag(t)
+  }
+
+  def message(commit: Commit): Try[String] = sh"$git log --pretty=%s -1 $commit".exec[Try[String]]
+
+  def someBranchFromCommit(commit: Commit): Try[Branch] =
+    branchesFromCommit(commit).flatMap(_.headOption.ascribe(BranchNotFound(commit)))
+
+  def someBranchFromTag(tag: Tag): Try[Branch] = findCommit(tag).flatMap(someBranchFromCommit(_))
 
   def trackedFiles: Try[List[Path]] =
     sh"$git ls-tree --name-only HEAD".exec[Try[String]].map(_.split("\n").to[List].map(Path(_)))

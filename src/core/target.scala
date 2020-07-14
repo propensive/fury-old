@@ -43,10 +43,9 @@ object Target {
 case class Target(ref: ModuleRef,
                   module: Module,
                   entity: Entity,
-                  checkouts: Checkouts,
+                  snapshots: Snapshots,
                   sourcePaths: List[Path],
                   binaries: List[Path]) {
   lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
   lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
-  lazy val repos: List[Remote] = entity.layer.repos.map(_.remote).to[List]
 }

@@ -1,0 +1,6 @@
+fury clean repositories
+fury clean sources
+fury repo add -R gh:propensive/.sample -n sample
+fury --output summary
+fury repo update -r sample --tag two
+fury --output summary

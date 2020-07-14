@@ -118,9 +118,9 @@ object FuryMenu {
       Action('list, msg"list -D properties", PropertyCli(_).list)
     ),
     Menu('resource, msg"manage resources for the module", 'list)(
-      Action('add, msg"add a resource directory to the module", FrontEnd(_).Resources.add, shortcut = 'a'),
-      Action('remove, msg"remove a resource directory from the module", FrontEnd(_).Resources.remove),
-      Action('list, msg"list resources for the module", FrontEnd(_).Resources.list, shortcut = 'l')
+      Action('add, msg"add a resource directory to the module", ResourceCli(_).add, shortcut = 'a'),
+      Action('remove, msg"remove a resource directory from the module", ResourceCli(_).remove),
+      Action('list, msg"list resources for the module", ResourceCli(_).list, shortcut = 'l')
     ),
     Action('restart, msg"restart the Fury server", BuildCli(_).notImplemented, needsLayer = false),
     Menu('source, msg"manage sources for the module", 'list, shortcut = 's')(
@@ -149,6 +149,20 @@ object FuryMenu {
       Action('pull, msg"pull the latest remote version of the source repo", RepoCli(_).pull, shortcut = 'p')
     ),
     Action('undo, msg"undo the previous modification", LayerCli(_).undo),
+    Menu('universe, msg"make universal changes", 'projects, shortcut = 'u')(
+      Menu('repos, msg"view and modify repositories", 'list, shortcut = 'r')(
+        Action('list, msg"show repositories in use", UniverseCli(_).repos.list, shortcut = 'l'),
+        Action('update, msg"update repos universally", UniverseCli(_).repos.update, shortcut = 'u')
+      ),
+      Menu('projects, msg"view and modify projects", 'list, shortcut = 'p')(
+        Action('list, msg"show all projects", UniverseCli(_).projects.list, shortcut = 'l'),
+        Action('prolfierate, msg"update projects universally", UniverseCli(_).projects.proliferate, shortcut = 'u')
+      ),
+      Menu('imports, msg"view and modify layer imports", 'list, shortcut = 'i')(
+        Action('list, msg"show all layer imports", UniverseCli(_).imports.list, shortcut = 'l'),
+        Action('pull, msg"update layer imports universally", UniverseCli(_).imports.pull, shortcut = 'p')
+      )
+    ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
       Action('commit, msg"commit the layer to the current repository", LayerCli(_).commit, shortcut = 'm'),
@@ -158,7 +172,6 @@ object FuryMenu {
       Action('import, msg"import an external layer", LayerCli(_).addImport, shortcut = 'i'),
       Action('init, msg"initialize a new Fury layer", LayerCli(_).init, needsLayer = false),
       Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
-      Action('projects, msg"show all available projects", LayerCli(_).projects),
       Action('publish, msg"publish a layer", LayerCli(_).publish),
       Action('pull, msg"update the layer to a more recent version", LayerCli(_).pull, shortcut = 'p'),
       Action('unimport, msg"remove a previously imported layer", LayerCli(_).unimport),

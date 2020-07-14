@@ -1,4 +1,4 @@
-fury build save --output summary --js -f target
+fury build save --output summary --js --path target
 node target/frontend-app.js
 cd target
 cat package.json

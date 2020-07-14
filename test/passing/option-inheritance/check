@@ -8,7 +8,6 @@ Set current module to aaat-dnut
 Set current module to diap-dnut
 Set current module to dnut
 Set current module to all
-Starting the BSP launcher...
 Starting compilation of module sequence/aiap
 | List(1, "two")     // -Ywarn-infer-any         ia
 | def foo: Unit = () // -Ywarn-nullary-unit      nu

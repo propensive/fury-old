@@ -30,13 +30,13 @@ case class Tables() {
   implicit val theme: Theme = ManagedConfig().theme
 
   def show[T, S: MsgShow](table: Tabulation[T],
-                             cols: Int,
-                             rows: Traversable[T],
-                             raw: Boolean,
-                             column: Option[String] = None,
-                             row: Option[S] = None,
-                             main: String = "id")
-                            : String = {
+                          cols: Int,
+                          rows: Traversable[T],
+                          raw: Boolean,
+                          column: Option[String] = None,
+                          row: Option[S] = None,
+                          main: String = "id")
+                         : String = {
 
     val mainHeading = table.headings.find(_.name.toLowerCase == main.toLowerCase).getOrElse(table.headings(0))
     val showRows = row.fold(rows) { row => rows.filter { r =>
@@ -66,6 +66,12 @@ case class Tables() {
   implicit private def option[T: AnsiShow]: AnsiShow[Option[T]] = {
     case None    => "-"
     case Some(v) => implicitly[AnsiShow[T]].show(v)
+  }
+
+  implicit private def set[T: MsgShow]: AnsiShow[Set[T]] = _.to[List] match {
+    case Nil       => "-"
+    case List(one) => msg"$one".string(theme)
+    case many      => many.map { v => msg"$v" }.reduce(_+"\n"+_).string(theme)
   }
 
   implicit private val origin: AnsiShow[Origin] = {
@@ -124,13 +130,13 @@ case class Tables() {
     Heading("Intransitive", _.intransitive)
   )
 
-  def sources(checkouts: Checkouts, layout: Layout): Tabulation[Source] = Tabulation(
+  def sources(snapshots: Snapshots, layout: Layout): Tabulation[Source] = Tabulation(
     Heading("Repo", _.repoIdentifier),
     Heading("Path", _.dir),
     Heading("Sources", _.glob),
-    Heading("Files", _.fileCount(checkouts, layout).getOrElse(0)),
-    Heading("Size", _.totalSize(checkouts, layout).getOrElse(ByteSize(0))),
-    Heading("Lines", _.linesOfCode(checkouts, layout).getOrElse(0))
+    Heading("Files", _.fileCount(snapshots, layout).getOrElse(0)),
+    Heading("Size", _.totalSize(snapshots, layout).getOrElse(ByteSize(0))),
+    Heading("Lines", _.linesOfCode(snapshots, layout).getOrElse(0))
   )
 
   val resources: Tabulation[Source] = Tabulation(
@@ -183,18 +189,23 @@ case class Tables() {
     Heading("ID", _._1.id),
     Heading("Ref", _._1.layerRef),
     Heading("Projects", s => s._2.toOption.fold(msg"${'-'}")(_.projects.size)),
-    Heading("Repos", s => s._2.toOption.fold(msg"${'-'}")(_.repoIds.size)),
     Heading("Imports", s => s._2.toOption.fold(msg"${'-'}")(_.imports.size)),
     Heading("Published as", s => s._1.remote.fold(msg"${'-'}") { pub => msg"${pub}" })
   )
 
-  def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation[Project](
-    Heading("", p => Some(p.id) == current),
-    Heading("Project", _.id),
-    Heading("Modules", p => p.modules.size),
-    Heading("Description", _.description),
-    Heading("License", _.license),
-    Heading("Compiler", _.compiler)
+  private def showImportPaths(importPaths: Iterable[ImportPath]): UserMsg = {
+    val fewPaths = importPaths.take(4).map { k => msg"$k" }.reduce(_ + "\n" + _)
+    if(importPaths.size > 4) fewPaths+"\n"+msg"...and ${importPaths.size - 4} more." else fewPaths
+  }
+
+  def entities(current: Option[ProjectId]): Tabulation[Entity] = Tabulation(
+    Heading("", p => Some(p.project.id) == current),
+    Heading("Project", _.project.id),
+    Heading("Modules", p => p.project.modules.size),
+    Heading("Description", _.project.description),
+    Heading("License", _.project.license),
+    Heading("Compiler", _.project.compiler),
+    Heading("Layer(s)", p => showImportPaths(p.layers.keys))
   )
 
   def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(
@@ -204,5 +215,26 @@ case class Tables() {
     Heading("Commit", _.commit),
     Heading("Path", _.local),
     Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout).toOption.flatten)
+  )
+
+  val snapshots: Tabulation[Snapshot] = Tabulation(
+    Heading("ID", _.hash),
+    Heading("Remote", _.remote),
+    //Heading("Local", _.local),
+    Heading("Commit", _.commit),
+    Heading("Branch", _.branch)
+  )
+
+  val repoSets: Tabulation[(RepoSetId, Set[RepoRef])] = Tabulation(
+    Heading("Commit", _._1),
+    Heading("IDs", _._2.map(_.repoId).to[Set].map { id => id: UserMsg }.reduce { (l, r) => msg"$l, $r" }),
+    Heading("Layers", _._2.map(_.layer: UserMsg).reduce { (l, r) => l+"\n"+r })
+  )
+  
+  val layerRefs: Tabulation[LayerEntity] = Tabulation(
+    Heading("Import", _.ref),
+    Heading("IDs", _.ids),
+    Heading("Remotes", _.published),
+    Heading("Layers", _.imports.keySet.map { v => v: UserMsg }.reduce { (l, r) => l+"\n"+r })
   )
 }

@@ -23,22 +23,24 @@ import guillotine._
 
 import scala.util._
 
-case class Checkouts(checkouts: Set[Checkout]) {
-  def apply(repoId: RepoId): Try[Checkout] =
-    checkouts.find(_.repoId == repoId).ascribe(ItemNotFound(repoId))
+case class Snapshots(snapshots: Map[SnapshotHash, Snapshot] = Map()) {
+  def apply(repoId: RepoId): Try[Snapshot] =
+    snapshots.find(_._2.repoId == repoId).map(_._2).ascribe(ItemNotFound(repoId))
   
-  def ++(that: Checkouts): Checkouts = Checkouts(checkouts ++ that.checkouts)
+  def apply(hash: SnapshotHash): Try[Snapshot] =
+    snapshots.get(hash).ascribe(ItemNotFound(hash))
+  def ++(that: Snapshots): Snapshots = Snapshots(snapshots ++ that.snapshots)
 }
 
-case class Checkout(repoId: RepoId,
+case class Snapshot(repoId: RepoId,
                     remote: Remote,
                     local: Option[GitDir],
                     commit: Commit,
                     branch: Branch,
                     sources: List[Path]) {
 
-  def hash: Digest = this.digest[Md5]
-  def path: Path = Installation.srcsDir / hash.encoded
+  def hash: SnapshotHash = SnapshotHash(this.digest[Md5])
+  def path: Path = Installation.srcsDir / hash.hash.encoded[Hex].take(16)
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = for {
     repoDir    <- remote.get(layout)

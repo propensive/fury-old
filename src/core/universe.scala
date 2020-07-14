@@ -19,25 +19,51 @@ package fury.core
 import fury.model._, fury.text._
 
 import mercator._
+import gastronomy._
 
 import scala.util._
 import scala.collection.immutable.TreeSet
 
+object Universe { def apply(): Universe = Universe(Map(), Map(), Map()) }
+
 /** A Universe represents a the fully-resolved set of projects available in the layer */
-case class Universe(entities: Map[ProjectId, Entity] = Map()) {
+case class Universe(entities: Map[ProjectId, Entity],
+                    repoSets: Map[RepoSetId, Set[RepoRef]],
+                    imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
+  def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)
 
-  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Checkouts] = for {
+  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
-    repos  <- (module.externalSources ++ module.externalResources).to[List]
-                  .groupBy(_.repoId).map { case (k, v) => entity.layer.repo(k, layout).map(_ -> v) }.sequence
-  } yield Checkouts(repos.map { case (repo, paths) =>
-    Checkout(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths.map(_.dir).to[List])
-  }.to[Set])
 
-  def ++(that: Universe): Universe = Universe(entities ++ that.entities)
+    repos  <- (module.externalSources ++ module.externalResources).to[List].groupBy(_.repoId).map {
+                case (k, v) => entity.layers.head._2.repos.findBy(k).map(_ -> v)
+              }.sequence
+
+  } yield Snapshots(repos.map { case (repo, paths) =>
+    val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch,
+        paths.map(_.dir).to[List])
+    
+    snapshot.hash -> snapshot
+  }.toMap)
+
+  def ++(that: Universe): Universe = {
+    val newEntities = that.entities.foldLeft(entities) { case (acc, (id, entity)) =>
+      acc.updated(id, acc.get(id).fold(entity) { e => e.copy(layers = e.layers ++ entity.layers) })
+    }
+
+    val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>
+      acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)
+    }
+
+    val newImports = that.imports.foldLeft(imports) { case (acc, (layerRef, entity)) =>
+      acc.updated(layerRef, acc.getOrElse(layerRef, entity) + entity.imports)
+    }
+
+    Universe(newEntities, newRepoSets, newImports)
+  }
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =
     transitiveDependencies(forbidden = Set.empty, Dependency(ref), layout).map(_.filter(_.ref != ModuleRef.JavaRef))

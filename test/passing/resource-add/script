@@ -6,5 +6,5 @@ fury project add -n hello-world
 fury module add -n app -c scala/compiler -M HelloWorld
 fury source add -s src
 fury resource add -s res//**
-fury build run --output linear -f out
+fury build run --output linear --path out
 unzip out/hello-world-app.jar | grep readme

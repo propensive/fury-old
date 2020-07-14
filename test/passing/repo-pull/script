@@ -1,40 +1,6 @@
-mkdir app
-mkdir library
-
-cd library
-git init -q
-mkdir -p src/core
-echo 'object Constants { val x = "Hello World!" }' > src/core/constants.scala
-git checkout -b trunk
-git add src
-git commit -m 'version 1' -q
-
-cd ../app
-fury layer init
-fury project add -n scala
-fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
-fury binary add -b org.scala-lang:scala-compiler:2.12.8
-
-fury project add -n hello-world
-fury module add -n app -c scala/compiler -t app -M HelloWorld
-fury repo add -n library -u ../library -B trunk
-fury source add -s library:src/core
-mkdir -p src/app
-echo 'object HelloWorld extends App{ val y = Constants.x; println(y) }' > src/app/HelloWorld.scala
-fury source add -s src/app
-
-fury build run --output summary
-echo $?
-
-cd ../library
-sed -i.bak 's/World/update/' src/core/constants.scala
-git add src
-git commit -m 'version 2' -q
-
-cd ../app
-fury build run --output summary
-echo $?
-
-fury repo pull -r library | sed -E 's/[a-f0-9]{7}$//'
-fury build run --output summary
-echo $?
+fury clean repositories
+fury clean sources
+fury repo add -R gh:propensive/.sample -n sample --tag two
+fury --output summary
+fury repo pull -r sample
+fury --output summary
