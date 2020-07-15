@@ -15,7 +15,7 @@ echo IPFS ref: $IPFSREF
 
 cd ../app
 fury layer init
-fury layer import -i $IPFSREF --name platform
+fury layer import -l $IPFSREF --name platform
 IPFSREF=
 fury layer list --raw
 grep path .fury/config

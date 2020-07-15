@@ -1,5 +1,5 @@
 fury layer init
-fury layer import -i fury://furore.dev/propensive/scala
+fury layer import -l fury://furore.dev/propensive/scala
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t app -M HelloWorld
 echo $?

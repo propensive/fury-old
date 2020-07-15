@@ -1,3 +1,3 @@
 fury layer init
-fury repo add -r gh:propensive/mercator -n repo
+fury repo add -R gh:propensive/mercator -n repo
 fury repo unfork -r repo
