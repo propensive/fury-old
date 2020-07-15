@@ -138,7 +138,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
       tmpHierarchy <- hierarchyWithoutProject(importPath, projectId)
       universe     <- tmpHierarchy.universe
       entity       <- universe.entities.get(projectId).ascribe(ItemNotFound(projectId))
-      hierarchy    <- entity.layers.to[List].foldLeft(Try(hierarchy)) { case (getHierarchy, (layerRef, _)) =>
+      hierarchy    <- entity.imports.to[List].foldLeft(Try(hierarchy)) { case (getHierarchy, layerRef) =>
                         for {
                           hierarchy <- getHierarchy
                           layer     <- hierarchy(layerRef)

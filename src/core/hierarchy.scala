@@ -26,15 +26,15 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
   lazy val universe: Try[Universe] = {
     val localProjectIds = layer.projects.map(_.id)
 
-    def merge(universe: Try[Universe], hierarchy: (ImportId, Hierarchy)): Try[Universe] = for {
-      projects     <- universe
-      nextProjects <- hierarchy._2.universe
-      candidates    = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
-      conflictIds   = candidates.filter { id => projects.spec(id) != nextProjects.spec(id) }
+    def merge(getUniverse: Try[Universe], child: (ImportId, Hierarchy)): Try[Universe] = for {
+      universe     <- getUniverse
+      next         <- child._2.universe
+      candidates    = (universe.ids -- localProjectIds).intersect(next.ids)
+      conflictIds   = candidates.filter { id => universe(id) != next(id) }
 
       allProjects  <- conflictIds.to[List] match {
-                        case Nil => Success(projects ++ nextProjects)
-                        case _   => Failure(ProjectConflict(conflictIds, path, hierarchy._2.path))
+                        case Nil => Success(universe ++ next)
+                        case _   => Failure(ProjectConflict(conflictIds, path, child._2.path))
                       }
     } yield allProjects
 

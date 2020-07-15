@@ -55,7 +55,7 @@ case class Layer(version: Int,
   })
 
   def localUniverse(path: ImportPath): Universe = Universe(
-    entities = projects.map { project => project.id -> Entity(project, Map(path -> this)) }.toMap,
+    entities = projects.map { project => project.id -> Entity(project, Set(path)) }.toMap,
     repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
     imports = imports.map { i => i.layerRef.short -> LayerEntity(i.layerRef.short, Map(path -> i)) }.toMap
   )

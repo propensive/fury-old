@@ -32,14 +32,17 @@ case class Universe(entities: Map[ProjectId, Entity],
                     imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = entities.keySet
   def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
-  def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)
 
-  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
+  def apply(id: ProjectId): Try[Project] = entities.get(id).ascribe(ItemNotFound(id)).map(_.project)
+  def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
+  def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
+
+  def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     entity <- entity(ref.projectId)
     module <- entity.project(ref.moduleId)
 
     repos  <- (module.externalSources ++ module.externalResources).to[List].groupBy(_.repoId).map {
-                case (k, v) => entity.layers.head._2.repos.findBy(k).map(_ -> v)
+                case (k, v) => hierarchy(entity.imports.head).flatMap(_.repos.findBy(k).map(_ -> v))
               }.sequence
 
   } yield Snapshots(repos.map { case (repo, paths) =>
@@ -51,7 +54,7 @@ case class Universe(entities: Map[ProjectId, Entity],
 
   def ++(that: Universe): Universe = {
     val newEntities = that.entities.foldLeft(entities) { case (acc, (id, entity)) =>
-      acc.updated(id, acc.get(id).fold(entity) { e => e.copy(layers = e.layers ++ entity.layers) })
+      acc.updated(id, acc.get(id).fold(entity) { e => e.copy(imports = e.imports ++ entity.imports) })
     }
 
     val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>

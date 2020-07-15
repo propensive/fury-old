@@ -205,7 +205,7 @@ case class Tables() {
     Heading("Description", _.project.description),
     Heading("License", _.project.license),
     Heading("Compiler", _.project.compiler),
-    Heading("Layer(s)", p => showImportPaths(p.layers.keys))
+    Heading("Layer(s)", p => showImportPaths(p.imports))
   )
 
   def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(
