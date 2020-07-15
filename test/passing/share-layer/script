@@ -9,7 +9,7 @@ fury module add -n core
 IPFSREF=$(fury layer share --raw | cut -d / -f 3)
 echo $IPFSREF
 cd ..
-fury layer clone -i fury://$IPFSREF --path layer2
+fury layer clone -l fury://$IPFSREF --path layer2
 cd layer2
 fury module list --raw
 cd ..
