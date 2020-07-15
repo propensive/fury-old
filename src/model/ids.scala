@@ -301,6 +301,10 @@ case class LayerRef(key: String) extends Key(msg"layer") {
   def short: ShortLayerRef = ShortLayerRef(key.drop(2).take(8))
 }
 
+case class ProjectRef(digest: Digest) extends Key(msg"project") {
+  def key: String = digest.encoded[Hex]
+}
+
 object ShortLayerRef {
   implicit val stringShow: StringShow[ShortLayerRef] = _.key
   implicit val msgShow: MsgShow[ShortLayerRef] = lr => UserMsg(_.layer(stringShow.show(lr)))

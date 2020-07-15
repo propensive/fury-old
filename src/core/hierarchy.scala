@@ -32,13 +32,11 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
       candidates    = (universe.ids -- localProjectIds).intersect(next.ids)
       conflictIds   = candidates.filter { id => universe(id) != next(id) }
 
-      allProjects  <- conflictIds.to[List] match {
-                        case Nil => Success(universe ++ next)
-                        case _   => Failure(ProjectConflict(conflictIds, path, child._2.path))
-                      }
-    } yield allProjects
+      newUniverse  <- if(conflictIds.isEmpty) Success(universe ++ next)
+                      else Failure(ProjectConflict(conflictIds, path, child._2.path))
+    } yield newUniverse
 
-    for(allChildren <- children.foldLeft(Try(Universe()))(merge)) yield allChildren ++ layer.localUniverse(path)
+    children.foldLeft(Try(Universe()))(merge).map(_ ++ layer.localUniverse(path))
   }
 
   def apply(importPath: ImportPath): Try[Layer] =
@@ -55,7 +53,18 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
         )
       } }
     }
-  
+
+  def updateAll[T]
+               (items: Traversable[(ImportPath, T)])
+               (fn: (Layer, T) => Layer)
+               (implicit log: Log)
+               : Try[Hierarchy] =
+    items.foldLeft(Try(this)) { case (getHierarchy, (path, value)) => for {
+      hierarchy <- getHierarchy
+      layer     <- hierarchy(path) >> (fn(_, value))
+      hierarchy <- hierarchy(path) = layer
+    } yield hierarchy }
+
   def save(importPath: ImportPath, layout: Layout)(implicit log: Log): Try[LayerRef] =
     children.values.to[List].traverse(_.save(importPath, layout)).flatMap { _ =>
       Layer.store(layer).flatMap { ref =>
