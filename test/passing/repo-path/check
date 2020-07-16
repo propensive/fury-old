@@ -1,4 +1,10 @@
+Initialized an empty layer
+Set current project to scala
+Set current module to compiler
 Cloning into 'sample'...
+Set current project to sample
+Setting default compiler for sample to scala/compiler
+Set current module to app
 package sample
 Successfully compiled sample/app
 Four

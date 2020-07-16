@@ -174,7 +174,7 @@ case class GitDir(env: Environment, dir: Path) {
   def cat(commit: Commit, path: Path): Try[String] = sh"$git show $commit:$path".exec[Try[String]]
   def commit: Try[Commit] = sh"$git rev-parse HEAD".exec[Try[String]].map(Commit(_))
   def findCommit(tag: Tag): Try[Commit] = sh"$git rev-parse $tag".exec[Try[String]].map(Commit(_))
-  def findCommit(branch: Branch): Try[Commit] = sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_))
+  def findCommit(branch: Branch): Try[Commit] = checkBranch(branch) >>= (_ => sh"$git rev-parse $branch".exec[Try[String]].map(Commit(_)))
 
   def branchesFromCommit(commit: Commit): Try[List[Branch]] =
     sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].map { out =>
