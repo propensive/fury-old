@@ -69,7 +69,6 @@ case class NoRepoCheckedOut() extends FuryException
 case class ModuleIsNotCompiler(ref: ModuleRef, compRef: ModuleRef) extends FuryException
 case class MergeConflicts() extends FuryException
 case class MissingCommand() extends FuryException
-case class ModuleAlreadyExists(module: ModuleId) extends FuryException
 case class NoLatestVersion() extends FuryException
 case class NoRemoteInferred() extends FuryException
 case class NoOtherLayer() extends FuryException
@@ -78,7 +77,6 @@ case class NoRepl(compiler: CompilerRef) extends FuryException
 case class NoSourcesError(repoId: RepoId, commit: Commit, sources: UserMsg) extends FuryException
 case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException
-case class ProjectAlreadyExists(project: ProjectId) extends FuryException
 case class PublishFailure() extends FuryException
 case class ProjectConflict(ids: Set[ProjectId], left: ImportPath, right: ImportPath) extends FuryException
 case class RemoteNotSynched(repo: RepoId, remote: String) extends FuryException
