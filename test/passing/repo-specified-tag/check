@@ -1,4 +1,10 @@
+Initialized an empty layer
+Set current project to scala
+Set current module to compiler
 Cloning repository at gh:propensive/.sample
+Set current project to sample
+Setting default compiler for sample to scala/compiler
+Set current module to app
 Checking out src from repository sample
 Successfully compiled sample/app
 Two

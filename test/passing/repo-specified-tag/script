@@ -1,4 +1,11 @@
+fury layer init
+fury project add -n scala
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury clean repositories
 fury clean sources
 fury repo add -R gh:propensive/.sample -n sample --tag two
+fury project add -n sample
+fury module add -n app -c scala/compiler -t app -M sample.Main
+fury source add -s sample:src
 fury --output summary
