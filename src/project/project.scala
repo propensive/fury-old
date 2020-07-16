@@ -51,7 +51,7 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     optLicense  <- opt(LicenseArg).map(_.getOrElse(License.unknown))
     optCompiler <- opt(DefaultCompilerArg)
     project     <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, optLicense, "", optCompiler))
-    
+    _           <- getLayer >>= (_.projects.unique(project.id))
     layer       <- getLayer >>
                        (Layer(_.projects).modify(_)(_ + project)) >>
                        (Layer(_.main)(_) = Some(project.id))
