@@ -29,7 +29,7 @@ import scala.collection.immutable.{SortedSet, TreeSet}
 case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
   import Args._
 
-  lazy val getTable: Try[Tabulation[Entity]] = getLayer >> (_.main) >> (Tables().entities(_))
+  lazy val getTable: Try[Tabulation[Project]] = getLayer >> (_.main) >> (Tables().projects(_))
   
   implicit lazy val columnHints: ColumnArg.Hinter =
     ColumnArg.hint(getTable.map(_.headings.map(_.name.toLowerCase)))
@@ -40,7 +40,7 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   def list: Try[ExitStatus] = (cli -< ProjectArg -< RawArg -< ColumnArg).action { for {
     col     <- ~cli.peek(ColumnArg)
-    rows    <- universe >> (_.entities.values)
+    rows    <- getLayer >> (_.projects)
     project <- ~cliProject.toOption
     table   <- getTable >> (Tables().show(_, cli.cols, rows, has(RawArg), col, project >> (_.id), "project"))
     _       <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))

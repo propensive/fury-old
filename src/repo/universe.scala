@@ -19,6 +19,7 @@ package fury
 import fury.text._, fury.io._, fury.core._, fury.model._
 
 import escritoire._
+import mercator._
 
 import scala.util._
 
@@ -57,22 +58,23 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   object projects {
-    lazy val table: Tabulation[Entity] = Tables().entities(None)
+    lazy val table: Tabulation[(Project, Set[ImportPath])] = Tables().entities(None)
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< ProjectArg).action { for {
       col       <- opt(ColumnArg)
       projectId <- opt(ProjectArg)
-      rows      <- universe >> (_.entities.to[List].map(_._2))
+      universe  <- universe
+      rows      <- universe.projectRefs.traverse { ref => universe(ref).map { (_, universe.projects(ref.id)(ref)) } }
       table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, projectId >> (_.key), "project")
       _         <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
       _         <- ~log.rawln(table)
     } yield log.await() }
 
     def proliferate: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg).action { for {
-      layerRef  <- get(LayerArg)
-      projectId <- get(ProjectArg)
-      hierarchy <- getHierarchy >>= (UniverseApi(_).projects.proliferate(layerRef, projectId)) >>= commit
+      layerRef   <- get(LayerArg)
+      projectRef <- get(ProjectRefArg)
+      hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(layerRef, projectRef)) >>= commit
     } yield log.await() }
   }
 
@@ -109,7 +111,6 @@ case class UniverseApi(hierarchy: Hierarchy) {
         gitDir    <- someRepo.remote.fetch(layout)
         commit    <- gitDir.resolve(refSpec)
         branch    <- gitDir.chooseBranch(refSpec)
-        
         hierarchy <- hierarchy.updateAll(repos.map { r => (r.layer, r.repoId) }) { (layer, repoId) =>
                        Layer(_.repos(repoId)).modify(layer)(_.copy(branch = branch, commit = commit))
                      }
@@ -117,24 +118,13 @@ case class UniverseApi(hierarchy: Hierarchy) {
   }
 
   object projects {
-
-    private def hierarchyWithoutProject(importPath: ImportPath, projectId: ProjectId)
-                                       (implicit log: Log)
-                                       : Try[Hierarchy] = for {
-      layer     <- hierarchy(importPath)
-      project   <- layer.projects.findBy(projectId)
-      layer     <- Try(Layer(_.projects).modify(layer)(_ - project))
-      hierarchy <- hierarchy(importPath) = layer
-    } yield hierarchy
-
-    def proliferate(importPath: ImportPath, projectId: ProjectId)(implicit log: Log): Try[Hierarchy] = for {
+    def proliferate(importPath: ImportPath, projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
       layer        <- hierarchy(importPath)
-      project      <- layer.projects.findBy(projectId)
-      tmpHierarchy <- hierarchyWithoutProject(importPath, projectId)
-      universe     <- tmpHierarchy.universe
-      entity       <- universe.entities.get(projectId).ascribe(ItemNotFound(projectId))
-      hierarchy    <- hierarchy.updateAll(entity.imports.map((_, ()))) { (layer, _) =>
-                        Layer(_.projects(projectId))(layer) = project
+      universe     <- hierarchy.universe
+      project      <- universe(projectRef)
+      importPaths  <- ~universe.projects(projectRef.id)(projectRef)
+      hierarchy    <- hierarchy.updateAll(importPaths.map((_, ()))) { (layer, _) =>
+                        Layer(_.projects(projectRef.id))(layer) = project
                       }
     } yield hierarchy
   }

@@ -34,17 +34,17 @@ object Target {
   def apply(ref: ModuleRef, hierarchy: Hierarchy, universe: Universe, layout: Layout)
            (implicit log: Log)
            : Try[Target] = for {
-      entity    <- universe.entity(ref.projectId)
-      module    <- entity.project(ref.moduleId)
+      project   <- universe(ref.projectId)
+      module    <- project(ref.moduleId)
       binaries  <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
       checkouts <- universe.checkout(ref, hierarchy, layout)
       sources   <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-    } yield Target(ref, module, entity, checkouts, sources, binaries )
+    } yield Target(ref, module, project, checkouts, sources, binaries )
 }
 
 case class Target(ref: ModuleRef,
                   module: Module,
-                  entity: Entity,
+                  project: Project,
                   snapshots: Snapshots,
                   sourcePaths: List[Path],
                   binaries: List[Path]) {

@@ -637,8 +637,8 @@ case class Build(target: Target,
 
     for {
       staging <- aggregateResults(ref, srcs, layout)
-      entity  <- universe.entity(ref.projectId)
-      module  <- entity.project(ref.moduleId)
+      project <- universe(ref.projectId)
+      module  <- project(ref.moduleId)
       _       <- if(!js) saveJar(staging, module) else saveJs(staging, module)
       _       <- staging.delete()
     } yield ()

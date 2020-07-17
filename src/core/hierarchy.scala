@@ -29,14 +29,9 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
     def merge(getUniverse: Try[Universe], child: (ImportId, Hierarchy)): Try[Universe] = for {
       universe     <- getUniverse
       next         <- child._2.universe
-      candidates    = (universe.ids -- localProjectIds).intersect(next.ids)
-      conflictIds   = candidates.filter { id => universe(id) != next(id) }
+    } yield universe ++ next
 
-      newUniverse  <- if(conflictIds.isEmpty) Success(universe ++ next)
-                      else Failure(ProjectConflict(conflictIds, path, child._2.path))
-    } yield newUniverse
-
-    children.foldLeft(Try(Universe()))(merge).map(_ ++ layer.localUniverse(path))
+    children.foldLeft(Try(Universe(this)))(merge).map(_ ++ layer.localUniverse(this, path))
   }
 
   def apply(importPath: ImportPath): Try[Layer] =

@@ -101,6 +101,7 @@ object Args {
       "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
+  val ProjectRefArg = CliParam[ProjectRef]('p', 'project, "specify a project")
   val OptArg = CliParam[OptId]('o', 'option, "compiler option")
   val PermissionArg = CliParam[List[String]]('P', 'permission, "permission entries")
   val PropArg = CliParam[JavaProperty]('D', 'property, "Java -D property")

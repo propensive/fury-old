@@ -19,6 +19,7 @@ package fury.core
 import fury.model._, fury.text._
 
 import mercator._
+import gastronomy._
 
 import scala.util._
 import scala.collection.immutable._
@@ -39,6 +40,15 @@ case class Project(id: ProjectId,
                    license: LicenseId = License.unknown,
                    description: String = "",
                    compiler: Option[CompilerRef] = None) {
+
+  def projectRef: ProjectRef = {
+    val digest = (id, description, main, license, modules.map { m =>
+      (m.id, m.kind, m.manifest, m.compiler, m.dependencies.to[List], m.opts.to[List], m.binaries.to[List],
+          m.environment.to[List], m.policy.to[List], m.hidden, m.optDefs.to[List], m.deterministic,
+          (m.sources.to[List] ++ m.resources.to[List])) // FIXME: Resolve these in the hierarchy!
+    }.to[List]).digest[Sha256]
+    ProjectRef(id, digest.encoded[Hex].take(6))
+  }
 
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
