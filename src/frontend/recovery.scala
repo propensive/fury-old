@@ -32,7 +32,11 @@ object Recovery {
         case EarlyCompletions() =>
           Done
         case ProjectConflict(ids) =>
-          cli.abort(msg"Conflicting projects exist in the build.")
+          val table = Tables().entities
+          val conflicts = Tables().show(table, cli.cols, ids, false, None, None: Option[String], "hash")
+          log.info(msg"Conflicting projects exist in the build:")
+          log.info(conflicts)
+          cli.abort(msg"You will need to unify these projects before you can continue.")
         case InitFailure() =>
           cli.abort(msg"Could not start the bloop server.")
         case WorkingDirectoryConflict(files) =>

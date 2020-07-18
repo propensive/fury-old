@@ -58,14 +58,18 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   object projects {
-    lazy val table: Tabulation[(Project, Set[ImportPath])] = Tables().entities(None)
+    lazy val table: Tabulation[(ProjectRef, Project, Set[ImportPath])] = Tables().entities
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< ProjectArg).action { for {
       col       <- opt(ColumnArg)
       projectId <- opt(ProjectArg)
       universe  <- universe
-      rows      <- universe.projectRefs.traverse { ref => universe(ref).map { (_, universe.projects(ref.id)(ref)) } }
+      
+      rows      <- universe.projectRefs.traverse { ref => universe(ref).flatMap { p =>
+                     universe.importPaths(ref).map((ref, p, _)) }
+                   }
+
       table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, projectId >> (_.key), "project")
       _         <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
       _         <- ~log.rawln(table)

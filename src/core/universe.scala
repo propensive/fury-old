@@ -33,21 +33,43 @@ case class Universe(hierarchy: Hierarchy,
                     imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = projects.keySet
   
+  def importPaths(id: ProjectRef): Try[Set[ImportPath]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
+    case map if map.size == 1 =>
+      Success(map.values.head)
+    case map                  =>
+      map.get(id).ascribe(ProjectConflict(map.to[List].traverse { case (ref, layers) =>
+        apply(ref).map((ref, _, layers))
+      }.getOrElse(Nil)))
+  }
+
   def importPaths(id: ProjectId): Try[Set[ImportPath]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
-    case map if map.size == 1 => Success(map.values.head)
-    case map                  => Failure(ProjectConflict(map))
+    case map if map.size == 1 =>
+      Success(map.values.head)
+    case map =>
+      Failure { ProjectConflict { map.to[List].traverse { case (ref, layers) =>
+        apply(ref).map((ref, _, layers))
+      }.getOrElse(Nil) } }
   }
 
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
   def layer(id: ProjectId): Try[Layer] = importPaths(id).flatMap { is => hierarchy(is.head) }
-  def layer(id: ProjectRef): Try[Layer] = hierarchy(projects(id.id)(id).head)
+  
+  def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
+    case map if map.size == 1 =>
+      Try(map.head._2.head)
+    case map =>
+      map.get(id).orElse(map.find(_._1.id == id.id).map(_._2)).map(_.head).ascribe(ItemNotFound(id))
+  }).flatMap(hierarchy(_))
+  
   def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
   def apply(id: ProjectId): Try[Project] = layer(id).flatMap(_.projects.findBy(id))
   def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
   def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
 
-  def projectRefs: Set[ProjectRef] =
-    projects.foldLeft(Set[ProjectRef]()) { case (acc, (_, map)) => acc ++ map.keySet }
+  def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
+    case (acc, (_ ,map)) if map.size == 1 => acc + map.head._1.copy(digest = None)
+    case (acc, (_, map))                  => acc ++ map.keySet
+  }
 
   def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     project <- apply(ref.projectId)

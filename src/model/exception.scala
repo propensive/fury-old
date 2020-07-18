@@ -80,7 +80,6 @@ case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException
 case class ProjectAlreadyExists(project: ProjectId) extends FuryException
 case class PublishFailure() extends FuryException
-case class ProjectConflict(ids: Map[ProjectRef, Set[ImportPath]]) extends FuryException
 case class RemoteNotSynched(repo: RepoId, remote: String) extends FuryException
 case class RepoAlreadyForked(repo: RepoId, dir: Path) extends FuryException
 case class RepoDirty(repo: RepoId, changes: String) extends FuryException
