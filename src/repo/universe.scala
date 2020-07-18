@@ -19,6 +19,7 @@ package fury
 import fury.text._, fury.io._, fury.core._, fury.model._
 
 import escritoire._
+import mercator._
 
 import scala.util._
 
@@ -57,22 +58,27 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   object projects {
-    lazy val table: Tabulation[Entity] = Tables().entities(None)
+    lazy val table: Tabulation[(ProjectRef, Project, Set[ImportPath])] = Tables().entities
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< ProjectArg).action { for {
       col       <- opt(ColumnArg)
       projectId <- opt(ProjectArg)
-      rows      <- universe >> (_.entities.to[List].map(_._2))
+      universe  <- universe
+      
+      rows      <- universe.projectRefs.traverse { ref => universe(ref).flatMap { p =>
+                     universe.importPaths(ref).map((ref, p, _)) }
+                   }
+
       table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, projectId >> (_.key), "project")
       _         <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
       _         <- ~log.rawln(table)
     } yield log.await() }
 
     def proliferate: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg).action { for {
-      layerRef  <- get(LayerArg)
-      projectId <- get(ProjectArg)
-      hierarchy <- getHierarchy >>= (UniverseApi(_).projects.proliferate(layerRef, projectId)) >>= commit
+      layerRef   <- get(LayerArg)
+      projectRef <- get(ProjectRefArg)
+      hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(layerRef, projectRef)) >>= commit
     } yield log.await() }
   }
 
@@ -109,50 +115,26 @@ case class UniverseApi(hierarchy: Hierarchy) {
         gitDir    <- someRepo.remote.fetch(layout)
         commit    <- gitDir.resolve(refSpec)
         branch    <- gitDir.chooseBranch(refSpec)
-        hierarchy <- repos.foldLeft(Try(hierarchy)) { case (getHierarchy, RepoRef(repoId, layerRef)) => for {
-                       hierarchy <- getHierarchy
-                       layer     <- hierarchy(layerRef)
-                       layer     <- Try(Layer(_.repos(repoId).commit)(layer) = commit)
-                       layer     <- Try(Layer(_.repos(repoId).branch)(layer) = branch)
-                       hierarchy <- hierarchy(layerRef) = layer
-                     } yield hierarchy }
+        hierarchy <- hierarchy.updateAll(repos.map { r => (r.layer, r.repoId) }) { (layer, repoId) =>
+                       Layer(_.repos(repoId)).modify(layer)(_.copy(branch = branch, commit = commit))
+                     }
       } yield hierarchy
   }
 
   object projects {
-
-    private def hierarchyWithoutProject(importPath: ImportPath, projectId: ProjectId)
-                                       (implicit log: Log)
-                                       : Try[Hierarchy] = for {
-      layer     <- hierarchy(importPath)
-      project   <- layer.projects.findBy(projectId)
-      layer     <- Try(Layer(_.projects).modify(layer)(_ - project))
-      hierarchy <- hierarchy(importPath) = layer
-    } yield hierarchy
-
-    def proliferate(importPath: ImportPath, projectId: ProjectId)
-                   (implicit log: Log)
-                   : Try[Hierarchy] = for {
+    def proliferate(importPath: ImportPath, projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
       layer        <- hierarchy(importPath)
-      project      <- layer.projects.findBy(projectId)
-      tmpHierarchy <- hierarchyWithoutProject(importPath, projectId)
-      universe     <- tmpHierarchy.universe
-      entity       <- universe.entities.get(projectId).ascribe(ItemNotFound(projectId))
-      hierarchy    <- entity.layers.to[List].foldLeft(Try(hierarchy)) { case (getHierarchy, (layerRef, _)) =>
-                        for {
-                          hierarchy <- getHierarchy
-                          layer     <- hierarchy(layerRef)
-                          layer     <- Try(Layer(_.projects(projectId))(layer) = project)
-                          hierarchy <- hierarchy(layerRef) = layer
-                        } yield hierarchy
+      universe     <- hierarchy.universe
+      project      <- universe(projectRef)
+      importPaths  <- ~universe.projects(projectRef.id)(projectRef)
+      hierarchy    <- hierarchy.updateAll(importPaths.map((_, ()))) { (layer, _) =>
+                        Layer(_.projects(projectRef.id))(layer) = project
                       }
     } yield hierarchy
   }
 
   object imports {
-    def pull(layerRef: ShortLayerRef, input: Option[LayerName])
-            (implicit log: Log)
-            : Try[Hierarchy] = for {
+    def pull(layerRef: ShortLayerRef, input: Option[LayerName])(implicit log: Log): Try[Hierarchy] = for {
       universe    <- hierarchy.universe
       layerEntity <- universe.imports.get(layerRef).ascribe(ItemNotFound(layerRef))
       someLayer   <- hierarchy(layerEntity.imports.head._1)
@@ -162,15 +144,11 @@ case class UniverseApi(hierarchy: Hierarchy) {
       pub         <- Layer.published(importName)
       newLayer    <- Layer.get(newLayerRef, pub)
       _           <- newLayer.verify(false, ImportPath.Root)
-      hierarchy   <- layerEntity.imports.foldLeft(Try(hierarchy)) { case (getHierarchy, (path, oldImport)) =>
-                       for {
-                         hierarchy <- getHierarchy
-                         layer     <- hierarchy(path)
-                         newImport <- ~oldImport.copy(layerRef = newLayerRef, remote = pub)
-                         layer     <- Try(Layer(_.imports).modify(layer) { is => is - oldImport + newImport })
-                         hierarchy <- hierarchy(path) = layer
-                       } yield hierarchy
+      
+      hierarchy   <- hierarchy.updateAll(layerEntity.imports) { (layer, imp) =>
+                       val newImport = imp.copy(layerRef = newLayerRef, remote = pub)
+                       Layer(_.imports).modify(layer)(_ - imp + newImport)
                      }
-      } yield hierarchy
+    } yield hierarchy
   }
 }

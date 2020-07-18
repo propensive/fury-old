@@ -54,8 +54,9 @@ case class Layer(version: Int,
     })
   })
 
-  def localUniverse(path: ImportPath): Universe = Universe(
-    entities = projects.map { project => project.id -> Entity(project, Map(path -> this)) }.toMap,
+  def localUniverse(hierarchy: Hierarchy, path: ImportPath): Universe = Universe(
+    hierarchy = hierarchy,
+    projects = projects.map { project => project.id -> Map(project.projectRef -> Set(path)) }.toMap,
     repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
     imports = imports.map { i => i.layerRef.short -> LayerEntity(i.layerRef.short, Map(path -> i)) }.toMap
   )
@@ -75,8 +76,8 @@ case class Layer(version: Int,
     LocalSource(_, _) <- module.sources
   } yield module.ref(project)
 
-  def deepModuleRefs(universe: Universe): Set[ModuleRef] =
-    universe.entities.values.flatMap(_.project.moduleRefs).to[Set]
+  def deepModuleRefs(universe: Universe): Try[Set[ModuleRef]] =
+    for(projects <- universe.allProjects) yield projects.flatMap(_.moduleRefs).to[Set]
 
   def unresolvedModules(universe: Universe): Map[ModuleRef, Set[Dependency]] = { for {
     project    <- projects.to[List]

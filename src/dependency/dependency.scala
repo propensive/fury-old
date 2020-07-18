@@ -86,10 +86,10 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
     
-    allRefs       = for(project <- tryProject; module <- tryModule)
+    allRefs       = for(project <- tryProject; module <- tryModule; otherRefs <- layer.deepModuleRefs(universe))
                     yield {
                       val fromOtherProjects = for {
-                        otherRef <- layer.deepModuleRefs(universe)
+                        otherRef <- otherRefs
                                 if !(otherRef.hidden || module.dependencies.map(_.ref).contains(otherRef))
                       } yield otherRef.id
                       val fromSameProject = for {
@@ -223,7 +223,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
-    build        <- Build(universe, Dependency(module.ref(project)), layout)
+    build        <- Build(universe, Dependency(module.ref(project)), hierarchy, layout)
     permissions  <- permHashes.traverse(_.resolve(build.requiredPermissions))
     force        =  call(ForceArg).isSuccess
                          
@@ -271,7 +271,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
     hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
-    build         <- Build(universe, Dependency(module.ref(project)), layout)
+    build         <- Build(universe, Dependency(module.ref(project)), hierarchy, layout)
     permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
     policy        =  Policy.read(log)
     newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)

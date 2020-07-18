@@ -198,14 +198,19 @@ case class Tables() {
     if(importPaths.size > 4) fewPaths+"\n"+msg"...and ${importPaths.size - 4} more." else fewPaths
   }
 
-  def entities(current: Option[ProjectId]): Tabulation[Entity] = Tabulation(
-    Heading("", p => Some(p.project.id) == current),
-    Heading("Project", _.project.id),
-    Heading("Modules", p => p.project.modules.size),
-    Heading("Description", _.project.description),
-    Heading("License", _.project.license),
-    Heading("Compiler", _.project.compiler),
-    Heading("Layer(s)", p => showImportPaths(p.layers.keys))
+  val entities: Tabulation[(ProjectRef, Project, Set[ImportPath])] = Tabulation(
+    Heading("Project", _._1),
+    Heading("Description", _._2.description),
+    Heading("Layers", p => showImportPaths(p._3))
+  )
+
+  def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation(
+    Heading("", p => Some(p.id) == current),
+    Heading("Project", _.id),
+    Heading("Modules", p => p.modules.size),
+    Heading("Description", _.description),
+    Heading("License", _.license),
+    Heading("Compiler", _.compiler)
   )
 
   def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(

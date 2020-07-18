@@ -44,7 +44,7 @@ case class SourceCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
-    checkouts    <- universe.checkout(module.ref(project), layout)
+    checkouts    <- universe.checkout(module.ref(project), hierarchy, layout)
   } yield {
     val rows = module.sources.to[List]
     val table = Tables().sources(checkouts, layout)

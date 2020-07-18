@@ -19,9 +19,12 @@ package fury.core
 import fury.model._, fury.text._
 
 import mercator._
+import gastronomy._
 
 import scala.util._
 import scala.collection.immutable._
+
+case class ProjectConflict(ids: List[(ProjectRef, Project, Set[ImportPath])]) extends FuryException
 
 object Project {
   implicit val msgShow: MsgShow[Project] = v => UserMsg(_.project(v.id.key))
@@ -40,10 +43,18 @@ case class Project(id: ProjectId,
                    description: String = "",
                    compiler: Option[CompilerRef] = None) {
 
+  def projectRef: ProjectRef = {
+    val digest = (id, description, main, license, modules.map { m =>
+      (m.id, m.kind, m.manifest, m.compiler, m.dependencies.to[List], m.opts.to[List], m.binaries.to[List],
+          m.environment.to[List], m.policy.to[List], m.hidden, m.optDefs.to[List], m.deterministic,
+          (m.sources.to[List] ++ m.resources.to[List])) // FIXME: Resolve these in the hierarchy!
+    }.to[List]).digest[Sha256]
+    ProjectRef(id, Some(digest.encoded[Hex].take(6).toLowerCase))
+  }
+
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)
   def moduleRefs: List[ModuleRef] = modules.to[List].map(_.ref(this))
   def compilerRefs: List[ModuleRef] = modules.to[List].collect { case m if m.kind.is[Compiler] => m.ref(this) }
   def allRepoIds: Set[RepoId] = modules.flatMap(_.sources).collect { case RepoSource(repoId, _, _) => repoId }
-
   def mainModule: Try[Option[Module]] = main.traverse(modules.findBy(_))
 }

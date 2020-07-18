@@ -24,23 +24,61 @@ import gastronomy._
 import scala.util._
 import scala.collection.immutable.TreeSet
 
-object Universe { def apply(): Universe = Universe(Map(), Map(), Map()) }
+object Universe { def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map()) }
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
-case class Universe(entities: Map[ProjectId, Entity],
+case class Universe(hierarchy: Hierarchy,
+                    projects: Map[ProjectId, Map[ProjectRef, Set[ImportPath]]],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerEntity]) {
-  def ids: Set[ProjectId] = entities.keySet
-  def entity(id: ProjectId): Try[Entity] = entities.get(id).ascribe(ItemNotFound(id))
-  def spec(id: ProjectId): Try[ProjectSpec] = entity(id).map(_.spec)
+  def ids: Set[ProjectId] = projects.keySet
+  
+  def importPaths(id: ProjectRef): Try[Set[ImportPath]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
+    case map if map.size == 1 =>
+      Success(map.values.head)
+    case map                  =>
+      map.get(id).ascribe(ProjectConflict(map.to[List].traverse { case (ref, layers) =>
+        apply(ref).map((ref, _, layers))
+      }.getOrElse(Nil)))
+  }
 
-  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
-    entity <- entity(ref.projectId)
-    module <- entity.project(ref.moduleId)
+  def importPaths(id: ProjectId): Try[Set[ImportPath]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
+    case map if map.size == 1 =>
+      Success(map.values.head)
+    case map =>
+      Failure { ProjectConflict { map.to[List].traverse { case (ref, layers) =>
+        apply(ref).map((ref, _, layers))
+      }.getOrElse(Nil) } }
+  }
 
-    repos  <- (module.externalSources ++ module.externalResources).to[List].groupBy(_.repoId).map {
-                case (k, v) => entity.layers.head._2.repos.findBy(k).map(_ -> v)
-              }.sequence
+  def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
+  def layer(id: ProjectId): Try[Layer] = importPaths(id).flatMap { is => hierarchy(is.head) }
+  
+  def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
+    case map if map.size == 1 =>
+      Try(map.head._2.head)
+    case map =>
+      map.get(id).orElse(map.find(_._1.id == id.id).map(_._2)).map(_.head).ascribe(ItemNotFound(id))
+  }).flatMap(hierarchy(_))
+  
+  def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
+  def apply(id: ProjectId): Try[Project] = layer(id).flatMap(_.projects.findBy(id))
+  def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
+  def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
+
+  def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
+    case (acc, (_ ,map)) if map.size == 1 => acc + map.head._1.copy(digest = None)
+    case (acc, (_, map))                  => acc ++ map.keySet
+  }
+
+  def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
+    project <- apply(ref.projectId)
+    module  <- project(ref.moduleId)
+    layer   <- layer(ref.projectId)
+
+    repos   <- (module.externalSources ++ module.externalResources).to[List].groupBy(_.repoId).map {
+                 case (k, v) => layer.repos.findBy(k).map(_ -> v)
+               }.sequence
 
   } yield Snapshots(repos.map { case (repo, paths) =>
     val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch,
@@ -50,19 +88,21 @@ case class Universe(entities: Map[ProjectId, Entity],
   }.toMap)
 
   def ++(that: Universe): Universe = {
-    val newEntities = that.entities.foldLeft(entities) { case (acc, (id, entity)) =>
-      acc.updated(id, acc.get(id).fold(entity) { e => e.copy(layers = e.layers ++ entity.layers) })
-    }
-
     val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>
       acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)
+    }
+
+    val newProjects = that.projects.foldLeft(projects) { case (acc, (id, map)) =>
+      acc.updated(id, acc.get(id).fold(map)(map.foldLeft(_) { case (acc2, (ref, set)) =>
+        acc2.updated(ref, acc2.get(ref).fold(set)(_ ++ set))
+      }))
     }
 
     val newImports = that.imports.foldLeft(imports) { case (acc, (layerRef, entity)) =>
       acc.updated(layerRef, acc.getOrElse(layerRef, entity) + entity.imports)
     }
 
-    Universe(newEntities, newRepoSets, newImports)
+    Universe(hierarchy, newProjects, newRepoSets, newImports)
   }
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =
@@ -70,8 +110,8 @@ case class Universe(entities: Map[ProjectId, Entity],
 
   private[this] def transitiveDependencies(forbidden: Set[Dependency], dependency: Dependency, layout: Layout)
                                           : Try[Set[Dependency]] = for {
-    entity       <- entity(dependency.ref.projectId)
-    module       <- entity.project(dependency.ref.moduleId)
+    project      <- apply(dependency.ref.projectId)
+    module       <- project(dependency.ref.moduleId)
     dependencies  =  module.dependencies ++ module.compilerDependencies
     repeats       = dependencies.intersect(forbidden)
     _            <- if(repeats.isEmpty) ~() else Failure(CyclesInDependencies(repeats))
@@ -82,7 +122,7 @@ case class Universe(entities: Map[ProjectId, Entity],
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
   def apply(ref: ModuleRef): Try[Module] = for {
-    entity <- entity(ref.projectId)
-    module <- entity.project(ref.moduleId)
+    project <- apply(ref.projectId)
+    module  <- project(ref.moduleId)
   } yield module
 }

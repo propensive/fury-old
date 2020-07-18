@@ -26,19 +26,12 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
   lazy val universe: Try[Universe] = {
     val localProjectIds = layer.projects.map(_.id)
 
-    def merge(universe: Try[Universe], hierarchy: (ImportId, Hierarchy)): Try[Universe] = for {
-      projects     <- universe
-      nextProjects <- hierarchy._2.universe
-      candidates    = (projects.ids -- localProjectIds).intersect(nextProjects.ids)
-      conflictIds   = candidates.filter { id => projects.spec(id) != nextProjects.spec(id) }
+    def merge(getUniverse: Try[Universe], child: (ImportId, Hierarchy)): Try[Universe] = for {
+      universe     <- getUniverse
+      next         <- child._2.universe
+    } yield universe ++ next
 
-      allProjects  <- conflictIds.to[List] match {
-                        case Nil => Success(projects ++ nextProjects)
-                        case _   => Failure(ProjectConflict(conflictIds, path, hierarchy._2.path))
-                      }
-    } yield allProjects
-
-    for(allChildren <- children.foldLeft(Try(Universe()))(merge)) yield allChildren ++ layer.localUniverse(path)
+    children.foldLeft(Try(Universe(this)))(merge).map(_ ++ layer.localUniverse(this, path))
   }
 
   def apply(importPath: ImportPath): Try[Layer] =
@@ -55,7 +48,18 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
         )
       } }
     }
-  
+
+  def updateAll[T]
+               (items: Traversable[(ImportPath, T)])
+               (fn: (Layer, T) => Layer)
+               (implicit log: Log)
+               : Try[Hierarchy] =
+    items.foldLeft(Try(this)) { case (getHierarchy, (path, value)) => for {
+      hierarchy <- getHierarchy
+      layer     <- hierarchy(path) >> (fn(_, value))
+      hierarchy <- hierarchy(path) = layer
+    } yield hierarchy }
+
   def save(importPath: ImportPath, layout: Layout)(implicit log: Log): Try[LayerRef] =
     children.values.to[List].traverse(_.save(importPath, layout)).flatMap { _ =>
       Layer.store(layer).flatMap { ref =>

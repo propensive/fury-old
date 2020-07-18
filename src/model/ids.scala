@@ -301,6 +301,24 @@ case class LayerRef(key: String) extends Key(msg"layer") {
   def short: ShortLayerRef = ShortLayerRef(key.drop(2).take(8))
 }
 
+object ProjectRef {
+  implicit val stringShow: StringShow[ProjectRef] = msgShow.show(_).string(Theme.NoColor)
+  
+  implicit val msgShow: MsgShow[ProjectRef] =
+    pr => msg"${pr.id}${pr.digest.fold(msg"") { d => msg"${'#'}${UserMsg { th => th.projectDark(d) }}" }}"
+
+  implicit val parser: Parser[ProjectRef] = unapply(_)
+
+  def unapply(value: String): Option[ProjectRef] = value.only {
+    case r"$id@([^#]+)\#$hash@([a-f0-9]{6})" => ProjectRef(ProjectId(id), Some(hash))
+    case r"$id@([^#]+)" => ProjectRef(ProjectId(id), None)
+  }
+}
+
+case class ProjectRef(id: ProjectId, digest: Option[String]) extends Key(msg"project") {
+  def key: String = ProjectRef.stringShow.show(this)
+}
+
 object ShortLayerRef {
   implicit val stringShow: StringShow[ShortLayerRef] = _.key
   implicit val msgShow: MsgShow[ShortLayerRef] = lr => UserMsg(_.layer(stringShow.show(lr)))
