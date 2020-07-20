@@ -24,41 +24,77 @@ import gastronomy._
 import scala.util._
 import scala.collection.immutable.TreeSet
 
-object Universe { def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map()) }
+object Universe {
+  def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
+
+  sealed trait ProjectDefinition {
+    def id: ProjectId
+    def +(other: ProjectDefinition): ProjectDefinition
+  }
+
+  case class UniqueProject(ref: ProjectRef, origins: Set[Pointer]) extends ProjectDefinition {
+    override def id: ProjectId = ref.id
+
+    override def +(other: ProjectDefinition): ProjectDefinition = {
+      if(other.id != this.id) throw new IllegalArgumentException(str"Project IDs ${this.id} and ${other.id} are different")
+      else other match {
+        case UniqueProject(ref, origins) if ref == this.ref => UniqueProject(ref, this.origins ++ origins)
+        case ConflictingProjects(origins) => ConflictingProjects(origins ++ this.origins.map(i => i -> this.ref))
+      }
+    }
+  }
+
+  case class ConflictingProjects private[Universe](origins: Map[Pointer, ProjectRef]) extends ProjectDefinition {
+    override def id: ProjectId = origins.values.head.id
+
+    override def +(other: ProjectDefinition): ProjectDefinition = {
+      if (other.id != this.id) throw new IllegalArgumentException(str"Project IDs ${this.id} and ${other.id} are different")
+      else other match {
+        case UniqueProject(ref, origins) => ConflictingProjects(this.origins ++ origins.map(i => i -> ref))
+        case ConflictingProjects(origins) => ConflictingProjects(this.origins ++ origins)
+      }
+    }
+  }
+}
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(hierarchy: Hierarchy,
-                    projects: Map[ProjectId, Map[ProjectRef, Set[Pointer]]],
+                    projects: Map[ProjectId, Universe.ProjectDefinition],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = projects.keySet
-  
+
+  import Universe._
+
   def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
-    case map if map.size == 1 =>
-      Success(map.values.head)
-    case map                  =>
-      map.get(id).ascribe(ProjectConflict(map.to[List].traverse { case (ref, layers) =>
-        apply(ref).map((ref, _, layers))
-      }.getOrElse(Nil)))
+    case UniqueProject(`id`, origins) => ~origins
+    case UniqueProject(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
+    case ConflictingProjects(origins) =>
+      val refOrigins = origins.collect{ case (origin, `id`) => origin }
+      if (refOrigins.isEmpty) Failure(new IllegalStateException(str"No known import for $id"))
+      else ~refOrigins.toSet
   }
 
   def pointers(id: ProjectId): Try[Set[Pointer]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
-    case map if map.size == 1 =>
-      Success(map.values.head)
-    case map =>
-      Failure { ProjectConflict { map.to[List].traverse { case (ref, layers) =>
-        apply(ref).map((ref, _, layers))
-      }.getOrElse(Nil) } }
+    case UniqueProject(_, origins) => ~origins
+    case ConflictingProjects(origins) =>
+      val projectsByRef = origins.values.toSet.map{ ref: ProjectRef => ref -> apply(ref) }.toMap
+      val importsByRef = origins.values.map{ case ref => ref -> origins.collect{ case (o, `ref`) => o }.toSet }
+      importsByRef.traverse { case (ref, _) =>
+        for {
+          project <- projectsByRef(ref)
+          imports <- pointers(ref)
+        } yield (ref, project, imports)
+      } >>= (conflicts => Failure(ProjectConflict(conflicts.toList)))
   }
 
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
   def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
-    case map if map.size == 1 =>
-      Try(map.head._2.head)
-    case map =>
-      map.get(id).orElse(map.find(_._1.id == id.id).map(_._2)).map(_.head).ascribe(ItemNotFound(id))
+    case UniqueProject(`id`, origins) => ~origins.head
+    case UniqueProject(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
+    case _: ConflictingProjects => pointers(id) >> (_.head)
   }).flatMap(hierarchy(_))
   
   def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
@@ -67,8 +103,8 @@ case class Universe(hierarchy: Hierarchy,
   def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
 
   def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
-    case (acc, (_ ,map)) if map.size == 1 => acc + map.head._1.copy(digest = None)
-    case (acc, (_, map))                  => acc ++ map.keySet
+    case (acc, (_, UniqueProject(ref, _))) => acc + ref.copy(digest = None)
+    case (acc, (_, ConflictingProjects(origins))) => acc ++ origins.values
   }
 
   def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
@@ -92,10 +128,8 @@ case class Universe(hierarchy: Hierarchy,
       acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)
     }
 
-    val newProjects = that.projects.foldLeft(projects) { case (acc, (id, map)) =>
-      acc.updated(id, acc.get(id).fold(map)(map.foldLeft(_) { case (acc2, (ref, set)) =>
-        acc2.updated(ref, acc2.get(ref).fold(set)(_ ++ set))
-      }))
+    val newProjects = that.projects.values.foldLeft(projects) { case (acc, proj) =>
+      acc.updated(proj.id, acc.get(proj.id).map(_ + proj).getOrElse(proj))
     }
 
     val newImports = that.imports.foldLeft(imports) { case (acc, (layerRef, entity)) =>
