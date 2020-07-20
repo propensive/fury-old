@@ -28,12 +28,12 @@ object Universe { def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(hierarchy: Hierarchy,
-                    projects: Map[ProjectId, Map[ProjectRef, Set[ImportPath]]],
+                    projects: Map[ProjectId, Map[ProjectRef, Set[Pointer]]],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = projects.keySet
   
-  def importPaths(id: ProjectRef): Try[Set[ImportPath]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
+  def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
     case map if map.size == 1 =>
       Success(map.values.head)
     case map                  =>
@@ -42,7 +42,7 @@ case class Universe(hierarchy: Hierarchy,
       }.getOrElse(Nil)))
   }
 
-  def importPaths(id: ProjectId): Try[Set[ImportPath]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
+  def pointers(id: ProjectId): Try[Set[Pointer]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
     case map if map.size == 1 =>
       Success(map.values.head)
     case map =>
@@ -52,7 +52,7 @@ case class Universe(hierarchy: Hierarchy,
   }
 
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
-  def layer(id: ProjectId): Try[Layer] = importPaths(id).flatMap { is => hierarchy(is.head) }
+  def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
     case map if map.size == 1 =>

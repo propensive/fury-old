@@ -26,7 +26,7 @@ import scala.util._
 
 import java.net.URI
 
-case class Entity(project: Project, imports: Set[ImportPath])
+case class Entity(project: Project, imports: Set[Pointer])
 
 sealed trait CompileEvent
 case object Tick extends CompileEvent

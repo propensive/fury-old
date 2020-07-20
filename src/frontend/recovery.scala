@@ -108,7 +108,7 @@ You can grant these permissions with,
           val plural = if(refs.size > 1) "s" else ""
           cli.abort(msg"""The module$plural contains references to local sources.""")
         case RootLayerNotSelected(path) =>
-          cli.abort(msg"The selected layer is not a root layer (${ImportPath.Root}). To publish this layer "+
+          cli.abort(msg"The selected layer is not a root layer (${Pointer.Root}). To publish this layer "+
               msg"($path) anyway, please specify the ${Args.ForceArg: CliParam} parameter.")
         case ModuleIsNotCompiler(ref, compRef) =>
           cli.abort(msg"The module $ref specifies a module ($compRef) which is not a compiler)")

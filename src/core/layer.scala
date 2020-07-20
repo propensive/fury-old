@@ -54,7 +54,7 @@ case class Layer(version: Int,
     })
   })
 
-  def localUniverse(hierarchy: Hierarchy, path: ImportPath): Universe = Universe(
+  def localUniverse(hierarchy: Hierarchy, path: Pointer): Universe = Universe(
     hierarchy = hierarchy,
     projects = projects.map { project => project.id -> Map(project.projectRef -> Set(path)) }.toMap,
     repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
@@ -86,17 +86,17 @@ case class Layer(version: Int,
     missing    <- if(universe(dependency.ref).isSuccess) Nil else List((module.ref(project), dependency))
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
-  def verifyConf(local: Boolean, conf: FuryConf, importPath: ImportPath, quiet: Boolean, force: Boolean)
+  def verifyConf(local: Boolean, conf: FuryConf, pointer: Pointer, quiet: Boolean, force: Boolean)
                 (implicit log: Log)
                 : Try[Unit] = for {
     
-    _         <- if(force || conf.path == ImportPath.Root) Success(())
+    _         <- if(force || conf.path == Pointer.Root) Success(())
                  else Failure(RootLayerNotSelected(conf.path))
 
-    _         <- verify(local, importPath, quiet)
+    _         <- verify(local, pointer, quiet)
   } yield ()
 
-  def verify(local: Boolean, ref: ImportPath, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
+  def verify(local: Boolean, ref: Pointer, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
     _         <- ~log.infoWhen(!quiet)(msg"Checking that no modules reference local sources")
     localSrcs <- ~localSources
     _         <- if(localSrcs.isEmpty || local) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
@@ -110,21 +110,21 @@ case class Layer(version: Int,
   def compilerRefs(layout: Layout)(implicit log: Log): List[ModuleRef] =
     allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def hierarchy(importPath: ImportPath = ImportPath.Empty)(implicit log: Log): Try[Hierarchy] = for {
+  def hierarchy(pointer: Pointer = Pointer.Empty)(implicit log: Log): Try[Hierarchy] = for {
     imps <- imports.to[Set].traverse { ref =>
-      Layer.get(ref.layerRef, ref.remote) >>= (_.hierarchy(importPath / ref.id).map(ref.id -> _))
+      Layer.get(ref.layerRef, ref.remote) >>= (_.hierarchy(pointer / ref.id).map(ref.id -> _))
     }
-  } yield Hierarchy(this, importPath, imps.toMap)
+  } yield Hierarchy(this, pointer, imps.toMap)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
     imports.to[List].traverse { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.map(_.toMap)
 
   def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
   
-  def importTree(implicit log: Log): Try[List[ImportPath]] = for {
+  def importTree(implicit log: Log): Try[List[Pointer]] = for {
     imports <- resolvedImports
     imports <- imports.traverse { case (id, layer) => layer.importTree.map(_.map(_.prefix(id))) }.map(_.flatten)
-  } yield ImportPath.Root :: imports.to[List]
+  } yield Pointer.Root :: imports.to[List]
 
   def allProjects(layout: Layout)(implicit log: Log): Try[List[Project]] = {
     @tailrec
@@ -178,7 +178,7 @@ object Layer extends Lens.Partial[Layer] {
     } yield ()
     else Success(())
 
-  def dereference(layer: Layer, path: ImportPath)(implicit log: Log): Try[Layer] =
+  def dereference(layer: Layer, path: Pointer)(implicit log: Log): Try[Layer] =
     if(path.isEmpty) Success(layer)
     else for {
       layerImport <- layer.imports.findBy(path.head)
@@ -189,7 +189,7 @@ object Layer extends Lens.Partial[Layer] {
   def get(layerRef: LayerRef, id: Option[PublishedLayer])(implicit log: Log): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
       pub   <- ~id.fold(msg"Fetching layer $layerRef") { pl =>
-                 msg"Fetching layer ${ImportPath(pl.url.path)}${'@'}${pl.version} ${'('}$layerRef${')'}"
+                 msg"Fetching layer ${Pointer(pl.url.path)}${'@'}${pl.version} ${'('}$layerRef${')'}"
                }
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)

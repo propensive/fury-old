@@ -504,8 +504,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     focus        <- Layer.readFuryConf(layout)
     currentLayer <- ~Some(focus.path)
     absTree      <- ~baseLayer.importTree.getOrElse(Nil)
-    relLayers    <- ~layer.imports.map { sr => ImportPath(sr.id.key) }
-    parentLayer  <- if(baseLayer == layer) ~None else ~Some(ImportPath(".."))
+    relLayers    <- ~layer.imports.map { sr => Pointer(sr.id.key) }
+    parentLayer  <- if(baseLayer == layer) ~None else ~Some(Pointer(".."))
     cli          <- cli.hint(LayerArg, absTree.to[Set] ++ relLayers ++ parentLayer -- currentLayer)
     call         <- cli.call()
     relPath      <- call(LayerArg)
@@ -516,7 +516,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
 
-  def verifyLayers(path: ImportPath, list: List[ImportPath]): Try[Unit] =
+  def verifyLayers(path: Pointer, list: List[Pointer]): Try[Unit] =
     if (list.map(_.path).contains(path.path))
       Success()
     else
@@ -534,7 +534,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layerRef   <- Layer.resolve(layerName)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
-    _          <- layer.verify(true, ImportPath.Root)
+    _          <- layer.verify(true, Pointer.Root)
     dir        <- call(PathArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
@@ -546,7 +546,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _          <- optRepo.fold(Try(()))(_.doCleanCheckout(layout))
     _          <- ~log.info(msg"Saving Fury configuration file ${layout.confFile.relativizeTo(layout.pwd)}")
     published  <- Layer.published(layerName)
-    _          <- Layer.saveFuryConf(FuryConf(layerRef, ImportPath.Root, published), layout)
+    _          <- Layer.saveFuryConf(FuryConf(layerRef, Pointer.Root, published), layout)
     _          <- Bsp.createConfig(layout)
     _          <- ~log.info(msg"Cloning complete")
     
@@ -583,7 +583,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     raw           <- ~call(RawArg).isSuccess
     force         <- ~call(ForceArg).isSuccess
     description   <- ~call(DescriptionArg).toOption
-    _             <- layer.verifyConf(false, conf, ImportPath.Root, quiet = false, force)
+    _             <- layer.verifyConf(false, conf, Pointer.Root, quiet = false, force)
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
     ref           <- Layer.share(ManagedConfig().service, layer, token)
     
@@ -599,7 +599,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                      }
 
     _             <- conf.path match {
-                       case ImportPath.Root =>
+                       case Pointer.Root =>
                          Layer.saveFuryConf(FuryConf(ref, conf.path, Some(pub)), layout)
                        case path            => for {
                          parent <- Layer.dereference(base, path.init)
@@ -625,7 +625,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     force  <- ~call(ForceArg).isSuccess
     public <- ~call(PublicArg).isSuccess
     raw    <- ~call(RawArg).isSuccess
-    _      <- layer.verifyConf(false, conf, ImportPath.Root, quiet = raw, force)
+    _      <- layer.verifyConf(false, conf, Pointer.Root, quiet = raw, force)
 
     ref    <- if(!public) Layer.store(layer)
               else for {
@@ -641,7 +641,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
-    _      <- layer.verifyConf(true, conf, ImportPath.Root, quiet = false, force = false)
+    _      <- layer.verifyConf(true, conf, Pointer.Root, quiet = false, force = false)
     ref    <- Layer.store(layer)
     _      <- ~log.info(msg"Writing layer database to ${layout.layerDb.relativizeTo(layout.baseDir)}")
     _      <- Layer.writeDb(layer, layout)
@@ -670,7 +670,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     newLayerRef   <- Layer.resolve(layerName)
     pub           <- Layer.published(layerName)
     newLayer      <- Layer.get(newLayerRef, pub)
-    _             <- newLayer.verify(false, ImportPath.Root)
+    _             <- newLayer.verify(false, Pointer.Root)
     ref           <- ~Import(nameArg, newLayerRef, pub)
     layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _             <- Layer.commit(layer, conf, layout)
@@ -742,49 +742,49 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _         <- call.atMostOne(AllArg, LayerVersionArg)
     _         <- call.atMostOne(AllArg, ImportIdArg)
     conf      <- if(current) updateCurrent(layer, conf, version) else ~conf
-    layer     <- updateAll(layer, ImportPath.Empty, imports, recursive, if(current) None else version)
+    layer     <- updateAll(layer, Pointer.Empty, imports, recursive, if(current) None else version)
     _         <- Layer.commit(layer, conf, layout, force = true)
   } yield log.await()
 
   private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion]): Try[FuryConf] = for {
 
-    _                  <- if(conf.path != ImportPath.Root) Failure(RootLayerNotSelected(conf.path))
+    _                  <- if(conf.path != Pointer.Root) Failure(RootLayerNotSelected(conf.path))
                           else Success(())
     
     published          <- conf.published.ascribe(ImportHasNoRemote())
-    (newPub, artifact) <- getNewLayer(published, version, ImportPath.Root)
+    (newPub, artifact) <- getNewLayer(published, version, Pointer.Root)
     newLayer           <- Layer.get(artifact.layerRef, Some(newPub))
     layerRef           <- Layer.store(newLayer)
   } yield conf.copy(layerRef = layerRef, published = Some(newPub))
 
   private def updateAll(layer: Layer,
-                        importPath: ImportPath,
+                        pointer: Pointer,
                         imports: List[ImportId],
                         recursive: Boolean,
                         version: Option[LayerVersion])
                        : Try[Layer] =
-    ~imports.foldLeft(layer)(updateOne(_, importPath, _, recursive, version).getOrElse(layer))
+    ~imports.foldLeft(layer)(updateOne(_, pointer, _, recursive, version).getOrElse(layer))
 
   private def updateOne(layer: Layer,
-                        importPath: ImportPath,
+                        pointer: Pointer,
                         importId: ImportId,
                         recursive: Boolean,
                         version: Option[LayerVersion])
                        : Try[Layer] = for {
     imported           <- layer.imports.findBy(importId)
     published          <- imported.remote.ascribe(ImportHasNoRemote())
-    (newPub, artifact) <- getNewLayer(published, version, importPath / importId)
+    (newPub, artifact) <- getNewLayer(published, version, pointer / importId)
     layer              <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
     newLayer           <- Layer.get(artifact.layerRef, Some(newPub))
 
-    newLayer           <- if(recursive) updateAll(newLayer, importPath / importId,
+    newLayer           <- if(recursive) updateAll(newLayer, pointer / importId,
                               newLayer.imports.map(_.id).to[List], recursive, None) else ~newLayer
     
     layerRef           <- Layer.store(newLayer)
     layer              <- ~(Layer(_.imports(importId).layerRef)(layer) = layerRef)
   } yield layer
 
-  private def getNewLayer(published: PublishedLayer, version: Option[LayerVersion], importPath: ImportPath)
+  private def getNewLayer(published: PublishedLayer, version: Option[LayerVersion], pointer: Pointer)
                          : Try[(PublishedLayer, Artifact)] =
     for {
       artifact <- version.fold(Service.latest(published.url.domain, published.url.path,
@@ -796,7 +796,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                       LayerRef(artifact.ref))
       
       _         = if(artifact.version != published.version)
-                    log.info(msg"Updated layer ${importPath} from ${published.url} from version "+
+                    log.info(msg"Updated layer ${pointer} from ${published.url} from version "+
                         msg"${published.version} to ${artifact.version}")
   } yield (newPub, artifact)
 

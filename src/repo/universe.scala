@@ -58,7 +58,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   object projects {
-    lazy val table: Tabulation[(ProjectRef, Project, Set[ImportPath])] = Tables().entities
+    lazy val table: Tabulation[(ProjectRef, Project, Set[Pointer])] = Tables().entities
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< ProjectArg).action { for {
@@ -67,7 +67,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       universe  <- universe
       
       rows      <- universe.projectRefs.traverse { ref => universe(ref).flatMap { p =>
-                     universe.importPaths(ref).map((ref, p, _)) }
+                     universe.pointers(ref).map((ref, p, _)) }
                    }
 
       table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, projectId >> (_.key), "project")
@@ -122,14 +122,14 @@ case class UniverseApi(hierarchy: Hierarchy) {
   }
 
   object projects {
-    def proliferate(importPath: ImportPath, projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
-      layer        <- hierarchy(importPath)
-      universe     <- hierarchy.universe
-      project      <- universe(projectRef)
-      importPaths  <- ~universe.projects(projectRef.id)(projectRef)
-      hierarchy    <- hierarchy.updateAll(importPaths.map((_, ()))) { (layer, _) =>
-                        Layer(_.projects(projectRef.id))(layer) = project
-                      }
+    def proliferate(pointer: Pointer, projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
+      layer     <- hierarchy(pointer)
+      universe  <- hierarchy.universe
+      project   <- universe(projectRef)
+      pointers  <- ~universe.projects(projectRef.id)(projectRef)
+      hierarchy <- hierarchy.updateAll(pointers.map((_, ()))) { (layer, _) =>
+                     Layer(_.projects(projectRef.id))(layer) = project
+                   }
     } yield hierarchy
   }
 
@@ -143,7 +143,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
       newLayerRef <- Layer.resolve(importName)
       pub         <- Layer.published(importName)
       newLayer    <- Layer.get(newLayerRef, pub)
-      _           <- newLayer.verify(false, ImportPath.Root)
+      _           <- newLayer.verify(false, Pointer.Root)
       
       hierarchy   <- hierarchy.updateAll(layerEntity.imports) { (layer, imp) =>
                        val newImport = imp.copy(layerRef = newLayerRef, remote = pub)

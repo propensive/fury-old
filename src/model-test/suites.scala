@@ -20,7 +20,7 @@ import probably._
 
 object ModelTests extends Suite() {
   def run(test: Runner): Unit = {
-    test.suite("Import path tests")(ImportPathTests.run)
+    test.suite("Pointer tests")(PointerTests.run)
     test.suite("ID tests")(IdTests.run)
   }
 }

@@ -24,7 +24,7 @@ import gastronomy._
 import scala.util._
 import scala.collection.immutable._
 
-case class ProjectConflict(ids: List[(ProjectRef, Project, Set[ImportPath])]) extends FuryException
+case class ProjectConflict(ids: List[(ProjectRef, Project, Set[Pointer])]) extends FuryException
 
 object Project {
   implicit val msgShow: MsgShow[Project] = v => UserMsg(_.project(v.id.key))

@@ -359,8 +359,8 @@ abstract class CliApi {
   lazy val getLayout: Try[Layout] = cli.layout
   lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
   lazy val getLayer: Try[Layer] = (getHierarchy, getPointer) >>= (_(_))
-  lazy val getPointer: Try[ImportPath] = (opt(LayerArg), confPointer) >> (_.getOrElse(_))
-  lazy val confPointer: Try[ImportPath] = conf >> (_.path)
+  lazy val getPointer: Try[Pointer] = (opt(LayerArg), confPointer) >> (_.getOrElse(_))
+  lazy val confPointer: Try[Pointer] = conf >> (_.path)
   lazy val getBaseLayer: Try[Layer] = conf >> (_.layerRef) >>= (Layer.get(_, None))
   lazy val layerProjectOpt: Try[Option[Project]] = getLayer >>= (_.mainProject)
   lazy val layerProject: Try[Project] = layerProjectOpt.flatMap(_.ascribe(MissingParam(ProjectArg)))
