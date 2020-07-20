@@ -36,7 +36,7 @@ object PathTests extends Suite() {
     }.assert(_.isSuccess)
 
     test("fail to mark a system file as executable") {
-      val file = Path("/etc") / "passwd"
+      val file = path"/etc/passwd"
       file.touch()
       file.setExecutable(true)
     }.assert(_.isFailure)

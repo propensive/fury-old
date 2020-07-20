@@ -42,7 +42,7 @@ object Repo extends Lens.Partial[Repo] {
     dest      <- Try((Xdg.runtimeDir / str"${repoId.key}.bak").uniquify())
     files     <- gitDir.trackedFiles
     _         <- ~log.info(msg"Moving working directory contents to $dest")
-    _         <- files.filter(_ != Path(".fury")).traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
+    _         <- files.filter(_ != path".fury").traverse { f => f.in(layout.baseDir).moveTo(f.in(dest)) }
     _         <- (layout.baseDir / ".git").moveTo(dest / ".git")
     _         <- ~log.info(msg"Moved ${files.length + 1} files to ${dest}")
   } yield Repo(repoId, remote, branch, commit, None)
@@ -116,7 +116,7 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     removed   <- local.flatMap(_.local).fold(Try(List[Path]()))(GitDir(_)(layout.env).trackedFiles)
     bareRepo  <- remote.fetch(layout)
     files     <- bareRepo.lsRoot(commit)
-    remaining <- Try((current -- removed) - Path(".fury/config"))
+    remaining <- Try((current -- removed) - path".fury/config")
   } yield remaining.intersect(files.to[Set]).to[List]
 
   def doCleanCheckout(layout: Layout)(implicit log: Log): Try[Unit] = for {
