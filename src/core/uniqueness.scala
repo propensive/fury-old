@@ -18,21 +18,30 @@ package fury.core
 
 sealed trait Uniqueness[Ref, Origin] {
   def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin]
+  def allOrigins: Set[Origin]
 }
 
 object Uniqueness {
   case class Unique[Ref, Origin](ref: Ref, origins: Set[Origin]) extends Uniqueness[Ref, Origin] {
+
     override def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin] = other match {
       case Unique(ref, origins) if ref == this.ref => Unique(ref, this.origins ++ origins)
       case Ambiguous(origins) => Ambiguous(origins ++ this.origins.map(i => i -> this.ref))
     }
+
+    override def allOrigins: Set[Origin] = origins
+
   }
 
   case class Ambiguous[Ref, Origin] private[Uniqueness](origins: Map[Origin, Ref]) extends Uniqueness[Ref, Origin] {
+
     override def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin] = other match {
       case Unique(ref, origins) => Ambiguous(this.origins ++ origins.map(i => i -> ref))
       case Ambiguous(origins) => Ambiguous(this.origins ++ origins)
     }
+
+    override def allOrigins: Set[Origin] = origins.keySet
+
   }
 }
 
