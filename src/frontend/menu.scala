@@ -155,6 +155,7 @@ object FuryMenu {
         Action('update, msg"update repos universally", UniverseCli(_).repos.update, shortcut = 'u')
       ),
       Menu('projects, msg"view and modify projects", 'list, shortcut = 'p')(
+        Action('diff, msg"show differences between two projects", UniverseCli(_).projects.diff, shortcut = 'd'),
         Action('list, msg"show all projects", UniverseCli(_).projects.list, shortcut = 'l'),
         Action('proliferate, msg"update projects universally", UniverseCli(_).projects.proliferate, shortcut = 'p')
       ),
