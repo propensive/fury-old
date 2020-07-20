@@ -75,10 +75,20 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       _         <- ~log.rawln(table)
     } yield log.await() }
 
-    def proliferate: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg).action { for {
+    def proliferate: Try[ExitStatus] = (cli -< LayerArg -< ProjectRefArg).action { for {
       layerRef   <- get(LayerArg)
       projectRef <- get(ProjectRefArg)
       hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(layerRef, projectRef)) >>= commit
+    } yield log.await() }
+
+    def diff: Try[ExitStatus] = (cli -< ProjectRefArg -< AgainstProjectArg -< RawArg).action { for {
+      universe <- universe
+      left     <- get(ProjectRefArg)
+      right    <- get(AgainstProjectArg)
+      diff     <- getHierarchy >>= (UniverseApi(_).projects.diff(left, right))
+      table    <- ~Tables().differences(str"$left", str"$right")
+      table    <- ~Tables().show[Difference, Difference](table, cli.cols, diff, has(RawArg), None, None, "difference")
+      _        <- ~log.rawln(table)
     } yield log.await() }
   }
 
@@ -131,6 +141,12 @@ case class UniverseApi(hierarchy: Hierarchy) {
                         Layer(_.projects(projectRef.id))(layer) = project
                       }
     } yield hierarchy
+
+    def diff(left: ProjectRef, right: ProjectRef)(implicit log: Log): Try[Seq[Difference]] = for {
+      universe <- hierarchy.universe
+      left     <- universe(left)
+      right    <- universe(right)
+    } yield Project.diff.diff(left, right)
   }
 
   object imports {

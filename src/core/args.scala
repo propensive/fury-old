@@ -102,6 +102,7 @@ object Args {
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
   val ProjectRefArg = CliParam[ProjectRef]('p', 'project, "specify a project")
+  val AgainstProjectArg = CliParam[ProjectRef]('a', 'against, "specify a project to compare against")
   val OptArg = CliParam[OptId]('o', 'option, "compiler option")
   val PermissionArg = CliParam[List[String]]('P', 'permission, "permission entries")
   val PropArg = CliParam[JavaProperty]('D', 'property, "Java -D property")
