@@ -61,9 +61,9 @@ case class IpfsTimeout() extends FuryException
 case class NotOnPath(name: ExecName) extends FuryException
 case class NotAuthenticated() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
-case class LayersFailure(layer: ImportPath) extends FuryException
+case class LayersFailure(layer: Pointer) extends FuryException
 case class LayerNotFound(path: Path) extends FuryException
-case class CantResolveLayer(path: ImportPath) extends FuryException
+case class CantResolveLayer(path: Pointer) extends FuryException
 case class LayerContainsLocalSources(refs: List[ModuleRef]) extends FuryException
 case class NoRepoCheckedOut() extends FuryException
 case class ModuleIsNotCompiler(ref: ModuleRef, compRef: ModuleRef) extends FuryException
@@ -84,7 +84,7 @@ case class RepoDirty(repo: RepoId, changes: String) extends FuryException
 case class UntrackedFiles(files: List[Path]) extends FuryException
 case class RepoNotForked(repo: RepoId) extends FuryException
 case class RepoNotFound(base: Path) extends FuryException
-case class RootLayerNotSelected(path: ImportPath) extends FuryException
+case class RootLayerNotSelected(path: Pointer) extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException

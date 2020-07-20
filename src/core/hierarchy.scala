@@ -22,7 +22,7 @@ import mercator._
 
 import scala.util._
 
-case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hierarchy]) {
+case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierarchy]) {
   lazy val universe: Try[Universe] = {
     val localProjectIds = layer.projects.map(_.id)
 
@@ -34,23 +34,23 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
     children.foldLeft(Try(Universe(this)))(merge).map(_ ++ layer.localUniverse(this, path))
   }
 
-  def apply(importPath: ImportPath): Try[Layer] =
-    if(importPath.isEmpty) Success(layer)
-    else children.get(importPath.head).ascribe(CantResolveLayer(importPath)).flatMap(_(importPath.tail))
+  def apply(pointer: Pointer): Try[Layer] =
+    if(pointer.isEmpty) Success(layer)
+    else children.get(pointer.head).ascribe(CantResolveLayer(pointer)).flatMap(_(pointer.tail))
 
-  def update(importPath: ImportPath, newLayer: Layer)(implicit log: Log): Try[Hierarchy] =
-    if(importPath.isEmpty) Success(copy(layer = newLayer))
-    else children.get(importPath.head).ascribe(CantResolveLayer(importPath)).flatMap { hierarchy =>
-      hierarchy.update(importPath.tail, newLayer).flatMap { h => Layer.store(h.layer).map { ref =>
+  def update(pointer: Pointer, newLayer: Layer)(implicit log: Log): Try[Hierarchy] =
+    if(pointer.isEmpty) Success(copy(layer = newLayer))
+    else children.get(pointer.head).ascribe(CantResolveLayer(pointer)).flatMap { hierarchy =>
+      hierarchy.update(pointer.tail, newLayer).flatMap { h => Layer.store(h.layer).map { ref =>
         copy(
-          children = children.updated(importPath.head, h),
-          layer = Layer(_.imports(importPath.head).layerRef)(layer) = ref
+          children = children.updated(pointer.head, h),
+          layer = Layer(_.imports(pointer.head).layerRef)(layer) = ref
         )
       } }
     }
 
   def updateAll[T]
-               (items: Traversable[(ImportPath, T)])
+               (items: Traversable[(Pointer, T)])
                (fn: (Layer, T) => Layer)
                (implicit log: Log)
                : Try[Hierarchy] =
@@ -60,10 +60,10 @@ case class Hierarchy(layer: Layer, path: ImportPath, children: Map[ImportId, Hie
       hierarchy <- hierarchy(path) = layer
     } yield hierarchy }
 
-  def save(importPath: ImportPath, layout: Layout)(implicit log: Log): Try[LayerRef] =
-    children.values.to[List].traverse(_.save(importPath, layout)).flatMap { _ =>
+  def save(pointer: Pointer, layout: Layout)(implicit log: Log): Try[LayerRef] =
+    children.values.to[List].traverse(_.save(pointer, layout)).flatMap { _ =>
       Layer.store(layer).flatMap { ref =>
-        if(path.isEmpty) Layer.saveFuryConf(FuryConf(ref, importPath), layout).map(ref.waive) else Success(ref)
+        if(path.isEmpty) Layer.saveFuryConf(FuryConf(ref, pointer), layout).map(ref.waive) else Success(ref)
       }
     }
 }

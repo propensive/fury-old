@@ -175,13 +175,13 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
 case class RepoApi(hierarchy: Hierarchy) {
 
-  def remove(importPath: ImportPath, id: RepoId)(implicit log: Log): Try[Hierarchy] = for {
-    layer     <- hierarchy(importPath)
+  def remove(pointer: Pointer, id: RepoId)(implicit log: Log): Try[Hierarchy] = for {
+    layer     <- hierarchy(pointer)
     layer     <- layer.repos.findBy(id).map { r => Layer(_.repos).modify(layer)(_ - r) }
-    hierarchy <- hierarchy(importPath) = layer
+    hierarchy <- hierarchy(pointer) = layer
   } yield hierarchy
 
-  def add(importPath: ImportPath,
+  def add(pointer: Pointer,
           id: RepoId,
           remote: Option[Remote],
           refSpec: Option[RefSpec],
@@ -189,18 +189,18 @@ case class RepoApi(hierarchy: Hierarchy) {
           layout: Layout)
          (implicit log: Log)
          : Try[Hierarchy] = for {
-    layer      <- hierarchy(importPath)
+    layer      <- hierarchy(pointer)
     pathRemote <- path.map(GitDir(_)(layout.env).remote).sequence
     remote     <- remote.orElse(pathRemote).ascribe(NoRemoteInferred())
     gitDir     <- remote.fetch(layout)
     refSpec    <- refSpec.fold[Try[RefSpec]](gitDir.commit)(Try(_))
     commit     <- gitDir.resolve(refSpec)
     branch     <- gitDir.chooseBranch(refSpec)
-    hierarchy  <- hierarchy(importPath) = Layer(_.repos).modify(layer)(_ + Repo(id, remote, branch, commit, path))
+    hierarchy  <- hierarchy(pointer) = Layer(_.repos).modify(layer)(_ + Repo(id, remote, branch, commit, path))
   } yield hierarchy
 
-  def pull(importPath: ImportPath, repo: Option[RepoId], layout: Layout)(implicit log: Log): Try[Layer] = for {
-    layer    <- hierarchy(importPath)
+  def pull(pointer: Pointer, repo: Option[RepoId], layout: Layout)(implicit log: Log): Try[Layer] = for {
+    layer    <- hierarchy(pointer)
     repos    <- repo.fold(~layer.repos.to[List])(layer.repos.findBy(_).map(List(_)))
     
     newRepos <- repos.traverse { repo => for {
@@ -215,7 +215,7 @@ case class RepoApi(hierarchy: Hierarchy) {
     
   } yield newRepos.foldLeft(layer) { (layer, next) => Layer(_.repos(next.id))(layer) = next }
   
-  def update(importPath: ImportPath,
+  def update(pointer: Pointer,
              id: RepoId,
              name: Option[RepoId],
              remote: Option[Remote],
@@ -223,7 +223,7 @@ case class RepoApi(hierarchy: Hierarchy) {
              layout: Layout)
             (implicit log: Log)
             : Try[Hierarchy] = for {
-    layer     <- hierarchy(importPath)
+    layer     <- hierarchy(pointer)
     repo      <- layer.repos.findBy(id)
     repo      <- ~name.fold(repo)(Repo(_.id)(repo) = _)
     repo      <- ~remote.fold(repo)(Repo(_.remote)(repo) = _)
@@ -231,6 +231,6 @@ case class RepoApi(hierarchy: Hierarchy) {
     commit    <- refSpec.fold(~repo.commit)(gitDir.resolve)
     branch    <- refSpec.fold(~repo.branch)(gitDir.chooseBranch)
     repo      <- ~repo.copy(branch = branch, commit = commit)
-    hierarchy <- hierarchy(importPath) = Layer(_.repos(id))(layer) = repo
+    hierarchy <- hierarchy(pointer) = Layer(_.repos(id))(layer) = repo
   } yield hierarchy
 }

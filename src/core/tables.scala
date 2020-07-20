@@ -193,15 +193,15 @@ case class Tables() {
     Heading("Published as", s => s._1.remote.fold(msg"${'-'}") { pub => msg"${pub}" })
   )
 
-  private def showImportPaths(importPaths: Iterable[ImportPath]): UserMsg = {
-    val fewPaths = importPaths.take(4).map { k => msg"$k" }.reduce(_ + "\n" + _)
-    if(importPaths.size > 4) fewPaths+"\n"+msg"...and ${importPaths.size - 4} more." else fewPaths
+  private def showPointers(pointers: Iterable[Pointer]): UserMsg = {
+    val fewPaths = pointers.take(4).map { k => msg"$k" }.reduce(_ + "\n" + _)
+    if(pointers.size > 4) fewPaths+"\n"+msg"...and ${pointers.size - 4} more." else fewPaths
   }
 
-  val entities: Tabulation[(ProjectRef, Project, Set[ImportPath])] = Tabulation(
+  val entities: Tabulation[(ProjectRef, Project, Set[Pointer])] = Tabulation(
     Heading("Project", _._1),
     Heading("Description", _._2.description),
-    Heading("Layers", p => showImportPaths(p._3))
+    Heading("Layers", p => showPointers(p._3))
   )
 
   def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation(

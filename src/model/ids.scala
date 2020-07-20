@@ -42,7 +42,7 @@ object ManagedConfig {
 
 abstract class Key(val kind: UserMsg) { def key: String }
 
-case class RepoRef(repoId: RepoId, layer: ImportPath)
+case class RepoRef(repoId: RepoId, layer: Pointer)
 
 object RepoSetId {
   implicit val stringShow: StringShow[RepoSetId] = _.key
@@ -110,18 +110,18 @@ case class Uri(scheme: String, path: Path, parameters: Query = Query()) extends 
   def query(params: (String, String)*): Uri = copy(parameters = Query(params: _*))
 }
 
-object ImportPath {
-  implicit val msgShow: MsgShow[ImportPath] = ip => UserMsg(_.layer(ip.path))
-  implicit val stringShow: StringShow[ImportPath] = _.path
-  implicit val parser: Parser[ImportPath] = unapply(_)
-  val Root: ImportPath = ImportPath("/")
-  val Empty: ImportPath = ImportPath("")
+object Pointer {
+  implicit val msgShow: MsgShow[Pointer] = ip => UserMsg(_.layer(ip.path))
+  implicit val stringShow: StringShow[Pointer] = _.path
+  implicit val parser: Parser[Pointer] = unapply(_)
+  val Root: Pointer = Pointer("/")
+  val Empty: Pointer = Pointer("")
 
   // FIXME: Actually parse it and check that it's valid
-  def unapply(str: String): Option[ImportPath] = Some(ImportPath(str))
+  def unapply(str: String): Option[Pointer] = Some(Pointer(str))
 }
 
-case class ImportPath(path: String) {
+case class Pointer(path: String) {
 
   private[this] lazy val rawParts: List[String] = path.split("/").to[List]
 
@@ -131,15 +131,15 @@ case class ImportPath(path: String) {
     case _ => Nil
   }
 
-  def /(importId: ImportId): ImportPath = ImportPath(s"$path/${importId.key}")
-  def tail: ImportPath = ImportPath(parts.tail.map(_.key).mkString("/", "/", ""))
-  def init: ImportPath = ImportPath(parts.init.map(_.key).mkString("/", "/", ""))
+  def /(importId: ImportId): Pointer = Pointer(s"$path/${importId.key}")
+  def tail: Pointer = Pointer(parts.tail.map(_.key).mkString("/", "/", ""))
+  def init: Pointer = Pointer(parts.init.map(_.key).mkString("/", "/", ""))
   def head: ImportId = parts.head
   def last: ImportId = parts.last
   def isEmpty: Boolean = parts.length == 0
-  def prefix(importId: ImportId): ImportPath = ImportPath((importId :: parts).map(_.key).mkString("/", "/", ""))
+  def prefix(importId: ImportId): Pointer = Pointer((importId :: parts).map(_.key).mkString("/", "/", ""))
 
-  def dereference(relPath: ImportPath): Try[ImportPath] = {
+  def dereference(relPath: Pointer): Try[Pointer] = {
     import java.nio.file.{ Path, Paths }
     val fakePath = Paths.get(this.path).normalize()
     val fakeRelPath = Paths.get(relPath.path)
@@ -155,7 +155,7 @@ case class ImportPath(path: String) {
     if(goesAboveRoot(resolvedFakePath)) Failure(LayersFailure(relPath))
     else {
       val normalizedFakePath = resolvedFakePath.normalize()
-      Success(ImportPath(normalizedFakePath.toString))
+      Success(Pointer(normalizedFakePath.toString))
     }
   }
 }
@@ -195,12 +195,12 @@ case class LayerVersion(major: Int, minor: Option[Int])
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {
     case FuryConf(ref, path, None)                 => msg"$ref/$path"
-    case FuryConf(ref, ImportPath.Root, Some(pub)) => msg"$pub${'@'}$ref"
+    case FuryConf(ref, Pointer.Root, Some(pub)) => msg"$pub${'@'}$ref"
     case FuryConf(ref, path, Some(pub))            => msg"$pub${'@'}$ref${'/'}$path"
   }
 }
 
-case class FuryConf(layerRef: LayerRef, path: ImportPath = ImportPath("/"),
+case class FuryConf(layerRef: LayerRef, path: Pointer = Pointer("/"),
     published: Option[PublishedLayer] = None) {
 
   def focus(): Focus = Focus(layerRef, path, None)
@@ -222,7 +222,7 @@ case class OauthToken(value: String)
 object Focus {
   implicit val msgShow: MsgShow[Focus] = { focus =>
     (focus.path match {
-      case ImportPath.Root => msg"${'/'}${'/'}${focus.layerRef}"
+      case Pointer.Root => msg"${'/'}${'/'}${focus.layerRef}"
       case path            => msg"${'/'}${'/'}${focus.layerRef}$path"
     }) + (focus.focus match {
       case None                          => msg""
@@ -232,7 +232,7 @@ object Focus {
   }
 }
 
-case class Focus(layerRef: LayerRef, path: ImportPath, focus: Option[(ProjectId, Option[ModuleId])])
+case class Focus(layerRef: LayerRef, path: Pointer, focus: Option[(ProjectId, Option[ModuleId])])
 
 object AsIpfsRef {
   def unapply(str: String): Option[IpfsRef] = str.only { case r"fury:\/\/$hash@(.{46})" => IpfsRef(hash) }
@@ -331,8 +331,8 @@ object ShortLayerRef {
 
 case class ShortLayerRef(key: String) extends Key(msg"layer")
 
-case class LayerEntity(ref: ShortLayerRef, imports: Map[ImportPath, Import]) {
-  def +(newImports: Map[ImportPath, Import]) = copy(imports = imports ++ newImports)
+case class LayerEntity(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
+  def +(newImports: Map[Pointer, Import]) = copy(imports = imports ++ newImports)
   def ids: Set[ImportId] = imports.values.map(_.id).to[Set]
   def published: Set[PublishedLayer] = imports.values.flatMap(_.remote).to[Set]
 }
