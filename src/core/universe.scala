@@ -27,39 +27,30 @@ import scala.collection.immutable.TreeSet
 object Universe {
   def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
 
-  sealed trait ProjectDefinition {
-    def id: ProjectId
-    def +(other: ProjectDefinition): ProjectDefinition
+  sealed trait Uniqueness[Ref, Origin] {
+    def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin]
   }
 
-  case class UniqueProject(ref: ProjectRef, origins: Set[Pointer]) extends ProjectDefinition {
-    override def id: ProjectId = ref.id
+  case class Unique[Ref, Origin](ref: Ref, origins: Set[Origin]) extends Uniqueness[Ref, Origin] {
 
-    override def +(other: ProjectDefinition): ProjectDefinition = {
-      if(other.id != this.id) throw new IllegalArgumentException(str"Project IDs ${this.id} and ${other.id} are different")
-      else other match {
-        case UniqueProject(ref, origins) if ref == this.ref => UniqueProject(ref, this.origins ++ origins)
-        case ConflictingProjects(origins) => ConflictingProjects(origins ++ this.origins.map(i => i -> this.ref))
-      }
+    override def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin] = other match {
+      case Unique(ref, origins) if ref == this.ref => Unique(ref, this.origins ++ origins)
+      case Ambiguous(origins) => Ambiguous(origins ++ this.origins.map(i => i -> this.ref))
     }
   }
 
-  case class ConflictingProjects private[Universe](origins: Map[Pointer, ProjectRef]) extends ProjectDefinition {
-    override def id: ProjectId = origins.values.head.id
+  case class Ambiguous[Ref, Origin] private[Universe](origins: Map[Origin, Ref]) extends Uniqueness[Ref, Origin] {
 
-    override def +(other: ProjectDefinition): ProjectDefinition = {
-      if (other.id != this.id) throw new IllegalArgumentException(str"Project IDs ${this.id} and ${other.id} are different")
-      else other match {
-        case UniqueProject(ref, origins) => ConflictingProjects(this.origins ++ origins.map(i => i -> ref))
-        case ConflictingProjects(origins) => ConflictingProjects(this.origins ++ origins)
-      }
+    override def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin] = other match {
+      case Unique(ref, origins) => Ambiguous(this.origins ++ origins.map(i => i -> ref))
+      case Ambiguous(origins) => Ambiguous(this.origins ++ origins)
     }
   }
 }
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(hierarchy: Hierarchy,
-                    projects: Map[ProjectId, Universe.ProjectDefinition],
+                    projects: Map[ProjectId, Universe.Uniqueness[ProjectRef, Pointer]],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = projects.keySet
@@ -67,17 +58,17 @@ case class Universe(hierarchy: Hierarchy,
   import Universe._
 
   def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
-    case UniqueProject(`id`, origins) => ~origins
-    case UniqueProject(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
-    case ConflictingProjects(origins) =>
+    case Unique(`id`, origins) => ~origins
+    case Unique(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
+    case Ambiguous(origins) =>
       val refOrigins = origins.collect{ case (origin, `id`) => origin }
       if (refOrigins.isEmpty) Failure(new IllegalStateException(str"No known import for $id"))
       else ~refOrigins.toSet
   }
 
   def pointers(id: ProjectId): Try[Set[Pointer]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
-    case UniqueProject(_, origins) => ~origins
-    case ConflictingProjects(origins) =>
+    case Unique(_, origins) => ~origins
+    case Ambiguous(origins) =>
       val projectsByRef = origins.values.toSet.map{ ref: ProjectRef => ref -> apply(ref) }.toMap
       val importsByRef = origins.values.map{ case ref => ref -> origins.collect{ case (o, `ref`) => o }.toSet }
       importsByRef.traverse { case (ref, _) =>
@@ -92,9 +83,9 @@ case class Universe(hierarchy: Hierarchy,
   def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
-    case UniqueProject(`id`, origins) => ~origins.head
-    case UniqueProject(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
-    case _: ConflictingProjects => pointers(id) >> (_.head)
+    case Unique(`id`, origins) => ~origins.head
+    case Unique(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
+    case _: Ambiguous[ProjectRef, Pointer] => pointers(id) >> (_.head)
   }).flatMap(hierarchy(_))
   
   def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
@@ -103,8 +94,8 @@ case class Universe(hierarchy: Hierarchy,
   def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
 
   def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
-    case (acc, (_, UniqueProject(ref, _))) => acc + ref.copy(digest = None)
-    case (acc, (_, ConflictingProjects(origins))) => acc ++ origins.values
+    case (acc, (_, Unique(ref, _))) => acc + ref.copy(digest = None)
+    case (acc, (_, Ambiguous(origins))) => acc ++ origins.values
   }
 
   def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
@@ -128,8 +119,8 @@ case class Universe(hierarchy: Hierarchy,
       acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)
     }
 
-    val newProjects = that.projects.values.foldLeft(projects) { case (acc, proj) =>
-      acc.updated(proj.id, acc.get(proj.id).map(_ + proj).getOrElse(proj))
+    val newProjects = that.projects.toSeq.foldLeft(projects) { case (acc, (id, uniq)) =>
+      acc.updated(id, acc.get(id).map(_ + uniq).getOrElse(uniq))
     }
 
     val newImports = that.imports.foldLeft(imports) { case (acc, (layerRef, entity)) =>
