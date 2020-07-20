@@ -19,43 +19,21 @@ package fury.core
 import fury.model._, fury.text._
 
 import mercator._
-import gastronomy._
 
 import scala.util._
-import scala.collection.immutable.TreeSet
 
 object Universe {
   def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
-
-  sealed trait Uniqueness[Ref, Origin] {
-    def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin]
-  }
-
-  case class Unique[Ref, Origin](ref: Ref, origins: Set[Origin]) extends Uniqueness[Ref, Origin] {
-
-    override def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin] = other match {
-      case Unique(ref, origins) if ref == this.ref => Unique(ref, this.origins ++ origins)
-      case Ambiguous(origins) => Ambiguous(origins ++ this.origins.map(i => i -> this.ref))
-    }
-  }
-
-  case class Ambiguous[Ref, Origin] private[Universe](origins: Map[Origin, Ref]) extends Uniqueness[Ref, Origin] {
-
-    override def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin] = other match {
-      case Unique(ref, origins) => Ambiguous(this.origins ++ origins.map(i => i -> ref))
-      case Ambiguous(origins) => Ambiguous(this.origins ++ origins)
-    }
-  }
 }
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(hierarchy: Hierarchy,
-                    projects: Map[ProjectId, Universe.Uniqueness[ProjectRef, Pointer]],
+                    projects: Map[ProjectId, Uniqueness[ProjectRef, Pointer]],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = projects.keySet
 
-  import Universe._
+  import Uniqueness._
 
   def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
     case Unique(`id`, origins) => ~origins

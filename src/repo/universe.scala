@@ -137,8 +137,8 @@ case class UniverseApi(hierarchy: Hierarchy) {
       universe  <- hierarchy.universe
       project   <- universe(projectRef)
       pointers  <- ~(universe.projects(projectRef.id) match {
-        case Universe.Unique(_, origins) => origins
-        case Universe.Ambiguous(origins) => origins.keys
+        case Uniqueness.Unique(_, origins) => origins
+        case Uniqueness.Ambiguous(origins) => origins.keys
       })
       hierarchy <- hierarchy.updateAll(pointers.map((_, ()))) { (layer, _) =>
                      Layer(_.projects(projectRef.id))(layer) = project
