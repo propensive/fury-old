@@ -86,7 +86,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
  
                    _      <- (gitDir.dir.childPaths.flatMap { f =>
                                if((f.parent.parent / f.name).exists()) List(Path(f.name)) else Nil
-                             }).filterNot(_ == Path(".fury")) match {
+                             }).filterNot(_ == path".fury") match {
                                case Nil => Success(())
                                case fs  => Failure(WorkingDirectoryConflict(fs))
                              }

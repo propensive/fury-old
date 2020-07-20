@@ -18,6 +18,7 @@ package fury.io
 
 import fury.text._
 import kaleidoscope._
+import contextual._
 import mercator._
 
 import scala.language.experimental.macros
@@ -30,6 +31,23 @@ import java.nio.file.{ FileSystems, FileVisitResult, Files, Paths, SimpleFileVis
     DirectoryNotEmptyException, Path => JavaPath }
 import java.nio.file.StandardCopyOption._
 import java.io.{ Closeable, InputStream, File => JavaFile }
+
+object PathInterpolator extends Verifier[Path] {
+  def check(string: String): Either[(Int, String), Path] = {
+    def parse(startPart: Boolean = false, idx: Int = 0): Either[(Int, String), Path] =
+      if(idx == string.length) Right(Path(string))
+      else {
+        string(idx) match {
+          case '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*' => Left((idx, "invalid character"))
+          case '/' if startPart                               => Left((idx, "double slash in path"))
+          case '/'                                            => parse(true, idx + 1)
+          case _                                              => parse(false, idx + 1)
+        }
+      }
+    
+    parse()
+  }
+}
 
 object Path {
 

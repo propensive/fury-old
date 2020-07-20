@@ -54,9 +54,8 @@ object Install {
   private def fishInstall(env: Environment)(implicit log: Log): Try[Unit] =
     Try(log.warn(msg"Installation for ${ExecName("fish")} is not yet supported"))
 
-  private def iconDirs: List[Path] = List(16, 48, 128).map { s =>
-    Path("icons") / "hicolor" / str"${s}x${s}" / "apps" / "fury-icon.png"
-  }
+  private def iconDirs: List[Path] =
+    List(16, 48, 128).map { s => path"icons/hicolor" / str"${s}x${s}" / "apps" / "fury-icon.png" }
 
   private def desktopInstall(env: Environment)(implicit log: Log): Try[Unit] = for {
     _        <- ~log.info(msg"Installing handler for fury:// URLs")

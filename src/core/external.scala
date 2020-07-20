@@ -230,11 +230,11 @@ abstract class Installable(name: ExecName) extends Software(name) {
 object IpfsSoftware extends Installable(ExecName("ipfs")) {
   def installVersion = "0.6.0"
   def description: String = "InterPlanetary File System"
-  def website = Https(Path("ipfs.io"))
+  def website = Https(path"ipfs.io")
   def managedPath: Path = base / "go-ipfs" / "ipfs"
   
   def tarGz: Try[Uri] = {
-    def url(sys: String) = Https(Path("dist.ipfs.io") / "go-ipfs" / str"v$installVersion" /
+    def url(sys: String) = Https(path"dist.ipfs.io" / "go-ipfs" / str"v$installVersion" /
         str"go-ipfs_v${installVersion}_$sys.tar.gz")
     
     Installation.system.flatMap {
@@ -253,12 +253,12 @@ object IpfsSoftware extends Installable(ExecName("ipfs")) {
 object JavaSoftware extends Installable(ExecName("java")) {
   def installVersion = "8u242b08"
   def description = "Java™ SE Runtime Environment"
-  def website = Https(Path("openjdk.java.net"))
+  def website = Https(path"openjdk.java.net")
   def managedPath: Path = Installation.usrDir / "java" / "bin" / "java"
   def version(env: Environment): Option[String] = Option(System.getProperty("java.version"))
   
   def tarGz: Try[Uri] = {
-    def url(sys: String) = Https(Path("github.com") / "AdoptOpenJDK" / "openjdk8-binaries" / "releases" /
+    def url(sys: String) = Https(path"github.com" / "AdoptOpenJDK" / "openjdk8-binaries" / "releases" /
         "download" / str"OpenJDK8U-jdk_x64_${sys}_hotspot_${installVersion}.tar.gz")
     
     Installation.system.flatMap {
@@ -272,7 +272,7 @@ object JavaSoftware extends Installable(ExecName("java")) {
 object VsCodeSoftware extends Installable(ExecName("code")) {
   def installVersion = "1.42.1"
   def description = "Visual Studio Code"
-  def website = Https(Path("code.visualstudio.com"))
+  def website = Https(path"code.visualstudio.com")
 
   private def osDir(base: Path): Try[Path] = Installation.system.flatMap {
     case Linux(_) =>
@@ -290,8 +290,8 @@ object VsCodeSoftware extends Installable(ExecName("code")) {
   
   def tarGz: Try[Uri] = {
     Installation.system.flatMap {
-      case Linux(X64) => Success(Https(Path("go.microsoft.com") / "fwlink" / "?LinkID=620884"))
-      case MacOs(X64) => Success(Https(Path("go.microsoft.com") / "fwlink" / "?LinkID=620882"))
+      case Linux(X64) => Success(Https(path"go.microsoft.com" / "fwlink" / "?LinkID=620884"))
+      case MacOs(X64) => Success(Https(path"go.microsoft.com" / "fwlink" / "?LinkID=620882"))
       case other      => Failure(UnknownOs(other.toString))
     }
   }
@@ -303,7 +303,7 @@ object VsCodeSoftware extends Installable(ExecName("code")) {
 }
 
 object GitSoftware extends Software(ExecName("git")) {
-  def website = Https(Path("git-scm.com"))
+  def website = Https(path"git-scm.com")
   def description = "Git"
 
   def version(env: Environment): Option[String] = path(env).flatMap { execPath =>
@@ -312,7 +312,7 @@ object GitSoftware extends Software(ExecName("git")) {
 }
 
 object CcSoftware extends Software(ExecName("cc")) {
-  def website = Https(Path("gcc.gnu.org"))
+  def website = Https(path"gcc.gnu.org")
   def description = "C Compiler"
 
   def version(env: Environment): Option[String] = path(env).flatMap { execPath =>
@@ -321,7 +321,7 @@ object CcSoftware extends Software(ExecName("cc")) {
 }
 
 object GraalVmSoftware extends Installable(ExecName("native-image")) {
-  def website = Https(Path("www.graalvm.org"))
+  def website = Https(path"www.graalvm.org")
   def description = "GraalVM Native Image"
   def installVersion = "20.0.0"
 
@@ -330,7 +330,7 @@ object GraalVmSoftware extends Installable(ExecName("native-image")) {
   }
 
   def tarGz: Try[Uri] = {
-    def url(sys: String) = Https(Path("github.com") / "graalvm" / "graalvm-ce-builds" / "releases" /
+    def url(sys: String) = Https(path"github.com" / "graalvm" / "graalvm-ce-builds" / "releases" /
         "download" / str"vm-$installVersion" / str"graalvm-ce-java8-${sys}-amd64-$installVersion.tar.gz")
     
     Installation.system.flatMap {
@@ -345,7 +345,7 @@ object GraalVmSoftware extends Installable(ExecName("native-image")) {
 }
 
 object FurySoftware extends Software(ExecName("fury")) {
-  def website = Https(Path("propensive.com") / "fury")
+  def website = Https(path"propensive.com" / "fury")
   def description = "Fury"
   def version(env: Environment): Option[String] = Some(FuryVersion.current)
   override def path(env: Environment): Option[Path] = Some(Installation.binDir / "fury")

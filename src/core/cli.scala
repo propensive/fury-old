@@ -252,7 +252,7 @@ class Cli(val stdout: java.io.PrintWriter,
     if(default.isDefined) result.recover { case _: exoskeleton.MissingArg => default.get } else result
   }
 
-  def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(Path("/"))).map(Path(_))
+  def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(path"/")).map(Path(_))
 
   lazy val newLayout: Try[Layout] = pwd.map { pwd => Layout(Path(env.variables("HOME")), pwd, env, pwd) }
 

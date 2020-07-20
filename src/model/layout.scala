@@ -51,17 +51,14 @@ object Xdg {
     def paths: Option[List[Path]] = variable.map(_.split(":").to[List].map(Path(_)))
   }
   
-  val home: Path = Option(System.getenv("HOME")).map(Path(_)).getOrElse(Path("/"))
+  val home: Path = Option(System.getenv("HOME")).map(Path(_)).getOrElse(path"/")
   val ipfsRepo: Path = Option(System.getenv("IPFS_PATH")).map(Path(_)).getOrElse(home / ".ipfs")
   val cacheHome: Path = Var("CACHE_HOME").path.getOrElse(home / ".cache")
   val dataHome: Path = Var("DATA_HOME").path.getOrElse(home / ".local" / "share")
-  
-  val dataDirs: List[Path] = Var("DATA_DIRS").paths.getOrElse(List(Path("/usr/local/share"),
-      Path("/usr/share")))
-  
+  val dataDirs: List[Path] = Var("DATA_DIRS").paths.getOrElse(List(path"/usr/local/share", path"/usr/share"))
   val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
-  val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
-  val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
+  val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(path"/etc/xdg"))
+  val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(path"/tmp")
   val docsDir: Path = Var("DOCUMENTS_DIR").path.getOrElse(home / "Documents")
 
   val pathEnv: List[Path] = Option(System.getenv("PATH")).map { str => str.split(":").to[List].map(Path(_))
