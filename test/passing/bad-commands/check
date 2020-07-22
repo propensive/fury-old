@@ -10,7 +10,7 @@ Set current module to compiler
 Set current project to hello-world
 Setting default compiler for hello-world to scala/compiler
 Set current module to app
-Source foo//** is not defined in hello-world/app.
+The source foo//** is not defined in hello-world/app.
 1
 The binary logging was not found.
 1

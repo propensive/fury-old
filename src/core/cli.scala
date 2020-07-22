@@ -388,6 +388,8 @@ abstract class CliApi {
   lazy val projectModuleIds: List[ModuleId] = (getProject >> (_.modules.to[List])).getOrElse(List()).map(_.id)
   lazy val projectRepoIds: List[RepoId] = (getLayer >> (_.repos.to[List])).getOrElse(List()).map(_.id)
   lazy val getModule: Try[Module] = cliModule.orElse(layerModule)
+  lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
+  lazy val getSource: Try[Source] = cli.get(SourceArg)
   lazy val raw: Boolean = cli.get(RawArg).isSuccess
   lazy val column: Option[String] = cli.peek(ColumnArg)
   lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)
@@ -431,7 +433,7 @@ abstract class CliApi {
 
   def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
   def commit(hierarchy: Hierarchy): Try[LayerRef] = (confPointer, getLayout) >>= (hierarchy.save(_, _))
-  def finish[T](value: T): ExitStatus = log.await()
+  def finish(value: Any): ExitStatus = log.await()
   def cols: Int = Terminal.columns(cli.env).getOrElse(100)
 
   implicit lazy val rawHints: RawArg.Hinter = RawArg.hint()
