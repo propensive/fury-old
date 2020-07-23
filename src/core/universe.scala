@@ -19,46 +19,51 @@ package fury.core
 import fury.model._, fury.text._
 
 import mercator._
-import gastronomy._
 
 import scala.util._
-import scala.collection.immutable.TreeSet
 
-object Universe { def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map()) }
+object Universe {
+  def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
+}
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(hierarchy: Hierarchy,
-                    projects: Map[ProjectId, Map[ProjectRef, Set[Pointer]]],
+                    projects: Map[ProjectId, Uniqueness[ProjectRef, Pointer]],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerEntity]) {
   def ids: Set[ProjectId] = projects.keySet
-  
+
+  import Uniqueness._
+
   def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
-    case map if map.size == 1 =>
-      Success(map.values.head)
-    case map                  =>
-      map.get(id).ascribe(ProjectConflict(map.to[List].traverse { case (ref, layers) =>
-        apply(ref).map((ref, _, layers))
-      }.getOrElse(Nil)))
+    case Unique(`id`, origins) => ~origins
+    case Unique(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
+    case Ambiguous(origins) =>
+      val refOrigins = origins.collect{ case (origin, `id`) => origin }
+      if (refOrigins.isEmpty) Failure(new IllegalStateException(str"No known import for $id"))
+      else ~refOrigins.toSet
   }
 
   def pointers(id: ProjectId): Try[Set[Pointer]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
-    case map if map.size == 1 =>
-      Success(map.values.head)
-    case map =>
-      Failure { ProjectConflict { map.to[List].traverse { case (ref, layers) =>
-        apply(ref).map((ref, _, layers))
-      }.getOrElse(Nil) } }
+    case Unique(_, origins) => ~origins
+    case Ambiguous(origins) =>
+      val projectsByRef = origins.values.toSet.map{ ref: ProjectRef => ref -> apply(ref) }.toMap
+      val importsByRef = origins.values.map{ case ref => ref -> origins.collect{ case (o, `ref`) => o }.toSet }
+      importsByRef.traverse { case (ref, _) =>
+        for {
+          project <- projectsByRef(ref)
+          imports <- pointers(ref)
+        } yield (ref, project, imports)
+      } >>= (conflicts => Failure(ProjectConflict(conflicts.toList)))
   }
 
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
   def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
-    case map if map.size == 1 =>
-      Try(map.head._2.head)
-    case map =>
-      map.get(id).orElse(map.find(_._1.id == id.id).map(_._2)).map(_.head).ascribe(ItemNotFound(id))
+    case Unique(`id`, origins) => ~origins.head
+    case Unique(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
+    case _: Ambiguous[ProjectRef, Pointer] => pointers(id) >> (_.head)
   }).flatMap(hierarchy(_))
   
   def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
@@ -67,8 +72,8 @@ case class Universe(hierarchy: Hierarchy,
   def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
 
   def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
-    case (acc, (_ ,map)) if map.size == 1 => acc + map.head._1.copy(digest = None)
-    case (acc, (_, map))                  => acc ++ map.keySet
+    case (acc, (_, Unique(ref, _))) => acc + ref.copy(digest = None)
+    case (acc, (_, Ambiguous(origins))) => acc ++ origins.values
   }
 
   def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
@@ -92,10 +97,8 @@ case class Universe(hierarchy: Hierarchy,
       acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)
     }
 
-    val newProjects = that.projects.foldLeft(projects) { case (acc, (id, map)) =>
-      acc.updated(id, acc.get(id).fold(map)(map.foldLeft(_) { case (acc2, (ref, set)) =>
-        acc2.updated(ref, acc2.get(ref).fold(set)(_ ++ set))
-      }))
+    val newProjects = that.projects.toSeq.foldLeft(projects) { case (acc, (id, uniq)) =>
+      acc.updated(id, acc.get(id).map(_ + uniq).getOrElse(uniq))
     }
 
     val newImports = that.imports.foldLeft(imports) { case (acc, (layerRef, entity)) =>
