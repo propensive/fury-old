@@ -28,6 +28,8 @@ case class CannotUndo() extends FuryException
 case class CannotUpdateRepo(repo: RepoId) extends FuryException
 case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
+//TODO Is this equivalent to ItemNotFound?
+case class ComponentNotDefined[K1 <: Key, K2 <: Key](component: K1, container: K2) extends FuryException
 case class CyclesInDependencies(cycle: Set[Dependency]) extends FuryException
 case class CommitNotInRepo(commit: Commit) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
@@ -56,7 +58,6 @@ case class InvalidKind(expected: Kind.Id) extends FuryException
 case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class InvalidVersion() extends FuryException
-case class InvalidSource(source: UserMsg, module: ModuleRef) extends FuryException
 case class IpfsTimeout() extends FuryException
 case class NotOnPath(name: ExecName) extends FuryException
 case class NotAuthenticated() extends FuryException

@@ -16,9 +16,8 @@
 */
 package fury
 
-import fury.text._, fury.io._, fury.core._, fury.model._
+import fury.text._, fury.core._, fury.model._
 
-import guillotine._
 import mercator._
 import optometry._
 
@@ -27,76 +26,68 @@ import Args._
 import scala.util._
 import scala.collection.immutable._
 
-case class SourceCli(cli: Cli)(implicit log: Log) {
-  def list: Try[ExitStatus] = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli          <- cli.hint(RawArg)
-    cli          <- cli.hint(ColumnArg, List("repo", "path", "sources", "files", "size", "lines"))
-    cli          <- cli.hint(SourceArg, tryModule.map(_.sources).getOrElse(Nil))
-    call         <- cli.call()
-    source       <- ~cli.peek(SourceArg)
-    col          <- ~cli.peek(ColumnArg)
-    raw          <- ~call(RawArg).isSuccess
-    project      <- tryProject
-    module       <- tryModule
-    hierarchy    <- layer.hierarchy()
-    universe     <- hierarchy.universe
-    checkouts    <- universe.checkout(module.ref(project), hierarchy, layout)
-  } yield {
-    val rows = module.sources.to[List]
-    val table = Tables().sources(checkouts, layout)
-    log.info(conf.focus(project.id, module.id))
-    log.rawln(Tables().show(table, cli.cols, rows, raw, col, source, "repo"))
-    log.await()
+case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
+
+  def list: Try[ExitStatus] = {
+    implicit val columns: ColumnArg.Hinter = ColumnArg.hint("repo", "path", "sources", "files", "size", "lines")
+    implicit val sourcesHint = existingSourcesHint
+    (cli -< ProjectArg -< ModuleArg -< SourceArg -< ColumnArg -< RawArg).action {
+      (getProject, getModule) >>= { case (project, module) =>
+        val snapshots = (universe, getHierarchy, getLayout) >>= (_.checkout(module.ref(project), _, _))
+        val tabulation = (snapshots, getLayout) >> (Tables().sources(_, _))
+        (tabulation, conf, opt(ColumnArg), opt(SourceArg)) >> { case (table, c, col, source) =>
+          log.info(c.focus(project.id, module.id))
+          log.rawln(Tables().show(table, cli.cols, module.sources.to[List], raw, col, source, "repo"))
+        } >> finish
+      }
+    }
   }
 
-  def remove: Try[ExitStatus] = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+  def remove: Try[ExitStatus] = {
+    implicit val sourcesHint = existingSourcesHint
+    (cli -< ProjectArg -< ModuleArg -< SourceArg).action {
+      val newSources = (getModuleRef, getSources, getSource) >>= { case (moduleRef, sources, source) =>
+        if(sources.contains(source)) Success(sources - source) else Failure(ComponentNotDefined(source, moduleRef))
+      }
+      val newLayer = (newSources, getLayer, sourcesLens) >> (Layer.set(_)(_, _))
+      for {
+        _ <- newLayer >>= commit
+        _ <- (getLayout, getModuleRef) >>= (_.classesDir(_).delete)
+        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
+      } yield log.await()
+    }
+  }
 
-    cli          <- cli.hint(SourceArg, tryModule.map(_.sources).getOrElse(Set.empty).map(_.completion))
-    call         <- cli.call()
-    source       <- call(SourceArg)
-    project      <- tryProject
-    module       <- tryModule
-    
-    _            <- if(!module.sources.contains(source)) Failure(InvalidSource(source, module.ref(project)))
-                        else Success(())
-    _            <- layout.classesDir(module.ref(project)).delete()
-    layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ - source)
-    _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Build.asyncBuild(layer, module.ref(project), layout)
-  } yield log.await()
+  def add: Try[ExitStatus] = {
+    implicit val sourcesHint = possibleSourcesHint
+    (cli -< ProjectArg -< ModuleArg -< SourceArg).action {
+      val newSources = (getLayout, getLayer, getSources, getSource) >> { case (layout, layer, srcs, src) =>
+        val findBySimplifiedName = (name: String) => layer.repos.find(_.remote.simplified == name)
+        val localId = (Remote.local(layout).toOption >> (_.simplified) >>= findBySimplifiedName) >> (_.id)
+        val newSource = Source.rewriteLocal(src, localId)
+        srcs + newSource
+      }
+      val newLayer = (newSources, getLayer, sourcesLens) >> (Layer.set(_)(_, _))
+      for {
+        _ <- newLayer >>= commit
+        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
+      } yield log.await()
+    }
+  }
 
-  def add: Try[ExitStatus] = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    extSrcs      = layer.repos.map(possibleSourceDirectories(_, layout)).flatten
-    localSrcs    = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, Glob.All))
-    cli          <- cli.hint(SourceArg, (extSrcs ++ localSrcs).map(_.completion))
-    call         <- cli.call()
+  private[this] lazy val getSources = getModule >> (_.sources)
 
-    project      <- tryProject
-    module       <- tryModule
-    source       <- call(SourceArg)
+  private[this] def sourcesLens: Try[Lens[Layer, SortedSet[Source], SortedSet[Source]]] = (getProject, getModule) >> {
+    case (p, m) => Lens[Layer](_.projects(p.id).modules(m.id).sources)
+  }
 
-    localId      =  for {
-                      localRepo  <- Remote.local(layout).toOption
-                      layerMatch <- layer.repos.find(_.remote.simplified == localRepo.simplified)
-                    } yield layerMatch.id
+  private[this] lazy val existingSourcesHint: SourceArg.Hinter = SourceArg.hint(getSources)
 
-    source       <- ~Source.rewriteLocal(source, localId)
-    layer        <- ~Layer(_.projects(project.id).modules(module.id).sources).modify(layer)(_ ++ Some(source))
-    _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Build.asyncBuild(layer, module.ref(project), layout)
-  } yield log.await()
+  private[this] lazy val possibleSourcesHint: SourceArg.Hinter = SourceArg.hint((getLayout, getLayer) >> { case (layout, layer) =>
+    val extSrcs = layer.repos.map(possibleSourceDirectories(_, layout)).flatten
+    val localSrcs = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, fury.io.Glob.All))
+    extSrcs ++ localSrcs
+  })
 
   private[this] def isSourceFileName(name: String): Boolean = name.endsWith(".scala") || name.endsWith(".java")
 
@@ -123,7 +114,7 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
       
       resources >> (Tables().show(table, cli.cols, _, raw, column, get(ResourceArg).toOption, "resource")) >>
-          (log.rawln(_)) >> { x => log.await() }
+          (log.rawln(_)) >> finish
     }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {
