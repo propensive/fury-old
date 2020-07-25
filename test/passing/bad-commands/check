@@ -14,6 +14,8 @@ The source foo//** is not defined in hello-world/app.
 1
 The binary logging was not found.
 1
+The project foo was not found.
+1
 The module foo was not found.
 1
 The argument 'foo/bar' was not a valid value for the parameter -m/--module.

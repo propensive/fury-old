@@ -293,8 +293,9 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call           <- cli.call()
     dir            <- ~call(PathArg).toOption
     optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(layer.main))
-    optProject     <- ~optProjectId.flatMap(layer.projects.findBy(_).toOption)
-    project        <- optProject.asTry
+    projectId      <- optProjectId.asTry
+    optProject     <- ~layer.projects.findBy(projectId).toOption
+    project        <- optProject.ascribe(ItemNotFound(projectId))
     moduleId       <- moduleRef.map(~_.moduleId).getOrElse(cli.preview(ModuleArg)(project.main))
     module         <- project.modules.findBy(moduleId)
     pipelining     <- ~call(PipeliningArg).toOption

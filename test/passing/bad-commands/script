@@ -18,6 +18,8 @@ fury source remove -s foo
 echo $?
 fury binary remove -b logging
 echo $?
+fury -p foo --output linear
+echo $?
 fury -m foo --output linear
 echo $?
 fury -m foo/bar --output linear
