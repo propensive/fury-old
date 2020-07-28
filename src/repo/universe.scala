@@ -159,7 +159,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
       newLayerRef <- Layer.resolve(importName)
       pub         <- Layer.published(importName)
       newLayer    <- Layer.get(newLayerRef, pub)
-      _           <- newLayer.verify(false, Pointer.Root)
+      _           <- newLayer.verify(false, false, Pointer.Root)
       
       hierarchy   <- hierarchy.updateAll(layerEntity.imports) { (layer, imp) =>
                        val newImport = imp.copy(layerRef = newLayerRef, remote = pub)

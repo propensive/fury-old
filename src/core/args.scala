@@ -75,6 +75,7 @@ object Args {
   val IntransitiveArg = CliParam[Unit]('I', 'intransitive,
       "specify if this dependency should not be included transitively")
 
+  val IgnoreArg = CliParam[Unit]('I', 'ignore, "ignore layer errors")
   val KeyArg = CliParam[String]('k', 'key, "GPG key")
   val ImportArg = CliParam[LayerName]('l', 'layer, "specify an external layer to import")
   val ImportIdArg = CliParam[ImportId]('i', 'import, "specify an import by ID")

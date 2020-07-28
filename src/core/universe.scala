@@ -36,10 +36,9 @@ case class Universe(hierarchy: Hierarchy,
   import Uniqueness._
 
   def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
-    case Unique(`id`, origins) => ~origins
-    case Unique(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
+    case Unique(_, origins) => ~origins
     case Ambiguous(origins) =>
-      val refOrigins = origins.collect{ case (origin, `id`) => origin }
+      val refOrigins = origins.collect { case (origin, `id`) => origin }
       if (refOrigins.isEmpty) Failure(new IllegalStateException(str"No known import for $id"))
       else ~refOrigins.toSet
   }
@@ -47,17 +46,16 @@ case class Universe(hierarchy: Hierarchy,
   def pointers(id: ProjectId): Try[Set[Pointer]] = projects.get(id).ascribe(ItemNotFound(id)).flatMap {
     case Unique(_, origins) => ~origins
     case Ambiguous(origins) =>
-      val projectsByRef = origins.values.toSet.map{ ref: ProjectRef => ref -> apply(ref) }.toMap
-      val importsByRef = origins.values.map{ case ref => ref -> origins.collect{ case (o, `ref`) => o }.toSet }
-      importsByRef.traverse { case (ref, _) =>
-        for {
-          project <- projectsByRef(ref)
-          imports <- pointers(ref)
-        } yield (ref, project, imports)
+      val projects = origins.values.toSet.map { ref: ProjectRef => ref -> apply(ref) }.toMap
+      val imports = origins.values.map { case ref => ref -> origins.collect { case (o, `ref`) => o }.toSet }
+      
+      imports.traverse { case (ref, _) =>
+        for(project <- projects(ref); imports <- pointers(ref)) yield (ref, project, imports)
       } >>= (conflicts => Failure(ProjectConflict(conflicts.toList)))
   }
 
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
+  
   def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
@@ -70,9 +68,12 @@ case class Universe(hierarchy: Hierarchy,
   def apply(id: ProjectId): Try[Project] = layer(id).flatMap(_.projects.findBy(id))
   def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
   def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
+  def apply(ref: ModuleRef): Try[Module] = apply(ref.projectId) >>= (_(ref.moduleId))
+  
+  def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
   def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
-    case (acc, (_, Unique(ref, _))) => acc + ref.copy(digest = None)
+    case (acc, (_, Unique(ref, _)))     => acc + ref.copy(digest = None)
     case (acc, (_, Ambiguous(origins))) => acc ++ origins.values
   }
 
@@ -80,11 +81,8 @@ case class Universe(hierarchy: Hierarchy,
     project <- apply(ref.projectId)
     module  <- project(ref.moduleId)
     layer   <- layer(ref.projectId)
-
-    repos   <- (module.externalSources ++ module.externalResources).to[List].groupBy(_.repoId).map {
-                 case (k, v) => layer.repos.findBy(k).map(_ -> v)
-               }.sequence
-
+    inputs  <- ~(module.externalSources ++ module.externalResources).to[List]
+    repos   <- inputs.groupBy(_.repoId).traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v) }
   } yield Snapshots(repos.map { case (repo, paths) =>
     val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch,
         paths.map(_.dir).to[List])
@@ -121,11 +119,4 @@ case class Universe(hierarchy: Hierarchy,
     tDeps        <- dependencies.to[Set].traverse(transitiveDependencies(forbidden + dependency, _,
                         layout).filter(!_.contains(dependency)))
   } yield dependencies ++ tDeps.flatten
-
-  def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
-
-  def apply(ref: ModuleRef): Try[Module] = for {
-    project <- apply(ref.projectId)
-    module  <- project(ref.moduleId)
-  } yield module
 }
