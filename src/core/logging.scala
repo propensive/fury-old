@@ -97,6 +97,7 @@ object Log {
   val Fail = 4
 
   private val logFiles: HashMap[Path, LogStyle] = HashMap()
+  private lazy val base: Log = new Log(global, Pid(0))
   
   private lazy val global: LogStyle = {
     val initDate = LocalDate.now()
@@ -118,6 +119,7 @@ object Log {
     LogStyle(get, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
   }
 
+  def apply(): Log = base
   def log(pid: Pid): Log = new Log(global, pid)
 }
 

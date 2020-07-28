@@ -289,7 +289,7 @@ class Cli(val stdout: java.io.PrintWriter,
     pw.write(script)
     pw.write("\n")
     pw.close()
-    Log.log(Pid(0)).info(msg"Exporting temporary script file to ${scriptFile}")
+    Log().info(msg"Exporting temporary script file to ${scriptFile}")
     Continuation
   }
 

@@ -101,7 +101,7 @@ You can grant these permissions with,
         case CannotUndo() =>
           cli.abort(msg"""The previous action cannot be undone.""")
         case UnresolvedModules(refs) =>
-          cli.abort(msg"""Some modules contain references to other modules which do not exist.""")
+          cli.abort(msg"""The layer refers to modules which cannot be resolved: ${refs.toString}""")
         case PublishFailure() =>
           cli.abort(msg"""The server was not able to publish this layer.""")
         case LayerContainsLocalSources(refs) =>
@@ -242,9 +242,8 @@ You can grant these permissions with,
             s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            gLog   <- ~Log.log(Pid(0))
-            _      <- ~gLog.fail(errorString)
-            _      <- ~gLog.await()
+            _      <- ~Log().fail(errorString)
+            _      <- ~Log().await()
           } yield
             cli.abort(msg"An unexpected error occurred:$errorString")
 
