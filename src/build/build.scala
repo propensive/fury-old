@@ -518,15 +518,13 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
 
   def verifyLayers(path: Pointer, list: List[Pointer]): Try[Unit] =
-    if (list.map(_.path).contains(path.path))
-      Success()
-    else
-      Failure(LayersFailure(path))
+    if(list.map(_.path).contains(path.path)) Success() else Failure(LayersFailure(path))
 
   def cloneLayer: Try[ExitStatus] = for {
     cli        <- cli.hint(PathArg)
     cli        <- cli.hint(EditorArg)
     cli        <- cli.hint(DocsArg)
+    cli        <- cli.hint(IgnoreArg)
     cli        <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call       <- cli.call()
     edit       <- ~call(EditorArg).isSuccess
@@ -535,7 +533,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layerRef   <- Layer.resolve(layerName)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
-    _          <- layer.verify(true, Pointer.Root)
+    ignore     <- ~call(IgnoreArg).isSuccess
+    _          <- layer.verify(ignore, true, Pointer.Root)
     dir        <- call(PathArg).pacify(layerName.suggestedName.map { n => Path(n.key) })
     pwd        <- cli.pwd
     dir        <- ~(if(useDocsDir) Xdg.docsDir else pwd).resolve(dir).uniquify()
@@ -572,7 +571,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer         <- Layer.retrieve(conf)
     base          <- Layer.get(conf.layerRef, None)
     
-    currentPub    <- if(conf.path.isEmpty) ~conf.published else for {
+    currentPub    <- if(conf.path.isEmpty) ~conf.published
+                     else for {
                        parent <- Layer.dereference(base, conf.path.init)
                        imprt  <- parent.imports.findBy(conf.path.last)
                      } yield imprt.remote
@@ -657,24 +657,23 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   } yield log.await()
 
   def addImport: Try[ExitStatus] = for {
-    layout        <- cli.layout
-    conf          <- Layer.readFuryConf(layout)
-    layer         <- Layer.retrieve(conf)
-    cli           <- cli.hint(ImportNameArg)
-    cli           <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
-    call          <- cli.call()
-    layerName     <- call(ImportArg)
-    
-    nameArg       <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingParam(
-                         ImportNameArg))
-
-    newLayerRef   <- Layer.resolve(layerName)
-    pub           <- Layer.published(layerName)
-    newLayer      <- Layer.get(newLayerRef, pub)
-    _             <- newLayer.verify(false, Pointer.Root)
-    ref           <- ~Import(nameArg, newLayerRef, pub)
-    layer         <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
-    _             <- Layer.commit(layer, conf, layout)
+    layout      <- cli.layout
+    conf        <- Layer.readFuryConf(layout)
+    layer       <- Layer.retrieve(conf)
+    cli         <- cli.hint(ImportNameArg)
+    cli         <- cli.hint(IgnoreArg)
+    cli         <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
+    call        <- cli.call()
+    layerName   <- call(ImportArg)
+    nameArg     <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingParam(ImportNameArg))
+    ignore      <- ~call(IgnoreArg).isSuccess
+    newLayerRef <- Layer.resolve(layerName)
+    pub         <- Layer.published(layerName)
+    newLayer    <- Layer.get(newLayerRef, pub)
+    _           <- newLayer.verify(ignore, false, Pointer.Root)
+    ref         <- ~Import(nameArg, newLayerRef, pub)
+    layer       <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
+    _           <- Layer.commit(layer, conf, layout)
   } yield log.await()
 
   def unimport: Try[ExitStatus] = for {

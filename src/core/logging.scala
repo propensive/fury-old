@@ -97,14 +97,12 @@ object Log {
   val Fail = 4
 
   private val logFiles: HashMap[Path, LogStyle] = HashMap()
+  private lazy val base: Log = new Log(global, Pid(0))
   
   private lazy val global: LogStyle = {
     val initDate = LocalDate.now()
     var cached: Int = initDate.getDayOfMonth
-    
-    def create(date: LocalDate) =
-      new PrintWriter(new BufferedWriter(new FileWriter(path(date).javaFile, true)))
-    
+    def create(date: LocalDate) = new PrintWriter(new BufferedWriter(new FileWriter(path(date).javaFile, true)))
     def path(date: LocalDate) = Installation.logsDir.extant() / str"${date.toString}.log"
     var printWriter: PrintWriter = create(initDate)
     def update(date: LocalDate): Unit = printWriter = create(date)
@@ -118,6 +116,7 @@ object Log {
     LogStyle(get, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
   }
 
+  def apply(): Log = base
   def log(pid: Pid): Log = new Log(global, pid)
 }
 
