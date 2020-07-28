@@ -1004,7 +1004,7 @@ object OptId {
   implicit val parser: Parser[OptId] = unapply(_)
   
   def unapply(value: String): Option[OptId] =
-    value.only { case r"[a-zA-Z0-9\-\.\:]+" => OptId(value) }
+    value.only { case r"[\w/\-\.\:]+" => OptId(value) }
 }
 
 case class OptId(key: String) extends Key(msg"option")
