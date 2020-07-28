@@ -1,0 +1,21 @@
+Initialized an empty layer
+Set current project to scala
+Set current module to compiler
+Set current project to hello-world
+Setting default compiler for hello-world to scala/compiler
+Set current module to divbyzero
+1
+Xplugin:/.fury/classes/hello-world_divbyzero
+0
+Set current module to app
+Starting compilation of module hello-world/divbyzero
+Successfully compiled module hello-world/divbyzero
+Starting compilation of module hello-world/divbyzero
+Successfully compiled module hello-world/divbyzero
+Starting compilation of module hello-world/app
+[E] hello-world/app>local:src/app.scala:6:23
+| definitely division by zero
+| val amount = five / 0
+Compilation of module hello-world/app failed
+One of the compile tasks failed. Check the logs for details.
+1
