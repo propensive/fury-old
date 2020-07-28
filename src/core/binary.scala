@@ -31,7 +31,7 @@ object Binary {
 
   def apply(id: Option[BinaryId], service: BinRepoId, binSpec: BinSpec): Try[Binary] =
     binSpec.string.only {
-      case r"$group@([\.\-_a-zA-Z0-9]*)\:$artifact@([\.\-_a-zA-Z0-9]*)\:$version@([\.\-\+_a-zA-Z0-9]*)" =>
+      case r"$group@([\w\-\.]*)\:$artifact@([\w\-\.]*)\:$version@([\w\-\.]*)" =>
         Binary(id.getOrElse(BinaryId(artifact)), service, group, artifact, version)
     }.ascribe(InvalidValue(binSpec.string))
 

@@ -567,7 +567,7 @@ object BloopSpec {
   implicit val keyName: KeyName[BloopSpec] = () => msg"compiler specification"
 
   def unapply(str: String): Option[BloopSpec] = str.only {
-    case r"$org@([a-z][a-z0-9_\-\.]*):$id@([a-z][a-z0-9_\-\.]*):$version@([0-9a-z][A-Za-z0-9_\-\.]*)" =>
+    case r"$org@([a-z][a-z0-9_\-\.]*):$id@([a-z][a-z0-9_\-\.]*):$version@([0-9a-z][\w\-\.]*)" =>
       BloopSpec(org, id, version)
   }
 }

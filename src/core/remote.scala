@@ -39,9 +39,9 @@ object Remote {
 
   def parse(str: String): Remote = Remote { str match {
     case "." => ""
-    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" => str
-    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" => str
-    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" => str
+    case r"gh:$group@([\w\-\.]+)/$project@([\w\-\.]+)" => str
+    case r"gl:$group@([\w\-\.]+)/$project@([\w\-\.]+)" => str
+    case r"bb:$group@([\w\-\.]+)/$project@([\w\-\.]+)" => str
     case ExistingLocalFileAsAbspath(abspath) =>
       abspath
     case other =>
@@ -132,20 +132,20 @@ case class Remote(ref: String) {
   }
 
   def https: Option[String] = simplified.only {
-    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+    case r"gh:$group@([\w\-\.]+)/$project@([\w\-\.]+)" =>
       str"https://github.com/$group/$project.git"
-    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+    case r"gl:$group@([\w\-\.]+)/$project@([\w\-\.]+)" =>
       str"https://gitlab.com/$group/$project.git"
-    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+    case r"bb:$group@([\w\-\.]+)/$project@([\w\-\.]+)" =>
       str"https://bitbucket.com/$group/$project.git"
   }
   
   def ssh: Option[String] = simplified.only {
-    case r"gh:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+    case r"gh:$group@([\w\-\.]+)/$project@([\w\-\.]+)" =>
       str"git@github.com:$group/$project.git"
-    case r"gl:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+    case r"gl:$group@([\w\-\.]+)/$project@([\w\-\.]+)" =>
       str"git@gitlab.com:$group/$project.git"
-    case r"bb:$group@([A-Za-z0-9_\-\.]+)/$project@([A-Za-z0-9\._\-]+)" =>
+    case r"bb:$group@([\w\-\.]+)/$project@([\w\-\.]+)" =>
       str"git@bitbucket.com:$group/$project.git"
   }
 
