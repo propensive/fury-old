@@ -89,14 +89,13 @@ case class Layer(version: Int,
   def verifyConf(local: Boolean, conf: FuryConf, pointer: Pointer, quiet: Boolean, force: Boolean)
                 (implicit log: Log)
                 : Try[Unit] = for {
-    
-    _         <- if(force || conf.path == Pointer.Root) Success(())
-                 else Failure(RootLayerNotSelected(conf.path))
-
-    _         <- verify(local, pointer, quiet)
+    _ <- if(force || conf.path == Pointer.Root) Success(()) else Failure(RootLayerNotSelected(conf.path))
+    _ <- verify(force, local, pointer, quiet)
   } yield ()
 
-  def verify(local: Boolean, ref: Pointer, quiet: Boolean = false)(implicit log: Log): Try[Unit] = for {
+  def verify(ignore: Boolean, local: Boolean, ref: Pointer, quiet: Boolean = false)
+            (implicit log: Log)
+            : Try[Unit] = if(ignore) Success(()) else for {
     _         <- ~log.infoWhen(!quiet)(msg"Checking that no modules reference local sources")
     localSrcs <- ~localSources
     _         <- if(localSrcs.isEmpty || local) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
@@ -156,7 +155,7 @@ object Layer extends Lens.Partial[Layer] {
   private val cache: HashMap[IpfsRef, Layer] = HashMap()
   private val dbCache: HashMap[Path, Long] = HashMap()
   private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
-  implicit val stringShow: StringShow[Layer] = store(_)(Log.log(Pid(0))).toOption.fold("???")(_.key)
+  implicit val stringShow: StringShow[Layer] = store(_)(Log()).toOption.fold("???")(_.key)
 
   val CurrentVersion: Int = 11
 
