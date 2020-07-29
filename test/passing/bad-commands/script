@@ -28,6 +28,10 @@ fury permission require -0 -C java.util.PropertyPermission -T scala.maven.versio
 fury --output linear --output linear | grep '^ *[A-Za-z0-9]'
 fury module update -m baz -t lib
 echo $?
+fury module update -n bad/name -t lib
+echo $?
 fury module update -t lib
+fury module remove
+fury module select
 fury --output linear
 echo $?

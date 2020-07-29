@@ -382,12 +382,16 @@ abstract class CliApi {
   lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
   lazy val fetchRemote: Try[GitDir] = (get(RemoteArg), getLayout) >>= (_.fetch(_))
   lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
-  lazy val cliModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
+  lazy val requiredModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
+  lazy val cliModule: Try[Option[Module]] = (opt(ModuleArg), getProject) >>= {
+    case (Some(id), p) => p.modules.findBy(id).map(Some(_))
+    case (None, _) => Success(None)
+  }
   lazy val layerModuleOpt: Try[Option[Module]] = getProject >>= (_.mainModule)
   lazy val layerModule: Try[Module] = layerModuleOpt.flatMap(_.ascribe(MissingParam(ModuleArg)))
   lazy val projectModuleIds: List[ModuleId] = (getProject >> (_.modules.to[List])).getOrElse(List()).map(_.id)
   lazy val projectRepoIds: List[RepoId] = (getLayer >> (_.repos.to[List])).getOrElse(List()).map(_.id)
-  lazy val getModule: Try[Module] = cliModule.orElse(layerModule)
+  lazy val getModule: Try[Module] = (cliModule, layerModule) >> (_.getOrElse(_))
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
   lazy val raw: Boolean = cli.get(RawArg).isSuccess
