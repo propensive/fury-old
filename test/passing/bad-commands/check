@@ -24,8 +24,12 @@ ad452b8d3779ba72bed24656286fcf4c95753320343db145221fa1741d0b7a01
 The following permissions are required to run the build:
 You can grant these permissions with,
   fury permission grant -P <permission hash>
-The module has not been specified.
+The module baz was not found.
 1
+The value '-n/--name' is not valid for the parameter --name (-n)
+1
+The --module (-m) parameter is required.
+The --module (-m) parameter is required.
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 0

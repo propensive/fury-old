@@ -16,208 +16,164 @@
 */
 package fury
 
-import fury.text._, fury.io._, fury.core._, fury.model._
+import fury.text._,  fury.core._, fury.model._
 
 import mercator._
+import optometry._
 
 import scala.collection.immutable.SortedSet
 import scala.util._
 
 import Args._
 
-case class ModuleCli(cli: Cli)(implicit log: Log) {
+case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   
-  private def parseKind(kindName: Kind.Id,
-                        main: Option[ClassRef],
-                        repl: Option[ClassRef],
-                        timeout: Option[Int],
-                        spec: Option[BloopSpec],
-                        plugin: Option[PluginId])
-                       : Try[Kind] = kindName match {
-    case Lib      => Success(Lib())
-    case App      => main.map(App(_, timeout.getOrElse(0))).ascribe(MissingParam(MainArg))
-    case Bench    => main.map(Bench(_)).ascribe(MissingParam(MainArg))
-
-    case Compiler => spec.map(Compiler(_, repl.getOrElse(ClassRef("scala.tools.nsc.MainGenericRunner"))))
-                         .ascribe(MissingParam(SpecArg))
-
-    case Plugin   => for(m <- main.ascribe(MissingParam(MainArg)); p <- plugin.ascribe(MissingParam(PluginArg)))
-                     yield Plugin(p, m)
+  private def resolveToCompiler(ref: CompilerRef): Try[CompilerRef] = ref match {
+    case javac: Javac => ~javac
+    case bsp@BspCompiler(ref) =>
+      getCompilerRefs >>= { available => if(available.contains(ref)) ~bsp else Failure(UnknownModule(ref)) }
   }
-  
-  private def resolveToCompiler(layer: Layer, optProject: Option[Project], layout: Layout, ref: CompilerRef)
-                               (implicit log: Log)
-                               : Try[CompilerRef] =
-    ref match {
-      case Javac(n) =>
-        Success(ref)
-      case ref@BspCompiler(_) => for {
-        project   <- optProject.asTry
-        available  = layer.compilerRefs(layout)
-        _         <- if(available.contains(ref.ref)) Success(ref) else Failure(UnknownModule(ref.ref))
-      } yield ref
+
+  def select: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg).action {
+    (requiredModule >> (_.id) >> (Option(_)), getLayer, mainModuleLens) >> (Layer.set(_)(_, _)) >> commit >> finish
+  }
+
+  def list: Try[ExitStatus] = {
+    implicit val columns: ColumnArg.Hinter = ColumnArg.hint(getTable >> (_.headings.map(_.name)))
+    (cli -< ProjectArg -< ModuleArg -< ColumnArg -< RawArg).action {
+      val output = (getTable, getProject >> (_.modules), opt(ColumnArg), opt(ModuleArg)) >>
+        (Tables().show(_, cli.cols, _, raw, _, _, "module"))
+      (conf, getProject, output) >> { case (c, p, o) =>
+        log.infoWhen(!raw)(c.focus(p.id))
+        log.rawln(o)
+        log.await()
+      }
     }
-  
-  private def hintKindParams(cli: Cli, mains: Set[ClassRef], kindName: Option[Kind.Id]) = kindName.map {
-    case Lib      => ~cli
-    case App      => cli.hint(MainArg, mains).flatMap(_.hint(TimeoutArg, List("0")))
-    case Compiler => cli.hint(SpecArg).flatMap(_.hint(ReplArg, mains))
-    case Bench    => cli.hint(MainArg, mains)
-    case Plugin   => cli.hint(MainArg, mains).flatMap(_.hint(PluginArg))
-  }.getOrElse(~cli)
+  }
 
-  def select: Try[ExitStatus] = for {
-    layout     <- cli.layout
-    conf       <- Layer.readFuryConf(layout)
-    layer      <- Layer.retrieve(conf)
-    cli        <- cli.hint(ProjectArg, layer.projects)
-    projectId  <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject <- ~projectId.flatMap(layer.projects.findBy(_).toOption)
-    cli        <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    call       <- cli.call()
-    project    <- optProject.asTry
-    moduleId   <- ~call(ModuleArg).toOption
-    moduleId   <- moduleId.asTry
-    _          <- project(moduleId)
-    layer      <- ~(Layer(_.projects(project.id).main)(layer) = Some(moduleId))
-    _          <- Layer.commit(layer, conf, layout)
-  } yield log.await()
+  def add: Try[ExitStatus] = {
+    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -<
+      MainArg -< ReplArg -< TimeoutArg -< SpecArg -< PluginArg).action {
+      val newModule = getModuleName >> (x => Module(id = x)) >>= updatedFromCli
+      val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
+      val newLayer = for {
+        layer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        layer <- (newModule >> (_.id) >> (Option(_)), ~layer, mainModuleLens) >> (Layer.set(_)(_, _))
+        module <- newModule
+        project <- getProject
+        setDefaultCompiler <- (getProject, opt(CompilerArg)) >> (_.compiler.isEmpty && _.isDefined)
+        lens <- defaultCompilerLens
+      } yield {
+        val newLayer = if(setDefaultCompiler) {
+          log.info(msg"Setting default compiler for ${project.id} to ${module.compiler}")
+          Layer.set(Option(module.compiler))(layer, lens)
+        }
+        else layer
+        log.info(msg"Set current module to ${module.id}")
+        newLayer
+      }
+      for {
+        _ <- newLayer >>= commit
+        _ <- (newLayer, (newModule, getProject) >> (_.ref(_)), getLayout) >> Build.asyncBuild
+      } yield log.await()
+    }
+  }
 
-  def list: Try[ExitStatus] = for {
-    layout     <- cli.layout
-    conf       <- Layer.readFuryConf(layout)
-    layer      <- Layer.retrieve(conf)
-    cli        <- cli.hint(ProjectArg, layer.projects)
-    projectId  <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject <- ~projectId.flatMap(layer.projects.findBy(_).toOption)
-    project    <- optProject.asTry
-    cli        <- cli.hint(ModuleArg, project.modules.map(_.id))
-    universe   <- layer.hierarchy().flatMap(_.universe)
-    table      <- ~Tables().modules(project.id, project.main, universe)
-    cli        <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-    cli        <- cli.hint(RawArg)
-    call       <- cli.call()
-    moduleId   <- ~cli.peek(ModuleArg)
-    col        <- ~cli.peek(ColumnArg)
-    raw        <- ~call(RawArg).isSuccess
-    rows       <- ~project.modules.to[List]
-    table      <- ~Tables().show(table, cli.cols, rows, raw, col, moduleId, "module")
-    _          <- ~log.infoWhen(!raw)(conf.focus(project.id))
-    _          <- ~log.rawln(table)
-  } yield log.await()
+  def remove: Try[ExitStatus] = {
+    (cli -< ProjectArg -< ModuleArg).action {
+      val newModules = (getProject >> (_.modules), requiredModule) >> (_ - _)
+      val newLayer = for {
+        newLayer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        cleanMain <- (getProject >> (_.main), requiredModule >> (_.id)) >> (_.contains(_))
+        lens <- mainModuleLens
+      } yield {
+        if(cleanMain) Layer.set(Option.empty[ModuleId])(newLayer, lens)
+        else newLayer
+      }
+      for {
+        _ <- newLayer >>= commit
+        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
+      } yield log.await()
+    }
+  }
 
-  def add: Try[ExitStatus] = for {
-    layout      <- cli.layout
-    conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.retrieve(conf)
-    cli         <- cli.hint(ProjectArg, layer.projects)
-    projectId   <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject  <- ~projectId.flatMap(layer.projects.findBy(_).toOption)
-    cli         <- cli.hint(KindArg, Kind.ids)
-    kindName    <- ~cli.peek(KindArg)
-    cli         <- hintKindParams(cli, Set(), kindName)
-    cli         <- cli.hint(ModuleNameArg)
-    cli         <- cli.hint(HiddenArg, List("on", "off"))
-    cli         <- cli.hint(CompilerArg, Javac.Versions ++ layer.compilerRefs(layout).map(BspCompiler(_)))
-    call        <- cli.call()
+  def update: Try[ExitStatus] = {
+    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -<
+      MainArg -< ReplArg -< TimeoutArg -< SpecArg -< PluginArg).action {
+      val newModule = getModule >>= renamedFromCli >>= updatedFromCli
+      val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
+      val newLayer = for {
+        layer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        updateMain <- (getProject >> (_.main), getModule >> (_.id)) >> (_.contains(_))
+        lens <- mainModuleLens
+        newModuleId <- newModule >> (_.id)
+      } yield {
+        if(updateMain) Layer.set(Option(newModuleId))(layer, lens)
+        else layer
+      }
+      for {
+        _ <- newLayer >>= commit
+        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
+      } yield log.await()
+    }
+  }
 
-    kind        <- parseKind(kindName.getOrElse(Lib), cli.peek(MainArg), cli.peek(ReplArg),
-                       cli.peek(TimeoutArg), cli.peek(SpecArg), cli.peek(PluginArg))
-    
-    project     <- optProject.asTry
-    moduleArg   <- call(ModuleNameArg)
-    moduleId    <- project.modules.unique(moduleArg)
-    compilerRef <- ~call(CompilerArg).toOption
-    _           <- ~compilerRef.map(resolveToCompiler(layer, optProject, layout, _))
-    defaultComp <- ~layer.compilerRefs(layout).map(BspCompiler(_)).headOption.getOrElse(Javac(8))
-    compiler    <- compilerRef.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
-    module      = Module(moduleId, compiler = compiler.getOrElse(defaultComp), kind = kind)
-    module      <- ~call(HiddenArg).toOption.map { h => module.copy(hidden = h) }.getOrElse(module)
-    layer       <- ~Layer(_.projects(project.id).modules).modify(layer)(_ + module)
-    layer       <- ~(Layer(_.projects(project.id).main)(layer) = Some(module.id))
+  private[this] def renamedFromCli(base: Module): Try[Module] = opt(ModuleNameArg) >> (_.fold(base)(x => base.copy(id = x)))
 
-    layer       <- if(project.compiler.isEmpty && compilerRef.isDefined) {
-                     ~Layer(_.projects(project.id).compiler).modify(layer) { v =>
-                       log.info(msg"Setting default compiler for ${project.id} to ${module.compiler}")
-                       Some(module.compiler)
-                     }
-                   } else Try(layer)
+  private[this] def updatedFromCli(base: Module): Try[Module] = for {
+    kind <- ~cliKind.getOrElse(base.kind)
+    compiler <- cliCompiler >> (_.getOrElse(base.compiler))
+  } yield {
+    val hidden = has(HiddenArg)
+    base.copy(compiler = compiler, kind = kind, hidden = hidden)
+  }
 
-    _           <- Layer.commit(layer, conf, layout)
-    _           <- ~Build.asyncBuild(layer, module.ref(project), layout)
-    _           <- ~log.info(msg"Set current module to ${module.id}")
-  } yield log.await()
+  private[this] lazy val cliKind: Try[Kind] = get(KindArg) >>= (_ match {
+    case Lib      => ~Lib()
+    case App      => (get(MainArg), get(TimeoutArg).orElse(Success(0))) >> App.apply
+    case Bench    => get(MainArg) >> Bench.apply
+    case Compiler => (get(SpecArg), get(ReplArg).orElse(~ClassRef("scala.tools.nsc.MainGenericRunner"))) >> Compiler.apply
+    case Plugin   => (get(PluginArg), get(MainArg)) >> Plugin.apply
+  })
 
-  def remove: Try[ExitStatus] = for {
-    layout     <- cli.layout
-    conf       <- Layer.readFuryConf(layout)
-    layer      <- Layer.retrieve(conf)
-    cli        <- cli.hint(ProjectArg, layer.projects)
-    projectId  <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject <- ~projectId.flatMap(layer.projects.findBy(_).toOption)
-    cli        <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    call       <- cli.call()
-    moduleId   <- call(ModuleArg)
-    project    <- optProject.asTry
-    module     <- project.modules.findBy(moduleId)
-    layer      <- ~Layer(_.projects(project.id).modules).modify(layer)(_.evict(module.id))
-    layer      <- ~Layer(_.projects(project.id).main).modify(layer)(_.filterNot(_ == moduleId))
-    _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
-  } yield log.await()
+  private[this] lazy val cliCompiler = opt(CompilerArg) >>= {
+    case Some(ref) => resolveToCompiler(ref) >> (Some(_))
+    case None => ~None
+  }
 
-  def update: Try[ExitStatus] = for {
-    layout      <- cli.layout
-    conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.retrieve(conf)
-    cli         <- cli.hint(ProjectArg, layer.projects)
-    projectId   <- ~cli.peek(ProjectArg).orElse(layer.main)
-    optProject  <- ~projectId.flatMap(layer.projects.findBy(_).toOption)
-    cli         <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
-    cli         <- cli.hint(KindArg, Kind.ids)
-    optModuleId  = cli.preview(ModuleArg)(optProject.flatMap(_.main)).toOption
+  private[this] lazy val getCompilerRefs = (getLayer, getLayout) >> (_.compilerRefs(_))
 
-    optModule   <- Success { for {
-                     project  <- optProject
-                     moduleId <- optModuleId
-                     module   <- project.modules.findBy(moduleId).toOption
-                   } yield module }
-    kindName    <- ~cli.peek(KindArg).orElse(optModule.map(_.kind.name))
-    targetId    <- ~projectId.flatMap { p => optModuleId.map(m => ModuleRef(p, m, false, false)) }
-    mainClasses <- ~targetId.map { t => Asm.executableClasses(layout.classesDir(t)) }.to[Set].flatten
-    cli         <- hintKindParams(cli, mainClasses, kindName)
-    cli         <- cli.hint(HiddenArg, List("on", "off"))
-    cli         <- cli.hint(ModuleNameArg, optModuleId.to[List])
-    cli         <- cli.hint(CompilerArg, Javac.Versions ++ layer.compilerRefs(layout).map(BspCompiler(_)))
-    call        <- cli.call()
-    compilerId  <- ~call(CompilerArg).toOption
-    project     <- optProject.asTry
-    module      <- optModule.asTry
-    
-    mainArg     <- ~cli.peek(MainArg).orElse(module.kind.as[Plugin].map(_.main)).orElse(
-                       module.kind.as[App].map(_.main)).orElse(module.kind.as[Bench].map(_.main))
+  private[this] lazy val getTable = (getProject >> (_.id), getProject >> (_.main), universe) >> (Tables().modules(_, _, _))
 
-    specArg     <- ~cli.peek(SpecArg).orElse(module.kind.as[Compiler].map(_.spec))
-    replArg     <- ~cli.peek(ReplArg).orElse(module.kind.as[Compiler].map(_.repl))
-    timeoutArg  <- ~cli.peek(TimeoutArg).orElse(module.kind.as[App].map(_.timeout))
-    pluginArg   <- ~cli.peek(PluginArg).orElse(module.kind.as[Plugin].map(_.id))
-    
-    kind        <- kindName.to[List].traverse(parseKind(_, mainArg, replArg, timeoutArg, specArg,
-                       pluginArg)).map(_.headOption)
+  private[this] lazy val getModuleName = (getProject >> (_.modules), get(ModuleNameArg)) >>= (_.unique(_))
 
-    compiler    <- compilerId.toSeq.traverse(resolveToCompiler(layer, optProject, layout, _)).map(_.headOption)
-    hidden      <- ~call(HiddenArg).toOption
-    newId       <- ~call(ModuleNameArg).toOption
-    name        <- newId.to[List].map(project.modules.unique(_)).sequence.map(_.headOption)
-    layer       <- ~kind.fold(layer)(Layer(_.projects(project.id).modules(module.id).kind)(layer) = _)
-    layer       <- ~hidden.fold(layer)(Layer(_.projects(project.id).modules(module.id).hidden)(layer) = _)
-    layer       <- ~compiler.fold(layer)(Layer(_.projects(project.id).modules(module.id).compiler)(layer) = _)
+  private[this] implicit lazy val moduleKindsHint: KindArg.Hinter = KindArg.hint(Kind.ids)
+  private[this] implicit lazy val hiddenHint: HiddenArg.Hinter = HiddenArg.hint(true, false)
+  private[this] implicit lazy val pluginHint: PluginArg.Hinter = PluginArg.hint()
+  private[this] implicit lazy val moduleNamesHint: ModuleNameArg.Hinter = ModuleNameArg.hint()
+  private[this] implicit lazy val specHint: SpecArg.Hinter = SpecArg.hint()
 
-    layer       <- if(newId.isEmpty || project.main != Some(module.id)) ~layer
-                   else ~(Layer(_.projects(project.id).main)(layer) = newId)
+  private[this] implicit lazy val compilersHint: CompilerArg.Hinter = CompilerArg.hint(
+    (getCompilerRefs >> (_.map(BspCompiler(_)) ++ Javac.Versions)).orElse(~Javac.Versions)
+  )
 
-    layer       <- ~name.fold(layer)(Layer(_.projects(project.id).modules(module.id).id)(layer) = _)
-    _           <- Layer.commit(layer, conf, layout)
-    _           <- ~Build.asyncBuild(layer, module.ref(project), layout)
-  } yield log.await()
+  private[this] implicit lazy val mainClassHint: MainArg.Hinter = MainArg.hint(
+    (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_))
+  )
+
+  private[this] implicit lazy val replHint: ReplArg.Hinter = ReplArg.hint(
+    (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_))
+  )
+
+  private[this] implicit lazy val timeoutHint: TimeoutArg.Hinter = TimeoutArg.hint(0)
+
+  private[this] def modulesLens: Try[Lens[Layer, SortedSet[Module], SortedSet[Module]]] = getProject >>
+    { case p => Lens[Layer](_.projects(p.id).modules) }
+
+  private[this] def mainModuleLens: Try[Lens[Layer, Option[ModuleId], Option[ModuleId]]] = getProject >>
+    { case p => Lens[Layer](_.projects(p.id).main)}
+
+  private[this] def defaultCompilerLens: Try[Lens[Layer, Option[CompilerRef], Option[CompilerRef]]] = getProject >>
+    { case p => Lens[Layer](_.projects(p.id).compiler) }
+
 }
