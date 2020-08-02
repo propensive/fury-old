@@ -553,6 +553,28 @@ object Scope {
   }
 }
 
+object Export {
+  implicit val ord: Ordering[Export] = Ordering[String].on[Export](_.key)
+  implicit val msgShow: MsgShow[Export] = e => UserMsg { theme => stringShow.show(e) }
+  implicit val parser: Parser[Export] = unapply(_)
+  implicit val stringShow: StringShow[Export] = _.key
+  implicit val diff: Diff[Export] = Diff.gen[Export]
+  implicit val keyName: KeyName[Export] = () => msg"export"
+  implicit val index: Index[Export] = FieldIndex("key")
+
+  def unapply(str: String): Option[Export] = str.only {
+    case "jar"     => Jarfile
+    case "tar"     => TarFile
+    case "classes" => ClassesDir
+  }
+
+  case object Jarfile extends Export("jar")
+  case object TarFile extends Export("tar")
+  case object ClassesDir extends Export("classes")
+}
+
+sealed abstract class Export(val key: String) extends scala.Product with scala.Serializable
+
 sealed trait Scope extends scala.Product with scala.Serializable
 case object GlobalScope extends Scope
 case class DirectoryScope(path: Path) extends Scope
