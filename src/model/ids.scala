@@ -553,27 +553,37 @@ object Scope {
   }
 }
 
-object Export {
-  implicit val ord: Ordering[Export] = Ordering[String].on[Export](_.key)
-  implicit val msgShow: MsgShow[Export] = e => UserMsg { theme => stringShow.show(e) }
-  implicit val parser: Parser[Export] = unapply(_)
-  implicit val stringShow: StringShow[Export] = _.key
-  implicit val diff: Diff[Export] = Diff.gen[Export]
-  implicit val keyName: KeyName[Export] = () => msg"export"
-  implicit val index: Index[Export] = FieldIndex("key")
+object ExportType {
+  implicit val ord: Ordering[ExportType] = Ordering[String].on[ExportType](_.key)
+  implicit val msgShow: MsgShow[ExportType] = e => UserMsg { theme => stringShow.show(e) }
+  implicit val parser: Parser[ExportType] = unapply(_)
+  implicit val stringShow: StringShow[ExportType] = _.key
+  implicit val diff: Diff[ExportType] = Diff.gen[ExportType]
+  implicit val keyName: KeyName[ExportType] = () => msg"export"
+  implicit val index: Index[ExportType] = FieldIndex("key")
 
-  def unapply(str: String): Option[Export] = str.only {
+  def unapply(str: String): Option[ExportType] = str.only {
     case "jar"     => Jarfile
     case "tar"     => TarFile
     case "classes" => ClassesDir
   }
 
-  case object Jarfile extends Export("jar")
-  case object TarFile extends Export("tar")
-  case object ClassesDir extends Export("classes")
+  case object Jarfile extends ExportType("jar")
+  case object TarFile extends ExportType("tar")
+  case object ClassesDir extends ExportType("classes")
 }
 
-sealed abstract class Export(val key: String) extends scala.Product with scala.Serializable
+sealed abstract class ExportType(val key: String) extends scala.Product with scala.Serializable
+
+object Export {
+  implicit val ord: Ordering[Export] = Ordering[String].on(_.path.value)
+  implicit val msgShow: MsgShow[Export] = e => msg"${e.kind}:${e.path.value}"
+  implicit val stringShow: StringShow[Export] = e => str"${e.kind}:${e.path}"
+  implicit val index: Index[Export] = FieldIndex("path")
+  implicit val diff: Diff[Export] = Diff.gen[Export]
+}
+
+case class Export(ref: ModuleRef, kind: ExportType, path: Path)
 
 sealed trait Scope extends scala.Product with scala.Serializable
 case object GlobalScope extends Scope
