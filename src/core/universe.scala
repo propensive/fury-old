@@ -59,7 +59,7 @@ case class Universe(hierarchy: Hierarchy,
   def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
-    case Unique(`id`, origins) => ~origins.head
+    case Unique(someId, origins) if someId.id == id.id => ~origins.head
     case Unique(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
     case _: Ambiguous[ProjectRef, Pointer] => pointers(id) >> (_.head)
   }).flatMap(hierarchy(_))

@@ -27,6 +27,7 @@ object Uniqueness {
   case class Unique[Ref, Origin](ref: Ref, origins: Set[Origin]) extends Uniqueness[Ref, Origin] {
     override def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin] = other match {
       case Unique(ref, origins) if ref == this.ref => Unique(ref, this.origins ++ origins)
+      case Unique(ref, origins)                    => Ambiguous(origins.map { k => k -> ref }.toMap)
       case Ambiguous(origins) => Ambiguous(origins ++ this.origins.map(i => i -> this.ref))
     }
 
