@@ -390,6 +390,12 @@ abstract class CliApi {
   lazy val getModule: Try[Module] = cliModule.orElse(layerModule)
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
+  lazy val getExportType: Try[ExportType] = cli.get(ExportTypeArg)
+  lazy val getExportName: Try[ExportId] = cli.get(ExportNameArg).orElse(get(PathArg).map(_.name).map(ExportId(_)))
+  
+  lazy val getDependency: Try[ModuleRef] = (getProject >> (_.id), get(ModuleRefArg)) >>=
+      (ModuleRef.parse(_, _, true).ascribe(InvalidValue(get(ModuleRefArg).getOrElse(""))))
+
   lazy val raw: Boolean = cli.get(RawArg).isSuccess
   lazy val column: Option[String] = cli.peek(ColumnArg)
   lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)
@@ -422,6 +428,8 @@ abstract class CliApi {
   
   lazy val defaultBranchCommit: Try[Commit] = fetchRemote.flatMap(_.commit)
 
+  lazy val deepModuleRefs: Try[Set[ModuleRef]] = (universe, getModuleRef) >> (_.deepDependencySearch(_))
+
   lazy val pathGitDir: Try[GitDir] = for {
     layout <- getLayout
     path   <- relPathOpt
@@ -442,6 +450,13 @@ abstract class CliApi {
   implicit lazy val moduleHints: ModuleArg.Hinter = ModuleArg.hint(projectModuleIds: _*)
   implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
   implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
+  
+  implicit lazy val exportNameHints: ExportNameArg.Hinter =
+    ExportNameArg.hint(get(PathArg).map { s => List(ExportId(s.name)) })
+  
+  implicit lazy val exportTypeHints: ExportTypeArg.Hinter = ExportTypeArg.hint(ExportType.Jarfile,
+      ExportType.TarFile, ExportType.ClassesDir)
+
   implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
@@ -454,6 +469,8 @@ abstract class CliApi {
   implicit lazy val commitHints: CommitArg.Hinter = CommitArg.hint(allCommits)
   implicit lazy val repoSetHints: RepoSetArg.Hinter = RepoSetArg.hint(universeRepos)
   implicit lazy val layerRefHints: LayerRefArg.Hinter = LayerRefArg.hint(universeLayers)
+  implicit lazy val moduleRefHints: ModuleRefArg.Hinter = ModuleRefArg.hint(deepModuleRefs.map(_.map(_.key)))
+  implicit lazy val exportHints: ExportArg.Hinter = ExportArg.hint(getModule >> (_.exports.map(_.id)))
   implicit lazy val projectRefHints: ProjectRefArg.Hinter = ProjectRefArg.hint(projectRefs)
   implicit lazy val againstProjectHints: AgainstProjectArg.Hinter = AgainstProjectArg.hint(projectRefs)
   

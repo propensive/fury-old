@@ -79,6 +79,11 @@ object FuryMenu {
       Action('remove, msg"remove an environment variable", EnvCli(_).remove, shortcut = 'r'),
       Action('list, msg"list environment variable", EnvCli(_).list, shortcut = 'l')
     ),
+    Menu('export, msg"manage exports to modules", 'add, shortcut = 'x')(
+      Action('add, msg"add an export to a module", ExportCli(_).add, shortcut = 'a'),
+      Action('list, msg"list exports", ExportCli(_).list, shortcut = 'l'),
+      Action('remove, msg"remove an export", ExportCli(_).remove, shortcut = 'r')
+    ),
     Action('help, msg"help on using Fury", help, needsLayer = false),
     Menu('module, msg"view and edit modules", 'list, shortcut = 'm')(
       Action('add, msg"add a new module to the project", ModuleCli(_).add, shortcut = 'a'),

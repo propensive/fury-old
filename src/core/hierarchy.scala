@@ -24,18 +24,17 @@ import scala.util._
 
 case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierarchy]) {
   lazy val universe: Try[Universe] = {
-    val localProjectIds = layer.projects.map(_.id)
-
-    def merge(getUniverse: Try[Universe], child: (ImportId, Hierarchy)): Try[Universe] = for {
-      universe     <- getUniverse
-      next         <- child._2.universe
-    } yield universe ++ next
+    def merge(getUniverse: Try[Universe], child: (ImportId, Hierarchy)): Try[Universe] =
+      (getUniverse, child._2.universe) >> (_ ++ _)
 
     children.foldLeft(Try(Universe(this)))(merge).map(_ ++ layer.localUniverse(this, path))
   }
 
+  def on(pointer: Pointer)(updateLayer: Layer => Try[Layer])(implicit log: Log): Try[Hierarchy] =
+    apply(pointer) >>= updateLayer >>= (this(pointer) = _)
+
   def apply(pointer: Pointer): Try[Layer] =
-    if(pointer.isEmpty) Success(layer)
+    if(pointer.isEmpty) ~layer
     else children.get(pointer.head).ascribe(CantResolveLayer(pointer)).flatMap(_(pointer.tail))
 
   def update(pointer: Pointer, newLayer: Layer)(implicit log: Log): Try[Hierarchy] =
@@ -49,12 +48,8 @@ case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierar
       } }
     }
 
-  def updateAll[T]
-               (items: Traversable[(Pointer, T)])
-               (fn: (Layer, T) => Layer)
-               (implicit log: Log)
-               : Try[Hierarchy] =
-    items.foldLeft(Try(this)) { case (getHierarchy, (path, value)) => for {
+  def updateAll[T](xs: Traversable[(Pointer, T)])(fn: (Layer, T) => Layer)(implicit log: Log): Try[Hierarchy] =
+    xs.foldLeft(Try(this)) { case (getHierarchy, (path, value)) => for {
       hierarchy <- getHierarchy
       layer     <- hierarchy(path) >> (fn(_, value))
       hierarchy <- hierarchy(path) = layer
@@ -66,4 +61,13 @@ case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierar
         if(path.isEmpty) Layer.saveFuryConf(FuryConf(ref, pointer), layout).map(ref.waive) else Success(ref)
       }
     }
+
+  lazy val layerRef: Try[LayerRef] = Layer.store(layer)(Log())
+  def focus(pointer: Pointer): Try[Focus] = layerRef >> (Focus(_, pointer, None))
+  
+  def focus(pointer: Pointer, projectId: ProjectId): Try[Focus] =
+    layerRef >> (Focus(_, pointer, Some((projectId, None))))
+
+  def focus(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId): Try[Focus] =
+    layerRef >> (Focus(_, pointer, Some((projectId, Some(moduleId)))))
 }

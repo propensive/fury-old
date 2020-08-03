@@ -145,6 +145,13 @@ case class Tables() {
     Heading("Resources", _.glob)
   )
 
+  val exports: Tabulation[Export] = Tabulation(
+    Heading("", _.id),
+    Heading("Dependency", _.ref),
+    Heading("Type", _.kind),
+    Heading("Path", _.path)
+  )
+
   val opts: Tabulation[Provenance[Opt]] = Tabulation(
     Heading("", o => if(o.value.remove) "-" else "+"),
     Heading("Param", _.value.id),

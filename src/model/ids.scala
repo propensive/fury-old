@@ -559,8 +559,6 @@ object ExportType {
   implicit val parser: Parser[ExportType] = unapply(_)
   implicit val stringShow: StringShow[ExportType] = _.key
   implicit val diff: Diff[ExportType] = Diff.gen[ExportType]
-  implicit val keyName: KeyName[ExportType] = () => msg"export"
-  implicit val index: Index[ExportType] = FieldIndex("key")
 
   def unapply(str: String): Option[ExportType] = str.only {
     case "jar"     => Jarfile
@@ -575,15 +573,26 @@ object ExportType {
 
 sealed abstract class ExportType(val key: String) extends scala.Product with scala.Serializable
 
-object Export {
-  implicit val ord: Ordering[Export] = Ordering[String].on(_.path.value)
-  implicit val msgShow: MsgShow[Export] = e => msg"${e.kind}:${e.path.value}"
-  implicit val stringShow: StringShow[Export] = e => str"${e.kind}:${e.path}"
-  implicit val index: Index[Export] = FieldIndex("path")
-  implicit val diff: Diff[Export] = Diff.gen[Export]
+object ExportId {
+  implicit val msgShow: MsgShow[ExportId] = m => UserMsg(_.layer(m.key))
+  implicit val stringShow: StringShow[ExportId] = _.key
+  implicit val diff: Diff[ExportId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[ExportId] = unapply(_)
+
+  def unapply(name: String): Option[ExportId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ExportId(name) }
 }
 
-case class Export(ref: ModuleRef, kind: ExportType, path: Path)
+case class ExportId(key: String) extends Key("export")
+
+object Export {
+  implicit val ord: Ordering[Export] = Ordering[String].on(_.id.key)
+  implicit val msgShow: MsgShow[Export] = e => msg"${e.kind}:${e.path.value}"
+  implicit val stringShow: StringShow[Export] = e => str"${e.kind}:${e.path}"
+  implicit val diff: Diff[Export] = Diff.gen[Export]
+  implicit val keyName: KeyName[Export] = () => msg"export"
+}
+
+case class Export(id: ExportId, ref: ModuleRef, kind: ExportType, path: Path)
 
 sealed trait Scope extends scala.Product with scala.Serializable
 case object GlobalScope extends Scope
