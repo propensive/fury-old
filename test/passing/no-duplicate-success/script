@@ -5,7 +5,5 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury source add -s src
-mkdir -p src
-echo 'object HelloWorld extends App { println("Hello world") }' > src/hw.scala
 fury build run --output linear
 echo $?

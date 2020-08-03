@@ -6,5 +6,6 @@ Setting default compiler for hello-world to scala/compiler
 Set current module to app
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
-Hello world
+Hello World
+
 0

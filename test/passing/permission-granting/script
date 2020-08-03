@@ -6,8 +6,6 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 fury module add -n core -c scala/compiler -t app -M HelloWorld
 fury source add -s src
-mkdir -p src
-echo 'object HelloWorld extends App { println("All permissions in order!\n") }' > src/hw.scala
 fury clean
 echo $?
 fury permission require -C java.util.PropertyPermission -T foo.bar -A read -0
