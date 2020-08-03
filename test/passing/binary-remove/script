@@ -1,14 +1,6 @@
 fury layer init
-fury project add -n scala
-fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
-fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
-fury module add -n app -c scala/compiler -t app -M HelloWorld
-fury permission require -C java.util.PropertyPermission -T test.property -A read
-fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
-fury source add -s src
-mkdir -p src
-echo 'object HelloWorld extends App { println("Hello world!") }' > src/hello.scala
+fury module add -n app
 fury binary add -b com.spotify:logging:2.2.6
 fury binary add -b com.spotify:logging:2.2.0 -n logging
 fury binary add -b com.spotify:logging:2.2.0 -n logging-2.2.0

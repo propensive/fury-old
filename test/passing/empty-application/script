@@ -6,19 +6,9 @@ fury project add -n hello-world
 
 fury module add -n library -c scala/compiler
 fury source add -s src
-mkdir -p src
-cat << EOF >  src/hello.scala
-object HelloWorld {
-  def main(args: Array[String]): Unit = {
-    println("Hello world!")
-  }
-}
-EOF
 
 fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury dependency add -d library
-fury permission require -C java.util.PropertyPermission -T test.property -A read
-fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 
 fury build run --output linear
 echo $?

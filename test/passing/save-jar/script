@@ -4,18 +4,11 @@ fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n foo
 fury module add -n lib -c scala/compiler
-mkdir -p src/lib
 fury source add -s src/lib
-echo 'object Constants { val text = "Hello World\n" }' > src/lib/constants.scala
 fury module add -n app -c scala/compiler -t app -M HelloWorld
-fury permission require -C java.util.PropertyPermission -T test.property -A read
-fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury permission require -C java.io.FilePermission -T '.content' -A write
 fury dependency add -d lib
-mkdir -p src/app
 fury source add -s src/app
-echo 'object HelloWorld extends App { new java.io.PrintWriter(".content") { write(Constants.text); close() } }' > src/app/hw.scala
-mkdir -p out
 fury build run --path out --output summary
 echo $?
 ls out

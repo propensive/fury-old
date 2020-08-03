@@ -28,8 +28,6 @@ The module baz was not found.
 1
 The value '-n/--name' is not valid for the parameter --name (-n)
 1
-The --module (-m) parameter is required.
-The --module (-m) parameter is required.
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 0

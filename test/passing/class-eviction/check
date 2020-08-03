@@ -4,15 +4,12 @@ Set current module to compiler
 Set current project to cache-test
 Setting default compiler for cache-test to scala/compiler
 Set current module to my-module
-e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
-3ec0e1fb27a66a480065ccbf94030af08b66f3b70cb6e2bdc45d151b0c247085
-86dd1afef5ff30893a715c62702d27e2b479c2a32be773f000902f93e5bb0f6e
 Saving JAR file out/cache-test-my-module.jar using UTF-8
 Wrote 5 JAR files (total 19.0 MiB) to out
 libA/LibA$.class
 libA/LibA.class
-LibB$.class
-LibB.class
+libB/LibB$.class
+libB/LibB.class
 META-INF/MANIFEST.MF
 Saving JAR file out/cache-test-my-module.jar using UTF-8
 Wrote 5 JAR files (total 19.0 MiB) to out
