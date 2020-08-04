@@ -3,7 +3,7 @@ fury project add -n scala
 fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
 fury binary add -b org.scala-lang:scala-compiler:2.12.8
 git clone https://github.com/propensive/.sample.git sample
-fury repo add -n sample -p sample
+fury repo add -n sample -f sample
 head -n1 sample/src/hello.scala
 fury project add -n sample
 fury module add -n app -c scala/compiler -t app -M sample.Main
