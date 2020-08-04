@@ -8,6 +8,10 @@ The --module (-m) parameter is required.
 1
 The --module (-m) parameter is required.
 1
+The --project (-p) parameter is required.
+1
+The --project (-p) parameter is required.
+1
 Starting compilation of module hello-world/app
 Successfully compiled module hello-world/app
 Hello World

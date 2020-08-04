@@ -35,7 +35,7 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     ColumnArg.hint(getTable.map(_.headings.map(_.name.toLowerCase)))
 
   def select: Try[ExitStatus] = (cli -< ProjectArg).action {
-    (getLayer, getProject >> (_.id) >> (Some(_))) >> (Layer(_.main)(_) = _) >> commit >> finish
+    (getLayer, cliProject >> (_.id) >> (Some(_))) >> (Layer(_.main)(_) = _) >> commit >> finish
   }
 
   def list: Try[ExitStatus] = (cli -< ProjectArg -< RawArg -< ColumnArg).action { for {
@@ -61,7 +61,7 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await() }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ForceArg).action { for {
-    project <- getProject
+    project <- cliProject
     layer   <- getLayer >> (Layer(_.projects).modify(_)(_.evict(project.id)))
     layer   <- ~Layer(_.main).modify(layer) { v => if(v == Some(project.id)) None else v }
     _       <- commit(layer)
