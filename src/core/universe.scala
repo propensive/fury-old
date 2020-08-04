@@ -73,7 +73,7 @@ case class Universe(hierarchy: Hierarchy,
 
   def deepDependencySearch(ref: ModuleRef): Set[ModuleRef] = { for {
     dependencies <- apply(ref) >> (_.dependencies.map(_.ref).to[Set])
-  } yield dependencies.flatMap(deepDependencySearch) }.getOrElse(Set(ref))
+  } yield dependencies.flatMap(deepDependencySearch) }.getOrElse(Set()) + ref
 
   def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
     case (acc, (_, Unique(ref, _)))     => acc + ref.copy(digest = None)

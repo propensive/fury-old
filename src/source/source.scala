@@ -35,7 +35,7 @@ case class ExportCli(cli: Cli)(implicit val log: Log) extends CliApi {
       pointer   <- getPointer
       projectId <- getProject >> (_.id)
       moduleId  <- getModule >> (_.id)
-      ref       <- getModuleRef
+      ref       <- getDependency
       name      <- getExportName
       kind      <- getExportType
       path      <- get(PathArg)
@@ -81,15 +81,9 @@ case class ExportCli(cli: Cli)(implicit val log: Log) extends CliApi {
 case class ExportApi(hierarchy: Hierarchy) {
   def remove(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, exportId: ExportId)
             (implicit log: Log)
-            : Try[Hierarchy] = for {
-    layer     <- hierarchy(pointer)
-    project   <- layer.projects.findBy(projectId)
-    module    <- project.modules.findBy(moduleId)
-    export    <- module.exports.findBy(exportId)
-
-    hierarchy <- hierarchy(pointer) = Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ -
-                     export)
-  } yield hierarchy
+            : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
+    export <- layer.projects.findBy(projectId) >>= (_.modules.findBy(moduleId)) >>= (_.exports.findBy(exportId))
+  } yield Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ - export) }
 
   def add(pointer: Pointer,
           projectId: ProjectId,
@@ -99,13 +93,9 @@ case class ExportApi(hierarchy: Hierarchy) {
           kind: ExportType,
           path: Path)
          (implicit log: Log)
-         : Try[Hierarchy] = for {
-    layer     <- hierarchy(pointer)
-    export    <- ~Export(name, ref, kind, path)
-
-    hierarchy <- hierarchy(pointer) = Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ +
-                     export)
-  } yield hierarchy
+         : Try[Hierarchy] = hierarchy.on(pointer) { layer =>
+    Try(Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ + Export(name, ref, kind, path)))
+  }
 
   def update(pointer: Pointer,
              projectId: ProjectId,
@@ -116,19 +106,14 @@ case class ExportApi(hierarchy: Hierarchy) {
              kind: Option[ExportType],
              path: Option[Path])
             (implicit log: Log)
-            : Try[Hierarchy] = for {
-    layer     <- hierarchy(pointer)
+            : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
     lens      <- ~Layer(_.projects(projectId).modules(moduleId).exports)
     oldExport <- lens(layer).findBy(id)
     newExport <- ~name.fold(oldExport) { v => oldExport.copy(id = v) }
     newExport <- ~ref.fold(newExport) { v => newExport.copy(ref = v) }
     newExport <- ~kind.fold(newExport) { v => newExport.copy(kind = v) }
     newExport <- ~path.fold(newExport) { v => newExport.copy(path = v) }
-
-    hierarchy <- hierarchy(pointer) = Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ -
-                     oldExport + newExport)
-  } yield hierarchy
-
+  } yield Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ - oldExport + newExport) }
 }
 
 case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
