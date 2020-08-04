@@ -52,8 +52,13 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def add: Try[ExitStatus] = {
-    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -<
-      MainArg -< ReplArg -< TimeoutArg -< SpecArg -< PluginArg).action {
+    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg
+      -?< (PluginArg, getKindName >> oneOf(Plugin))
+      -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
+      -?< (ReplArg, getKindName >> oneOf(Compiler))
+      -?< (TimeoutArg, getKindName >> oneOf(App))
+      -?< (SpecArg, getKindName >> oneOf(Compiler))
+      ).action {
       val newModule = getModuleName >> (x => Module(id = x)) >>= updatedFromCli
       val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
       val newLayer = for {
@@ -98,8 +103,13 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def update: Try[ExitStatus] = {
-    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -<
-      MainArg -< ReplArg -< TimeoutArg -< SpecArg -< PluginArg).action {
+    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg
+      -?< (PluginArg, getKindName >> oneOf(Plugin))
+      -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
+      -?< (ReplArg, getKindName >> oneOf(Compiler))
+      -?< (TimeoutArg, getKindName >> oneOf(App))
+      -?< (SpecArg, getKindName >> oneOf(Compiler))
+      ).action {
       val newModule = getModule >>= renamedFromCli >>= updatedFromCli
       val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
       val newLayer = for {
@@ -128,7 +138,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
     base.copy(compiler = compiler, kind = kind, hidden = hidden)
   }
 
-  private[this] lazy val cliKind: Try[Kind] = get(KindArg) >>= (_ match {
+  private[this] lazy val cliKind: Try[Kind] = getKindName >>= (_ match {
     case Lib      => ~Lib()
     case App      => (get(MainArg), get(TimeoutArg).orElse(Success(0))) >> App.apply
     case Bench    => get(MainArg) >> Bench.apply
@@ -146,6 +156,8 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   private[this] lazy val getTable = (getProject >> (_.id), getProject >> (_.main), universe) >> (Tables().modules(_, _, _))
 
   private[this] lazy val getModuleName = (getProject >> (_.modules), get(ModuleNameArg)) >>= (_.unique(_))
+
+  private[this] lazy val getKindName: Try[Kind.Id] = get(KindArg) orElse getModule >> (_.kind.name)
 
   private[this] implicit lazy val moduleKindsHint: KindArg.Hinter = KindArg.hint(Kind.ids)
   private[this] implicit lazy val hiddenHint: HiddenArg.Hinter = HiddenArg.hint(true, false)
@@ -175,5 +187,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
 
   private[this] def defaultCompilerLens: Try[Lens[Layer, Option[CompilerRef], Option[CompilerRef]]] = getProject >>
     { case p => Lens[Layer](_.projects(p.id).compiler) }
+
+  private[this] def oneOf[T](options: T*): T => Boolean = options contains _
 
 }
