@@ -82,7 +82,8 @@ object FuryMenu {
     Menu('export, msg"manage exports to modules", 'add, shortcut = 'x')(
       Action('add, msg"add an export to a module", ExportCli(_).add, shortcut = 'a'),
       Action('list, msg"list exports", ExportCli(_).list, shortcut = 'l'),
-      Action('remove, msg"remove an export", ExportCli(_).remove, shortcut = 'r')
+      Action('remove, msg"remove an export", ExportCli(_).remove, shortcut = 'r'),
+      Action('update, msg"update an export", ExportCli(_).update, shortcut = 'u')
     ),
     Action('help, msg"help on using Fury", help, needsLayer = false),
     Menu('module, msg"view and edit modules", 'list, shortcut = 'm')(

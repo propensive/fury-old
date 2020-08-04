@@ -43,6 +43,22 @@ case class ExportCli(cli: Cli)(implicit val log: Log) extends CliApi {
     } yield log.await()
   }
   
+  def update: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< ExportArg -< ExportNameArg -<
+      ExportTypeArg -< PathArg -< ModuleRefArg).action {
+    for {
+      hierarchy <- getHierarchy
+      pointer   <- getPointer
+      projectId <- getProject >> (_.id)
+      moduleId  <- getModule >> (_.id)
+      ref       <- optDependency
+      id        <- get(ExportArg)
+      name      <- opt(ExportNameArg)
+      kind      <- opt(ExportTypeArg)
+      path      <- opt(PathArg)
+      hierarchy <- ExportApi(hierarchy).update(pointer, projectId, moduleId, id, name, ref, kind, path) >>= commit
+    } yield log.await()
+  }
+  
   def list: Try[ExitStatus] = {
     val tabulation = Tables().exports
     implicit val columns: ColumnArg.Hinter = ColumnArg.hint(tabulation.headings.map(_.name.toLowerCase))

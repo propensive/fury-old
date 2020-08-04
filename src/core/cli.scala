@@ -391,6 +391,7 @@ abstract class CliApi {
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
   lazy val getExportType: Try[ExportType] = cli.get(ExportTypeArg)
+  
   lazy val getExportName: Try[ExportId] = cli.get(ExportNameArg).orElse {
     for(dependency <- getDependency; kind <- getExportType)
     yield ExportId(str"${dependency.projectId.key}-${kind.key}")
@@ -399,6 +400,7 @@ abstract class CliApi {
   lazy val getDependency: Try[ModuleRef] = (getProject >> (_.id), get(ModuleRefArg)) >>=
       (ModuleRef.parse(_, _, true).ascribe(InvalidValue(get(ModuleRefArg).getOrElse(""))))
 
+  lazy val optDependency: Try[Option[ModuleRef]] = if(has(ModuleRefArg)) getDependency >> (Some(_)) else ~None
   lazy val raw: Boolean = cli.get(RawArg).isSuccess
   lazy val column: Option[String] = cli.peek(ColumnArg)
   lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)

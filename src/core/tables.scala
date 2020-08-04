@@ -146,7 +146,7 @@ case class Tables() {
   )
 
   val exports: Tabulation[Export] = Tabulation(
-    Heading("", _.id),
+    Heading("Export", _.id),
     Heading("Dependency", _.ref),
     Heading("Type", _.kind),
     Heading("Path", _.path)
