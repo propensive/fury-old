@@ -11,5 +11,10 @@ echo $?
 fury module select
 echo $?
 
+fury project remove
+echo $?
+fury project select
+echo $?
+
 fury build run --output linear
 echo $?
