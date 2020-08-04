@@ -459,10 +459,7 @@ case class Build(target: Target,
     @tailrec
     def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
       if(next.isEmpty) aggregated
-      else {
-        val node = next.head
-        flatten(aggregated + node, children, next - node ++ children(node))
-      }
+      else flatten(aggregated + next.head, children, next - next.head ++ children(next.head))
     }
     
     targetIndex.map { case (targetId, _) =>
@@ -480,8 +477,19 @@ case class Build(target: Target,
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
     snapshots.snapshots.traverse { case (hash, snapshot) => snapshot.get(layout) }.map { _ => () }
 
-  def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
-    Bloop.generateFiles(this, layout)
+  def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
+    synchronized { Bloop.generateFiles(this, layout) }
+
+  def copyExport(ref: ModuleRef, export: Export, layout: Layout)(implicit log: Log): Try[Unit] = export.kind match {
+    case ExportType.ClassesDir =>
+      layout.classesDir(export.ref).copyTo(export.path.relativizeTo(layout.workDir(ref))).map(_.unit)
+    case ExportType.FileRef(glob) =>
+      glob(layout.workDir(export.ref), layout.workDir(export.ref).walkTree).traverse { p =>
+        val dest = p.relativizeTo(layout.workDir(export.ref)) in (export.path in layout.workDir(ref))
+        dest.mkParents().flatMap { _ => p.copyTo(dest) }
+      }.map(_.unit)
+    case _ =>
+      ???
   }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
@@ -779,6 +787,7 @@ case class Build(target: Target,
                   args: List[String], noSecurity: Boolean)
                  (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
+    target.module.exports.traverse { export => copyExport(target.ref, export, layout) }
     if (target.module.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))
@@ -791,7 +800,7 @@ case class Build(target: Target,
       }
     }
     
-    val exitCode = Shell(layout.env).runJava(
+    val exitCode = Shell(layout.env.copy(workDir = Some(layout.workDir(target.ref).value))).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
       if(target.module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
       else target.module.kind.as[App].fold(ClassRef(""))(_.main),

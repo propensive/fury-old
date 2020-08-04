@@ -16,11 +16,14 @@
 */
 package fury.core
 
-import fury.model._, fury.text._
+import fury.io._, fury.model._, fury.text._
 
 import mercator._
 
 import scala.util._
+import fury.model.ExportType.Jarfile
+import fury.model.ExportType.TarFile
+import fury.model.ExportType.ClassesDir
 
 object Universe {
   def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
