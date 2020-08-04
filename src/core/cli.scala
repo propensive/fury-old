@@ -431,9 +431,9 @@ abstract class CliApi {
   lazy val deepModuleRefs: Try[Set[ModuleRef]] = (universe, getModuleRef) >> (_.deepDependencySearch(_))
 
   lazy val pathGitDir: Try[GitDir] = for {
-    layout <- getLayout
+    env    <- getLayout >> (_.env)
     path   <- relPathOpt
-    gitDir <- (path >> (GitDir(_)(layout.env))).ascribe(PathNotGitDir())
+    gitDir <- (path >> (GitDir(_)(env))).ascribe(PathNotGitDir())
   } yield gitDir
 
   lazy val pathRemote: Try[Remote] = pathGitDir >>= (_.remote)
