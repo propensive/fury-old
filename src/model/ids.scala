@@ -561,14 +561,16 @@ object ExportType {
   implicit val diff: Diff[ExportType] = Diff.gen[ExportType]
 
   def unapply(str: String): Option[ExportType] = str.only {
-    case "jar"     => Jarfile
-    case "tar"     => TarFile
-    case "classes" => ClassesDir
+    case "jar"              => Jarfile
+    case "tar"              => TarFile
+    case "classes"          => ClassesDir
+    case r"file:$glob@(.+)" => FileRef(Glob(glob))
   }
 
   case object Jarfile extends ExportType("jar")
   case object TarFile extends ExportType("tar")
   case object ClassesDir extends ExportType("classes")
+  case class FileRef(glob: Glob) extends ExportType(str"file:${glob}")
 }
 
 sealed abstract class ExportType(val key: String) extends scala.Product with scala.Serializable

@@ -460,7 +460,7 @@ abstract class CliApi {
     ExportNameArg.hint(get(PathArg).map { s => List(ExportId(s.name)) })
   
   implicit lazy val exportTypeHints: ExportTypeArg.Hinter = ExportTypeArg.hint(ExportType.Jarfile,
-      ExportType.TarFile, ExportType.ClassesDir)
+      ExportType.TarFile, ExportType.ClassesDir, ExportType.FileRef(Glob("")))
 
   implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
