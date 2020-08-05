@@ -308,6 +308,13 @@ class Cli(val stdout: java.io.PrintWriter,
     Cli(stdout, args, command, newHints :: optCompletions, env, pid)
   }
 
+  def -?<(arg: CliParam, condition: Try[Boolean])
+        (implicit hinter: arg.Hinter, stringShow: StringShow[arg.Type], descriptor: Descriptor[arg.Type])
+  : Cli { type Hinted <: cli.Hinted with arg.type } = condition match {
+    case Success(true) => -<(arg)
+    case _ => Cli(stdout, args, command, optCompletions, env, pid)
+  }
+
   def hint(arg: CliParam): Success[Cli { type Hinted <: cli.Hinted with arg.type }] =
     Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
 
