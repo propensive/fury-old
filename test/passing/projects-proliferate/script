@@ -1,0 +1,46 @@
+mkdir layer1
+cd layer1
+
+fury layer init
+
+fury project add -n scala
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t app -M Hello1
+#fury source add -s src
+
+IPFSREF1=$(fury layer share -F --raw)
+echo IPFS ref 1: $IPFSREF1
+
+cd ..
+
+mkdir layer2
+cd layer2
+
+fury layer init
+
+fury project add -n scala
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t app -M Hello2
+#fury source add -s src
+
+IPFSREF2=$(fury layer share -F --raw)
+echo IPFS ref 2: $IPFSREF2
+
+cd ..
+
+fury layer init
+fury layer import -l $IPFSREF1 --name platform1
+echo $?
+fury layer import -l $IPFSREF2 --name platform2
+echo $?
+fury layer list --raw --column ref
+fury universe projects list --raw
+fury universe projects proliferate -l / -p hello-world@8803c7
+fury layer list --raw --column ref
+fury universe projects list --raw
