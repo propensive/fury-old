@@ -56,7 +56,7 @@ object Args {
   val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
   val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")
   val IncludeTypeArg = CliParam[IncludeType]('t', 'type, "specify the type of include")
-  val IncludeArg = CliParam[IncludeId]('e', 'include, "specify the include")
+  val IncludeArg = CliParam[IncludeId]('i', 'include, "specify the include")
   val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
   val PathArg = CliParam[Path]('f', 'path, "specify the path")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")

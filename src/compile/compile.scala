@@ -480,17 +480,21 @@ case class Build(target: Target,
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     synchronized { Bloop.generateFiles(this, layout) }
 
-  def copyInclude(ref: ModuleRef, include: Include, layout: Layout)(implicit log: Log): Try[Unit] = include.kind match {
-    case IncludeType.ClassesDir =>
-      layout.classesDir(include.ref).copyTo(include.path.relativizeTo(layout.workDir(ref))).map(_.unit)
-    case IncludeType.FileRef(glob) =>
-      glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
-        val dest = p.relativizeTo(layout.workDir(include.ref)) in (include.path in layout.workDir(ref))
-        dest.mkParents().flatMap { _ => p.copyTo(dest) }
-      }.map(_.unit)
-    case _ =>
-      ???
-  }
+  def copyInclude(ref: ModuleRef, include: Include, layout: Layout)(implicit log: Log): Try[Unit] =
+    include.kind match {
+      case IncludeType.ClassesDir =>
+        layout.classesDir(include.ref).copyTo(include.path.relativizeTo(layout.workDir(ref))).map(_.unit)
+      case IncludeType.FileRef(glob) =>
+        glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
+          val work = layout.workDir(include.ref)
+          val relSrc = p.relativizeTo(work)
+          val dest = relSrc in (include.path in layout.workDir(ref))
+          log.note(msg"Copying $relSrc in ${include.ref} to ${dest.relativizeTo(layout.workDir(ref))} in $ref")
+          dest.mkParents() >>= p.copyTo(dest).waive
+        }.map(_.unit)
+      case IncludeType.TarFile =>
+        ???
+    }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
     requiredTargets(ref).flatMap { target =>
@@ -723,18 +727,20 @@ case class Build(target: Target,
       }
 
       (result.get, conn.client)
-    }.map {
+    }.flatMap {
       case (compileResult, client) if compileResult.success && target.module.kind.needsExec =>
         val timeout = target.module.kind.as[App].fold(0)(_.timeout)
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
-        val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity)))
-        val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
-        val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
-        client.broadcast(StopRun(target.ref))
-        compileResult.copy(exitCode = Some(exitCode))
+        target.module.includes.traverse(copyInclude(target.ref, _, layout)).map { _ =>
+          val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity)))
+          val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
+          val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
+          client.broadcast(StopRun(target.ref))
+          compileResult.copy(exitCode = Some(exitCode))
+        }
       case (otherResult, _) =>
-        otherResult
+        Success(otherResult)
     }
   }
 
@@ -787,7 +793,6 @@ case class Build(target: Target,
                   args: List[String], noSecurity: Boolean)
                  (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
-    target.module.includes.traverse { include => copyInclude(target.ref, include, layout) }
     if (target.module.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))
@@ -810,7 +815,8 @@ case class Build(target: Target,
       policy = globalPolicy.forContext(layout, target.ref.projectId),
       layout = layout,
       args,
-      noSecurity
+      noSecurity,
+      layout.workDir(target.ref)
     ) { ln => multiplexer.fire(target.ref, Print(target.ref, ln)) }.await()
 
     deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
