@@ -1,4 +1,3 @@
 fury permission grant -P 86d
 fury build run --output linear
 echo $?
-cat .content

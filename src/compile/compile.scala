@@ -483,7 +483,9 @@ case class Build(target: Target,
   def copyInclude(ref: ModuleRef, include: Include, layout: Layout)(implicit log: Log): Try[Unit] =
     include.kind match {
       case IncludeType.ClassesDir =>
-        layout.classesDir(include.ref).copyTo(include.path.relativizeTo(layout.workDir(ref))).map(_.unit)
+        include.path.mkdir().flatMap {
+          layout.classesDir(include.ref).copyTo(include.path in layout.workDir(ref)).waive
+        }.munit
       case IncludeType.FileRef(glob) =>
         glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
           val work = layout.workDir(include.ref)
@@ -493,6 +495,8 @@ case class Build(target: Target,
           dest.mkParents() >>= p.copyTo(dest).waive
         }.map(_.unit)
       case IncludeType.TarFile =>
+        ???
+      case IncludeType.Jarfile =>
         ???
     }
 
