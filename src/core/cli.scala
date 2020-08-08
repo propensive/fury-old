@@ -289,7 +289,7 @@ class Cli(val stdout: java.io.PrintWriter,
     pw.write(script)
     pw.write("\n")
     pw.close()
-    Log().info(msg"Exporting temporary script file to ${scriptFile}")
+    Log().info(msg"Including temporary script file to ${scriptFile}")
     Continuation
   }
 
@@ -390,11 +390,11 @@ abstract class CliApi {
   lazy val getModule: Try[Module] = cliModule.orElse(layerModule)
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
-  lazy val getExportType: Try[ExportType] = cli.get(ExportTypeArg)
+  lazy val getIncludeType: Try[IncludeType] = cli.get(IncludeTypeArg)
   
-  lazy val getExportName: Try[ExportId] = cli.get(ExportNameArg).orElse {
-    for(dependency <- getDependency; kind <- getExportType)
-    yield ExportId(str"${dependency.projectId.key}-${kind.key}")
+  lazy val getIncludeName: Try[IncludeId] = cli.get(IncludeNameArg).orElse {
+    for(dependency <- getDependency; kind <- getIncludeType)
+    yield IncludeId(str"${dependency.projectId.key}-${kind.key}")
   }
   
   lazy val getDependency: Try[ModuleRef] = (getProject >> (_.id), get(ModuleRefArg)) >>=
@@ -456,11 +456,11 @@ abstract class CliApi {
   implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
   implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
   
-  implicit lazy val exportNameHints: ExportNameArg.Hinter =
-    ExportNameArg.hint(get(PathArg).map { s => List(ExportId(s.name)) })
+  implicit lazy val includeNameHints: IncludeNameArg.Hinter =
+    IncludeNameArg.hint(get(PathArg).map { s => List(IncludeId(s.name)) })
   
-  implicit lazy val exportTypeHints: ExportTypeArg.Hinter = ExportTypeArg.hint(ExportType.Jarfile,
-      ExportType.TarFile, ExportType.ClassesDir, ExportType.FileRef(Glob("")))
+  implicit lazy val includeTypeHints: IncludeTypeArg.Hinter = IncludeTypeArg.hint(IncludeType.Jarfile,
+      IncludeType.TarFile, IncludeType.ClassesDir, IncludeType.FileRef(Glob("")))
 
   implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
@@ -475,7 +475,7 @@ abstract class CliApi {
   implicit lazy val repoSetHints: RepoSetArg.Hinter = RepoSetArg.hint(universeRepos)
   implicit lazy val layerRefHints: LayerRefArg.Hinter = LayerRefArg.hint(universeLayers)
   implicit lazy val moduleRefHints: ModuleRefArg.Hinter = ModuleRefArg.hint(deepModuleRefs.map(_.map(_.key)))
-  implicit lazy val exportHints: ExportArg.Hinter = ExportArg.hint(getModule >> (_.exports.map(_.id)))
+  implicit lazy val includeHints: IncludeArg.Hinter = IncludeArg.hint(getModule >> (_.includes.map(_.id)))
   implicit lazy val projectRefHints: ProjectRefArg.Hinter = ProjectRefArg.hint(projectRefs)
   implicit lazy val againstProjectHints: AgainstProjectArg.Hinter = AgainstProjectArg.hint(projectRefs)
   

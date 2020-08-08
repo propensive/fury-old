@@ -480,12 +480,12 @@ case class Build(target: Target,
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     synchronized { Bloop.generateFiles(this, layout) }
 
-  def copyExport(ref: ModuleRef, export: Export, layout: Layout)(implicit log: Log): Try[Unit] = export.kind match {
-    case ExportType.ClassesDir =>
-      layout.classesDir(export.ref).copyTo(export.path.relativizeTo(layout.workDir(ref))).map(_.unit)
-    case ExportType.FileRef(glob) =>
-      glob(layout.workDir(export.ref), layout.workDir(export.ref).walkTree).traverse { p =>
-        val dest = p.relativizeTo(layout.workDir(export.ref)) in (export.path in layout.workDir(ref))
+  def copyInclude(ref: ModuleRef, include: Include, layout: Layout)(implicit log: Log): Try[Unit] = include.kind match {
+    case IncludeType.ClassesDir =>
+      layout.classesDir(include.ref).copyTo(include.path.relativizeTo(layout.workDir(ref))).map(_.unit)
+    case IncludeType.FileRef(glob) =>
+      glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
+        val dest = p.relativizeTo(layout.workDir(include.ref)) in (include.path in layout.workDir(ref))
         dest.mkParents().flatMap { _ => p.copyTo(dest) }
       }.map(_.unit)
     case _ =>
@@ -787,7 +787,7 @@ case class Build(target: Target,
                   args: List[String], noSecurity: Boolean)
                  (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
-    target.module.exports.traverse { export => copyExport(target.ref, export, layout) }
+    target.module.includes.traverse { include => copyInclude(target.ref, include, layout) }
     if (target.module.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
         Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))

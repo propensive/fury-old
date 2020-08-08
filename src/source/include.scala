@@ -22,9 +22,9 @@ import Args._
 
 import scala.util._
 
-case class ExportCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
-  def add: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< ExportNameArg -< ExportTypeArg -<
+  def add: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeNameArg -< IncludeTypeArg -<
       PathArg -< ModuleRefArg).action {
     for {
       hierarchy <- getHierarchy
@@ -32,102 +32,102 @@ case class ExportCli(cli: Cli)(implicit val log: Log) extends CliApi {
       projectId <- getProject >> (_.id)
       moduleId  <- getModule >> (_.id)
       ref       <- getDependency
-      name      <- getExportName
-      kind      <- getExportType
+      name      <- getIncludeName
+      kind      <- getIncludeType
       path      <- get(PathArg)
-      hierarchy <- ExportApi(hierarchy).add(pointer, projectId, moduleId, name, ref, kind, path) >>= commit
+      hierarchy <- IncludeApi(hierarchy).add(pointer, projectId, moduleId, name, ref, kind, path) >>= commit
     } yield log.await()
   }
   
-  def update: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< ExportArg -< ExportNameArg -<
-      ExportTypeArg -< PathArg -< ModuleRefArg).action {
+  def update: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeArg -< IncludeNameArg -<
+      IncludeTypeArg -< PathArg -< ModuleRefArg).action {
     for {
       hierarchy <- getHierarchy
       pointer   <- getPointer
       projectId <- getProject >> (_.id)
       moduleId  <- getModule >> (_.id)
       ref       <- optDependency
-      id        <- get(ExportArg)
-      name      <- opt(ExportNameArg)
-      kind      <- opt(ExportTypeArg)
+      id        <- get(IncludeArg)
+      name      <- opt(IncludeNameArg)
+      kind      <- opt(IncludeTypeArg)
       path      <- opt(PathArg)
-      hierarchy <- ExportApi(hierarchy).update(pointer, projectId, moduleId, id, name, ref, kind, path) >>= commit
+      hierarchy <- IncludeApi(hierarchy).update(pointer, projectId, moduleId, id, name, ref, kind, path) >>= commit
     } yield log.await()
   }
   
   def list: Try[ExitStatus] = {
-    val tabulation = Tables().exports
+    val tabulation = Tables().includes
     implicit val columns: ColumnArg.Hinter = ColumnArg.hint(tabulation.headings.map(_.name.toLowerCase))
-    (cli -< LayerArg -< ProjectArg -< ModuleArg -< ExportArg -< ColumnArg -< RawArg).action {
+    (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeArg -< ColumnArg -< RawArg).action {
       for {
         project   <- getProject
         module    <- getModule
         pointer   <- getPointer
         hierarchy <- getHierarchy
         focus     <- hierarchy.focus(pointer, project.id, module.id)
-        export    <- opt(ExportArg)
+        include   <- opt(IncludeArg)
         col       <- opt(ColumnArg)
         _         <- ~log.info(focus)
-        _         <- ~log.rawln(Tables().show(tabulation, cli.cols, module.exports, raw, col, export, "export"))
+        _         <- ~log.rawln(Tables().show(tabulation, cli.cols, module.includes, raw, col, include, "include"))
       } yield finish(())
     }
   }
 
   def remove: Try[ExitStatus] = {
-    val tabulation = Tables().exports
+    val tabulation = Tables().includes
     implicit val columns: ColumnArg.Hinter = ColumnArg.hint(tabulation.headings.map(_.name.toLowerCase))
-    (cli -< LayerArg -< ProjectArg -< ModuleArg -< ExportArg).action {
+    (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeArg).action {
       for {
         project   <- getProject
         module    <- getModule
         pointer   <- getPointer
         hierarchy <- getHierarchy
-        export    <- get(ExportArg)
-        hierarchy <- ExportApi(hierarchy).remove(pointer, project.id, module.id, export) >>= commit
+        include   <- get(IncludeArg)
+        hierarchy <- IncludeApi(hierarchy).remove(pointer, project.id, module.id, include) >>= commit
       } yield log.await()
     }
   }
 }
 
-case class ExportApi(hierarchy: Hierarchy) {
-  def remove(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, exportId: ExportId)
+case class IncludeApi(hierarchy: Hierarchy) {
+  def remove(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, includeId: IncludeId)
             (implicit log: Log)
             : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
-    export <- layer.projects.findBy(projectId) >>= (_.modules.findBy(moduleId)) >>= (_.exports.findBy(exportId))
-  } yield Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ - export) }
+    include <- layer.projects.findBy(projectId) >>= (_.modules.findBy(moduleId)) >>= (_.includes.findBy(includeId))
+  } yield Layer(_.projects(projectId).modules(moduleId).includes).modify(layer)(_ - include) }
 
   def add(pointer: Pointer,
           projectId: ProjectId,
           moduleId: ModuleId,
-          name: ExportId,
+          name: IncludeId,
           ref: ModuleRef,
-          kind: ExportType,
+          kind: IncludeType,
           path: Path)
          (implicit log: Log)
          : Try[Hierarchy] = hierarchy.on(pointer) { layer =>
-    val lens = Layer(_.projects(projectId).modules(moduleId).exports)
-    val export = Export(name, ref, kind, path)
+    val lens = Layer(_.projects(projectId).modules(moduleId).includes)
+    val include = Include(name, ref, kind, path)
     
     if(lens(layer).map(_.id).contains(name)) Failure(NotUnique(name))
-    else Success(lens.modify(layer)(_ + export))
+    else Success(lens.modify(layer)(_ + include))
   }
 
   def update(pointer: Pointer,
              projectId: ProjectId,
              moduleId: ModuleId,
-             id: ExportId,
-             name: Option[ExportId],
+             id: IncludeId,
+             name: Option[IncludeId],
              ref: Option[ModuleRef],
-             kind: Option[ExportType],
+             kind: Option[IncludeType],
              path: Option[Path])
             (implicit log: Log)
             : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
-    lens      <- ~Layer(_.projects(projectId).modules(moduleId).exports)
-    _         <- name.fold(~id)(lens(layer).unique(_))
-    oldExport <- lens(layer).findBy(id)
-    newExport <- ~name.fold(oldExport) { v => oldExport.copy(id = v) }
-    newExport <- ~ref.fold(newExport) { v => newExport.copy(ref = v) }
-    newExport <- ~kind.fold(newExport) { v => newExport.copy(kind = v) }
-    newExport <- ~path.fold(newExport) { v => newExport.copy(path = v) }
-  } yield Layer(_.projects(projectId).modules(moduleId).exports).modify(layer)(_ - oldExport + newExport) }
+    lens       <- ~Layer(_.projects(projectId).modules(moduleId).includes)
+    _          <- name.fold(~id)(lens(layer).unique(_))
+    oldInclude <- lens(layer).findBy(id)
+    newInclude <- ~name.fold(oldInclude) { v => oldInclude.copy(id = v) }
+    newInclude <- ~ref.fold(newInclude) { v => newInclude.copy(ref = v) }
+    newInclude <- ~kind.fold(newInclude) { v => newInclude.copy(kind = v) }
+    newInclude <- ~path.fold(newInclude) { v => newInclude.copy(path = v) }
+  } yield Layer(_.projects(projectId).modules(moduleId).includes).modify(layer)(_ - oldInclude + newInclude) }
 }

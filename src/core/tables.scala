@@ -145,8 +145,8 @@ case class Tables() {
     Heading("Resources", _.glob)
   )
 
-  val exports: Tabulation[Export] = Tabulation(
-    Heading("Export", _.id),
+  val includes: Tabulation[Include] = Tabulation(
+    Heading("Include", _.id),
     Heading("Dependency", _.ref),
     Heading("Type", _.kind),
     Heading("Path", _.path)

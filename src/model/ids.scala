@@ -553,48 +553,48 @@ object Scope {
   }
 }
 
-object ExportType {
-  implicit val ord: Ordering[ExportType] = Ordering[String].on[ExportType](_.key)
-  implicit val msgShow: MsgShow[ExportType] = e => UserMsg { theme => stringShow.show(e) }
-  implicit val parser: Parser[ExportType] = unapply(_)
-  implicit val stringShow: StringShow[ExportType] = _.key
-  implicit val diff: Diff[ExportType] = Diff.gen[ExportType]
+object IncludeType {
+  implicit val ord: Ordering[IncludeType] = Ordering[String].on[IncludeType](_.key)
+  implicit val msgShow: MsgShow[IncludeType] = e => UserMsg { theme => stringShow.show(e) }
+  implicit val parser: Parser[IncludeType] = unapply(_)
+  implicit val stringShow: StringShow[IncludeType] = _.key
+  implicit val diff: Diff[IncludeType] = Diff.gen[IncludeType]
 
-  def unapply(str: String): Option[ExportType] = str.only {
+  def unapply(str: String): Option[IncludeType] = str.only {
     case "jar"              => Jarfile
     case "tar"              => TarFile
     case "classes"          => ClassesDir
     case r"file:$glob@(.+)" => FileRef(Glob(glob))
   }
 
-  case object Jarfile extends ExportType("jar")
-  case object TarFile extends ExportType("tar")
-  case object ClassesDir extends ExportType("classes")
-  case class FileRef(glob: Glob) extends ExportType(str"file:${glob}")
+  case object Jarfile extends IncludeType("jar")
+  case object TarFile extends IncludeType("tar")
+  case object ClassesDir extends IncludeType("classes")
+  case class FileRef(glob: Glob) extends IncludeType(str"file:${glob}")
 }
 
-sealed abstract class ExportType(val key: String) extends scala.Product with scala.Serializable
+sealed abstract class IncludeType(val key: String) extends scala.Product with scala.Serializable
 
-object ExportId {
-  implicit val msgShow: MsgShow[ExportId] = m => UserMsg(_.layer(m.key))
-  implicit val stringShow: StringShow[ExportId] = _.key
-  implicit val diff: Diff[ExportId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  implicit val parser: Parser[ExportId] = unapply(_)
+object IncludeId {
+  implicit val msgShow: MsgShow[IncludeId] = m => UserMsg(_.layer(m.key))
+  implicit val stringShow: StringShow[IncludeId] = _.key
+  implicit val diff: Diff[IncludeId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[IncludeId] = unapply(_)
 
-  def unapply(name: String): Option[ExportId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ExportId(name) }
+  def unapply(name: String): Option[IncludeId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => IncludeId(name) }
 }
 
-case class ExportId(key: String) extends Key("export")
+case class IncludeId(key: String) extends Key("include")
 
-object Export {
-  implicit val ord: Ordering[Export] = Ordering[String].on(_.id.key)
-  implicit val msgShow: MsgShow[Export] = e => msg"${e.kind}:${e.path.value}"
-  implicit val stringShow: StringShow[Export] = e => str"${e.kind}:${e.path}"
-  implicit val diff: Diff[Export] = Diff.gen[Export]
-  implicit val keyName: KeyName[Export] = () => msg"export"
+object Include {
+  implicit val ord: Ordering[Include] = Ordering[String].on(_.id.key)
+  implicit val msgShow: MsgShow[Include] = e => msg"${e.kind}:${e.path.value}"
+  implicit val stringShow: StringShow[Include] = e => str"${e.kind}:${e.path}"
+  implicit val diff: Diff[Include] = Diff.gen[Include]
+  implicit val keyName: KeyName[Include] = () => msg"include"
 }
 
-case class Export(id: ExportId, ref: ModuleRef, kind: ExportType, path: Path)
+case class Include(id: IncludeId, ref: ModuleRef, kind: IncludeType, path: Path)
 
 sealed trait Scope extends scala.Product with scala.Serializable
 case object GlobalScope extends Scope
