@@ -1,12 +1,8 @@
 Starting compilation of module example/create
 Successfully compiled module example/create
-Running create module
-Starting compilation of module example/create
-Successfully compiled module example/create
 Starting compilation of module example/print
 Successfully compiled module example/print
 Running print module
-classfiles/create
 classfiles/Main$.class
 classfiles/Main$delayedInit$body.class
 classfiles/Main.class
