@@ -289,7 +289,7 @@ class Cli(val stdout: java.io.PrintWriter,
     pw.write(script)
     pw.write("\n")
     pw.close()
-    Log().info(msg"Exporting temporary script file to ${scriptFile}")
+    Log().info(msg"Including temporary script file to ${scriptFile}")
     Continuation
   }
 
@@ -401,6 +401,17 @@ abstract class CliApi {
   lazy val getModule: Try[Module] = (cliModule, layerModule) >> (_.getOrElse(_))
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
+  lazy val getIncludeType: Try[IncludeType] = cli.get(IncludeTypeArg)
+  
+  lazy val getIncludeName: Try[IncludeId] = cli.get(IncludeNameArg).orElse {
+    for(dependency <- getDependency; kind <- getIncludeType)
+    yield IncludeId(str"${dependency.projectId.key}-${kind.key}")
+  }
+  
+  lazy val getDependency: Try[ModuleRef] = (getProject >> (_.id), get(ModuleRefArg)) >>=
+      (ModuleRef.parse(_, _, true).ascribe(InvalidValue(get(ModuleRefArg).getOrElse(""))))
+
+  lazy val optDependency: Try[Option[ModuleRef]] = if(has(ModuleRefArg)) getDependency >> (Some(_)) else ~None
   lazy val raw: Boolean = cli.get(RawArg).isSuccess
   lazy val column: Option[String] = cli.peek(ColumnArg)
   lazy val branches: Try[List[Branch]] = remoteGitDir >>= (_.branches)
@@ -433,10 +444,12 @@ abstract class CliApi {
   
   lazy val defaultBranchCommit: Try[Commit] = fetchRemote.flatMap(_.commit)
 
+  lazy val deepModuleRefs: Try[Set[ModuleRef]] = (universe, getModuleRef) >> (_.deepDependencySearch(_))
+
   lazy val pathGitDir: Try[GitDir] = for {
-    layout <- getLayout
+    env    <- getLayout >> (_.env)
     path   <- relPathOpt
-    gitDir <- (path >> (GitDir(_)(layout.env))).ascribe(PathNotGitDir())
+    gitDir <- (path >> (GitDir(_)(env))).ascribe(PathNotGitDir())
   } yield gitDir
 
   lazy val pathRemote: Try[Remote] = pathGitDir >>= (_.remote)
@@ -453,6 +466,13 @@ abstract class CliApi {
   implicit lazy val moduleHints: ModuleArg.Hinter = ModuleArg.hint(projectModuleIds: _*)
   implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
   implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
+  
+  implicit lazy val includeNameHints: IncludeNameArg.Hinter =
+    IncludeNameArg.hint(get(PathArg).map { s => List(IncludeId(s.name)) })
+  
+  implicit lazy val includeTypeHints: IncludeTypeArg.Hinter = IncludeTypeArg.hint(IncludeType.Jarfile,
+      IncludeType.TarFile, IncludeType.ClassesDir, IncludeType.FileRef(Glob("")))
+
   implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
@@ -465,6 +485,8 @@ abstract class CliApi {
   implicit lazy val commitHints: CommitArg.Hinter = CommitArg.hint(allCommits)
   implicit lazy val repoSetHints: RepoSetArg.Hinter = RepoSetArg.hint(universeRepos)
   implicit lazy val layerRefHints: LayerRefArg.Hinter = LayerRefArg.hint(universeLayers)
+  implicit lazy val moduleRefHints: ModuleRefArg.Hinter = ModuleRefArg.hint(deepModuleRefs.map(_.map(_.key)))
+  implicit lazy val includeHints: IncludeArg.Hinter = IncludeArg.hint(getModule >> (_.includes.map(_.id)))
   implicit lazy val projectRefHints: ProjectRefArg.Hinter = ProjectRefArg.hint(projectRefs)
   implicit lazy val againstProjectHints: AgainstProjectArg.Hinter = AgainstProjectArg.hint(projectRefs)
   

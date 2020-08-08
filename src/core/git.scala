@@ -164,11 +164,11 @@ case class GitDir(env: Environment, dir: Path) {
 
   def add(path: Path, force: Boolean = false): Try[Unit] = {
     val forceArg: List[String] = if(force) List("--force") else Nil
-    sh"$git add $forceArg $path".exec[Try[String]].map(_.unit)
+    sh"$git add $forceArg $path".exec[Try[String]].munit
   }
 
-  def fetch(branch: Branch): Try[Unit] = sh"$git fetch origin $branch".exec[Try[String]].map(_.unit)
-  def fetch(): Try[Unit] = sh"$git fetch --all".exec[Try[String]].map(_.unit)
+  def fetch(branch: Branch): Try[Unit] = sh"$git fetch origin $branch".exec[Try[String]].munit
+  def fetch(): Try[Unit] = sh"$git fetch --all".exec[Try[String]].munit
   def branch: Try[Branch] = sh"$git rev-parse --abbrev-ref HEAD".exec[Try[String]].map(Branch(_))
   def cat(path: Path): Try[String] = sh"$git show HEAD:$path".exec[Try[String]]
   def cat(commit: Commit, path: Path): Try[String] = sh"$git show $commit:$path".exec[Try[String]]
@@ -185,9 +185,8 @@ case class GitDir(env: Environment, dir: Path) {
     branches.flatMap(_.find(_ == branch).ascribe(BranchDoesNotExist(branch)))
 
   def contains(commit: Commit): Try[Unit] =
-    sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].map(_.unit).recoverWith { case e =>
-      Failure(CommitNotInRepo(commit))
-    }
+    sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].munit.recoverWith {
+        case e => Failure(CommitNotInRepo(commit)) }
 
   def checkCommit(commit: Commit): Try[Commit] = contains(commit).map(commit.waive)
 

@@ -228,7 +228,7 @@ case class Path(input: String) {
   def exists(): Boolean = Files.exists(javaPath)
   def ifExists(): Option[Path] = if(exists) Some(this) else None
   def absolutePath(): Try[Path] = Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))
-  def mkdir(): Unit =  Path.createDirectories(javaPath)
+  def mkdir(): Try[Unit] = Try(Path.createDirectories(javaPath))
   def relativizeTo(dir: Path) = Path(dir.javaPath.relativize(this.javaPath))
   def parent = Path(javaPath.getParent.toString)
   def rename(fn: String => String): Path = parent / fn(name)

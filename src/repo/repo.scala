@@ -175,11 +175,9 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
 case class RepoApi(hierarchy: Hierarchy) {
 
-  def remove(pointer: Pointer, id: RepoId)(implicit log: Log): Try[Hierarchy] = for {
-    layer     <- hierarchy(pointer)
-    layer     <- layer.repos.findBy(id).map { r => Layer(_.repos).modify(layer)(_ - r) }
-    hierarchy <- hierarchy(pointer) = layer
-  } yield hierarchy
+  def remove(pointer: Pointer, id: RepoId)(implicit log: Log): Try[Hierarchy] = hierarchy.on(pointer) { layer =>
+    layer.repos.findBy(id).map { r => Layer(_.repos).modify(layer)(_ - r) }
+  }
 
   def add(pointer: Pointer,
           id: RepoId,

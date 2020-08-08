@@ -45,6 +45,10 @@ object `package` {
     def unit: Unit = ()
   }
   
+  implicit class Munit[T](value: Try[T]) {
+    def munit: Try[Unit] = value.map(_ => ())
+  }
+  
   implicit class OptionExtensions[T](value: Option[T]) {
     def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
     def asTry(implicit keyName: KeyName[T]): Try[T] = value.ascribe(Unspecified[T]())

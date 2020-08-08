@@ -42,9 +42,11 @@ object Policy {
     } else ogdl
   }
   
-  def standardPrivileges: List[Privilege] =
+  def standardPrivileges(dir: Path): List[Privilege] =
     List(
       Privilege(GlobalScope, Permission(ClassRef("java.util.PropertyPermission"), "scala.*", Some("read"))),
+      Privilege(GlobalScope, Permission(ClassRef("java.util.PropertyPermission"), "user.dir", Some("read"))),
+      Privilege(GlobalScope, Permission(ClassRef("java.io.FilePermission"), "-", Some("read,write,delete"))),
       Privilege(GlobalScope, Permission(ClassRef("java.lang.RuntimePermission"), "accessClassInPackage.sun.misc", None)),
       Privilege(GlobalScope, Permission(ClassRef("java.lang.RuntimePermission"), "accessDeclaredMembers", None)),
       Privilege(GlobalScope, Permission(ClassRef("java.lang.reflect.ReflectPermission"), "suppressAccessChecks", None)),
@@ -71,10 +73,10 @@ case class Policy(version: Int, policy: SortedSet[Privilege] = TreeSet()) {
     if(noSecurity || missing.isEmpty) Success(()) else Failure(NoPermissions(missing))
   }
 
-  def save(file: Path): Try[Unit] = file.writeSync {
+  def save(file: Path, workDir: Path): Try[Unit] = file.writeSync {
     val sb = new StringBuilder()
     sb.append("grant {\n")
-    (Policy.standardPrivileges ++ policy).foreach { grant =>
+    (Policy.standardPrivileges(workDir) ++ policy).foreach { grant =>
       val p = grant.permission
       val actionAddendum = p.action.fold("") { a => s""", "$a"""" }
       sb.append(str""" permission ${p.classRef} "${p.target}"${actionAddendum};""")

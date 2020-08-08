@@ -16,11 +16,14 @@
 */
 package fury.core
 
-import fury.model._, fury.text._
+import fury.io._, fury.model._, fury.text._
 
 import mercator._
 
 import scala.util._
+import fury.model.IncludeType.Jarfile
+import fury.model.IncludeType.TarFile
+import fury.model.IncludeType.ClassesDir
 
 object Universe {
   def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
@@ -69,8 +72,11 @@ case class Universe(hierarchy: Hierarchy,
   def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
   def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
   def apply(ref: ModuleRef): Try[Module] = apply(ref.projectId) >>= (_(ref.moduleId))
-  
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
+
+  def deepDependencySearch(ref: ModuleRef): Set[ModuleRef] = { for {
+    dependencies <- apply(ref) >> (_.dependencies.map(_.ref).to[Set])
+  } yield dependencies.flatMap(deepDependencySearch) }.getOrElse(Set()) + ref
 
   def projectRefs: Set[ProjectRef] = projects.foldLeft(Set[ProjectRef]()) {
     case (acc, (_, Unique(ref, _)))     => acc + ref.copy(digest = None)
