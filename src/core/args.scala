@@ -55,8 +55,10 @@ object Args {
   val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
   val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
   val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")
+  val IncludeTypeArg = CliParam[IncludeType]('t', 'type, "specify the type of include")
+  val IncludeArg = CliParam[IncludeId]('i', 'include, "specify the include")
   val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
-  val PathArg = CliParam[Path]('p', 'path, "specify the path")
+  val PathArg = CliParam[Path]('f', 'path, "specify the path")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
@@ -68,7 +70,6 @@ object Args {
   val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")
   val FatJarArg = CliParam[Unit]('F', Symbol("fat-jar"), "package the module along with all its dependencies")
   val JsArg = CliParam[Unit]('e', 'js, "use Scala.JS to output an JavaScript file")
-  val FileArg = CliParam[Path]('f', 'file, "destination file")
   val HttpsArg = CliParam[Unit]('H', 'https, "use HTTPS to resolve repo aliases instead of SSH")
   val HiddenArg = CliParam[Boolean]('h', 'hidden, "hide this module")
 
@@ -93,15 +94,18 @@ object Args {
   val RemoteLayerArg = CliParam[RemoteLayerId]('n', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")
+  val IncludeNameArg = CliParam[IncludeId]('n', 'name, "specify a name for the include")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
   val LayerVersionArg = CliParam[LayerVersion]('V', 'version, "a specific version of the layer")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
+  val ModuleRefArg = CliParam[String]('d', 'dependency, "specify the dependency to include from")
 
   val SpecArg = CliParam[BloopSpec]('C', Symbol("compiler-spec"),
       "specify a specification for the compiler in the form <organization>:<compiler ID>:<version>")
 
   val ProjectArg = CliParam[ProjectId]('p', 'project, "specify a project")
+  val ProjectArg2 = CliParam[ProjectId]('P', 'project, "specify a project")
   val ProjectRefArg = CliParam[ProjectRef]('p', 'project, "specify a project")
   val AgainstProjectArg = CliParam[ProjectRef]('a', 'against, "specify a project to compare against")
   val OptArg = CliParam[OptId]('o', 'option, "compiler option")

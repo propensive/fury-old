@@ -8,7 +8,5 @@ fury permission require -C java.util.PropertyPermission -T test.property -A read
 fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
 fury env add -e TEST1='Test message'
 fury property add -D test.property=something
-mkdir -p src/app
-fury source add -s src/app
-echo 'object Print extends App { println(System.getenv("TEST1")+":"+System.getProperty("test.property")) }' > src/app/example.scala
+fury source add -s src
 fury build run --output linear

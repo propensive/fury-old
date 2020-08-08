@@ -4,8 +4,6 @@ Set current module to compiler
 Set current project to hello-wildcards
 Setting default compiler for hello-wildcards to scala/compiler
 Set current module to app
-e36c63fb9ddb0d9027f4e634bd6440182ffdf4e338677debeda2634d3a81ae5a
-3ec0e1fb27a66a480065ccbf94030af08b66f3b70cb6e2bdc45d151b0c247085
 Starting compilation of module hello-wildcards/app
 Successfully compiled module hello-wildcards/app
 capture.log check description output script src

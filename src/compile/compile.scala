@@ -459,10 +459,7 @@ case class Build(target: Target,
     @tailrec
     def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
       if(next.isEmpty) aggregated
-      else {
-        val node = next.head
-        flatten(aggregated + node, children, next - node ++ children(node))
-      }
+      else flatten(aggregated + next.head, children, next - next.head ++ children(next.head))
     }
     
     targetIndex.map { case (targetId, _) =>
@@ -480,9 +477,28 @@ case class Build(target: Target,
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
     snapshots.snapshots.traverse { case (hash, snapshot) => snapshot.get(layout) }.map { _ => () }
 
-  def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] = synchronized {
-    Bloop.generateFiles(this, layout)
-  }
+  def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
+    synchronized { Bloop.generateFiles(this, layout) }
+
+  def copyInclude(ref: ModuleRef, include: Include, layout: Layout)(implicit log: Log): Try[Unit] =
+    include.kind match {
+      case IncludeType.ClassesDir =>
+        include.path.mkdir().flatMap {
+          layout.classesDir(include.ref).copyTo(include.path in layout.workDir(ref)).waive
+        }.munit
+      case IncludeType.FileRef(glob) =>
+        glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
+          val work = layout.workDir(include.ref)
+          val relSrc = p.relativizeTo(work)
+          val dest = relSrc in (include.path in layout.workDir(ref))
+          log.note(msg"Copying $relSrc in ${include.ref} to ${dest.relativizeTo(layout.workDir(ref))} in $ref")
+          dest.mkParents() >>= p.copyTo(dest).waive
+        }.map(_.unit)
+      case IncludeType.TarFile =>
+        ???
+      case IncludeType.Jarfile =>
+        ???
+    }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
     requiredTargets(ref).flatMap { target =>
@@ -715,18 +731,20 @@ case class Build(target: Target,
       }
 
       (result.get, conn.client)
-    }.map {
+    }.flatMap {
       case (compileResult, client) if compileResult.success && target.module.kind.needsExec =>
         val timeout = target.module.kind.as[App].fold(0)(_.timeout)
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
-        val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity)))
-        val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
-        val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
-        client.broadcast(StopRun(target.ref))
-        compileResult.copy(exitCode = Some(exitCode))
+        target.module.includes.traverse(copyInclude(target.ref, _, layout)).map { _ =>
+          val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity)))
+          val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
+          val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
+          client.broadcast(StopRun(target.ref))
+          compileResult.copy(exitCode = Some(exitCode))
+        }
       case (otherResult, _) =>
-        otherResult
+        Success(otherResult)
     }
   }
 
@@ -791,7 +809,7 @@ case class Build(target: Target,
       }
     }
     
-    val exitCode = Shell(layout.env).runJava(
+    val exitCode = Shell(layout.env.copy(workDir = Some(layout.workDir(target.ref).value))).runJava(
       jmhRuntimeClasspath(target.ref, classDirectories, layout).to[List].map(_.value),
       if(target.module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
       else target.module.kind.as[App].fold(ClassRef(""))(_.main),
@@ -801,7 +819,8 @@ case class Build(target: Target,
       policy = globalPolicy.forContext(layout, target.ref.projectId),
       layout = layout,
       args,
-      noSecurity
+      noSecurity,
+      layout.workDir(target.ref)
     ) { ln => multiplexer.fire(target.ref, Print(target.ref, ln)) }.await()
 
     deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }

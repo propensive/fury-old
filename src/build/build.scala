@@ -378,7 +378,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project),
                         layout).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
                         Installation.completionsDir.value), Map(), globalPolicy, layout, List(exec.key),
-                        true)(log.info(_)).await())
+                        true, layout.workDir(module.ref(project)))(log.info(_)).await())
 
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()

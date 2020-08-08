@@ -1,0 +1,19 @@
+Initialized an empty layer
+Set current project to scala
+Set current module to compiler
+Set current project to hello-world
+Setting default compiler for hello-world to scala/compiler
+Set current module to app
+The --module (-m) parameter is required.
+1
+The --module (-m) parameter is required.
+1
+The --project (-p) parameter is required.
+1
+The --project (-p) parameter is required.
+1
+Starting compilation of module hello-world/app
+Successfully compiled module hello-world/app
+Hello World
+
+0

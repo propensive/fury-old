@@ -22,5 +22,6 @@ object CoreTests extends Suite() {
   def run(test: Runner): Unit = {
     test.suite("DAG tests")(DagTest.run)
     test.suite("Remote name tests")(RemoteNameTest.run)
+    test.suite("Uniqueness tests")(UniquenessTest.run)
   }
 }

@@ -6,10 +6,10 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 fury module add -n divbyzero -c scala/compiler -t plugin -M localhost.DivByZero -P divbyzero
 fury source add -s plugin
-fury option list --raw | wc -w
+fury option list --raw | wc -w | xargs
 fury option list --raw | sed "s#$PWD##"
 fury option remove -o "Xplugin:$PWD/.fury/classes/hello-world_divbyzero"
-fury option list --raw | wc -w
+fury option list --raw | wc -w | xargs
 
 fury module add -n app -c scala/compiler -t app -M app.Main
 fury dependency add -d divbyzero

@@ -45,7 +45,8 @@ case class Shell(environment: Environment) {
               policy: Policy,
               layout: Layout,
               args: List[String],
-              noSecurity: Boolean)
+              noSecurity: Boolean,
+              workDir: Path)
              (output: String => Unit)
              : Running = {
     layout.sharedDir.mkdir()
@@ -54,7 +55,7 @@ case class Shell(environment: Environment) {
       Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
 
     val policyFile = Installation.policyDir.extant() / UUID.randomUUID().toString
-    policy.save(policyFile).get
+    policy.save(policyFile, workDir).get
 
     val allProperties: Map[String, String] = {
       val withPolicy = if(noSecurity) properties else

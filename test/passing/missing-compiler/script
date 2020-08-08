@@ -12,11 +12,6 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project select -p hello-world
 fury module update -m app -c scala/compiler
 echo $?
-fury permission require -C java.util.PropertyPermission -T test.property -A read
-fury permission require -C java.lang.RuntimePermission -T getenv.TEST1
-fury permission require -C java.io.FilePermission -T '.content' -A write
 fury source add -s src
-mkdir -p src
-echo 'object HelloWorld extends App { println("Hello World\n") }' > src/hw.scala
 fury build run --output linear
 echo $?

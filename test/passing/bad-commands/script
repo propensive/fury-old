@@ -12,8 +12,6 @@ fury binary add -b org.scala-lang:scala-compiler:2.12.8
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury source add -s src
-mkdir -p src
-echo 'object HelloWorld extends App { println("Hello world!") }' > src/hello.scala
 fury source remove -s foo
 echo $?
 fury binary remove -b logging
@@ -27,6 +25,8 @@ echo $?
 fury permission require -0 -C java.util.PropertyPermission -T scala.maven.version.number -A read
 fury --output linear --output linear | grep '^ *[A-Za-z0-9]'
 fury module update -m baz -t lib
+echo $?
+fury module update -n bad/name -t lib
 echo $?
 fury module update -t lib
 fury --output linear

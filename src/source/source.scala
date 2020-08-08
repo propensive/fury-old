@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.text._, fury.core._, fury.model._
+import fury.text._, fury.core._, fury.model._, fury.io._
 
 import mercator._
 import optometry._

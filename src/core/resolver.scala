@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.text._, fury.model._
+import fury.text._, fury.model._, fury.io._
 
 import scala.util._
 import scala.collection.immutable.SortedSet
@@ -26,6 +26,7 @@ object Resolver {
   implicit val project: Resolver[Project, ProjectId] = _ == _.id
   implicit val repo: Resolver[Repo, RepoId] = _ == _.id
   implicit val imports: Resolver[Import, ImportId] = _ == _.id
+  implicit val includes: Resolver[Include, IncludeId] = _ == _.id
   implicit val importByShortRef: Resolver[Import, ShortLayerRef] = _ == _.layerRef.short
   implicit val binary: Resolver[Binary, BinaryId] = _ == _.id
   implicit val optDef: Resolver[OptDef, OptId] = _ == _.id
