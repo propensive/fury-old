@@ -192,9 +192,9 @@ case class Tables() {
 
   val binaries: Tabulation[BinaryRef] = Tabulation(
     Heading("Binary", _.id),
-    Heading("Organization", _.name.group),
-    Heading("Artifact", _.name.artifact),
-    Heading("Version", _.version),
+    Heading("Organization", _.coordinates.name.group),
+    Heading("Artifact", _.coordinates.name.artifact),
+    Heading("Version", _.coordinates.version),
     Heading("Service", _.binRepo)
   )
 

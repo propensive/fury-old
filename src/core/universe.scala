@@ -85,7 +85,7 @@ case class Universe(hierarchy: Hierarchy,
   def resolvedBinaries(ref: ModuleRef)(implicit log: Log): Try[Binaries] = for {
     module     <- apply(ref)
     binaries   <- Coursier.resolve(module.binaries.to[Seq])
-    moduleBins <- ~Binaries(binaries.map { binRef => binRef.name -> Uniqueness.Unique(binRef, Set(ref)) }.toMap)
+    moduleBins <- ~Binaries(binaries.map { binRef => binRef.coordinates.name -> Uniqueness.Unique(binRef.coordinates, Set(ref)) }.toMap)
     binDeps    <- module.dependencies.to[List].traverse { dep => resolvedBinaries(dep.ref) }
   } yield binDeps.foldLeft(Binaries())(_ ++ _) ++ moduleBins
 

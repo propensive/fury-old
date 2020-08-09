@@ -48,9 +48,11 @@ object Coursier {
       binaries.map(_.binRepo).to[List].distinct.traverse(csBinRepo(_)).map { csRepos =>
         val resolution = coursier.Resolve().addRepositories(csRepos: _*).addDependencies(csDeps: _*).run()
         binaries.foldLeft(resolution.dependencySet.set.map { csDependency =>
-          BinaryRef(None, BinaryName(csDependency.module.organization.value, csDependency.module.name.value),
-              Version(csDependency.version), None)
-        }.map { binaryRef => (binaryRef.name, binaryRef) }.toMap) { case (acc, next) =>
+          val name = BinaryName(csDependency.module.organization.value, csDependency.module.name.value)
+          val coordinates = BinaryCoordinates(name, Version(csDependency.version))
+
+          BinaryRef(None, coordinates, None)
+        }.map { binaryRef => (binaryRef.coordinates.name, binaryRef) }.toMap) { case (acc, next) =>
           acc.updated(next.name, acc(next.name).copy(id = Some(next.id), binRepo = Some(next.binRepo)))
         }.values.to[List].sortBy(_.transitive)
       }

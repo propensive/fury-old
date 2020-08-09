@@ -43,7 +43,7 @@ object Binary {
 
 case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
-  def ref: BinaryRef = BinaryRef(Some(id), name, Version(version), Some(binRepo))
+  def ref: BinaryRef = BinaryRef(Some(id), BinaryCoordinates(name, Version(version)), Some(binRepo))
   def name: BinaryName = BinaryName(group, artifact)
 }
 
@@ -54,18 +54,20 @@ object BinaryName {
 
 case class BinaryName(group: String, artifact: String)
 
-case class BinaryRef(id: Option[BinaryId], name: BinaryName, version: Version, binRepo: Option[BinRepoId]) {
+case class BinaryCoordinates(name: BinaryName, version: Version)
+
+case class BinaryRef(id: Option[BinaryId], coordinates: BinaryCoordinates, binRepo: Option[BinRepoId]) {
   def transitive: Boolean = id.isEmpty
 }
 
-case class Binaries(binaries: Map[BinaryName, Uniqueness[BinaryRef, ModuleRef]] = Map()) {
+case class Binaries(binaries: Map[BinaryName, Uniqueness[BinaryCoordinates, ModuleRef]] = Map()) {
   def ++(that: Binaries): Binaries = Binaries(that.binaries.foldLeft(binaries) { case (acc, (name, uniq)) =>
     acc.updated(name, acc.get(name).map(_ + uniq).getOrElse(uniq))
   })
 
-  def conflicts: Map[BinaryName, Map[ModuleRef, BinaryRef]] = binaries.collect {
+  def conflicts: Map[BinaryName, Map[ModuleRef, BinaryCoordinates]] = binaries.collect {
     case (name, Ambiguous(origins)) => (name, origins)
   }.toMap
 }
 
-case class BinaryConflict(conflicts: Map[BinaryName, Map[ModuleRef, BinaryRef]]) extends FuryException
+case class BinaryConflict(conflicts: Map[BinaryName, Map[ModuleRef, BinaryCoordinates]]) extends FuryException
