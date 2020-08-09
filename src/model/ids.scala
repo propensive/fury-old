@@ -777,6 +777,11 @@ object Version {
   implicit val parser: Parser[Version] = unapply(_)
 
   def unapply(name: String): Option[Version] = name.only { case r"\d+(\.\d+)*" => Version(name) }
+
+  implicit val ordering: Ordering[Version] = {
+    import ch.epfl.scala.version.{Version => SVersion}
+    Ordering[SVersion].on[Version] { v => SVersion.parse(v.key).getOrElse(SVersion.parse("0").get) }
+  }
 }
 
 case class Version(key: String) extends Key("version")
