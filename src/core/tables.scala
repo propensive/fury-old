@@ -74,6 +74,12 @@ case class Tables() {
     case many      => many.map { v => msg"$v" }.reduce(_+"\n"+_).string(theme)
   }
 
+  private def lineSet[T: MsgShow](set: Set[T]): UserMsg = set.to[List] match {
+    case Nil       => msg""
+    case List(one) => msg"$one"
+    case many      => (msg"${'{'}"+many.map { v => msg"$v" }.reduce(_+msg"${','} "+_)+msg"${'}'}")
+  }
+
   implicit private val origin: AnsiShow[Origin] = {
     case Origin.Local       => theme.italic(theme.param("local"))
     case Origin.Module(ref) => msg"$ref".string(theme)
@@ -186,10 +192,16 @@ case class Tables() {
 
   val binaries: Tabulation[BinaryRef] = Tabulation(
     Heading("Binary", _.id),
-    Heading("Service", _.binRepo),
     Heading("Organization", _.name.group),
     Heading("Artifact", _.name.artifact),
-    Heading("Version", _.version)
+    Heading("Version", _.version),
+    Heading("Service", _.binRepo)
+  )
+
+  val binaryConflicts: Tabulation[(BinaryName, Map[ModuleRef, Version])] = Tabulation(
+    Heading("Organization", _._1.group),
+    Heading("Artifact", _._1.artifact),
+    Heading("Versions", _._2.to[List].map { case (ref, version) => msg"$version: $ref" }.reduce(_+"\n"+_))
   )
 
   val imports: Tabulation[(Import, Try[Layer])] = Tabulation(

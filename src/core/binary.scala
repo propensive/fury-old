@@ -23,6 +23,7 @@ import kaleidoscope._
 
 import scala.collection.immutable._
 import scala.util._
+import fury.core.Uniqueness.Ambiguous
 
 object Binary {
   implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
@@ -42,8 +43,7 @@ object Binary {
 
 case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
-  def paths(implicit log: Log): Try[List[Path]] = Coursier.fetch(this)
-  def ref: BinaryRef = BinaryRef(Some(id), name, version, Some(binRepo))
+  def ref: BinaryRef = BinaryRef(Some(id), name, Version(version), Some(binRepo))
   def name: BinaryName = BinaryName(group, artifact)
 }
 
@@ -54,6 +54,18 @@ object BinaryName {
 
 case class BinaryName(group: String, artifact: String)
 
-case class BinaryRef(id: Option[BinaryId], name: BinaryName, version: String, binRepo: Option[BinRepoId]) {
+case class BinaryRef(id: Option[BinaryId], name: BinaryName, version: Version, binRepo: Option[BinRepoId]) {
   def transitive: Boolean = id.isEmpty
 }
+
+case class Binaries(binaries: Map[BinaryName, Uniqueness[BinaryRef, ModuleRef]] = Map()) {
+  def ++(that: Binaries): Binaries = Binaries(that.binaries.foldLeft(binaries) { case (acc, (name, uniq)) =>
+    acc.updated(name, acc.get(name).map(_ + uniq).getOrElse(uniq))
+  })
+
+  def conflicts: Map[BinaryName, Map[ModuleRef, BinaryRef]] = binaries.collect {
+    case (name, Ambiguous(origins)) => (name, origins)
+  }.toMap
+}
+
+case class BinaryConflict(conflicts: Map[BinaryName, Map[ModuleRef, BinaryRef]]) extends FuryException

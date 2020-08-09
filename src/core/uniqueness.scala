@@ -21,6 +21,7 @@ sealed trait Uniqueness[Ref, Origin] {
   def allOrigins: Set[Origin]
   def one: Option[Origin]
   def any: Option[Origin]
+  def ambiguous: Boolean
 }
 
 object Uniqueness {
@@ -37,6 +38,7 @@ object Uniqueness {
     override def allOrigins: Set[Origin] = origins
     def one: Option[Origin] = Some(origins.head)
     def any: Option[Origin] = None
+    def ambiguous: Boolean = false
   }
 
   case class Ambiguous[Ref, Origin] private[Uniqueness](origins: Map[Origin, Ref]) extends Uniqueness[Ref, Origin] {
@@ -48,6 +50,7 @@ object Uniqueness {
     override def allOrigins: Set[Origin] = origins.keySet
     def one: Option[Origin] = None
     def any: Option[Origin] = Some(origins.head._1)
+    def ambiguous: Boolean = true
   }
 }
 

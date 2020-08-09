@@ -96,7 +96,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
     lazy val table: Tabulation[LayerEntity] = Tables().layerRefs
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
-    def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg).action { for {
+    def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< LayerRefArg).action { for {
       col      <- opt(ColumnArg)
       layerRef <- opt(LayerRefArg)
       rows     <- universe >> (_.imports.values.to[List])

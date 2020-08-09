@@ -58,6 +58,12 @@ object Recovery {
           cli.call()
           cli.layout.foreach(Layer.showMergeConflicts(_))
           cli.abort(msg"It is not possible to continue until merge conflicts have been resolved.")
+        case BinaryConflict(map) =>
+          val conflicts = map.to[List].map { case (name, versions) => (name, versions.mapValues(_.version)) }
+          val table = Tables().show(Tables().binaryConflicts, cli.cols, conflicts, false, None, None: Option[String], "binary")
+          log.info("This module contains conflicting binaries.")
+          log.info(table)
+          cli.abort(msg"Please resolve these conflicts to continue.")
         case NoOtherLayer() =>
           cli.abort(msg"The layer to compare this layer with has not been specified.")
         case ImportOnlyFileOrRef() =>

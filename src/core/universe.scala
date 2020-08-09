@@ -58,7 +58,6 @@ case class Universe(hierarchy: Hierarchy,
   }
 
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
-  
   def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
@@ -82,6 +81,26 @@ case class Universe(hierarchy: Hierarchy,
     case (acc, (_, Unique(ref, _)))     => acc + ref.copy(digest = None)
     case (acc, (_, Ambiguous(origins))) => acc ++ origins.values
   }
+
+  def resolvedBinaries(ref: ModuleRef)(implicit log: Log): Try[Binaries] = for {
+    module     <- apply(ref)
+    binaries   <- Coursier.resolve(module.binaries.to[Seq])
+    moduleBins <- ~Binaries(binaries.map { binRef => binRef.name -> Uniqueness.Unique(binRef, Set(ref)) }.toMap)
+    binDeps    <- module.dependencies.to[List].traverse { dep => resolvedBinaries(dep.ref) }
+  } yield binDeps.foldLeft(Binaries())(_ ++ _) ++ moduleBins
+
+  def binaryConflicts(ref: ModuleRef)(implicit log: Log): Try[Unit] = for {
+    conflicts <- resolvedBinaries(ref) >> (_.conflicts)
+    _         <- if(conflicts.isEmpty) Success(()) else Failure(BinaryConflict(conflicts))
+  } yield ()
+
+  def deepBinaries(ref: ModuleRef)(implicit log: Log): Try[Set[Binary]] = for {
+    module  <- apply(ref)
+    depBins <- module.dependencies.to[Set].map(_.ref).traverse(deepBinaries(_))
+  } yield depBins.flatten ++ module.binaries.to[Set]
+
+  def binaryPaths(ref: ModuleRef)(implicit log: Log): Try[List[Path]] =
+    deepBinaries(ref) >> (_.to[List]) >>= (Coursier.fetch(_))
 
   def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     project <- apply(ref.projectId)
@@ -108,7 +127,6 @@ case class Universe(hierarchy: Hierarchy,
     val newImports = that.imports.foldLeft(imports) { case (acc, (layerRef, entity)) =>
       acc.updated(layerRef, acc.getOrElse(layerRef, entity) + entity.imports)
     }
-
     Universe(hierarchy, newProjects, newRepoSets, newImports)
   }
 

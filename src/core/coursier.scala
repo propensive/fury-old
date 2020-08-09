@@ -30,46 +30,6 @@ object Coursier {
     Organization("org.scala-lang") -> ModuleName(s"scala-$mod")
   }
 
-  private def mkRequest(binary: Binary): Try[List[Path]] = {
-    val dependency = csDependency(binary)
-    
-    coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id) match {
-      case Left(err) => Failure(InvalidValue(binary.binRepo.id))
-      case Right(repo) =>
-        Try {
-          val out = coursier.Fetch().addRepositories(repo).addDependencies(dependency).run()
-          out.map(Path(_)).to[List]
-        }.recoverWith {
-          case ex: java.net.UnknownHostException => Failure(DnsResolutionFailure())
-          case ex: java.net.SocketException      => Failure(OfflineException())
-        }
-    }
-  }
-  
-  def fetch(binary: Binary)(implicit log: Log): Try[List[Path]] = synchronized {
-    val dir = Installation.binsDir / binary.group / binary.artifact / binary.version
-    if(dir.exists) Success(dir.children.map(dir / _))
-    else {
-      val tmpDir = Installation.binsDir / java.util.UUID.randomUUID().toString
-      
-      val paths = for {
-        _     <- ~tmpDir.mkdir()
-        paths <- mkRequest(binary)
-        _     <- paths.map { file =>
-                   val dest = tmpDir / file.name
-                   dest.mkParents()
-                   file.hardLink(dest)
-                 }.sequence
-        _     <- dir.mkParents()
-        _     <- tmpDir.moveTo(dir)
-      } yield paths
-
-      paths.recoverWith { case _ => tmpDir.delete() }
-
-      paths
-    }
-  }
-      
   private def csDependency(binary: Binary): CsDependency = CsDependency(
     module = CsModule(Organization(binary.group), ModuleName(binary.artifact)),
     version = binary.version
@@ -81,16 +41,27 @@ object Coursier {
       case Right(repo) => Success(repo)
     }
 
-  def resolve(binaries: List[Binary])(implicit log: Log): Try[List[BinaryRef]] = {
-    val csDeps = binaries.map(csDependency(_))
-    binaries.map(_.binRepo).distinct.traverse(csBinRepo(_)).map { csRepos =>
-      val resolution = coursier.Resolve().addRepositories(csRepos: _*).addDependencies(csDeps: _*).run()
-      binaries.foldLeft(resolution.dependencySet.set.map { csDependency =>
-        BinaryRef(None, BinaryName(csDependency.module.organization.value, csDependency.module.name.value),
-            csDependency.version, None)
-      }.map { binaryRef => (binaryRef.name, binaryRef) }.toMap) { case (acc, next) =>
-        acc.updated(next.name, acc(next.name).copy(id = Some(next.id), binRepo = Some(next.binRepo)))
-      }.values.to[List].sortBy(_.transitive)
+  def resolve(binaries: Seq[Binary])(implicit log: Log): Try[List[BinaryRef]] =
+    if(binaries.isEmpty) Success(Nil)
+    else {
+      val csDeps = binaries.map(csDependency(_))
+      binaries.map(_.binRepo).to[List].distinct.traverse(csBinRepo(_)).map { csRepos =>
+        val resolution = coursier.Resolve().addRepositories(csRepos: _*).addDependencies(csDeps: _*).run()
+        binaries.foldLeft(resolution.dependencySet.set.map { csDependency =>
+          BinaryRef(None, BinaryName(csDependency.module.organization.value, csDependency.module.name.value),
+              Version(csDependency.version), None)
+        }.map { binaryRef => (binaryRef.name, binaryRef) }.toMap) { case (acc, next) =>
+          acc.updated(next.name, acc(next.name).copy(id = Some(next.id), binRepo = Some(next.binRepo)))
+        }.values.to[List].sortBy(_.transitive)
+      }
     }
-  }
+  
+  def fetch(binaries: List[Binary])(implicit log: Log): Try[List[Path]] =
+    if(binaries.isEmpty) Success(Nil)
+    else {
+      val csDeps = binaries.map(csDependency(_))
+      binaries.map(_.binRepo).to[List].distinct.traverse(csBinRepo(_)).map { csRepos =>
+        coursier.Fetch().addRepositories(csRepos: _*).addDependencies(csDeps: _*).run().map(Path(_)).to[List]
+      }
+    }
 }

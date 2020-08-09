@@ -36,10 +36,11 @@ object Target {
            : Try[Target] = for {
       project   <- universe(ref.projectId)
       module    <- project(ref.moduleId)
-      binaries  <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
+      _         <- universe.binaryConflicts(ref)
+      binPaths  <- universe.binaryPaths(ref)
       checkouts <- universe.checkout(ref, hierarchy, layout)
       sources   <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-    } yield Target(ref, module, project, checkouts, sources, binaries )
+    } yield Target(ref, module, project, checkouts, sources, binPaths )
 }
 
 case class Target(ref: ModuleRef,

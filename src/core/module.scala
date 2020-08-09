@@ -51,7 +51,7 @@ case class Module(id: ModuleId,
     case BspCompiler(ref) => Set(Dependency(ref.hide))
     case _                => Set()
   }
-  
+
   def ref(project: Project): ModuleRef = ModuleRef(project.id, id, false, hidden = hidden)
   def externalSources: SortedSet[RepoSource] = sources.collect { case src: RepoSource => src }
   
