@@ -43,7 +43,8 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     raw        <- ~call(RawArg).isSuccess
     project    <- optProject.asTry
     module     <- optModule.asTry
-    rows       <- ~module.allBinaries.to[List]
+    bins       <- ~module.allBinaries.to[List]
+    rows       <- Coursier.resolve(bins)
     table      <- ~Tables().show(table, cli.cols, rows, raw, col, binaryId, "binary")
     _          <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     _          <- ~log.rawln(table)

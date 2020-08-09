@@ -43,4 +43,17 @@ object Binary {
 case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
   def paths(implicit log: Log): Try[List[Path]] = Coursier.fetch(this)
+  def ref: BinaryRef = BinaryRef(Some(id), name, version, Some(binRepo))
+  def name: BinaryName = BinaryName(group, artifact)
+}
+
+object BinaryName {
+  implicit val stringShow: StringShow[BinaryName] = bn => str"${bn.group}:${bn.artifact}"
+  implicit val msgShow: MsgShow[BinaryName] = bn => msg"${bn.group}:${bn.artifact}"
+}
+
+case class BinaryName(group: String, artifact: String)
+
+case class BinaryRef(id: Option[BinaryId], name: BinaryName, version: String, binRepo: Option[BinRepoId]) {
+  def transitive: Boolean = id.isEmpty
 }

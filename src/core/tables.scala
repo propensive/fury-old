@@ -184,11 +184,11 @@ case class Tables() {
     Heading("Path", _.path(env))
   )
 
-  val binaries: Tabulation[Binary] = Tabulation(
+  val binaries: Tabulation[BinaryRef] = Tabulation(
     Heading("Binary", _.id),
     Heading("Service", _.binRepo),
-    Heading("Group", _.group),
-    Heading("Artifact", _.artifact),
+    Heading("Organization", _.name.group),
+    Heading("Artifact", _.name.artifact),
     Heading("Version", _.version)
   )
 

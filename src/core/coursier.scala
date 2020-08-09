@@ -20,7 +20,7 @@ import fury.io._, fury.model._
 
 import mercator._
 
-import coursier.{Module => CModule, Dependency => CDependency, _}
+import coursier.{Module => CsModule, Dependency => CsDependency, _}
 
 import scala.util._
 
@@ -31,12 +31,8 @@ object Coursier {
   }
 
   private def mkRequest(binary: Binary): Try[List[Path]] = {
+    val dependency = csDependency(binary)
     
-    val dependency = CDependency(
-      module = CModule(Organization(binary.group), ModuleName(binary.artifact)),
-      version = binary.version
-    ).withExclusions(if(binary.group == "org.scala-lang") Set.empty else ScalaCore)
-
     coursier.internal.SharedRepositoryParser.repository(binary.binRepo.id) match {
       case Left(err) => Failure(InvalidValue(binary.binRepo.id))
       case Right(repo) =>
@@ -71,6 +67,30 @@ object Coursier {
       paths.recoverWith { case _ => tmpDir.delete() }
 
       paths
+    }
+  }
+      
+  private def csDependency(binary: Binary): CsDependency = CsDependency(
+    module = CsModule(Organization(binary.group), ModuleName(binary.artifact)),
+    version = binary.version
+  ).withExclusions(if(binary.group == "org.scala-lang") Set.empty else ScalaCore)
+
+  private def csBinRepo(binRepo: BinRepoId): Try[Repository] =
+    internal.SharedRepositoryParser.repository(binRepo.id) match {
+      case Left(err)   => Failure(InvalidValue(binRepo.id))
+      case Right(repo) => Success(repo)
+    }
+
+  def resolve(binaries: List[Binary])(implicit log: Log): Try[List[BinaryRef]] = {
+    val csDeps = binaries.map(csDependency(_))
+    binaries.map(_.binRepo).distinct.traverse(csBinRepo(_)).map { csRepos =>
+      val resolution = coursier.Resolve().addRepositories(csRepos: _*).addDependencies(csDeps: _*).run()
+      binaries.foldLeft(resolution.dependencySet.set.map { csDependency =>
+        BinaryRef(None, BinaryName(csDependency.module.organization.value, csDependency.module.name.value),
+            csDependency.version, None)
+      }.map { binaryRef => (binaryRef.name, binaryRef) }.toMap) { case (acc, next) =>
+        acc.updated(next.name, acc(next.name).copy(id = Some(next.id), binRepo = Some(next.binRepo)))
+      }.values.to[List].sortBy(_.transitive)
     }
   }
 }
