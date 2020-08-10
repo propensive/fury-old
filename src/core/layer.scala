@@ -190,6 +190,7 @@ object Layer extends Lens.Partial[Layer] {
       pub   <- ~id.fold(msg"Fetching layer $layerRef") { pl =>
                  msg"Fetching layer ${Pointer(pl.url.path)}${'@'}${pl.version} ${'('}$layerRef${')'}"
                }
+      _ = log.info(pub)
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Ogdl.read[Layer](data, migrate(_))
