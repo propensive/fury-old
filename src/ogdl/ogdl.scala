@@ -129,23 +129,23 @@ object Ogdl {
       path.writeSync(sb.toString)
     }.flatten.recoverWith { case e: Exception => Failure(FileWriteError(path, e)) }
 
-  def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): Try[T] = {
-    val buffer = ByteBuffer.wrap(string.bytes)
-    val ogdl   = OgdlParser.parse(buffer)
+  def read[T: OgdlReader](string: String, preprocessor: Ogdl => Ogdl): Try[T] =
+    read(ByteBuffer.wrap(string.bytes), preprocessor)
 
-    Try(implicitly[OgdlReader[T]].read(preprocessor(ogdl)))
-  }
+  def read[T: OgdlReader](stringBytes: Array[Byte], preprocessor: Ogdl => Ogdl): Try[T] =
+    read(ByteBuffer.wrap(stringBytes), preprocessor)
 
   def read[T: OgdlReader](path: Path, preprocessor: Ogdl => Ogdl): Try[T] =
-    Try {
-      val buffer = readToBuffer(path)
-      val ogdl   = OgdlParser.parse(buffer)
-      implicitly[OgdlReader[T]].read(preprocessor(ogdl))
-    }.recoverWith {
+    readToBuffer(path).flatMap(read(_, preprocessor)).recoverWith {
       case NonFatal(e) => Failure(OgdlReadException(path, e))
     }
 
-  private[this] def readToBuffer(path: Path): ByteBuffer = {
+  private[this] def read[T: OgdlReader](buffer: ByteBuffer, preprocessor: Ogdl => Ogdl): Try[T] = {
+    val ogdl = OgdlParser.parse(buffer)
+    Try(implicitly[OgdlReader[T]].read(preprocessor(ogdl)))
+  }
+
+  private[this] def readToBuffer(path: Path): Try[ByteBuffer] = Try {
     val inChannel = FileChannel.open(path.javaPath)
 
     try {

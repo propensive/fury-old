@@ -169,8 +169,9 @@ object Layer extends Lens.Partial[Layer] {
   def readDb(layout: Layout)(implicit log: Log): Try[Unit] =
     if(layout.layerDb.exists && Some(layout.layerDb.lastModified) != dbCache.get(layout.layerDb)) for {
       inputs <- TarGz.untargz(layout.layerDb.inputStream())
+      _      =  log.note(msg"The layer storage at ${layout.layerDb} contains ${inputs.size} entries")
       _      <- inputs.traverse { bytes => for {
-                  layer <- Ogdl.read[Layer](new String(bytes, "UTF-8"), migrate(_))
+                  layer <- Ogdl.read[Layer](bytes, migrate(_))
                   _     <- store(layer)
                 } yield () }
       _      <- Try(synchronized { dbCache(layout.layerDb) = layout.layerDb.lastModified })
@@ -200,8 +201,11 @@ object Layer extends Lens.Partial[Layer] {
   def store(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
     ipfs    <- Ipfs.daemon(false)
     ipfsRef <- ipfs.add(Ogdl.serialize(Ogdl(layer)))
-    _       <- Try(cache.synchronized { cache(ipfsRef) = layer })
-  } yield LayerRef(ipfsRef.key)
+  } yield {
+    cache.synchronized { cache(ipfsRef) = layer }
+    log.note(msg"Layer added to IPFS at $ipfsRef")
+    LayerRef(ipfsRef.key)
+  }
 
   def commit(layer: Layer, conf: FuryConf, layout: Layout, force: Boolean = false)
             (implicit log: Log)
