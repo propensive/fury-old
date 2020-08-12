@@ -1,0 +1,36 @@
+mkdir platform
+cd platform
+
+fury layer init
+
+fury project add -n scala
+fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
+fury binary add -b org.scala-lang:scala-compiler:2.12.8
+
+IPFSREF_OLD=$(fury layer share -F --raw)
+echo Old platform: $IPFSREF_OLD
+
+fury module update -C scala-lang.org:scala-compiler:2.12.12
+fury binary remove -b scala-compiler
+fury binary add -b org.scala-lang:scala-compiler:2.12.12
+
+IPFSREF_NEW=$(fury layer share -F --raw)
+echo New platform: $IPFSREF_NEW
+
+cd ..
+
+fury layer init
+fury layer import -l $IPFSREF_OLD --name platform
+
+fury project add -n hello-world
+fury module add -n app -c scala/compiler -t app -M CheckVersion
+fury source add -s src
+
+fury --output linear
+
+fury universe imports list --raw
+fury universe imports replace --import $(echo $IPFSREF_OLD | cut -c 10-17) --layer $IPFSREF_NEW
+echo $?
+fury universe imports list --raw
+
+fury --output linear
