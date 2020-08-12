@@ -1,0 +1,24 @@
+Initialized an empty layer
+Set current project to scala
+Set current module to compiler
+Old platform: fury://QmS9YAKojuVWtD9ff5uesZaRjLjEav9ZaX3x7jSts4SEgz
+New platform: fury://QmSZU9TZdL31GYciJcJPJ7rFfoNbHDhHN4YDHiy3BPQ8t4
+Initialized an empty layer
+Checking that no modules reference local sources
+Checking that no project names conflict
+Checking that all module references resolve
+Set current project to hello-world
+Setting default compiler for hello-world to scala/compiler
+Set current module to app
+Starting compilation of module hello-world/app
+Successfully compiled module hello-world/app
+Scala compiler is: 2.12.11 or older
+S9YAKoju
+Checking that no modules reference local sources
+Checking that no project names conflict
+Checking that all module references resolve
+0
+SZU9TZdL
+Starting compilation of module hello-world/app
+Successfully compiled module hello-world/app
+Scala compiler is: 2.12.12 or newer
