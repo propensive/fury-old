@@ -25,7 +25,10 @@ import mercator._
 import scala.util._
 
 object Source {
-  implicit val stringShow: StringShow[Source] = _.key
+  implicit val stringShow: StringShow[Source] = _ match {
+    case RepoSource(repoId, dir, _) => str"${repoId}:${dir.value}"
+    case LocalSource(dir, _) => str"${dir.value}"
+  }
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src.id()).get // FIXME
   implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(Vector("id" -> Ogdl(src.key)))
   implicit val parser: Parser[Source] = unapply(_)

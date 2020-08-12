@@ -77,8 +77,6 @@ object Service {
     val request = Request((ref :: dependencies.to[List]).map(_.key), token.value)
 
     for {
-      ipfs <- Ipfs.daemon(false)
-      id   <- Try(ipfs.id().get)
       out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
@@ -111,8 +109,6 @@ object Service {
         description)
     
     for {
-      ipfs <- Ipfs.daemon(false)
-      id   <- Try(ipfs.id().get)
       out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
