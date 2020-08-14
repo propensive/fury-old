@@ -130,6 +130,8 @@ You can grant these permissions with,
           cli.abort(msg"The command '${e.command}' was not recognized.")
         case NoRemoteInferred() =>
           cli.abort(msg"A remote was not specified, and could not be inferred from the path.")
+        case NoPublishedName(layerRef) =>
+          cli.abort(msg"The layer $layerRef does not have a published name.")
         case exoskeleton.InvalidArgValue(param, arg) =>
           cli.abort(msg"The argument '$arg' was not a valid value for the parameter $param.")
         case InvalidLayer(layer) =>

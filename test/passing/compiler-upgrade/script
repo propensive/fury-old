@@ -29,7 +29,7 @@ fury source add -s src
 fury --output linear
 
 fury universe imports list --raw
-fury universe imports replace --import $(echo $IPFSREF_OLD | cut -c 10-17) --layer $IPFSREF_NEW
+fury universe imports update --import $(echo $IPFSREF_OLD | cut -c 10-17) --layer $IPFSREF_NEW
 echo $?
 fury universe imports list --raw
 

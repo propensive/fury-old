@@ -72,6 +72,7 @@ case class MergeConflicts() extends FuryException
 case class MissingCommand() extends FuryException
 case class NoLatestVersion() extends FuryException
 case class NoRemoteInferred() extends FuryException
+case class NoPublishedName(layerRef: ShortLayerRef) extends FuryException
 case class NoOtherLayer() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
 case class NoRepl(compiler: CompilerRef) extends FuryException
