@@ -167,7 +167,7 @@ object FuryMenu {
       ),
       Menu('imports, msg"view and modify layer imports", 'list, shortcut = 'i')(
         Action('list, msg"show all layer imports", UniverseCli(_).imports.list, shortcut = 'l'),
-        Action('pull, msg"update layer imports universally", UniverseCli(_).imports.pull, shortcut = 'p')
+        Action('update, msg"update layer imports universally", UniverseCli(_).imports.update, shortcut = 'u'),
       )
     ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
