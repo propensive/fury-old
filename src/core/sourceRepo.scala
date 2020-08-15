@@ -22,7 +22,6 @@ import optometry._
 
 import scala.util._
 
-
 object Repo extends Lens.Partial[Repo] {
   implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.repo(r.id.key))
   implicit val stringShow: StringShow[Repo] = _.id.key
@@ -48,7 +47,7 @@ object Repo extends Lens.Partial[Repo] {
   } yield Repo(repoId, remote, branch, commit, None)
 }
 
-case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, local: Option[Path]) {
+case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, local: Option[Path]) extends Volume {
   def listFiles(layout: Layout)(implicit log: Log): Try[List[Path]] = for {
     gitDir <- localDir(layout).map(Success(_)).getOrElse(remote.get(layout))
     files  <- localDir(layout).fold(gitDir.lsTree(commit))(Success(gitDir.dir.children.map(Path(_))).waive)
@@ -128,3 +127,4 @@ case class Repo(id: RepoId, remote: Remote, branch: Branch, commit: Commit, loca
     _          <- ~layout.confFileBackup.moveTo(layout.confFile)
   } yield ()
 }
+

@@ -36,6 +36,7 @@ case class Layer(version: Int,
                  aliases: SortedSet[Alias] = TreeSet(),
                  projects: SortedSet[Project] = TreeSet(),
                  repos: SortedSet[Repo] = TreeSet(),
+                 workspaces: SortedSet[Workspace] = TreeSet(),
                  imports: SortedSet[Import] = TreeSet(),
                  main: Option[ProjectId] = None,
                  mainRepo: Option[RepoId] = None,
@@ -392,7 +393,7 @@ object Layer extends Lens.Partial[Layer] {
 
               case "App" =>
                 log.note(msg"Updated app type for module ${module}")
-                module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0)))
+                module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0, None)))
               
               case other =>
                 module
@@ -409,7 +410,7 @@ object Layer extends Lens.Partial[Layer] {
             
             log.note(msg"Updated module type for module ${module}")
             if(!module.has("kind")) module else module.set(kind = (module.kind() match {
-              case "Application" => Ogdl[Kind](App(main.get, 0))
+              case "Application" => Ogdl[Kind](App(main.get, 0, None))
               case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
               case "Benchmarks"  => Ogdl[Kind](Bench(main.get))
               case "Compiler"    => Ogdl[Kind](Compiler(spec.get))

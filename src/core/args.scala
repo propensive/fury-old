@@ -113,6 +113,7 @@ object Args {
   val PropArg = CliParam[JavaProperty]('D', 'property, "Java -D property")
   val QuietArg = CliParam[Unit]('q', 'quiet, "show less output")
   val RepoArg = CliParam[RepoId]('r', 'repo, "specify a repository")
+  val WorkspaceArg = CliParam[RepoId]('w', 'workspace, "specify a workspace")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
   val RetryArg = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
   val ReplArg = CliParam[ClassRef]('R', 'repl, "REPL class to use for console")

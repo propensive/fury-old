@@ -398,6 +398,7 @@ abstract class CliApi {
   lazy val layerModule: Try[Module] = layerModuleOpt.flatMap(_.ascribe(MissingParam(ModuleArg)))
   lazy val projectModuleIds: List[ModuleId] = (getProject >> (_.modules.to[List])).getOrElse(List()).map(_.id)
   lazy val projectRepoIds: List[RepoId] = (getLayer >> (_.repos.to[List])).getOrElse(List()).map(_.id)
+  lazy val projectWorkspaceIds: List[RepoId] = (getLayer >> (_.workspaces.to[List])).getOrElse(List()).map(_.id)
   lazy val getModule: Try[Module] = (cliModule, layerModule) >> (_.getOrElse(_))
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
@@ -465,6 +466,7 @@ abstract class CliApi {
   implicit lazy val projectHints: ProjectArg.Hinter = ProjectArg.hint(layerProjectIds: _*)
   implicit lazy val moduleHints: ModuleArg.Hinter = ModuleArg.hint(projectModuleIds: _*)
   implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
+  implicit lazy val workspaceHints: WorkspaceArg.Hinter = WorkspaceArg.hint(projectWorkspaceIds: _*)
   implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
   
   implicit lazy val includeNameHints: IncludeNameArg.Hinter =

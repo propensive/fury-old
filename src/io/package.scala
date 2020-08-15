@@ -16,10 +16,14 @@
 */
 package fury
 
+import fury.text._
+
 import contextual._
 
 package object io {
   implicit class PathContext(sc: StringContext) {
     val path = Prefix(PathInterpolator, sc)
   }
+  
+  implicit val msgShowPath: MsgShow[Path] = path => UserMsg(_.path(path.value))
 }

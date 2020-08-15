@@ -33,11 +33,11 @@ object Kind {
   implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
 
   implicit def msgShow: MsgShow[Kind] = {
-    case Lib()                => msg"lib"
-    case App(main, timeout)   => msg"app${':'}$main"
-    case Plugin(id, main)     => msg"plugin${':'}$id${'@'}$main"
-    case Compiler(spec, repl) => msg"compiler${':'}$spec"
-    case Bench(main)          => msg"bench${':'}$main"
+    case Lib()                  => msg"lib"
+    case App(main, timeout, ws) => msg"app${':'}$main"
+    case Plugin(id, main)       => msg"plugin${':'}$id${'@'}$main"
+    case Compiler(spec, repl)   => msg"compiler${':'}$spec"
+    case Bench(main)            => msg"bench${':'}$main"
   }
 }
 
@@ -47,7 +47,7 @@ sealed abstract class Kind(val needsExec: Boolean = false) {
   
   def name: Kind.Id = this match {
     case Lib()          => Lib
-    case App(_, _)      => App
+    case App(_, _, _)   => App
     case Plugin(_, _)   => Plugin
     case Compiler(_, _) => Compiler
     case Bench(_)       => Bench
@@ -58,7 +58,7 @@ object Lib extends Kind.Id("lib")
 case class Lib() extends Kind()
 
 object App extends Kind.Id("app")
-case class App(main: ClassRef, timeout: Int) extends Kind(needsExec = true)
+case class App(main: ClassRef, timeout: Int, workspace: Option[RepoId]) extends Kind(needsExec = true)
 
 object Plugin extends Kind.Id("plugin")
 case class Plugin(id: PluginId, main: ClassRef) extends Kind()

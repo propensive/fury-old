@@ -104,12 +104,14 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
 
   def update: Try[ExitStatus] = {
     (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg
-      -?< (PluginArg, getKindName >> oneOf(Plugin))
-      -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
-      -?< (ReplArg, getKindName >> oneOf(Compiler))
-      -?< (TimeoutArg, getKindName >> oneOf(App))
-      -?< (SpecArg, getKindName >> oneOf(Compiler))
+        -?< (PluginArg, getKindName >> oneOf(Plugin))
+        -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
+        -?< (ReplArg, getKindName >> oneOf(Compiler))
+        -?< (TimeoutArg, getKindName >> oneOf(App))
+        -?< (WorkspaceArg, getKindName >> oneOf(App))
+        -?< (SpecArg, getKindName >> oneOf(Compiler))
       ).action {
+
       val newModule = getModule >>= renamedFromCli >>= updatedFromCli
       val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
       val newLayer = for {
@@ -140,7 +142,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
 
   private[this] lazy val cliKind: Try[Kind] = getKindName >>= (_ match {
     case Lib      => ~Lib()
-    case App      => (get(MainArg), get(TimeoutArg).orElse(Success(0))) >> App.apply
+    case App      => (get(MainArg), get(TimeoutArg).orElse(Success(0)), opt(WorkspaceArg)) >> App.apply
     case Bench    => get(MainArg) >> Bench.apply
     case Compiler => (get(SpecArg), get(ReplArg).orElse(~ClassRef("scala.tools.nsc.MainGenericRunner"))) >> Compiler.apply
     case Plugin   => (get(PluginArg), get(MainArg)) >> Plugin.apply

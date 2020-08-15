@@ -786,6 +786,21 @@ object Version {
 
 case class Version(key: String) extends Key("version")
 
+trait Volume {
+  def id: RepoId
+}
+
+object Workspace {
+  implicit val msgShow: MsgShow[Workspace] = w => UserMsg(_.repo(w.id.key))
+  implicit val stringShow: StringShow[Workspace] = _.id.key
+  implicit def diff: Diff[Workspace] = Diff.gen[Workspace]
+  implicit val keyName: KeyName[Workspace] = () => msg"workspace"
+}
+
+case class Workspace(id: RepoId, local: Option[Path]) extends Key(msg"workspace") with Volume {
+  def key: String = id.key
+}
+
 object ModuleRef {
   implicit val stringShow: StringShow[ModuleRef] = ref => str"${ref.projectId}/${ref.moduleId}"
   implicit val entityName: EntityName[ModuleRef] = EntityName(msg"dependency")
