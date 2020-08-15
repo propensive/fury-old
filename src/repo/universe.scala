@@ -75,10 +75,9 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       _         <- ~log.rawln(table)
     } yield log.await() }
 
-    def proliferate: Try[ExitStatus] = (cli -< LayerArg -< ProjectRefArg).action { for {
-      layerRef   <- get(LayerArg)
+    def proliferate: Try[ExitStatus] = (cli -< ProjectRefArg).action { for {
       projectRef <- get(ProjectRefArg)
-      hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(layerRef, projectRef)) >>= commit
+      hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(projectRef)) >>= commit
     } yield log.await() }
 
     def diff: Try[ExitStatus] = (cli -< ProjectRefArg -< AgainstProjectArg -< RawArg).action { for {
@@ -132,8 +131,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
   }
 
   object projects {
-    def proliferate(pointer: Pointer, projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
-      layer     <- hierarchy(pointer)
+    def proliferate(projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
       universe  <- hierarchy.universe
       project   <- universe(projectRef)
       pointers  =  universe.projects(projectRef.id).allOrigins
