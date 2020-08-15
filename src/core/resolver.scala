@@ -52,3 +52,8 @@ class SortedSetExt[T](set: SortedSet[T]) {
   def evict[I <: Key: MsgShow](id: I)(implicit resolver: Resolver[T, I]): SortedSet[T] =
     set.filterNot(resolver.matchOn(id, _))
 }
+
+class MapExt[K <: Key: MsgShow, V](m: Map[K, V]) {
+  def findBy(id: K): Try[V] =
+    m.get(id).ascribe(ItemNotFound(id))
+}
