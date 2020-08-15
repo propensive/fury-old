@@ -34,6 +34,8 @@ package object core extends GuillotineExtensions {
 
   implicit def sortedSetExt[T](set: SortedSet[T]): SortedSetExt[T] = new SortedSetExt[T](set)
 
+  implicit def mapExt[K <: fury.model.Key: MsgShow, V](map: Map[K, V]): MapExt[K, V] = new MapExt[K, V](map)
+
   implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
     implicitly[MsgShow[T]].show(_).string(theme)
 
