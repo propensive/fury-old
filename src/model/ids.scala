@@ -331,7 +331,7 @@ object ShortLayerRef {
 
 case class ShortLayerRef(key: String) extends Key(msg"layer")
 
-case class LayerEntity(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
+case class LayerProvenance(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
   def +(newImports: Map[Pointer, Import]) = copy(imports = imports ++ newImports)
   def ids: Set[ImportId] = imports.values.map(_.id).to[Set]
   def published: Set[PublishedLayer] = imports.values.flatMap(_.remote).to[Set]

@@ -243,10 +243,10 @@ case class Tables() {
     Heading("Layers", _._2.map(_.layer: UserMsg).reduce { (l, r) => l+"\n"+r })
   )
   
-  val layerRefs: Tabulation[LayerEntity] = Tabulation(
+  val layerRefs: Tabulation[LayerProvenance] = Tabulation(
     Heading("Import", _.ref),
     Heading("IDs", _.ids),
     Heading("Remotes", _.published),
-    Heading("Layers", _.imports.keySet.map { v => v: UserMsg }.reduce { (l, r) => l+"\n"+r })
+    Heading("Imported by", _.imports.keySet.map { v => v: UserMsg }.reduce { (l, r) => l+"\n"+r })
   )
 }

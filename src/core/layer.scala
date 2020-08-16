@@ -58,7 +58,7 @@ case class Layer(version: Int,
     hierarchy = hierarchy,
     projects = projects.map { project => project.id -> Uniqueness.Unique(project.projectRef, Set(path)) }.toMap,
     repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
-    imports = imports.map { i => i.layerRef.short -> LayerEntity(i.layerRef.short, Map(path -> i)) }.toMap
+    imports = imports.map { i => i.layerRef.short -> LayerProvenance(i.layerRef.short, Map(path -> i)) }.toMap
   )
 
   def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
