@@ -232,3 +232,59 @@ case class RepoApi(hierarchy: Hierarchy) {
     hierarchy <- hierarchy(pointer) = Layer(_.repos(id))(layer) = repo
   } yield hierarchy
 }
+
+case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
+
+  def list: Try[ExitStatus] = {
+    val table: Tabulation[Workspace] = Tables().workspaces
+    
+    implicit val columnHints: ColumnArg.Hinter =
+      ColumnArg.hint(table.headings.map(_.name.toLowerCase))
+
+    (cli -< RawArg -< ColumnArg -< WorkspaceArg -< LayerArg).action { for {
+      rows      <- getLayer >> (_.workspaces)
+      workspace <- opt(WorkspaceArg) >> (printTable(table, rows, _, "workspace"))
+    } yield log.await() }
+  }
+  
+  def add: Try[ExitStatus] = (cli -< PathArg -< WorkspaceNameArg -< LayerArg).action { for {
+    layout  <- getLayout
+    path    <- relPathOpt
+    pointer <- getPointer
+    name    <- get(WorkspaceNameArg)
+    _       <- getHierarchy >>= (WorkspaceApi(_).add(pointer, name, path, layout)) >>= commit
+  } yield log.await() }
+
+  def update: Try[ExitStatus] =
+    (cli -< LayerArg -< WorkspaceArg -< WorkspaceNameArg).action { for {
+      workspace <- getWorkspace
+      newId     <- opt(WorkspaceNameArg)
+      layout    <- getLayout
+      hierarchy <- getHierarchy
+      pointer   <- getPointer
+      _         <- WorkspaceApi(hierarchy).update(pointer, workspace.id, newId, layout) >>= commit
+    } yield log.await() }
+  
+  def remove: Try[ExitStatus] = (cli -< WorkspaceArg).action {
+    ((getHierarchy, getPointer, getWorkspace >> (_.id)) >>= (WorkspaceApi(_).remove(_, _)) >>= commit) >> finish
+  }
+}
+
+case class WorkspaceApi(hierarchy: Hierarchy) {
+
+  def remove(pointer: Pointer, id: RepoId)(implicit log: Log): Try[Hierarchy] = hierarchy.on(pointer) { layer =>
+    layer.workspaces.find(_.id == id).ascribe(ItemNotFound(id)).map { workspace =>
+      Layer(_.workspaces).modify(layer)(_ - workspace)
+    }
+  }
+
+  def add(pointer: Pointer, id: RepoId, path: Option[Path], layout: Layout)(implicit log: Log): Try[Hierarchy] =
+    hierarchy.on(pointer) { layer => ~Layer(_.workspaces).modify(layer)(_ + Workspace(id, path)) }
+
+  def update(pointer: Pointer, id: RepoId, name: Option[RepoId], layout: Layout)
+            (implicit log: Log)
+            : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
+    oldWorkspace <- layer.workspaces.find(_.id == id).ascribe(ItemNotFound(id))
+    newWorkspace <- ~name.fold(oldWorkspace) { name => oldWorkspace.copy(id = name) }
+  } yield layer.copy(workspaces = layer.workspaces - oldWorkspace + newWorkspace) }
+}

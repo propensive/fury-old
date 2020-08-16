@@ -20,6 +20,7 @@ import fury.model._, fury.io._, fury.text._
 
 import gastronomy._
 import guillotine._
+import mercator._
 
 import scala.util._
 
@@ -30,6 +31,40 @@ case class Snapshots(snapshots: Map[SnapshotHash, Snapshot] = Map()) {
   def apply(hash: SnapshotHash): Try[Snapshot] =
     snapshots.get(hash).ascribe(ItemNotFound(hash))
   def ++(that: Snapshots): Snapshots = Snapshots(snapshots ++ that.snapshots)
+
+  def dir(source: Source, layout: Layout): Try[Path] = sourceBase(source, layout).map(source.dir in _)
+  
+  def files(source: Source, layout: Layout): Try[Stream[Path]] =
+    dir(source, layout).map { dir => source.glob(dir, dir.walkTree) }
+  
+  def copy(source: Source, layout: Layout, destination: Path)(implicit log: Log): Try[Unit] = for {
+    baseDir  <- dir(source, layout)
+    allFiles <- files(source, layout)
+    _        <- allFiles.to[List].map { f =>
+                  f.relativizeTo(baseDir).in(destination).mkParents().map(f.copyTo(_))
+                }.sequence
+  } yield ()
+
+  def fileCount(source: Source, layout: Layout): Try[Int] = files(source, layout).map(_.length)
+
+  def totalSize(source: Source, layout: Layout): Try[ByteSize] =
+    files(source, layout).map(_.map(_.size).reduce(_ + _))
+
+  def linesOfCode(source: Source, layout: Layout): Try[Int] =
+    for(pathStream <- files(source, layout); lines <- pathStream.traverse(_.lines))
+    yield lines.map(_.size).sum
+  
+  def sourceBase(source: Source, layout: Layout): Try[Path] = source match {
+    case RepoSource(repoId, dir, glob) =>
+      apply(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
+    case LocalSource(dir, glob) =>
+      ~layout.baseDir
+  }
+  
+  def sourceHash(layer: Layer, source: Source, layout: Layout): Try[Digest] = source match {
+    case RepoSource(repoId, dir, glob) => layer.repos.findBy(repoId).map((dir, _).digest[Md5])
+    case LocalSource(dir, glob)        => Success((-1, dir).digest[Md5])
+  }
 }
 
 case class Snapshot(repoId: RepoId,

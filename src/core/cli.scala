@@ -361,6 +361,8 @@ abstract class CliApi {
     case other                        => other.map(Some(_))
   }
 
+  def boolean(arg: CliParam): Try[Boolean] = opt(arg).map(_.isDefined)
+
   def has(arg: CliParam): Boolean = cli.get(arg).toOption.isDefined
   
   lazy val getLayout: Try[Layout] = cli.layout
@@ -386,14 +388,25 @@ abstract class CliApi {
   lazy val layerRepo: Try[Repo] = layerRepoOpt.flatMap(_.ascribe(MissingParam(RepoArg)))
   lazy val cliRepo: Try[Repo] = (getLayer, get(RepoArg)) >>= (_.repos.findBy(_))
   lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
+  
+  lazy val getWorkspace: Try[Workspace] = (getLayer, get(WorkspaceArg)) >>= { case (layer, ws) =>
+    layer.workspaces.find(_.id == ws).ascribe(ItemNotFound(ws))
+  }
+  
   lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
   lazy val fetchRemote: Try[GitDir] = (get(RemoteArg), getLayout) >>= (_.fetch(_))
   lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
   lazy val requiredModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
+  
   lazy val cliModule: Try[Option[Module]] = (opt(ModuleArg), getProject) >>= {
     case (Some(id), p) => p.modules.findBy(id).map(Some(_))
     case (None, _) => Success(None)
   }
+
+  lazy val getInclude: Try[Include] =
+    for(includeId <- get(IncludeArg); module <- getModule; include <- module.includes.findBy(includeId))
+    yield include
+
   lazy val layerModuleOpt: Try[Option[Module]] = getProject >>= (_.mainModule)
   lazy val layerModule: Try[Module] = layerModuleOpt.flatMap(_.ascribe(MissingParam(ModuleArg)))
   lazy val projectModuleIds: List[ModuleId] = (getProject >> (_.modules.to[List])).getOrElse(List()).map(_.id)
@@ -402,7 +415,7 @@ abstract class CliApi {
   lazy val getModule: Try[Module] = (cliModule, layerModule) >> (_.getOrElse(_))
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
-  lazy val getIncludeType: Try[IncludeType] = cli.get(IncludeTypeArg)
+  lazy val getIncludeType: Try[IncludeType.Id] = cli.get(IncludeTypeArg)
   
   lazy val getIncludeName: Try[IncludeId] = cli.get(IncludeNameArg).orElse {
     for(dependency <- getDependency; kind <- getIncludeType)
@@ -446,6 +459,7 @@ abstract class CliApi {
   lazy val defaultBranchCommit: Try[Commit] = fetchRemote.flatMap(_.commit)
 
   lazy val deepModuleRefs: Try[Set[ModuleRef]] = (universe, getModuleRef) >> (_.deepDependencySearch(_))
+  lazy val imageIds: Try[List[ImageId]] = getLayout >> (_.env) >>= (Docker.images()(_))
 
   lazy val pathGitDir: Try[GitDir] = for {
     env    <- getLayout >> (_.env)
@@ -453,6 +467,8 @@ abstract class CliApi {
     gitDir <- (path >> (GitDir(_)(env))).ascribe(PathNotGitDir())
   } yield gitDir
 
+  lazy val getSources = getModule >> (_.sources)
+  
   lazy val pathRemote: Try[Remote] = pathGitDir >>= (_.remote)
   lazy val pathBranch: Try[Branch] = pathGitDir >>= (_.branch)
 
@@ -468,17 +484,21 @@ abstract class CliApi {
   implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
   implicit lazy val workspaceHints: WorkspaceArg.Hinter = WorkspaceArg.hint(projectWorkspaceIds: _*)
   implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
+  implicit lazy val workspaceNameHints: WorkspaceNameArg.Hinter = WorkspaceNameArg.hint()
   
   implicit lazy val includeNameHints: IncludeNameArg.Hinter =
     IncludeNameArg.hint(get(PathArg).map { s => List(IncludeId(s.name)) })
   
-  implicit lazy val includeTypeHints: IncludeTypeArg.Hinter = IncludeTypeArg.hint(IncludeType.Jarfile,
-      IncludeType.TarFile, IncludeType.ClassesDir, IncludeType.FileRef(Glob("")))
+  implicit lazy val includeTypeHints: IncludeTypeArg.Hinter =
+    IncludeTypeArg.hint(Jarfile, TarFile, ClassesDir, FileRef, DirRef)
 
   implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
   implicit lazy val grabHints: GrabArg.Hinter = GrabArg.hint()
+  implicit lazy val gzipHints: GzipArg.Hinter = GzipArg.hint()
+  implicit lazy val fatJarHints: FatJarArg.Hinter = FatJarArg.hint()
+  implicit lazy val recursiveHints: RecursiveArg.Hinter = RecursiveArg.hint()
   implicit lazy val allHints: AllArg.Hinter = AllArg.hint()
   implicit lazy val importHints: ImportArg.Hinter = ImportArg.hint()
   implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
@@ -490,6 +510,7 @@ abstract class CliApi {
   implicit lazy val moduleRefHints: ModuleRefArg.Hinter = ModuleRefArg.hint(deepModuleRefs.map(_.map(_.key)))
   implicit lazy val includeHints: IncludeArg.Hinter = IncludeArg.hint(getModule >> (_.includes.map(_.id)))
   implicit lazy val projectRefHints: ProjectRefArg.Hinter = ProjectRefArg.hint(projectRefs)
+  implicit lazy val imageHints: ImageArg.Hinter = ImageArg.hint(imageIds)
   implicit lazy val againstProjectHints: AgainstProjectArg.Hinter = AgainstProjectArg.hint(projectRefs)
   
   implicit lazy val defaultCompilerHints: DefaultCompilerArg.Hinter =
@@ -501,6 +522,25 @@ abstract class CliApi {
   implicit lazy val repoUrl: RemoteArg.Hinter =
     RemoteArg.hint(GitHub.repos(cli.peek(UnparsedRemoteArg)).map(_.map(Remote(_))))
   
+  def oneOf[T](options: T*): T => Boolean = options.contains(_)
+  
   def printTable[T, S: MsgShow](table: Tabulation[T], rows: Traversable[T], id: Option[S], name: String): Unit =
     log.rawln(Tables().show(table, cols, rows, raw, column, id, name))
+  
+  private[this] def possibleSourceDirectories(repo: Repo, layout: Layout) =
+    repo.sourceCandidates(layout)(isSourceFileName).getOrElse(Set.empty)
+  
+  private[this] def isSourceFileName(name: String): Boolean =
+    name.endsWith(".scala") || name.endsWith(".java")
+  
+  object sourceHints {
+    implicit lazy val existing: SourceArg.Hinter = SourceArg.hint(getSources)
+
+    implicit lazy val possible: SourceArg.Hinter = SourceArg.hint((getLayout, getLayer) >> { case (layout, layer) =>
+      val extSrcs = layer.repos.map(possibleSourceDirectories(_, layout)).flatten
+      val localSrcs = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, fury.io.Glob.All))
+      extSrcs ++ localSrcs
+    })
+
+  }
 }

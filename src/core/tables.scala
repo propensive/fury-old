@@ -140,9 +140,9 @@ case class Tables() {
     Heading("Repo", _.repoIdentifier),
     Heading("Path", _.dir),
     Heading("Sources", _.glob),
-    Heading("Files", _.fileCount(snapshots, layout).getOrElse(0)),
-    Heading("Size", _.totalSize(snapshots, layout).getOrElse(ByteSize(0))),
-    Heading("Lines", _.linesOfCode(snapshots, layout).getOrElse(0))
+    Heading("Files", snapshots.fileCount(_, layout).getOrElse(0)),
+    Heading("Size", snapshots.totalSize(_, layout).getOrElse(ByteSize(0))),
+    Heading("Lines", snapshots.linesOfCode(_, layout).getOrElse(0))
   )
 
   val resources: Tabulation[Source] = Tabulation(
@@ -230,6 +230,11 @@ case class Tables() {
     Heading("Description", _.description),
     Heading("License", _.license),
     Heading("Compiler", _.compiler)
+  )
+
+  val workspaces: Tabulation[Workspace] = Tabulation(
+    Heading("Workspace", _.id),
+    Heading("Path", _.local)
   )
 
   def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(

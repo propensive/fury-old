@@ -55,7 +55,7 @@ object Args {
   val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
   val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
   val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")
-  val IncludeTypeArg = CliParam[IncludeType]('t', 'type, "specify the type of include")
+  val IncludeTypeArg = CliParam[IncludeType.Id]('t', 'type, "specify the type of include")
   val IncludeArg = CliParam[IncludeId]('i', 'include, "specify the include")
   val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
   val PathArg = CliParam[Path]('f', 'path, "specify the path")
@@ -85,6 +85,7 @@ object Args {
   val LicenseArg = CliParam[LicenseId]('L', 'license, "license for code in this project")
   val ModuleArg = CliParam[ModuleId]('m', 'module, "specify a module")
   val MainArg = CliParam[ClassRef]('M', 'main, "specify a main class")
+  val ImageArg = CliParam[ImageId]('i', 'image, "specify a Docker image")
   
   val PipeliningArg = CliParam[Boolean]('P', Symbol("pipelining"),
       "use compilation pipelining (on, off) (experimental)")
@@ -93,6 +94,7 @@ object Args {
   val ProjectNameArg = CliParam[ProjectId]('n', 'name, "specify a name for the project")
   val RemoteLayerArg = CliParam[RemoteLayerId]('n', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
+  val WorkspaceNameArg = CliParam[RepoId]('n', 'name, "specify a name for the workspace")
   val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")
   val IncludeNameArg = CliParam[IncludeId]('n', 'name, "specify a name for the include")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
@@ -115,6 +117,7 @@ object Args {
   val RepoArg = CliParam[RepoId]('r', 'repo, "specify a repository")
   val WorkspaceArg = CliParam[RepoId]('w', 'workspace, "specify a workspace")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
+  val GzipArg = CliParam[Unit]('z', 'gzip, "additionally GZIP the TAR file")
   val RetryArg = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
   val ReplArg = CliParam[ClassRef]('R', 'repl, "REPL class to use for console")
   

@@ -61,20 +61,26 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       ).action {
       val newModule = getModuleName >> (x => Module(id = x)) >>= updatedFromCli
       val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
+      
       val newLayer = for {
-        layer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
-        layer <- (newModule >> (_.id) >> (Option(_)), ~layer, mainModuleLens) >> (Layer.set(_)(_, _))
-        module <- newModule
-        project <- getProject
+        layer              <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        
+        layer              <- (newModule >> (_.id) >> (Option(_)), ~layer, mainModuleLens) >>
+                                  (Layer.set(_)(_, _))
+
+        module             <- newModule
+        project            <- getProject
         setDefaultCompiler <- (getProject, opt(CompilerArg)) >> (_.compiler.isEmpty && _.isDefined)
-        lens <- defaultCompilerLens
+        lens               <- defaultCompilerLens
       } yield {
+        
         val newLayer = if(setDefaultCompiler) {
           log.info(msg"Setting default compiler for ${project.id} to ${module.compiler}")
           Layer.set(Option(module.compiler))(layer, lens)
-        }
-        else layer
+        } else layer
+        
         log.info(msg"Set current module to ${module.id}")
+        
         newLayer
       }
       for {
@@ -87,18 +93,15 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   def remove: Try[ExitStatus] = {
     (cli -< ProjectArg -< ModuleArg).action {
       val newModules = (getProject >> (_.modules), requiredModule) >> (_ - _)
+      
       val newLayer = for {
-        newLayer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        newLayer  <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
         cleanMain <- (getProject >> (_.main), requiredModule >> (_.id)) >> (_.contains(_))
-        lens <- mainModuleLens
-      } yield {
-        if(cleanMain) Layer.set(Option.empty[ModuleId])(newLayer, lens)
-        else newLayer
-      }
-      for {
-        _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
-      } yield log.await()
+        lens      <- mainModuleLens
+      } yield if(cleanMain) Layer.set(Option.empty[ModuleId])(newLayer, lens) else newLayer
+      
+      for(_ <- newLayer >>= commit; _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild)
+      yield log.await()
     }
   }
 
@@ -107,45 +110,41 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
         -?< (PluginArg, getKindName >> oneOf(Plugin))
         -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
         -?< (ReplArg, getKindName >> oneOf(Compiler))
-        -?< (TimeoutArg, getKindName >> oneOf(App))
-        -?< (WorkspaceArg, getKindName >> oneOf(App))
+        -?< (TimeoutArg, getKindName >> oneOf(App, Container))
+        -?< (WorkspaceArg, getKindName >> oneOf(App, Container))
+        -?< (ImageArg, getKindName >> oneOf(Container))
         -?< (SpecArg, getKindName >> oneOf(Compiler))
       ).action {
 
       val newModule = getModule >>= renamedFromCli >>= updatedFromCli
       val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
+      
       val newLayer = for {
-        layer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
-        updateMain <- (getProject >> (_.main), getModule >> (_.id)) >> (_.contains(_))
-        lens <- mainModuleLens
+        layer       <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        updateMain  <- (getProject >> (_.main), getModule >> (_.id)) >> (_.contains(_))
+        lens        <- mainModuleLens
         newModuleId <- newModule >> (_.id)
-      } yield {
-        if(updateMain) Layer.set(Option(newModuleId))(layer, lens)
-        else layer
-      }
-      for {
-        _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
-      } yield log.await()
+      } yield if(updateMain) Layer.set(Option(newModuleId))(layer, lens) else layer
+      
+      for(_ <- newLayer >>= commit; _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild)
+      yield log.await()
     }
   }
 
   private[this] def renamedFromCli(base: Module): Try[Module] = opt(ModuleNameArg) >> (_.fold(base)(x => base.copy(id = x)))
 
   private[this] def updatedFromCli(base: Module): Try[Module] = for {
-    kind <- ~cliKind.getOrElse(base.kind)
+    kind     <- ~cliKind.getOrElse(base.kind)
     compiler <- cliCompiler >> (_.getOrElse(base.compiler))
-  } yield {
-    val hidden = has(HiddenArg)
-    base.copy(compiler = compiler, kind = kind, hidden = hidden)
-  }
+  } yield base.copy(compiler = compiler, kind = kind, hidden = has(HiddenArg))
 
   private[this] lazy val cliKind: Try[Kind] = getKindName >>= (_ match {
-    case Lib      => ~Lib()
-    case App      => (get(MainArg), get(TimeoutArg).orElse(Success(0)), opt(WorkspaceArg)) >> App.apply
-    case Bench    => get(MainArg) >> Bench.apply
-    case Compiler => (get(SpecArg), get(ReplArg).orElse(~ClassRef("scala.tools.nsc.MainGenericRunner"))) >> Compiler.apply
-    case Plugin   => (get(PluginArg), get(MainArg)) >> Plugin.apply
+    case Lib       => ~Lib()
+    case App       => (get(MainArg), get(TimeoutArg).orElse(Success(0)), opt(WorkspaceArg)) >> App.apply
+    case Container => (get(ImageArg), get(TimeoutArg).orElse(Success(0)), opt(WorkspaceArg)) >> Container.apply
+    case Bench     => get(MainArg) >> Bench.apply
+    case Compiler  => (get(SpecArg), get(ReplArg).orElse(~ClassRef("scala.tools.nsc.MainGenericRunner"))) >> Compiler.apply
+    case Plugin    => (get(PluginArg), get(MainArg)) >> Plugin.apply
   })
 
   private[this] lazy val cliCompiler = opt(CompilerArg) >>= {
@@ -154,26 +153,22 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   private[this] lazy val getCompilerRefs = (getLayer, getLayout) >> (_.compilerRefs(_))
-
   private[this] lazy val getTable = (getProject >> (_.id), getProject >> (_.main), universe) >> (Tables().modules(_, _, _))
-
   private[this] lazy val getModuleName = (getProject >> (_.modules), get(ModuleNameArg)) >>= (_.unique(_))
-
   private[this] lazy val getKindName: Try[Kind.Id] = get(KindArg) orElse getModule >> (_.kind.name)
-
   private[this] implicit lazy val moduleKindsHint: KindArg.Hinter = KindArg.hint(Kind.ids)
   private[this] implicit lazy val hiddenHint: HiddenArg.Hinter = HiddenArg.hint(true, false)
   private[this] implicit lazy val pluginHint: PluginArg.Hinter = PluginArg.hint()
   private[this] implicit lazy val moduleNamesHint: ModuleNameArg.Hinter = ModuleNameArg.hint()
   private[this] implicit lazy val specHint: SpecArg.Hinter = SpecArg.hint()
 
-  private[this] implicit lazy val compilersHint: CompilerArg.Hinter = CompilerArg.hint(
+  private[this] implicit lazy val compilersHint: CompilerArg.Hinter = CompilerArg.hint {
     (getCompilerRefs >> (_.map(BspCompiler(_)) ++ Javac.Versions)).orElse(~Javac.Versions)
-  )
+  }
 
-  private[this] implicit lazy val mainClassHint: MainArg.Hinter = MainArg.hint(
+  private[this] implicit lazy val mainClassHint: MainArg.Hinter = MainArg.hint {
     (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_))
-  )
+  }
 
   private[this] implicit lazy val replHint: ReplArg.Hinter = ReplArg.hint(
     (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_))
@@ -189,7 +184,4 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
 
   private[this] def defaultCompilerLens: Try[Lens[Layer, Option[CompilerRef], Option[CompilerRef]]] = getProject >>
     { case p => Lens[Layer](_.projects(p.id).compiler) }
-
-  private[this] def oneOf[T](options: T*): T => Boolean = options contains _
-
 }

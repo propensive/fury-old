@@ -29,36 +29,41 @@ object Kind {
 
   sealed abstract class Id(val name: String)
   
-  val ids: List[Id] = List(Lib, App, Plugin, Compiler, Bench)
+  val ids: List[Id] = List(Lib, App, Plugin, Compiler, Bench, Container)
   implicit def stringShow: StringShow[Kind] = msgShow.show(_).string(Theme.NoColor)
 
   implicit def msgShow: MsgShow[Kind] = {
-    case Lib()                  => msg"lib"
-    case App(main, timeout, ws) => msg"app${':'}$main"
-    case Plugin(id, main)       => msg"plugin${':'}$id${'@'}$main"
-    case Compiler(spec, repl)   => msg"compiler${':'}$spec"
-    case Bench(main)            => msg"bench${':'}$main"
+    case Lib()                         => msg"lib"
+    case App(main, timeout, ws)        => msg"app${':'}$main"
+    case Container(image, timeout, ws) => msg"container${':'}$image"
+    case Plugin(id, main)              => msg"plugin${':'}$id${'@'}$main"
+    case Compiler(spec, repl)          => msg"compiler${':'}$spec"
+    case Bench(main)                   => msg"bench${':'}$main"
   }
 }
 
-sealed abstract class Kind(val needsExec: Boolean = false) {
+sealed abstract class Kind(val needsExec: Boolean = false) extends scala.Product with scala.Serializable {
   def as[T: ClassTag]: Option[T] = this.only { case t: T => t }
   def is[T: ClassTag]: Boolean = this match { case t: T => true case _ => false }
   
   def name: Kind.Id = this match {
-    case Lib()          => Lib
-    case App(_, _, _)   => App
-    case Plugin(_, _)   => Plugin
-    case Compiler(_, _) => Compiler
-    case Bench(_)       => Bench
+    case Lib()              => Lib
+    case App(_, _, _)       => App
+    case Container(_, _, _) => Container
+    case Plugin(_, _)       => Plugin
+    case Compiler(_, _)     => Compiler
+    case Bench(_)           => Bench
   }
 }
+
+object Container extends Kind.Id("container")
+case class Container(image: ImageId, timeout: Int, workspace: Option[RepoId] = None) extends Kind(needsExec = true)
 
 object Lib extends Kind.Id("lib")
 case class Lib() extends Kind()
 
 object App extends Kind.Id("app")
-case class App(main: ClassRef, timeout: Int, workspace: Option[RepoId]) extends Kind(needsExec = true)
+case class App(main: ClassRef, timeout: Int, workspace: Option[RepoId] = None) extends Kind(needsExec = true)
 
 object Plugin extends Kind.Id("plugin")
 case class Plugin(id: PluginId, main: ClassRef) extends Kind()

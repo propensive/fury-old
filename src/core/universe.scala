@@ -21,9 +21,6 @@ import fury.io._, fury.model._, fury.text._
 import mercator._
 
 import scala.util._
-import fury.model.IncludeType.Jarfile
-import fury.model.IncludeType.TarFile
-import fury.model.IncludeType.ClassesDir
 
 object Universe {
   def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
@@ -102,7 +99,7 @@ case class Universe(hierarchy: Hierarchy,
   def binaryPaths(ref: ModuleRef)(implicit log: Log): Try[List[Path]] =
     deepBinaries(ref) >> (_.to[List]) >>= (Coursier.fetch(_))
 
-  def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
+  def snapshots(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     project <- apply(ref.projectId)
     module  <- project(ref.moduleId)
     layer   <- layer(ref.projectId)

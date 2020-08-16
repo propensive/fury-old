@@ -14,7 +14,7 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.core
+package fury.model
 
 import fury.ogdl._, fury.io._, fury.model._, fury.text._
 
@@ -29,6 +29,7 @@ object Source {
     case RepoSource(repoId, dir, _) => str"${repoId}:${dir.value}"
     case LocalSource(dir, _) => str"${dir.value}"
   }
+
   implicit val ogdlReader: OgdlReader[Source] = src => unapply(src.id()).get // FIXME
   implicit val ogdlWriter: OgdlWriter[Source] = src => Ogdl(Vector("id" -> Ogdl(src.key)))
   implicit val parser: Parser[Source] = unapply(_)
@@ -70,50 +71,19 @@ object Source {
 sealed abstract class Source extends Key(msg"source") {
   def key: String
   def completion: String
-  def hash(layer: Layer): Try[Digest]
   def dir: Path
   def glob: Glob
   def repoIdentifier: RepoId
-
-  def base(snapshots: Snapshots, layout: Layout): Try[Path]
-  def dir(snapshots: Snapshots, layout: Layout): Try[Path] = base(snapshots, layout).map(dir in _)
-  
-  def files(snapshots: Snapshots, layout: Layout): Try[Stream[Path]] =
-    dir(snapshots, layout).map { dir => glob(dir, dir.walkTree) }
-  
-  def copyTo(snapshots: Snapshots, layout: Layout, destination: Path)(implicit log: Log): Try[Unit] = for {
-    baseDir  <- dir(snapshots, layout)
-    allFiles <- files(snapshots, layout)
-    _        <- allFiles.to[List].map { f =>
-                  f.relativizeTo(baseDir).in(destination).mkParents().map(f.copyTo(_))
-                }.sequence
-  } yield ()
-
-  def fileCount(snapshots: Snapshots, layout: Layout): Try[Int] = files(snapshots, layout).map(_.length)
-
-  def totalSize(snapshots: Snapshots, layout: Layout): Try[ByteSize] =
-    files(snapshots, layout).map(_.map(_.size).reduce(_ + _))
-
-  def linesOfCode(snapshots: Snapshots, layout: Layout): Try[Int] = for {
-    pathStream <- files(snapshots, layout)
-    lines      <- pathStream.traverse(_.lines)
-  } yield lines.map(_.size).sum
 }
 
 case class RepoSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
   def key: String = str"${repoId}:${dir.value}//$glob"
   def completion: String = str"${repoId}:${dir.value}"
   def repoIdentifier: RepoId = repoId
-  def hash(layer: Layer): Try[Digest] = layer.repos.findBy(repoId).map((dir, _).digest[Md5])
-  def base(snapshots: Snapshots, layout: Layout): Try[Path] =
-    snapshots(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
 }
 
 case class LocalSource(dir: Path, glob: Glob) extends Source {
   def key: String = str"${dir.value}//$glob"
   def completion: String = dir.value
-  def hash(layer: Layer): Try[Digest] = Success((-1, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("local")
-  def base(snapshots: Snapshots, layout: Layout): Try[Path] = Success(layout.baseDir)
 }
-

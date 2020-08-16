@@ -170,6 +170,12 @@ object FuryMenu {
         Action('pull, msg"update layer imports universally", UniverseCli(_).imports.pull, shortcut = 'p')
       )
     ),
+    Menu('workspace, msg"manage workspaces for the layer", 'list, shortcut = 'w')(
+      Action('add, msg"add a workspace to the layer", WorkspaceCli(_).add, shortcut = 'a'),
+      Action('update, msg"update a workspace", WorkspaceCli(_).update, shortcut = 'u'),
+      Action('remove, msg"remove a workspace from the layer", WorkspaceCli(_).remove, shortcut = 'r'),
+      Action('list, msg"list workspaces", WorkspaceCli(_).list, shortcut = 'l')
+    ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
       Action('commit, msg"commit the layer to the current repository", LayerCli(_).commit, shortcut = 'm'),

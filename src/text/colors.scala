@@ -106,7 +106,8 @@ object Theme {
           uri = Rgb(30, 150, 255),
           number = Rgb(255, 200, 0),
           underline = Ansi.underline,
-          hazard = Rgb(255, 50, 0) + Ansi.reverse)
+          hazard = Rgb(255, 50, 0) + Ansi.reverse,
+          image = Rgb(88, 184, 64))
 
   object Basic
       extends Theme(
@@ -134,7 +135,8 @@ object Theme {
           uri = Ansi.blue,
           number = Ansi.brightYellow,
           underline = Ansi.underline,
-          hazard = Ansi.brightRed + Ansi.reverse)
+          hazard = Ansi.brightRed + Ansi.reverse,
+          image = Ansi.green)
 
   object NoColor extends Theme("nocolor") {
     override val reset: AnsiCode     = AnsiCode("")
@@ -173,7 +175,8 @@ case class Theme(
     uri: AnsiCode = AnsiCode(""),
     number: AnsiCode = AnsiCode(""),
     underline: AnsiCode = AnsiCode(""),
-    hazard: AnsiCode = AnsiCode("")) {
+    hazard: AnsiCode = AnsiCode(""),
+    image: AnsiCode = AnsiCode("")) {
   val reset: AnsiCode     = AnsiCode("0m")
   val bold: AnsiCode      = AnsiCode("1m")
   val strike: AnsiCode    = AnsiCode("9m")

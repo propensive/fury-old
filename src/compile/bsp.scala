@@ -121,7 +121,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       targets       <- graph.keys.map { ref =>
                          Target(ref, hierarchy, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
-      snapshots     <- graph.keys.map(universe.checkout(_, hierarchy, layout)).sequence
+      snapshots     <- graph.keys.traverse(universe.snapshots(_, hierarchy, layout))
     } yield Structure(modules.toMap, graph, snapshots.foldLeft(Snapshots(Map()))(_ ++ _), targets)
 
   private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {

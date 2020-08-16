@@ -83,6 +83,12 @@ case class Shell(environment: Environment) {
     Success(())
   }
 
+  object docker {
+    def images(): Try[List[ImageId]] = sh"".exec[Try[String]].map { str =>
+      str.split("\n").to[List].flatMap(_.split(",").to[List]).filter(_ == "<none>:<none>").map(ImageId(_))
+    }
+  }
+
   object java {
     def ensureIsGraalVM(): Try[Unit] =
       sh"sh -c 'java -version 2>&1'".exec[Try[String]].map(_.contains("GraalVM")).transform(

@@ -267,7 +267,7 @@ object Build {
                      }
       
       targets      = targetIndex.unzip._2.to[Set]
-      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, hierarchy, layout))
+      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.snapshots(_, hierarchy, layout))
       policy       = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     } yield {
       val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
@@ -482,21 +482,24 @@ case class Build(target: Target,
 
   def copyInclude(ref: ModuleRef, include: Include, layout: Layout)(implicit log: Log): Try[Unit] =
     include.kind match {
-      case IncludeType.ClassesDir =>
+      case ClassesDir(deep) =>
         include.path.mkdir().flatMap {
           layout.classesDir(include.ref).copyTo(include.path in layout.workDir(ref)).waive
         }.munit
-      case IncludeType.FileRef(glob) =>
-        glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
+      case FileRef(source) =>
+        /*glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
           val work = layout.workDir(include.ref)
           val relSrc = p.relativizeTo(work)
           val dest = relSrc in (include.path in layout.workDir(ref))
           log.note(msg"Copying $relSrc in ${include.ref} to ${dest.relativizeTo(layout.workDir(ref))} in $ref")
           dest.mkParents() >>= p.copyTo(dest).waive
-        }.map(_.unit)
-      case IncludeType.TarFile =>
+        }.map(_.unit)*/
         ???
-      case IncludeType.Jarfile =>
+      case DirRef(source) =>
+        ???
+      case TarFile(gzip) =>
+        ???
+      case Jarfile(fat) =>
         ???
     }
 
@@ -604,9 +607,10 @@ case class Build(target: Target,
       val manifest = JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
       val jarInputs: Set[Path] = if(fatJar) bins else Set.empty
       log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+      
       for {
         resources        <- aggregatedResources(ref)
-        _                <- resources.traverse(_.copyTo(snapshots, layout, staging))
+        _                <- resources.traverse(snapshots.copy(_, layout, staging))
         _                <- Shell(layout.env).jar(path, jarInputs, staging.children.map(staging / _).to[Set], manifest)
         _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
       } yield {

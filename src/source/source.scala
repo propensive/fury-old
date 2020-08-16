@@ -30,10 +30,10 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   def list: Try[ExitStatus] = {
     implicit val columns: ColumnArg.Hinter = ColumnArg.hint("repo", "path", "sources", "files", "size", "lines")
-    implicit val sourcesHint = existingSourcesHint
+    import sourceHints.existing
     (cli -< ProjectArg -< ModuleArg -< SourceArg -< ColumnArg -< RawArg).action {
       (getProject, getModule) >>= { case (project, module) =>
-        val snapshots = (universe, getHierarchy, getLayout) >>= (_.checkout(module.ref(project), _, _))
+        val snapshots = (universe, getHierarchy, getLayout) >>= (_.snapshots(module.ref(project), _, _))
         val tabulation = (snapshots, getLayout) >> (Tables().sources(_, _))
         (tabulation, conf, opt(ColumnArg), opt(SourceArg)) >> { case (table, c, col, source) =>
           log.info(c.focus(project.id, module.id))
@@ -44,7 +44,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   def remove: Try[ExitStatus] = {
-    implicit val sourcesHint = existingSourcesHint
+    import sourceHints.existing
     (cli -< ProjectArg -< ModuleArg -< SourceArg).action {
       val newSources = (getModuleRef, getSources, getSource) >>= { case (moduleRef, sources, source) =>
         if(sources.contains(source)) Success(sources - source) else Failure(ComponentNotDefined(source, moduleRef))
@@ -59,7 +59,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   def add: Try[ExitStatus] = {
-    implicit val sourcesHint = possibleSourcesHint
+    import sourceHints.possible
     (cli -< ProjectArg -< ModuleArg -< SourceArg).action {
       val newSources = (getLayout, getLayer, getSources, getSource) >> { case (layout, layer, srcs, src) =>
         val findBySimplifiedName = (name: String) => layer.repos.find(_.remote.simplified == name)
@@ -75,24 +75,9 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     }
   }
 
-  private[this] lazy val getSources = getModule >> (_.sources)
-
   private[this] def sourcesLens: Try[Lens[Layer, SortedSet[Source], SortedSet[Source]]] = (getProject, getModule) >> {
     case (p, m) => Lens[Layer](_.projects(p.id).modules(m.id).sources)
   }
-
-  private[this] lazy val existingSourcesHint: SourceArg.Hinter = SourceArg.hint(getSources)
-
-  private[this] lazy val possibleSourcesHint: SourceArg.Hinter = SourceArg.hint((getLayout, getLayer) >> { case (layout, layer) =>
-    val extSrcs = layer.repos.map(possibleSourceDirectories(_, layout)).flatten
-    val localSrcs = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, fury.io.Glob.All))
-    extSrcs ++ localSrcs
-  })
-
-  private[this] def isSourceFileName(name: String): Boolean = name.endsWith(".scala") || name.endsWith(".java")
-
-  private[this] def possibleSourceDirectories(repo: Repo, layout: Layout) =
-    repo.sourceCandidates(layout)(isSourceFileName).getOrElse(Set.empty)
 }
 
 case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {

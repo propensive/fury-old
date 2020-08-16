@@ -553,48 +553,18 @@ object Scope {
   }
 }
 
-object IncludeType {
-  implicit val ord: Ordering[IncludeType] = Ordering[String].on[IncludeType](_.key)
-  implicit val msgShow: MsgShow[IncludeType] = e => UserMsg { theme => stringShow.show(e) }
-  implicit val parser: Parser[IncludeType] = unapply(_)
-  implicit val stringShow: StringShow[IncludeType] = _.key
-  implicit val diff: Diff[IncludeType] = Diff.gen[IncludeType]
+object ImageId {
+  implicit val msgShow: MsgShow[ImageId] = m => UserMsg(_.image(m.key))
+  implicit val stringShow: StringShow[ImageId] = _.key
+  implicit val diff: Diff[ImageId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[ImageId] = unapply(_)
 
-  def unapply(str: String): Option[IncludeType] = str.only {
-    case "jar"              => Jarfile
-    case "tar"              => TarFile
-    case "classes"          => ClassesDir
-    case r"file:$glob@(.+)" => FileRef(Glob(glob))
+  def unapply(str: String): Option[ImageId] = str.only {
+    case r"[_a-zA-Z0-9][_.\-a-zA-Z0-9]*[_a-zA-Z0-9]" => ImageId(str)
   }
-
-  case object Jarfile extends IncludeType("jar")
-  case object TarFile extends IncludeType("tar")
-  case object ClassesDir extends IncludeType("classes")
-  case class FileRef(glob: Glob) extends IncludeType(str"file:${glob}")
 }
 
-sealed abstract class IncludeType(val key: String) extends scala.Product with scala.Serializable
-
-object IncludeId {
-  implicit val msgShow: MsgShow[IncludeId] = m => UserMsg(_.layer(m.key))
-  implicit val stringShow: StringShow[IncludeId] = _.key
-  implicit val diff: Diff[IncludeId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  implicit val parser: Parser[IncludeId] = unapply(_)
-
-  def unapply(name: String): Option[IncludeId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => IncludeId(name) }
-}
-
-case class IncludeId(key: String) extends Key("include")
-
-object Include {
-  implicit val ord: Ordering[Include] = Ordering[String].on(_.id.key)
-  implicit val msgShow: MsgShow[Include] = e => msg"${e.kind}:${e.path.value}"
-  implicit val stringShow: StringShow[Include] = e => str"${e.kind}:${e.path}"
-  implicit val diff: Diff[Include] = Diff.gen[Include]
-  implicit val keyName: KeyName[Include] = () => msg"include"
-}
-
-case class Include(id: IncludeId, ref: ModuleRef, kind: IncludeType, path: Path)
+case class ImageId(key: String) extends Key("image")
 
 sealed trait Scope extends scala.Product with scala.Serializable
 case object GlobalScope extends Scope

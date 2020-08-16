@@ -24,8 +24,25 @@ import scala.util._
 
 case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
+  private[this] lazy val getIncludeTypeName: Try[IncludeType.Id] =
+    get(IncludeTypeArg) orElse getInclude >> (_.kind.name)
+
+  private[this] lazy val cliIncludeType: Try[IncludeType] = getIncludeTypeName >>= (_ match {
+    case ClassesDir => boolean(RecursiveArg) >> ClassesDir.apply
+    case DirRef     => get(SourceArg) >> DirRef.apply
+    case FileRef    => get(SourceArg) >> FileRef.apply
+    case Jarfile    => boolean(FatJarArg) >> Jarfile.apply
+    case TarFile    => boolean(GzipArg) >> TarFile.apply
+  })
+  
+  import sourceHints.possible
+
   def add: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeNameArg -< IncludeTypeArg -<
-      PathArg -< ModuleRefArg).action {
+      PathArg -< ModuleRefArg
+      -?< (GzipArg, getIncludeTypeName >> oneOf(TarFile))
+      -?< (SourceArg, getIncludeTypeName >> oneOf(DirRef, FileRef))
+      -?< (RecursiveArg, getIncludeTypeName >> oneOf(ClassesDir))
+      -?< (FatJarArg, getIncludeTypeName >> oneOf(Jarfile))).action {
     for {
       hierarchy <- getHierarchy
       pointer   <- getPointer
@@ -35,23 +52,30 @@ case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
       name      <- getIncludeName
       kind      <- getIncludeType
       path      <- get(PathArg)
-      hierarchy <- IncludeApi(hierarchy).add(pointer, projectId, moduleId, name, ref, kind, path) >>= commit
+      include   <- cliIncludeType
+      hierarchy <- IncludeApi(hierarchy).add(pointer, projectId, moduleId, name, ref, include, path) >>=
+                       commit
     } yield log.await()
   }
-  
+
+
   def update: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeArg -< IncludeNameArg -<
-      IncludeTypeArg -< PathArg -< ModuleRefArg).action {
+      IncludeTypeArg -< PathArg -< ModuleRefArg
+          -?< (GzipArg, getIncludeTypeName >> oneOf(TarFile))
+          -?< (SourceArg, getIncludeTypeName >> oneOf(DirRef, FileRef))
+          -?< (RecursiveArg, getIncludeTypeName >> oneOf(ClassesDir))
+          -?< (FatJarArg, getIncludeTypeName >> oneOf(Jarfile))).action {
     for {
       hierarchy <- getHierarchy
       pointer   <- getPointer
       projectId <- getProject >> (_.id)
       moduleId  <- getModule >> (_.id)
       ref       <- optDependency
-      id        <- get(IncludeArg)
+      include   <- getInclude
       name      <- opt(IncludeNameArg)
-      kind      <- opt(IncludeTypeArg)
       path      <- opt(PathArg)
-      hierarchy <- IncludeApi(hierarchy).update(pointer, projectId, moduleId, id, name, ref, kind, path) >>= commit
+      kind      <- ~cliIncludeType.getOrElse(include.kind)
+      hierarchy <- IncludeApi(hierarchy).update(pointer, projectId, moduleId, include.id, name, ref, Some(kind), path) >>= commit
     } yield log.await()
   }
   
@@ -108,8 +132,7 @@ case class IncludeApi(hierarchy: Hierarchy) {
     val lens = Layer(_.projects(projectId).modules(moduleId).includes)
     val include = Include(name, ref, kind, path)
     
-    if(lens(layer).map(_.id).contains(name)) Failure(NotUnique(name))
-    else Success(lens.modify(layer)(_ + include))
+    if(lens(layer).map(_.id).contains(name)) Failure(NotUnique(name)) else ~lens.modify(layer)(_ + include)
   }
 
   def update(pointer: Pointer,

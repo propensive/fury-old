@@ -38,9 +38,9 @@ object Target {
       module    <- project(ref.moduleId)
       _         <- universe.binaryConflicts(ref)
       binPaths  <- universe.binaryPaths(ref)
-      checkouts <- universe.checkout(ref, hierarchy, layout)
-      sources   <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-    } yield Target(ref, module, project, checkouts, sources, binPaths )
+      snapshots <- universe.snapshots(ref, hierarchy, layout)
+      sources   <- module.sources.to[List].traverse(snapshots.dir(_, layout))
+    } yield Target(ref, module, project, snapshots, sources, binPaths )
 }
 
 case class Target(ref: ModuleRef,
