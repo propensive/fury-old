@@ -92,7 +92,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   object imports {
-    lazy val table: Tabulation[LayerEntity] = Tables().layerRefs
+    lazy val table: Tabulation[LayerProvenance] = Tables().layerRefs
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg).action {
@@ -116,7 +116,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
 
   private[this] lazy val universe: Try[Universe] = hierarchy.universe
 
-  private[this] def findLayer(ref: ShortLayerRef): Try[LayerEntity] = universe >> (_.imports) >>= (_.findBy(ref))
+  private[this] def findUsages(ref: ShortLayerRef): Try[LayerProvenance] = universe >> (_.imports) >>= (_.findBy(ref))
 
   object repos {
     def update(repoSetId: RepoSetId, refSpec: RefSpec, layout: Layout)(implicit log: Log): Try[Hierarchy] =
@@ -150,20 +150,20 @@ case class UniverseApi(hierarchy: Hierarchy) {
 
   object imports {
     def update(oldImport: ShortLayerRef, input: Option[LayerName])(implicit log: Log): Try[Hierarchy] = for {
-      layerEntity <- findLayer(oldImport)
-      newImport   <- input.ascribe(NoPublishedName(oldImport)).orElse(getRemoteName(oldImport, layerEntity))
+      provenance  <- findUsages(oldImport)
+      newImport   <- input.ascribe(NoPublishedName(oldImport)).orElse(getRemoteName(oldImport, provenance))
       newLayerRef <- Layer.resolve(newImport)
       pub         <- Layer.published(newImport)
       newLayer    <- Layer.get(newLayerRef, pub)
       _           <- newLayer.verify(false, false, Pointer.Root)
-      hierarchy   <- hierarchy.updateAll(layerEntity.imports) { (layer, imp) =>
+      hierarchy   <- hierarchy.updateAll(provenance.imports) { (layer, imp) =>
                        val newImport = imp.copy(layerRef = newLayerRef, remote = pub)
                        Layer(_.imports).modify(layer)(_ - imp + newImport)
                      }
     } yield hierarchy
 
-    private def getRemoteName(layerRef: ShortLayerRef, layerEntity: LayerEntity): Try[LayerName] = for {
-      layer  <- hierarchy(layerEntity.imports.head._1)
+    private def getRemoteName(layerRef: ShortLayerRef, provenance: LayerProvenance): Try[LayerName] = for {
+      layer  <- hierarchy(provenance.imports.head._1)
       imp    <- layer.imports.findBy(layerRef)
       remote <- imp.remote.ascribe(NoPublishedName(layerRef))
     } yield remote.url
