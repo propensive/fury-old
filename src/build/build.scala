@@ -661,13 +661,15 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.retrieve(conf)
     cli         <- cli.hint(ImportNameArg)
+    cli         <- cli.hint(LayerVersionArg)
     cli         <- cli.hint(IgnoreArg)
     cli         <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
     call        <- cli.call()
     layerName   <- call(ImportArg)
+    version     =  call(LayerVersionArg).toOption
     nameArg     <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingParam(ImportNameArg))
     ignore      <- ~call(IgnoreArg).isSuccess
-    newLayerRef <- Layer.resolve(layerName)
+    newLayerRef <- Layer.resolve(layerName, version)
     pub         <- Layer.published(layerName)
     newLayer    <- Layer.get(newLayerRef, pub)
     _           <- newLayer.verify(ignore, false, Pointer.Root)
