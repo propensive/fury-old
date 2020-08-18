@@ -250,13 +250,14 @@ object Layer extends Lens.Partial[Layer] {
     _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef))
   } yield ref
 
-  def published(layerName: LayerName)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
-    case furyUri@FuryUri(service, path) =>
-      Service.latest(service, path, None).map { artifact =>
-        Some(PublishedLayer(furyUri, artifact.version, LayerRef(artifact.ref)))
-       }
-    case _ =>
-      Success(None)
+  def published(layerName: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
+    case furyUri@FuryUri(domain, path) =>
+      val artifact = version match {
+        case Some(v) => Service.fetch(domain, path, v)
+        case None => Service.latest(domain, path, None)
+      }
+      artifact.map( a => Some(PublishedLayer(furyUri, a.version, LayerRef(a.ref))))
+    case _ => Success(None)
   }
 
   def resolve(layerInput: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[LayerRef] = layerInput match {

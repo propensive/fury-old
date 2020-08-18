@@ -94,6 +94,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   object imports {
     lazy val table: Tabulation[LayerProvenance] = Tables().layerRefs
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
+    implicit val versionHints: LayerVersionArg.Hinter = LayerVersionArg.hint()
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg).action {
       val output = (opt(ColumnArg), opt(LayerRefArg), universe >> (_.imports.values.to[List])) >> { case (col, layerRef, rows) =>
@@ -105,8 +106,8 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       } yield log.await()
     }
 
-    def update: Try[ExitStatus] = (cli -< LayerRefArg -< ImportArg).action {
-      val newHierarchy = (getHierarchy, get(LayerRefArg), opt(ImportArg)) >>= (UniverseApi(_).imports.update(_, _))
+    def update: Try[ExitStatus] = (cli -< LayerRefArg -< ImportArg -< LayerVersionArg).action {
+      val newHierarchy = (getHierarchy, get(LayerRefArg), opt(ImportArg), opt(LayerVersionArg)) >>= (UniverseApi(_).imports.update(_, _, _))
       newHierarchy >> commit >> finish
     }
   }
@@ -149,18 +150,18 @@ case class UniverseApi(hierarchy: Hierarchy) {
   }
 
   object imports {
-    def update(oldImport: ShortLayerRef, input: Option[LayerName])(implicit log: Log): Try[Hierarchy] = for {
+    def update(oldImport: ShortLayerRef, input: Option[LayerName], version: Option[LayerVersion])(implicit log: Log): Try[Hierarchy] = for {
       provenance  <- findUsages(oldImport)
       newImport   <- input.ascribe(NoPublishedName(oldImport)).orElse(getRemoteName(oldImport, provenance))
-      newLayerRef <- Layer.resolve(newImport)
-      pub         <- Layer.published(newImport)
+      newLayerRef <- Layer.resolve(newImport, version)
+      pub         <- Layer.published(newImport, version)
       newLayer    <- Layer.get(newLayerRef, pub)
       _           <- newLayer.verify(false, false, Pointer.Root)
-      hierarchy   <- hierarchy.updateAll(provenance.imports) { (layer, imp) =>
+      newHierarchy   <- hierarchy.updateAll(provenance.imports) { (layer, imp) =>
                        val newImport = imp.copy(layerRef = newLayerRef, remote = pub)
                        Layer(_.imports).modify(layer)(_ - imp + newImport)
                      }
-    } yield hierarchy
+    } yield newHierarchy
 
     private def getRemoteName(layerRef: ShortLayerRef, provenance: LayerProvenance): Try[LayerName] = for {
       layer  <- hierarchy(provenance.imports.head._1)
