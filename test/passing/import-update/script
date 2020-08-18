@@ -1,7 +1,7 @@
 fury layer init
 
 fury layer import -l fury://furore.dev/propensive/scala
-fury layer import -l fury://furore.dev/propensive/probably
+fury layer import -l fury://furore.dev/propensive/probably -V 2.2
 fury layer list --raw --column 'Published as'
 
 fury project add -n hello-test

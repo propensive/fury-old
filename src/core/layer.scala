@@ -259,9 +259,14 @@ object Layer extends Lens.Partial[Layer] {
       Success(None)
   }
 
-  def resolve(layerInput: LayerName)(implicit log: Log): Try[LayerRef] = layerInput match {
+  def resolve(layerInput: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[LayerRef] = layerInput match {
     case FileInput(path)       => ???
-    case FuryUri(domain, path) => Service.latest(domain, path, None).map { a => LayerRef(a.ref) }
+    case FuryUri(domain, path) =>
+      val artifact = version match {
+        case Some(v) => Service.fetch(domain, path, v)
+        case None => Service.latest(domain, path, None)
+      }
+      artifact.map { a => LayerRef(a.ref) }
     case IpfsRef(key)          => Success(LayerRef(key))
   }
 
