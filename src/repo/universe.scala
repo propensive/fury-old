@@ -97,7 +97,8 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
     implicit val versionHints: LayerVersionArg.Hinter = LayerVersionArg.hint()
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg).action {
-      val output = (opt(ColumnArg), opt(LayerRefArg), universe >> (_.imports.values.to[List])) >> { case (col, layerRef, rows) =>
+      implicit val rowOrdering: Ordering[LayerProvenance] = Ordering[Iterable[ImportId]].on(_.ids)
+      val output = (opt(ColumnArg), opt(LayerRefArg), universe >> (_.imports.values.to[List].sorted)) >> { case (col, layerRef, rows) =>
         Tables().show(table, cli.cols, rows, has(RawArg), col, layerRef >> (_.key), "layer")
       }
       for {
