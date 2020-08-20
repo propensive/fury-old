@@ -59,6 +59,7 @@ object Args {
   val IncludeArg = CliParam[IncludeId]('i', 'include, "specify the include")
   val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
   val PathArg = CliParam[Path]('f', 'path, "specify the path")
+  val PathStringArg = CliParam[String]('f', 'path, "specify the path")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
