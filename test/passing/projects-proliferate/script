@@ -41,6 +41,6 @@ fury layer import -l $IPFSREF2 --name platform2
 echo $?
 fury layer list --raw --column ref
 fury universe projects list --raw
-fury universe projects proliferate -p hello-world@8803c7
+fury universe projects proliferate -p hello-world@9a328e
 fury layer list --raw --column ref
 fury universe projects list --raw

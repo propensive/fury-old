@@ -24,10 +24,11 @@ import scala.util._
 
 case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierarchy]) {
   lazy val universe: Try[Universe] = {
-    def merge(getUniverse: Try[Universe], child: (ImportId, Hierarchy)): Try[Universe] =
-      (getUniverse, child._2.universe) >> (_ ++ _)
+    //TODO remove Try
+    def merge(getUniverse: Universe, child: (ImportId, Hierarchy)): Universe =
+      getUniverse ++ child._2.universe.get
 
-    children.foldLeft(Try(Universe(this)))(merge).map(_ ++ layer.localUniverse(this, path))
+    Try(children.foldLeft(Universe(this))(merge) ++ layer.localUniverse(this, path))
   }
 
   def on(pointer: Pointer)(updateLayer: Layer => Try[Layer])(implicit log: Log): Try[Hierarchy] =
