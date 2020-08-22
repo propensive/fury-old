@@ -163,6 +163,7 @@ class Log(private[this] val output: LogStyle, val pid: Pid) {
   def flush(force: Boolean = false): Unit = writers.foreach(_.flush(force))
 
   def await(success: Boolean = true): ExitStatus = {
+    raw(output.theme.reset())
     flush(force = true)
     if(success) Done else Abort
   }
