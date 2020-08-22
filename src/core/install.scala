@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.17.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -34,13 +34,17 @@ object Install {
            log.warn(msg"Could not find a C compiler (${ExecName("cc")}) on the PATH")
            log.warn(msg"Fury will work, but its process name will be ${ExecName("java")} instead of "+
                msg"${ExecName("fury")} and will use the slower Python Nailgun client, instead of a native "+
-               msg"client")
+               msg"client. To fix this, install a C compiler and run ${ExecName("fury system install")} "+
+               msg"again at any time.")
          }
     
     _ <- rcInstall(env, force, Xdg.home / ".zshrc", ExecName("zsh"), zshCompletions)
     _ <- rcInstall(env, force, Xdg.home / ".bashrc", ExecName("bash"), Nil)
     _ <- desktopInstall(env)
     _ <- fishInstall(env)
+    _ <- ~log.info(msg"Installation is complete. Open a new shell to ensure that ${ExecName("fury")} is on your path, or run"+"\n\n"+msg"${ExecName(setPathLine(List(Installation.rootBinDir, Installation.optDir)).head.dropRight(furyTag.length + 1))}")
+    _ <- ~log.info("\n")
+    _ <- ~log.info(msg"Thank you for trying Fury!")
   } yield ()
 
   private def doCCompilation(env: Environment)(implicit log: Log): Try[Unit] = for {

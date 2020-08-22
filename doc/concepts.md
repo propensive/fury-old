@@ -23,18 +23,11 @@ features and enhancements which may break compatibility. This is a tension betwe
 Fury does not pretend to have a clever trick to magically resolve this tension, but it seeks to mitigate the
 _incidental_ problems so that users can focus on solving the _inherent_ problems. In particular, Fury:
 
-- reduces the friction of publishing and forking libraries
-- crowdsources the development and maintenance of builds
-- distinguishes between breaking and nonbreaking changes
-- distributes the burden of maintaining coherency across the ecosystem
-
-### Easier publishing and forking
-
-### 
-
-### Semantic versioning of builds
-
-###
+ - reduces the friction of publishing and forking libraries and their builds
+ - crowdsources the development and maintenance of builds
+ - distinguishes between breaking and nonbreaking changes
+ - makes it just as easy to modify a primary build as a dependency
+ - distributes the burden of maintaining coherency across the ecosystem
 
 ## Anatomy of a Fury build
 
@@ -43,8 +36,7 @@ build something, and is somewhat similar to the concept of workspace in
 [Eclipse](https://www.eclipse.org/eclipseide).
 
 A layer may reference other layers by _importing_ them. All projects defined in the imported layer 
-(and also in any layers it references transitively) become available in your layer to inspect, use and even
-edit.
+(and also in any layers it references transitively) become available in your layer to inspect, use and modify.
 
 A layer usually contains one or more _project_ definitions. A project is a set of sources and dependencies,
 which usually represents an entire application or library with a single name, license. It is similar to the
@@ -52,18 +44,19 @@ concept of project in Eclipse, [IntelliJ](https://www.jetbrains.com/idea) or [Ma
 and will usually correspond to a single [Git](https://git-scm.com) repository, though this isn't enforced.
 
 A project consists of one or more modules. A module corresponds to a set of tightly coupled sources that are
-built with a single compiler task. This is the smallest unit of source organization in Fury, and is similar to
-the concept of module in IntelliJ, Maven or [SBT](https://www.scala-sbt.org/1.x/docs).
+built as a single takes for a compiler. This is the smallest unit of source organization in Fury, and is similar
+to the concept of module in IntelliJ, Maven or [SBT](https://www.scala-sbt.org/1.x/docs).
 
 Each module may (but doesn't have to) reference a set of source directories that are passed to the compiler
-when the module is built. These sources may be located in remote Git repositories, or on the local file system,
-though a layer which refers to local files may not be shared with other users.
+when the module is built. These sources may be located in remote Git repositories, may be generated from running
+an earlier module, or may be on the local filesystem, though a layer which refers to local files may not be
+shared with other users.
 
 A module may also have binary dependencies, which must be located in remote repositories (e. g.
 [Maven Central](https://mvnrepository.com/repos/central) or [Bintray](https://jfrog.com/bintray)). When the
 module is being built, its binary dependencies are downloaded and passed to the compiler.
 [Coursier](https://get-coursier.io) is used to fetch transitive dependencies and resolve potential version
-conflicts.
+conflicts. Support for including binaries from other sources will be added later.
 
 A module may also have dependencies on other modules defined in the layer (or its imported layers). These
 modules are built prior to the current module, and their outputs (such as `*.class` files) passed to the
@@ -75,39 +68,38 @@ Among other things, a layer may contain references to remote source repositories
 directly, but every module in the layer can reference them as source locations. As the module is being built,
 the repositories it depends on are checked out to a specific commit. Repositories may also be configured to
 "track" a branch, but this is merely a convenience to make it easier to manually update a repository to a newer
-commit; for repeatability of builds, source references are always precisely defined by commit hashes.
+commit; for repeatable builds, source references are always precisely defined by commit hashes.
 
 #### Navigating Layers
 
 Layers form a hierarchy: each may import projects from other layers, which themselves import projects from yet
-further layers, and so on. And imports are _named_, usually with the same name as the layer's published name. So
-every imported layer can be thought of as accessible at a filesystem-like path, starting from the root (`/`). A
-more deeply-nested layer may be accessible at, for example,
+further layers, and so on. And imports are _named_ (usually with the same name as the layer's published name).
+So every imported layer can be thought of as accessible at a filesystem-like path, starting from the root (`/`).
+A more deeply-nested layer may be accessible at, for example,
 ```
 /ecosystem/typelevel/shapeless/scala
 ```
 
-Fury, necessarily, has this full hierarchy of layer definitions available to it. So it becomes very easy to view
-and even edit other layers.
+Fury, as a necessity of build able to build a project with its dependencies, has this full hierarchy of layer
+definitions available to it. So it becomes very easy to view and even edit other layers.
 
 When you start a project, you will begin with a "root" layer, '/'. This one doesn't have a name (at least until
-it is published, and someone imports it!), but every layer it imports, directly or transitivily, will. The
-commands you run, such as listing projects, updating layers or running builds, will operate on this layer,
-reading it, and potentially modifying it.
+it is published, and someone imports it!), but every layer it imports will, directly or transitivily, and
+references to imported layers will look like paths. The commands you run, such as listing projects, updating
+layers or running builds, will operate on this layer, reading it, and potentially modifying it.
 
-However it is possible to perform all these actions, just as easily, on any layer in the hierarchy, just by
-navigating to that layer first.
-
-A new layer can be selected with,
+However it is possible to perform all these actions, just as easily, on any layer in the hierarchy, by
+specifying the layer as a parameter to most commands (`--layer` or `-l`), or by switching context to that layer
+before making changes. A layer can be selected with,
 ```
 fury layer select --layer <layer path>
 ```
 
-Assuming the layer exists, this will switch your context to the new layer, and all subsequent commands will
-operate on the imported layer. You can change dependencies, run builds, or ever publish, as if you were working
+Assuming the layer exists, this will change context to the new layer, and all subsequent commands will
+operate on the imported layer. You can change dependencies, run builds, or even publish, as if you were working
 on the imported layer directly.
 
-From this new layer context, Fury will be blind to any _upstream_ layers, i.e. those which are importing your
+From this new layer context, Fury will be blind to any _downstream_ layers, i.e. those which are importing your
 layer. However, when you navigate back to the root layer, with,
 ```
 fury layer select --layer /
@@ -126,14 +118,19 @@ work out whether two dependencies from different layers are intended to be the s
 While this grouping may not seem important, it is fundamental to Fury finding coherent build definitions for
 every project the build depends on. If two projects coming from different layers have the same name, but
 different definitions, then Fury considers them to be conflicting variants of the same project, which must be
-resolved before the build may be run (or published).
+resolved before the build may be run (or published) using Fury's `universe` commands, whose purpose is to make
+universal changes to entire hierarchies of layers.
 
-Fury establishes a one-to-one mapping between project names and project definitions, which it calls a
-_universe_.
+The concept of a `universe` in Fury is a one-to-one mapping between project names and project definitions, and
+establishing a universe is a first step in running a build.
 
 #### Conflicts and uniqueness
 
+_FIXME_
+
 #### Licenses
+
+_FIXME_
 
 ### Modules
 
@@ -141,30 +138,30 @@ Modules define units of compilation, and dependencies between them. Each represe
 which should be compiled to produce a collection of outputs, but they are _unitary_ in the sense that
 compilation will either succeed completely, or fail (producing no output).
 
-For Scala, however, if a successfuly compilation has already completed, the compiler may cache the reuse the
+For Scala, however, if a successful compilation has already completed, the compiler may cache the reuse the
 earlier output, performing an _incremental compilation_. As far as Fury is concerned, this is an implementation
 detail, and the only observable difference should be that compilation will sometimes be faster.
 
 Fury users will not typically _see_ the outputs (such as class files) from a compilation in the form of files
-on disk. They do exist within Fury's cache, but usually, while developing software it is sufficient just to
-know whether compilation succeeded or failed (with error messages), or to see the output from running the
-tests. JAR files can be saved to disk from a successful compilation.
+on disk. They do exist within Fury's stored data, but usually, while developing software it is sufficient just
+to know whether compilation succeeded or failed (with error messages), or to see the output from running the
+tests. JAR files can be saved to a place on disk from a successful compilation.
 
 Each module must define a compiler, which will be invoked to convert some source files to some outputs, but
-different types of modules may have additional behavior. Most modules will be _library_ modules, which do this
-and nothing more. _Application_ modules may additionally have a `main` method in one of their objects which is
-_run_ after compilation.
+different types of modules may have additional behavior. Most modules will be _library_ (`lib`) modules, which
+do this and nothing more. _Application_ (`app`) modules may additionally have a `main` method in one of their
+objects which is _run_ after compilation.
 
 This makes application modules suitable for operations which happen at the end of a build, such as running
 tests or launching a web server. But they may also run during earlier stages of the build, performing tasks like
 source-code generation or bytecode analysis.
 
-_Plugin_ modules may be used to define Scala compiler plugins. Any other module depending on a plugin module
-will be compiled with that plugin enabled.
+_Plugin_ (`plugin`) modules may be used to define Scala compiler plugins. Any other module depending on a plugin
+module will be compiled with that plugin enabled.
 
-_Benchmark_ modules are similar to application modules, but integrate with
+_Benchmark_ (`bench`) modules are similar to application modules, but integrate with
 [`jmh`](https://openjdk.java.net/projects/code-tools/jmh/) to instrument the compiled bytecode, and then run the
-benchmarks in isolation
+benchmarks in isolation. Benchmark modules may be removed in the future.
 
 #### Application modules
 
@@ -174,7 +171,7 @@ varied tasks than simple compliation. Some possibilities include,
 - running tests
 - launching a web-server
 
-An `application` module behaves like a `library` module, but will additionally run a `main` method once it has
+An `app` module behaves like a `lib` module, but will additionally run a specified `main` method once it has
 finished compiling. The class which defines the `main` method must be specified in the module, for example,
 ```
 fury module update --type application --main com.example.Main
@@ -187,8 +184,6 @@ the build command, for example,
 fury build run --module <module name> -- arg1 arg2 arg3
 ```
 
-Application modules are part of the build, and it is often useful to indicate 
-
 ##### Determinism
 
 An application module may perform operations which, for a given set of inputs, always produce the same output.
@@ -196,10 +191,7 @@ These are called _deterministic_, and Fury knows that it can cache the result of
 module without having to run it every time.
 
 The `--deterministic`/`-D` option can be used to indicate whether the result of an application module should
-be cached, or recomputed every time.
-
-Note that even if a module is marked as deterministic, if its classpath, source code, or compiler options
-change, it will be recomputed.
+be cached (while its inputs remain identical), or recomputed every time regardless of its inputs.
 
 ##### Termination
 
@@ -209,7 +201,8 @@ forcefulness.
 
 If the process is interrupted while it is running, usually by pressing `Ctrl+C`, Fury will send a termination
 signal to the process. By default, this will be `SIGTERM`, though some applications may need different signals.
-These may be specified with the `--termination`/`-T` option, like so,
+In a later version of Fury it will be possible to specify the signal with the `--termination`/`-T` option, like
+so,
 ```
 fury module update --termination SIGKILL
 ```
@@ -217,11 +210,19 @@ fury module update --termination SIGKILL
 #### Benchmarks
 
 Carrying out benchmarking puts some special requirements on the build: in particular, the build should not be
-performing any other intensive operations while the benchmarks are being run. Fury provides a special type of
-module, `benchmarks`, for this purpose.
+performing any other processor-intensive operations while the benchmarks are being run. Fury provides a special
+type of module, `benchmarks`, for this purpose.
 
 Currently the only benchmarking tool supported by Fury is
-[jmh](https://openjdk.java.net/projects/code-tools/jmh/), but later versions make offer alternative options.
+[jmh](https://openjdk.java.net/projects/code-tools/jmh/)
+
+#### Container modules
+
+Some tasks cannot easily be performed in a repeatable way or different computer systems, particularly if they
+require a stack of non-JVM applications. [Docker](https://docker.com/) provides a reliable framework for
+executing tasks such as these reproducibly, in a safe, isolated environment.
+
+Support for _container_ modules, which add basic Docker support to Fury, will be added in a later version.
 
 ### Aliases
 
@@ -236,14 +237,16 @@ web-server.
 Fury builds may be shared with other developers, and Fury introduces its own scheme for sharing a layer so
 that it may be cloned or imported by someone else. We make the distinction between "sharing" and
 "publishing". Sharing makes a layer available to other users on the Internet, provided they know how to refer
-to it: a hash is used to refer to the layer, but does nothing to make it easy-to-find, and does not add it to
+to it: a hash is used to refer to the layer, but does nothing to make it discoverable, and does not add it to
 any catalogs.
+
+FIXME: JP: Continue checking after this point!
 
 Publishing attaches a name of your choice to a shared layer, and optionally adds it to a catalog to make it
 discoverable. Publishing requires a third-party catalog service, whose job is to aggregate published layers
 and make them available for users to view or search. Different catalog services can choose different criteria
 for publishing layers, but Fury comes bootstrapped to use the
-[`furore.dev` catalog service](https://furore.dev/catalog), which can be freely used by anyone with a
+[`vent.dev` catalog service](https://vent.dev/catalog), which can be freely used by anyone with a
 [GitHub](https://github.com) account. A shared layer hash is an immutable reference to a full specification of
 the build, and is intended to produce the same binary outputs today or in ten years' time. A published layer
 name, however, is mutable and can refer to different (though hopefully not wildly different) definitions at
@@ -440,7 +443,7 @@ period of unavailability, or access the definitive most-recent catalog, but the 
 degrade gracefully in the event of failure. Even though _publishing_ a layer will be temporarily impossible,
 _sharing_ a layer will continue to work.
 
-### Furore
+### Vent
 
 [Furore](https://furore.dev/) is a catalog service provided by [Propensive O&Uuml;](https://propensive.com/)
 for sharing Fury layers, and fresh Fury installations are configured to use Furore as their default catalog
