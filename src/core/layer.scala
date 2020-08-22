@@ -59,7 +59,7 @@ case class Layer(version: Int,
     hierarchy = hierarchy,
     projects = projects.map { project => project.id -> Uniqueness.Unique(project.projectRef, Set(path)) }.toMap,
     repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
-    imports = imports.map { i => i.layerRef.short -> LayerEntity(i.layerRef.short, Map(path -> i)) }.toMap
+    imports = imports.map { i => i.layerRef.short -> LayerProvenance(i.layerRef.short, Map(path -> i)) }.toMap
   )
 
   def checkinSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
@@ -251,18 +251,24 @@ object Layer extends Lens.Partial[Layer] {
     _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef))
   } yield ref
 
-  def published(layerName: LayerName)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
-    case furyUri@FuryUri(service, path) =>
-      Service.latest(service, path, None).map { artifact =>
-        Some(PublishedLayer(furyUri, artifact.version, LayerRef(artifact.ref)))
-       }
-    case _ =>
-      Success(None)
+  def published(layerName: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
+    case furyUri@FuryUri(domain, path) =>
+      val artifact = version match {
+        case Some(v) => Service.fetch(domain, path, v)
+        case None => Service.latest(domain, path, None)
+      }
+      artifact.map( a => Some(PublishedLayer(furyUri, a.version, LayerRef(a.ref))))
+    case _ => Success(None)
   }
 
-  def resolve(layerInput: LayerName)(implicit log: Log): Try[LayerRef] = layerInput match {
+  def resolve(layerInput: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[LayerRef] = layerInput match {
     case FileInput(path)       => ???
-    case FuryUri(domain, path) => Service.latest(domain, path, None).map { a => LayerRef(a.ref) }
+    case FuryUri(domain, path) =>
+      val artifact = version match {
+        case Some(v) => Service.fetch(domain, path, v)
+        case None => Service.latest(domain, path, None)
+      }
+      artifact.map { a => LayerRef(a.ref) }
     case IpfsRef(key)          => Success(LayerRef(key))
   }
 

@@ -75,10 +75,9 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       _         <- ~log.rawln(table)
     } yield log.await() }
 
-    def proliferate: Try[ExitStatus] = (cli -< LayerArg -< ProjectRefArg).action { for {
-      layerRef   <- get(LayerArg)
+    def proliferate: Try[ExitStatus] = (cli -< ProjectRefArg).action { for {
       projectRef <- get(ProjectRefArg)
-      hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(layerRef, projectRef)) >>= commit
+      hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(projectRef)) >>= commit
     } yield log.await() }
 
     def diff: Try[ExitStatus] = (cli -< ProjectRefArg -< AgainstProjectArg -< RawArg).action { for {
@@ -93,33 +92,48 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   object imports {
-    lazy val table: Tabulation[LayerEntity] = Tables().layerRefs
+    lazy val table: Tabulation[LayerProvenance] = Tables().layerRefs
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
+    implicit val versionHints: LayerVersionArg.Hinter = LayerVersionArg.hint()
 
-    def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< LayerRefArg).action { for {
-      col      <- opt(ColumnArg)
-      layerRef <- opt(LayerRefArg)
-      rows     <- universe >> (_.imports.values.to[List])
-      table    <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, layerRef >> (_.key), "layer")
-      _        <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
-      _        <- ~log.rawln(table)
-    } yield log.await() }
+    def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< LayerRefArg).action {
+      implicit val rowOrdering: Ordering[LayerProvenance] = Ordering[Iterable[ImportId]].on(_.ids)
+      
+      val output = (opt(ColumnArg), opt(LayerRefArg), universe >> (_.imports.values.to[List].sorted)) >> {
+        case (col, layerRef, rows) =>
+          Tables().show(table, cli.cols, rows, has(RawArg), col, layerRef >> (_.key), "layer")
+      }
 
-    def pull: Try[ExitStatus] = (cli -< LayerRefArg -< ImportArg).action { for {
-      layerRef   <- get(LayerRefArg)
-      importName <- opt(ImportArg)
-      hierarchy  <- getHierarchy >>= (UniverseApi(_).imports.pull(layerRef, importName)) >>= commit
-    } yield log.await() }
+      for {
+        _ <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
+        _ <- output >> log.rawln
+      } yield log.await()
+    }
+
+    def update: Try[ExitStatus] = (cli -< LayerRefArg -< ImportArg -< LayerVersionArg).action {
+      for {
+        hierarchy <- getHierarchy
+        layerRef  <- get(LayerRefArg)
+        imp       <- opt(ImportArg)
+        version   <- opt(LayerVersionArg)
+        hierarchy <- UniverseApi(hierarchy).imports.update(layerRef, imp, version)
+        _         <- commit(hierarchy) >> finish
+      } yield log.await()
+    }
   }
 }
 
 case class UniverseApi(hierarchy: Hierarchy) {
 
+  private[this] lazy val universe: Try[Universe] = hierarchy.universe
+
+  private[this] def findUsages(ref: ShortLayerRef): Try[LayerProvenance] = universe >> (_.imports) >>= (_.findBy(ref))
+
   object repos {
     def update(repoSetId: RepoSetId, refSpec: RefSpec, layout: Layout)(implicit log: Log): Try[Hierarchy] =
       for {
-        repoSets  <- hierarchy.universe >> (_.repoSets)
-        repos     <- repoSets.get(repoSetId).ascribe(ItemNotFound(repoSetId))
+        repoSets  <- universe >> (_.repoSets)
+        repos     <- repoSets.findBy(repoSetId)
         someLayer <- hierarchy(repos.head.layer)
         someRepo  <- someLayer.repos.findBy(repos.head.repoId)
         gitDir    <- someRepo.remote.fetch(layout)
@@ -132,9 +146,8 @@ case class UniverseApi(hierarchy: Hierarchy) {
   }
 
   object projects {
-    def proliferate(pointer: Pointer, projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
-      layer     <- hierarchy(pointer)
-      universe  <- hierarchy.universe
+    def proliferate(projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
+      universe  <- universe
       project   <- universe(projectRef)
       pointers  =  universe.projects(projectRef.id).allOrigins
       hierarchy <- hierarchy.updateAll(pointers.map((_, ()))) { (layer, _) =>
@@ -142,29 +155,30 @@ case class UniverseApi(hierarchy: Hierarchy) {
                    }
     } yield hierarchy
 
-    def diff(left: ProjectRef, right: ProjectRef)(implicit log: Log): Try[Seq[Difference]] = for {
-      universe <- hierarchy.universe
-      left     <- universe(left)
-      right    <- universe(right)
-    } yield Project.diff.diff(left, right)
+    def diff(left: ProjectRef, right: ProjectRef)(implicit log: Log): Try[Seq[Difference]] =
+      (universe >>= (_(left)), universe >>= (_(right))) >> (Project.diff.diff)
   }
 
   object imports {
-    def pull(layerRef: ShortLayerRef, input: Option[LayerName])(implicit log: Log): Try[Hierarchy] = for {
-      universe    <- hierarchy.universe
-      layerEntity <- universe.imports.get(layerRef).ascribe(ItemNotFound(layerRef))
-      someLayer   <- hierarchy(layerEntity.imports.head._1)
-      someImport  <- someLayer.imports.findBy(layerRef)
-      importName  <- input.orElse(someImport.remote.map(_.url)).ascribe(NoRemoteInferred())
-      newLayerRef <- Layer.resolve(importName)
-      pub         <- Layer.published(importName)
+    def update(oldImport: ShortLayerRef, input: Option[LayerName], version: Option[LayerVersion])
+              (implicit log: Log)
+              : Try[Hierarchy] = for {
+      provenance  <- findUsages(oldImport)
+      newImport   <- input.ascribe(NoPublishedName(oldImport)).orElse(getRemoteName(oldImport, provenance))
+      newLayerRef <- Layer.resolve(newImport, version)
+      pub         <- Layer.published(newImport, version)
       newLayer    <- Layer.get(newLayerRef, pub)
       _           <- newLayer.verify(false, false, Pointer.Root)
-      
-      hierarchy   <- hierarchy.updateAll(layerEntity.imports) { (layer, imp) =>
+      newHierarchy   <- hierarchy.updateAll(provenance.imports) { (layer, imp) =>
                        val newImport = imp.copy(layerRef = newLayerRef, remote = pub)
                        Layer(_.imports).modify(layer)(_ - imp + newImport)
                      }
-    } yield hierarchy
+    } yield newHierarchy
+
+    private def getRemoteName(layerRef: ShortLayerRef, provenance: LayerProvenance): Try[LayerName] = for {
+      layer  <- hierarchy(provenance.imports.head._1)
+      imp    <- layer.imports.findBy(layerRef)
+      remote <- imp.remote.ascribe(NoPublishedName(layerRef))
+    } yield remote.url
   }
 }

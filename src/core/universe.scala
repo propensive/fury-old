@@ -30,7 +30,7 @@ object Universe {
 case class Universe(hierarchy: Hierarchy,
                     projects: Map[ProjectId, Uniqueness[ProjectRef, Pointer]],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
-                    imports: Map[ShortLayerRef, LayerEntity]) {
+                    imports: Map[ShortLayerRef, LayerProvenance]) {
   def ids: Set[ProjectId] = projects.keySet
 
   import Uniqueness._
@@ -66,7 +66,7 @@ case class Universe(hierarchy: Hierarchy,
   def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
   def apply(id: ProjectId): Try[Project] = layer(id).flatMap(_.projects.findBy(id))
   def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
-  def apply(id: ShortLayerRef): Try[LayerEntity] = imports.get(id).ascribe(ItemNotFound(id))
+  def apply(id: ShortLayerRef): Try[LayerProvenance] = imports.get(id).ascribe(ItemNotFound(id))
   def apply(ref: ModuleRef): Try[Module] = apply(ref.projectId) >>= (_(ref.moduleId))
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 

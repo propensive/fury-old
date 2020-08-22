@@ -492,7 +492,11 @@ abstract class CliApi {
   implicit lazy val includeTypeHints: IncludeTypeArg.Hinter =
     IncludeTypeArg.hint(Jarfile, TarFile, ClassesDir, FileRef, DirRef)
 
-  implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
+  def currentDir: List[Path] = get(PathArg).getOrElse(Path("")).childPaths.flatMap { path =>
+    if(path.directory) List(path, path / "") else List(path)
+  }
+
+  implicit lazy val pathHints: PathArg.Hinter = PathArg.hint(currentDir)
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
   implicit lazy val grabHints: GrabArg.Hinter = GrabArg.hint()

@@ -34,6 +34,8 @@ package object core extends GuillotineExtensions {
 
   implicit def sortedSetExt[T](set: SortedSet[T]): SortedSetExt[T] = new SortedSetExt[T](set)
 
+  implicit def mapExt[K <: fury.model.Key: MsgShow, V](map: Map[K, V]): MapExt[K, V] = new MapExt[K, V](map)
+
   implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
     implicitly[MsgShow[T]].show(_).string(theme)
 
@@ -85,6 +87,16 @@ package object core extends GuillotineExtensions {
     
     def >>[S](that: (T1, T2, T3, T4) => S): F[S] =
       for(t1 <- monad4._1; t2 <- monad4._2; t3 <- monad4._3; t4 <- monad4._4) yield that(t1, t2, t3, t4)
+  }
+
+  implicit class FlatMap5[F[_]: Monadic, T1, T2, T3, T4, T5](monad5: (F[T1], F[T2], F[T3], F[T4], F[T5])) {
+    def >>=[S](that: (T1, T2, T3, T4, T5) => F[S]): F[S] =
+      for(t1 <- monad5._1; t2 <- monad5._2; t3 <- monad5._3; t4 <- monad5._4; t5 <- monad5._5; s  <- that(t1,
+          t2, t3, t4, t5)) yield s
+    
+    def >>[S](that: (T1, T2, T3, T4, T5) => S): F[S] =
+      for(t1 <- monad5._1; t2 <- monad5._2; t3 <- monad5._3; t4 <- monad5._4; t5 <- monad5._5) yield that(t1,
+          t2, t3, t4, t5)
   }
 
   type Id[A] = A

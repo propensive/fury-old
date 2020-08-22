@@ -260,10 +260,16 @@ case class Tables() {
     Heading("Layers", _._2.map(_.layer: UserMsg).reduce { (l, r) => l+"\n"+r })
   )
   
-  val layerRefs: Tabulation[LayerEntity] = Tabulation(
-    Heading("Import", _.ref),
-    Heading("IDs", _.ids),
-    Heading("Remotes", _.published),
-    Heading("Layers", _.imports.keySet.map { v => v: UserMsg }.reduce { (l, r) => l+"\n"+r })
-  )
+  val layerRefs: Tabulation[LayerProvenance] = {
+    implicit val pointerOrdering = Ordering.Iterable[ImportId].on[Pointer](_.parts)
+    def sortedList[T : MsgShow : Ordering](entries: Iterable[T]): UserMsg =
+      entries.to[List].sorted.map { v => v: UserMsg }.reduce { (l, r) => l+"\n"+r }
+
+    Tabulation(
+      Heading("Import", _.ref),
+      Heading("IDs", _.ids),
+      Heading("Remotes", _.published),
+      Heading("Imported by", provenance => sortedList(provenance.imports.keySet))
+    )
+  }
 }

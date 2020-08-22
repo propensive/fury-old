@@ -331,9 +331,9 @@ object ShortLayerRef {
 
 case class ShortLayerRef(key: String) extends Key(msg"layer")
 
-case class LayerEntity(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
+case class LayerProvenance(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
   def +(newImports: Map[Pointer, Import]) = copy(imports = imports ++ newImports)
-  def ids: Set[ImportId] = imports.values.map(_.id).to[Set]
+  def ids: SortedSet[ImportId] = SortedSet[ImportId]() ++ imports.values.map(_.id)
   def published: Set[PublishedLayer] = imports.values.flatMap(_.remote).to[Set]
 }
 
@@ -697,6 +697,7 @@ object ImportId {
   implicit val stringShow: StringShow[ImportId] = _.key
   implicit val diff: Diff[ImportId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[ImportId] = unapply(_)
+  implicit val ord: Ordering[ImportId] = Ordering[String].on[ImportId](_.key)
 
   def unapply(name: String): Option[ImportId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ImportId(name) }
 }

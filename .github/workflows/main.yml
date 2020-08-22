@@ -14,11 +14,27 @@ jobs:
     steps:
     - uses: actions/checkout@v2.0.0
     - run: git fetch --prune --unshallow
+    - name: Cache the Makefile output
+      uses: actions/cache@v2.1.0
+      id: cache-dist
+      with:
+        path: |
+          dist
+          etc/launcher
+        key: dist-${{ github.sha }}
     - name: Run Makefile
+      if: steps.cache-dist.outputs.cache-hit != 'true'
       run: |
         git describe --tags
         make install
       timeout-minutes: 10
+    - name: Install the pre-built distribution from cache
+      if: steps.cache-dist.outputs.cache-hit == 'true'
+      run: |
+        git describe --tags
+        make tmp/.version
+        make --assume-old=dist/fury.tar.gz --assume-old=etc/launcher install
+      timeout-minutes: 3
     - name: Package compilation logs
       if: failure()
       run: find ~/.cache/fury -type f -name '*.log' | tar cvzf compilation-logs.tar.gz --files-from -

@@ -23,5 +23,6 @@ object CoreTests extends Suite() {
     test.suite("DAG tests")(DagTest.run)
     test.suite("Remote name tests")(RemoteNameTest.run)
     test.suite("Uniqueness tests")(UniquenessTest.run)
+    test.suite("Resolver tests")(ResolverTest.run)
   }
 }

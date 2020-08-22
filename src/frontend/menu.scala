@@ -79,7 +79,7 @@ object FuryMenu {
       Action('remove, msg"remove an environment variable", EnvCli(_).remove, shortcut = 'r'),
       Action('list, msg"list environment variable", EnvCli(_).list, shortcut = 'l')
     ),
-    Menu('include, msg"manage includes to modules", 'add, shortcut = 'x')(
+    Menu('include, msg"manage includes to modules", 'add, shortcut = 'i')(
       Action('add, msg"add an include to a module", IncludeCli(_).add, shortcut = 'a'),
       Action('list, msg"list includes", IncludeCli(_).list, shortcut = 'l'),
       Action('remove, msg"remove an include", IncludeCli(_).remove, shortcut = 'r'),
@@ -167,7 +167,7 @@ object FuryMenu {
       ),
       Menu('imports, msg"view and modify layer imports", 'list, shortcut = 'i')(
         Action('list, msg"show all layer imports", UniverseCli(_).imports.list, shortcut = 'l'),
-        Action('pull, msg"update layer imports universally", UniverseCli(_).imports.pull, shortcut = 'p')
+        Action('update, msg"update layer imports universally", UniverseCli(_).imports.update, shortcut = 'u'),
       )
     ),
     Menu('workspace, msg"manage workspaces for the layer", 'list, shortcut = 'w')(

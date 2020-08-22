@@ -26,7 +26,7 @@ runtest() {
   mkdir -p "test/tmp"
   cp -r "$DIR/$TEST" "$TMPDIR"
   cd "$TMPDIR"
-  source ./script 2>&1 | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m," > "capture.log"
+  source ./script 2>&1 | grep -v 'Picked up JAVA_TOOL_OPTIONS' | tee output | sed "s,.*,${ESC}[38;5;242m&${ESC}[0m," > "capture.log"
   echo "----------------------------------------------------------------------------------------------------" >> "capture.log"
   diff -u check output >> "capture.log"
   SUCCESS=$?
