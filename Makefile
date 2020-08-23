@@ -115,7 +115,15 @@ dist/fury: etc/launcher tmp/.bundle.ipfs
 	 chmod +x "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
-tmp/.launcher.ipfs: dist/fury
+dist/install: etc/install tmp/.bundle.ipfs
+	@printf "$(MK) Rewriting Fury installer script..." && \
+	 mkdir -p dist && \
+	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
+	 sed "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" "$@.tmp" > "$@" && \
+	 chmod +x "$@" && \
+	 printf "done\n" || (printf "failed\n" && exit 1)
+
+tmp/.launcher.ipfs: dist/fury dist/install
 	@printf "$(MK) Adding $(shell tput -Tansi sitm)Fury launcher $(VERSION)$(shell tput -Tansi sgr0) to IPFS..." && \
 	 ipfs add -q "$<" > "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
