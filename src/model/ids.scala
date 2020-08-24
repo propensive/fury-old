@@ -340,7 +340,7 @@ case class LayerProvenance(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
                   undoBuffer: Int = 5,
-                  timestamps: Boolean = true,
+                  timestamps: Boolean = false,
                   pipelining: Boolean = false,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
