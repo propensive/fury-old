@@ -175,7 +175,7 @@ publish: .version pinata .pinata/apiKey .pinata/secretApiKey tmp/.launcher.ipfs
 	   cp dist/fury fury && \
 	   rm .version && \
 	   git add fury && \
-	   git commit -m 'Updated bootstrap version' && \
+	   git commit -m "Updated bootstrap version to $(VERSION)" && \
 	   git push && \
 	   printf "$(MK) Done\n" || ( printf "$(MK) Failed\n" && exit 1 ) \
 	 ) && \
