@@ -6,8 +6,8 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.18.0"
-ipfsHash="Qmc32p5q7MTsHQWnxoxBVPnX1xZQnfAfBkxKUbzvAjw3iV"
+version="0.18.3"
+ipfsHash="QmYSZ33wt3qdxoWKCWncUuUQaUTohRbGQHa9rwt5mmjZae"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
@@ -23,6 +23,8 @@ installDir="${furyUsr}/$([ "${currentVersion}" = "${version}" ] && echo "current
 args="$@"
 
 installFury() {
+  command -v java > /dev/null || fail java
+  command -v javac > /dev/null || fail javac
   mkdir -p "${downloadDir}"
   printf "Downloading Fury ${version}..."
   command -v curl > /dev/null || fail curl
@@ -42,10 +44,12 @@ runFury() {
 fail() {
   printf "fail\n"
   case "$1" in
-    curl)     printf "Could not find `curl` to download Fury\n" ;;
-    download) printf "Could not download Fury version ${version}\n" ;;
-    tar)      printf "Could not find `tar` to extract Fury\n" ;;
-    extract)  printf "Could not extract Fury\n" ;;
+    java)     printf "Could not find \033[0;36mjava\033[0m. Please install a JDK using your system's package manager.\n" ;;
+    javac)    printf "A JRE was discovered, but could not find \033[0;36mjavac\033[0m. Please install a JDK using your system's package manager.\n" ;;
+    curl)     printf "Could not find \033[0;36mcurl\033[0m, which is required to download Fury.\n" ;;
+    download) printf "Could not download Fury version ${version}.\n" ;;
+    tar)      printf "Could not find \033[0;36mtar\033[0m to extract Fury.\n" ;;
+    extract)  printf "An unexpected error occurred while attempting to extract Fury.\n" ;;
   esac
   exit 1
 }
