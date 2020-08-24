@@ -145,14 +145,14 @@ pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
 .version:
 	@( echo $(shell bash -c 'read -p "Please specify the new version (current: $(VERSION)): " V; echo $$V') > "$@" )
 
-publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
+publish: .version pinata .pinata/apiKey .pinata/secretApiKey tmp/.launcher.ipfs
 	@( echo $(VERSION) | grep -q '-' && printf "Not pinning snapshot release of Fury launcher.\n" ) || \
 	 ( ( stat .version 2> /dev/null > /dev/null || \
 	     ( printf "$(MK) Please specify the new version in the file $(shell tput -Tansi bold).version$(shell tput -Tansi sgr0).\n" && \
 	       exit 1 ) \
 	   ) && \
 	   printf "$(MK) Checking there are no uncommitted changes..." && \
-	   git diff-index --quiet HEAD -- && \
+	   git diff-index HEAD -- && \
 	   printf "done\n" && \
 	   printf "$(MK) Updating source headers..." && \
 	   etc/revise && \
@@ -183,4 +183,4 @@ publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 test:
 	tmp/fury test --disable-security-manager --output linear
 
-.PHONY: run publish pinata pinata-launcher clean uninstall icons tmp/.version test
+.PHONY: run publish pinata clean uninstall icons tmp/.version test

@@ -124,6 +124,8 @@ You can grant these permissions with,
           cli.abort(msg"Coursier could not download a file because you appear to be offline.")
         case UnknownVersion(v) =>
           cli.abort(msg"The version $v does not exist.")
+        case UnknownOs(os) =>
+          cli.abort(msg"The operating system '$os' was not recognized.")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>
