@@ -170,13 +170,14 @@ publish: .version pinata .pinata/apiKey .pinata/secretApiKey tmp/.launcher.ipfs
 	    -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).sh\"},\"hashToPin\":\"$(shell cat tmp/.launcher.ipfs)\"}" \
 	    "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
 	    printf "done\n" && \
-	    git push --tags && \
-	    ./fury repo pull -r fury && \
-	    ./fury repo update -r fury -V "$(VERSION)" && \
-	    printf "$(MK) Copying new launcher script to root directory..." && \
-	    cp dist/fury fury && \
-	    rm .version && \
-	    printf "$(MK) Done\n" || ( printf "$(MK) Failed\n" && exit 1 ) \
+	   git push --tags && \
+	   printf "$(MK) Copying new launcher script to root directory..." && \
+	   cp dist/fury fury && \
+	   rm .version && \
+	   git add fury && \
+	   git commit -m 'Updated bootstrap version' && \
+	   git push && \
+	   printf "$(MK) Done\n" || ( printf "$(MK) Failed\n" && exit 1 ) \
 	 ) && \
 	 printf "$(MK) $(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
 
