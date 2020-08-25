@@ -46,6 +46,12 @@ object Ipfs {
       ref  <- add(file, wrap = false, onlyHash = false)
     } yield ref
 
+    def add(data: Array[Byte]): Try[IpfsRef] = for {
+      data <- Try(new ByteArrayInputStream(data))
+      data <- Try(new NamedStreamable.InputStreamWrapper(data))
+      ref  <- add(data, wrap = false, onlyHash = false)
+    } yield ref
+
     def add(string: String): Try[IpfsRef] = for {
       data <- Try(new ByteArrayInputStream(string.getBytes("UTF-8")))
       data <- Try(new NamedStreamable.InputStreamWrapper(data))
