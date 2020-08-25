@@ -111,7 +111,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
 
       graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {
                           ds   <- universe.dependencies(ref, layout)
-                          arts <- (ds.map(_.ref) + ref).traverse(Target(_, hierarchy, universe, layout))
+                          arts <- (ds.map(_.ref) + ref).traverse(Target(_, universe, layout))
                         } yield arts.map { a =>
                           (a.ref, (a.module.dependencies.to[List]) ++ a.module.compiler().map(_.hide))
                         } }.sequence.map(_.flatten.toMap)
@@ -119,9 +119,9 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe(ref).map((ref, _)) }
       targets       <- graph.keys.map { ref =>
-                         Target(ref, hierarchy, universe, layout).map(ref -> _)
+                         Target(ref, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
-      snapshots     <- graph.keys.map(universe.checkout(_, hierarchy, layout)).sequence
+      snapshots     <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, snapshots.foldLeft(Snapshots(Map()))(_ ++ _), targets)
 
   private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {

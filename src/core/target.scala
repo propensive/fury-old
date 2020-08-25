@@ -31,13 +31,13 @@ object Target {
     lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
   }
 
-  def apply(ref: ModuleRef, hierarchy: Hierarchy, universe: Universe, layout: Layout)
+  def apply(ref: ModuleRef, universe: Universe, layout: Layout)
            (implicit log: Log)
            : Try[Target] = for {
       project   <- universe(ref.projectId)
       module    <- project(ref.moduleId)
       binaries  <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
-      checkouts <- universe.checkout(ref, hierarchy, layout)
+      checkouts <- universe.checkout(ref, layout)
       sources   <- module.sources.to[List].traverse(_.dir(checkouts, layout))
     } yield Target(ref, module, project, checkouts, sources, binaries )
 }
