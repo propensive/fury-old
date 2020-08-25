@@ -110,16 +110,18 @@ tmp/.bundle.ipfs: dist/fury.tar.gz
 dist/fury: etc/launcher tmp/.bundle.ipfs
 	@printf "$(MK) Rewriting Fury launcher script..." && \
 	 mkdir -p dist && \
-	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
-	 sed "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" "$@.tmp" > "$@" && \
+	 sed -e "s/%VERSION%/$(VERSION)/" \
+	     -e "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" \
+	     -e "s/%MD5%/$(shell md5sum dist/fury.tar.gz | head -c 32)/" "$<" > "$@" && \
 	 chmod +x "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
 dist/install: etc/install tmp/.bundle.ipfs
 	@printf "$(MK) Rewriting Fury installer script..." && \
 	 mkdir -p dist && \
-	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
-	 sed "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" "$@.tmp" > "$@" && \
+	 sed -e "s/%VERSION%/$(VERSION)/" \
+	     -e "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" \
+	     -e "s/%MD5%/$(shell md5sum dist/fury.tar.gz | head -c 32)/" "$<" > "$@" && \
 	 chmod +x "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
