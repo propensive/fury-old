@@ -171,6 +171,7 @@ object Layer extends Lens.Partial[Layer] {
       inputs <- TarGz.untargz(layout.layerDb.inputStream())
       _      =  log.note(msg"The layer storage at ${layout.layerDb} contains ${inputs.size} entries")
       _      <- inputs.traverse { bytes => for {
+                  _     <- storeRaw(bytes)
                   layer <- Ogdl.read[Layer](bytes, migrate(_))
                   _     <- store(layer)
                 } yield () }
@@ -197,6 +198,14 @@ object Layer extends Lens.Partial[Layer] {
       layer <- Ogdl.read[Layer](data, migrate(_))
       _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
     } yield layer }
+
+  def storeRaw(data: Array[Byte])(implicit log: Log): Try[IpfsRef] = for {
+    ipfs    <- Ipfs.daemon(false)
+    ipfsRef <- ipfs.add(data)
+  } yield {
+    log.note(msg"Raw layer added to IPFS at $ipfsRef")
+    ipfsRef
+  }
 
   def store(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
     ipfs    <- Ipfs.daemon(false)
