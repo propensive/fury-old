@@ -49,9 +49,9 @@ download() {
 }
 
 checkFile() {
-  command -v md5sum > /dev/null || fail md5sum
+  command -v md5sum > /dev/null || command -v md5 > /dev/null || fail md5sum
   printf "${info}Checking MD5 checksum of ${downloadFile}..."
-  calcHash=$(md5sum "${downloadFile}" | head -c 32)
+  calcHash=$( (md5sum "${downloadFile}" 2> /dev/null || md5 "${downloadFile}" 2> /dev/null) | head -c 32)
   [ "${md5Hash}" = "${calcHash}" ] || (rm -f "${downloadFile}" && fail checksum)
   printf "done\n"
 }
