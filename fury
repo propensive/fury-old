@@ -6,9 +6,9 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.18.6"
-ipfsHash="QmQznEpNmmNocDYv4gnVTnNBWUveFieuwHUfzhGNyMGaDG"
-md5Hash="b57b6b7972e278ecc401ca3d599a18c1"
+version="0.18.8"
+ipfsHash="QmeBeLPKZfudGAx6kzDWX2iQUShQCco92HVkYAHyCa3Fxa"
+md5Hash="2538741bae2474f2cd5e2ff19cc60bf5"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
@@ -52,7 +52,7 @@ checkFile() {
   command -v md5sum > /dev/null || fail md5sum
   printf "${info}Checking MD5 checksum of ${downloadFile}..."
   calcHash=$(md5sum "${downloadFile}" | head -c 32)
-  [ "${md5Hash}" = "${calcHash}" ] || fail checksum
+  [ "${md5Hash}" = "${calcHash}" ] || (rm -f "${downloadFile}" && fail checksum)
   printf "done\n"
 }
 
