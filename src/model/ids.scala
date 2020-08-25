@@ -416,7 +416,7 @@ object BinRepoId {
   final val Central: BinRepoId = BinRepoId("central")
   implicit val parser: Parser[BinRepoId] = unapply(_)
 
-  def unapply(name: String): Option[BinRepoId] = name.only { case r"[a-z]+" => BinRepoId(name) }
+  def unapply(name: String): Option[BinRepoId] = name.only { case r"[^ ]+" => BinRepoId(name) }
 }
 
 object Permission {
