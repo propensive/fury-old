@@ -65,22 +65,24 @@ object Service {
                    }
     } yield artifact
 
-  def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef])
+  def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef], ttl: Int)
            (implicit log: Log)
            : Try[Unit] = {
     
     val url = Https(service) / "share"
 
-    case class Request(refs: List[String], token: String)
-    case class Response(refs: List[String])
+    case class Request(refs: List[String], token: String, ttl: Int)
+    case class Response(refs: List[String], expiry: Long)
 
-    val request = Request((ref :: dependencies.to[List]).map(_.key), token.value)
+    val request = Json(Request((ref :: dependencies.to[List]).map(_.key), token.value, ttl))
 
     for {
-      out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
+      _    <- ~log.note(msg"Sending POST request to $url")
+      _    <- ~log.note(msg"Request: $request")
+      out  <- Http.post(url.key, request, headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
-      _    <- ~log.note(json.toString)
+      _    <- ~log.note(msg"Response $json")
       res  <- json.as[Response].to[Try]
     } yield ()
   }
@@ -102,18 +104,20 @@ object Service {
     val url = Https(service) / "tag"
     
     case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
-        public: Boolean, breaking: Boolean, ttl: Int, description: Option[String])
+        public: Boolean, breaking: Boolean, ttl: Option[Int], description: Option[String])
 
     case class Response(path: String, ref: String, version: FullVersion)
 
-    val request = Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking,
-        ttl, description)
+    val request = Json(Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking,
+        Some(ttl), description))
     
     for {
-      out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
+      _    <- ~log.note(msg"Sending POST request to $url")
+      _    <- ~log.note(msg"Request: $request")
+      out  <- Http.post(url.key, request, headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
-      _    <- ~log.note(json.toString)
+      _    <- ~log.note(msg"Response: $json")
       res  <- handleError[Response](json)
     } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
   }
@@ -141,6 +145,7 @@ case class InvalidNameFormat(name: String) extends ServiceException(
     str"The name $name is not in the right format")
 
 case class InvalidVersion() extends ServiceException(s"The version number is not valid")
+case class InvalidOrganization(organization: String, valid: List[String]) extends ServiceException(s"The group name is not valid for publishing. Valid groups are: ${valid.mkString(", ")}")
 case class UnexpectedError(msg: String) extends ServiceException(msg)
 case class InputError() extends ServiceException("The input data was not in the correct format")
 

@@ -20,6 +20,7 @@ import fury.text._, fury.io._
 
 import contextual._
 import escritoire._
+import euphemism._
 import gastronomy._
 import guillotine._
 import mercator._
@@ -46,6 +47,7 @@ package object core extends GuillotineExtensions {
     Ordering.String.on(implicitly[StringShow[T]].show(_))
 
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
+  implicit val msgShowJson: MsgShow[Json] = json => UserMsg { theme => json.toString }
   implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
   implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
   implicit class ShortTry[T](t: T) { def unary_~ : Try[T] = Try(t) }
