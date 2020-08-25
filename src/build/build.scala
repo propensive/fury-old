@@ -40,7 +40,7 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(PipeliningArg, List("on", "off"))
     cli      <- cli.hint(TraceArg, List("on", "off"))
     cli      <- cli.hint(NoIpfsArg, List("on", "off"))
-    cli      <- cli.hint(ServiceArg, List("furore.dev"))
+    cli      <- cli.hint(ServiceArg, List("vent.dev"))
     call     <- cli.call()
     newTheme <- ~call(ThemeArg).toOption
     timestamps <- ~call(TimestampsArg).toOption
@@ -565,6 +565,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli           <- cli.hint(BreakingArg)
     cli           <- cli.hint(PublicArg)
     cli           <- cli.hint(DescriptionArg)
+    cli           <- cli.hint(ExpiryArg)
     cli           <- cli.hint(ForceArg)
     call          <- cli.call()
     token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
@@ -584,13 +585,14 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     raw           <- ~call(RawArg).isSuccess
     force         <- ~call(ForceArg).isSuccess
     description   <- ~call(DescriptionArg).toOption
+    ttl           <- Try(call(ExpiryArg).toOption.getOrElse(if(public) 30 else 7))
     _             <- layer.verifyConf(false, conf, Pointer.Root, quiet = false, force)
     _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
-    ref           <- Layer.share(ManagedConfig().service, layer, token)
+    ref           <- Layer.share(ManagedConfig().service, layer, token, ttl)
     
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
                          breaking, public, conf.published.fold(0)(_.version.major),
-                         conf.published.fold(0)(_.version.minor), description, token)
+                         conf.published.fold(0)(_.version.minor), description, ttl, token)
 
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
                        log.info(msg"Shared layer ${LayerRef(ref.key)}")
@@ -620,18 +622,20 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli    <- cli.hint(RawArg)
     cli    <- cli.hint(PublicArg)
     cli    <- cli.hint(ForceArg)
+    cli    <- cli.hint(ExpiryArg)
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
     force  <- ~call(ForceArg).isSuccess
     public <- ~call(PublicArg).isSuccess
     raw    <- ~call(RawArg).isSuccess
+    ttl    <- Try(call(ExpiryArg).toOption.getOrElse(if(public) 30 else 7))
     _      <- layer.verifyConf(false, conf, Pointer.Root, quiet = raw, force)
 
     ref    <- if(!public) Layer.store(layer)
               else for {
                 token  <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
-                ref    <- Layer.share(ManagedConfig().service, layer, token)
+                ref    <- Layer.share(ManagedConfig().service, layer, token, ttl)
               } yield ref
 
     _      <- if(raw) ~log.rawln(str"${ref.ipfsRef.uri}") else ~log.info(msg"Shared at ${ref.ipfsRef.uri}")

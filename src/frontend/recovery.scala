@@ -87,6 +87,8 @@ You can grant these permissions with,
         case LayerNotFound(path) =>
           cli.abort(
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
+        case UnknownLayer(path, service) =>
+          cli.abort(msg"The layer ${Pointer(path)} does not exist on $service")
         case e: ServiceException =>
           cli.abort(e.getMessage)
         case BadParams(arg1, arg2) =>

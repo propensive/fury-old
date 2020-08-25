@@ -253,10 +253,10 @@ object Layer extends Lens.Partial[Layer] {
     _       <- TarGz.store(entries, layout.layerDb)
   } yield ()
 
-  def share(service: DomainName, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
+  def share(service: DomainName, layer: Layer, token: OauthToken, ttl: Int)(implicit log: Log): Try[LayerRef] = for {
     ref    <- store(layer)
     hashes <- Layer.hashes(layer)
-    _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef))
+    _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef), ttl)
   } yield ref
 
   def published(layerName: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
