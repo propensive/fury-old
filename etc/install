@@ -51,7 +51,8 @@ checkFile() {
   command -v md5sum > /dev/null || fail md5sum
   printf "${info}Checking MD5 checksum of ${downloadFile}..."
   calcHash=$(md5sum "${downloadFile}" | head -c 32)
-  [ "${md5hash}" = "${calcHash}" ] || (rm -f "${downloadFile}" && fail checksum)
+  [ "${md5Hash}" = "${calcHash}" ] || (rm -f "${downloadFile}" && fail checksum)
+  printf "done\n"
 }
 
 extractTar() {
