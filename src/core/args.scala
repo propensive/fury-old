@@ -120,6 +120,7 @@ object Args {
   val TimeoutArg = CliParam[Int]('T', 'timeout,
       "stop application if it is still running after this time (seconds)")
   
+  val ExpiryArg = CliParam[Int]('T', 'ttl, "the TTL for the layer in days")
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
