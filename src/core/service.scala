@@ -29,8 +29,10 @@ object Service {
     val url: Uri = Https(service) / "catalog"
     
     for {
-      bytes <- Http.get(url.key, Set()).to[Try]
-      catalog <- Json.parse(new String(bytes, "UTF-8")).to[Try]
+      _         <- ~log.note(msg"Sending GET request to $url")
+      bytes     <- Http.get(url.key, Set()).to[Try]
+      catalog   <- Json.parse(new String(bytes, "UTF-8")).to[Try]
+      _         <- ~log.note(msg"Response: $catalog")
       artifacts <- catalog.entries.as[List[String]].to[Try]
     } yield artifacts
   }
@@ -39,9 +41,11 @@ object Service {
     val url = Https(service) / "list" / path
     
     for {
+      _       <- ~log.note(msg"Sending GET request to $url")
       bytes   <- Http.get(url.key, Set()).to[Try]
       json    <- Json.parse(new String(bytes, "UTF-8")).to[Try]
-      catalog <- json.as[Catalog].to[Try]
+      _       <- ~log.note(msg"Response: $json")
+      catalog <- handleError[Catalog](json)
     } yield catalog.entries
   }
 
@@ -51,7 +55,8 @@ object Service {
     for {
       artifacts <- list(service, path)
       grouped   <- ~artifacts.groupBy(_.version.major)
-      artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
+      artifact  <- if(grouped.size == 0) Failure(UnknownLayer(path, service))
+                   else ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
     } yield artifact
 
   def fetch(service: DomainName, path: String, version: LayerVersion)
@@ -83,7 +88,7 @@ object Service {
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(msg"Response $json")
-      res  <- json.as[Response].to[Try]
+      res  <- handleError[Response](json)
     } yield ()
   }
 
@@ -121,6 +126,7 @@ object Service {
       res  <- handleError[Response](json)
     } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
   }
+  
   import Json._
 
   def handleError[R: Deserializer](json: Json): Try[R] = json.as[R].to[Option].map(Try(_)).getOrElse {
@@ -152,4 +158,4 @@ case class InputError() extends ServiceException("The input data was not in the 
 case class ThirdPartyError() extends ServiceException(
     "There was an invalid interaction with a third-party service")
 
-case class NameNotFound() extends ServiceException("A public layer with that name was not found")
+case class NameNotFound(name: String) extends ServiceException(s"A public layer with the name '${name}' was not found")
