@@ -40,7 +40,7 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(PipeliningArg, List("on", "off"))
     cli      <- cli.hint(TraceArg, List("on", "off"))
     cli      <- cli.hint(NoIpfsArg, List("on", "off"))
-    cli      <- cli.hint(ServiceArg, List("furore.dev"))
+    cli      <- cli.hint(ServiceArg, List("vent.dev"))
     call     <- cli.call()
     newTheme <- ~call(ThemeArg).toOption
     timestamps <- ~call(TimestampsArg).toOption

@@ -344,7 +344,7 @@ case class Config(showContext: Boolean = true,
                   pipelining: Boolean = false,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
-                  service: DomainName = DomainName("furore.dev"),
+                  service: DomainName = DomainName("vent.dev"),
                   token: Option[OauthToken] = None)
 
 object TargetId {
