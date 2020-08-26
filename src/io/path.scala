@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -84,7 +84,7 @@ object Path {
 }
 
 case class Path(input: String) {
-  val value: String = {
+  val value: String = if(input == "/") "/" else {
     def canonicalize(str: List[String], drop: Int = 0): List[String] = str match {
       case ".." :: tail => canonicalize(tail, drop + 1)
       case head :: tail => if(drop > 0) canonicalize(tail, drop - 1) else head :: canonicalize(tail)
@@ -105,7 +105,7 @@ case class Path(input: String) {
   lazy val javaFile: JavaFile = javaPath.toFile
   def uriString: String = javaFile.toURI.toString
   def name: String = javaPath.getFileName.toString
-  def /(child: String): Path = Path(s"$filename/$child")
+  def /(child: String): Path = if(filename == "/") Path(s"/$child") else Path(s"$filename/$child")
   def in(root: Path): Path = Path(s"${root.value}/$value")
 
   def lastModified: Long = javaFile.lastModified()

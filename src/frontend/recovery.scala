@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -93,6 +93,8 @@ You can grant these permissions with,
         case LayerNotFound(path) =>
           cli.abort(
             msg"""Could not find the layer file at $path. Run `fury layer init` to create a new layer.""")
+        case UnknownLayer(path, service) =>
+          cli.abort(msg"The layer ${Pointer(path)} does not exist on $service")
         case e: ServiceException =>
           cli.abort(e.getMessage)
         case BadParams(arg1, arg2) =>
@@ -130,6 +132,8 @@ You can grant these permissions with,
           cli.abort(msg"Coursier could not download a file because you appear to be offline.")
         case UnknownVersion(v) =>
           cli.abort(msg"The version $v does not exist.")
+        case UnknownOs(os) =>
+          cli.abort(msg"The operating system '$os' was not recognized.")
         case e: MissingCommand =>
           cli.abort(msg"No command was provided.")
         case e: UnknownCommand =>

@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -29,8 +29,10 @@ object Service {
     val url: Uri = Https(service) / "catalog"
     
     for {
-      bytes <- Http.get(url.key, Set()).to[Try]
-      catalog <- Json.parse(new String(bytes, "UTF-8")).to[Try]
+      _         <- ~log.note(msg"Sending GET request to $url")
+      bytes     <- Http.get(url.key, Set()).to[Try]
+      catalog   <- Json.parse(new String(bytes, "UTF-8")).to[Try]
+      _         <- ~log.note(msg"Response: $catalog")
       artifacts <- catalog.entries.as[List[String]].to[Try]
     } yield artifacts
   }
@@ -39,9 +41,11 @@ object Service {
     val url = Https(service) / "list" / path
     
     for {
+      _       <- ~log.note(msg"Sending GET request to $url")
       bytes   <- Http.get(url.key, Set()).to[Try]
       json    <- Json.parse(new String(bytes, "UTF-8")).to[Try]
-      catalog <- json.as[Catalog].to[Try]
+      _       <- ~log.note(msg"Response: $json")
+      catalog <- handleError[Catalog](json)
     } yield catalog.entries
   }
 
@@ -51,7 +55,8 @@ object Service {
     for {
       artifacts <- list(service, path)
       grouped   <- ~artifacts.groupBy(_.version.major)
-      artifact  <- ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
+      artifact  <- if(grouped.size == 0) Failure(UnknownLayer(path, service))
+                   else ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
     } yield artifact
 
   def fetch(service: DomainName, path: String, version: LayerVersion)
@@ -65,23 +70,25 @@ object Service {
                    }
     } yield artifact
 
-  def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef])
+  def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef], ttl: Int)
            (implicit log: Log)
            : Try[Unit] = {
     
     val url = Https(service) / "share"
 
-    case class Request(refs: List[String], token: String)
-    case class Response(refs: List[String])
+    case class Request(refs: List[String], token: String, ttl: Int)
+    case class Response(refs: List[String], expiry: Long)
 
-    val request = Request((ref :: dependencies.to[List]).map(_.key), token.value)
+    val request = Json(Request((ref :: dependencies.to[List]).map(_.key), token.value, ttl))
 
     for {
-      out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
+      _    <- ~log.note(msg"Sending POST request to $url")
+      _    <- ~log.note(msg"Request: $request")
+      out  <- Http.post(url.key, request, headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
-      _    <- ~log.note(json.toString)
-      res  <- json.as[Response].to[Try]
+      _    <- ~log.note(msg"Response $json")
+      res  <- handleError[Response](json)
     } yield ()
   }
 
@@ -94,6 +101,7 @@ object Service {
           major: Int,
           minor: Int,
           description: Option[String],
+          ttl: Int,
           token: OauthToken)
          (implicit log: Log)
          : Try[PublishedLayer] = {
@@ -101,21 +109,24 @@ object Service {
     val url = Https(service) / "tag"
     
     case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
-        public: Boolean, breaking: Boolean, description: Option[String])
+        public: Boolean, breaking: Boolean, ttl: Option[Int], description: Option[String])
 
     case class Response(path: String, ref: String, version: FullVersion)
 
-    val request = Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking,
-        description)
+    val request = Json(Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking,
+        Some(ttl), description))
     
     for {
-      out  <- Http.post(url.key, Json(request), headers = Set()).to[Try]
+      _    <- ~log.note(msg"Sending POST request to $url")
+      _    <- ~log.note(msg"Request: $request")
+      out  <- Http.post(url.key, request, headers = Set()).to[Try]
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
-      _    <- ~log.note(json.toString)
+      _    <- ~log.note(msg"Response: $json")
       res  <- handleError[Response](json)
     } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
   }
+  
   import Json._
 
   def handleError[R: Deserializer](json: Json): Try[R] = json.as[R].to[Option].map(Try(_)).getOrElse {
@@ -140,10 +151,11 @@ case class InvalidNameFormat(name: String) extends ServiceException(
     str"The name $name is not in the right format")
 
 case class InvalidVersion() extends ServiceException(s"The version number is not valid")
+case class InvalidOrganization(organization: String, valid: List[String]) extends ServiceException(s"The group name is not valid for publishing. Valid groups are: ${valid.mkString(", ")}")
 case class UnexpectedError(msg: String) extends ServiceException(msg)
 case class InputError() extends ServiceException("The input data was not in the correct format")
 
 case class ThirdPartyError() extends ServiceException(
     "There was an invalid interaction with a third-party service")
 
-case class NameNotFound() extends ServiceException("A public layer with that name was not found")
+case class NameNotFound(name: String) extends ServiceException(s"A public layer with the name '${name}' was not found")

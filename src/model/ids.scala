@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -340,11 +340,11 @@ case class LayerProvenance(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
 case class Config(showContext: Boolean = true,
                   theme: Theme = Theme.Basic,
                   undoBuffer: Int = 5,
-                  timestamps: Boolean = true,
+                  timestamps: Boolean = false,
                   pipelining: Boolean = false,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
-                  service: DomainName = DomainName("furore.dev"),
+                  service: DomainName = DomainName("vent.dev"),
                   token: Option[OauthToken] = None)
 
 object TargetId {
@@ -416,7 +416,7 @@ object BinRepoId {
   final val Central: BinRepoId = BinRepoId("central")
   implicit val parser: Parser[BinRepoId] = unapply(_)
 
-  def unapply(name: String): Option[BinRepoId] = name.only { case r"[a-z]+" => BinRepoId(name) }
+  def unapply(name: String): Option[BinRepoId] = name.only { case r"[^ ]+" => BinRepoId(name) }
 }
 
 object Permission {

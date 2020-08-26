@@ -110,12 +110,22 @@ tmp/.bundle.ipfs: dist/fury.tar.gz
 dist/fury: etc/launcher tmp/.bundle.ipfs
 	@printf "$(MK) Rewriting Fury launcher script..." && \
 	 mkdir -p dist && \
-	 sed "s/%VERSION%/$(VERSION)/" "$<" > "$@.tmp" && \
-	 sed "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" "$@.tmp" > "$@" && \
+	 sed -e "s/%VERSION%/$(VERSION)/" \
+	     -e "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" \
+	     -e "s/%MD5%/$(shell md5sum dist/fury.tar.gz | head -c 32)/" "$<" > "$@" && \
 	 chmod +x "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
-tmp/.launcher.ipfs: dist/fury
+dist/install: etc/install tmp/.bundle.ipfs
+	@printf "$(MK) Rewriting Fury installer script..." && \
+	 mkdir -p dist && \
+	 sed -e "s/%VERSION%/$(VERSION)/" \
+	     -e "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" \
+	     -e "s/%MD5%/$(shell md5sum dist/fury.tar.gz | head -c 32)/" "$<" > "$@" && \
+	 chmod +x "$@" && \
+	 printf "done\n" || (printf "failed\n" && exit 1)
+
+tmp/.launcher.ipfs: dist/fury dist/install
 	@printf "$(MK) Adding $(shell tput -Tansi sitm)Fury launcher $(VERSION)$(shell tput -Tansi sgr0) to IPFS..." && \
 	 ipfs add -q "$<" > "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
@@ -137,14 +147,14 @@ pinata: tmp/.bundle.ipfs .pinata/apiKey .pinata/secretApiKey
 .version:
 	@( echo $(shell bash -c 'read -p "Please specify the new version (current: $(VERSION)): " V; echo $$V') > "$@" )
 
-publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
+publish: .version pinata .pinata/apiKey .pinata/secretApiKey tmp/.launcher.ipfs
 	@( echo $(VERSION) | grep -q '-' && printf "Not pinning snapshot release of Fury launcher.\n" ) || \
 	 ( ( stat .version 2> /dev/null > /dev/null || \
 	     ( printf "$(MK) Please specify the new version in the file $(shell tput -Tansi bold).version$(shell tput -Tansi sgr0).\n" && \
 	       exit 1 ) \
 	   ) && \
 	   printf "$(MK) Checking there are no uncommitted changes..." && \
-	   git diff-index --quiet HEAD -- && \
+	   git diff-index HEAD -- && \
 	   printf "done\n" && \
 	   printf "$(MK) Updating source headers..." && \
 	   etc/revise && \
@@ -162,17 +172,18 @@ publish: .version tmp/.launcher.ipfs pinata .pinata/apiKey .pinata/secretApiKey
 	    -d "{\"pinataMetadata\":{\"name\":\"fury-$(VERSION).sh\"},\"hashToPin\":\"$(shell cat tmp/.launcher.ipfs)\"}" \
 	    "https://api.pinata.cloud/pinning/addHashToPinQueue" > /dev/null && \
 	    printf "done\n" && \
-	    git push --tags && \
-	    ./fury repo pull -r fury && \
-	    ./fury repo update -r fury -V "$(VERSION)" && \
-	    printf "$(MK) Copying new launcher script to root directory..." && \
-	    cp dist/fury fury && \
-	    rm .version && \
-	    printf "$(MK) Done\n" || ( printf "$(MK) Failed\n" && exit 1 ) \
+	   git push --tags && \
+	   printf "$(MK) Copying new launcher script to root directory..." && \
+	   cp dist/fury fury && \
+	   rm .version && \
+	   git add fury && \
+	   git commit -m "Updated bootstrap version to $(VERSION)" && \
+	   git push && \
+	   printf "$(MK) Done\n" || ( printf "$(MK) Failed\n" && exit 1 ) \
 	 ) && \
 	 printf "$(MK) $(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
 
 test:
 	tmp/fury test --disable-security-manager --output linear
 
-.PHONY: run publish pinata pinata-launcher clean uninstall icons tmp/.version test
+.PHONY: run publish pinata clean uninstall icons tmp/.version test

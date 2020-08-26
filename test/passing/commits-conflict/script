@@ -1,0 +1,17 @@
+fury layer init
+
+fury layer import -l fury://furore.dev/propensive/gastronomy -V 1.3
+echo $?
+fury layer import -l fury://furore.dev/propensive/magnolia -V 1.2
+echo $?
+fury universe imports list --raw --column Import
+fury universe projects --raw --column Project
+
+fury layer select -l /magnolia
+fury repo list --raw --column Commit
+fury repo update -r magnolia -t v0.17.0
+fury repo list --raw --column Commit
+
+fury layer select -l /
+fury universe imports list --raw --column Import
+fury universe projects --raw --column Project

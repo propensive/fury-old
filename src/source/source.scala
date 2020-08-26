@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -33,7 +33,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     import sourceHints.existing
     (cli -< ProjectArg -< ModuleArg -< SourceArg -< ColumnArg -< RawArg).action {
       (getProject, getModule) >>= { case (project, module) =>
-        val snapshots = (universe, getHierarchy, getLayout) >>= (_.snapshots(module.ref(project), _, _))
+        val snapshots = (universe, getHierarchy, getLayout) >>= (_.checkout(module.ref(project), _, _))
         val tabulation = (snapshots, getLayout) >> (Tables().sources(_, _))
         (tabulation, conf, opt(ColumnArg), opt(SourceArg)) >> { case (table, c, col, source) =>
           log.info(c.focus(project.id, module.id))

@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -99,18 +99,21 @@ case class Universe(hierarchy: Hierarchy,
   def binaryPaths(ref: ModuleRef)(implicit log: Log): Try[List[Path]] =
     deepBinaries(ref) >> (_.to[List]) >>= (Coursier.fetch(_))
 
-  def snapshots(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
+  private[this] def repoPaths(ref: ModuleRef): Try[Map[Repo, List[Path]]] = for {
     project <- apply(ref.projectId)
     module  <- project(ref.moduleId)
     layer   <- layer(ref.projectId)
-    inputs  <- ~(module.externalSources ++ module.externalResources).to[List]
-    repos   <- inputs.groupBy(_.repoId).traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v) }
-  } yield Snapshots(repos.map { case (repo, paths) =>
-    val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch,
-        paths.map(_.dir).to[List])
-    
+    inputs  =  (module.externalSources ++ module.externalResources).to[List]
+    repos   <- inputs.groupBy(_.repoId).traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v.map(_.dir)) }
+  } yield repos.toMap
+
+  def checkout(ref: ModuleRef, hierarchy: Hierarchy, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
+    //FIXME remove hierarchy
+    repoPaths   <- repoPaths(ref)
+  } yield Snapshots(repoPaths.map { case (repo, paths) =>
+    val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
     snapshot.hash -> snapshot
-  }.toMap)
+  })
 
   def ++(that: Universe): Universe = {
     val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>

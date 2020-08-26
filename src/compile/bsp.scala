@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -121,7 +121,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       targets       <- graph.keys.map { ref =>
                          Target(ref, hierarchy, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
-      snapshots     <- graph.keys.traverse(universe.snapshots(_, hierarchy, layout))
+      snapshots     <- graph.keys.traverse(universe.checkout(_, hierarchy, layout))
     } yield Structure(modules.toMap, graph, snapshots.foldLeft(Snapshots(Map()))(_ ++ _), targets)
 
   private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {

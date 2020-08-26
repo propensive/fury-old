@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -38,7 +38,7 @@ object Target {
       module    <- project(ref.moduleId)
       _         <- universe.binaryConflicts(ref)
       binPaths  <- universe.binaryPaths(ref)
-      snapshots <- universe.snapshots(ref, hierarchy, layout)
+      snapshots <- universe.checkout(ref, hierarchy, layout)
       sources   <- module.sources.to[List].traverse(snapshots.dir(_, layout))
     } yield Target(ref, module, project, snapshots, sources, binPaths )
 }

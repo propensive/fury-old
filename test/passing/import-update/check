@@ -6,9 +6,6 @@ Fetching layer propensive/probably@2.2 (T7wD5aqj)
 Checking that no modules reference local sources
 Checking that no project names conflict
 Fetching layer propensive/escritoire@1.3 (XXgXpyVx)
-Fetching layer propensive/gastronomy@1.3 (eMB8jghj)
-Fetching layer propensive/magnolia@1.1 (dV4y2Qoa)
-Fetching layer propensive/mercator@1.3 (Xcp29qop)
 Fetching layer propensive/scala@1.2 (RZZFvRM8)
 Checking that all module references resolve
 propensive/probably@2.2

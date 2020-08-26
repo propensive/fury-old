@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -267,7 +267,7 @@ object Build {
                      }
       
       targets      = targetIndex.unzip._2.to[Set]
-      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.snapshots(_, hierarchy, layout))
+      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, hierarchy, layout))
       policy       = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     } yield {
       val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
