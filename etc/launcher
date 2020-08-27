@@ -31,8 +31,7 @@ installFury() {
 }
 
 checkJava() {
-  command -v java > /dev/null || installJava
-  command -v javac > /dev/null || installJava
+  (command -v java > /dev/null && command -v javac > /dev/null) || installJava
 }
 
 installJava() {
@@ -58,7 +57,7 @@ installJava() {
   command -v curl > /dev/null || fail curl
   mkdir -p "${jdkDir}"
   curl -X GET -Ls "https://api.adoptopenjdk.net/v3/binary/latest/11/ga/${os}/${arch}/jdk/hotspot/normal/adoptopenjdk?project=jdk" -H "accept: */*" | tar xz -C "${jdkDir}"
-  mv "${jdkDir}/*/*" "${jdkDir}/"
+  mv "${jdkDir}"/*/* "${jdkDir}/"
   printf "done\n"
 }
 

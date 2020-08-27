@@ -21,8 +21,8 @@ MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
-if [ -x "$FHOME/jdk/bin/java" ]; then
-  JAVA="$FHOME/jdk/bin/java"
+if [ -x "$FHOME/../../jdk/bin/java" ]; then
+  JAVA="$FHOME/../../jdk/bin/java"
 else
   JAVA="java"
 fi
@@ -78,9 +78,9 @@ startNailgun() {
       message 'Starting Fury daemon...'
     fi
     if [ -f "${FHOME}/bin/libprocname.so" ]; then
-	LD_PRELOAD="${FHOME}/bin/libprocname.so" java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
+	LD_PRELOAD="${FHOME}/bin/libprocname.so" $JAVA -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     else
-	java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
+	$JAVA -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     fi
     until (alive); do
       if [ "$1" = "prompt" ]; then
@@ -117,7 +117,7 @@ restartFury() {
 }
 
 startFuryStandalone() {
-  java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$$" "$@"
+  $JAVA -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$$" "$@"
 }
 
 case "$1" in
