@@ -84,8 +84,8 @@ case class Shell(environment: Environment) {
   }
 
   object docker {
-    def images(): Try[List[ImageId]] = sh"".exec[Try[String]].map { str =>
-      str.split("\n").to[List].flatMap(_.split(",").to[List]).filter(_ == "<none>:<none>").map(ImageId(_))
+    def images(): Try[List[ImageId]] = sh"docker images --format '{{.Repository}}:{{.Tag}}'".exec[Try[String]].map { str =>
+      str.split("\n").to[List].filterNot(_ contains "<none>").map(ImageId(_))
     }
   }
 
