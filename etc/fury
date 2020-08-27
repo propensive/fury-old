@@ -21,6 +21,11 @@ MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
+if [ -x "$FHOME/jdk/bin/java" ]; then
+  JAVA="$FHOME/jdk/bin/java"
+else
+  JAVA="java"
+fi
 
 trap cleanup INT HUP TERM
 
