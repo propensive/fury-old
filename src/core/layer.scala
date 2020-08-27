@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -56,7 +56,7 @@ case class Layer(version: Int,
 
   def localUniverse(hierarchy: Hierarchy, path: Pointer): Universe = Universe(
     hierarchy = hierarchy,
-    projects = projects.map { project => project.id -> Uniqueness.Unique(project.projectRef, Set(path)) }.toMap,
+    projects = projects.to[List].map { project => project.id -> Uniqueness.Unique(project.projectRef(repos), Set(path)) }.toMap,
     repoSets = repos.groupBy(_.commit.repoSetId).mapValues(_.map(_.ref(path))),
     imports = imports.map { i => i.layerRef.short -> LayerProvenance(i.layerRef.short, Map(path -> i)) }.toMap
   )
@@ -171,6 +171,7 @@ object Layer extends Lens.Partial[Layer] {
       inputs <- TarGz.untargz(layout.layerDb.inputStream())
       _      =  log.note(msg"The layer storage at ${layout.layerDb} contains ${inputs.size} entries")
       _      <- inputs.traverse { bytes => for {
+                  _     <- storeRaw(bytes)
                   layer <- Ogdl.read[Layer](bytes, migrate(_))
                   _     <- store(layer)
                 } yield () }
@@ -197,6 +198,14 @@ object Layer extends Lens.Partial[Layer] {
       layer <- Ogdl.read[Layer](data, migrate(_))
       _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
     } yield layer }
+
+  def storeRaw(data: Array[Byte])(implicit log: Log): Try[IpfsRef] = for {
+    ipfs    <- Ipfs.daemon(false)
+    ipfsRef <- ipfs.add(data)
+  } yield {
+    log.note(msg"Raw layer added to IPFS at $ipfsRef")
+    ipfsRef
+  }
 
   def store(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
     ipfs    <- Ipfs.daemon(false)
@@ -244,10 +253,10 @@ object Layer extends Lens.Partial[Layer] {
     _       <- TarGz.store(entries, layout.layerDb)
   } yield ()
 
-  def share(service: DomainName, layer: Layer, token: OauthToken)(implicit log: Log): Try[LayerRef] = for {
+  def share(service: DomainName, layer: Layer, token: OauthToken, ttl: Int)(implicit log: Log): Try[LayerRef] = for {
     ref    <- store(layer)
     hashes <- Layer.hashes(layer)
-    _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef))
+    _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef), ttl)
   } yield ref
 
   def published(layerName: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {

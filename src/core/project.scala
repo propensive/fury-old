@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -43,13 +43,18 @@ case class Project(id: ProjectId,
                    description: String = "",
                    compiler: Option[CompilerRef] = None) {
 
-  def projectRef: ProjectRef = {
-    val digest = (id, description, main, license, modules.map { m =>
-      (m.id, m.kind, m.manifest, m.compiler, m.dependencies.to[List], m.opts.to[List], m.binaries.to[List],
-          m.environment.to[List], m.policy.to[List], m.hidden, m.optDefs.to[List], m.deterministic,
-          (m.sources.to[List] ++ m.resources.to[List])) // FIXME: Resolve these in the hierarchy!
-    }.to[List]).digest[Sha256]
+  def projectRef(repos: SortedSet[Repo]): ProjectRef = {
+    val modulesInput = modules.to[List].map(digesterInput(repos, _))
+    val digest = (id, description, main, license, modulesInput).digest[Sha256]
     ProjectRef(id, Some(digest.encoded[Hex].take(6).toLowerCase))
+  }
+
+  private[this] def digesterInput(repos: SortedSet[Repo], m: Module) = {
+    val inputs = (m.externalSources ++ m.externalResources)
+    val rs = repos.filter{ r => inputs.map(_.repoId).contains(r.id) }
+    (m.id, m.kind, m.manifest, m.compiler, m.dependencies.to[List], m.opts.to[List], m.binaries.to[List],
+      m.environment.to[List], m.policy.to[List], m.hidden, m.optDefs.to[List], m.deterministic,
+      m.sources.to[List] ++ m.resources.to[List], rs.to[List])
   }
 
   def apply(module: ModuleId): Try[Module] = modules.findBy(module)

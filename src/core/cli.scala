@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -21,6 +21,7 @@ import fury.text._, fury.io._, fury.model._
 import exoskeleton._
 import guillotine._
 import escritoire._
+import kaleidoscope._
 import mercator._
 
 import scala.util._
@@ -473,7 +474,25 @@ abstract class CliApi {
   implicit lazy val includeTypeHints: IncludeTypeArg.Hinter = IncludeTypeArg.hint(IncludeType.Jarfile,
       IncludeType.TarFile, IncludeType.ClassesDir, IncludeType.FileRef(Glob("")))
 
-  implicit lazy val pathHints: PathArg.Hinter = PathArg.hint()
+  def currentDir: Try[List[Path]] = get(PathStringArg).getOrElse("") match {
+    //case "/" =>
+    //  Try(Path("/").childPaths.flatMap { path => if(path.directory) List(path, path / "") else List(path) })
+    case str@r"\/.*" =>
+      val path: Path = Path(str)
+      Try((if(path.exists && path.directory) path.childPaths else path.parent.childPaths).flatMap { path =>
+        if(path.exists && path.directory) List(path, path / "") else List(path)
+      })
+    case local =>
+      getLayout >> { layout =>
+        val path = layout.pwd / local
+        (if(path.exists && path.directory) path.childPaths else path.parent.childPaths).flatMap { path =>
+          val relative = path.relativizeTo(layout.pwd)
+          if(path.directory) List(relative, relative / "") else List(relative)
+        }
+      }
+  }
+
+  implicit lazy val pathHints: PathArg.Hinter = PathArg.hint(currentDir)
   implicit lazy val branchHints: BranchArg.Hinter = BranchArg.hint(branches)
   implicit lazy val tagHints: TagArg.Hinter = TagArg.hint(tags)
   implicit lazy val grabHints: GrabArg.Hinter = GrabArg.hint()

@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -44,6 +44,12 @@ object Ipfs {
     def add(path: Path): Try[IpfsRef] = for {
       file <- Try(new NamedStreamable.FileWrapper(path.javaFile))
       ref  <- add(file, wrap = false, onlyHash = false)
+    } yield ref
+
+    def add(data: Array[Byte]): Try[IpfsRef] = for {
+      data <- Try(new ByteArrayInputStream(data))
+      data <- Try(new NamedStreamable.InputStreamWrapper(data))
+      ref  <- add(data, wrap = false, onlyHash = false)
     } yield ref
 
     def add(string: String): Try[IpfsRef] = for {

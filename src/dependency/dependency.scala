@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -223,7 +223,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
-    build        <- Build(universe, Dependency(module.ref(project)), hierarchy, layout)
+    build        <- Build(universe, Dependency(module.ref(project)), layout)
     permissions  <- permHashes.traverse(_.resolve(build.requiredPermissions))
     force        =  call(ForceArg).isSuccess
                          
@@ -271,7 +271,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
     hierarchy     <- layer.hierarchy()
     universe      <- hierarchy.universe
-    build         <- Build(universe, Dependency(module.ref(project)), hierarchy, layout)
+    build         <- Build(universe, Dependency(module.ref(project)), layout)
     permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
     policy        =  Policy.read(log)
     newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)

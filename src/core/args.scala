@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -59,6 +59,7 @@ object Args {
   val IncludeArg = CliParam[IncludeId]('i', 'include, "specify the include")
   val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
   val PathArg = CliParam[Path]('f', 'path, "specify the path")
+  val PathStringArg = CliParam[String]('f', 'path, "specify the path")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
   val OptDescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the option")
@@ -120,6 +121,7 @@ object Args {
   val TimeoutArg = CliParam[Int]('T', 'timeout,
       "stop application if it is still running after this time (seconds)")
   
+  val ExpiryArg = CliParam[Int]('T', 'ttl, "the TTL for the layer in days")
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
