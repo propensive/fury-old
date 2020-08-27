@@ -31,10 +31,8 @@ installFury() {
 }
 
 checkJava() {
-  printf "${info}Checking for \033[0;36mjava\033[0m on the path..."
-  command -v java > /dev/null || fail java
-  command -v javac > /dev/null || fail javac
-  printf "done\n"
+  command -v java > /dev/null || installJava
+  command -v javac > /dev/null || installJava
 }
 
 installJava() {
@@ -99,8 +97,6 @@ extractTar() {
 fail() {
   printf "fail\n\033[1m\033[41m FAIL \033[0m \033[1m"
   case "$1" in
-    java)     printf "Could not find \033[0;36mjava\033[0m. Please install a JDK using your system's package manager." ;;
-    javac)    printf "A JRE was discovered, but could not find \033[0;36mjavac\033[0m. Please install a JDK using your system's package manager." ;;
     curl)     printf "Could not find \033[0;36mcurl\033[0m, which is required to download Fury." ;;
     download) printf "Could not download Fury version ${version}." ;;
     tar)      printf "Could not find \033[0;36mtar\033[0m to extract Fury." ;;
