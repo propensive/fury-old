@@ -105,7 +105,7 @@ object Install {
              }
 
     _     <- Success((Installation.rootBinDir / "fury").delete())
-    _     <- Try((Installation.binDir / "fury").symlinkTo(Installation.rootBinDir / "fury"))
+    _     <- Try((Installation.binDir / "fury").copyTo(Installation.rootBinDir / "fury"))
     
     _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,
                  Installation.optDir)) ++ extra).join("", "\n", "\n"))
