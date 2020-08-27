@@ -1,10 +1,12 @@
 #!/bin/bash
 
-if [ "$(uname -s)" = 'Linux' ]; then
-  DEFAULT_FURY_HOME="$(realpath $(dirname "$(readlink -f "$0")")/..)"
-else
-  DEFAULT_FURY_HOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
-fi
+ROOT="${BASH_SOURCE[0]}"
+while [ -h "$ROOT" ] ; do
+  LREF="$(readlink "$ROOT")"
+  LDIR="$(cd -P "$(dirname "$ROOT")" && cd -P "$(dirname "$LREF")" && pwd)"
+  ROOT="$LDIR/$(basename "$LREF")"
+done
+ROOT=$(cd -P "$(dirname "$ROOT")/.." && pwd)
 
 if [ "$XDG_RUNTIME_DIR" = "" ]; then
   SCRIPT_DIR="/tmp/scripts"
@@ -15,7 +17,7 @@ fi
 ARGS="$@"
 DEFAULT_PORT="8462"
 PORT="${FURY_PORT:-$DEFAULT_PORT}"
-FHOME="${FURY_HOME:-$DEFAULT_FURY_HOME}"
+FHOME="${FURY_HOME:-$ROOT}"
 CLASSPATH="$FHOME/lib/fury.jar"
 MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.FuryServer"
@@ -73,8 +75,10 @@ startNailgun() {
       message 'Starting Fury daemon...'
     fi
     if [ -f "${FHOME}/bin/libprocname.so" ]; then
+	echo java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT"
 	LD_PRELOAD="${FHOME}/bin/libprocname.so" java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     else
+	echo java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT"
 	java -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     fi
     until (alive); do
@@ -112,6 +116,7 @@ restartFury() {
 }
 
 startFuryStandalone() {
+  echo java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$$" "$@"
   java -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$$" "$@"
 }
 
