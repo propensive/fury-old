@@ -105,7 +105,7 @@ object Install {
              }
 
     _     <- Success((Installation.rootBinDir / "fury").delete())
-    _     <- (Installation.rootBinDir / "fury").writeSync(str"""#!/bin/sh\n${Installation.rootBinDir / "fury"} "$@"\n""")
+    _     <- (Installation.rootBinDir / "fury").writeSync(str"""#!/bin/sh\n${Installation.rootBinDir / "fury"} "$$@"\n""")
     
     _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,
                  Installation.optDir)) ++ extra).join("", "\n", "\n"))
