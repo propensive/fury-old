@@ -39,6 +39,8 @@ object Ipfs {
 
   private val knownGateways: List[DomainName] = List(DomainName("ipfs.io"), DomainName("gateway.pinata.cloud"))
 
+  private val dataCache: collection.mutable.Map[IpfsRef, String] = collection.mutable.Map.empty
+
   case class IpfsApi(api: IPFS){
 
     def add(path: Path): Try[IpfsRef] = for {
@@ -47,10 +49,17 @@ object Ipfs {
     } yield ref
 
     def add(data: Array[Byte]): Try[IpfsRef] = for {
-      data <- Try(new ByteArrayInputStream(data))
-      data <- Try(new NamedStreamable.InputStreamWrapper(data))
-      ref  <- add(data, wrap = false, onlyHash = false)
-    } yield ref
+      x <- Try(new ByteArrayInputStream(data))
+      y <- Try(new NamedStreamable.InputStreamWrapper(x))
+      ref  <- add(y, wrap = false, onlyHash = false)
+    } yield {
+      dataCache.synchronized{
+        if(!dataCache.contains(ref)) {
+          dataCache(ref) = new String(data)
+        }
+      }
+      ref
+    }
 
     def add(string: String): Try[IpfsRef] = for {
       data <- Try(new ByteArrayInputStream(string.getBytes("UTF-8")))
@@ -65,34 +74,48 @@ object Ipfs {
 
     def get(ref: IpfsRef)(implicit log: Log): Try[String] = {
       val config = ManagedConfig()
-      
-      val getFromIpfs: Try[String] =
-        if(!attemptToUseIpfs) Failure(IpfsTimeout())
-        else if(config.skipIpfs) Failure(new IllegalStateException(
+
+      dataCache.synchronized(dataCache.get(ref)).map { d =>
+        log.note(msg"Resolved from IPFS cache: $ref")
+        ~d
+      }.getOrElse {
+        val getFromIpfs: Try[String] =
+          if(!attemptToUseIpfs) Failure(IpfsTimeout())
+          else if(config.skipIpfs) Failure(new IllegalStateException(
             "Using IPFS is disabled by the configuration"))
-        else getRef(ref)
+          else getRef(ref)
 
-      getFromIpfs.failed.foreach { e => Ipfs.synchronized { lastIpfsTimeout = System.currentTimeMillis } }
-      
-      getFromIpfs.recoverWith { case e =>
-        knownGateways.foldLeft[Try[String]](Failure(e)) {
-          case (res@Success(_), _)   =>
-            res
-          case (Failure(_), gateway) =>
-            val result = getFileFromGateway(ref, gateway)
+        getFromIpfs.failed.foreach { e => Ipfs.synchronized { lastIpfsTimeout = System.currentTimeMillis } }
 
-            result.failed.foreach { e =>
-              log.warn(msg"The layer could not be resolved using IPFS or $gateway.")
-            }
+        val data = getFromIpfs.recoverWith { case e =>
+          knownGateways.foldLeft[Try[String]](Failure(e)) {
+            case (res@Success(_), _)   =>
+              res
+            case (Failure(_), gateway) =>
+              val result = getFileFromGateway(ref, gateway)
 
-            result
+              result.failed.foreach { e =>
+                log.warn(msg"The layer could not be resolved using IPFS or $gateway.")
+              }
+
+              result
+          }
+        }.recoverWith {
+          case e: RuntimeException if e.getMessage matches "timeout \\(.+\\) has been exceeded" =>
+            Failure(IpfsTimeout())
+          case _: java.net.SocketTimeoutException =>
+            Failure(IpfsTimeout())
         }
-      }.recoverWith {
-        case e: RuntimeException if e.getMessage matches "timeout \\(.+\\) has been exceeded" =>
-          Failure(IpfsTimeout())
-        case _: java.net.SocketTimeoutException =>
-          Failure(IpfsTimeout())
+        data.foreach { d =>
+          dataCache.synchronized{
+            dataCache(ref) = d
+            log.note(s"IPFS cache contains ${dataCache.size} entries")
+          }
+        }
+        data
       }
+      
+
     }
 
     def getRef(hash: IpfsRef): Try[String] = for {
