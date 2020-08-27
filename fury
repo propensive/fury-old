@@ -6,14 +6,13 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.18.10"
-ipfsHash="QmRL4soQTiGbgVsiBuotDzxC3D4oacT43hvCkRT5LG3fRu"
-md5Hash="9c56c3f73ecd10db7648c644bfc245bb"
+version="0.18.9"
+ipfsHash="QmXqt8ZztjjaeyeZmYBYV88MKH2fRKrsFh1NR47fVxCHE7"
+md5Hash="ac72a8bad9322f628b889754b416117a"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
 furyDir="${xdgHome}/fury"
-jdkDir="${furyDir}/jdk"
 furyUsr="${furyDir}/usr"
 currentDir="${furyUsr}/current"
 currentVersion="$(head -n1 "${currentDir}/.version" 2> /dev/null || echo "")"
@@ -25,40 +24,14 @@ installDir="${furyUsr}/$([ "${currentVersion}" = "${version}" ] && echo "current
 args="$@"
 info="\033[1m\033[42m INFO \033[0m "
 
-
 installFury() {
   checkJava && download && checkFile && extractTar
 }
 
 checkJava() {
-  command -v java > /dev/null || installJava
-  command -v javac > /dev/null || installJava
-}
-
-installJava() {
-  printf "${info}Installing a JDK..."
-  
-  case $(uname -s) in
-    Darwin*) os="mac" ;;
-    Linux*)  os="linux" ;;
-    CYGWIN*) os="windows" ;;
-    MINGW*)  os="windows" ;;
-    MSYS*)   os="windows" ;;
-    *)       fail os ;;
-  esac
-  
-  case $(uname -m) in
-    i386|i686|x86)                    arch="x32" ;;
-    x86_64|x64)                       arch="x64" ;;
-    aarch64_be|aarch64|armv8b|armv8l) arch="aarch64" ;;
-    arm)                              arch="arm" ;;
-    *)                                fail os ;;
-  esac
-  
-  command -v curl > /dev/null || fail curl
-  mkdir -p "${jdkDir}"
-  curl -X GET -Ls "https://api.adoptopenjdk.net/v3/binary/latest/11/ga/${os}/${arch}/jdk/hotspot/normal/adoptopenjdk?project=jdk" -H "accept: */*" | tar xz -C "${jdkDir}"
-  mv "${jdkDir}/*/*" "${jdkDir}/"
+  printf "${info}Checking for \033[0;36mjava\033[0m on the path..."
+  command -v java > /dev/null || fail java
+  command -v javac > /dev/null || fail javac
   printf "done\n"
 }
 
@@ -97,13 +70,14 @@ extractTar() {
 fail() {
   printf "fail\n\033[1m\033[41m FAIL \033[0m \033[1m"
   case "$1" in
+    java)     printf "Could not find \033[0;36mjava\033[0m. Please install a JDK using your system's package manager." ;;
+    javac)    printf "A JRE was discovered, but could not find \033[0;36mjavac\033[0m. Please install a JDK using your system's package manager." ;;
     curl)     printf "Could not find \033[0;36mcurl\033[0m, which is required to download Fury." ;;
     download) printf "Could not download Fury version ${version}." ;;
     tar)      printf "Could not find \033[0;36mtar\033[0m to extract Fury." ;;
     extract)  printf "An unexpected error occurred while attempting to extract Fury." ;;
     md5sum)   printf "Could not find \033[0;36mmd5sum\033[0m, which is necessary to check the integrity of the downloaded file." ;;
     checksum) printf "The downloaded file fails the MD5 checksum test." ;;
-    os)       printf "A JDK could not be found, and the operating system type could not be identified to install one." ;;
   esac
   printf "\033[0m\n"
   exit 1
