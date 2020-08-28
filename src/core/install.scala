@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.18. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.19. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -103,9 +103,9 @@ object Install {
     lines <- Try(scala.io.Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag))).recover {
                case e if(force || shell == getShell(env)) => List("")
              }
-
-    _     <- Success((Installation.rootBinDir / "fury").delete())
-    _     <- Try((Installation.binDir / "fury").symlinkTo(Installation.rootBinDir / "fury"))
+    
+    _     <- Success(Installation.activeDir.delete())
+    _     <- Try(Installation.installDir.symlinkTo(Installation.activeDir))
     
     _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,
                  Installation.optDir)) ++ extra).join("", "\n", "\n"))
