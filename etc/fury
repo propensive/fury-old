@@ -21,9 +21,8 @@ MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
-if [ -x "$FHOME/../../jdk/bin/java" ]; then
-  JAVA=$(find "$FHOME/../../jdk/" -name "java")
-else
+JAVA=$(find "$FHOME/../../jdk/" -name "java")
+if [ ! -x "$JAVA" ]; then
   JAVA="java"
 fi
 
