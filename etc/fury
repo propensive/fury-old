@@ -22,7 +22,7 @@ FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
 if [ -x "$FHOME/../../jdk/bin/java" ]; then
-  JAVA="$FHOME/../../jdk/bin/java"
+  JAVA=$(find "$FHOME/../../jdk/" -name "java")
 else
   JAVA="java"
 fi

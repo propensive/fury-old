@@ -31,7 +31,7 @@ installFury() {
 }
 
 checkJava() {
-  (command -v java > /dev/null && command -v javac > /dev/null) || installJava
+  (command -v javac > /dev/null && javac -version > /dev/null) || installJava
 }
 
 installJava() {
