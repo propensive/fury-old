@@ -6,9 +6,9 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.18.14"
-ipfsHash="QmQ8YK8Btmy3NVk9e2CUrgaffHjB38KmXNxw2huNELVuRX"
-md5Hash="41b620ac9884eb6b3aaadcd98d7c0032"
+version="0.18.18"
+ipfsHash="QmdBCEVudonZJeBaxbjidN9QP7sGzki9uuwc4GZQLM48kE"
+md5Hash="034a9f7434955cc0d7966d448d9cdb48"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
@@ -31,7 +31,7 @@ installFury() {
 }
 
 checkJava() {
-  (command -v java > /dev/null && command -v javac > /dev/null) || installJava
+  (command -v javac > /dev/null && javac -version > /dev/null) || installJava
 }
 
 installJava() {
