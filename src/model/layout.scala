@@ -50,7 +50,8 @@ object Xdg {
     def path: Option[Path] = variable.map(Path(_))
     def paths: Option[List[Path]] = variable.map(_.split(":").to[List].map(Path(_)))
   }
-  
+
+  val root: Boolean = System.getProperty("user.name") == "root"
   val home: Path = Option(System.getenv("HOME")).map(Path(_)).getOrElse(path"/")
   val ipfsRepo: Path = Option(System.getenv("IPFS_PATH")).map(Path(_)).getOrElse(home / ".ipfs")
   val cacheHome: Path = Var("CACHE_HOME").path.getOrElse(home / ".cache")
@@ -93,13 +94,17 @@ case class MacOs(machine: Machine) extends Os
 object Machine {
   case class Unknown(description: String) extends Machine
   implicit val stringShow: StringShow[Machine] = {
-    case X64 => "64-bit x86"
-    case X86 => "32-bit x86"
+    case X64   => "64-bit x86"
+    case Arm64 => "64-bit arm"
+    case Arm32 => "32-bit arm"
+    case X86   => "32-bit x86"
     case Unknown(description) => description
   }
 }
 sealed trait Machine
 case object X64 extends Machine
+case object Arm64 extends Machine
+case object Arm32 extends Machine
 case object X86 extends Machine
 
 object Installation {
@@ -108,16 +113,18 @@ object Installation {
     import environments.enclosing
     
     val machine: Machine = sh"uname -m".exec[Try[String]] match {
-      case Success("x86_64" | "amd64") => X64
-      case Success("i386" | "i686")    => X86
-      case other                       => X64
+      case Success("x86_64" | "amd64")                             => X64
+      case Success("i386" | "i686")                                => X86
+      case Success("arm")                                          => Arm32
+      case Success("aarch64_be" | "aarch64" | "armv8b" | "armv8l") => Arm64
+      case other                                                   => X64
     }
 
     sh"uname".exec[Try[String]].map {
-      case "Darwin"   => MacOs(machine)
-      case "Linux"    => Linux(machine)
-      case r"MINGW.*" => Windows(machine)
-      case other      => Os.Unknown(other)(machine)
+      case r"Darwin.*"                          => MacOs(machine)
+      case r"Linux.*"                           => Linux(machine)
+      case r"MINGW.*" | r"CYGWIN.*" | r"MSYS.*" => Windows(machine)
+      case other                                => Os.Unknown(other)(machine)
     }
   }
 
@@ -156,7 +163,6 @@ object Installation {
   val upgradeDir: Path = cache / "upgrade"
   val policyDir: Path = cache / "policies"
   val scriptsDir: Path = Xdg.runtimeDir.extant() / "scripts"
-  val safeDir: Path = Xdg.runtimeDir.extant() / "safe"
 
   def tmpDir[T](fn: Path => T): T = tmpFile { path =>
     path.mkdir()

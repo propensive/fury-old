@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.16. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.6. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -105,7 +105,11 @@ object Install {
              }
 
     _     <- Success((Installation.rootBinDir / "fury").delete())
-    _     <- (Installation.binDir / "fury").hardLinkTo(Installation.rootBinDir / "fury")
+    _     <- Try((Installation.binDir / "fury").symlinkTo(Installation.rootBinDir / "fury"))
+    
+    _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,
+                 Installation.optDir)) ++ extra).join("", "\n", "\n"))
+    
     _     <- Try(log.info(msg"Updated ${file} to include ${ExecName("fury")} on the PATH"))
   } yield () }.recover { case e =>
     log.warn(msg"Could not find the file ${file} to install ${ExecName("fury")} on the PATH")
