@@ -6,14 +6,14 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.18.20"
-ipfsHash="QmZ5sHwaDLGv41C4DDp1XE5sApayiQv6oqgNkmM3KhAJT2"
-md5Hash="7cda7aaa37c26973f94f9f87d2cf5c17"
+version="0.18.21"
+ipfsHash="QmXtbVsis9jDpduWrzD8APrLhdVUvH7oJE5U9d7DYE7Y2v"
+md5Hash="580b65f6f98924a8e0e3e32e3164ff0b"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
 furyDir="${xdgHome}/fury"
-jdkDir="${furyDir}/jdk"
+jdkDir="${furyDir}/jdk/11"
 furyUsr="${furyDir}/usr"
 currentDir="${furyUsr}/current"
 currentVersion="$(head -n1 "${currentDir}/.version" 2> /dev/null || echo "")"
@@ -64,9 +64,9 @@ installJava() {
 runFury() {
   printf "${info}Launching Fury ${version} in standalone mode...\n"
   if [ -t 0 ]; then
-    FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone ${args}
+    FURY_HOME="${installDir}" "${installDir}/active/bin/fury" standalone ${args}
   else
-    FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone system install
+    FURY_HOME="${installDir}" "${installDir}/active/bin/fury" standalone system install
   fi
 }
 
