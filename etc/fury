@@ -2,10 +2,10 @@
 
 if [ "$(uname -s)" = 'Linux' ]; then
   DEFAULT_FURY_HOME="$(realpath $(dirname "$(readlink -f "$0")")/..)"
-  FBASE="$(realpath $(dirname "$(readlink -f "$0")")/../../..)"
+  FBASE="$(realpath $(dirname "$(readlink -f "$0")")/../..)"
 else
   DEFAULT_FURY_HOME="$(cd "$(dirname "$0")"/.. && pwd -P)"
-  FBASE="$(cd "$(dirname "$0")"/../../.. && pwd -P)"
+  FBASE="$(cd "$(dirname "$0")"/../.. && pwd -P)"
 fi
 
 if [ "$XDG_RUNTIME_DIR" = "" ]; then
