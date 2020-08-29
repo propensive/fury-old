@@ -13,7 +13,7 @@ xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
 furyDir="${xdgHome}/fury"
-jdkDir="${furyDir}/jdk"
+jdkDir="${furyDir}/jdk/11"
 furyUsr="${furyDir}/usr"
 currentDir="${furyUsr}/current"
 currentVersion="$(head -n1 "${currentDir}/.version" 2> /dev/null || echo "")"
@@ -64,9 +64,9 @@ installJava() {
 runFury() {
   printf "${info}Launching Fury ${version} in standalone mode...\n"
   if [ -t 0 ]; then
-    FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone ${args}
+    FURY_HOME="${installDir}" "${installDir}/active/bin/fury" standalone ${args}
   else
-    FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone system install
+    FURY_HOME="${installDir}" "${installDir}/active/bin/fury" standalone system install
   fi
 }
 
