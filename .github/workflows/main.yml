@@ -1,16 +1,14 @@
 name: Build
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   build:
-
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
       fail-fast: false
-
     steps:
     - uses: actions/checkout@v2.0.0
     - run: git fetch --prune --unshallow
@@ -22,54 +20,101 @@ jobs:
           dist
           etc/launcher
         key: dist-${{ github.sha }}
+    - name: Install IPFS (Mac OS)
+      if: startsWith(matrix.os, 'macos')
+      run: brew install ipfs
+    - name: Install IPFS (Ubuntu)
+      if: startsWith(matrix.os, 'ubuntu')
+      run: sudo snap install ipfs
     - name: Run Makefile
       if: steps.cache-dist.outputs.cache-hit != 'true'
       run: |
         git describe --tags
-        make install
-      timeout-minutes: 10
-    - name: Install the pre-built distribution from cache
-      if: steps.cache-dist.outputs.cache-hit == 'true'
-      run: |
-        git describe --tags
         make tmp/.version
-        make --assume-old=dist/fury.tar.gz --assume-old=etc/launcher install
-      timeout-minutes: 3
-    - name: Package compilation logs
-      if: failure()
-      run: find ~/.cache/fury -type f -name '*.log' | tar cvzf compilation-logs.tar.gz --files-from -
-    - uses: actions/upload-artifact@v1.0.0
+        make dist/fury
+        mv dist/fury.tar.gz dist/fury-$(head -n 1 tmp/.version).tar.gz
+      timeout-minutes: 10
+    - uses: actions/upload-artifact@v2
+      with:
+        name: build-dist-${{ runner.os }}
+        path: dist
+    - uses: actions/upload-artifact@v2
       with:
         name: compilation-logs-${{ runner.os }}
-        path: compilation-logs.tar.gz
+        path: $HOME/.cache/fury/logs
       if: failure()
+
+  unit-tests:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v2.0.0
+    - uses: actions/download-artifact@v2
+      with:
+        name: build-dist-${{ runner.os }}
+        path: dist
+    - name: Install Fury
+      run: |
+        chmod +x dist/fury
+        mkdir -p "$HOME"/.local/share/fury/downloads
+        cp dist/fury-*.tar.gz "$HOME"/.local/share/fury/downloads
+        dist/fury system install
+        echo "::add-path::$HOME/.local/share/fury/usr/active/bin:$HOME/.local/share/fury/usr/active/opt"
+      timeout-minutes: 5
     - name: Run unit tests
       run: |
-        make -k test || touch unittests.failed
+        fury test --disable-security-manager --output linear || touch unittests.failed
         ! ls -1 unittests.failed 2> /dev/null
       timeout-minutes: 5
-    - name: Prepare environment for integration tests
-      run: |
-        git config --global user.name 'Github Actions'
-        git config --global user.email github.actions@propensive.com
-        echo "::add-path::$HOME/.local/share/fury/usr/$(head -n1 tmp/.version)/bin"
-      timeout-minutes: 1
-    - name: Run integration tests
-      run: |
-        etc/integration || touch integration.failed
-        ! ls -1 integration.failed 2> /dev/null
-      timeout-minutes: 15
-    - name: Package logs
-      if: failure()
-      run: find ~/.cache/fury -type f -name '*.log' | tar cvzf logs.tar.gz --files-from -
-    - uses: actions/upload-artifact@v1.0.0
+    - uses: actions/upload-artifact@v2
       with:
-        name: logs-${{ runner.os }}
-        path: logs.tar.gz
-      if: failure()
-    - name: Inspect cache
-      if: contains(runner.os, 'ubuntu')
-      run: du -h ~/.cache/fury --max-depth 2        
+        name: logs-unit-tests-${{ runner.os }}
+        path: ~/.cache/fury/logs
+      if: always()
     - name: Summary
       run: |
         ! ls -1 *.failed 2> /dev/null
+
+  integration-tests:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2.0.0
+      - uses: actions/download-artifact@v2
+        with:
+          name: build-dist-${{ runner.os }}
+          path: dist
+      - name: Install Fury
+        run: |
+          chmod +x dist/fury
+          mkdir -p "$HOME"/.local/share/fury/downloads
+          cp dist/fury-*.tar.gz "$HOME"/.local/share/fury/downloads
+          dist/fury system install
+          echo "::add-path::$HOME/.local/share/fury/usr/active/bin:$HOME/.local/share/fury/usr/active/opt"
+        timeout-minutes: 5
+      - name: Prepare environment for integration tests
+        run: |
+          git config --global user.name 'Github Actions'
+          git config --global user.email github.actions@propensive.com
+        timeout-minutes: 1
+      - name: Run integration tests
+        run: |
+          etc/integration || touch integration.failed
+          ! ls -1 integration.failed 2> /dev/null
+        timeout-minutes: 15
+      - uses: actions/upload-artifact@v2
+        with:
+          name: logs-integration-${{ runner.os }}
+          path: ~/.cache/fury/logs
+        if: always()
+      - name: Summary
+        run: |
+          ! ls -1 *.failed 2> /dev/null
