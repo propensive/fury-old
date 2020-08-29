@@ -56,9 +56,16 @@ installJava() {
   esac
   
   command -v curl > /dev/null || fail curl
-  mkdir -p "${jdkDir}"
-  curl -X GET -Ls "https://api.adoptopenjdk.net/v3/binary/latest/${jdkVersion}/ga/${os}/${arch}/jdk/hotspot/normal/adoptopenjdk?project=jdk" -H "accept: */*" | tar xz -C "${jdkDir}"
-  mv "${jdkDir}"/*/* "${jdkDir}/"
+  mkdir -p "${jdkDir}/tmp"
+  curl -X GET -Ls "https://api.adoptopenjdk.net/v3/binary/latest/${jdkVersion}/ga/${os}/${arch}/jdk/hotspot/normal/adoptopenjdk?project=jdk" -H "accept: */*" | tar xz -C "${jdkDir}/tmp"
+  
+  case "${os}" in
+    "linux")   mv "${jdkDir}/tmp"/*/* "${jdkDir}/" ;;
+    "windows") mv "${kdkDir}/tmp"/*/* "${jdkDir}/" ;;
+    "mac")     mv "${jdkDir}/tmp"/*/Contents/Home/* "${jdkDir}/" ;;
+  esac
+
+  rm -r "${jdkDir}/tmp"
   printf "done\n"
 }
 
