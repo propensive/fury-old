@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.25. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -193,7 +193,9 @@ case class Path(input: String) {
 
   def delete(): Try[Boolean] = {
     def delete(file: JavaFile): Boolean =
-      if(file.isDirectory) file.listFiles.forall(delete(_)) && file.delete() else file.delete()
+      if(Files.isSymbolicLink(file.toPath)) file.delete()
+      else if(file.isDirectory) file.listFiles.forall(delete(_)) && file.delete()
+      else file.delete()
 
     Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
