@@ -14,7 +14,7 @@ clean:
 
 uninstall:
 	@printf "$(MK) Removing all previous installations of Fury..."
-	@rm -rf $(HOME)/.local/share/fury/usr/$() $(HOME)/.local/share/fury/downloads && \
+	@rm -rf $(HOME)/.local/share/fury/downloads && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
 install: etc/launcher dist/fury.tar.gz 
