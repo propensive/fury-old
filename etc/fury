@@ -23,7 +23,7 @@ MAIN="com.facebook.nailgun.NGServer"
 FURY_MAIN="fury.FuryServer"
 QUIET='0'
 UPGRADEDIR="$FHOME/upgrade"
-JAVA=("$FBASE/jdk/11/"**"/java")
+JAVA=$(echo "$FBASE/jdk/11/"**"/java")
 if [ ! -x "$JAVA" ]; then
   JAVA="java"
 fi
