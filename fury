@@ -6,15 +6,14 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.18.24"
-ipfsHash="QmRwTgWmTcG3k4GRLHTdrsjcFuf8ZCrHYJytNynxdXe2LN"
-md5Hash="b8034bb7713055ab5a075da12f8fe0bc"
-jdkVersion="11"
+version="0.18.14"
+ipfsHash="QmQ8YK8Btmy3NVk9e2CUrgaffHjB38KmXNxw2huNELVuRX"
+md5Hash="41b620ac9884eb6b3aaadcd98d7c0032"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
 furyDir="${xdgHome}/fury"
-jdkDir="${furyDir}/jdk/${jdkVersion}"
+jdkDir="${furyDir}/jdk"
 furyUsr="${furyDir}/usr"
 currentDir="${furyUsr}/current"
 currentVersion="$(head -n1 "${currentDir}/.version" 2> /dev/null || echo "")"
@@ -32,7 +31,7 @@ installFury() {
 }
 
 checkJava() {
-  (command -v javac > /dev/null && javac -version > /dev/null) || [ -x "${jdkDir}"/**/java ] || installJava
+  (command -v java > /dev/null && command -v javac > /dev/null) || installJava
 }
 
 installJava() {
@@ -57,7 +56,7 @@ installJava() {
   
   command -v curl > /dev/null || fail curl
   mkdir -p "${jdkDir}"
-  curl -X GET -Ls "https://api.adoptopenjdk.net/v3/binary/latest/${jdkVersion}/ga/${os}/${arch}/jdk/hotspot/normal/adoptopenjdk?project=jdk" -H "accept: */*" | tar xz -C "${jdkDir}"
+  curl -X GET -Ls "https://api.adoptopenjdk.net/v3/binary/latest/11/ga/${os}/${arch}/jdk/hotspot/normal/adoptopenjdk?project=jdk" -H "accept: */*" | tar xz -C "${jdkDir}"
   mv "${jdkDir}"/*/* "${jdkDir}/"
   printf "done\n"
 }
