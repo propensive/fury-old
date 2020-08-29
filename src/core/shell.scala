@@ -69,14 +69,14 @@ case class Shell(environment: Environment) {
     val classpathStr = classpath.mkString(":")
     
     val cmd =
-      if(securePolicy) sh"java $propArgs -cp $classpathStr ${main.key} $args"
-      else sh"java -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} ${main.key} $args"
+      if(securePolicy) sh"${Installation.javaExec} $propArgs -cp $classpathStr ${main.key} $args"
+      else sh"${Installation.javaExec} -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} ${main.key} $args"
 
     cmd.async(output(_), output(_))
   }
 
   def javac(classpath: List[String], dest: String, sources: List[String]) =
-    sh"javac -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
+    sh"${Installation.javacExec} -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
 
   def tryXdgOpen(url: Uri): Try[Unit] = {
     Try(sh"xdg-open ${url.key}".exec[String])
@@ -85,7 +85,7 @@ case class Shell(environment: Environment) {
 
   object java {
     def ensureIsGraalVM(): Try[Unit] =
-      sh"sh -c 'java -version 2>&1'".exec[Try[String]].map(_.contains("GraalVM")).transform(
+      sh"sh -c '${Installation.javaExec} -version 2>&1'".exec[Try[String]].map(_.contains("GraalVM")).transform(
         if(_) Success(()) else Failure(GraalVMError("non-GraalVM java")),
         _ => Failure(GraalVMError("Could not check Java version"))
       )

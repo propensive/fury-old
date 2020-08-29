@@ -425,7 +425,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   } yield {
     val cp = classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
-    cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
+    cli.continuation(str"""${Installation.javaExec} -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
         str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
   }
 

@@ -26,6 +26,9 @@ UPGRADEDIR="$FHOME/upgrade"
 JAVA="$FBASE/jdk/11/bin/java"
 if [ ! -x "$JAVA" ]; then
   JAVA="java"
+  JAVA_HOME=""
+else
+  JAVA_HOME="$FBASE/jdk/11/bin:"
 fi
 
 trap cleanup INT HUP TERM
@@ -37,12 +40,12 @@ cleanup() {
 
 nailgun() {
   if ! sh -c "${FHOME}/bin/ng --nailgun-version > /dev/null 2>&1" || [[ "1" -eq "$USE_NG_PY" ]] ; then 
-	"${FHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
+	PATH="$JAVA_HOME$PATH" "${FHOME}"/bin/ng.py --nailgun-port "$PORT" "$1" -- "${@:2}"
   else
   	if [ -f "${FHOME}/bin/libprocname.so" ]; then
-		LD_PRELOAD="${FHOME}/bin/libprocname.so" "${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+		PATH="$JAVA_HOME$PATH" LD_PRELOAD="${FHOME}/bin/libprocname.so" "${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
 	else
-		"${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
+		PATH="$JAVA_HOME$PATH" "${FHOME}"/bin/ng --nailgun-port "$PORT" "$1" "${@:2}"
 	fi
   fi
 }
@@ -79,9 +82,9 @@ startNailgun() {
       message 'Starting Fury daemon...'
     fi
     if [ -f "${FHOME}/bin/libprocname.so" ]; then
-	LD_PRELOAD="${FHOME}/bin/libprocname.so" $JAVA -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
+	    PATH="$JAVA_HOME$PATH" LD_PRELOAD="${FHOME}/bin/libprocname.so" $JAVA -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     else
-	$JAVA -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
+	    PATH="$JAVA_HOME$PATH" $JAVA -Dfile.encoding=UTF-8 -Dfury.home="${FHOME}" -cp "$CLASSPATH" Fury "$PORT" > /dev/null &
     fi
     until (alive); do
       if [ "$1" = "prompt" ]; then
@@ -118,7 +121,7 @@ restartFury() {
 }
 
 startFuryStandalone() {
-  $JAVA -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$$" "$@"
+  PATH="$JAVA_HOME$PATH" $JAVA -Dfury.home="${FHOME}" -cp "$CLASSPATH" "$FURY_MAIN" "$$" "$@"
 }
 
 case "$1" in

@@ -139,6 +139,10 @@ object Installation {
   val installDir: Path = Path(System.getProperty("fury.home"))
   val installVersion: String = installDir.name
 
+  val javaDir: Path = installDir / "jdk" / "11" / "bin"
+  def javaExec: String = if((javaDir / "java").exists()) (javaDir / "java").value else "java"
+  def javacExec: String = if((javaDir / "javac").exists()) (javaDir / "javac").value else "javac"
+
   val usrDir: Path = (installDir / "usr").extant()
   val binDir: Path = (installDir / "bin").extant()
   val etcDir: Path = (installDir / "etc").extant()
