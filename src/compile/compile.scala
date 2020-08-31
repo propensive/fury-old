@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -239,12 +239,12 @@ object Build {
 
     hierarchy <- layer.hierarchy()
     universe  <- hierarchy.universe
-    build     <- Build(universe, dependency, hierarchy, layout)
+    build     <- Build(universe, dependency, layout)
     _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
     _         <- build.generateFiles(layout)
   } yield build
 
-  def apply(universe: Universe, dependency: Dependency, hierarchy: Hierarchy, layout: Layout)
+  def apply(universe: Universe, dependency: Dependency, layout: Layout)
            (implicit log: Log)
            : Try[Build] = {
     def directDependencies(target: Target): Set[Dependency] = target.module.dependencies ++ target.module.compiler()
@@ -252,22 +252,22 @@ object Build {
 
     def graph(target: Target): Try[Target.Graph] = for {
       requiredModules <- universe.dependencies(dependency.ref, layout)
-      requiredTargets <- requiredModules.map(_.ref).traverse(Target(_, hierarchy, universe, layout))
+      requiredTargets <- requiredModules.map(_.ref).traverse(Target(_, universe, layout))
     } yield {
       val targetGraph = (requiredTargets + target).map { t => t.ref -> directDependencies(t) }
       Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.ref -> t }.toMap)
     }
 
     for {
-      target      <- Target(dependency.ref, hierarchy, universe, layout)
+      target      <- Target(dependency.ref, universe, layout)
       graph       <- graph(target)
 
       targetIndex <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse { ref =>
-                       Target(ref, hierarchy, universe, layout).map(ref -> _)
+                       Target(ref, universe, layout).map(ref -> _)
                      }
       
       targets      = targetIndex.unzip._2.to[Set]
-      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, hierarchy, layout))
+      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, layout))
       policy       = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     } yield {
       val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap

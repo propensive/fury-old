@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -31,14 +31,14 @@ object Target {
     lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
   }
 
-  def apply(ref: ModuleRef, hierarchy: Hierarchy, universe: Universe, layout: Layout)
+  def apply(ref: ModuleRef, universe: Universe, layout: Layout)
            (implicit log: Log)
            : Try[Target] = for {
       project   <- universe(ref.projectId)
       module    <- project(ref.moduleId)
       _         <- universe.binaryConflicts(ref)
       binPaths  <- universe.binaryPaths(ref)
-      snapshots <- universe.checkout(ref, hierarchy, layout)
+      snapshots <- universe.checkout(ref, layout)
       sources   <- module.sources.to[List].traverse(snapshots.dir(_, layout))
     } yield Target(ref, module, project, snapshots, sources, binPaths )
 }

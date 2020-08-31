@@ -70,10 +70,20 @@ of the log may reveal more information about the cause of a failure, for example
 tail -n 20 ~/.cache/fury/logs/2020-03-14
 ```
 
+### Reporting issues
+
+Fury's [issue tracker](https://github.com/propensive/fury/issues) welcomes reports of any unexpected behavior in
+Fury. Please include as much information in the issue as you can, though short and precise reports are welcome
+if they contain all the information necessary to repeat the issue.
+
+In any case, a bad issue report is better than no report: Fury's developers may request more information if it
+is not provided, and if there is not enough information to replicate the issue, it may be closed after some
+time.
+
 ### Diagnostic stack traces
 
-If Fury is still running, but hanging on a particular task, it can be very useful to see stack traces from
-Fury's threads to try to determine what activity is causing it to get stuck.
+If Fury is still running, but unresponsive, it can be very useful to see stack traces from Fury's threads to try
+to determine what activity is causing it to get stuck.
 
 Firstly, we need to find out Fury's process ID. The `jps` utility (bundled with the JDK) can help. Running,
 ```sh
@@ -92,4 +102,4 @@ Stack traces from all tasks can be obtained with,
 jstack 5827 > stacks.txt
 ```
 
-The file, `stacks.txt`, may provide very useful information in any bug report.
+The file, `stacks.txt`, may provide very useful information in any bug report, and should 

@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.8. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -111,7 +111,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
 
       graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {
                           ds   <- universe.dependencies(ref, layout)
-                          arts <- (ds.map(_.ref) + ref).traverse(Target(_, hierarchy, universe, layout))
+                          arts <- (ds.map(_.ref) + ref).traverse(Target(_, universe, layout))
                         } yield arts.map { a =>
                           (a.ref, (a.module.dependencies.to[List]) ++ a.module.compiler().map(_.hide))
                         } }.sequence.map(_.flatten.toMap)
@@ -119,9 +119,9 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe(ref).map((ref, _)) }
       targets       <- graph.keys.map { ref =>
-                         Target(ref, hierarchy, universe, layout).map(ref -> _)
+                         Target(ref, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
-      snapshots     <- graph.keys.traverse(universe.checkout(_, hierarchy, layout))
+      snapshots     <- graph.keys.traverse(universe.checkout(_, layout))
     } yield Structure(modules.toMap, graph, snapshots.foldLeft(Snapshots(Map()))(_ ++ _), targets)
 
   private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {

@@ -240,47 +240,34 @@ that it may be cloned or imported by someone else. We make the distinction betwe
 to it: a hash is used to refer to the layer, but does nothing to make it discoverable, and does not add it to
 any catalogs.
 
-FIXME: JP: Continue checking after this point!
-
-Publishing attaches a name of your choice to a shared layer, and optionally adds it to a catalog to make it
-discoverable. Publishing requires a third-party catalog service, whose job is to aggregate published layers
-and make them available for users to view or search. Different catalog services can choose different criteria
-for publishing layers, but Fury comes bootstrapped to use the
-[`vent.dev` catalog service](https://vent.dev/catalog), which can be freely used by anyone with a
+Publishing attaches a name of your choice to a shared layer, and (optionally) adds it to a catalog to make it
+discoverable by other users. Publishing requires a third-party catalog service, whose job is to aggregate
+published layers and make them available for users to view or search. Different catalog services can choose
+different criteria for publishing layers, but Fury comes bootstrapped to use the
+[`vent.dev` catalog service](https://vent.dev/), which can be freely used by anyone with a
 [GitHub](https://github.com) account. A shared layer hash is an immutable reference to a full specification of
 the build, and is intended to produce the same binary outputs today or in ten years' time. A published layer
 name, however, is mutable and can refer to different (though hopefully not wildly different) definitions at
 different times. You should use the published name to get the latest or best version of a layer, whereas the
-shared hash should be used to guarantee repeatability. A layer imported into another will always be stored using
-its immutable hash, ensuring that the build is repeatable. However, if a layer is imported using a mutable name,
-this is also stored in the layer to help with maintenance: it's easy to check if a newer version of a layer has
-become available, and to automatically upgrade to the latest version.
+shared hash should be used to guarantee repeatability. A layer imported into another will always be referenced
+by its immutable hash, ensuring that the build is repeatable. However, if a layer is imported using a mutable
+name, this is also stored in the layer to help with maintenance: it's easy to check if a newer version of a
+layer has become available, and to automatically upgrade to the latest version.
 
 ### Versioning
 
-Versioning for Fury layers is automatic, and constrained for simplicity. A layer's version will be a pair of
-integers representing the "major" and "minor" versions of that layer. Version numbers are assigned
+Versioning for Fury layers is automatic, incremental, and constrained for simplicity. A layer's version will be
+a pair of integers representing the "major" and "minor" versions of that layer. Version numbers are assigned
 automatically by the catalog service when a layer is published, and will be strictly in increment of `1` over
 the latest major version, or one of the minor versions.
+
+This means that you can release the next minor version of any existing major version, or release a new major
+version (with minor version `0`).
 
 The distinction between major and minor versions of a layer is intended, without it being enforced, to
 indicate whether that change represents a change which is compatible with earlier versions of the build or
 not: compatible changes should be marked as minor version updates, and incompatible changes as major updates.
-
-When publishing, users are given the choice of specifying that a layer update is minor using the `--minor`
-(`-M`) flag to the `fury layer publish` command. By default, publishing a layer with Fury will assume that the
-changes are incompatible, and the major version number will be updated.
-
-This is important because Fury makes it easy for maintainers of layers which import another layer to update
-the import to the latest *minor* version automatically with just a single command. Updating a layer to a new
-major version is a manual operation.
-
-#### Version numbers
-
-Version numbers are associated with every published layer, but are not exposed to users through the user
-interface. This is deliberate: often, too much significance is placed on certain version numbers, while the
-only significant detail is the order of the layers, and whether the differences between them are breaking or
-not.
+Different projects may choose different policies for major and minor versions.
 
 #### Restrictions
 

@@ -1,5 +1,7 @@
 # Installing Fury
 
+## Linux and Mac OS X
+
 Fury can be installed on Linux and MacOS X. To install the latest release of Fury, run,
 ```sh
 curl -Ls fury.build | sh
@@ -13,7 +15,22 @@ cat install
 ./install
 ```
 
-## From a launcher script
+## Windows
+
+Fury can be run on Windows using the
+[Windows Subsystem for Linux 2](https://docs.microsoft.com/en-us/windows/wsl/about) (WSL2).
+
+If you have not already done so, [install WSL2](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
+From your WSL2 terminal, it should then be possible to follow the instructions above for installing on Linux.
+
+[Alex Ioffe] has kindly produced some instructional videos on setting up WSL2 for Scala development under
+Windows:
+- [Part 1](https://www.youtube.com/watch?v=JBAQPS9MYkY): "Baby Steps"
+- [Part 2](https://www.youtube.com/watch?v=uM4Ay1xHKJY): "Enlightenment"
+
+These videos make no reference to Fury, but are useful viewing for understanding WSL2.
+
+## Installing from a launcher script
 
 Git repositories which use Fury may also choose to bundle a small launcher script to make bootstrapping easier.
 This is usually a script called `fury` in the root directory. This script can be used to run Fury without

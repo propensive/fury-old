@@ -37,7 +37,11 @@ checkJava() {
 
 runFury() {
   printf "${info}Launching Fury ${version} in standalone mode...\n"
-  FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone ${args}
+  if [ -t 0 ]; then
+    FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone ${args}
+  else
+    FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone system install
+  fi
 }
 
 download() {
