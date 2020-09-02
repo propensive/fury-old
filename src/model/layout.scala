@@ -142,10 +142,10 @@ object Installation {
   val cache: Path = Xdg.cache("fury").extant()
   val config: Path = Xdg.config("fury").extant()
   val data: Path = Xdg.data("fury").extant()
-
-  val rootBinDir: Path = (data / "bin").extant()
-  val optDir: Path = (data / "opt").extant()
-  val completionsDir: Path = (data / "completions").extant()
+  val activeDir: Path = (data / "usr" / "active").extant()
+  val rootBinDir: Path = (activeDir / "bin").extant()
+  val optDir: Path = (activeDir / "opt").extant()
+  val completionsDir: Path = (activeDir / "completions").extant()
   val userConfig: Path = config / "config.fury"
   val aliasesPath: Path = config / "aliases"
   val policyFile: Path = config / "policy.conf"

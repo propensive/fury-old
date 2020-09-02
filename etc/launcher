@@ -37,7 +37,7 @@ checkJava() {
 
 runFury() {
   printf "${info}Launching Fury ${version} in standalone mode...\n"
-  if [ -t 0 ]; then
+  if [[ -t 0 || ! -t 1 ]]; then
     FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone ${args}
   else
     FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone system install

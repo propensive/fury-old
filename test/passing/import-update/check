@@ -16,7 +16,12 @@ Set current module to app
 Checking out src/core from repository magnolia
 Cloning repository at gh:propensive/probably
 Checking out src/cli from repository probably
+Cloning repository at gh:propensive/mercator
 Checking out src/core from repository mercator
+Cloning repository at gh:propensive/escritoire
+Checking out src/core from repository escritoire
+Cloning repository at gh:propensive/gastronomy
+Checking out src/core from repository gastronomy
 Checking out src/core from repository probably
 Successfully compiled escritoire/core, gastronomy/core, magnolia/core, mercator/core, probably/cli, probably/core
 there was one feature warning; re-run with -feature for details
@@ -28,6 +33,10 @@ propensive/probably@1.10
 propensive/scala@1.2
 Fetching layer propensive/gastronomy@1.3 (ebkR6E4Y)
 Fetching layer propensive/magnolia@1.1 (V7gh7TiZ)
+Checking out src/core from repository magnolia
+Cloning repository at gh:propensive/probably
+Checking out src/cli from repository probably
+Checking out src/core from repository probably
 Successfully compiled escritoire/core, gastronomy/core, hello-test/app, magnolia/core, mercator/core, probably/cli, probably/core
 there were 17 feature warnings; re-run with -feature for details
 there was one feature warning; re-run with -feature for details

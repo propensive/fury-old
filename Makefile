@@ -14,7 +14,7 @@ clean:
 
 uninstall:
 	@printf "$(MK) Removing all previous installations of Fury..."
-	@rm -rf $(HOME)/.local/share/fury/usr/$() $(HOME)/.local/share/fury/downloads && \
+	@rm -rf $(HOME)/.local/share/fury/downloads && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
 install: etc/launcher dist/fury.tar.gz 
@@ -113,7 +113,7 @@ dist/fury: etc/launcher tmp/.bundle.ipfs
 	 mkdir -p dist && \
 	 sed -e "s/%VERSION%/$(VERSION)/" \
 	     -e "s/%HASH%/$(shell cat tmp/.bundle.ipfs)/" \
-	     -e "s/%MD5%/$(shell md5sum dist/fury.tar.gz | head -c 32)/" "$<" > "$@" && \
+	     -e "s/%MD5%/$(shell (md5sum dist/fury.tar.gz 2> /dev/null || md5 -r dist/fury.tar.gz 2> /dev/null) | head -c 32)/" "$<" > "$@" && \
 	 chmod +x "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
