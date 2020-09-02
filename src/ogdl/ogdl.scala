@@ -16,8 +16,7 @@
 */
 package fury.ogdl
 
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
+import java.nio._, channels.FileChannel
 
 import fury.io._
 import fury.text._
@@ -153,7 +152,7 @@ object Ogdl {
       val buffer = ByteBuffer.allocate(size)
 
       inChannel.read(buffer)
-      buffer.flip()
+      buffer match { case buffer: Buffer => buffer.flip() }
 
       buffer
     } finally inChannel.close()
