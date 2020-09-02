@@ -103,7 +103,7 @@ object Install {
     lines <- Try(scala.io.Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag))).recover {
                case e if(force || shell == getShell(env)) => List("")
              }
-    _     <- Try(Installation.activeDir.delete()) 
+    _     <- Try(Installation.activeDir.delete())
     _     <- Try(Installation.installDir.symlinkTo(Installation.activeDir))
     
     _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,

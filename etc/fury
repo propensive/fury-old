@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ "$(uname -s)" = 'Linux' ]; then
+if command -v readlink > /dev/null && command -v realpath > /dev/null; then
   DEFAULT_FURY_HOME="$(realpath $(dirname "$(readlink -f "$0")")/..)"
   FBASE="$(realpath $(dirname "$(readlink -f "$0")")/../../..)"
 else
