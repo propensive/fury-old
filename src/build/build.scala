@@ -492,9 +492,21 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 case class LayerCli(cli: Cli)(implicit log: Log) {
   def init: Try[ExitStatus] = for {
     layout <- cli.newLayout
+    cli    <- cli.hint(GithubActionsArg)
+    cli    <- cli.hint(GitArg)
+    cli    <- cli.hint(EditorArg)
     call   <- cli.call()
-    _      <- Layer.init(layout)
+    edit   <- ~call(EditorArg).isSuccess
+    ci     <- ~call(GithubActionsArg).isSuccess
+    git    <- ~call(GitArg).isSuccess
+    _      <- Layer.init(layout, git, ci)
     _      =  Bsp.createConfig(layout)
+
+    _      <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
+                implicit val env: Environment = cli.env
+                sh"${path} ${layout.baseDir}".exec[Try[String]]
+              }
+              else Success(())
   } yield log.await()
 
   def select: Try[ExitStatus] = for {
@@ -552,7 +564,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     
     _          <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
                     implicit val env: Environment = cli.env
-                    sh"${path.value} ${dir.value}".exec[Try[String]]
+                    sh"$path $dir".exec[Try[String]]
                   }
                   else Success(())
   } yield log.await()
