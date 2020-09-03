@@ -43,8 +43,7 @@ tmp/lib/fury.jar: $(wildcard src/**/*.scala) tmp/.version
 	 mkdir -p tmp/lib && \
 	 printf "$(MK) Done\n" && \
 	 printf "$(MK) Compiling Fury from source...\n" && \
-	 ./fury && \
-	 FURY_HOME="$(HOME)/.local/share/fury/usr/0.18.9" ~/.local/share/fury/bin/fury build save --https --project fury --module frontend --output linear --path tmp/lib --fat-jar --disable-security-manager && \
+	 ./fury build save --https --project fury --module frontend --output linear --path tmp/lib --fat-jar --disable-security-manager && \
 	 mv tmp/lib/fury-frontend.jar "$@" && \
 	 jar uf "$@" -C tmp .version && \
 	 touch "$@" && \
