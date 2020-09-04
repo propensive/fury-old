@@ -198,6 +198,10 @@ case class Path(input: String) {
     Try(delete(javaFile)).recoverWith { case e => Failure(FileWriteError(this, e)) }
   }
 
+  def linkTarget(): Option[Path] = {
+    if(Files.isSymbolicLink(javaPath)) Some(Path(javaPath.toRealPath())) else None
+  }
+
   def unlink(): Try[Unit] = {
     val result = if(Files.isSymbolicLink(javaPath)) Try(Files.delete(javaPath))
     else Failure(new IllegalArgumentException(s"Not a symbolic link: $name"))

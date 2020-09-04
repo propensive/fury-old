@@ -142,7 +142,12 @@ object Installation {
   val cache: Path = Xdg.cache("fury").extant()
   val config: Path = Xdg.config("fury").extant()
   val data: Path = Xdg.data("fury").extant()
-  val activeDir: Path = (data / "usr" / "active").extant()
+  val activeDir: Path = {
+    val path = data / "usr" / "active"
+    if(!java.nio.file.Files.isDirectory(path.javaPath))
+      throw new IllegalStateException(s"Not a directory: ${path.name}")
+    path
+  }
   val rootBinDir: Path = (activeDir / "bin").extant()
   val optDir: Path = (activeDir / "opt").extant()
   val completionsDir: Path = (activeDir / "completions").extant()
