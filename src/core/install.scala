@@ -37,7 +37,7 @@ object Install {
                msg"client. To fix this, install a C compiler and run ${ExecName("fury system install")} "+
                msg"again at any time.")
          }
-    
+    _ <- replaceActiveDir()
     _ <- rcInstall(env, force, Xdg.home / ".zshrc", ExecName("zsh"), zshCompletions)
     _ <- rcInstall(env, force, Xdg.home / ".bashrc", ExecName("bash"), Nil)
     _ <- desktopInstall(env)
@@ -46,6 +46,20 @@ object Install {
     _ <- ~log.info("\n")
     _ <- ~log.info(msg"Thank you for trying Fury!")
   } yield ()
+
+  private def replaceActiveDir()(implicit log: Log): Try[Unit] = {
+    val removed = Installation.activeDir.linkTarget() match {
+      case Some(realPath) =>
+        log.info(msg"Removing the active installation symlink to $realPath")
+        Installation.activeDir.unlink()
+      case None =>
+        log.info(msg"Removing the active installation directory at ${Installation.activeDir}")
+        Installation.activeDir.delete()
+    }
+    removed.flatMap(_ => Installation.installDir.symlinkTo(Installation.activeDir)).map { _ =>
+      log.info(msg"Set the active installation symlink to ${Installation.installDir}")
+    }
+  }
 
   private def doCCompilation(env: Environment)(implicit log: Log): Try[Unit] = for {
     _ <- cCompile(Installation.binDir / "procname.c", Installation.binDir / "libprocname.so",
@@ -103,9 +117,6 @@ object Install {
     lines <- Try(scala.io.Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag))).recover {
                case e if(force || shell == getShell(env)) => List("")
              }
-    _     <- Try(Installation.activeDir.delete())
-    _     <- Try(Installation.installDir.symlinkTo(Installation.activeDir))
-    
     _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,
                  Installation.optDir)) ++ extra).join("", "\n", "\n"))
     

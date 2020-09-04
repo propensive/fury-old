@@ -6,9 +6,9 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.18.9"
-ipfsHash="QmXqt8ZztjjaeyeZmYBYV88MKH2fRKrsFh1NR47fVxCHE7"
-md5Hash="ac72a8bad9322f628b889754b416117a"
+version="0.18.29"
+ipfsHash="QmP8PFjpKsbAP3P9EGhkYqLEGrhxg7WfXu536cTjAFNm1b"
+md5Hash="50aa3ae2757871dac59d22b07f33e6f9"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
 xdgHome="$([ "$EUID" = "0" ] && echo "${xdgSysHome}" || echo "${xdgUsrHome}")"
@@ -37,7 +37,7 @@ checkJava() {
 
 runFury() {
   printf "${info}Launching Fury ${version} in standalone mode...\n"
-  if [ -t 0 ]; then
+  if [[ -t 0 || ! -t 1 ]]; then
     FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone ${args}
   else
     FURY_HOME="${installDir}" "${installDir}/bin/fury" standalone system install
