@@ -34,12 +34,13 @@ object Target {
   def apply(ref: ModuleRef, universe: Universe, layout: Layout)
            (implicit log: Log)
            : Try[Target] = for {
-      project   <- universe(ref.projectId)
-      module    <- project(ref.moduleId)
-      binaries  <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
-      checkouts <- universe.checkout(ref, layout)
-      sources   <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-    } yield Target(ref, module, project, checkouts, sources, binaries )
+      project     <- universe(ref.projectId)
+      module      <- project(ref.moduleId)
+      binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
+      checkouts   <- universe.checkout(ref, layout)
+      javaVersion <- universe.javaVersion(ref, layout)
+      sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
+    } yield Target(ref, module, project, checkouts, sources, binaries, javaVersion)
 }
 
 case class Target(ref: ModuleRef,
@@ -47,7 +48,9 @@ case class Target(ref: ModuleRef,
                   project: Project,
                   snapshots: Snapshots,
                   sourcePaths: List[Path],
-                  binaries: List[Path]) {
+                  binaries: List[Path],
+                  javaVersion: Int) {
+
   lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
   lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
 }

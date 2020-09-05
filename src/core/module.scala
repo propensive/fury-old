@@ -46,7 +46,7 @@ case class Module(id: ModuleId,
                   deterministic: Boolean = false) {
 
   def allBinaries: SortedSet[Binary] = if(kind.is[Bench]) binaries + Binary.Jmh else binaries
-  
+
   def compilerDependencies: Set[Dependency] = compiler match  {
     case BspCompiler(ref) => Set(Dependency(ref.hide))
     case _                => Set()

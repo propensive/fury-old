@@ -139,10 +139,6 @@ object Installation {
   val installDir: Path = Path(System.getProperty("fury.home"))
   val installVersion: String = installDir.name
 
-  val javaDir: Path = installDir / "jdk" / "11" / "bin"
-  def javaExec: String = if((javaDir / "java").exists()) (javaDir / "java").value else "java"
-  def javacExec: String = if((javaDir / "javac").exists()) (javaDir / "javac").value else "javac"
-
   val usrDir: Path = (installDir / "usr").extant()
   val binDir: Path = (installDir / "bin").extant()
   val etcDir: Path = (installDir / "etc").extant()
@@ -206,7 +202,6 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
-  lazy val basesDir: Path = (furyDir / "bases").extant()
   lazy val workDir: Path = (furyDir / "work").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()

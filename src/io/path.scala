@@ -238,6 +238,7 @@ case class Path(input: String) {
 
   def children: List[String] = if(exists()) Option(javaFile.listFiles).to[List].flatten.map(_.getName) else Nil
   def childPaths: List[Path] = children.map(this / _)
+  def descendants: Stream[Path] = childPaths.to[Stream].flatMap { f => f +: f.descendants }
   def exists(): Boolean = Files.exists(javaPath)
   def ifExists(): Option[Path] = if(exists) Some(this) else None
   def absolutePath(): Try[Path] = Try(this.javaPath.toAbsolutePath.normalize.toString).map(Path(_))

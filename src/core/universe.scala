@@ -98,6 +98,13 @@ case class Universe(hierarchy: Hierarchy,
     snapshot.hash -> snapshot
   })
 
+  def javaVersion(ref: ModuleRef, layout: Layout): Try[Int] = for {
+    module  <- apply(ref)
+    version = module.compiler match { case Javac(n) => n; case _ => 8 }
+    deps    <- dependencies(ref, layout)
+    others  <- deps.map(_.ref).traverse(javaVersion(_, layout))
+  } yield (others + version).max
+
   def ++(that: Universe): Universe = {
     val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>
       acc.updated(digest, acc.getOrElse(digest, Set()) ++ set)

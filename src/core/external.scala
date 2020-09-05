@@ -23,6 +23,7 @@ import fury.text._, fury.io._, fury.model._
 import guillotine._, environments.enclosing
 import kaleidoscope._
 import antiphony._
+import mercator._
 
 import scala.util._
 import scala.collection.JavaConverters._
@@ -195,7 +196,8 @@ object Ipfs {
 
 object Software {
   def all: List[Software] = List(FurySoftware, IpfsSoftware, JavaSoftware, VsCodeSoftware, GitSoftware,
-      CcSoftware, GraalVmSoftware)
+      CcSoftware, GraalVmSoftware, JdkSoftware(8), JdkSoftware(9), JdkSoftware(10), JdkSoftware(11),
+      JdkSoftware(12), JdkSoftware(13), JdkSoftware(14))
 }
 
 abstract class Software(val name: ExecName) {
@@ -273,6 +275,51 @@ object JavaSoftware extends Installable(ExecName("java")) {
       case other      => Failure(UnknownOs(other.toString))
     }
   }
+}
+
+object Jdk {
+  def binDir(version: Int, install: Boolean = true)(implicit log: Log): Path = {
+    val dir = Installation.installDir / "jdk" / str"$version" / "bin"
+    if(!dir.exists && install) JdkSoftware(version).install(implicitly[Environment], true).map(dir.waive)
+    
+    dir
+  }
+  
+  def javaExec(version: Int)(implicit log: Log): Path = binDir(version) / "java"
+  def javacExec(version: Int)(implicit log: Log): Path = binDir(version) / "javac"
+}
+
+case class JdkSoftware(version: Int) extends Installable(ExecName("java")) {
+  def installVersion = version.toString
+  def description = "Java™ SE Runtime Environment"
+  def website = Https(path"openjdk.java.net")
+  def managedPath: Path = Jdk.binDir(version, false)(Log()).parent
+  def version(env: Environment): Option[String] =
+    
+  
+  Option(System.getProperty("java.version"))
+  
+  def tarGz: Try[Uri] = {
+    def url(os: String, arch: String) = Https(path"api.adoptopenjdk.net" / "v3" / "binary" / "latest" / installVersion /
+        "ga" / os / "arch" / "jdk" / "hotspot" / "normal" / "adoptopenjdk?project=jdk")
+    
+    Installation.system.flatMap {
+      case Linux(X64)   => Success(url("linux", "x64"))
+      case Linux(X86)   => Success(url("linux", "x32"))
+      case MacOs(X64)   => Success(url("mac", "x64"))
+      case Windows(X64) => Success(url("windows", "x64"))
+      case other        => Failure(UnknownOs(other.toString))
+    }
+  }
+
+  override def install(env: Environment, quiet: Boolean)(implicit log: Log): Try[Unit] = for {
+    _      <- super.install(env, quiet)
+    
+    binDir <- managedPath.descendants.find { f => f.directory && f.name == "bin"
+                  }.ascribe(InstallFailed(str"$description version $installVersion", managedPath))
+
+    _      <- binDir.parent.childPaths.traverse { f => f.moveTo(managedPath / f.name) }
+  } yield ()
 }
 
 object VsCodeSoftware extends Installable(ExecName("code")) {
