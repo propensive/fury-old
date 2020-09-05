@@ -152,7 +152,8 @@ object Ogdl {
       val buffer = ByteBuffer.allocate(size)
 
       inChannel.read(buffer)
-      buffer match { case buffer: Buffer => buffer.flip() }
+      val bufferObject: Any = buffer
+      bufferObject match { case buffer: Buffer => buffer.flip() }
 
       buffer
     } finally inChannel.close()
