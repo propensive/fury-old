@@ -196,8 +196,8 @@ object Ipfs {
 
 object Software {
   def all: List[Software] = List(FurySoftware, IpfsSoftware, JavaSoftware, VsCodeSoftware, GitSoftware,
-      CcSoftware, GraalVmSoftware, JdkSoftware(8), JdkSoftware(9), JdkSoftware(10), JdkSoftware(11),
-      JdkSoftware(12), JdkSoftware(13), JdkSoftware(14))
+      CcSoftware, GraalVmSoftware/*, JdkSoftware(8), JdkSoftware(9), JdkSoftware(10), JdkSoftware(11),
+      JdkSoftware(12), JdkSoftware(13), JdkSoftware(14)*/)
 }
 
 abstract class Software(val name: ExecName) {
@@ -279,7 +279,7 @@ object JavaSoftware extends Installable(ExecName("java")) {
 
 object Jdk {
   def binDir(version: Int, install: Boolean = true)(implicit log: Log): Path = {
-    val dir = Installation.installDir / "jdk" / str"$version" / "bin"
+    val dir = Installation.data / "jdk" / str"$version" / "bin"
     if(!dir.exists && install) JdkSoftware(version).install(implicitly[Environment], true).map(dir.waive)
     
     dir
@@ -293,15 +293,15 @@ case class JdkSoftware(version: Int) extends Installable(ExecName("java")) {
   def installVersion = version.toString
   def description = "Java™ SE Runtime Environment"
   def website = Https(path"openjdk.java.net")
-  def managedPath: Path = Jdk.binDir(version, false)(Log()).parent
-  def version(env: Environment): Option[String] =
-    
+  def managedPath: Path = Jdk.binDir(version, false)(Log()).parent.extant()
+  def version(env: Environment): Option[String] = Some(version.toString)
+  override def base: Path = (Installation.data / "jdk" / str"$version").extant()
   
   Option(System.getProperty("java.version"))
   
   def tarGz: Try[Uri] = {
     def url(os: String, arch: String) = Https(path"api.adoptopenjdk.net" / "v3" / "binary" / "latest" / installVersion /
-        "ga" / os / "arch" / "jdk" / "hotspot" / "normal" / "adoptopenjdk?project=jdk")
+        "ga" / os / arch / "jdk" / "hotspot" / "normal" / "adoptopenjdk?project=jdk")
     
     Installation.system.flatMap {
       case Linux(X64)   => Success(url("linux", "x64"))
@@ -323,7 +323,7 @@ case class JdkSoftware(version: Int) extends Installable(ExecName("java")) {
 }
 
 object VsCodeSoftware extends Installable(ExecName("code")) {
-  def installVersion = "1.42.1"
+  def installVersion = "1.48.0"
   def description = "Visual Studio Code"
   def website = Https(path"code.visualstudio.com")
 

@@ -25,6 +25,8 @@ import fury.model.IncludeType.Jarfile
 import fury.model.IncludeType.TarFile
 import fury.model.IncludeType.ClassesDir
 
+import scala.collection.mutable.HashMap
+
 object Universe {
   def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
 }
@@ -35,6 +37,8 @@ case class Universe(hierarchy: Hierarchy,
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerProvenance]) {
   def ids: Set[ProjectId] = projects.keySet
+
+  val javaVersions: HashMap[ModuleRef, Try[Int]] = HashMap()
 
   import Uniqueness._
 
@@ -98,12 +102,18 @@ case class Universe(hierarchy: Hierarchy,
     snapshot.hash -> snapshot
   })
 
-  def javaVersion(ref: ModuleRef, layout: Layout): Try[Int] = for {
-    module  <- apply(ref)
-    version = module.compiler match { case Javac(n) => n; case _ => 8 }
-    deps    <- dependencies(ref, layout)
-    others  <- deps.map(_.ref).traverse(javaVersion(_, layout))
-  } yield (others + version).max
+  def javaVersion(ref: ModuleRef, layout: Layout): Try[Int] =
+    javaVersions.getOrElseUpdate(ref, for {
+      module   <- apply(ref)
+      
+      version  <- module.compiler match {
+                    case Javac(n)         => Success(n)
+                    case BspCompiler(ref) => javaVersion(ref, layout)
+                  }
+      
+      deps     <- dependencies(ref, layout)
+      others   <- deps.map(_.ref).traverse(javaVersion(_, layout))
+    } yield (others.to[Vector] :+ version).reduce(_ max _))
 
   def ++(that: Universe): Universe = {
     val newRepoSets = that.repoSets.foldLeft(repoSets) { case (acc, (digest, set)) =>
