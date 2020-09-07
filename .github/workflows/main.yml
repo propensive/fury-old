@@ -109,7 +109,7 @@ jobs:
         run: |
           etc/integration || touch integration.failed
           ! ls -1 integration.failed 2> /dev/null
-        timeout-minutes: 15
+        timeout-minutes: 20
       - uses: actions/upload-artifact@v2
         with:
           name: logs-integration-${{ runner.os }}
