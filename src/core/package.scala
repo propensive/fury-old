@@ -17,6 +17,7 @@
 package fury
 
 import fury.text._, fury.io._
+import fury.model.Key
 
 import contextual._
 import escritoire._
@@ -43,8 +44,13 @@ package object core extends GuillotineExtensions {
   implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] = xs =>
     UserMsg { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
 
-  implicit def stringShowOrdering[T: StringShow]: Ordering[T] =
-    Ordering.String.on(implicitly[StringShow[T]].show(_))
+  type WithKey[K <: Key] = { val id: K }
+
+  implicit def keyOrdering[K <: Key]: Ordering[K] =
+    Ordering.String.on(_.key)
+
+  implicit def idOrdering[T <: WithKey[_ <: Key]]: Ordering[T] =
+    Ordering.String.on(_.id.key)
 
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
   implicit val msgShowJson: MsgShow[Json] = json => UserMsg { theme => json.toString }

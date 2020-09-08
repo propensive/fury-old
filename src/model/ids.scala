@@ -463,10 +463,12 @@ object Permission {
   ).map(ClassRef(_))
 }
 
-case class Permission(id: String, action: Option[String]) {
+case class Permission(id: String, action: Option[String]) extends Key("permission") {
   def classRef: ClassRef = ClassRef(id.split(":", 2)(0))
   def target: String = id.split(":", 2)(1)
   def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
+
+  override def key: String = id
 }
 
 object ManifestEntry {
@@ -530,7 +532,9 @@ object EnvVar {
   }
 }
 
-case class EnvVar(id: String, value: String)
+case class EnvVar(id: String, value: String) extends Key("env-var") {
+  override def key: String = id
+}
 
 object JavaProperty {
   implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.id}=${e.value}"
@@ -543,7 +547,9 @@ object JavaProperty {
     case Array(key)        => JavaProperty(key, "")
   }
 }
-case class JavaProperty(id: String, value: String)
+case class JavaProperty(id: String, value: String) extends Key("java-property") {
+  override def key: String = id
+}
 
 object Scope {
   def apply(id: ScopeId, layout: Layout, projectId: ProjectId): Scope = id match {
@@ -628,7 +634,7 @@ object AliasCmd {
   def unapply(value: String): Option[AliasCmd] = value.only { case r"[a-z][a-z0-9\-]+" => AliasCmd(value) }
 }
 
-case class AliasCmd(key: String)
+case class AliasCmd(key: String) extends Key("alias")
 
 object Alias {
   implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.id.key))
@@ -851,10 +857,12 @@ object Dependency {
   implicit val index: Index[Dependency] = FieldIndex("id")
 }
 
-case class Dependency(ref: ModuleRef) {
+case class Dependency(ref: ModuleRef) extends Key("dependency") {
   def intransitive = ref.intransitive
   def hidden = ref.hidden
   def hide = copy(ref = ref.copy(hidden = true))
+
+  override def key: String = ref.key
 }
 
 object SnapshotHash {
