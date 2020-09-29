@@ -51,6 +51,7 @@ object FuryServer {
 
   def main(args: Array[String]): Unit = {
     def exit(code: Int) = {
+      Rest.shutdown()
       Lifecycle.shutdown()
       System.exit(code)
     }
@@ -73,6 +74,7 @@ object FuryServer {
           env: Environment)
          : Unit =
     exit {
+      Rest.start(env)
       val pid = Pid(args.head.toInt)
       implicit val log: Log = Log.log(pid)
       
