@@ -24,23 +24,70 @@ import guillotine._
 
 object Rest {
 
+  private val port = 6325
+
   implicit val log: Log = Log()
 
   private var Server: Option[LiveHttpServer] = None
     
-  def start(env: Environment): Unit = if(Server.isEmpty) {
-    Server = new HttpServer({ request =>
-      val menu = FuryMenu.menu(Nil)
-      val result: Option[Layer] = for {
-        path   <- request.params.get("path")
-        layout <- Some(Layout(Path(env.variables("HOME")), Path(path), env, Path(path)))
-        conf   <- Layer.readFuryConf(layout).toOption
-        layer  <- Layer.get(conf.layerRef, None).toOption
-      } yield layer
+  def start(env: Environment): Unit = Rest.synchronized {
+    if(Server.isEmpty) {
+      log.info(msg"Starting HTTP server on port $port")
+      Server = new HttpServer({ request =>
+        request.path match {
+          case "/universe" =>
 
-      Response(Json(result))
-    }).bind(6325).to[Option]
+            def convert(universe: Universe): Api.Universe =
+              Api.Universe(
+                universe.projects.to[List].map { case (ProjectId(id), project) =>
+                  Api.Project(id)
+                },
+                universe.repoSets.to[List].map { case (RepoSetId(id), repos) =>
+                  Api.Repo(id, repos.to[List].map(_.repoId.key))
+                },
+                universe.imports.to[List].map { case (ShortLayerRef(id), LayerProvenance(ref, imports)) =>
+                  Api.Import(id, ref.key, imports.to[Set].flatMap(_._2.remote.toSet).to[List])
+                }
+              )
+
+            val result: Option[Api.Universe] = for {
+              path      <- request.params.get("path")
+              layout    <- Some(Layout(Path(env.variables("HOME")), Path(path), env, Path(path)))
+              conf      <- Layer.readFuryConf(layout).toOption
+              layer     <- Layer.get(conf.layerRef, None).toOption
+              hierarchy <- layer.hierarchy(Pointer.Root).toOption
+              universe  <- hierarchy.universe.toOption
+            } yield convert(universe)
+
+            Response(Json(result))
+          case "/layer" =>
+            val menu = FuryMenu.menu(Nil)
+            val result: Option[Layer] = for {
+              path   <- request.params.get("path")
+              layout <- Some(Layout(Path(env.variables("HOME")), Path(path), env, Path(path)))
+              conf   <- Layer.readFuryConf(layout).toOption
+              layer  <- Layer.get(conf.layerRef, None).toOption
+            } yield layer
+
+            Response(Json(result))
+        }
+      }).bind(port).to[Option]
+      if(Server.isEmpty) log.warn(msg"Failed to start HTTP server on port $port")
+      log.info(msg"Started HTTP server")
+    }
   }
   
-  def shutdown(): Unit = Server.map(_.shutdown())
+  def shutdown(): Unit = {
+    log.info(msg"Shutting down HTTP server on port $port")
+    Server.map(_.shutdown())
+    log.info(msg"Shutdown complete")
+  }
+
+  object Api {
+    case class Envelope[T](request: String, result: Option[T], error: Option[String])
+    case class Project(id: String)
+    case class Repo(commit: String, ids: List[String])
+    case class Import(id: String, ref: String, remotes: List[PublishedLayer])
+    case class Universe(projects: List[Project], repos: List[Repo], imports: List[Import])
+  }
 }
