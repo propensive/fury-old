@@ -134,6 +134,8 @@ case class Pointer(path: String) {
   def /(importId: ImportId): Pointer = Pointer(if(isEmpty) str"/${importId.key}" else s"$path/${importId.key}")
   def tail: Pointer = Pointer(parts.tail.map(_.key).mkString("/", "/", ""))
   def init: Pointer = Pointer(parts.init.map(_.key).mkString("/", "/", ""))
+  def lastOption: Option[ImportId] = if(isEmpty) None else Some(last)
+  def headOption: Option[ImportId] = if(isEmpty) None else Some(head)
   def head: ImportId = parts.head
   def last: ImportId = parts.last
   def isEmpty: Boolean = parts.length == 0

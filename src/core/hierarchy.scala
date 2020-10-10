@@ -41,7 +41,7 @@ case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierar
   def update(pointer: Pointer, newLayer: Layer)(implicit log: Log): Try[Hierarchy] =
     if(pointer.isEmpty) Success(copy(layer = newLayer))
     else children.get(pointer.head).ascribe(CantResolveLayer(pointer)).flatMap { hierarchy =>
-      hierarchy.update(pointer.tail, newLayer).flatMap { h => h.layerRef.map { ref =>
+      hierarchy.update(pointer.tail, newLayer).flatMap { h => h.layer.ref.map { ref =>
         copy(
           children = children.updated(pointer.head, h),
           layer = Layer(_.imports(pointer.head).layerRef)(layer) = ref
@@ -58,17 +58,16 @@ case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierar
 
   def save(pointer: Pointer, layout: Layout)(implicit log: Log): Try[LayerRef] =
     children.values.to[List].traverse(_.save(pointer, layout)).flatMap { _ =>
-      layerRef.flatMap { ref =>
+      layer.ref.flatMap { ref =>
         if(path.isEmpty) Layer.saveFuryConf(FuryConf(ref, pointer), layout).map(ref.waive) else Success(ref)
       }
     }
 
-  lazy val layerRef: Try[LayerRef] = Layer.store(layer)(Log())
-  def focus(pointer: Pointer): Try[Focus] = layerRef >> (Focus(_, pointer, None))
+  def focus(pointer: Pointer): Try[Focus] = layer.ref >> (Focus(_, pointer, None))
   
   def focus(pointer: Pointer, projectId: ProjectId): Try[Focus] =
-    layerRef >> (Focus(_, pointer, Some((projectId, None))))
+    layer.ref >> (Focus(_, pointer, Some((projectId, None))))
 
   def focus(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId): Try[Focus] =
-    layerRef >> (Focus(_, pointer, Some((projectId, Some(moduleId)))))
+    layer.ref >> (Focus(_, pointer, Some((projectId, Some(moduleId)))))
 }

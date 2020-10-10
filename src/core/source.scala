@@ -74,10 +74,11 @@ sealed abstract class Source extends Key(msg"source") {
   def dir: Path
   def glob: Glob
   def repoIdentifier: RepoId
+  def local: Boolean
 
   def base(snapshots: Snapshots, layout: Layout): Try[Path]
   def dir(snapshots: Snapshots, layout: Layout): Try[Path] = base(snapshots, layout).map(dir in _)
-  
+
   def files(snapshots: Snapshots, layout: Layout): Try[Stream[Path]] =
     dir(snapshots, layout).map { dir => glob(dir, dir.walkTree) }
   
@@ -103,6 +104,7 @@ sealed abstract class Source extends Key(msg"source") {
 case class RepoSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
   def key: String = str"${repoId}:${dir.value}//$glob"
   def completion: String = str"${repoId}:${dir.value}"
+  def local: Boolean = false
   def repoIdentifier: RepoId = repoId
   def hash(layer: Layer): Try[Digest] = layer.repos.findBy(repoId).map((dir, _).digest[Md5])
   def base(snapshots: Snapshots, layout: Layout): Try[Path] =
@@ -111,6 +113,7 @@ case class RepoSource(repoId: RepoId, dir: Path, glob: Glob) extends Source {
 
 case class LocalSource(dir: Path, glob: Glob) extends Source {
   def key: String = str"${dir.value}//$glob"
+  def local: Boolean = true
   def completion: String = dir.value
   def hash(layer: Layer): Try[Digest] = Success((-1, dir).digest[Md5])
   def repoIdentifier: RepoId = RepoId("local")
