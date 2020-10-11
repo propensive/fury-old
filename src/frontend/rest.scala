@@ -90,7 +90,15 @@ object Rest {
     case class ProjectRef(id: String, projects: List[Project])
     case class Import(id: String, ref: String, remotes: List[PublishedLayer])
     case class Hierarchy(id: String, layer: String, children: Option[List[Hierarchy]])
-    case class Module(id: String, sources: List[Source])
+    
+    case class Module(
+      id: String,
+      sources: List[Source],
+      dependencies: List[String],
+      binaries: List[Binary],
+      kind: String
+    )
+
     case class Source(id: String, path: Option[String], editable: Boolean)
     case class Binary(id: String, group: String, artifact: String, version: String)
     case class Layer(id: String, repos: List[Repo], projects: List[Project])
@@ -106,8 +114,10 @@ object Rest {
 
     object Project {
       def apply(project: fury.core.Project, universe: fury.core.Universe, layout: Layout): Project =
-        Project(project.id.key, project.modules.to[List].map(Module(_, project, universe, layout)),
-            project.description)
+        Project(
+          project.id.key,
+          project.modules.to[List].map(Module(_, project, universe, layout)),
+          project.description)
     }
 
     object Module {
@@ -115,12 +125,19 @@ object Rest {
                 project: fury.core.Project,
                 universe: fury.core.Universe,
                 layout: Layout): Module =
-        Module(module.id.key, module.sources.to[List].map { s =>
-          val dir = for {
-            checkout <- universe.checkout(module.ref(project), layout)
-            dir      <- s.dir(checkout, layout)
-          } yield dir.value
-          Source(s.key, dir.toOption, s.local) })
+        Module(
+          id = module.id.key,
+          sources = module.sources.to[List].map { s =>
+            val dir = for {
+              checkout <- universe.checkout(module.ref(project), layout)
+              dir      <- s.dir(checkout, layout)
+            } yield dir.value
+            Source(s.key, dir.toOption, s.local)
+          },
+          dependencies = module.dependencies.to[List].map(_.key),
+          binaries = module.binaries.to[List].map { b => Binary(b.id.key, b.group, b.artifact, b.version) },
+          module.kind.name.name
+        )
         
     }
 
