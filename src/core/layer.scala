@@ -354,6 +354,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] = for {
     confStr  <- ~Ogdl.serialize(Ogdl(conf))
+    _        <- ~Trigger.notify(layout.baseDir, System.currentTimeMillis())
     _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
   } yield conf
 

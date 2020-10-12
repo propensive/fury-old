@@ -25,6 +25,7 @@ import mercator._
 
 import scala.util._
 import fury.core.Uniqueness.Ambiguous
+import scala.concurrent._
 
 object Rest {
 
@@ -67,6 +68,12 @@ object Rest {
             hierarchy    <- layer.hierarchy(Pointer.Root)
             apiHierarchy <- Api.Hierarchy(hierarchy)
           } yield Json(apiHierarchy)
+          
+          case "/wait" => for {
+            pathString <- request.params.get("path").ascribe(MissingParam(Args.PathArg))
+            path       <- ~Path(pathString)
+            timestamp  <- Try(Await.result(Trigger.listen(path).future, duration.Duration.Inf))
+          } yield Json(Api.Update(timestamp))
         }
 
         Response(Json(Api.Envelope(request.path, json)))
@@ -90,6 +97,7 @@ object Rest {
     case class ProjectRef(id: String, projects: List[Project])
     case class Import(id: String, ref: String, remotes: List[PublishedLayer])
     case class Hierarchy(id: String, layer: String, children: Option[List[Hierarchy]])
+    case class Update(timestamp: Long)
     
     case class Module(
       id: String,
