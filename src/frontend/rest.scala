@@ -70,9 +70,9 @@ object Rest {
           } yield Json(apiHierarchy)
           
           case "/wait" => for {
-            pathString <- request.params.get("path").ascribe(MissingParam(Args.PathArg))
-            path       <- ~Path(pathString)
-            timestamp  <- Try(Await.result(Trigger.listen(path).future, duration.Duration.Inf))
+            path      <- request.params.get("path").ascribe(MissingParam(Args.PathArg))
+            layout    <- Try(Layout(Path(env.variables("HOME")), Path(path), env, Path(path)))
+            timestamp <- Try(Await.result(Trigger.listen(layout.baseDir).future, duration.Duration.Inf))
           } yield Json(Api.Update(timestamp))
         }
 

@@ -52,6 +52,7 @@ object FuryServer {
   def main(args: Array[String]): Unit = {
     def exit(code: Int) = {
       Rest.shutdown()
+      Trigger.shutdown()
       Lifecycle.shutdown()
       System.exit(code)
     }

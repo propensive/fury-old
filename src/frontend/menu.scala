@@ -137,6 +137,7 @@ object FuryMenu {
     
     Action('stop, msg"gracefully shut down the Fury server", { (_: Cli) =>
       Rest.shutdown()
+      Trigger.shutdown()
       Lifecycle.shutdown()
     }, needsLayer = false),
     

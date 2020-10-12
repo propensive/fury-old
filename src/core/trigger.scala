@@ -17,7 +17,7 @@
 
 package fury.core
 
-import fury.io._
+import fury.io._, fury.text._
 
 import scala.concurrent._
 import scala.collection.mutable.HashMap
@@ -32,6 +32,7 @@ object Trigger {
 
   def listen(path: Path): Promise[Long] = Trigger.synchronized {
     val promise = Promise[Long]()
+    Log().info(msg"Listening for updates to $path")
     waiting(path) = waiting.get(path).fold(Waiting(0L, Set(promise))) { wait =>
       wait.copy(promises = wait.promises + promise)
     }
@@ -39,8 +40,12 @@ object Trigger {
   }
   
   def notify(path: Path, timestamp: Long): Unit = Trigger.synchronized {
+    Log().info(msg"Notifying ${waiting.get(path).fold(0)(_.promises.size)} listeners to $path")
     waiting.get(path).foreach(_.promises.foreach(_.complete(Success(timestamp))))
     waiting(path) = Waiting(System.currentTimeMillis, Set())
   }
 
+  def shutdown(): Unit = Trigger.synchronized {
+    waiting.values.foreach(_.promises.foreach(_.complete(Success(0L))))
+  }
 }
