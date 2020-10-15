@@ -2,42 +2,29 @@
 
 ![Build](https://github.com/propensive/fury/workflows/Build/badge.svg?branch=master)
 
-### About
-Fury is an experimental dependency manager and build tool for Scala. It is
-still under active development.
+## Overview
 
-### Distinct features
-* Include source repositories (e. g. on Github) as managed dependencies for your project
-* Uses [Bloop](https://scalacenter.github.io/bloop) to compile Scala and Java code in a fast and efficient way
-* Share and reuse project definitions through [IPFS](https://ipfs.io)
+Fury is a long-term project to create next-generation build tooling to address the greatest challenges of
+building software in an ever-changing environment, while maintaining the predictability, reliability and
+simplicity of builds.
 
-### Requirements
-* Java Development Kit
-    * The officially supported version is JDK 8.
-    * JDK 11 should work as well. 
-    * Other versions, including newer ones, are not supported.
-* Bloop
-    * If Fury cannot detect a running Bloop server, it will download and launch an own instance.
-* Git
-* IPFS
-    * Supported versions are 0.4.x. IPFS 0.5.x is not supported yet.
-    * If Fury cannot detect a running IPFS daemon, a new one will be started. 
-    * Fury will also download the IPFS distribution if an installed one cannot be found.
-* Tab completion for shell commands works only in Zsh. 
-    * If you're a new user, it is strongly recommended to use Fury with Zsh and make use of the command completion,
-    * Support for Bash and [Fish](https://fishshell.com) may appear in the future.
-    
-### Installing latest version from source
-```
-git clone https://github.com/propensive/fury.git
-cd fury
-make clean
-make install
-```
+## Features
+- fully data-oriented model for builds
+- builds may be defined in terms of sources or binary dependencies
+- power to control a build and the builds of all its source dependencies
+- advanced support for conflict resolution amongst dependencies
+- intuitive command-line API, with visual interfaces available later (Milestone 3)
+- hierarchical model of builds and build distribution
+- support for compiling Scala 2.x, Scala 3, Scala.js and Java
+- composable variants of builds, for generalized cross-building (Milestone 2)
+- support for running Docker containers as part of a build (Milestone 2)
+- compilation distributed over the network (Milestone 3)
+- optionally external builds, shared independently of source code
 
-#### Checking if it works
-* Run the integration tests: `etc/integration`
-* Build Fury itself: `fury`
+## Release
+Fury is approaching its first public milestone release, _Alecto_. This will be the first release of Fury capable
+of building a majority of Scala projects. Fury’s future plans are described in
+[the roadmap](https://propensive.com/opensource/fury/roadmap).
 
-### Website
-Full information about Fury is available on the [Fury website](https://fury.build/).
+## Website
+Full information about Fury is available on the [Fury website](https://propensive.com/opensource/fury).
