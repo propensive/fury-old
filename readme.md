@@ -22,9 +22,20 @@ simplicity of builds.
 - optionally external builds, shared independently of source code
 
 ## Release
+
 Fury is approaching its first public milestone release, _Alecto_. This will be the first release of Fury capable
 of building a majority of Scala projects. Fury’s future plans are described in
 [the roadmap](https://propensive.com/opensource/fury/roadmap).
+
+## Installation
+
+Pre-release versions of Fury may be installed by running,
+```sh
+curl -Ls fury.build | sh
+```
+in a shell.
+
+For full details, see the [installation instructions](doc/install.md).
 
 ## Website
 Full information about Fury is available on the [Fury website](https://propensive.com/opensource/fury).
