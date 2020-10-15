@@ -21,21 +21,56 @@ simplicity of builds.
 - compilation distributed over the network (Milestone 3)
 - optionally external builds, shared independently of source code
 
+## Fury Concepts
+
+Fury introduces a number of new concepts for developers. While full documentation is in the process of being
+written, a [work-in-progress document](doc/concepts.md) provides a lot of detail on these new ideas and how they
+work.
+
 ## Release
 
 Fury is approaching its first public milestone release, _Alecto_. This will be the first release of Fury capable
 of building a majority of Scala projects. Fury’s future plans are described in
-[the roadmap](https://propensive.com/opensource/fury/roadmap).
+[the roadmap](doc/roadmap.md).
 
 ## Installation
 
-Pre-release versions of Fury may be installed by running,
+Pre-release versions of Fury (with no guarantees on features or reliability) may be installed by running,
 ```sh
 curl -Ls fury.build | sh
 ```
 in a shell.
 
-For full details, see the [installation instructions](doc/install.md).
+For more details, see the full [installation instructions](doc/install.md).
+
+## Getting Started
+
+To set up a simple Fury project, follow the short [tutorial for Scala](doc/tutorial.md) or, if you prefer, the
+[tutorial for Java](doc/tutorial-java.md).
 
 ## Website
+
 Full information about Fury is available on the [Fury website](https://propensive.com/opensource/fury).
+
+## Contributing
+
+Contributors to Fury are welcome and encouraged. New contributors may like to look for issues marked
+<a href="https://github.com/propensive/fury/labels/good%20first%20issue"><img alt="label: good first issue"
+src="https://img.shields.io/badge/-good%20first%20issue-67b6d0.svg" valign="middle"></a>.
+
+We suggest that all contributors read the [Contributing Guide](/contributing.md) to make the process of
+contributing to Fury easier.
+
+Please __do not__ contact project maintainers privately with questions, as other users cannot then benefit from
+the answers.
+
+## Author
+
+Fury was designed and developed by [Jon Pretty](https://twitter.com/propensive), and commercial support and
+training is available from [Propensive O&Uuml;](https://propensive.com/).
+
+## License
+
+Fury is copyright &copy; 2018-20 Jon Pretty & Propensive O&Uuml;, and is made available under the
+[Apache 2.0 License](/license.md).
+
