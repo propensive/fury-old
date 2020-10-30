@@ -3,7 +3,7 @@
 The easiest way to start a new Scala project with Fury is to clone an existing template. You can call your
 project anything you like, but for this tutorial we will call it `sample`. Start by running,
 ```
-fury layer clone -l propensive/scala-new -f sample
+fury layer clone -l propensive/scala -f sample
 cd sample
 ```
 
