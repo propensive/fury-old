@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.29. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -80,14 +80,14 @@ case class Remote(ref: String) {
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val destination = path(layout)
     if((destination / ".done").exists) {
-      log.note(str"Remote $this already exists at ${path(layout)}")
+      log.note(msg"Remote $this already exists at ${path(layout)}")
       Success(GitDir(destination)(layout.env))
     } else fetch(layout)
   }
 
   def fetch(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val destination = path(layout)
-    log.note(str"Fetching $this to $destination")
+    log.note(msg"Fetching $this to $destination")
     val done = destination / ".done"
     
     if(destination.exists && !done.exists) {
@@ -126,7 +126,7 @@ case class Remote(ref: String) {
     ref match {
       case r"git@.*" => None
       case r"https://.*" => None
-      case ExistingDirectory(dir) => Some(str"file://${dir}")
+      case ExistingDirectory(dir) => Some(str"file://${str"$dir".urlEncode}")
       case _ => None
     }
   }

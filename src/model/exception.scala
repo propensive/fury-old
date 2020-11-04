@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.29. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -54,6 +54,7 @@ case class HttpUnauthorized(uri: Uri) extends FuryException
 case class ImportHasNoRemote() extends FuryException
 case class ImportOnlyFileOrRef() extends FuryException
 case class InitFailure() extends FuryException
+case class InstallFailed(software: String, path: Path) extends FuryException
 case class InvalidKind(expected: Kind.Id) extends FuryException
 case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException

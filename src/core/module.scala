@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.29. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -46,7 +46,7 @@ case class Module(id: ModuleId,
                   deterministic: Boolean = false) {
 
   def allBinaries: SortedSet[Binary] = if(kind.is[Bench]) binaries + Binary.Jmh else binaries
-  
+
   def compilerDependencies: Set[Dependency] = compiler match  {
     case BspCompiler(ref) => Set(Dependency(ref.hide))
     case _                => Set()

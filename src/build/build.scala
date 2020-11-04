@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.18.29. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -374,11 +374,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
     globalPolicy <- ~Policy.read(log)
+    javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
 
     _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project),
                         layout).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
                         Installation.completionsDir.value), Map(), globalPolicy, layout, List(exec.key),
-                        true, layout.workDir(module.ref(project)))(log.info(_)).await())
+                        true, layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
 
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
@@ -422,10 +423,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
     classpath    <- ~build.classpath(module.ref(project), layout)
     bootCp       <- ~build.bootClasspath(module.ref(project), layout)
+    javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
   } yield {
     val cp = classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
-    cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
+    cli.continuation(str"""${Jdk.javaExec(javaVersion)} -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
         str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
   }
 
