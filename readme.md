@@ -1,3 +1,4 @@
+<img alt="GitHub Workflow" src="https://img.shields.io/github/workflow/status/propensive/fury/Build/master?style=for-the-badge" height="24">
 [<img src="https://img.shields.io/gitter/room/propensive/fury?color=f00762&style=for-the-badge" height="24">](https://gitter.im/propensive/fury)
 [<img src="https://img.shields.io/discord/633198088311537684?color=8899f7&label=DISCORD&style=for-the-badge" height="24">](https://discord.gg/CHCPjERybv)
 [<img src="https://img.shields.io/matrix/propensive.fury:matrix.org?label=MATRIX&color=0dbd8b&style=for-the-badge" height="24">](https://app.element.io/#/room/#propensive.fury:matrix.org)
