@@ -1,3 +1,9 @@
+[<img src="https://img.shields.io/gitter/room/propensive/fury?color=f00762&style=for-the-badge" height="24">](https://gitter.im/propensive/fury)
+[<img src="https://img.shields.io/discord/633198088311537684?color=8899f7&label=DISCORD&style=for-the-badge" height="24">](https://discord.gg/CHCPjERybv)
+[<img src="https://img.shields.io/matrix/propensive.fury:matrix.org?label=MATRIX&color=0dbd8b&style=for-the-badge" height="24">](https://app.element.io/#/room/#propensive.fury:matrix.org)
+[<img src="https://img.shields.io/twitter/follow/propensive?color=%2300acee&label=TWITTER&style=for-the-badge" height="24">](https://twitter.com/propensive)
+[<img src="https://img.shields.io/badge/Vent-propensive%2Ffury-f05662?style=for-the-badge" height="24">](https://vent.dev)
+
 <img src="doc/logo/render_github.png" alt="Fury">
 
 ![Build](https://github.com/propensive/fury/workflows/Build/badge.svg?branch=master)
