@@ -564,7 +564,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf          <- Layer.readFuryConf(layout)
     cli           <- cli.hint(RemoteLayerArg, List(layout.pwd.name) ++ conf.published.map(_.url.path))
     cli           <- cli.hint(RawArg)
-    cli           <- cli.hint(BreakingArg)
     cli           <- cli.hint(PublicArg)
     cli           <- cli.hint(DescriptionArg)
     cli           <- cli.hint(ExpiryArg)
@@ -582,7 +581,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
     defaultId     <- Try(currentPub.map(_.url.path).flatMap(RemoteLayerId.unapply(_)))
     remoteLayerId <- call(RemoteLayerArg).toOption.orElse(defaultId).ascribe(MissingParam(RemoteLayerArg))
-    breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
     force         <- ~call(ForceArg).isSuccess
@@ -593,8 +591,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     ref           <- Layer.share(ManagedConfig().service, layer, token, ttl)
     
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
-                         breaking, public, conf.published.fold(0)(_.version.major),
-                         conf.published.fold(0)(_.version.minor), description, ttl, token)
+                         public, conf.published.fold(0)(_.version.number), description, ttl, token)
 
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
                        log.info(msg"Shared layer ${LayerRef(ref.key)}")
@@ -795,8 +792,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   private def getNewLayer(published: PublishedLayer, version: Option[LayerVersion], pointer: Pointer)
                          : Try[(PublishedLayer, Artifact)] =
     for {
-      artifact <- version.fold(Service.latest(published.url.domain, published.url.path,
-                      Some(published.version))) { v =>
+      artifact <- version.fold(Service.latest(published.url.domain, published.url.path)) { v =>
                     Service.fetch(published.url.domain, published.url.path, v)
                   }
       

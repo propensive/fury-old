@@ -263,7 +263,7 @@ object Layer extends Lens.Partial[Layer] {
     case furyUri@FuryUri(domain, path) =>
       val artifact = version match {
         case Some(v) => Service.fetch(domain, path, v)
-        case None => Service.latest(domain, path, None)
+        case None => Service.latest(domain, path)
       }
       artifact.map( a => Some(PublishedLayer(furyUri, a.version, LayerRef(a.ref))))
     case _ => Success(None)
@@ -274,7 +274,7 @@ object Layer extends Lens.Partial[Layer] {
     case FuryUri(domain, path) =>
       val artifact = version match {
         case Some(v) => Service.fetch(domain, path, v)
-        case None => Service.latest(domain, path, None)
+        case None => Service.latest(domain, path)
       }
       artifact.map { a => LayerRef(a.ref) }
     case IpfsRef(key)          => Success(LayerRef(key))
