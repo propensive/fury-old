@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.29. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.31.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -49,26 +49,15 @@ object Service {
     } yield catalog.entries
   }
 
-  def latest(service: DomainName, path: String, current: Option[FullVersion])
-            (implicit log: Log)
-            : Try[Artifact] =
-    for {
-      artifacts <- list(service, path)
-      grouped   <- ~artifacts.groupBy(_.version.major)
-      artifact  <- if(grouped.size == 0) Failure(UnknownLayer(path, service))
-                   else ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
-    } yield artifact
+  def latest(service: DomainName, path: String)(implicit log: Log): Try[Artifact] = for {
+    artifacts <- list(service, path)
+    latest    <- ~artifacts.maxBy(_.version.major)
+  } yield latest
 
-  def fetch(service: DomainName, path: String, version: LayerVersion)
-            (implicit log: Log)
-            : Try[Artifact] =
-    for {
-      artifacts <- list(service, path)
-      stream    <- artifacts.groupBy(_.version.major).get(version.major).ascribe(UnknownVersion(version))
-      artifact  <- version.minor.fold(~stream.maxBy(_.version.minor)) { v =>
-                     stream.find(_.version.minor == v).ascribe(UnknownVersion(version))
-                   }
-    } yield artifact
+  def fetch(service: DomainName, path: String, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
+    artifacts <- list(service, path)
+    artifact  <- artifacts.find(_.version == version).ascribe(InvalidVersion())
+  } yield artifact
 
   def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef], ttl: Int)
            (implicit log: Log)
@@ -96,10 +85,8 @@ object Service {
           hash: IpfsRef,
           group: Option[String],
           name: String,
-          breaking: Boolean,
           public: Boolean,
-          major: Int,
-          minor: Int,
+          version: Int,
           description: Option[String],
           ttl: Int,
           token: OauthToken)
@@ -108,12 +95,12 @@ object Service {
 
     val url = Https(service) / "tag"
     
-    case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
-        public: Boolean, breaking: Boolean, ttl: Option[Int], description: Option[String])
+    case class Request(ref: String, token: String, version: Int, organization: String, name: String,
+        public: Boolean, ttl: Option[Int], description: Option[String])
 
-    case class Response(path: String, ref: String, version: FullVersion)
+    case class Response(path: String, ref: String, version: LayerVersion)
 
-    val request = Json(Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking,
+    val request = Json(Request(hash.key, token.value, version, group.getOrElse(""), name, public,
         Some(ttl), description))
     
     for {
