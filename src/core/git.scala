@@ -20,6 +20,7 @@ import fury.io._, fury.text._, fury.model._
 
 import guillotine._
 import gastronomy._
+import kaleidoscope._
 import mercator._
 import euphemism._
 
@@ -127,7 +128,7 @@ case class GitDir(env: Environment, dir: Path) {
     _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
     _ <- sh"$git remote add origin $from".exec[Try[String]]
     _ <- sh"$git fetch --all".exec[Try[String]]
-    _ <- sh"$git checkout $commit".exec[Try[String]]
+    _ <- catchCommitNotInRepo(sh"$git checkout $commit".exec[Try[String]], commit)
 
     _ <- ~remote.foreach { remote => for {
            _ <- sh"$git remote remove origin".exec[Try[String]]
@@ -141,6 +142,10 @@ case class GitDir(env: Environment, dir: Path) {
     _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
     _ <- ~(dir / ".done").touch()
   } yield ()
+
+  def catchCommitNotInRepo[T](value: Try[T], commit: Commit): Try[T] = value.recoverWith {
+    case ShellFailure(_, _, r".*reference is not a tree.*") => Failure(CommitNotInRepo(commit))
+  }
 
   def lsTree(commit: Commit): Try[List[Path]] = for {
     string <- sh"$git ls-tree -r --name-only ${commit.id}".exec[Try[String]]
