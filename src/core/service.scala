@@ -51,7 +51,7 @@ object Service {
 
   def latest(service: DomainName, path: String)(implicit log: Log): Try[Artifact] = for {
     artifacts <- list(service, path)
-    latest    <- ~artifacts.maxBy(_.version.number)
+    latest    <- ~artifacts.maxBy(_.version.major)
   } yield latest
 
   def fetch(service: DomainName, path: String, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {

@@ -180,12 +180,12 @@ object LayerVersion {
   implicit val ogdlWriter: OgdlWriter[LayerVersion] = lv => Ogdl(stringShow.show(lv))
   implicit val ogdlReader: OgdlReader[LayerVersion] = ogdl => unapply(ogdl()).getOrElse(LayerVersion(0))
   
-  implicit val stringShow: StringShow[LayerVersion] = _.number.toString
+  implicit val stringShow: StringShow[LayerVersion] = _.major.toString
     
   def unapply(str: String): Option[LayerVersion] = str.only { case r"[0-9]+" => LayerVersion(str.toInt) }
 }
 
-case class LayerVersion(number: Int)
+case class LayerVersion(major: Int)
 
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {

@@ -591,7 +591,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     ref           <- Layer.share(ManagedConfig().service, layer, token, ttl)
     
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
-                         public, conf.published.fold(0)(_.version.number), description, ttl, token)
+                         public, conf.published.fold(0)(_.version.major), description, ttl, token)
 
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
                        log.info(msg"Shared layer ${LayerRef(ref.key)}")
