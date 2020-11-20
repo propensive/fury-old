@@ -128,7 +128,7 @@ case class GitDir(env: Environment, dir: Path) {
     _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
     _ <- sh"$git remote add origin $from".exec[Try[String]]
     _ <- sh"$git fetch --all".exec[Try[String]]
-    _ <- catchCommitNotInRepo(sh"$git checkout $commit".exec[Try[String]], commit)
+    _ <- catchCommitNotInRepo(sh"$git checkout $commit".exec[Try[String]], commit, remote.fold(msg"$from") { r => msg"$r" })
 
     _ <- ~remote.foreach { remote => for {
            _ <- sh"$git remote remove origin".exec[Try[String]]
@@ -143,8 +143,8 @@ case class GitDir(env: Environment, dir: Path) {
     _ <- ~(dir / ".done").touch()
   } yield ()
 
-  def catchCommitNotInRepo[T](value: Try[T], commit: Commit): Try[T] = value.recoverWith {
-    case ShellFailure(_, _, r".*reference is not a tree.*") => Failure(CommitNotInRepo(commit))
+  def catchCommitNotInRepo[T](value: Try[T], commit: Commit, origin: UserMsg): Try[T] = value.recoverWith {
+    case ShellFailure(_, _, r".*reference is not a tree.*") => Failure(CommitNotInRepo(commit, origin))
   }
 
   def lsTree(commit: Commit): Try[List[Path]] = for {
@@ -191,7 +191,7 @@ case class GitDir(env: Environment, dir: Path) {
 
   def contains(commit: Commit): Try[Unit] =
     sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].munit.recoverWith {
-        case e => Failure(CommitNotInRepo(commit)) }
+        case e => Failure(CommitNotInRepo(commit, remote.toOption.fold(msg"$dir") { r => msg"$r" })) }
 
   def checkCommit(commit: Commit): Try[Commit] = contains(commit).map(commit.waive)
 

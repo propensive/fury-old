@@ -31,7 +31,7 @@ case class CompilationFailure() extends FuryException
 //TODO Is this equivalent to ItemNotFound?
 case class ComponentNotDefined[K1 <: Key, K2 <: Key](component: K1, container: K2) extends FuryException
 case class CyclesInDependencies(cycle: Set[Dependency]) extends FuryException
-case class CommitNotInRepo(commit: Commit) extends FuryException
+case class CommitNotInRepo(commit: Commit, origin: UserMsg) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class PathNotGitDir() extends FuryException
 case class DnsResolutionFailure() extends FuryException
