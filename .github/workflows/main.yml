@@ -31,6 +31,7 @@ jobs:
       run: |
         git describe --tags
         make tmp/.version
+        echo $(javac -version)
         make dist/fury
         mv dist/fury.tar.gz dist/fury-$(head -n 1 tmp/.version).tar.gz
       timeout-minutes: 10
