@@ -79,7 +79,7 @@ case class Remote(ref: String) {
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val destination = path(layout)
-    if((destination / ".done").exists) {
+    if(!(destination / ".unfinished").exists) {
       log.note(msg"Remote $this already exists at ${path(layout)}")
       Success(GitDir(destination)(layout.env))
     } else fetch(layout)
@@ -88,18 +88,19 @@ case class Remote(ref: String) {
   def fetch(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val destination = path(layout)
     log.note(msg"Fetching $this to $destination")
-    val done = destination / ".done"
+    val unfinished = destination / ".unfinished"
     
-    if(destination.exists && !done.exists) {
+    if(destination.exists && unfinished.exists) {
       log.info(msg"Found incomplete clone of $this")
       destination.delete()
     }
     
     if(destination.exists) {
-      done.delete()
-      gitDir(layout).fetch()
-      done.touch()
-      Success(gitDir(layout))
+      for {
+        _ <- unfinished.touch()
+        _ <- gitDir(layout).fetch()
+        _ <- unfinished.delete()
+      } yield gitDir(layout)
     } else {
       log.info(msg"Cloning repository at $this")
       destination.mkdir()
