@@ -63,7 +63,8 @@ jobs:
         mkdir -p "$HOME"/.local/share/fury/downloads
         cp dist/fury-*.tar.gz "$HOME"/.local/share/fury/downloads
         dist/fury system install
-        echo "::add-path::$HOME/.local/share/fury/usr/active/bin:$HOME/.local/share/fury/usr/active/opt"
+        echo "$HOME/.local/share/fury/usr/active/bin" >> $GITHUB_PATH
+        echo "$HOME/.local/share/fury/usr/active/opt" >> $GITHUB_PATH
       timeout-minutes: 5
     - name: Run unit tests
       run: |
@@ -98,7 +99,8 @@ jobs:
           mkdir -p "$HOME"/.local/share/fury/downloads
           cp dist/fury-*.tar.gz "$HOME"/.local/share/fury/downloads
           dist/fury system install
-          echo "::add-path::$HOME/.local/share/fury/usr/active/bin:$HOME/.local/share/fury/usr/active/opt"
+          echo "$HOME/.local/share/fury/usr/active/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/share/fury/usr/active/opt" >> $GITHUB_PATH
         timeout-minutes: 5
       - name: Prepare environment for integration tests
         run: |
