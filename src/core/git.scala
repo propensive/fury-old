@@ -92,7 +92,9 @@ case class GitDir(env: Environment, dir: Path) {
   private def git = sh"git -C $dir"
   
   def cloneBare(remote: Remote): Try[Unit] =
-    GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }.map { out => (dir / ".done").touch() }
+    GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }.flatMap { out =>
+      (dir / ".unfinished").delete().munit
+    }
 
   def clone(remote: Remote, branch: Branch, commit: Commit): Try[Unit] = for {
     _ <- GitDir.sshOrHttps(remote) { r => sh"git clone $r --branch=$branch $dir" }
@@ -140,7 +142,7 @@ case class GitDir(env: Environment, dir: Path) {
          } yield () }
 
     _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
-    _ <- ~(dir / ".done").touch()
+    _ <- ~(dir / ".unfinished").delete()
   } yield ()
 
   def catchCommitNotInRepo[T](value: Try[T], commit: Commit, origin: UserMsg): Try[T] = value.recoverWith {

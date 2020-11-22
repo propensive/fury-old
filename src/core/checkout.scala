@@ -59,7 +59,7 @@ case class Snapshot(repoId: RepoId,
           msg"$init${'}'}"
       }
 
-      if(path.exists && !(path / ".done").exists) {
+      if(path.exists && (path / ".unfinished").exists) {
         log.info(msg"Found incomplete checkout of ${sourceDesc}")
         path.delete()
       }
