@@ -12,14 +12,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2.0.0
     - run: git fetch --prune --unshallow
-    - name: Cache the Makefile output
-      uses: actions/cache@v2.1.0
-      id: cache-dist
-      with:
-        path: |
-          dist
-          etc/launcher
-        key: dist-${{ github.sha }}
     - name: Install IPFS (Mac OS)
       if: startsWith(matrix.os, 'macos')
       run: brew install ipfs
@@ -27,7 +19,6 @@ jobs:
       if: startsWith(matrix.os, 'ubuntu')
       run: sudo snap install ipfs
     - name: Run Makefile
-      if: steps.cache-dist.outputs.cache-hit != 'true'
       run: |
         git describe --tags
         make tmp/.version
