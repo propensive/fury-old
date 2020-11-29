@@ -528,11 +528,16 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli        <- cli.hint(DocsArg)
     cli        <- cli.hint(IgnoreArg)
     cli        <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
+    
+    cli        <- cli.hint(LayerVersionArg,
+                      cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
+    
     call       <- cli.call()
     edit       <- ~call(EditorArg).isSuccess
     useDocsDir <- ~call(DocsArg).isSuccess
     layerName  <- call(ImportArg)
-    layerRef   <- Layer.resolve(layerName)
+    version    <- call(LayerVersionArg)
+    layerRef   <- Layer.resolve(layerName, Some(version))
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
     ignore     <- ~call(IgnoreArg).isSuccess
@@ -664,9 +669,12 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.retrieve(conf)
     cli         <- cli.hint(ImportNameArg)
-    cli         <- cli.hint(LayerVersionArg)
     cli         <- cli.hint(IgnoreArg)
     cli         <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
+
+    cli         <- cli.hint(LayerVersionArg,
+                       cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
+    
     call        <- cli.call()
     layerName   <- call(ImportArg)
     version     =  call(LayerVersionArg).toOption
