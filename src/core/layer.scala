@@ -353,9 +353,9 @@ object Layer extends Lens.Partial[Layer] {
       ref           <- store(layer)
       conf          <- saveFuryConf(FuryConf(ref), layout)
       gitDir        <- ~GitDir(layout)
-      _             <- if(git) gitDir.init else Success(())
+      _             <- if(git) gitDir.init() else Success(())
       _             <- if(git) ~log.info(msg"Initialized an empty Git repository") else Success(())
-      _             <- if(git) commit(Layer(CurrentVersion), conf, layout, false) else Success(())
+      _             <- if(git) commit(layer, conf, layout, false) else Success(())
       _             <- if(ci) GithubActions.write(layout, if(git) Some(gitDir) else None) else Success(())
       _             <- if(ci) ~log.info(msg"Added configuration for GitHub Actions") else Success(())
 
