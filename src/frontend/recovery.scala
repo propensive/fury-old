@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.31.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -62,6 +62,8 @@ object Recovery {
           cli.abort(msg"The layer to compare this layer with has not been specified.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
+        case InstallFailed(software, path) =>
+          cli.abort(msg"Installation of $software to $path failed.")
         case FileWriteError(path, e) =>
           cli.abort(msg"Couldn't write to file $path. Cause: ${e.toString}")
         case FileNotFound(path) =>
@@ -181,8 +183,8 @@ You can grant these permissions with,
               msg"would be overwritten by checking out the repository here.")
         case e: NotUnique =>
           cli.abort(msg"The ${e.kind} ${e.item} already exists.")
-        case CommitNotInRepo(commit) =>
-          cli.abort(msg"The commit $commit does not exist in the repository.")
+        case CommitNotInRepo(commit, origin) =>
+          cli.abort(msg"The commit $commit does not exist in the repository $origin.")
         case Unspecified(kind) =>
           cli.abort(msg"The $kind has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>

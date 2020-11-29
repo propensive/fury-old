@@ -172,7 +172,8 @@ publish: .version pinata .pinata/apiKey .pinata/secretApiKey tmp/.launcher.ipfs
 	   git push && \
 	   printf "$(MK) Done\n" || ( printf "$(MK) Failed\n" && exit 1 ) \
 	 ) && \
-	 printf "$(MK) $(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n"
+	 printf "$(MK) $(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n" && \
+	 printf "$(MK) $(shell tput -Tansi bold)Test this with: curl -Ls https://gateway.ipfs.io/ipfs/$(shell cat tmp/.launcher.ipfs) | sh $(shell tput -Tansi sgr0)\n"
 
 test:
 	tmp/fury test --disable-security-manager --output linear

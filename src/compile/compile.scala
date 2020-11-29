@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.31.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -59,7 +59,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   private var lock: Promise[Unit] = Promise.successful(())
   private var connections: Map[Path, Connection] = Map.empty
   private var usages: Map[Session, Connection] = Map.empty
-  private val bloopVersion = "1.4.4"
+  private val bloopVersion = "1.4.5"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
     val newLock: Promise[Unit] = Promise()
@@ -737,7 +737,8 @@ case class Build(target: Target,
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
         target.module.includes.traverse(copyInclude(target.ref, _, layout)).map { _ =>
-          val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity)))
+          val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity,
+              target.javaVersion)))
           val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
           val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
           client.broadcast(StopRun(target.ref))
@@ -794,7 +795,7 @@ case class Build(target: Target,
   }
 
   private def run(target: Target, classDirectories: Set[Path], layout: Layout, globalPolicy: Policy,
-                  args: List[String], noSecurity: Boolean)
+                  args: List[String], noSecurity: Boolean, javaVersion: Int)
                  (implicit log: Log): Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.module.kind.is[Bench]) {
@@ -805,7 +806,7 @@ case class Build(target: Target,
         Shell(layout.env).javac(
           classpath(target.ref, layout).to[List].map(_.value),
           classDirectory.value,
-          javaSources.map(_.value).to[List])
+          javaSources.map(_.value).to[List], javaVersion)
       }
     }
     
@@ -820,7 +821,8 @@ case class Build(target: Target,
       layout = layout,
       args,
       noSecurity,
-      layout.workDir(target.ref)
+      layout.workDir(target.ref),
+      javaVersion
     ) { ln => multiplexer.fire(target.ref, Print(target.ref, ln)) }.await()
 
     deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }

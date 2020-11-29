@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.31.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -41,6 +41,7 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(TraceArg, List("on", "off"))
     cli      <- cli.hint(NoIpfsArg, List("on", "off"))
     cli      <- cli.hint(ServiceArg, List("vent.dev"))
+    cli      <- cli.hint(DefaultImportArg, Service.catalog(cli.peek(ServiceArg).getOrElse(ManagedConfig().service)).getOrElse(Nil))
     call     <- cli.call()
     newTheme <- ~call(ThemeArg).toOption
     timestamps <- ~call(TimestampsArg).toOption
@@ -374,11 +375,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
     globalPolicy <- ~Policy.read(log)
+    javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
 
     _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project),
                         layout).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
                         Installation.completionsDir.value), Map(), globalPolicy, layout, List(exec.key),
-                        true, layout.workDir(module.ref(project)))(log.info(_)).await())
+                        true, layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
 
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
@@ -422,10 +424,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
     classpath    <- ~build.classpath(module.ref(project), layout)
     bootCp       <- ~build.bootClasspath(module.ref(project), layout)
+    javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
   } yield {
     val cp = classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
-    cli.continuation(str"""java -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
+    cli.continuation(str"""${Jdk.javaExec(javaVersion)} -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
         str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
   }
 
@@ -492,14 +495,16 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 case class LayerCli(cli: Cli)(implicit log: Log) {
   def init: Try[ExitStatus] = for {
     layout <- cli.newLayout
+    cli    <- cli.hint(BareArg)
     cli    <- cli.hint(GithubActionsArg)
     cli    <- cli.hint(GitArg)
     cli    <- cli.hint(EditorArg)
     call   <- cli.call()
+    bare   <- ~call(BareArg).isSuccess
     edit   <- ~call(EditorArg).isSuccess
     ci     <- ~call(GithubActionsArg).isSuccess
     git    <- ~call(GitArg).isSuccess
-    _      <- Layer.init(layout, git, ci)
+    _      <- Layer.init(layout, git, ci, bare)
     _      =  Bsp.createConfig(layout)
 
     _      <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
@@ -538,11 +543,16 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli        <- cli.hint(DocsArg)
     cli        <- cli.hint(IgnoreArg)
     cli        <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
+
+    cli        <- cli.hint(LayerVersionArg,
+                      cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
+
     call       <- cli.call()
     edit       <- ~call(EditorArg).isSuccess
     useDocsDir <- ~call(DocsArg).isSuccess
     layerName  <- call(ImportArg)
-    layerRef   <- Layer.resolve(layerName)
+    version     = call(LayerVersionArg).toOption
+    layerRef   <- Layer.resolve(layerName, version)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
     ignore     <- ~call(IgnoreArg).isSuccess
@@ -574,7 +584,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf          <- Layer.readFuryConf(layout)
     cli           <- cli.hint(RemoteLayerArg, List(layout.pwd.name) ++ conf.published.map(_.url.path))
     cli           <- cli.hint(RawArg)
-    cli           <- cli.hint(BreakingArg)
     cli           <- cli.hint(PublicArg)
     cli           <- cli.hint(DescriptionArg)
     cli           <- cli.hint(ExpiryArg)
@@ -592,7 +601,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
     defaultId     <- Try(currentPub.map(_.url.path).flatMap(RemoteLayerId.unapply(_)))
     remoteLayerId <- call(RemoteLayerArg).toOption.orElse(defaultId).ascribe(MissingParam(RemoteLayerArg))
-    breaking      <- ~call(BreakingArg).isSuccess
     public        <- ~call(PublicArg).isSuccess
     raw           <- ~call(RawArg).isSuccess
     force         <- ~call(ForceArg).isSuccess
@@ -603,8 +611,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     ref           <- Layer.share(ManagedConfig().service, layer, token, ttl)
     
     pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
-                         breaking, public, conf.published.fold(0)(_.version.major),
-                         conf.published.fold(0)(_.version.minor), description, ttl, token)
+                         public, conf.published.fold(0)(_.version.major), description, ttl, token)
 
     _             <- if(raw) ~log.rawln(str"${ref} ${pub}") else {
                        log.info(msg"Shared layer ${LayerRef(ref.key)}")
@@ -677,9 +684,12 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     conf        <- Layer.readFuryConf(layout)
     layer       <- Layer.retrieve(conf)
     cli         <- cli.hint(ImportNameArg)
-    cli         <- cli.hint(LayerVersionArg)
     cli         <- cli.hint(IgnoreArg)
     cli         <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
+
+    cli         <- cli.hint(LayerVersionArg,
+                       cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
+
     call        <- cli.call()
     layerName   <- call(ImportArg)
     version     =  call(LayerVersionArg).toOption
@@ -805,8 +815,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   private def getNewLayer(published: PublishedLayer, version: Option[LayerVersion], pointer: Pointer)
                          : Try[(PublishedLayer, Artifact)] =
     for {
-      artifact <- version.fold(Service.latest(published.url.domain, published.url.path,
-                      Some(published.version))) { v =>
+      artifact <- version.fold(Service.latest(published.url.domain, published.url.path)) { v =>
                     Service.fetch(published.url.domain, published.url.path, v)
                   }
       

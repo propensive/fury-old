@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.31.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -172,25 +172,20 @@ object PublishedLayer {
     Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
 }
 
-case class PublishedLayer(url: FuryUri, version: FullVersion = FullVersion.First, layerRef: LayerRef)
+case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion(1), layerRef: LayerRef)
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
   implicit val parser: Parser[LayerVersion] = unapply(_)
   implicit val ogdlWriter: OgdlWriter[LayerVersion] = lv => Ogdl(stringShow.show(lv))
-  implicit val ogdlReader: OgdlReader[LayerVersion] = ogdl => unapply(ogdl()).get
+  implicit val ogdlReader: OgdlReader[LayerVersion] = ogdl => unapply(ogdl()).getOrElse(LayerVersion(0))
   
-  implicit val stringShow: StringShow[LayerVersion] =
-    layerVersion => str"${layerVersion.major}${layerVersion.minor.fold("") { v => str".$v" }}"
+  implicit val stringShow: StringShow[LayerVersion] = _.major.toString
     
-  def unapply(str: String): Option[LayerVersion] =
-    str.only {
-      case r"[0-9]+"                           => LayerVersion(str.toInt, None)
-      case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, Some(minor.toInt))
-    }
+  def unapply(str: String): Option[LayerVersion] = str.only { case r"[0-9]+" => LayerVersion(str.toInt) }
 }
 
-case class LayerVersion(major: Int, minor: Option[Int])
+case class LayerVersion(major: Int)
 
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {
@@ -261,26 +256,11 @@ case class RemoteLayerId(group: Option[String], name: String)
 
 case class Catalog(entries: List[Artifact])
 
-object FullVersion {
-  final val First: FullVersion = FullVersion(1, 0)
-  implicit val msgShow: MsgShow[FullVersion] = fullVersion => UserMsg(_.number(stringShow.show(fullVersion)))
-  implicit val parser: Parser[FullVersion] = unapply(_)
-  implicit val ogdlWriter: OgdlWriter[FullVersion] = lv => Ogdl(stringShow.show(lv))
-  implicit val ogdlReader: OgdlReader[FullVersion] = ogdl => unapply(ogdl()).get
-  
-  implicit val stringShow: StringShow[FullVersion] =
-    fullVersion => str"${fullVersion.major}.${fullVersion.minor}"
-    
-  def unapply(str: String): Option[FullVersion] =
-    str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => FullVersion(major.toInt, minor.toInt) }
-}
-case class FullVersion(major: Int, minor: Int) { def layerVersion = LayerVersion(major, Some(minor)) }
-
 object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(ref: String, timestamp: Long, version: FullVersion) {
+case class Artifact(ref: String, timestamp: Long, version: LayerVersion) {
   def layerRef: LayerRef = LayerRef(ref)
 }
 
@@ -345,6 +325,7 @@ case class Config(showContext: Boolean = true,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
                   service: DomainName = DomainName("vent.dev"),
+                  defaultImport: LayerName = FuryUri(DomainName("vent.dev"), "propensive/ecosystem"),
                   token: Option[OauthToken] = None)
 
 object TargetId {
@@ -463,10 +444,12 @@ object Permission {
   ).map(ClassRef(_))
 }
 
-case class Permission(id: String, action: Option[String]) {
+case class Permission(id: String, action: Option[String]) extends Key("permission") {
   def classRef: ClassRef = ClassRef(id.split(":", 2)(0))
   def target: String = id.split(":", 2)(1)
   def hash: String = this.digest[Sha256].encoded[Hex].toLowerCase
+
+  override def key: String = id
 }
 
 object ManifestEntry {
@@ -530,7 +513,9 @@ object EnvVar {
   }
 }
 
-case class EnvVar(id: String, value: String)
+case class EnvVar(id: String, value: String) extends Key("env-var") {
+  override def key: String = id
+}
 
 object JavaProperty {
   implicit val msgShow: MsgShow[JavaProperty] = e => msg"${e.id}=${e.value}"
@@ -543,7 +528,9 @@ object JavaProperty {
     case Array(key)        => JavaProperty(key, "")
   }
 }
-case class JavaProperty(id: String, value: String)
+case class JavaProperty(id: String, value: String) extends Key("java-property") {
+  override def key: String = id
+}
 
 object Scope {
   def apply(id: ScopeId, layout: Layout, projectId: ProjectId): Scope = id match {
@@ -628,7 +615,7 @@ object AliasCmd {
   def unapply(value: String): Option[AliasCmd] = value.only { case r"[a-z][a-z0-9\-]+" => AliasCmd(value) }
 }
 
-case class AliasCmd(key: String)
+case class AliasCmd(key: String) extends Key("alias")
 
 object Alias {
   implicit val msgShow: MsgShow[Alias] = v => UserMsg(_.module(v.id.key))
@@ -851,10 +838,12 @@ object Dependency {
   implicit val index: Index[Dependency] = FieldIndex("id")
 }
 
-case class Dependency(ref: ModuleRef) {
+case class Dependency(ref: ModuleRef) extends Key("dependency") {
   def intransitive = ref.intransitive
   def hidden = ref.hidden
   def hide = copy(ref = ref.copy(hidden = true))
+
+  override def key: String = ref.key
 }
 
 object SnapshotHash {

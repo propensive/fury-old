@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.31.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -263,7 +263,7 @@ object Layer extends Lens.Partial[Layer] {
     case furyUri@FuryUri(domain, path) =>
       val artifact = version match {
         case Some(v) => Service.fetch(domain, path, v)
-        case None => Service.latest(domain, path, None)
+        case None => Service.latest(domain, path)
       }
       artifact.map( a => Some(PublishedLayer(furyUri, a.version, LayerRef(a.ref))))
     case _ => Success(None)
@@ -274,13 +274,21 @@ object Layer extends Lens.Partial[Layer] {
     case FuryUri(domain, path) =>
       val artifact = version match {
         case Some(v) => Service.fetch(domain, path, v)
-        case None => Service.latest(domain, path, None)
+        case None => Service.latest(domain, path)
       }
       artifact.map { a => LayerRef(a.ref) }
     case IpfsRef(key)          => Success(LayerRef(key))
   }
 
-  def pathCompletions()(implicit log: Log): Try[List[String]] = Service.catalog(ManagedConfig().service)
+  def pathCompletions()(implicit log: Log): Try[List[String]] =
+    Service.catalog(ManagedConfig().service)
+
+  def versionCompletions(layerName: LayerName)(implicit log: Log): Try[List[Int]] = layerName match {
+    case FuryUri(domain, path) =>
+      Service.list(ManagedConfig().service, path).map(_.map(_.version.major))
+    case _ =>
+      Success(Nil)
+  }
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
     layout.confFile.lines().flatMap { lines =>
@@ -322,21 +330,36 @@ object Layer extends Lens.Partial[Layer] {
   def diff(left: Layer, right: Layer): List[Difference] =
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
-  def init(layout: Layout, git: Boolean, ci: Boolean)(implicit log: Log): Try[Unit] =
+  def init(layout: Layout, git: Boolean, ci: Boolean, bare: Boolean)(implicit log: Log): Try[Unit] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
       _        <- ~log.info(msg"The layer ${conf.layerRef} is already initialized in ${layout.baseDir}")
     } yield () } else { for {
-      _        <- layout.confFile.mkParents()
-      ref      <- store(Layer(CurrentVersion))
-      conf     <- saveFuryConf(FuryConf(ref), layout)
-      gitDir   <- ~GitDir(layout)
-      _        <- if(git) gitDir.init else Success(())
-      _        <- if(git) ~log.info(msg"Initialized an empty Git repository") else Success(())
-      _        <- if(git) commit(Layer(CurrentVersion), conf, layout, false) else Success(())
-      _        <- if(ci) GithubActions.write(layout, gitDir) else Success(())
-      _        <- ~log.info(msg"Initialized an empty layer")
+      _             <- layout.confFile.mkParents()
+      layer          = Layer(CurrentVersion)
+      defaultImport <- ~ManagedConfig().defaultImport
+
+      layer         <- if(!bare) { for {
+                         importName  <- ~defaultImport.suggestedName.getOrElse(ImportId("ecosystem"))
+                         newLayerRef <- Layer.resolve(ManagedConfig().defaultImport, None)
+                         pub         <- Layer.published(defaultImport)
+                         newLayer    <- Layer.get(newLayerRef, pub)
+                         _           <- newLayer.verify(false, false, Pointer.Root)
+                         ref         <- ~Import(importName, newLayerRef, pub)
+                         layer       <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = importName))
+                       } yield layer } else ~layer
+
+      ref           <- store(layer)
+      conf          <- saveFuryConf(FuryConf(ref), layout)
+      gitDir        <- ~GitDir(layout)
+      _             <- if(git) gitDir.init else Success(())
+      _             <- if(git) ~log.info(msg"Initialized an empty Git repository") else Success(())
+      _             <- if(git) commit(Layer(CurrentVersion), conf, layout, false) else Success(())
+      _             <- if(ci) GithubActions.write(layout, gitDir) else Success(())
+
+      _             <- if(!bare) ~log.info(msg"Initialized an empty layer with import ${defaultImport}")
+                       else ~log.info(msg"Initialized a bare layer")
     } yield () }
 
   private final val confComments: String =

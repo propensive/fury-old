@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.31.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -20,6 +20,7 @@ import fury.io._, fury.text._, fury.model._
 
 import guillotine._
 import gastronomy._
+import kaleidoscope._
 import mercator._
 import antiphony._
 import euphemism._
@@ -94,7 +95,9 @@ case class GitDir(env: Environment, dir: Path) {
   def init(): Try[Unit] = sh"$git init".exec[Try[String]].munit
 
   def cloneBare(remote: Remote): Try[Unit] =
-    GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }.map { out => (dir / ".done").touch() }
+    GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }.flatMap { out =>
+      (dir / ".unfinished").delete().munit
+    }
 
   def clone(remote: Remote, branch: Branch, commit: Commit): Try[Unit] = for {
     _ <- GitDir.sshOrHttps(remote) { r => sh"git clone $r --branch=$branch $dir" }
@@ -130,7 +133,7 @@ case class GitDir(env: Environment, dir: Path) {
     _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
     _ <- sh"$git remote add origin $from".exec[Try[String]]
     _ <- sh"$git fetch --all".exec[Try[String]]
-    _ <- sh"$git checkout $commit".exec[Try[String]]
+    _ <- catchCommitNotInRepo(sh"$git checkout $commit".exec[Try[String]], commit, remote.fold(msg"$from") { r => msg"$r" })
 
     _ <- ~remote.foreach { remote => for {
            _ <- sh"$git remote remove origin".exec[Try[String]]
@@ -142,8 +145,12 @@ case class GitDir(env: Environment, dir: Path) {
          } yield () }
 
     _ <- sources.map(_.in(dir)).traverse(_.setReadOnly())
-    _ <- ~(dir / ".done").touch()
+    _ <- ~(dir / ".unfinished").delete()
   } yield ()
+
+  def catchCommitNotInRepo[T](value: Try[T], commit: Commit, origin: UserMsg): Try[T] = value.recoverWith {
+    case ShellFailure(_, _, r".*reference is not a tree.*") => Failure(CommitNotInRepo(commit, origin))
+  }
 
   def lsTree(commit: Commit): Try[List[Path]] = for {
     string <- sh"$git ls-tree -r --name-only ${commit.id}".exec[Try[String]]
@@ -191,7 +198,7 @@ case class GitDir(env: Environment, dir: Path) {
 
   def contains(commit: Commit): Try[Unit] =
     sh"$git branch --contains $commit --format='%(refname:short)'".exec[Try[String]].munit.recoverWith {
-        case e => Failure(CommitNotInRepo(commit)) }
+        case e => Failure(CommitNotInRepo(commit, remote.toOption.fold(msg"$dir") { r => msg"$r" })) }
 
   def checkCommit(commit: Commit): Try[Commit] = contains(commit).map(commit.waive)
 

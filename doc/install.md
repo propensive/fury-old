@@ -23,7 +23,7 @@ Fury can be run on Windows using the
 If you have not already done so, [install WSL2](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
 From your WSL2 terminal, it should then be possible to follow the instructions above for installing on Linux.
 
-[Alex Ioffe] has kindly produced some instructional videos on setting up WSL2 for Scala development under
+Alex Ioffe has kindly produced some instructional videos on setting up WSL2 for Scala development under
 Windows:
 - [Part 1](https://www.youtube.com/watch?v=JBAQPS9MYkY): "Baby Steps"
 - [Part 2](https://www.youtube.com/watch?v=uM4Ay1xHKJY): "Enlightenment"

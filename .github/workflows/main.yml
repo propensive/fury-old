@@ -12,14 +12,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2.0.0
     - run: git fetch --prune --unshallow
-    - name: Cache the Makefile output
-      uses: actions/cache@v2.1.0
-      id: cache-dist
-      with:
-        path: |
-          dist
-          etc/launcher
-        key: dist-${{ github.sha }}
     - name: Install IPFS (Mac OS)
       if: startsWith(matrix.os, 'macos')
       run: brew install ipfs
@@ -27,7 +19,6 @@ jobs:
       if: startsWith(matrix.os, 'ubuntu')
       run: sudo snap install ipfs
     - name: Run Makefile
-      if: steps.cache-dist.outputs.cache-hit != 'true'
       run: |
         git describe --tags
         make tmp/.version
@@ -63,7 +54,8 @@ jobs:
         mkdir -p "$HOME"/.local/share/fury/downloads
         cp dist/fury-*.tar.gz "$HOME"/.local/share/fury/downloads
         dist/fury system install
-        echo "::add-path::$HOME/.local/share/fury/usr/active/bin:$HOME/.local/share/fury/usr/active/opt"
+        echo "$HOME/.local/share/fury/usr/active/bin" >> $GITHUB_PATH
+        echo "$HOME/.local/share/fury/usr/active/opt" >> $GITHUB_PATH
       timeout-minutes: 5
     - name: Run unit tests
       run: |
@@ -98,7 +90,8 @@ jobs:
           mkdir -p "$HOME"/.local/share/fury/downloads
           cp dist/fury-*.tar.gz "$HOME"/.local/share/fury/downloads
           dist/fury system install
-          echo "::add-path::$HOME/.local/share/fury/usr/active/bin:$HOME/.local/share/fury/usr/active/opt"
+          echo "$HOME/.local/share/fury/usr/active/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/share/fury/usr/active/opt" >> $GITHUB_PATH
         timeout-minutes: 5
       - name: Prepare environment for integration tests
         run: |
@@ -109,7 +102,7 @@ jobs:
         run: |
           etc/integration || touch integration.failed
           ! ls -1 integration.failed 2> /dev/null
-        timeout-minutes: 15
+        timeout-minutes: 20
       - uses: actions/upload-artifact@v2
         with:
           name: logs-integration-${{ runner.os }}
