@@ -356,7 +356,8 @@ object Layer extends Lens.Partial[Layer] {
       _             <- if(git) gitDir.init else Success(())
       _             <- if(git) ~log.info(msg"Initialized an empty Git repository") else Success(())
       _             <- if(git) commit(Layer(CurrentVersion), conf, layout, false) else Success(())
-      _             <- if(ci) GithubActions.write(layout, gitDir) else Success(())
+      _             <- if(ci) GithubActions.write(layout, if(git) Some(gitDir) else None) else Success(())
+      _             <- if(ci) ~log.info(msg"Added configuration for GitHub Actions") else Success(())
 
       _             <- if(!bare) ~log.info(msg"Initialized an empty layer with import ${defaultImport}")
                        else ~log.info(msg"Initialized a bare layer")

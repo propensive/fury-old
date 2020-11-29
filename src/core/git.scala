@@ -240,7 +240,7 @@ case class GitDir(env: Environment, dir: Path) {
 }
 
 object GithubActions {
-  def write(layout: Layout, gitDir: GitDir): Try[Unit] = {
+  def write(layout: Layout, gitDir: Option[GitDir]): Try[Unit] = {
     val yamlFile = layout.baseDir / ".github" / "workflows" / "main.yaml"
     val launcherFile = layout.baseDir / "fury"
     for {
@@ -248,9 +248,12 @@ object GithubActions {
       _        <- yamlFile.writeSync(yaml)
       launcher <- launcherContent()
       _        <- launcherFile.writeSync(new String(launcher, "UTF-8"))
-      _        <- gitDir.add(yamlFile)
-      _        <- gitDir.add(launcherFile)
-      _        <- gitDir.commit("Add Github Actions continuous integration for Fury")
+
+      _        <- gitDir.fold(~()) { gitDir => for {
+                    _ <- gitDir.add(yamlFile)
+                    _ <- gitDir.add(launcherFile)
+                    _ <- gitDir.commit("Add Github Actions continuous integration for Fury")
+                  } yield () }
     } yield ()
   }
 
