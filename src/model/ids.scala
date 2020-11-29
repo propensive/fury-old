@@ -325,6 +325,7 @@ case class Config(showContext: Boolean = true,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
                   service: DomainName = DomainName("vent.dev"),
+                  defaultImport: LayerName = FuryUri(DomainName("vent.dev"), "propensive/ecosystem"),
                   token: Option[OauthToken] = None)
 
 object TargetId {

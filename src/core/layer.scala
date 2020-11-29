@@ -322,16 +322,31 @@ object Layer extends Lens.Partial[Layer] {
   def diff(left: Layer, right: Layer): List[Difference] =
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
-  def init(layout: Layout)(implicit log: Log): Try[Unit] =
+  def init(layout: Layout, bare: Boolean)(implicit log: Log): Try[Unit] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
       _        <- ~log.info(msg"Reinitialized layer ${conf.layerRef}")
     } yield () } else { for {
-      _        <- layout.confFile.mkParents()
-      ref      <- store(Layer(CurrentVersion))
-      conf     <- saveFuryConf(FuryConf(ref), layout)
-      _        <- ~log.info(msg"Initialized an empty layer")
+      _             <- layout.confFile.mkParents()
+      layer          = Layer(CurrentVersion)
+      defaultImport <- ~ManagedConfig().defaultImport
+
+      layer         <- if(!bare) { for {
+                         importName  <- ~defaultImport.suggestedName.getOrElse(ImportId("ecosystem"))
+                         newLayerRef <- Layer.resolve(ManagedConfig().defaultImport, None)
+                         pub         <- Layer.published(defaultImport)
+                         newLayer    <- Layer.get(newLayerRef, pub)
+                         _           <- newLayer.verify(false, false, Pointer.Root)
+                         ref         <- ~Import(importName, newLayerRef, pub)
+                         layer       <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = importName))
+                       } yield layer } else ~layer
+
+      ref           <- store(layer)
+      conf          <- saveFuryConf(FuryConf(ref), layout)
+
+      _             <- if(!bare) ~log.info(msg"Initialized an empty layer with import ${defaultImport}")
+                       else ~log.info(msg"Initialized a bare layer")
     } yield () }
 
   private final val confComments: String =

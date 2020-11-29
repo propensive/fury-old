@@ -41,6 +41,7 @@ case class ConfigCli(cli: Cli)(implicit log: Log) {
     cli      <- cli.hint(TraceArg, List("on", "off"))
     cli      <- cli.hint(NoIpfsArg, List("on", "off"))
     cli      <- cli.hint(ServiceArg, List("vent.dev"))
+    cli      <- cli.hint(DefaultImportArg, Service.catalog(cli.peek(ServiceArg).getOrElse(ManagedConfig().service)).getOrElse(Nil))
     call     <- cli.call()
     newTheme <- ~call(ThemeArg).toOption
     timestamps <- ~call(TimestampsArg).toOption
@@ -494,8 +495,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 case class LayerCli(cli: Cli)(implicit log: Log) {
   def init: Try[ExitStatus] = for {
     layout <- cli.newLayout
+    cli    <- cli.hint(BareArg)
     call   <- cli.call()
-    _      <- Layer.init(layout)
+    bare   <- ~call(BareArg).isSuccess
+    _      <- Layer.init(layout, bare)
     _      =  Bsp.createConfig(layout)
   } yield log.await()
 
