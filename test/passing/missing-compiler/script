@@ -1,4 +1,4 @@
-fury layer init 
+fury layer init --bare
 fury project add -n scala
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t app -M HelloWorld

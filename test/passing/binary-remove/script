@@ -1,4 +1,4 @@
-fury layer init
+fury layer init --bare
 fury project add -n hello-world
 fury module add -n app
 fury binary add -b com.spotify:logging:2.2.6

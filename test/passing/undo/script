@@ -1,4 +1,4 @@
-fury layer init
+fury layer init --bare
 fury undo
 echo $?
 fury project add -n scala
