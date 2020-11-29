@@ -133,7 +133,7 @@ case class GithubUserDetailsError(code: Int) extends ServiceException(
 case class PinataAddHashFailure() extends ServiceException("Could not pin the hash to IPFS service")
 case class PinataPinFailure() extends ServiceException("Could not pin the file to IPFS service")
 case class InvalidPrefix(prefix: String) extends ServiceException(str"The name prefix $prefix is not yours")
-
+case class NotLatestVersion(version: Int) extends ServiceException(str"The version of this layer on the remote service ($version) is more recent than the version this layer is derived from.")
 case class InvalidNameFormat(name: String) extends ServiceException(
     str"The name $name is not in the right format")
 
