@@ -280,7 +280,15 @@ object Layer extends Lens.Partial[Layer] {
     case IpfsRef(key)          => Success(LayerRef(key))
   }
 
-  def pathCompletions()(implicit log: Log): Try[List[String]] = Service.catalog(ManagedConfig().service)
+  def pathCompletions()(implicit log: Log): Try[List[String]] =
+    Service.catalog(ManagedConfig().service)
+
+  def versionCompletions(layerName: LayerName)(implicit log: Log): Try[List[Int]] = layerName match {
+    case FuryUri(domain, path) =>
+      Service.list(ManagedConfig().service, path).map(_.map(_.version.major))
+    case _ =>
+      Success(Nil)
+  }
 
   def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
     layout.confFile.lines().flatMap { lines =>
