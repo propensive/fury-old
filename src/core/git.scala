@@ -22,6 +22,7 @@ import guillotine._
 import gastronomy._
 import kaleidoscope._
 import mercator._
+import antiphony._
 import euphemism._
 
 import scala.util._
@@ -90,7 +91,9 @@ case class GitDir(env: Environment, dir: Path) {
 
   private implicit val environment: Environment = env
   private def git = sh"git -C $dir"
-  
+
+  def init(): Try[Unit] = sh"$git init".exec[Try[String]].munit
+
   def cloneBare(remote: Remote): Try[Unit] =
     GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }.flatMap { out =>
       (dir / ".unfinished").delete().munit
@@ -174,6 +177,8 @@ case class GitDir(env: Environment, dir: Path) {
     sh"$git add $forceArg $path".exec[Try[String]].munit
   }
 
+  def commit(message: String): Try[Unit] = sh"$git commit -m $message".exec[Try[String]].munit
+
   def fetch(branch: Branch): Try[Unit] = sh"$git fetch origin $branch".exec[Try[String]].munit
   def fetch(): Try[Unit] = sh"$git fetch --all".exec[Try[String]].munit
   def branch: Try[Branch] = sh"$git rev-parse --abbrev-ref HEAD".exec[Try[String]].map(Branch(_))
@@ -232,4 +237,45 @@ case class GitDir(env: Environment, dir: Path) {
     sh"$git show-ref -s heads/$branch".exec[Try[String]].map(Commit(_))
 
   def getTag(tag: Branch): Try[Commit] = sh"$git show-ref -s tags/$tag".exec[Try[String]].map(Commit(_))
+}
+
+object GithubActions {
+  def write(layout: Layout, gitDir: Option[GitDir]): Try[Unit] = {
+    val yamlFile = layout.baseDir / ".github" / "workflows" / "main.yaml"
+    val launcherFile = layout.baseDir / "fury"
+    for {
+      _        <- yamlFile.mkParents()
+      _        <- yamlFile.writeSync(yaml)
+      launcher <- launcherContent()
+      _        <- launcherFile.writeSync(new String(launcher, "UTF-8"))
+
+      _        <- gitDir.fold(~()) { gitDir => for {
+                    _ <- gitDir.add(yamlFile)
+                    _ <- gitDir.add(launcherFile)
+                    _ <- gitDir.commit("Add Github Actions continuous integration for Fury")
+                  } yield () }
+    } yield ()
+  }
+
+  def launcherContent(): Try[Array[Byte]] = Http.get(Https(path"fury.build/").key, Set()).to[Try]
+
+  val yaml: String = """|name: Build
+                        |
+                        |on: [push]
+                        |
+                        |jobs:
+                        |  build:
+                        |    runs-on: ${{ matrix.os }}
+                        |    strategy:
+                        |      matrix:
+                        |        os: [ubuntu-latest]
+                        |      fail-fast: false
+                        |    steps:
+                        |    - uses: actions/checkout@v2.0.0
+                        |    - run: git fetch --prune --unshallow
+                        |    - name: Run Fury
+                        |      run: |
+                        |        ./fury build run --output linear --https
+                        |      timeout-minutes: 10
+                        |""".stripMargin
 }

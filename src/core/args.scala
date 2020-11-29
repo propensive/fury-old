@@ -49,7 +49,11 @@ object Args {
 
   val GrabArg = CliParam[Unit]('C', 'commandeer,
       "have Fury commandeer the Git repo in the working directory")
-    
+
+  val GithubActionsArg = CliParam[Unit]('G', Symbol("github-actions"),
+      "set up continuous integration with Github Actions")
+
+  val GitArg = CliParam[Unit]('g', Symbol("setup-git"), "set the layer up as a Git repository")
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[CompilerRef]('c', 'compiler, "specify a default compiler")

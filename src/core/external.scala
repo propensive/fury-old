@@ -343,7 +343,7 @@ object VsCodeSoftware extends Installable(ExecName("code")) {
   
   def tarGz: Try[Uri] = {
     Installation.system.flatMap {
-      case Linux(X64) => Success(Https(path"go.microsoft.com" / "fwlink" / "?LinkID=620884"))
+      case Linux(X64) => Success(Https(path"aka.ms" / "linux-arm64"))
       case MacOs(X64) => Success(Https(path"go.microsoft.com" / "fwlink" / "?LinkID=620882"))
       case other      => Failure(UnknownOs(other.toString))
     }

@@ -330,11 +330,11 @@ object Layer extends Lens.Partial[Layer] {
   def diff(left: Layer, right: Layer): List[Difference] =
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
-  def init(layout: Layout, bare: Boolean)(implicit log: Log): Try[Unit] =
+  def init(layout: Layout, git: Boolean, ci: Boolean, bare: Boolean)(implicit log: Log): Try[Unit] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
-      _        <- ~log.info(msg"Reinitialized layer ${conf.layerRef}")
+      _        <- ~log.info(msg"The layer ${conf.layerRef} is already initialized in ${layout.baseDir}")
     } yield () } else { for {
       _             <- layout.confFile.mkParents()
       layer          = Layer(CurrentVersion)
@@ -352,6 +352,12 @@ object Layer extends Lens.Partial[Layer] {
 
       ref           <- store(layer)
       conf          <- saveFuryConf(FuryConf(ref), layout)
+      gitDir        <- ~GitDir(layout)
+      _             <- if(git) gitDir.init() else Success(())
+      _             <- if(git) ~log.info(msg"Initialized an empty Git repository") else Success(())
+      _             <- if(git) commit(layer, conf, layout, false) else Success(())
+      _             <- if(ci) GithubActions.write(layout, if(git) Some(gitDir) else None) else Success(())
+      _             <- if(ci) ~log.info(msg"Added configuration for GitHub Actions") else Success(())
 
       _             <- if(!bare) ~log.info(msg"Initialized an empty layer with import ${defaultImport}")
                        else ~log.info(msg"Initialized a bare layer")

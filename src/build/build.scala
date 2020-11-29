@@ -496,10 +496,22 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   def init: Try[ExitStatus] = for {
     layout <- cli.newLayout
     cli    <- cli.hint(BareArg)
+    cli    <- cli.hint(GithubActionsArg)
+    cli    <- cli.hint(GitArg)
+    cli    <- cli.hint(EditorArg)
     call   <- cli.call()
     bare   <- ~call(BareArg).isSuccess
-    _      <- Layer.init(layout, bare)
+    edit   <- ~call(EditorArg).isSuccess
+    ci     <- ~call(GithubActionsArg).isSuccess
+    git    <- ~call(GitArg).isSuccess
+    _      <- Layer.init(layout, git, ci, bare)
     _      =  Bsp.createConfig(layout)
+
+    _      <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
+                implicit val env: Environment = cli.env
+                sh"${path} ${layout.baseDir}".exec[Try[String]]
+              }
+              else Success(())
   } yield log.await()
 
   def select: Try[ExitStatus] = for {
@@ -531,10 +543,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     cli        <- cli.hint(DocsArg)
     cli        <- cli.hint(IgnoreArg)
     cli        <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
-    
+
     cli        <- cli.hint(LayerVersionArg,
                       cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
-    
+
     call       <- cli.call()
     edit       <- ~call(EditorArg).isSuccess
     useDocsDir <- ~call(DocsArg).isSuccess
@@ -562,7 +574,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     
     _          <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
                     implicit val env: Environment = cli.env
-                    sh"${path.value} ${dir.value}".exec[Try[String]]
+                    sh"$path $dir".exec[Try[String]]
                   }
                   else Success(())
   } yield log.await()
@@ -677,7 +689,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
     cli         <- cli.hint(LayerVersionArg,
                        cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
-    
+
     call        <- cli.call()
     layerName   <- call(ImportArg)
     version     =  call(LayerVersionArg).toOption
