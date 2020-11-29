@@ -536,8 +536,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     edit       <- ~call(EditorArg).isSuccess
     useDocsDir <- ~call(DocsArg).isSuccess
     layerName  <- call(ImportArg)
-    version    <- call(LayerVersionArg)
-    layerRef   <- Layer.resolve(layerName, Some(version))
+    version     = call(LayerVersionArg).toOption
+    layerRef   <- Layer.resolve(layerName, version)
     published  <- Layer.published(layerName)
     layer      <- Layer.get(layerRef, published)
     ignore     <- ~call(IgnoreArg).isSuccess
