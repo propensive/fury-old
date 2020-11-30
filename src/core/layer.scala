@@ -96,12 +96,10 @@ case class Layer(version: Int,
   def verify(ignore: Boolean, local: Boolean, ref: Pointer, quiet: Boolean = false)
             (implicit log: Log)
             : Try[Unit] = if(ignore) Success(()) else for {
-    _         <- ~log.infoWhen(!quiet)(msg"Checking that no modules reference local sources")
+    _         <- ~log.infoWhen(!quiet)(msg"Checking that the layer is valid")
     localSrcs <- ~localSources
     _         <- if(localSrcs.isEmpty || local) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
-    _         <- ~log.infoWhen(!quiet)(msg"Checking that no project names conflict")
     universe  <- hierarchy(ref).flatMap(_.universe)
-    _         <- ~log.infoWhen(!quiet)(msg"Checking that all module references resolve")
     missing   <- ~unresolvedModules(universe)
     _         <- if(missing.isEmpty) Success(()) else Failure(UnresolvedModules(missing))
   } yield ()
@@ -265,7 +263,7 @@ object Layer extends Lens.Partial[Layer] {
         case Some(v) => Service.fetch(domain, path, v)
         case None => Service.latest(domain, path)
       }
-      artifact.map( a => Some(PublishedLayer(furyUri, a.version, LayerRef(a.ref))))
+      artifact.map { a => Some(PublishedLayer(furyUri, a.version, LayerRef(a.ref), None)) }
     case _ => Success(None)
   }
 

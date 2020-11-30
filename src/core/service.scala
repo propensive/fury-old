@@ -89,19 +89,21 @@ object Service {
           version: Int,
           description: Option[String],
           ttl: Int,
-          token: OauthToken)
+          token: OauthToken,
+          force: Boolean,
+          oldOrganization: String)
          (implicit log: Log)
          : Try[PublishedLayer] = {
 
     val url = Https(service) / "tag"
     
     case class Request(ref: String, token: String, version: Int, organization: String, name: String,
-        public: Boolean, ttl: Option[Int], description: Option[String])
+        public: Boolean, ttl: Option[Int], description: Option[String], force: Boolean, oldOrganization: String)
 
-    case class Response(path: String, ref: String, version: LayerVersion)
+    case class Response(path: String, ref: String, version: LayerVersion, expiry: Long)
 
     val request = Json(Request(hash.key, token.value, version, group.getOrElse(""), name, public,
-        Some(ttl), description))
+        Some(ttl), description, force, oldOrganization))
     
     for {
       _    <- ~log.note(msg"Sending POST request to $url")
@@ -111,7 +113,7 @@ object Service {
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(msg"Response: $json")
       res  <- handleError[Response](json)
-    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref), Some(res.expiry))
   }
   
   import Json._

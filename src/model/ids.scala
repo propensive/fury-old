@@ -172,7 +172,7 @@ object PublishedLayer {
     Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
 }
 
-case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion(1), layerRef: LayerRef)
+case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion(1), layerRef: LayerRef, expiry: Option[Long] = None)
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
@@ -260,7 +260,7 @@ object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(ref: String, timestamp: Long, version: LayerVersion) {
+case class Artifact(ref: String, timestamp: Long, version: LayerVersion, expiry: Long) {
   def layerRef: LayerRef = LayerRef(ref)
 }
 

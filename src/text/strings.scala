@@ -53,6 +53,8 @@ object `package` {
     def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
     def asTry(implicit keyName: KeyName[T]): Try[T] = value.ascribe(Unspecified[T]())
   }
+  
+  val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
 }
 
 trait KeyName[T] { def apply(): UserMsg }
