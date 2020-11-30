@@ -1,2 +1,2 @@
-fury layer init
+fury layer init --bare
 fury repo add -R gh:propensive/.sample -n sample -B three

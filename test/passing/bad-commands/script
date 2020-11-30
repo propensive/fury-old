@@ -1,7 +1,7 @@
 rm ~/.config/fury/policy.conf
 fury proj
 echo $?
-fury layer init
+fury layer init --bare
 fury project list --raw
 echo $?
 fury project add -n scala

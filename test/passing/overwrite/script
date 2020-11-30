@@ -13,7 +13,7 @@ sed -i.bak 's/World/update/' src/core/constants.scala
 git add src
 git commit -m 'version 2' -q
 
-fury layer init
+fury layer init --bare
 
 fury project add -n foo
 fury module add -n bar

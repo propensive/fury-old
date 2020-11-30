@@ -2,7 +2,7 @@ mkdir layer1
 
 cd layer1
 fury config set --theme nocolor
-fury layer init 
+fury layer init --bare
 fury layer share --raw
 fury project add -n example
 fury module add -n core

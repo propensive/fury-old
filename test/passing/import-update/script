@@ -1,4 +1,4 @@
-fury layer init
+fury layer init --bare
 
 fury layer import -l fury://furore.dev/propensive/scala
 fury layer import -l fury://furore.dev/propensive/probably -V 2.2

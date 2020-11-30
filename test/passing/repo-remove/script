@@ -1,4 +1,4 @@
-fury layer init
+fury layer init --bare
 fury repo add -R gh:propensive/.sample -n sample
 fury clean repositories
 fury clean sources

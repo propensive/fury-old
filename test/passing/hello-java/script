@@ -1,4 +1,4 @@
-fury layer init 
+fury layer init --bare
 
 fury project add -n hello-java
 fury module add -n app -t app -M HelloWorld
