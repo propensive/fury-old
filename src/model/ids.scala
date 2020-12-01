@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.32.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -174,25 +174,20 @@ object PublishedLayer {
     Diff.stringDiff.diff(stringShow.show(l), stringShow.show(r))
 }
 
-case class PublishedLayer(url: FuryUri, version: FullVersion = FullVersion.First, layerRef: LayerRef)
+case class PublishedLayer(url: FuryUri, version: LayerVersion = LayerVersion(1), layerRef: LayerRef, expiry: Option[Long] = None)
 
 object LayerVersion {
   implicit val msgShow: MsgShow[LayerVersion] = layerVersion => UserMsg(_.number(stringShow.show(layerVersion)))
   implicit val parser: Parser[LayerVersion] = unapply(_)
   implicit val ogdlWriter: OgdlWriter[LayerVersion] = lv => Ogdl(stringShow.show(lv))
-  implicit val ogdlReader: OgdlReader[LayerVersion] = ogdl => unapply(ogdl()).get
+  implicit val ogdlReader: OgdlReader[LayerVersion] = ogdl => unapply(ogdl()).getOrElse(LayerVersion(0))
   
-  implicit val stringShow: StringShow[LayerVersion] =
-    layerVersion => str"${layerVersion.major}${layerVersion.minor.fold("") { v => str".$v" }}"
+  implicit val stringShow: StringShow[LayerVersion] = _.major.toString
     
-  def unapply(str: String): Option[LayerVersion] =
-    str.only {
-      case r"[0-9]+"                           => LayerVersion(str.toInt, None)
-      case r"$major@([0-9]+)\.$minor@([0-9]+)" => LayerVersion(major.toInt, Some(minor.toInt))
-    }
+  def unapply(str: String): Option[LayerVersion] = str.only { case r"[0-9]+" => LayerVersion(str.toInt) }
 }
 
-case class LayerVersion(major: Int, minor: Option[Int])
+case class LayerVersion(major: Int)
 
 object FuryConf {
   implicit val msgShow: MsgShow[FuryConf] = {
@@ -263,26 +258,11 @@ case class RemoteLayerId(group: Option[String], name: String)
 
 case class Catalog(entries: List[Artifact])
 
-object FullVersion {
-  final val First: FullVersion = FullVersion(1, 0)
-  implicit val msgShow: MsgShow[FullVersion] = fullVersion => UserMsg(_.number(stringShow.show(fullVersion)))
-  implicit val parser: Parser[FullVersion] = unapply(_)
-  implicit val ogdlWriter: OgdlWriter[FullVersion] = lv => Ogdl(stringShow.show(lv))
-  implicit val ogdlReader: OgdlReader[FullVersion] = ogdl => unapply(ogdl()).get
-  
-  implicit val stringShow: StringShow[FullVersion] =
-    fullVersion => str"${fullVersion.major}.${fullVersion.minor}"
-    
-  def unapply(str: String): Option[FullVersion] =
-    str.only { case r"$major@([0-9]+)\.$minor@([0-9]+)" => FullVersion(major.toInt, minor.toInt) }
-}
-case class FullVersion(major: Int, minor: Int) { def layerVersion = LayerVersion(major, Some(minor)) }
-
 object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(ref: String, timestamp: Long, version: FullVersion) {
+case class Artifact(ref: String, timestamp: Long, version: LayerVersion, expiry: Long) {
   def layerRef: LayerRef = LayerRef(ref)
 }
 
@@ -347,6 +327,7 @@ case class Config(showContext: Boolean = true,
                   trace: Boolean = false,
                   skipIpfs: Boolean = false,
                   service: DomainName = DomainName("vent.dev"),
+                  defaultImport: LayerName = FuryUri(DomainName("vent.dev"), "propensive/ecosystem"),
                   token: Option[OauthToken] = None)
 
 object TargetId {

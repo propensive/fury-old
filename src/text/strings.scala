@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.32.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -53,6 +53,8 @@ object `package` {
     def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
     def asTry(implicit keyName: KeyName[T]): Try[T] = value.ascribe(Unspecified[T]())
   }
+  
+  val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
 }
 
 trait KeyName[T] { def apply(): UserMsg }

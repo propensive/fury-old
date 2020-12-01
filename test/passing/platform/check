@@ -1,4 +1,4 @@
-Initialized an empty layer
+Initialized a bare layer
 Set current project to scala
 Set current module to compiler
 Set current project to library
@@ -9,7 +9,7 @@ Checking out src/core from repository library
 Starting compilation of module library/core
 Successfully compiled module library/core
 0
-Initialized an empty layer
+Initialized a bare layer
 Checking that no modules reference local sources
 Checking that no project names conflict
 Checking that all module references resolve

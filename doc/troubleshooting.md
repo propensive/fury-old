@@ -102,4 +102,5 @@ Stack traces from all tasks can be obtained with,
 jstack 5827 > stacks.txt
 ```
 
-The file, `stacks.txt`, may provide very useful information in any bug report, and should 
+The file, `stacks.txt`, may provide very useful information in any bug report, and should be attached when
+[opening an issue](https://github.com/propensive/fury/issues).

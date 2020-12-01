@@ -1,4 +1,4 @@
-fury layer init 
+fury layer init --bare
 fury project add -n project
 fury module add -n module
 fury resource list --raw

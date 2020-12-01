@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.32.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -33,6 +33,7 @@ object Args {
   val AliasArg = CliParam[AliasCmd]('a', 'alias, "specify a command alias")
   val ActionArg = CliParam[String]('A', 'action, "specify a permission action")
   val BinaryArg = CliParam[BinaryId]('b', 'binary, "specify a binary")
+  val BareArg = CliParam[Unit]('b', 'bare, "do not import a default layer when initializing the new layer")
   val ColumnArg = CliParam[String]('c', 'column, "specify the column")
   val PartialBinSpecArg = CliParam[PartialBinSpec]('b', 'binary, "specify a binary")
   val BinaryNameArg = CliParam[BinaryId]('n', 'name, "specify the name for the binary")
@@ -48,10 +49,15 @@ object Args {
 
   val GrabArg = CliParam[Unit]('C', 'commandeer,
       "have Fury commandeer the Git repo in the working directory")
-    
+
+  val GithubActionsArg = CliParam[Unit]('G', Symbol("github-actions"),
+      "set up continuous integration with Github Actions")
+
+  val GitArg = CliParam[Unit]('g', Symbol("setup-git"), "set the layer up as a Git repository")
   val NoSecurityArg = CliParam[Unit]('S', Symbol("disable-security-manager"), "disable the security manager")
   val NoIpfsArg = CliParam[Boolean]('I', Symbol("no-ipfs"), "use HTTP gateways instead of the IPFS daemon")
   val DefaultCompilerArg = CliParam[CompilerRef]('c', 'compiler, "specify a default compiler")
+  val DefaultImportArg = CliParam[LayerName]('l', 'layer, "specify a default external layer to import")
   val DocsArg = CliParam[Unit]('D', 'docs, "clone the layer into the user's default documents directory")
   val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
   val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")
@@ -98,7 +104,7 @@ object Args {
   val IncludeNameArg = CliParam[IncludeId]('n', 'name, "specify a name for the include")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
-  val LayerVersionArg = CliParam[LayerVersion]('V', 'version, "a specific version of the layer")
+  val LayerVersionArg = CliParam[LayerVersion]('v', 'version, "a specific version of the layer")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
   val ModuleRefArg = CliParam[String]('d', 'dependency, "specify the dependency to include from")
 

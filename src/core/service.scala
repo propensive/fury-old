@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.32.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -49,26 +49,15 @@ object Service {
     } yield catalog.entries
   }
 
-  def latest(service: DomainName, path: String, current: Option[FullVersion])
-            (implicit log: Log)
-            : Try[Artifact] =
-    for {
-      artifacts <- list(service, path)
-      grouped   <- ~artifacts.groupBy(_.version.major)
-      artifact  <- if(grouped.size == 0) Failure(UnknownLayer(path, service))
-                   else ~current.fold(grouped.maxBy(_._1)._2) { lv => grouped(lv.major) }.maxBy(_.version.minor)
-    } yield artifact
+  def latest(service: DomainName, path: String)(implicit log: Log): Try[Artifact] = for {
+    artifacts <- list(service, path)
+    latest    <- ~artifacts.maxBy(_.version.major)
+  } yield latest
 
-  def fetch(service: DomainName, path: String, version: LayerVersion)
-            (implicit log: Log)
-            : Try[Artifact] =
-    for {
-      artifacts <- list(service, path)
-      stream    <- artifacts.groupBy(_.version.major).get(version.major).ascribe(UnknownVersion(version))
-      artifact  <- version.minor.fold(~stream.maxBy(_.version.minor)) { v =>
-                     stream.find(_.version.minor == v).ascribe(UnknownVersion(version))
-                   }
-    } yield artifact
+  def fetch(service: DomainName, path: String, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
+    artifacts <- list(service, path)
+    artifact  <- artifacts.find(_.version == version).ascribe(InvalidVersion())
+  } yield artifact
 
   def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef], ttl: Int)
            (implicit log: Log)
@@ -96,25 +85,25 @@ object Service {
           hash: IpfsRef,
           group: Option[String],
           name: String,
-          breaking: Boolean,
           public: Boolean,
-          major: Int,
-          minor: Int,
+          version: Int,
           description: Option[String],
           ttl: Int,
-          token: OauthToken)
+          token: OauthToken,
+          force: Boolean,
+          oldOrganization: String)
          (implicit log: Log)
          : Try[PublishedLayer] = {
 
     val url = Https(service) / "tag"
     
-    case class Request(ref: String, token: String, major: Int, minor: Int, organization: String, name: String,
-        public: Boolean, breaking: Boolean, ttl: Option[Int], description: Option[String])
+    case class Request(ref: String, token: String, version: Int, organization: String, name: String,
+        public: Boolean, ttl: Option[Int], description: Option[String], force: Boolean, oldOrganization: String)
 
-    case class Response(path: String, ref: String, version: FullVersion)
+    case class Response(path: String, ref: String, version: LayerVersion, expiry: Long)
 
-    val request = Json(Request(hash.key, token.value, major, minor, group.getOrElse(""), name, public, breaking,
-        Some(ttl), description))
+    val request = Json(Request(hash.key, token.value, version, group.getOrElse(""), name, public,
+        Some(ttl), description, force, oldOrganization))
     
     for {
       _    <- ~log.note(msg"Sending POST request to $url")
@@ -124,7 +113,7 @@ object Service {
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(msg"Response: $json")
       res  <- handleError[Response](json)
-    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref))
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref), Some(res.expiry))
   }
   
   import Json._
@@ -146,7 +135,7 @@ case class GithubUserDetailsError(code: Int) extends ServiceException(
 case class PinataAddHashFailure() extends ServiceException("Could not pin the hash to IPFS service")
 case class PinataPinFailure() extends ServiceException("Could not pin the file to IPFS service")
 case class InvalidPrefix(prefix: String) extends ServiceException(str"The name prefix $prefix is not yours")
-
+case class NotLatestVersion(version: Int) extends ServiceException(str"The version of this layer on the remote service ($version) is more recent than the version this layer is derived from.")
 case class InvalidNameFormat(name: String) extends ServiceException(
     str"The name $name is not in the right format")
 

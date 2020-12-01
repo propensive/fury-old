@@ -1,7 +1,7 @@
 mkdir layer1
 cd layer1
 
-fury layer init
+fury layer init --bare
 
 fury project add -n scala
 fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
@@ -19,7 +19,7 @@ cd ..
 mkdir layer2
 cd layer2
 
-fury layer init
+fury layer init --bare
 
 fury project add -n scala
 fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
@@ -34,7 +34,7 @@ echo IPFS ref 2: $IPFSREF2
 
 cd ..
 
-fury layer init
+fury layer init --bare
 fury layer import -l $IPFSREF1 --name platform1
 echo $?
 fury layer import -l $IPFSREF2 --name platform2

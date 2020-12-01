@@ -1,4 +1,4 @@
-fury layer init 
+fury layer init --bare
 fury project add -n example
 fury module add -n core
 fury module list --raw

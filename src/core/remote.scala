@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.32.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -79,27 +79,28 @@ case class Remote(ref: String) {
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val destination = path(layout)
-    if((destination / ".done").exists) {
-      log.note(str"Remote $this already exists at ${path(layout)}")
+    if(!(destination / ".unfinished").exists) {
+      log.note(msg"Remote $this already exists at ${path(layout)}")
       Success(GitDir(destination)(layout.env))
     } else fetch(layout)
   }
 
   def fetch(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val destination = path(layout)
-    log.note(str"Fetching $this to $destination")
-    val done = destination / ".done"
+    log.note(msg"Fetching $this to $destination")
+    val unfinished = destination / ".unfinished"
     
-    if(destination.exists && !done.exists) {
+    if(destination.exists && unfinished.exists) {
       log.info(msg"Found incomplete clone of $this")
       destination.delete()
     }
     
     if(destination.exists) {
-      done.delete()
-      gitDir(layout).fetch()
-      done.touch()
-      Success(gitDir(layout))
+      for {
+        _ <- unfinished.touch()
+        _ <- gitDir(layout).fetch()
+        _ <- unfinished.delete()
+      } yield gitDir(layout)
     } else {
       log.info(msg"Cloning repository at $this")
       destination.mkdir()
@@ -126,7 +127,7 @@ case class Remote(ref: String) {
     ref match {
       case r"git@.*" => None
       case r"https://.*" => None
-      case ExistingDirectory(dir) => Some(str"file://${dir}")
+      case ExistingDirectory(dir) => Some(str"file://${str"$dir".urlEncode}")
       case _ => None
     }
   }

@@ -1,7 +1,7 @@
 mkdir platform
 cd platform
 
-fury layer init
+fury layer init --bare
 
 fury project add -n scala
 fury module add -n compiler -t compiler -C scala-lang.org:scala-compiler:2.12.8
@@ -19,7 +19,7 @@ echo New platform: $IPFSREF_NEW
 
 cd ..
 
-fury layer init
+fury layer init --bare
 fury layer import -l $IPFSREF_OLD --name platform
 
 fury project add -n hello-world

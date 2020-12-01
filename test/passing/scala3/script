@@ -1,8 +1,8 @@
-fury layer init | sed "s|$(pwd)/||"
+fury layer init --bare | sed "s|$(pwd)/||"
 fury project add -n scala3
-fury module add -n compiler -t compiler -C ch.epfl.lamp:dotty-compiler_0.24:0.24.0-RC1
-fury binary add -b ch.epfl.lamp:dotty-compiler_0.24:0.24.0-RC1
-fury binary add -b org.scala-lang:scala-library:2.13.1
+fury module add -n compiler -t compiler -C org.scala-lang:scala-compiler:3.0.0-M1
+fury binary add -b org.scala-lang:scala3-compiler_3.0.0-M1:3.0.0-M1
+fury binary add -b org.scala-lang:scala-library:2.13.4
 fury project add -n hello-world
 fury module add -n app -c scala3/compiler -t app -M HelloWorld
 fury source add -s src

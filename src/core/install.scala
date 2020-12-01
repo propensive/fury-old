@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.32.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -43,7 +43,7 @@ object Install {
     _ <- desktopInstall(env)
     _ <- fishInstall(env)
     _ <- ~log.info(msg"Installation is complete. Open a new shell to ensure that ${ExecName("fury")} is on your path, or run"+"\n\n"+msg"${ExecName(setPathLine(List(Installation.rootBinDir, Installation.optDir)).head.dropRight(furyTag.length + 1))}")
-    _ <- ~log.info("\n")
+    _ <- ~log.info("")
     _ <- ~log.info(msg"Thank you for trying Fury!")
   } yield ()
 
