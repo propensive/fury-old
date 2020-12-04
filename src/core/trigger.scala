@@ -1,6 +1,6 @@
 /*
 
-    Fury, version 0.18.9. Copyright 2018-20 Jon Pretty, Propensive OÜ.
+    Fury, version 0.33.0. Copyright 2018-20 Jon Pretty, Propensive OÜ.
 
     The primary distribution site is: https://propensive.com/
 
@@ -14,7 +14,6 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-
 package fury.core
 
 import fury.io._, fury.text._
