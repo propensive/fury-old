@@ -108,6 +108,8 @@ You can grant these permissions with,
           cli.abort(msg"""The layer refers to modules which cannot be resolved: ${refs.toString}""")
         case PublishFailure() =>
           cli.abort(msg"""The server was not able to publish this layer.""")
+        case ImportHasNoRemote(pointer) =>
+          cli.abort(msg"The layer $pointer cannot be updated because its published version is not known.")
         case LayerContainsLocalSources(refs) =>
           val plural = if(refs.size > 1) "s" else ""
           cli.abort(msg"""The module$plural contains references to local sources.""")

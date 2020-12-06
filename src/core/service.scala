@@ -51,7 +51,7 @@ object Service {
 
   def latest(service: DomainName, path: String)(implicit log: Log): Try[Artifact] = for {
     artifacts <- list(service, path)
-    latest    <- ~artifacts.maxBy(_.version.major)
+    latest    <- Try(artifacts.maxBy(_.version.major)).recoverWith { case _ => Failure(UnknownLayer(path, service)) }
   } yield latest
 
   def fetch(service: DomainName, path: String, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
