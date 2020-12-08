@@ -6,9 +6,9 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.32.0"
-ipfsHash="QmUsTmvj3RiHYLLWuaYfnUXcFvdPzT35XBAFXFbU6zSbX8"
-md5Hash="b12c918bad19b780f2aa01171b1e664b"
+version="0.33.0"
+ipfsHash="QmQMfzHAD8uYp9BWoTxJYr1wyVR6Z8ByW9hfWAKZ7nU5z9"
+md5Hash="a35b4d2cc01de1ce1a11253eaf8257c2"
 jdkVersion="11"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
