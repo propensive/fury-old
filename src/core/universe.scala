@@ -56,7 +56,7 @@ case class Universe(hierarchy: Hierarchy,
       val projects = origins.values.toSet.map { ref: ProjectRef => ref -> apply(ref) }.toMap
       val imports = origins.values.map { case ref => ref -> origins.collect { case (o, `ref`) => o }.toSet }
       
-      imports.traverse { case (ref, _) =>
+      imports.to[List].traverse { case (ref, _) =>
         for(project <- projects(ref); imports <- pointers(ref)) yield (ref, project, imports)
       } >>= (conflicts => Failure(ProjectConflict(conflicts.toList)))
   }
@@ -92,7 +92,7 @@ case class Universe(hierarchy: Hierarchy,
     module  <- project(ref.moduleId)
     layer   <- layer(ref.projectId)
     inputs  =  (module.externalSources ++ module.externalResources).to[List]
-    repos   <- inputs.groupBy(_.repoId).traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v.map(_.dir)) }
+    repos   <- inputs.groupBy(_.repoId).to[List].traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v.map(_.dir)) }
   } yield repos.toMap
 
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
