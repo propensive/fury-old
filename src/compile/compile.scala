@@ -475,7 +475,7 @@ case class Build(target: Target,
   }
 
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
-    snapshots.snapshots.traverse { case (hash, snapshot) => snapshot.get(layout) }.map { _ => () }
+    snapshots.snapshots.to[List].traverse { case (hash, snapshot) => snapshot.get(layout) }.map { _ => () }
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     synchronized { Bloop.generateFiles(this, layout) }
