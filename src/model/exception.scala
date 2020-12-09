@@ -51,7 +51,7 @@ case class HttpNotFound(uri: Uri) extends FuryException
 case class HttpNotImplemented(uri: Uri) extends FuryException
 case class HttpServiceUnavailable(uri: Uri) extends FuryException
 case class HttpUnauthorized(uri: Uri) extends FuryException
-case class ImportHasNoRemote() extends FuryException
+case class ImportHasNoRemote(path: Pointer) extends FuryException
 case class ImportOnlyFileOrRef() extends FuryException
 case class InitFailure() extends FuryException
 case class InstallFailed(software: String, path: Path) extends FuryException
