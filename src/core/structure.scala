@@ -26,6 +26,14 @@ sealed trait MenuStructure {
   def show: Boolean
   def shortcut: Char
   def needsLayer: Boolean
+  
+  def apply(path: List[String]): Option[MenuStructure] = path match {
+    case Nil          => Some(this)
+    case "" :: tail   => apply(tail)
+    case head :: tail => submenu(head).flatMap(_(tail))
+  }
+
+  def submenu(item: String): Option[MenuStructure]
 }
 
 case class Action(
@@ -35,7 +43,9 @@ case class Action(
     show: Boolean = true,
     shortcut: Char = '\u0000',
     needsLayer: Boolean = true)
-    extends MenuStructure
+    extends MenuStructure {
+  def submenu(item: String): Option[MenuStructure] = None
+}
 
 case class Menu(
     command: Symbol,
@@ -46,6 +56,9 @@ case class Menu(
     needsLayer: Boolean = true
   )(val items: MenuStructure*)
     extends MenuStructure {
+
+
+  def submenu(item: String): Option[MenuStructure] = items.find(_.command.name == item)
 
   def apply(cli: Cli, ctx: Cli, reentrant: Boolean = false): Try[ExitStatus] = {
     val hasLayer: Boolean = cli.layout.map(_.confFile.exists).getOrElse(false)

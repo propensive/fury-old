@@ -21,6 +21,7 @@ sealed trait Uniqueness[Ref, Origin] {
   def allOrigins: Set[Origin]
   def one: Option[Origin]
   def any: Option[Origin]
+  def some: Origin = any.orElse(one).get
 }
 
 object Uniqueness {

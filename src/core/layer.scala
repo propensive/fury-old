@@ -41,6 +41,8 @@ case class Layer(version: Int,
                  mainRepo: Option[RepoId] = None,
                  previous: Option[LayerRef] = None) { layer =>
 
+  lazy val ref: Try[LayerRef] = Layer.store(this)(Log())
+
   def apply(id: ProjectId) = projects.findBy(id)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
@@ -379,6 +381,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] = for {
     confStr  <- ~Ogdl.serialize(Ogdl(conf))
+    _        <- ~Trigger.notify(layout.baseDir, System.currentTimeMillis())
     _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
   } yield conf
 

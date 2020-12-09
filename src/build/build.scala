@@ -652,7 +652,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     ttl    <- Try(call(ExpiryArg).toOption.getOrElse(if(public) 30 else 7))
     _      <- layer.verifyConf(false, conf, Pointer.Root, quiet = raw, force)
 
-    ref    <- if(!public) Layer.store(layer)
+    ref    <- if(!public) layer.ref
               else for {
                 token  <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
                 ref    <- Layer.share(ManagedConfig().service, layer, token, ttl)
@@ -667,7 +667,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer  <- Layer.retrieve(conf)
     call   <- cli.call()
     _      <- layer.verifyConf(true, conf, Pointer.Root, quiet = false, force = false)
-    ref    <- Layer.store(layer)
+    ref    <- layer.ref
     _      <- ~log.info(msg"Writing layer database to ${layout.layerDb.relativizeTo(layout.baseDir)}")
     _      <- Layer.writeDb(layer, layout)
     gitDir <- ~GitDir(layout)
@@ -723,7 +723,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     layer    <- Layer.get(conf.layerRef, conf.published)
     previous <- layer.previous.ascribe(CannotUndo())
     layer    <- Layer.get(previous, None)
-    layerRef <- Layer.store(layer)
+    layerRef <- layer.ref
     _        <- ~log.info(msg"Reverted to layer $layerRef")
     _        <- Layer.saveFuryConf(conf.copy(layerRef = layerRef), layout)
   } yield log.await()
@@ -812,7 +812,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     published          <- imported.remote.ascribe(ImportHasNoRemote())
     (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / importId)
     newLayer           <- Layer.get(newRef, Some(newPub))
-    //_                  <- ~log.info(msg"newLayer = ${artifact.layerRef}/$newPub")
 
     newLayer           <- if(recursive) ~updateAll(newLayer, pointer / importId,
                               newLayer.imports.map(_.id).to[List], recursive, None) else ~newLayer
