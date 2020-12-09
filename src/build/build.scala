@@ -535,7 +535,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
 
   def verifyLayers(path: Pointer, list: List[Pointer]): Try[Unit] =
-    if(list.map(_.path).contains(path.path)) Success() else Failure(LayersFailure(path))
+    if(list.map(_.path).contains(path.path)) Success(()) else Failure(LayersFailure(path))
 
   def cloneLayer: Try[ExitStatus] = for {
     cli        <- cli.hint(PathArg)

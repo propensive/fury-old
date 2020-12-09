@@ -112,7 +112,7 @@ object Installation {
   lazy val system: Try[Os] = {
     import environments.enclosing
     
-    val machine: Machine = sh"uname -m".exec[Try[String]] match {
+    val machine: Machine = Try(System.getProperty("os.arch")) match {
       case Success("x86_64" | "amd64")                             => X64
       case Success("i386" | "i686")                                => X86
       case Success("arm")                                          => Arm32
@@ -120,11 +120,11 @@ object Installation {
       case other                                                   => X64
     }
 
-    sh"uname".exec[Try[String]].map {
-      case r"Darwin.*"                          => MacOs(machine)
-      case r"Linux.*"                           => Linux(machine)
-      case r"MINGW.*" | r"CYGWIN.*" | r"MSYS.*" => Windows(machine)
-      case other                                => Os.Unknown(other)(machine)
+    Try(System.getProperty("os.name")).map {
+      case r"Darwin.*"                                         => MacOs(machine)
+      case r"Linux.*"                                          => Linux(machine)
+      case r"MINGW.*" | r"CYGWIN.*" | r"MSYS.*" | r"Windows.*" => Windows(machine)
+      case other                                               => Os.Unknown(other)(machine)
     }
   }
 

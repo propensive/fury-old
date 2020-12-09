@@ -110,7 +110,7 @@ case class Layer(version: Int,
     allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
   def hierarchy(pointer: Pointer = Pointer.Empty)(implicit log: Log): Try[Hierarchy] = for {
-    imps <- imports.to[Set].traverse { ref =>
+    imps <- imports.to[Set].to[List].traverse { ref =>
       Layer.get(ref.layerRef, ref.remote) >>= (_.hierarchy(pointer / ref.id).map(ref.id -> _))
     }
   } yield Hierarchy(this, pointer, imps.toMap)
@@ -122,7 +122,7 @@ case class Layer(version: Int,
   
   def importTree(implicit log: Log): Try[List[Pointer]] = for {
     imports <- resolvedImports
-    imports <- imports.traverse { case (id, layer) => layer.importTree.map(_.map(_.prefix(id))) }.map(_.flatten)
+    imports <- imports.to[List].traverse { case (id, layer) => layer.importTree.map(_.map(_.prefix(id))) }.map(_.flatten)
   } yield Pointer.Root :: imports.to[List]
 
   def allProjects(layout: Layout)(implicit log: Log): Try[List[Project]] = {
