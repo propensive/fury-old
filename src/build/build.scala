@@ -771,12 +771,14 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _         <- call.atMostOne(AllArg, LayerVersionArg)
     _         <- call.atMostOne(AllArg, ImportIdArg)
     _         <- call.atMostOne(AllArg, RecursiveArg)
-    layer     <- ~updateAll(layer, Pointer.Empty, imports, recursive, if(current) None else version)
-    conf      <- updateCurrent(layer, conf, version)
+    cache     <- ~Service.Cache()
+    layer     <- ~updateAll(layer, Pointer.Empty, imports, recursive, if(current) None else version, cache)
+    conf      <- updateCurrent(layer, conf, version, cache)
     _         <- Layer.commit(layer, conf, layout, force = true)
   } yield log.await()
 
-  private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion]): Try[FuryConf] =
+  private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion], cache: Service.Cache)
+                           : Try[FuryConf] =
     if(conf.published.isEmpty) Success(conf)
     else for {
 
@@ -784,7 +786,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                             else Success(())
       
       published          <- conf.published.ascribe(ImportHasNoRemote(Pointer.Root))
-      (newPub, layerRef) <- getNewLayer(conf.layerRef, published, version, Pointer.Root)
+      (newPub, layerRef) <- getNewLayer(conf.layerRef, published, version, Pointer.Root, cache)
       newLayer           <- Layer.get(layerRef, Some(newPub))
       layerRef           <- Layer.store(newLayer)
     } yield conf.copy(layerRef = layerRef, published = Some(newPub))
@@ -793,10 +795,11 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         pointer: Pointer,
                         imports: List[ImportId],
                         recursive: Boolean,
-                        version: Option[LayerVersion])
+                        version: Option[LayerVersion],
+                        cache: Service.Cache)
                        : Layer =
     imports.foldLeft(layer) { case (layer, next) =>
-      val updated = updateOne(layer, pointer, next, recursive, version)
+      val updated = updateOne(layer, pointer, next, recursive, version, cache)
       if(updated.isFailure) log.info(msg"Losing ${next}")
       if(updated.isFailure) log.info(msg"Resorting to old layer because: ${updated.toString}")
       updated.getOrElse {
@@ -808,16 +811,17 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         pointer: Pointer,
                         importId: ImportId,
                         recursive: Boolean,
-                        version: Option[LayerVersion])
+                        version: Option[LayerVersion],
+                        cache: Service.Cache)
                        : Try[Layer] = for {
     imported           <- layer.imports.findBy(importId)
     published          <- imported.remote.ascribe(ImportHasNoRemote(pointer / importId))
-    (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / importId)
+    (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / importId, cache)
     newLayer           <- Layer.get(newRef, Some(newPub))
     //_                  <- ~log.info(msg"newLayer = ${artifact.layerRef}/$newPub")
 
     newLayer           <- if(recursive) ~updateAll(newLayer, pointer / importId,
-                              newLayer.imports.map(_.id).to[List], recursive, None) else ~newLayer
+                              newLayer.imports.map(_.id).to[List], recursive, None, cache) else ~newLayer
     
     layerRef           <- Layer.store(newLayer)
     layer              <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
@@ -827,12 +831,11 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
   private def getNewLayer(oldLayerRef: LayerRef,
                           published: PublishedLayer,
                           version: Option[LayerVersion],
-                          pointer: Pointer)
+                          pointer: Pointer,
+                          cache: Service.Cache)
                          : Try[(PublishedLayer, LayerRef)] =
     for {
-      artifact <- version.fold(Service.latest(published.url.domain, published.url.path)) { v =>
-                    Service.fetch(published.url.domain, published.url.path, v)
-                  }
+      artifact <- cache(published.url, version)
       
       newPub   <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version,
                       LayerRef(artifact.ref), Some(artifact.expiry))

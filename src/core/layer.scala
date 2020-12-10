@@ -258,21 +258,21 @@ object Layer extends Lens.Partial[Layer] {
   } yield ref
 
   def published(layerName: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
-    case furyUri@FuryUri(domain, path) =>
+    case uri@FuryUri(domain, path) =>
       val artifact = version match {
-        case Some(v) => Service.fetch(domain, path, v)
-        case None => Service.latest(domain, path)
+        case Some(v) => Service.fetch(uri, v)
+        case None => Service.latest(uri)
       }
-      artifact.map { a => Some(PublishedLayer(furyUri, a.version, LayerRef(a.ref), None)) }
+      artifact.map { a => Some(PublishedLayer(uri, a.version, LayerRef(a.ref), None)) }
     case _ => Success(None)
   }
 
   def resolve(layerInput: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[LayerRef] = layerInput match {
-    case FileInput(path)       => ???
-    case FuryUri(domain, path) =>
+    case FileInput(path)           => ???
+    case uri@FuryUri(domain, path) =>
       val artifact = version match {
-        case Some(v) => Service.fetch(domain, path, v)
-        case None => Service.latest(domain, path)
+        case Some(v) => Service.fetch(uri, v)
+        case None => Service.latest(uri)
       }
       artifact.map { a => LayerRef(a.ref) }
     case IpfsRef(key)          => Success(LayerRef(key))
@@ -283,7 +283,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def versionCompletions(layerName: LayerName)(implicit log: Log): Try[List[Int]] = layerName match {
     case FuryUri(domain, path) =>
-      Service.list(ManagedConfig().service, path).map(_.map(_.version.major))
+      Service.list(FuryUri(ManagedConfig().service, path)).map(_.map(_.version.major))
     case _ =>
       Success(Nil)
   }
