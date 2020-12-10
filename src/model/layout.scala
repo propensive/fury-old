@@ -121,7 +121,7 @@ object Installation {
     }
 
     Try(System.getProperty("os.name")).map {
-      case r"Darwin.*"                                         => MacOs(machine)
+      case r"Darwin.*" | r"Mac.*"                              => MacOs(machine)
       case r"Linux.*"                                          => Linux(machine)
       case r"MINGW.*" | r"CYGWIN.*" | r"MSYS.*" | r"Windows.*" => Windows(machine)
       case other                                               => Os.Unknown(other)(machine)
