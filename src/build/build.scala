@@ -776,16 +776,18 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _         <- Layer.commit(layer, conf, layout, force = true)
   } yield log.await()
 
-  private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion]): Try[FuryConf] = for {
+  private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion]): Try[FuryConf] =
+    if(conf.published.isEmpty) Success(conf)
+    else for {
 
-    _                  <- if(conf.path != Pointer.Root) Failure(RootLayerNotSelected(conf.path))
-                          else Success(())
-    
-    published          <- conf.published.ascribe(ImportHasNoRemote())
-    (newPub, layerRef) <- getNewLayer(conf.layerRef, published, version, Pointer.Root)
-    newLayer           <- Layer.get(layerRef, Some(newPub))
-    layerRef           <- Layer.store(newLayer)
-  } yield conf.copy(layerRef = layerRef, published = Some(newPub))
+      _                  <- if(conf.path != Pointer.Root) Failure(RootLayerNotSelected(conf.path))
+                            else Success(())
+      
+      published          <- conf.published.ascribe(ImportHasNoRemote(Pointer.Root))
+      (newPub, layerRef) <- getNewLayer(conf.layerRef, published, version, Pointer.Root)
+      newLayer           <- Layer.get(layerRef, Some(newPub))
+      layerRef           <- Layer.store(newLayer)
+    } yield conf.copy(layerRef = layerRef, published = Some(newPub))
 
   private def updateAll(layer: Layer,
                         pointer: Pointer,
@@ -809,7 +811,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         version: Option[LayerVersion])
                        : Try[Layer] = for {
     imported           <- layer.imports.findBy(importId)
-    published          <- imported.remote.ascribe(ImportHasNoRemote())
+    published          <- imported.remote.ascribe(ImportHasNoRemote(pointer / importId))
     (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / importId)
     newLayer           <- Layer.get(newRef, Some(newPub))
     //_                  <- ~log.info(msg"newLayer = ${artifact.layerRef}/$newPub")

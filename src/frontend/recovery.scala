@@ -62,6 +62,8 @@ object Recovery {
           cli.abort(msg"The layer to compare this layer with has not been specified.")
         case ImportOnlyFileOrRef() =>
           cli.abort(msg"Please specify either a file or a layer reference; not both.")
+        case ImportHasNoRemote(path) =>
+          cli.abort(msg"The layer $path cannot be updated because its remote is not known.")
         case InstallFailed(software, path) =>
           cli.abort(msg"Installation of $software to $path failed.")
         case FileWriteError(path, e) =>
