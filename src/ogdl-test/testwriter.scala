@@ -24,7 +24,7 @@ import scala.collection.immutable.{SortedSet, TreeSet}
 import scala.language.implicitConversions
 import scala.util.{Try, Success}
 
-object OgdlWriterTest extends Suite() {
+object OgdlWriterTest extends Suite("OGDL Writing Tests") {
   private[this] val empty = Ogdl(Vector())
 
   private[this] case class Foo(bar: String, baz: Int)

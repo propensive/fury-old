@@ -25,7 +25,7 @@ import fury.text._
 import scala.collection.immutable.SortedSet
 import scala.util.{Failure, Success}
 
-object ResolverTest extends Suite() {
+object ResolverTest extends Suite("Resolver Tests") {
 
   case class TestEntity(id: TestEntityId)
   case class TestEntityId(key: String) extends fury.model.Key(msg"foo")

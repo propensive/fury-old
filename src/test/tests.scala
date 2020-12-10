@@ -21,7 +21,7 @@ import mercator._
 
 import scala.concurrent._, duration._
 
-object AllTests extends Suite() {
+object AllTests extends Suite("Fury Tests") {
   def run(test: Runner): Unit = {
     implicit val ec: ExecutionContext = ExecutionContext.global
     Await.result(List(

@@ -18,7 +18,7 @@ package fury.test
 
 import probably._
 
-object CoreTests extends Suite() {
+object CoreTests extends Suite("Core Tests") {
   def run(test: Runner): Unit = {
     test.suite("DAG tests")(DagTest.run)
     test.suite("Remote name tests")(RemoteNameTest.run)

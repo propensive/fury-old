@@ -18,7 +18,7 @@ package fury.test
 
 import probably._
 
-object IoTests extends Suite {
+object IoTests extends Suite("I/O Tests") {
   def run(test: Runner): Unit = {
     test.suite("Path tests")(PathTests.run)
   }

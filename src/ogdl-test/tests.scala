@@ -19,7 +19,7 @@ package fury.test
 import fury.ogdl._
 import probably._
 
-object OgdlTests extends Suite() {
+object OgdlTests extends Suite("OGDL Tests") {
   def run(test: Runner): Unit = {
     test.suite("OGDL Parser tests")(OgdlParserTest.run(_))
     test.suite("OGDL Serializer tests")(OgdlSerializerTest.run(_))

@@ -18,7 +18,7 @@ package fury.test
 
 import probably._
 
-object ModelTests extends Suite() {
+object ModelTests extends Suite("Model Tests") {
   def run(test: Runner): Unit = {
     test.suite("Pointer tests")(PointerTests.run)
     test.suite("ID tests")(IdTests.run)
