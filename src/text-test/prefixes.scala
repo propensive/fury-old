@@ -24,7 +24,7 @@ import scala.collection.JavaConverters._
 
 import java.util.Random
 
-object TextTests extends Suite() {
+object TextTests extends Suite("Text Tests") {
 
   val distinctFirstCharacters = Set("abc", "def", "ghi", "jkl")
   val duplicateFirstCharacter = distinctFirstCharacters + "afz"

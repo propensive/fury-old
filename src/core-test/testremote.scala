@@ -20,7 +20,7 @@ import probably._
 
 import fury.core._
 
-object RemoteNameTest extends Suite() {
+object RemoteNameTest extends Suite("Remote Name Tests") {
 
   def run(test: Runner): Unit = {
     test("Simplified form of HTTPS remote") {

@@ -21,7 +21,7 @@ import probably._
 
 import scala.util.Success
 
-object IdTests extends Suite() {
+object IdTests extends Suite("ID Tests") {
 
   def run(test: Runner): Unit = {
 

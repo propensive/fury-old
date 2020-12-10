@@ -21,7 +21,7 @@ import probably._
 
 import scala.util.{Success, Try}
 
-object PointerTests extends Suite() {
+object PointerTests extends Suite("Pointer Tests") {
 
   def run(test: Runner): Unit = {
     val root = Pointer("/")

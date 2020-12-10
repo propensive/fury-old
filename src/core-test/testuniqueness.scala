@@ -21,7 +21,7 @@ import probably._
 import fury.core._
 import fury.core.Uniqueness._
 
-object UniquenessTest extends Suite() {
+object UniquenessTest extends Suite("Uniqueness Tests") {
 
   private[this] case class Ref(id: String)
   private[this] case class Origin(id: String)

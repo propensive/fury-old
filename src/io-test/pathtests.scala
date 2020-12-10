@@ -19,7 +19,7 @@ package fury.test
 import fury.io._
 import probably._
 
-object PathTests extends Suite() {
+object PathTests extends Suite("Path Tests") {
 
   def run(test: Runner): Unit = {
 

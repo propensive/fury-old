@@ -25,7 +25,7 @@ import probably._
 
 import scala.language.implicitConversions
 
-object OgdlParserTest extends Suite() {
+object OgdlParserTest extends Suite("OGDL Parsing Tests") {
   private[this] val empty = Ogdl(Vector())
 
   def run(test: Runner): Unit = {

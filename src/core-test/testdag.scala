@@ -22,7 +22,7 @@ import probably._
 
 import scala.language.implicitConversions
 
-object DagTest extends Suite() {
+object DagTest extends Suite("DAG Tests") {
 
   def run(test: Runner): Unit = {
     test("Graph with no edges has no cycles") {

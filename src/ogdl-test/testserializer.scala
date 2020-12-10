@@ -25,7 +25,7 @@ import probably._
 
 import scala.language.implicitConversions
 
-object OgdlSerializerTest extends Suite() {
+object OgdlSerializerTest extends Suite("OGDL Serialization Tests") {
   private[this] val empty = Ogdl(Vector())
 
   def run(test: Runner): Unit = {
