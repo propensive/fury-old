@@ -20,6 +20,7 @@ import fury.text._, fury.core._, fury.model._, fury.io._, fury.utils._
 
 import exoskeleton._
 import euphemism._
+import mercator._
 import antiphony._
 import guillotine._
 
@@ -772,7 +773,8 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _         <- call.atMostOne(AllArg, ImportIdArg)
     _         <- call.atMostOne(AllArg, RecursiveArg)
     cache     <- ~Service.Cache()
-    layer     <- ~updateAll(layer, Pointer.Empty, imports, recursive, if(current) None else version, cache)
+    future    <- ~updateAll(layer, Pointer.Empty, imports, recursive, if(current) None else version, cache)
+    layer     <- ~Await.result(future, Duration.Inf)
     conf      <- updateCurrent(layer, conf, version, cache)
     _         <- Layer.commit(layer, conf, layout, force = true)
   } yield log.await()
@@ -797,36 +799,33 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         recursive: Boolean,
                         version: Option[LayerVersion],
                         cache: Service.Cache)
-                       : Layer =
-    imports.foldLeft(layer) { case (layer, next) =>
-      val updated = updateOne(layer, pointer, next, recursive, version, cache)
-      if(updated.isFailure) log.info(msg"Losing ${next}")
-      if(updated.isFailure) log.info(msg"Resorting to old layer because: ${updated.toString}")
-      updated.getOrElse {
-        layer
-      }
-    }
+                       : Future[Layer] =
+    imports.map(layer.imports.findBy(_)).traverse { imp =>
+      Future.fromTry(imp).flatMap(updateOne(_, pointer, recursive, version, cache))
+    }.flatMap(_.foldLeft(Future(layer)) { case (l, update) => l.map(update(_)) })
 
-  private def updateOne(layer: Layer,
+  private def updateOne(imported: Import,
                         pointer: Pointer,
-                        importId: ImportId,
                         recursive: Boolean,
                         version: Option[LayerVersion],
                         cache: Service.Cache)
-                       : Try[Layer] = for {
-    imported           <- layer.imports.findBy(importId)
-    published          <- imported.remote.ascribe(ImportHasNoRemote(pointer / importId))
-    (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / importId, cache)
-    newLayer           <- Layer.get(newRef, Some(newPub))
-    //_                  <- ~log.info(msg"newLayer = ${artifact.layerRef}/$newPub")
+                       : Future[Layer => Layer] = {
+    val future = Future.fromTry { { for {
+      published          <- imported.remote.ascribe(ImportHasNoRemote(pointer / imported.id))
+      (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / imported.id, cache)
+      newLayer           <- Layer.get(newRef, Some(newPub))
 
-    newLayer           <- if(recursive) ~updateAll(newLayer, pointer / importId,
-                              newLayer.imports.map(_.id).to[List], recursive, None, cache) else ~newLayer
-    
-    layerRef           <- Layer.store(newLayer)
-    layer              <- ~(Layer(_.imports(importId).remote)(layer) = Some(newPub))
-    layer              <- ~(Layer(_.imports(importId).layerRef)(layer) = layerRef)
-  } yield layer
+      future             <- (if(recursive) ~updateAll(newLayer, pointer / imported.id,
+                                newLayer.imports.map(_.id).to[List], recursive, None, cache) else Try(Future(newLayer))): Try[Future[Layer]]
+      newLayer           <- ~Await.result(future, Duration.Inf)
+      layerRef           <- Layer.store(newLayer)
+    } yield (newPub, layerRef) } }
+
+    future.map { case (newPub, layerRef) => (layer: Layer) =>
+      val layer1 = Layer(_.imports(imported.id).remote)(layer) = Some(newPub)
+      Layer(_.imports(imported.id).layerRef)(layer1) = layerRef
+    }
+  }
 
   private def getNewLayer(oldLayerRef: LayerRef,
                           published: PublishedLayer,
@@ -834,17 +833,20 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                           pointer: Pointer,
                           cache: Service.Cache)
                          : Try[(PublishedLayer, LayerRef)] =
-    for {
-      artifact <- cache(published.url, version)
-      
-      newPub   <- ~PublishedLayer(FuryUri(published.url.domain, published.url.path), artifact.version,
-                      LayerRef(artifact.ref), Some(artifact.expiry))
-      doUpdate  = artifact.version != published.version
-      
-      _         = if(doUpdate)
-                    log.info(msg"Updated layer ${pointer} from ${published.url} from version "+
-                        msg"${published.version} (${published.layerRef}) to ${artifact.version} (${LayerRef(artifact.ref)})")
-  } yield (newPub, if(doUpdate) artifact.layerRef else oldLayerRef)
+    cache(published.url, version).toOption.fold {
+      log.warn(msg"Could not update layer ${published.url}}")
+      Try((published, oldLayerRef))
+    } { artifact =>
+      for {
+        newPub   <- ~PublishedLayer(published.url, artifact.version,
+                        LayerRef(artifact.ref), Some(artifact.expiry))
+        doUpdate  = artifact.version != published.version
+        
+        _         = if(doUpdate)
+                      log.info(msg"Updated layer ${pointer} from ${published.url} from version "+
+                          msg"${published.version} (${published.layerRef}) to ${artifact.version} (${LayerRef(artifact.ref)})")
+      } yield (newPub, if(doUpdate) artifact.layerRef else oldLayerRef)
+    }
 
   def list: Try[ExitStatus] = {
     for {

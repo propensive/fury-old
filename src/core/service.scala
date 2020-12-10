@@ -52,7 +52,7 @@ object Service {
 
   def latest(uri: FuryUri)(implicit log: Log): Try[Artifact] = for {
     artifacts <- list(uri)
-    latest    <- ~artifacts.maxBy(_.version.major)
+    latest    <- Try(artifacts.maxBy(_.version.major)).toOption.ascribe(UnknownLayer(uri.path, uri.domain))
   } yield latest
 
   def fetch(uri: FuryUri, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
@@ -135,14 +135,16 @@ object Service {
           version match {
             case None =>
               latest(uri).map { artifact =>
-                map((uri, None)) = artifact
-                map((uri, Some(artifact.version))) = artifact
+                map.synchronized {
+                  map((uri, None)) = artifact
+                  map((uri, Some(artifact.version))) = artifact
+                }
                 artifact
               }
 
             case Some(v) =>
               fetch(uri, v).map { artifact =>
-                map((uri, Some(v))) = artifact
+                map.synchronized { map((uri, Some(v))) = artifact }
                 artifact
               }
           }
