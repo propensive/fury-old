@@ -800,9 +800,10 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         version: Option[LayerVersion],
                         cache: Service.Cache)
                        : Future[Layer] =
-    imports.map(layer.imports.findBy(_)).traverse { imp =>
-      Future.fromTry(imp).flatMap(updateOne(_, pointer, recursive, version, cache))
-    }.flatMap(_.foldLeft(Future(layer)) { case (l, update) => l.map(update(_)) })
+    imports.map(layer.imports.findBy(_)).map {
+      case Success(imp) => updateOne(imp, pointer, recursive, version, cache)
+      case Failure(e)   => Future(identity[Layer](_))
+    }.sequence.flatMap(_.foldLeft(Future(layer)) { case (l, update) => l.map(update(_)) })
 
   private def updateOne(imported: Import,
                         pointer: Pointer,
@@ -810,7 +811,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
                         version: Option[LayerVersion],
                         cache: Service.Cache)
                        : Future[Layer => Layer] = {
-    val future = Future.fromTry { { for {
+    val future: Future[Try[(PublishedLayer, LayerRef)]] = Future { { for {
       published          <- imported.remote.ascribe(ImportHasNoRemote(pointer / imported.id))
       (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / imported.id, cache)
       newLayer           <- Layer.get(newRef, Some(newPub))
@@ -821,9 +822,13 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       layerRef           <- Layer.store(newLayer)
     } yield (newPub, layerRef) } }
 
-    future.map { case (newPub, layerRef) => (layer: Layer) =>
-      val layer1 = Layer(_.imports(imported.id).remote)(layer) = Some(newPub)
-      Layer(_.imports(imported.id).layerRef)(layer1) = layerRef
+    future.flatMap {
+      case Success((newPub, layerRef)) => Future { (layer: Layer) =>
+        val layer1 = Layer(_.imports(imported.id).remote)(layer) = Some(newPub)
+        Layer(_.imports(imported.id).layerRef)(layer1) = layerRef
+      }
+      case Failure(e) =>
+        Future.fromTry(Failure(e))
     }
   }
 
