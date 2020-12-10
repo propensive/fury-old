@@ -20,9 +20,10 @@ import fury.io._, fury.model._, fury.text._
 
 import euphemism._
 import antiphony._
+import guillotine._
 
 import scala.util._
-import guillotine._
+import scala.collection.mutable.HashMap
 
 object Service {
   def catalog(service: DomainName)(implicit log: Log): Try[List[String]] = {
@@ -37,8 +38,8 @@ object Service {
     } yield artifacts
   }
 
-  def list(service: DomainName, path: String)(implicit log: Log): Try[List[Artifact]] = {
-    val url = Https(service) / "list" / path
+  def list(uri: FuryUri)(implicit log: Log): Try[List[Artifact]] = {
+    val url = Https(uri.domain) / "list" / uri.path
     
     for {
       _       <- ~log.note(msg"Sending GET request to $url")
@@ -49,13 +50,13 @@ object Service {
     } yield catalog.entries
   }
 
-  def latest(service: DomainName, path: String)(implicit log: Log): Try[Artifact] = for {
-    artifacts <- list(service, path)
-    latest    <- ~artifacts.maxBy(_.version.major)
+  def latest(uri: FuryUri)(implicit log: Log): Try[Artifact] = for {
+    artifacts <- list(uri)
+    latest    <- Try(artifacts.maxBy(_.version.major)).toOption.ascribe(UnknownLayer(uri.path, uri.domain))
   } yield latest
 
-  def fetch(service: DomainName, path: String, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
-    artifacts <- list(service, path)
+  def fetch(uri: FuryUri, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
+    artifacts <- list(uri)
     artifact  <- artifacts.find(_.version == version).ascribe(InvalidVersion())
   } yield artifact
 
@@ -124,7 +125,33 @@ object Service {
       case None    => Failure(UnexpectedError("Could not parse JSON response"))
     }
   }
-  
+
+  object Cache { def apply(): Cache = new Cache(new HashMap()) }
+
+  class Cache(private val map: HashMap[(FuryUri, Option[LayerVersion]), Artifact]) {
+    def apply(uri: FuryUri, version: Option[LayerVersion])(implicit log: Log): Try[Artifact] =
+      map.get((uri, version)) match {
+        case None =>
+          version match {
+            case None =>
+              latest(uri).map { artifact =>
+                map.synchronized {
+                  map((uri, None)) = artifact
+                  map((uri, Some(artifact.version))) = artifact
+                }
+                artifact
+              }
+
+            case Some(v) =>
+              fetch(uri, v).map { artifact =>
+                map.synchronized { map((uri, Some(v))) = artifact }
+                artifact
+              }
+          }
+
+        case Some(artifact) => Success(artifact)
+      }
+  }
 }
 
 sealed abstract class ServiceException(msg: String) extends Exception(msg) with Product with Serializable
