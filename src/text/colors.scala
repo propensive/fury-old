@@ -99,7 +99,7 @@ object Theme {
           ongoing = Rgb(150, 120, 0),
           failure = Rgb(200, 0, 0),
           lineNo = Rgb(255, 255, 0),
-          time = Rgb(100, 100, 180),
+          time = Rgb(160, 220, 80),
           active = Rgb(200, 0, 200),
           layer = Rgb(255, 140, 0),
           info = Rgb(40, 40, 160),

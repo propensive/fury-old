@@ -237,6 +237,15 @@ case class Tables() {
     Heading("Branch", _.branch)
   )
 
+  def layerStatuses(service: DomainName): Tabulation[LayerStatus] = Tabulation(
+    Heading("Layer", ls => FuryUri(service, s"${ls.organization}/${ls.name}")),
+    Heading("Current", ls => ls.current.headOption.fold(msg"expired") { layer => LayerRef(layer.ref) }),
+    Heading("Expires", ls => ls.current.headOption.getOrElse(ls.latest).expiry - Timestamp.now()),
+    Heading("Latest", ls => LayerRef(ls.latest.ref)),
+    Heading("Published", ls => ls.latest.timestamp),
+    Heading("Version", ls => LayerVersion(ls.latest.version))
+  )
+
   val repoSets: Tabulation[(RepoSetId, Set[RepoRef])] = Tabulation(
     Heading("Commit", _._1),
     Heading("IDs", _._2.map(_.repoId).to[Set].map { id => id: UserMsg }.reduce { (l, r) => msg"$l, $r" }),

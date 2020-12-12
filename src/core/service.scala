@@ -67,7 +67,7 @@ object Service {
     val url = Https(service) / "share"
 
     case class Request(refs: List[String], token: String, ttl: Int)
-    case class Response(refs: List[String], expiry: Long)
+    case class Response(refs: List[String], expiry: Timestamp)
 
     val request = Json(Request((ref :: dependencies.to[List]).map(_.key), token.value, ttl))
 
@@ -80,6 +80,24 @@ object Service {
       _    <- ~log.note(msg"Response $json")
       res  <- handleError[Response](json)
     } yield ()
+  }
+
+  def published(service: DomainName, token: OauthToken)(implicit log: Log): Try[List[LayerStatus]] = {
+    val url = Https(service) / "published"
+
+    case class Request(token: String)
+
+    val request = Json(Request(token.value))
+    for {
+      _    <- ~log.note(msg"Sending POST request to $url")
+      _    <- ~log.note(msg"Request: $request")
+      out  <- Http.post(url.key, request, headers = Set()).to[Try].recoverWith { case e => Failure(HttpInternalServerError(url)) }
+      str  <- Success(new String(out, "UTF-8"))
+      json <- Json.parse(str).to[Try]
+      _    <- ~log.note(msg"Response: $json")
+      res  <- handleError[List[LayerStatus]](json)
+    } yield res
+      
   }
 
   def tag(service: DomainName,
@@ -101,7 +119,7 @@ object Service {
     case class Request(ref: String, token: String, version: Int, organization: String, name: String,
         public: Boolean, ttl: Option[Int], description: Option[String], force: Boolean, oldOrganization: String)
 
-    case class Response(path: String, ref: String, version: LayerVersion, expiry: Long)
+    case class Response(path: String, ref: String, version: LayerVersion, expiry: Timestamp)
 
     val request = Json(Request(hash.key, token.value, version, group.getOrElse(""), name, public,
         Some(ttl), description, force, oldOrganization))
@@ -114,7 +132,7 @@ object Service {
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(msg"Response: $json")
       res  <- handleError[Response](json)
-    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref), Some(res.expiry))
+    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref), Some(res.expiry.value))
   }
   
   import Json._
@@ -159,6 +177,8 @@ sealed abstract class ServiceException(msg: String) extends Exception(msg) with 
 case class GithubUserDetailsError(code: Int) extends ServiceException(
     str"Could not fetch the information about the user due to HTTP error code $code")
 
+case class LayerReference(version: Int, ref: String, timestamp: Timestamp, expiry: Timestamp)
+case class LayerStatus(organization: String, name: String, latest: LayerReference, current: List[LayerReference])
 case class PinataAddHashFailure() extends ServiceException("Could not pin the hash to IPFS service")
 case class PinataPinFailure() extends ServiceException("Could not pin the file to IPFS service")
 case class InvalidPrefix(prefix: String) extends ServiceException(str"The name prefix $prefix is not yours")

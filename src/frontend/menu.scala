@@ -179,6 +179,7 @@ object FuryMenu {
       Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
       Action('publish, msg"publish a layer", LayerCli(_).publish),
       Action('pull, msg"update the layer to a more recent version", LayerCli(_).pull, shortcut = 'p'),
+      Action('remote, msg"list remote layers", LayerCli(_).remote, shortcut = 'r'),
       Action('unimport, msg"remove a previously imported layer", LayerCli(_).unimport),
       Action('select, msg"select a layer", LayerCli(_).select, shortcut = 's'),
       Action('share, msg"share this layer", LayerCli(_).share),
