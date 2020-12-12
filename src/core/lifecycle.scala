@@ -84,6 +84,8 @@ object Lifecycle {
 
   def halt(): Unit = System.exit(busyCount)
 
+  def doShutdown(cli: Cli)(implicit log: Log): Try[ExitStatus] = cli.call().flatMap { call => shutdown() }
+
   @tailrec
   def shutdown(previous: Int = -1): Try[ExitStatus] = {
     terminating.set(true)
