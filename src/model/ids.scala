@@ -260,7 +260,7 @@ object Artifact {
   implicit val stringShow: StringShow[Artifact] = _.digest[Sha256].encoded[Base64]
 }
 
-case class Artifact(ref: String, timestamp: Long, version: LayerVersion, expiry: Long) {
+case class Artifact(ref: String, timestamp: Long, version: Int, expiry: Long) {
   def layerRef: LayerRef = LayerRef(ref)
 }
 

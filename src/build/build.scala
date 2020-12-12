@@ -857,9 +857,9 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
       Try((published, oldLayerRef))
     } { artifact =>
       for {
-        newPub   <- ~PublishedLayer(published.url, artifact.version,
+        newPub   <- ~PublishedLayer(published.url, LayerVersion(artifact.version),
                         LayerRef(artifact.ref), Some(artifact.expiry))
-        doUpdate  = artifact.version != published.version
+        doUpdate  = artifact.version != published.version.major
         
         _         = if(doUpdate)
                       log.info(msg"Updated layer ${pointer} from ${published.url} from version "+

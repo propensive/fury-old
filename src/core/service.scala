@@ -52,12 +52,12 @@ object Service {
 
   def latest(uri: FuryUri)(implicit log: Log): Try[Artifact] = for {
     artifacts <- list(uri)
-    latest    <- Try(artifacts.maxBy(_.version.major)).toOption.ascribe(UnknownLayer(uri.path, uri.domain))
+    latest    <- Try(artifacts.maxBy(_.version)).toOption.ascribe(UnknownLayer(uri.path, uri.domain))
   } yield latest
 
   def fetch(uri: FuryUri, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
     artifacts <- list(uri)
-    artifact  <- artifacts.find(_.version == version).ascribe(InvalidVersion())
+    artifact  <- artifacts.find(_.version == version.major).ascribe(InvalidVersion())
   } yield artifact
 
   def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef], ttl: Int)
@@ -155,7 +155,7 @@ object Service {
               latest(uri).map { artifact =>
                 map.synchronized {
                   map((uri, None)) = artifact
-                  map((uri, Some(artifact.version))) = artifact
+                  map((uri, Some(LayerVersion(artifact.version)))) = artifact
                 }
                 artifact
               }
