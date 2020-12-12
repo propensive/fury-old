@@ -135,7 +135,7 @@ object FuryMenu {
       Action('list, msg"list sources for the module", SourceCli(_).list, shortcut = 'l')
     ),
     
-    Action('stop, msg"gracefully shut down the Fury server", ((_: Cli) => Lifecycle.shutdown()),
+    Action('stop, msg"gracefully shut down the Fury server", Lifecycle.doShutdown(_),
         needsLayer = false),
     
     Menu('repo, msg"manage source repositories for the layer", 'list, shortcut = 'r')(
