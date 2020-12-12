@@ -263,7 +263,7 @@ object Layer extends Lens.Partial[Layer] {
         case Some(v) => Service.fetch(uri, v)
         case None => Service.latest(uri)
       }
-      artifact.map { a => Some(PublishedLayer(uri, a.version, LayerRef(a.ref), None)) }
+      artifact.map { a => Some(PublishedLayer(uri, LayerVersion(a.version), LayerRef(a.ref), None)) }
     case _ => Success(None)
   }
 
@@ -283,7 +283,7 @@ object Layer extends Lens.Partial[Layer] {
 
   def versionCompletions(layerName: LayerName)(implicit log: Log): Try[List[Int]] = layerName match {
     case FuryUri(domain, path) =>
-      Service.list(FuryUri(ManagedConfig().service, path)).map(_.map(_.version.major))
+      Service.list(FuryUri(ManagedConfig().service, path)).map(_.map(_.version))
     case _ =>
       Success(Nil)
   }
