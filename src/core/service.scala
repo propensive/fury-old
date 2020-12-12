@@ -74,7 +74,7 @@ object Service {
     for {
       _    <- ~log.note(msg"Sending POST request to $url")
       _    <- ~log.note(msg"Request: $request")
-      out  <- Http.post(url.key, request, headers = Set()).to[Try]
+      out  <- Http.post(url.key, request, headers = Set()).to[Try].recoverWith { case e => Failure(HttpInternalServerError(url)) }
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(msg"Response $json")
@@ -109,7 +109,7 @@ object Service {
     for {
       _    <- ~log.note(msg"Sending POST request to $url")
       _    <- ~log.note(msg"Request: $request")
-      out  <- Http.post(url.key, request, headers = Set()).to[Try]
+      out  <- Http.post(url.key, request, headers = Set()).to[Try].recoverWith { case e => Failure(HttpInternalServerError(url)) }
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
       _    <- ~log.note(msg"Response: $json")
