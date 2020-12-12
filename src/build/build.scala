@@ -750,7 +750,21 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     table  <- ~Tables().show[Difference, Difference](table, cli.cols, rows, raw, col)
     _      <- if(!rows.isEmpty) ~log.rawln(table) else ~log.info("No changes")
   } yield log.await()
-  
+
+  def remote: Try[ExitStatus] = for {
+    cli    <- cli.hint(RawArg)
+    cli    <- cli.hint(ServiceArg)
+    svc    <- ~cli.peek(ServiceArg).getOrElse(ManagedConfig().service)
+    table  <- ~Tables().layerStatuses(ManagedConfig().service)
+    cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    call   <- cli.call()
+    raw    <- ~call(RawArg).isSuccess
+    col    <- ~cli.peek(ColumnArg)
+    token  <- ManagedConfig().token.ascribe(NotAuthenticated())
+    rows   <- Service.published(ManagedConfig().service, token)
+    _      <- ~log.rawln(Tables().show[LayerStatus, Boolean](table, cli.cols, rows, raw, col, None, "layer"))
+  } yield log.await()
+
   def pull: Try[ExitStatus] = for {
     layout    <- cli.layout
     conf      <- Layer.readFuryConf(layout)

@@ -57,6 +57,50 @@ object `package` {
   val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
 }
 
+case class Timestamp(value: Long) {
+  def -(that: Timestamp): TimeOffset = TimeOffset(value - that.value)
+}
+
+object Timestamp {
+  def now(): Timestamp = Timestamp(System.currentTimeMillis)
+  private val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
+  
+  implicit val msgShow: MsgShow[Timestamp] = ts => UserMsg { theme =>
+    theme.time(dateFormat.format(ts.value))
+  }
+}
+
+case class TimeOffset(value: Long)
+
+object TimeOffset {
+  
+  implicit val msgShow: MsgShow[TimeOffset] = ts => UserMsg { theme =>
+    theme.time(describe(ts.value))
+  }
+
+  private val times = List[(String, Long)](
+    "year" -> 31557600000L,
+    "month" -> 2629800000L,
+    "day" -> 86400000L,
+    "hour" -> 3600000L,
+    "minute" -> 60000L,
+    "second" -> 1000L
+  )
+
+  private def describe(t0: Long) = {
+    val t = math.abs(t0)
+    val units = times.dropWhile { case (_, d) => t/d == 0 }.take(2)
+    if(units.isEmpty) "now"
+    else units.foldLeft((0L, List[(String, Long)]())) {
+      case ((tot, xs), (units, div)) =>
+        val rest = (t - tot)/div
+        (tot + rest*div, xs :+ (units, rest))
+    }._2.flatMap { case (units, number) =>
+      if(number == 0) Nil else List(s"$number $units${if(number == 1) "" else "s"}")
+    }.mkString(if(t0 > 0) "in " else "", ", ", if(t0 < 0) " ago" else "")
+  }
+}
+
 trait KeyName[T] { def apply(): UserMsg }
 
 trait FuryException extends Exception

@@ -54,7 +54,14 @@ package object core extends GuillotineExtensions {
 
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
   implicit val msgShowJson: MsgShow[Json] = json => UserMsg { theme => json.toString }
-  implicit val msgShowPath: MsgShow[Path]       = path => UserMsg(_.path(path.value))
+  implicit val msgShowPath: MsgShow[Path] = path => UserMsg(_.path(path.value))
+
+  implicit val timestampJsonDeserializer: Json.Deserializer[Timestamp] =
+    json => implicitly[Json.Deserializer[Long]].deserialize(json).map(Timestamp(_))
+
+  implicit val timestampJsonSerializer: Json.Serializer[Timestamp] =
+    timestamp => implicitly[Json.Serializer[Long]].serialize(timestamp.value)
+
   implicit class Waive[T](t: T) { def waive[S]: S => T = { _ => t } }
   implicit class ShortTry[T](t: T) { def unary_~ : Try[T] = Try(t) }
 
