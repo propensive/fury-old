@@ -52,6 +52,13 @@ object FuryMenu {
       Action('describe, msg"describe the build for a module", BuildCli(_).describe),
       Action('install, msg"install an application locally", BuildCli(_).install)
     ),
+    Menu('catalog, msg"actions on the remote catalog of layers", 'compiler, shortcut = 'c')(
+      
+      Action('auth, msg"authenticate using the catalog service", ConfigCli(_).auth, shortcut = 'a',
+          needsLayer = false),
+      
+      Action('list, msg"list remote layers", LayerCli(_).remote, shortcut = 'l'),
+    ),
     Menu('clean, msg"clean fury workspace", 'compiler)(
       Action('all, msg"clean all", CleanCli(_).cleanAll, needsLayer = false),
       Action('compiler, msg"clean the caches managed by the compiler", BuildCli(_).clean),
@@ -66,8 +73,7 @@ object FuryMenu {
     ),
     Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), show = false),
     Menu('config, msg"change system configuration options", 'set, needsLayer = false)(
-      Action('set, msg"change a settings", ConfigCli(_).set, needsLayer = false),
-      Action('auth, msg"authenticate using the distribution service", ConfigCli(_).auth, needsLayer = false)
+      Action('set, msg"change a settings", ConfigCli(_).set, needsLayer = false)
     ),
     Menu('dependency, msg"manage dependencies for the module", 'list, shortcut = 'd')(
       Action('add, msg"add a dependency on another module", DependencyCli(_).add, shortcut = 'a'),
@@ -78,6 +84,12 @@ object FuryMenu {
       Action('add, msg"add an environment variable", EnvCli(_).add, shortcut = 'a'),
       Action('remove, msg"remove an environment variable", EnvCli(_).remove, shortcut = 'r'),
       Action('list, msg"list environment variable", EnvCli(_).list, shortcut = 'l')
+    ),
+    Menu('import, msg"manage layer imports", 'add, shortcut = 'i')(
+      Action('add, msg"import an external layer", LayerCli(_).addImport, shortcut = 'a'),
+      Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
+      Action('pull, msg"update an import to a more recent version", LayerCli(_).pull, shortcut = 'p'),
+      Action('remove, msg"remove an imported layer", LayerCli(_).unimport, shortcut = 'r'),
     ),
     Menu('include, msg"manage includes to modules", 'add, shortcut = 'x')(
       Action('add, msg"add an include to a module", IncludeCli(_).add, shortcut = 'a'),
@@ -174,13 +186,8 @@ object FuryMenu {
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),
       Action('commit, msg"commit the layer to the current repository", LayerCli(_).commit, shortcut = 'm'),
       Action('diff, msg"show differences with the current layer", LayerCli(_).diff, shortcut = 'd'),
-      Action('import, msg"import an external layer", LayerCli(_).addImport, shortcut = 'i'),
       Action('init, msg"initialize a new Fury layer", LayerCli(_).init, needsLayer = false),
-      Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
       Action('publish, msg"publish a layer", LayerCli(_).publish),
-      Action('pull, msg"update the layer to a more recent version", LayerCli(_).pull, shortcut = 'p'),
-      Action('remote, msg"list remote layers", LayerCli(_).remote, shortcut = 'r'),
-      Action('unimport, msg"remove a previously imported layer", LayerCli(_).unimport),
       Action('select, msg"select a layer", LayerCli(_).select, shortcut = 's'),
       Action('share, msg"share this layer", LayerCli(_).share),
     )
