@@ -17,6 +17,8 @@
 package fury.test
 
 import fury.io._
+
+import jovian._
 import probably._
 
 object PathTests extends Suite("Path Tests") {
