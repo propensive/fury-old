@@ -518,6 +518,225 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   }
 }
 
+case class ShadeCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(RawArg)
+    table     <- ~Tables().shades
+    cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    call      <- cli.call()
+    _         <- ~log.warn(msg"Shading is not yet implemented.")
+    col       <- ~cli.peek(ColumnArg)
+    raw       <- ~call(RawArg).isSuccess
+    rows      <- ~layer.imports.to[List].flatMap { i => i.shades.map { s => (i.id, s.id) } }
+    table     <- ~Tables().show[(ImportId, ProjectId), ImportId](table, cli.cols, rows, raw, col, None, "shade")
+    _         <- ~log.infoWhen(!raw)(conf.focus())
+    _         <- ~log.rawln(table)
+  } yield log.await()
+
+  def add: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
+    imported  <- ~cli.peek(ImportIdArg).flatMap(layer.imports.findBy(_).toOption)
+    iLayer    <- imported.fold(~layer) { i => Layer.dereference(layer, Pointer.Empty / i.id) }
+    hierarchy <- iLayer.hierarchy()
+    universe  <- hierarchy.universe
+    cli       <- cli.hint(ProjectArg, universe.projects.keySet)
+    call      <- cli.call()
+    _         <- ~log.warn(msg"Shading is not yet implemented.")
+    projectId <- call(ProjectArg)
+    project   <- universe(projectId)
+    project   <- layer.projects.findBy(projectId)
+    importId  <- call(ImportIdArg)
+    imported  <- layer.imports.findBy(importId)
+    shade     <- ~Shade(project.id, false)
+    layer     <- ~Layer(_.imports(imported.id).shades).modify(layer)(_ + shade)
+    _         <- Layer.commit(layer, conf, layout)
+  } yield log.await()
+  
+  def remove: Try[ExitStatus] = for {
+    layout     <- cli.layout
+    conf       <- Layer.readFuryConf(layout)
+    layer      <- Layer.retrieve(conf)
+    cli        <- cli.hint(ImportIdArg, layer.imports.map(_.id))
+    
+    projectIds <- Try(cli.peek(ImportIdArg).fold(layer.projects.map(_.id).to[List]) { i =>
+                     layer.imports.findBy(i).toOption.fold(List[ProjectId]())(_.shades.map(_.id).to[List]) })
+    
+    cli        <- cli.hint(ProjectArg, projectIds)
+    call       <- cli.call()
+    _          <- ~log.warn(msg"Shading is not yet implemented.")
+    projectId  <- call(ProjectArg)
+    importId   <- call(ImportIdArg)
+    imported   <- layer.imports.findBy(importId)
+    layer      <- ~Layer(_.imports(imported.id).shades).modify(layer)(_.filter(_.id != projectId))
+    _          <- Layer.commit(layer, conf, layout)
+  } yield log.await()
+}
+
+case class ImportCli(cli: Cli)(implicit log: Log) {
+  def list: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(RawArg)
+    table     <- ~Tables().imports
+    cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
+    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
+    call      <- cli.call()
+    col       <- ~cli.peek(ColumnArg)
+    importId  <- ~cli.peek(ImportIdArg)
+    raw       <- ~call(RawArg).isSuccess
+    rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef, i.remote)) }
+    table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
+    _         <- ~log.infoWhen(!raw)(conf.focus())
+    _         <- ~log.rawln(table)
+  } yield log.await()
+  
+  def add: Try[ExitStatus] = for {
+    layout      <- cli.layout
+    conf        <- Layer.readFuryConf(layout)
+    layer       <- Layer.retrieve(conf)
+    cli         <- cli.hint(ImportNameArg)
+    cli         <- cli.hint(IgnoreArg)
+    cli         <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
+
+    cli         <- cli.hint(LayerVersionArg,
+                       cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
+
+    call        <- cli.call()
+    layerName   <- call(ImportArg)
+    version     =  call(LayerVersionArg).toOption
+    nameArg     <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingParam(ImportNameArg))
+    ignore      <- ~call(IgnoreArg).isSuccess
+    newLayerRef <- Layer.resolve(layerName, version)
+    pub         <- Layer.published(layerName, version)
+    newLayer    <- Layer.get(newLayerRef, pub)
+    _           <- newLayer.verify(ignore, false, Pointer.Root)
+    ref         <- ~Import(nameArg, newLayerRef, pub)
+    layer       <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
+    _           <- Layer.commit(layer, conf, layout)
+  } yield log.await()
+
+  def remove: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
+    call      <- cli.call()
+    importArg <- call(ImportIdArg)
+    layer     <- ~Layer(_.imports).modify(layer)(_.evict(importArg))
+    _         <- Layer.commit(layer, conf, layout)
+  } yield log.await()
+  
+  def pull: Try[ExitStatus] = for {
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(RecursiveArg)
+    cli       <- cli.hint(LayerVersionArg)
+    cli       <- cli.hint(AllArg)
+    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
+    call      <- cli.call()
+    version   <- ~call(LayerVersionArg).toOption
+    recursive <- ~call(RecursiveArg).isSuccess
+    all       <- ~call(AllArg).isSuccess
+    importId  <- ~call(ImportIdArg)
+    current   <- Try(!all && importId.isFailure)
+    
+    imports   <- if(all || current) Try(layer.imports.map(_.id).to[List])
+                 else ~importId.toOption.fold(List[ImportId]())(List(_))
+
+    _         <- call.atMostOne(AllArg, LayerVersionArg)
+    _         <- call.atMostOne(AllArg, ImportIdArg)
+    _         <- call.atMostOne(AllArg, RecursiveArg)
+    cache     <- ~Service.Cache()
+    future    <- ~updateAll(layer, Pointer.Empty, imports, recursive, if(current) None else version, cache)
+    layer     <- ~Await.result(future, Duration.Inf)
+    conf      <- updateCurrent(layer, conf, version, cache)
+    _         <- Layer.commit(layer, conf, layout, force = true)
+  } yield log.await()
+
+  private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion], cache: Service.Cache)
+                           : Try[FuryConf] =
+    if(conf.published.isEmpty) Success(conf)
+    else for {
+
+      _                  <- if(conf.path != Pointer.Root) Failure(RootLayerNotSelected(conf.path))
+                            else Success(())
+      
+      published          <- conf.published.ascribe(ImportHasNoRemote(Pointer.Root))
+      (newPub, layerRef) <- getNewLayer(conf.layerRef, published, version, Pointer.Root, cache)
+      newLayer           <- Layer.get(layerRef, Some(newPub))
+      layerRef           <- Layer.store(newLayer)
+    } yield conf.copy(layerRef = layerRef, published = Some(newPub))
+
+  private def updateAll(layer: Layer,
+                        pointer: Pointer,
+                        imports: List[ImportId],
+                        recursive: Boolean,
+                        version: Option[LayerVersion],
+                        cache: Service.Cache)
+                       : Future[Layer] =
+    imports.map(layer.imports.findBy(_)).map {
+      case Success(imp) => updateOne(imp, pointer, recursive, version, cache)
+      case Failure(e)   => Future(identity[Layer](_))
+    }.sequence.flatMap(_.foldLeft(Future(layer)) { case (l, update) => l.map(update(_)) })
+
+  private def updateOne(imported: Import,
+                        pointer: Pointer,
+                        recursive: Boolean,
+                        version: Option[LayerVersion],
+                        cache: Service.Cache)
+                       : Future[Layer => Layer] = {
+    val future: Future[Try[(PublishedLayer, LayerRef)]] = Future { { for {
+      published          <- imported.remote.ascribe(ImportHasNoRemote(pointer / imported.id))
+      (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / imported.id, cache)
+      newLayer           <- Layer.get(newRef, Some(newPub))
+
+      future             <- (if(recursive) ~updateAll(newLayer, pointer / imported.id,
+                                newLayer.imports.map(_.id).to[List], recursive, None, cache) else Try(Future(newLayer))): Try[Future[Layer]]
+      newLayer           <- ~Await.result(future, Duration.Inf)
+      layerRef           <- Layer.store(newLayer)
+    } yield (newPub, layerRef) } }
+
+    future.flatMap {
+      case Success((newPub, layerRef)) => Future { (layer: Layer) =>
+        val layer1 = Layer(_.imports(imported.id).remote)(layer) = Some(newPub)
+        Layer(_.imports(imported.id).layerRef)(layer1) = layerRef
+      }
+      case Failure(e) =>
+        Future.fromTry(Failure(e))
+    }
+  }
+
+  private def getNewLayer(oldLayerRef: LayerRef,
+                          published: PublishedLayer,
+                          version: Option[LayerVersion],
+                          pointer: Pointer,
+                          cache: Service.Cache)
+                         : Try[(PublishedLayer, LayerRef)] =
+    cache(published.url, version).toOption.fold {
+      log.warn(msg"Could not update layer ${published.url}}")
+      Try((published, oldLayerRef))
+    } { artifact =>
+      for {
+        newPub   <- ~PublishedLayer(published.url, LayerVersion(artifact.version),
+                        LayerRef(artifact.ref), Some(artifact.expiry))
+        doUpdate  = artifact.version != published.version.major
+        
+        _         = if(doUpdate)
+                      log.info(msg"Updated layer ${pointer} from ${published.url} from version "+
+                          msg"${published.version} (${published.layerRef}) to ${artifact.version} (${LayerRef(artifact.ref)})")
+      } yield (newPub, if(doUpdate) artifact.layerRef else oldLayerRef)
+    }
+
+}
+
 case class LayerCli(cli: Cli)(implicit log: Log) {
   def init: Try[ExitStatus] = for {
     layout <- cli.newLayout
@@ -706,42 +925,6 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _      <- ~log.info(msg"Don't forget to run ${ExecName("git commit")} to commit the layer to the repo.")
   } yield log.await()
 
-  def addImport: Try[ExitStatus] = for {
-    layout      <- cli.layout
-    conf        <- Layer.readFuryConf(layout)
-    layer       <- Layer.retrieve(conf)
-    cli         <- cli.hint(ImportNameArg)
-    cli         <- cli.hint(IgnoreArg)
-    cli         <- cli.hint(ImportArg, Layer.pathCompletions().getOrElse(Nil))
-
-    cli         <- cli.hint(LayerVersionArg,
-                       cli.peek(ImportArg).to[List].flatMap(Layer.versionCompletions(_).getOrElse(Nil)))
-
-    call        <- cli.call()
-    layerName   <- call(ImportArg)
-    version     =  call(LayerVersionArg).toOption
-    nameArg     <- cli.peek(ImportNameArg).orElse(layerName.suggestedName).ascribe(MissingParam(ImportNameArg))
-    ignore      <- ~call(IgnoreArg).isSuccess
-    newLayerRef <- Layer.resolve(layerName, version)
-    pub         <- Layer.published(layerName, version)
-    newLayer    <- Layer.get(newLayerRef, pub)
-    _           <- newLayer.verify(ignore, false, Pointer.Root)
-    ref         <- ~Import(nameArg, newLayerRef, pub)
-    layer       <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
-    _           <- Layer.commit(layer, conf, layout)
-  } yield log.await()
-
-  def unimport: Try[ExitStatus] = for {
-    layout    <- cli.layout
-    conf      <- Layer.readFuryConf(layout)
-    layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
-    call      <- cli.call()
-    importArg <- call(ImportIdArg)
-    layer     <- ~Layer(_.imports).modify(layer)(_.evict(importArg))
-    _         <- Layer.commit(layer, conf, layout)
-  } yield log.await()
-
   def undo: Try[ExitStatus] = for {
     call     <- cli.call()
     layout   <- cli.layout
@@ -790,125 +973,4 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _      <- ~log.rawln(Tables().show[LayerStatus, Boolean](table, cli.cols, rows, raw, col, None, "layer"))
   } yield log.await()
 
-  def pull: Try[ExitStatus] = for {
-    layout    <- cli.layout
-    conf      <- Layer.readFuryConf(layout)
-    layer     <- Layer.retrieve(conf)
-    cli       <- cli.hint(RecursiveArg)
-    cli       <- cli.hint(LayerVersionArg)
-    cli       <- cli.hint(AllArg)
-    cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
-    call      <- cli.call()
-    version   <- ~call(LayerVersionArg).toOption
-    recursive <- ~call(RecursiveArg).isSuccess
-    all       <- ~call(AllArg).isSuccess
-    importId  <- ~call(ImportIdArg)
-    current   <- Try(!all && importId.isFailure)
-    
-    imports   <- if(all || current) Try(layer.imports.map(_.id).to[List])
-                 else ~importId.toOption.fold(List[ImportId]())(List(_))
-
-    _         <- call.atMostOne(AllArg, LayerVersionArg)
-    _         <- call.atMostOne(AllArg, ImportIdArg)
-    _         <- call.atMostOne(AllArg, RecursiveArg)
-    cache     <- ~Service.Cache()
-    future    <- ~updateAll(layer, Pointer.Empty, imports, recursive, if(current) None else version, cache)
-    layer     <- ~Await.result(future, Duration.Inf)
-    conf      <- updateCurrent(layer, conf, version, cache)
-    _         <- Layer.commit(layer, conf, layout, force = true)
-  } yield log.await()
-
-  private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion], cache: Service.Cache)
-                           : Try[FuryConf] =
-    if(conf.published.isEmpty) Success(conf)
-    else for {
-
-      _                  <- if(conf.path != Pointer.Root) Failure(RootLayerNotSelected(conf.path))
-                            else Success(())
-      
-      published          <- conf.published.ascribe(ImportHasNoRemote(Pointer.Root))
-      (newPub, layerRef) <- getNewLayer(conf.layerRef, published, version, Pointer.Root, cache)
-      newLayer           <- Layer.get(layerRef, Some(newPub))
-      layerRef           <- Layer.store(newLayer)
-    } yield conf.copy(layerRef = layerRef, published = Some(newPub))
-
-  private def updateAll(layer: Layer,
-                        pointer: Pointer,
-                        imports: List[ImportId],
-                        recursive: Boolean,
-                        version: Option[LayerVersion],
-                        cache: Service.Cache)
-                       : Future[Layer] =
-    imports.map(layer.imports.findBy(_)).map {
-      case Success(imp) => updateOne(imp, pointer, recursive, version, cache)
-      case Failure(e)   => Future(identity[Layer](_))
-    }.sequence.flatMap(_.foldLeft(Future(layer)) { case (l, update) => l.map(update(_)) })
-
-  private def updateOne(imported: Import,
-                        pointer: Pointer,
-                        recursive: Boolean,
-                        version: Option[LayerVersion],
-                        cache: Service.Cache)
-                       : Future[Layer => Layer] = {
-    val future: Future[Try[(PublishedLayer, LayerRef)]] = Future { { for {
-      published          <- imported.remote.ascribe(ImportHasNoRemote(pointer / imported.id))
-      (newPub, newRef)   <- getNewLayer(imported.layerRef, published, version, pointer / imported.id, cache)
-      newLayer           <- Layer.get(newRef, Some(newPub))
-
-      future             <- (if(recursive) ~updateAll(newLayer, pointer / imported.id,
-                                newLayer.imports.map(_.id).to[List], recursive, None, cache) else Try(Future(newLayer))): Try[Future[Layer]]
-      newLayer           <- ~Await.result(future, Duration.Inf)
-      layerRef           <- Layer.store(newLayer)
-    } yield (newPub, layerRef) } }
-
-    future.flatMap {
-      case Success((newPub, layerRef)) => Future { (layer: Layer) =>
-        val layer1 = Layer(_.imports(imported.id).remote)(layer) = Some(newPub)
-        Layer(_.imports(imported.id).layerRef)(layer1) = layerRef
-      }
-      case Failure(e) =>
-        Future.fromTry(Failure(e))
-    }
-  }
-
-  private def getNewLayer(oldLayerRef: LayerRef,
-                          published: PublishedLayer,
-                          version: Option[LayerVersion],
-                          pointer: Pointer,
-                          cache: Service.Cache)
-                         : Try[(PublishedLayer, LayerRef)] =
-    cache(published.url, version).toOption.fold {
-      log.warn(msg"Could not update layer ${published.url}}")
-      Try((published, oldLayerRef))
-    } { artifact =>
-      for {
-        newPub   <- ~PublishedLayer(published.url, LayerVersion(artifact.version),
-                        LayerRef(artifact.ref), Some(artifact.expiry))
-        doUpdate  = artifact.version != published.version.major
-        
-        _         = if(doUpdate)
-                      log.info(msg"Updated layer ${pointer} from ${published.url} from version "+
-                          msg"${published.version} (${published.layerRef}) to ${artifact.version} (${LayerRef(artifact.ref)})")
-      } yield (newPub, if(doUpdate) artifact.layerRef else oldLayerRef)
-    }
-
-  def list: Try[ExitStatus] = {
-    for {
-      layout    <- cli.layout
-      conf      <- Layer.readFuryConf(layout)
-      layer     <- Layer.retrieve(conf)
-      cli       <- cli.hint(RawArg)
-      table     <- ~Tables().imports
-      cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
-      cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
-      call      <- cli.call()
-      col       <- ~cli.peek(ColumnArg)
-      importId  <- ~cli.peek(ImportIdArg)
-      raw       <- ~call(RawArg).isSuccess
-      rows      <- ~layer.imports.to[List].map { i => (i, Layer.get(i.layerRef, i.remote)) }
-      table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
-      _         <- ~log.infoWhen(!raw)(conf.focus())
-      _         <- ~log.rawln(table)
-    } yield log.await()
-  }
 }
