@@ -59,7 +59,9 @@ object ProjectId {
   implicit val stringShow: StringShow[ProjectId] = _.key
   implicit val diff: Diff[ProjectId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[ProjectId] = unapply(_)
+  implicit val ord: Ordering[ProjectId] = Ordering.by(_.key)
   implicit val keyName: KeyName[ProjectId] = () => msg"project"
+  implicit val index: Index[ProjectId] = FieldIndex("id")
 
   def unapply(name: String): Option[ProjectId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => ProjectId(name) }
 }
@@ -626,6 +628,15 @@ object Alias {
 
 case class Alias(id: AliasCmd, description: String, module: ModuleRef, args: List[String] = Nil)
 
+object Shade {
+  implicit val stringShow: StringShow[Shade] = _.id.key
+  implicit val msgShow: MsgShow[Shade] = shade => msg"${shade.id}"
+  implicit val diff: Diff[Shade] = Diff.gen[Shade]
+  implicit val ord: Ordering[Shade] = Ordering.by(_.id)
+}
+
+case class Shade(id: ProjectId, exclude: Boolean)
+
 object Import {
   implicit val msgShow: MsgShow[Import] = v =>
     UserMsg(msg"${v.layerRef}".string(_))
@@ -640,7 +651,10 @@ object Import {
   }
 }
 
-case class Import(id: ImportId, layerRef: LayerRef, remote: Option[PublishedLayer] = None)
+case class Import(id: ImportId,
+                  layerRef: LayerRef,
+                  remote: Option[PublishedLayer] = None,
+                  shades: SortedSet[Shade] = SortedSet[Shade]())
 
 object LayerName {
   implicit val stringShow: StringShow[LayerName] = {

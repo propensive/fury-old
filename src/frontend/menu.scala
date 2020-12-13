@@ -86,10 +86,10 @@ object FuryMenu {
       Action('list, msg"list environment variable", EnvCli(_).list, shortcut = 'l')
     ),
     Menu('import, msg"manage layer imports", 'add, shortcut = 'i')(
-      Action('add, msg"import an external layer", LayerCli(_).addImport, shortcut = 'a'),
-      Action('list, msg"list imported layers", LayerCli(_).list, shortcut = 'l'),
-      Action('pull, msg"update an import to a more recent version", LayerCli(_).pull, shortcut = 'p'),
-      Action('remove, msg"remove an imported layer", LayerCli(_).unimport, shortcut = 'r'),
+      Action('add, msg"import an external layer", ImportCli(_).add, shortcut = 'a'),
+      Action('list, msg"list imported layers", ImportCli(_).list, shortcut = 'l'),
+      Action('pull, msg"update an import to a more recent version", ImportCli(_).pull, shortcut = 'p'),
+      Action('remove, msg"remove an imported layer", ImportCli(_).remove, shortcut = 'r'),
     ),
     Menu('include, msg"manage includes to modules", 'add, shortcut = 'x')(
       Action('add, msg"add an include to a module", IncludeCli(_).add, shortcut = 'a'),
@@ -146,10 +146,12 @@ object FuryMenu {
       Action('remove, msg"remove a source directory from the module", SourceCli(_).remove, shortcut = 'r'),
       Action('list, msg"list sources for the module", SourceCli(_).list, shortcut = 'l')
     ),
-    
-    Action('stop, msg"gracefully shut down the Fury server", Lifecycle.doShutdown(_),
-        needsLayer = false),
-    
+    Menu('shade, msg"shade projects in imported layers", 'list)(
+      Action('add, msg"shade a project in an imported layer", ShadeCli(_).add),
+      Action('list, msg"list shaded projects", ShadeCli(_).list),
+      Action('remove, msg"remove a project shading", ShadeCli(_).remove)
+    ),
+    Action('stop, msg"gracefully shut down the Fury server", Lifecycle.doShutdown(_), needsLayer = false),
     Menu('repo, msg"manage source repositories for the layer", 'list, shortcut = 'r')(
       Action('add, msg"add a source repository to the layer", RepoCli(_).add, shortcut = 'a'),
       

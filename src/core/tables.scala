@@ -212,6 +212,10 @@ case class Tables() {
     Heading("Layers", p => showPointers(p._3))
   )
 
+  val shades: Tabulation[(ImportId, ProjectId)] = Tabulation(
+    Heading("Import", _._1),
+    Heading("Project", _._2)
+  )
   def projects(current: Option[ProjectId]): Tabulation[Project] = Tabulation(
     Heading("", p => Some(p.id) == current),
     Heading("Project", _.id),
