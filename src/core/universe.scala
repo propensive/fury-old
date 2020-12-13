@@ -58,8 +58,8 @@ case class Universe(hierarchy: Hierarchy,
       val imports = origins.values.map { case ref => ref -> origins.collect { case (o, `ref`) => o }.toSet }
       
       imports.to[List].traverse { case (ref, _) =>
-        for(project <- projects(ref); imports <- pointers(ref)) yield (ref, project, imports)
-      } >>= (conflicts => Failure(ProjectConflict(conflicts.toList)))
+        for(project <- projects(ref); imports <- pointers(ref)) yield (ref, (project, imports))
+      } >>= (conflicts => Failure(ProjectConflict(conflicts.toMap)))
   }
 
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
