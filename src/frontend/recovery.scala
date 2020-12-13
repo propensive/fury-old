@@ -34,7 +34,7 @@ object Recovery {
           Done
         case ProjectConflict(ids) =>
           val table = Tables().entities
-          val conflicts = Tables().show(table, cli.cols, ids, false, None, None: Option[String], "hash")
+          val conflicts = Tables().show(table, cli.cols, ids.to[List], false, None, None: Option[String], "hash")
           log.info(msg"Conflicting projects exist in the build:")
           log.info(conflicts)
           cli.abort(msg"You will need to unify these projects before you can continue.")
