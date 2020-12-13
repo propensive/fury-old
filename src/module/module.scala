@@ -111,7 +111,8 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       -?< (SpecArg, getKindName >> oneOf(Compiler))
       ).action {
       val newModule = getModule >>= renamedFromCli >>= updatedFromCli
-      val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
+      val newModules = (getProject >> (_.modules), getModule, newModule) >> (_ - _ + _)
+      
       val newLayer = for {
         layer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
         updateMain <- (getProject >> (_.main), getModule >> (_.id)) >> (_.contains(_))
