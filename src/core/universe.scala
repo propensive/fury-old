@@ -19,6 +19,7 @@ package fury.core
 import fury.io._, fury.model._, fury.text._
 
 import mercator._
+import jovian._
 
 import scala.util._
 import fury.model.IncludeType.Jarfile

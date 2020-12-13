@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import fury.model.ModuleRef
 import fury.utils.Multiplexer
 
+import jovian._
+
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
 import scala.concurrent.Promise

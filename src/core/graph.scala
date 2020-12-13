@@ -20,6 +20,7 @@ import fury.text._, fury.io._, fury.model._
 
 import annotation.tailrec
 import optometry.Lens
+import jovian._
 
 object UiGraph {
   final private val North = 8

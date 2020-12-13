@@ -23,6 +23,7 @@ import euphemism._
 import mercator._
 import antiphony._
 import guillotine._
+import jovian._
 
 import Args._
 

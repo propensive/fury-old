@@ -19,6 +19,7 @@ package fury.model
 import fury._, io._, text._, ogdl._
 
 import gastronomy._
+import jovian._
 import kaleidoscope._
 import guillotine._
 import java.util.{List => _, _}
@@ -50,6 +51,8 @@ object Xdg {
     def path: Option[Path] = variable.map(Path(_))
     def paths: Option[List[Path]] = variable.map(_.split(":").to[List].map(Path(_)))
   }
+
+  new PathContext(StringContext(null))
 
   val root: Boolean = System.getProperty("user.name") == "root"
   val home: Path = Option(System.getenv("HOME")).map(Path(_)).getOrElse(path"/")

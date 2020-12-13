@@ -16,38 +16,36 @@
 */
 package fury.core
 
-import java.io._
-import java.net.URI
-import java.nio.charset.StandardCharsets
-import java.nio.channels._
-import java.util.concurrent.{CompletableFuture, ExecutionException, TimeoutException}
+import fury.core.UiGraph.CompileIssue, fury.core.Lifecycle.Session, fury.io._, fury.model._, fury.text._,
+    fury.utils._
 
+import gastronomy._
+import kaleidoscope._
+import mercator._
+import jovian._
+
+import org.eclipse.lsp4j.jsonrpc.Launcher
 import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
 import ch.epfl.scala.bsp4j.{CompileResult => _, _}
 import com.google.gson.{Gson, JsonElement}
-import fury.core.UiGraph.CompileIssue
-import fury.core.Lifecycle.Session
-import fury.io._
-import fury.model._
-import fury.text._
-import fury.utils._
-import gastronomy._
-import kaleidoscope._
-import mercator._
-import org.eclipse.lsp4j.jsonrpc.Launcher
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.HashMap
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent._
+import scala.concurrent._, ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.language.higherKinds
 import scala.reflect.{ClassTag, classTag}
 import scala.util._
 import scala.util.control.NonFatal
+
+import java.io._
+import java.net.URI
+import java.nio.charset.StandardCharsets
+import java.nio.channels._
+import java.util.concurrent.{CompletableFuture, ExecutionException, TimeoutException}
 
 trait FuryBspServer extends BuildServer with ScalaBuildServer
 

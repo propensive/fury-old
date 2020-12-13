@@ -18,11 +18,13 @@ package fury.core
 
 import fury.io._
 
-import java.io._
+import jovian._
+
 import annotation.tailrec
 import scala.util.Try
 import org.kamranzafar.jtar.{TarEntry, TarInputStream, TarOutputStream, TarHeader}
 
+import java.io._
 import java.util.zip._
 import java.nio.file.attribute.PosixFilePermission
 import java.nio.file.attribute.PosixFilePermissions

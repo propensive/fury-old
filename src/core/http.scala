@@ -19,6 +19,7 @@ package fury.core
 import fury.model._, fury.io._
 
 import antiphony._
+import jovian._
 
 object Https {
   def apply(path: Path, query: Query = Query()): Uri = Uri("https", path, query)

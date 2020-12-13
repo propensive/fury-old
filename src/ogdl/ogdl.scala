@@ -16,11 +16,10 @@
 */
 package fury.ogdl
 
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
-
 import fury.io._
 import fury.text._
+
+import jovian._
 
 import scala.language.experimental.macros
 import scala.language.higherKinds
@@ -29,6 +28,8 @@ import scala.language.dynamics
 import scala.util._
 import scala.util.control.NonFatal
 
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.util.NoSuchElementException
 
 case class OgdlReadException(path: Path, cause: Throwable) extends FuryException {

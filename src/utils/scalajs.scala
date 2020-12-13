@@ -18,6 +18,8 @@ package fury.utils
 
 import fury.io._
 
+import jovian._
+
 import org.scalajs.ir._
 import org.scalajs.logging._
 import org.scalajs.linker._, interface._

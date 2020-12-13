@@ -18,6 +18,8 @@ package fury
 
 import fury.core._, fury.text._, fury.model._, fury.io._
 
+import jovian._
+
 import java.util.concurrent.atomic.AtomicBoolean
 
 import _root_.io.methvin.better.files.RecursiveFileMonitor

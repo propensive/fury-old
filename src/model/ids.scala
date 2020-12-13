@@ -20,6 +20,7 @@ import fury.text._, fury.io._, fury.ogdl._
 
 import kaleidoscope._
 import gastronomy._
+import jovian._
 
 import scala.util._
 import scala.collection.immutable.{ListMap, SortedSet}

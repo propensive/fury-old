@@ -21,6 +21,7 @@ import fury.io._, fury.text._, fury.model._, fury.utils._
 import guillotine._
 import mercator._
 import euphemism._
+import jovian._
 
 import scala.util._
 import scala.collection.mutable.HashMap

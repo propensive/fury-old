@@ -17,6 +17,7 @@
 package fury.core
 
 import mercator._
+import jovian._
 
 import fury.model._, fury.io._, fury.text._
 

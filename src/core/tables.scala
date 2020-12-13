@@ -20,6 +20,7 @@ import fury.text._, fury.model._, fury.io._
 
 import escritoire.{Ansi => _, _}
 import kaleidoscope._
+import jovian._
 
 import scala.collection.immutable.SortedSet
 import scala.util._

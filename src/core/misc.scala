@@ -19,6 +19,8 @@ package fury.core
 import fury.model._, UiGraph.Issue, fury.io._, fury.ogdl._
 import fury.text.FuryException
 
+import jovian._
+
 import ch.epfl.scala.bsp4j._
 
 import scala.collection.JavaConverters._

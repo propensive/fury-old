@@ -26,6 +26,7 @@ import gastronomy._
 import guillotine._
 import mercator._
 import optometry._
+import jovian._
 
 import scala.collection.immutable.SortedSet
 import scala.language.implicitConversions

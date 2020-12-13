@@ -18,6 +18,8 @@ package fury.core
 
 import fury.text._, fury.io._, fury.model._
 
+import jovian._
+
 import scala.collection.mutable.HashMap
 
 import java.io._

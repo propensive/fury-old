@@ -19,6 +19,7 @@ package fury.core
 import fury.io._, fury.model._
 
 import guillotine._
+import jovian._
 import contextual._
 
 trait GuillotineExtensions {

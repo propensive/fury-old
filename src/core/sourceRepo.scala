@@ -19,6 +19,7 @@ package fury.core
 import fury.model._, fury.io._, fury.text._, fury.ogdl._
 import mercator._
 import optometry._
+import jovian._
 
 import scala.util._
 
