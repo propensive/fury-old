@@ -503,6 +503,7 @@ case class ShadeCli(cli: Cli)(implicit log: Log) {
     table     <- ~Tables().shades
     cli       <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call      <- cli.call()
+    _         <- ~log.warn(msg"Shading is not yet implemented.")
     col       <- ~cli.peek(ColumnArg)
     raw       <- ~call(RawArg).isSuccess
     rows      <- ~layer.imports.to[List].flatMap { i => i.shades.map { s => (i.id, s.id) } }
@@ -522,6 +523,7 @@ case class ShadeCli(cli: Cli)(implicit log: Log) {
     universe  <- hierarchy.universe
     cli       <- cli.hint(ProjectArg, universe.projects.keySet)
     call      <- cli.call()
+    _         <- ~log.warn(msg"Shading is not yet implemented.")
     projectId <- call(ProjectArg)
     project   <- universe(projectId)
     project   <- layer.projects.findBy(projectId)
@@ -543,6 +545,7 @@ case class ShadeCli(cli: Cli)(implicit log: Log) {
     
     cli        <- cli.hint(ProjectArg, projectIds)
     call       <- cli.call()
+    _          <- ~log.warn(msg"Shading is not yet implemented.")
     projectId  <- call(ProjectArg)
     importId   <- call(ImportIdArg)
     imported   <- layer.imports.findBy(importId)
