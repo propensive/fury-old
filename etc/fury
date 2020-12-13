@@ -34,6 +34,7 @@ fi
 trap cleanup INT HUP TERM
 
 cleanup() {
+  printf "\e[0m\e[?25h"
   fury interrupt
   printf "\e[0m\e[?25h"
 }
@@ -127,19 +128,19 @@ startFuryStandalone() {
 case "$1" in
   "start")
     ngServer
+    printf "\e[0m\e[?25h"
     ;;
   "standalone")
     startFuryStandalone "${@:2}"
+    printf "\e[0m\e[?25h"
     ;;
   "stop")
     stopFury
-    ;;
-  "upgrade")
-    fury "$@"
-    killall fury > /dev/null
+    printf "\e[0m\e[?25h"
     ;;
   "restart")
     restartFury
+    printf "\e[0m\e[?25h"
     ;;
   "prompt")
     fury "$@" || printf " %{\e[0;30m%}[ ]"
@@ -150,10 +151,12 @@ case "$1" in
     ;;
   "--help")
     fury "help"
+    printf "\e[0m\e[?25h"
     ;;
   *)
     fury "$@"
     res=$?
+    printf "\e[0m\e[?25h"
     exit $res
     ;;
 esac
