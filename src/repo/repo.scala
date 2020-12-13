@@ -23,6 +23,7 @@ import Args._
 import guillotine._
 import optometry._
 import mercator._
+import jovian._
 import euphemism._
 import escritoire._
 import antiphony._

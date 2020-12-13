@@ -21,11 +21,13 @@ import fury._, io._, text._, ogdl._, model._
 import gastronomy._
 import kaleidoscope._
 import mercator._
+import jovian._
 import guillotine._, environments.enclosing
-import java.util.{List => _, Map => _, _}
 
 import scala.util._
 import scala.io._
+
+import java.util.{List => _, Map => _, _}
 
 object Install {
   

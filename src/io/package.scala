@@ -16,10 +16,18 @@
 */
 package fury
 
+import fury.text._
+
 import contextual._
+import jovian._
 
 package object io {
-  implicit class PathContext(sc: StringContext) {
-    val path = Prefix(PathInterpolator, sc)
-  }
+  implicit val stringShowPath: StringShow[Path] = _.value
+  implicit val diffPath: Diff[Path] = (l, r) => Diff.stringDiff.diff(l.value, r.value)
+  implicit val parserPath: Parser[Path] = Path.unapply(_)
+  implicit val msgShowGlob: MsgShow[Glob] = glob => UserMsg(_.path(glob.pattern))
+  implicit val stringShowGlob: StringShow[Glob] = _.pattern
+  implicit val diffGlob: Diff[Glob] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
+  implicit val msgShowByteSize: MsgShow[ByteSize] = fs => UserMsg(_.number(str"${Strings.magnitude(fs.bytes, "B")}"))
+  implicit val stringShowByteSize: StringShow[ByteSize] = fs => str"${Strings.magnitude(fs.bytes, "B")}"
 }

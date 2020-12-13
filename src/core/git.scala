@@ -24,6 +24,7 @@ import kaleidoscope._
 import mercator._
 import antiphony._
 import euphemism._
+import jovian._
 
 import scala.util._
 import scala.collection.mutable.HashMap

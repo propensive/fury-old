@@ -16,9 +16,10 @@
 */
 package fury.core
 
-import fury.text._, fury.io.Path, fury.model._, fury.ogdl._, fury.utils._
+import fury.text._, fury.model._, fury.ogdl._, fury.utils._
 
 import euphemism._
+import jovian._
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
 import FuryBuildServer._

@@ -18,6 +18,8 @@ package fury.core
 
 import fury.text._, fury.model._, fury.utils._
 
+import jovian._
+
 object Reporter {
   implicit val parser: Parser[Reporter] = unapply(_)
   val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, SummaryReporter, QuietReporter)

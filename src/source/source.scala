@@ -20,6 +20,7 @@ import fury.text._, fury.core._, fury.model._, fury.io._
 
 import mercator._
 import optometry._
+import jovian._
 
 import Args._
 
@@ -85,7 +86,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   private[this] lazy val possibleSourcesHint: SourceArg.Hinter = SourceArg.hint((getLayout, getLayer) >> { case (layout, layer) =>
     val extSrcs = layer.repos.map(possibleSourceDirectories(_, layout)).flatten
-    val localSrcs = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, fury.io.Glob.All))
+    val localSrcs = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, Glob.All))
     extSrcs ++ localSrcs
   })
 

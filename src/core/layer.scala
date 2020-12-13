@@ -22,6 +22,7 @@ import mercator._
 import gastronomy._
 import kaleidoscope._
 import optometry._
+import jovian._
 
 import scala.util._
 import scala.collection.immutable._

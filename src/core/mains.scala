@@ -19,6 +19,7 @@ package fury.core
 import fury.io._, fury.model._
 
 import mercator._
+import jovian._
 
 import org.objectweb.asm._
 

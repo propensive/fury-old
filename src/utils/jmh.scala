@@ -18,6 +18,8 @@ package fury.utils
 
 import fury.io._
 
+import jovian._
+
 import org.openjdk.jmh._
 import generators.bytecode._
 

@@ -18,6 +18,7 @@ package fury.io
 
 import fury.text._
 import mercator._
+import jovian._
 
 import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
 import org.apache.commons.compress.parallel.InputStreamSupplier

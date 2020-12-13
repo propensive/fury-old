@@ -23,6 +23,7 @@ import guillotine._
 import escritoire._
 import kaleidoscope._
 import mercator._
+import jovian._
 
 import scala.util._
 

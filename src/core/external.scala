@@ -24,6 +24,7 @@ import guillotine._, environments.enclosing
 import kaleidoscope._
 import antiphony._
 import mercator._
+import jovian._
 
 import scala.util._
 import scala.collection.JavaConverters._

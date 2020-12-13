@@ -20,6 +20,7 @@ import fury.model._, fury.io._, fury.text._
 
 import gastronomy._
 import guillotine._
+import jovian._
 
 import scala.util._
 

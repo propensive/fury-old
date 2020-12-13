@@ -18,6 +18,8 @@ package fury
 
 import fury.io._, fury.core._, fury.model._
 
+import jovian._
+
 import Args._
 
 import scala.util._

@@ -20,6 +20,7 @@ import fury.io._, fury.text._, fury.model._
 
 import mercator._
 import euphemism._
+import jovian._
 
 import scala.util._
 

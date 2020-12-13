@@ -18,6 +18,8 @@ package fury.model
 
 import fury.text._, fury.io._
 
+import jovian._
+
 case class AlreadyInitialized() extends FuryException
 case class AlreadyCheckedOut(repo: RepoId) extends FuryException
 case class BranchNotFound(commit: Commit) extends FuryException

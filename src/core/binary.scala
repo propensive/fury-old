@@ -20,6 +20,7 @@ import fury.model._, fury.text._, fury.io._, fury.ogdl._
 
 import exoskeleton._
 import kaleidoscope._
+import jovian._
 
 import scala.collection.immutable._
 import scala.util._
