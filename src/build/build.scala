@@ -364,13 +364,37 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     layer        <- Layer.retrieve(conf)
     (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
     cli          <- cli.hint(ExecNameArg)
+    cli          <- cli.hint(ReporterArg, Reporter.all)
+    cli          <- cli.hint(NoSecurityArg)
+    cli          <- cli.hint(WatchArg)
+    cli          <- cli.hint(WaitArg)
     call         <- cli.call()
-    exec         <- call(ExecNameArg)
     project      <- tryProject
+    globalPolicy <- ~Policy.read(log)
     module       <- tryModule
+    reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
+    watch         = call(WatchArg).isSuccess
+    waiting       = call(WaitArg).isSuccess
+    noSecurity   <- ~call(NoSecurityArg).isSuccess
     build        <- Build.syncBuild(layer, module.ref(project), layout, false)
     _            <- module.kind.as[App].ascribe(InvalidKind(App))
     main         <- module.kind.as[App].map(_.main).ascribe(UnspecifiedMain(module.id))
+
+    r             = repeater(build.allSources, waiting) { for {
+                      task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
+                                  if(call.suffix.isEmpty) Nil else call.suffix, false, reporter,
+                                  ManagedConfig().theme, noSecurity)
+                    } yield {
+                      task.transform { completed =>
+                        for {
+                          compileResult  <- completed
+                          compileSuccess <- compileResult.asTry
+                        } yield compileSuccess
+                      }
+                    } }
+
+    future       <- if(watch || waiting) Try(r.start()).flatten else r.action()
+    exec         <- call(ExecNameArg)
     _            <- ~log.info(msg"Building native image for $exec")
     _            <- build.saveNative(module.ref(project), Installation.optDir, layout, main)
     bin          <- ~(Installation.optDir / main.key.toLowerCase)
