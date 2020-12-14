@@ -58,7 +58,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
   }
 
   object projects {
-    lazy val table: Tabulation[(ProjectRef, Project, Set[Pointer])] = Tables().entities
+    lazy val table: Tabulation[(ProjectRef, (Project, Set[Pointer]))] = Tables().entities
     implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
     def list: Try[ExitStatus] = (cli -< RawArg -< ColumnArg -< ProjectArg).action { for {
@@ -67,10 +67,10 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       universe  <- universe
       
       rows      <- universe.projectRefs.traverse { ref => universe(ref).flatMap { p =>
-                     universe.pointers(ref).map((ref, p, _)) }
+                     universe.pointers(ref).map { ps => (ref, (p, ps)) } }
                    }
 
-      table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, projectId >> (_.key), "project")
+      table     <- ~Tables().show(table, cli.cols, rows.toMap.to[List], has(RawArg), col, projectId >> (_.key), "project")
       _         <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
       _         <- ~log.rawln(table)
     } yield log.await() }

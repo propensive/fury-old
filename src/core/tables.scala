@@ -206,10 +206,10 @@ case class Tables() {
     if(pointers.size > 4) fewPaths+"\n"+msg"...and ${pointers.size - 4} more." else fewPaths
   }
 
-  val entities: Tabulation[(ProjectRef, Project, Set[Pointer])] = Tabulation(
+  val entities: Tabulation[(ProjectRef, (Project, Set[Pointer]))] = Tabulation(
     Heading("Project", _._1),
-    Heading("Description", _._2.description),
-    Heading("Layers", p => showPointers(p._3))
+    Heading("Description", _._2._1.description),
+    Heading("Layers", p => showPointers(p._2._2))
   )
 
   val shades: Tabulation[(ImportId, ProjectId)] = Tabulation(
