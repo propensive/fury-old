@@ -550,7 +550,6 @@ case class ShadeCli(cli: Cli)(implicit log: Log) {
     _         <- ~log.warn(msg"Shading is not yet implemented.")
     projectId <- call(ProjectArg)
     project   <- universe(projectId)
-    project   <- layer.projects.findBy(projectId)
     importId  <- call(ImportIdArg)
     imported  <- layer.imports.findBy(importId)
     shade     <- ~Shade(project.id, false)

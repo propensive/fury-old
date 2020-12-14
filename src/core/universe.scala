@@ -27,6 +27,8 @@ import fury.model.IncludeType.TarFile
 import fury.model.IncludeType.ClassesDir
 
 import scala.collection.mutable.HashMap
+import fury.core.Uniqueness.Unique
+import fury.core.Uniqueness.Ambiguous
 
 object Universe {
   def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
@@ -43,11 +45,21 @@ case class Universe(hierarchy: Hierarchy,
 
   import Uniqueness._
 
+  def shade(shades: Set[Shade]): Universe = {
+    val shadedProjects = shades.foldLeft(projects) { case (ps, next) =>
+      ps.get(next.id).map {
+        case uniq@Unique(ref, origins) => (ps - next.id).updated(ProjectId(s"${next.id.key}-shaded"), uniq)
+        case Ambiguous(origins)   => ps
+      }.getOrElse(ps)
+    }
+    Universe(hierarchy, shadedProjects, repoSets, imports)
+  }
+
   def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
     case Unique(_, origins) => ~origins
     case Ambiguous(origins) =>
       val refOrigins = origins.collect { case (origin, `id`) => origin }
-      if (refOrigins.isEmpty) Failure(new IllegalStateException(str"No known import for $id"))
+      if(refOrigins.isEmpty) Failure(new IllegalStateException(str"No known import for $id"))
       else ~refOrigins.toSet
   }
 

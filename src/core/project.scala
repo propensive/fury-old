@@ -20,11 +20,23 @@ import fury.model._, fury.text._
 
 import mercator._
 import gastronomy._
+import kaleidoscope._
 
 import scala.util._
 import scala.collection.immutable._
 
 case class ProjectConflict(ids: Map[ProjectRef, (Project, Set[Pointer])]) extends FuryException
+
+object ApiVersion {
+  implicit val parser: Parser[ApiVersion] =
+    _.only { case v@r"([a-zA-Z0-9]+[.-])*[a-zA-Z0-9]+" => ApiVersion(v) }
+  
+  implicit val stringShow: StringShow[ApiVersion] = _.key
+  implicit val msgShow: MsgShow[ApiVersion] = v => UserMsg(_.number(v.key))
+  implicit val diff: Diff[ApiVersion] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+}
+
+case class ApiVersion(key: String)
 
 object Project {
   implicit val msgShow: MsgShow[Project] = v => UserMsg(_.project(v.id.key))
@@ -41,7 +53,8 @@ case class Project(id: ProjectId,
                    main: Option[ModuleId] = None,
                    license: LicenseId = License.unknown,
                    description: String = "",
-                   compiler: Option[CompilerRef] = None) {
+                   compiler: Option[CompilerRef] = None,
+                   api: Option[ApiVersion] = None) {
 
   def projectRef(repos: SortedSet[Repo]): ProjectRef = {
     val modulesInput = modules.to[List].map(digesterInput(repos, _))

@@ -65,6 +65,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       col       <- opt(ColumnArg)
       projectId <- opt(ProjectArg)
       universe  <- universe
+      _         <- ~log.info(universe.projects.toString)
       
       rows      <- universe.projectRefs.traverse { ref => universe(ref).flatMap { p =>
                      universe.pointers(ref).map { ps => (ref, (p, ps)) } }

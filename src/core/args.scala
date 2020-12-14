@@ -106,6 +106,7 @@ object Args {
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
   val LayerVersionArg = CliParam[LayerVersion]('v', 'version, "a specific version of the layer")
+  val ApiVersionArg = CliParam[ApiVersion]('v', 'version, "the project's API version")
   val ModuleNameArg = CliParam[ModuleId]('n', 'name, "specify a name for the module")
   val ModuleRefArg = CliParam[String]('d', 'dependency, "specify the dependency to include from")
 
