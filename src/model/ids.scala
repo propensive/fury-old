@@ -288,7 +288,7 @@ object ProjectRef {
   implicit val stringShow: StringShow[ProjectRef] = msgShow.show(_).string(Theme.NoColor)
   
   implicit val msgShow: MsgShow[ProjectRef] =
-    pr => msg"${pr.id}${pr.digest.fold(msg"") { d => msg"${'@'}${UserMsg { th => th.projectDark(d) }}" }}"
+    pr => msg"${pr.id}${pr.digest.fold(msg"") { d => msg"${'@'}${UserMsg(_.projectDark(d))}" }}"
 
   implicit val parser: Parser[ProjectRef] = unapply(_)
 

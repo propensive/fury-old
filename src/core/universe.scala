@@ -31,14 +31,15 @@ import fury.core.Uniqueness.Unique
 import fury.core.Uniqueness.Ambiguous
 
 object Universe {
-  def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map())
+  def apply(hierarchy: Hierarchy): Universe = Universe(hierarchy, Map(), Map(), Map(), Set())
 }
 
 /** A Universe represents a the fully-resolved set of projects available in the layer */
 case class Universe(hierarchy: Hierarchy,
                     projects: Map[ProjectId, Uniqueness[ProjectRef, Pointer]],
                     repoSets: Map[RepoSetId, Set[RepoRef]],
-                    imports: Map[ShortLayerRef, LayerProvenance]) {
+                    imports: Map[ShortLayerRef, LayerProvenance],
+                    shades: Set[ProjectRef]) {
   def ids: Set[ProjectId] = projects.keySet
 
   val javaVersions: HashMap[ModuleRef, Try[Int]] = HashMap()
@@ -46,13 +47,16 @@ case class Universe(hierarchy: Hierarchy,
   import Uniqueness._
 
   def shade(shades: Set[Shade]): Universe = {
-    val shadedProjects = shades.foldLeft(projects) { case (ps, next) =>
-      ps.get(next.id).map {
-        case uniq@Unique(ref, origins) => (ps - next.id).updated(ProjectId(s"${next.id.key}-shaded"), uniq)
-        case Ambiguous(origins)   => ps
-      }.getOrElse(ps)
-    }
-    Universe(hierarchy, shadedProjects, repoSets, imports)
+    val (newProjects: Map[ProjectId, Uniqueness[ProjectRef, Pointer]], shadedSet: Set[ProjectRef]) =
+      shades.foldLeft((projects, Set[ProjectRef]())) { case ((ps, ss), next) =>
+        ps.get(next.id).map {
+          case uniq@Unique(ref, origins) =>
+            (ps - next.id, ss + ref)
+          case Ambiguous(origins) =>
+            (ps, ss)
+        }.getOrElse((ps, ss))
+      }
+    Universe(hierarchy, newProjects, repoSets, imports, shadedSet)
   }
 
   def pointers(id: ProjectRef): Try[Set[Pointer]] = projects.get(id.id).ascribe(ItemNotFound(id)).flatMap {
@@ -141,7 +145,7 @@ case class Universe(hierarchy: Hierarchy,
       acc.updated(layerRef, acc.getOrElse(layerRef, entity) + entity.imports)
     }
 
-    Universe(hierarchy, newProjects, newRepoSets, newImports)
+    Universe(hierarchy, newProjects, newRepoSets, newImports, that.shades ++ shades)
   }
 
   private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =
