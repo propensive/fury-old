@@ -1,6 +1,6 @@
 fury clean repositories
 fury clean sources
-fury repo add -R gh:propensive/.sample -n sample --tag two
+fury repo add -g gh:propensive/.sample -n sample --tag two
 fury --output summary
 fury repo pull -r sample
 fury --output summary
