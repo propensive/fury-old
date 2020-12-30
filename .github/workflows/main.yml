@@ -24,7 +24,7 @@ jobs:
         make tmp/.version
         make dist/fury
         mv dist/fury.tar.gz dist/fury-$(head -n 1 tmp/.version).tar.gz
-      timeout-minutes: 10
+      timeout-minutes: 20
     - uses: actions/upload-artifact@v2
       with:
         name: build-dist-${{ runner.os }}
@@ -56,12 +56,12 @@ jobs:
         dist/fury system install
         echo "$HOME/.local/share/fury/usr/active/bin" >> $GITHUB_PATH
         echo "$HOME/.local/share/fury/usr/active/opt" >> $GITHUB_PATH
-      timeout-minutes: 5
+      timeout-minutes: 10
     - name: Run unit tests
       run: |
         fury test --disable-security-manager --output linear || touch unittests.failed
         ! ls -1 unittests.failed 2> /dev/null
-      timeout-minutes: 5
+      timeout-minutes: 10
     - uses: actions/upload-artifact@v2
       with:
         name: logs-unit-tests-${{ runner.os }}
