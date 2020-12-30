@@ -18,10 +18,10 @@ fury layer init --bare
 fury project add -n foo
 fury module add -n bar
 fury module list --raw
-fury repo add -n library -R ../library -B master
+fury repo add -n library -g ../library -B master
 fury repo list --raw -c branch/tag
 
-fury repo add -n library -R ../library -B update
+fury repo add -n library -g ../library -B update
 echo $?
 fury repo list --raw -c branch/tag
 
