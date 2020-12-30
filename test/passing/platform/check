@@ -10,9 +10,7 @@ Starting compilation of module library/core
 Successfully compiled module library/core
 0
 Initialized a bare layer
-Checking that no modules reference local sources
-Checking that no project names conflict
-Checking that all module references resolve
+Checking that the layer is valid
 Set current project to hello-world
 Setting default compiler for hello-world to scala/compiler
 Set current module to app

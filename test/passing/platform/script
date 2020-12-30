@@ -28,7 +28,7 @@ IPFSREF=$(fury layer share --raw)
 
 cd ../app
 fury layer init --bare
-fury layer import -l $IPFSREF --name platform
+fury import add -l $IPFSREF --name platform
 IPFSREF=
 fury project add -n hello-world
 fury module add -n app -c scala/compiler -t app -M HelloWorld
