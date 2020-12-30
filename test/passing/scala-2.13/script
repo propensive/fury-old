@@ -7,6 +7,6 @@ fury project add -n hello-world
 fury module add -n app -c scala/compiler -t app -M HelloWorld
 fury source add -s src
 mkdir -p src
-#fury build run --output quiet >> /dev/null
+fury build run --output quiet >> /dev/null
 fury build run --output linear
 echo $?

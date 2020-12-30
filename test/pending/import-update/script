@@ -1,8 +1,8 @@
 fury layer init --bare
 
-fury layer import -l fury://furore.dev/propensive/scala
-fury layer import -l fury://furore.dev/propensive/probably -V 2.2
-fury layer list --raw --column 'Published as'
+fury import add -l scala/scala
+fury import add -l propensive/probably --version 6
+fury import list --raw --column 'Published as'
 
 fury project add -n hello-test
 fury module add -n app -c scala/compiler -t app -M DummyTest
@@ -12,8 +12,8 @@ fury source add -s src
 fury --output summary
 echo $?
 
-fury layer pull -i probably -V 1.10
-fury layer list --raw --column 'Published as'
+fury import pull -i probably -V 1.10
+fury import list --raw --column 'Published as'
 
 fury --output summary | sed $'s,[\x01-\x1F\x7F][[0-9;]*[a-zA-Z],,g' | sed -E 's,[0-9]\.[0-9]{3},-----,g'
 echo $?

@@ -35,12 +35,12 @@ echo IPFS ref 2: $IPFSREF2
 cd ..
 
 fury layer init --bare
-fury layer import -l $IPFSREF1 --name platform1
+fury import add -l $IPFSREF1 --name platform1
 echo $?
-fury layer import -l $IPFSREF2 --name platform2
+fury import add -l $IPFSREF2 --name platform2
 echo $?
-fury layer list --raw --column ref
+fury import list --raw --column ref
 fury universe projects list --raw
 fury universe projects proliferate -p hello-world@9a328e
-fury layer list --raw --column ref
+fury import list --raw --column ref
 fury universe projects list --raw
