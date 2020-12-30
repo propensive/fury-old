@@ -3,9 +3,7 @@ fury://QmQzZqVxyEqhVsWB7CjRNefyrT35ik7oK5HojcxJrzPFhx
 Set current project to example
 Set current module to core
 QmRm63bzYELt6QFYDf1GZMs4gv3v7bs7u6tF8aCafhvpoa
-Checking that no modules reference local sources
-Checking that no project names conflict
-Checking that all module references resolve
+Checking that the layer is valid
 Cloning layer QmRm63bzYELt6QFYDf1GZMs4gv3v7bs7u6tF8aCafhvpoa into layer2
 Saving Fury configuration file layer2/.fury/config
 Cloning complete
