@@ -7,9 +7,7 @@ Set current module to core
 0
 IPFS ref: fury://Qmbg8c5BHdpLVyg3tamvU8DJJdG5qT8L4rp3wk5guTAfcr
 Initialized a bare layer
-Checking that no modules reference local sources
-Checking that no project names conflict
-Checking that all module references resolve
+Checking that the layer is valid
 platform
 path	/platform
 Layer name .. not found.
