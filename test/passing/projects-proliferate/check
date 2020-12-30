@@ -13,13 +13,9 @@ Setting default compiler for hello-world to scala/compiler
 Set current module to app
 IPFS ref 2: fury://QmbFW5SEsDsLrrxAriUgQHZXKEQXzXZN9ZZmADtVGwMvT4
 Initialized a bare layer
-Checking that no modules reference local sources
-Checking that no project names conflict
-Checking that all module references resolve
+Checking that the layer is valid
 0
-Checking that no modules reference local sources
-Checking that no project names conflict
-Checking that all module references resolve
+Checking that the layer is valid
 0
 U2Asaiwr
 bFW5SEsD
