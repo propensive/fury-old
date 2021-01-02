@@ -324,8 +324,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                               compileResult  <- completed
                               compileSuccess <- compileResult.asTry
                               _              <- (dir.map { dir => build.saveJars(module.ref(project),
-                                                    compileSuccess.classDirectories, dir in layout.pwd, layout,
-                                                    output)
+                                                    compileSuccess.classDirectories.values.to[Set],
+                                                    dir in layout.pwd, layout, output)
                                                 }).getOrElse(Success(()))
                             } yield compileSuccess
                           }

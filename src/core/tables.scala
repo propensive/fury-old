@@ -113,6 +113,10 @@ case class Tables() {
         m.dependencies, width = FlexibleWidth)(refinedModuleDep(universe, projectId)
       ),
       Heading("Sources", _.sources),
+      Heading("Workspace", _.workspace match {
+        case None     => msg"${'-'}"
+        case Some(ws) => msg"$ws"
+      }),
       Heading("Binaries", m => m.allBinaries.size),
       Heading("Compiler", _.compiler),
       Heading("Options", m => m.opts.size),
@@ -133,7 +137,7 @@ case class Tables() {
 
   def sources(snapshots: Snapshots, layout: Layout): Tabulation[Source] = Tabulation(
     Heading("Repo", _.repoIdentifier),
-    Heading("Path", _.dir),
+    Heading("Path", _.path),
     Heading("Sources", _.glob),
     Heading("Files", _.fileCount(snapshots, layout).getOrElse(0)),
     Heading("Size", _.totalSize(snapshots, layout).getOrElse(ByteSize(0))),
@@ -142,16 +146,23 @@ case class Tables() {
 
   val resources: Tabulation[Source] = Tabulation(
     Heading("Repo", _.repoIdentifier),
-    Heading("Base", _.dir),
+    Heading("Base", _.path),
     Heading("Resources", _.glob)
   )
 
   val includes: Tabulation[Include] = Tabulation(
-    Heading("Include", _.id),
-    Heading("Dependency", _.ref),
-    Heading("Type", _.kind),
-    Heading("Path", _.path)
+    Heading("Target", _.id),
+    Heading("Type", _.kind.name),
+    Heading("Source", _.kind match {
+      case Jarfile(dependency)      => msg"$dependency"
+      case JsFile(dependency)       => msg"$dependency"
+      case TarFile(workspace, path) => msg"$workspace${':'}$path"
+      case TgzFile(workspace, path) => msg"$workspace${':'}$path"
+      case ClassesDir(dependency)   => msg"$dependency"
+      case FileRef(spaceId, path)   => msg"${spaceId.repo}${':'}$path"
+    })
   )
+
 
   val opts: Tabulation[Provenance[Opt]] = Tabulation(
     Heading("", o => if(o.value.remove) "-" else "+"),
@@ -232,6 +243,11 @@ case class Tables() {
     Heading("Commit", _.commit),
     Heading("Path", _.local),
     Heading("Changes", r => if(r.local.isEmpty) None else r.changes(layout).toOption.flatten)
+  )
+
+  val workspaces: Tabulation[Workspace] = Tabulation(
+    Heading("Workspace", _.id),
+    Heading("Path", _.local)
   )
 
   val snapshots: Tabulation[Snapshot] = Tabulation(

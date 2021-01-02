@@ -47,9 +47,11 @@ case class BuildResult(bspResult: CompileResult, scalacOptions: ScalacOptionsRes
 
   def success: Boolean = bspResult.getStatusCode == StatusCode.OK && exitCode.forall(_ == 0)
 
-  def classDirectories: Set[Path] = scalacOptions.getItems.asScala.to[Set].map { x: ScalacOptionsItem =>
-    Path(new URI(x.getClassDirectory))
-  }
+  def classDirectories: Map[ModuleRef, Path] = scalacOptions.getItems.asScala.to[Set].map {
+    soi: ScalacOptionsItem =>
+      val ref = ModuleRef.fromUri(soi.getTarget.getUri)
+      ref -> Path(new URI(soi.getClassDirectory))
+  }.toMap
 
   def asTry: Try[BuildResult] =
     if(success) Success(this)

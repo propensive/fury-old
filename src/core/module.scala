@@ -43,6 +43,7 @@ case class Module(id: ModuleId,
                   policy: SortedSet[Permission] = TreeSet(),
                   hidden: Boolean = false,
                   optDefs: SortedSet[OptDef] = TreeSet(),
+                  workspace: Option[WorkspaceId] = None,
                   deterministic: Boolean = false) {
 
   def allBinaries: SortedSet[Binary] = if(kind.is[Bench]) binaries + Binary.Jmh else binaries

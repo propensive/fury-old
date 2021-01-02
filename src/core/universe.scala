@@ -22,9 +22,6 @@ import mercator._
 import jovian._
 
 import scala.util._
-import fury.model.IncludeType.Jarfile
-import fury.model.IncludeType.TarFile
-import fury.model.IncludeType.ClassesDir
 
 import scala.collection.mutable.HashMap
 
@@ -93,7 +90,7 @@ case class Universe(hierarchy: Hierarchy,
     module  <- project(ref.moduleId)
     layer   <- layer(ref.projectId)
     inputs  =  (module.externalSources ++ module.externalResources).to[List]
-    repos   <- inputs.groupBy(_.repoId).to[List].traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v.map(_.dir)) }
+    repos   <- inputs.groupBy(_.repoId).to[List].traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v.map(_.path)) }
   } yield repos.toMap
 
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
@@ -102,6 +99,13 @@ case class Universe(hierarchy: Hierarchy,
     val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
     snapshot.hash -> snapshot
   })
+
+  def workspace(ref: ModuleRef, layout: Layout): Try[Option[Path]] = for {
+    project   <- apply(ref.projectId)
+    module    <- project(ref.moduleId)
+    layer     <- layer(ref.projectId)
+    workspace <- module.workspace.traverse(layer.workspaces.findBy(_))
+  } yield workspace.map { ws => ws.local.getOrElse(layout.workspaceDir(ws.id)) }
 
   def javaVersion(ref: ModuleRef, layout: Layout): Try[Int] =
     javaVersions.getOrElseUpdate(ref, for {

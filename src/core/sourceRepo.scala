@@ -23,6 +23,13 @@ import jovian._
 
 import scala.util._
 
+object Workspace extends Lens.Partial[Workspace] {
+  implicit val msgShow: MsgShow[Workspace] = w => UserMsg(_.repo(w.id.key))
+  implicit val stringShow: StringShow[Workspace] = _.id.key
+  implicit def diff: Diff[Workspace] = Diff.gen[Workspace]
+}
+
+case class Workspace(id: WorkspaceId, local: Option[Path])
 
 object Repo extends Lens.Partial[Repo] {
   implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.repo(r.id.key))

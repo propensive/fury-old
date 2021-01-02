@@ -52,20 +52,16 @@ case class Shell(environment: Environment) {
              (output: String => Unit)
              (implicit log: Log)
              : Running = {
-    layout.sharedDir.mkdir()
 
     implicit val defaultEnvironment: Environment =
-      Environment((environment.variables ++ env).updated("SHARED", layout.sharedDir.value), environment.workDir)
+      Environment((environment.variables ++ env), environment.workDir)
 
     val policyFile = Installation.policyDir.extant() / UUID.randomUUID().toString
     policy.save(policyFile, workDir).get
 
-    val allProperties: Map[String, String] = {
-      val withPolicy = if(noSecurity) properties else
-          properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)
-      
-      withPolicy.updated("fury.sharedDir", layout.sharedDir.value)
-    }
+    val allProperties: Map[String, String] =
+      if(noSecurity) properties
+      else properties.updated("java.security.manager", "").updated("java.security.policy", policyFile.value)
 
     val propArgs = allProperties.map { case (k, v) => if(v.isEmpty) str"-D$k" else str"-D$k=$v" }.to[List]
 
@@ -73,7 +69,7 @@ case class Shell(environment: Environment) {
     
     val cmd =
       if(securePolicy) sh"${Jdk.javaExec(javaVersion)} $propArgs -cp $classpathStr ${main.key} $args"
-      else sh"${Jdk.javaExec(javaVersion)} -Dfury.sharedDir=${layout.sharedDir.value} -cp ${classpath.mkString(":")} ${main.key} $args"
+      else sh"${Jdk.javaExec(javaVersion)} -cp ${classpath.mkString(":")} ${main.key} $args"
 
     cmd.async(output(_), output(_))
   }

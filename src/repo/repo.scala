@@ -33,6 +33,44 @@ import scala.collection.immutable.SortedSet
 
 import scala.util._
 
+case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
+
+  def list: Try[ExitStatus] = {
+    val table: Tabulation[Workspace] = Tables().workspaces
+    
+    implicit val columnHints: ColumnArg.Hinter =
+      ColumnArg.hint(table.headings.map(_.name.toLowerCase))
+
+    (cli -< RawArg -< ColumnArg -< WorkspaceArg -< LayerArg).action { for {
+      rows  <- getLayer >> (_.workspaces)
+      repo  <- opt(WorkspaceArg) >> (printTable(table, rows, _, "workspace"))
+    } yield log.await() }
+  }
+  
+  def add: Try[ExitStatus] = (cli -< PathArg -< WorkspaceNameArg -< LayerArg).action { for {
+    layout  <- getLayout
+    path    <- relPathOpt
+    pointer <- getPointer
+    id      <- findUniqueSpaceName
+    _       <- getHierarchy >>= (WorkspaceApi(_).add(pointer, id.workspace, path, layout)) >>= commit
+  } yield log.await() }
+
+  def update: Try[ExitStatus] =
+    (cli -< LayerArg -< RepoArg -< WorkspaceNameArg).action { for {
+      workspace <- getWorkspace
+      newId     <- opt(WorkspaceNameArg)
+      layout    <- getLayout
+      hierarchy <- getHierarchy
+      pointer   <- getPointer
+      _         <- WorkspaceApi(hierarchy).update(pointer, workspace.id, newId, layout) >>= commit
+    } yield log.await() }
+
+  def remove: Try[ExitStatus] = (cli -< WorkspaceArg).action {
+    ((getHierarchy, getPointer, getWorkspace >> (_.id)) >>= (WorkspaceApi(_).remove(_, _)) >>= commit) >> finish
+  }
+  
+}
+
 case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   def list: Try[ExitStatus] = {
@@ -231,5 +269,28 @@ case class RepoApi(hierarchy: Hierarchy) {
     branch    <- refSpec.fold(~repo.branch)(gitDir.chooseBranch)
     repo      <- ~repo.copy(branch = branch, commit = commit)
     hierarchy <- hierarchy(pointer) = Layer(_.repos(id))(layer) = repo
+  } yield hierarchy
+}
+
+case class WorkspaceApi(hierarchy: Hierarchy) {
+
+  def remove(pointer: Pointer, id: WorkspaceId)(implicit log: Log): Try[Hierarchy] = hierarchy.on(pointer) { layer =>
+    layer.workspaces.findBy(id).map { r => Layer(_.workspaces).modify(layer)(_ - r) }
+  }
+
+  def add(pointer: Pointer, id: WorkspaceId, path: Option[Path], layout: Layout)
+         (implicit log: Log)
+         : Try[Hierarchy] = for {
+    layer      <- hierarchy(pointer)
+    hierarchy  <- hierarchy(pointer) = Layer(_.workspaces).modify(layer)(_ + Workspace(id, path))
+  } yield hierarchy
+
+  def update(pointer: Pointer, id: WorkspaceId, name: Option[WorkspaceId], layout: Layout)
+            (implicit log: Log)
+            : Try[Hierarchy] = for {
+    layer     <- hierarchy(pointer)
+    workspace <- layer.workspaces.findBy(id)
+    workspace <- ~name.fold(workspace)(Workspace(_.id)(workspace) = _)
+    hierarchy <- hierarchy(pointer) = Layer(_.workspaces(id))(layer) = workspace
   } yield hierarchy
 }

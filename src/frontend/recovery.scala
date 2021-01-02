@@ -201,6 +201,8 @@ You can grant these permissions with,
           cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}$stack")
         case InvalidKind(expected: Kind.Id) =>
           cli.abort(msg"The module must be of type ${expected}.")
+        case InvalidIncludeType(expected: IncludeType.Id) =>
+          cli.abort(msg"The include must be of type ${expected}.")
         case e: UnknownCompiler =>
           cli.abort(msg"This compiler is not known.")
         case UnknownBinaryRepository(repoId: BinRepoId) =>

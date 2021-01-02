@@ -37,13 +37,15 @@ object Target {
     module      <- project(ref.moduleId)
     binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
     checkouts   <- universe.checkout(ref, layout)
+    workspace   <- universe.workspace(ref, layout)
     javaVersion <- universe.javaVersion(ref, layout)
     sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-  } yield Target(ref, module, project, checkouts, sources, binaries, javaVersion)
+  } yield Target(ref, module, workspace, project, checkouts, sources, binaries, javaVersion)
 }
 
 case class Target(ref: ModuleRef,
                   module: Module,
+                  workspace: Option[Path],
                   project: Project,
                   snapshots: Snapshots,
                   sourcePaths: List[Path],
@@ -52,4 +54,7 @@ case class Target(ref: ModuleRef,
 
   lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
   lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
+
+  def canAffectBuild = module.kind.is[Lib] || module.includes.nonEmpty
+  def directDependencies = module.dependencies ++ module.compiler()
 }

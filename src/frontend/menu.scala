@@ -68,7 +68,7 @@ object FuryMenu {
       
       Action('classes, msg"clean compiled classes", CleanCli(_).cleanClasses, needsLayer = false),
       Action('logs, msg"clean logs", CleanCli(_).cleanLogs, needsLayer = false),
-      Action('repositories, msg"clean repositories", CleanCli(_).cleanRepos, needsLayer = false),
+      Action('repos, msg"clean repositories", CleanCli(_).cleanRepos, needsLayer = false),
       Action('sources, msg"clean checked out sources", CleanCli(_).cleanSources, needsLayer = false)
     ),
     Action('completion, msg"ZSH completions", Cli.asCompletion(menu(aliases)), show = false),
@@ -183,6 +183,12 @@ object FuryMenu {
         Action('list, msg"show all layer imports", UniverseCli(_).imports.list, shortcut = 'l'),
         Action('update, msg"update layer imports universally", UniverseCli(_).imports.update, shortcut = 'u'),
       )
+    ),
+    Menu('workspace, msg"view and edit workspaces", 'list, shortcut = 'w')(
+      Action('list, msg"add a workspace", WorkspaceCli(_).list, shortcut = 'l'),
+      Action('add, msg"add a workspace to the layer", WorkspaceCli(_).add, shortcut = 'a'),
+      Action('update, msg"update a workspace", WorkspaceCli(_).update, shortcut = 'u'),
+      Action('remove, msg"remove a workspace from the layer", WorkspaceCli(_).remove, shortcut = 'r'),
     ),
     Menu('layer, msg"view and edit the layer", 'projects, shortcut = 'l', needsLayer = false)(
       Action('clone, msg"clone an external layer", LayerCli(_).cloneLayer, shortcut = 'c', needsLayer = false),

@@ -37,6 +37,7 @@ case class Layer(version: Int,
                  aliases: SortedSet[Alias] = TreeSet(),
                  projects: SortedSet[Project] = TreeSet(),
                  repos: SortedSet[Repo] = TreeSet(),
+                 workspaces: SortedSet[Workspace] = TreeSet(),
                  imports: SortedSet[Import] = TreeSet(),
                  main: Option[ProjectId] = None,
                  mainRepo: Option[RepoId] = None,
@@ -45,6 +46,8 @@ case class Layer(version: Int,
   def apply(id: ProjectId) = projects.findBy(id)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
+
+  def spaces: SortedSet[SpaceId] = repos.map(_.id) ++ workspaces.map(_.id)
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
@@ -165,7 +168,7 @@ object Layer extends Lens.Partial[Layer] {
     layer <- dereference(base, conf.path)
   } yield layer
 
-  def readDb(layout: Layout)(implicit log: Log): Try[Unit] =
+  def readDb(layout: Layout)(implicit log: Log): Try[Unit] = {
     if(layout.layerDb.exists && Some(layout.layerDb.lastModified) != dbCache.get(layout.layerDb)) for {
       inputs <- TarGz.untargz(layout.layerDb.inputStream())
       _      =  log.note(msg"The layer storage at ${layout.layerDb} contains ${inputs.size} entries")
@@ -177,6 +180,7 @@ object Layer extends Lens.Partial[Layer] {
       _      <- Try(synchronized { dbCache(layout.layerDb) = layout.layerDb.lastModified })
     } yield ()
     else Success(())
+  }
 
   def dereference(layer: Layer, path: Pointer)(implicit log: Log): Try[Layer] =
     if(path.isEmpty) Success(layer)

@@ -52,7 +52,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def add: Try[ExitStatus] = {
-    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg
+    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -< WorkspaceArg
       -?< (PluginArg, getKindName >> oneOf(Plugin))
       -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
       -?< (ReplArg, getKindName >> oneOf(Compiler))
@@ -103,7 +103,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def update: Try[ExitStatus] = {
-    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg
+    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -< WorkspaceArg
       -?< (PluginArg, getKindName >> oneOf(Plugin))
       -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
       -?< (ReplArg, getKindName >> oneOf(Compiler))
@@ -114,9 +114,9 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       val newModules = (getProject >> (_.modules), getModule, newModule) >> (_ - _ + _)
       
       val newLayer = for {
-        layer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
-        updateMain <- (getProject >> (_.main), getModule >> (_.id)) >> (_.contains(_))
-        lens <- mainModuleLens
+        layer       <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        updateMain  <- (getProject >> (_.main), getModule >> (_.id)) >> (_.contains(_))
+        lens        <- mainModuleLens
         newModuleId <- newModule >> (_.id)
       } yield {
         if(updateMain) Layer.set(Option(newModuleId))(layer, lens)
@@ -129,14 +129,16 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
     }
   }
 
-  private[this] def renamedFromCli(base: Module): Try[Module] = opt(ModuleNameArg) >> (_.fold(base)(x => base.copy(id = x)))
+  private[this] def renamedFromCli(base: Module): Try[Module] =
+    opt(ModuleNameArg) >> (_.fold(base)(x => base.copy(id = x)))
 
   private[this] def updatedFromCli(base: Module): Try[Module] = for {
-    kind <- ~cliKind.getOrElse(base.kind)
-    compiler <- cliCompiler >> (_.getOrElse(base.compiler))
+    kind      <- ~cliKind.getOrElse(base.kind)
+    compiler  <- cliCompiler >> (_.getOrElse(base.compiler))
+    workspace <- opt(WorkspaceArg) >> (_.orElse(base.workspace))
   } yield {
     val hidden = has(HiddenArg)
-    base.copy(compiler = compiler, kind = kind, hidden = hidden)
+    base.copy(compiler = compiler, kind = kind, hidden = hidden, workspace = workspace)
   }
 
   private[this] lazy val cliKind: Try[Kind] = getKindName >>= (_ match {
@@ -154,7 +156,8 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
 
   private[this] lazy val getCompilerRefs = (getLayer, getLayout) >> (_.compilerRefs(_))
 
-  private[this] lazy val getTable = (getProject >> (_.id), getProject >> (_.main), universe) >> (Tables().modules(_, _, _))
+  private[this] lazy val getTable =
+    (getProject >> (_.id), getProject >> (_.main), universe) >> (Tables().modules(_, _, _))
 
   private[this] lazy val getModuleName = (getProject >> (_.modules), get(ModuleNameArg)) >>= (_.unique(_))
 
@@ -188,7 +191,4 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
 
   private[this] def defaultCompilerLens: Try[Lens[Layer, Option[CompilerRef], Option[CompilerRef]]] = getProject >>
     { case p => Lens[Layer](_.projects(p.id).compiler) }
-
-  private[this] def oneOf[T](options: T*): T => Boolean = options contains _
-
 }

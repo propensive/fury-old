@@ -26,35 +26,48 @@ import scala.util._
 
 case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
-  def add: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeNameArg -< IncludeTypeArg -<
-      PathArg -< ModuleRefArg).action {
+  implicit lazy val possibleFileHints: SourceArg.Hinter = SourceArg.hint((getLayout, getLayer) >> {
+    case (layout, layer) =>
+      val extSrcs = layer.repos.map { repo => repo.listFiles(layout).getOrElse(Nil).map { f => RepoSource(repo.id, f, Glob.All) } }.flatten
+      val localSrcs = layout.pwd.relativeSubdirsContaining { _ => true }.map(LocalSource(_, Glob.All))
+      
+      /*val workspaceFiles = layer.workspaces.map { workspace => workspace.listFiles(layout).map { f =>
+        WorkspaceSource(workspace.id, f)
+      } }.flatten*/
+
+      extSrcs ++ localSrcs// ++ workspaceFiles
+    })
+
+  def add: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeTypeArg -< PathArg
+      -?< (ModuleRefArg, getIncludeType >> oneOf(ClassesDir, Jarfile, JsFile))
+      -?< (SourceArg, getIncludeType >> oneOf(FileRef, TarFile, TgzFile))).action {
     for {
       hierarchy <- getHierarchy
       pointer   <- getPointer
       projectId <- getProject >> (_.id)
       moduleId  <- getModule >> (_.id)
-      ref       <- getDependency
-      name      <- getIncludeName
-      kind      <- getIncludeType
+      kind      <- getInclude
       path      <- get(PathArg)
-      hierarchy <- IncludeApi(hierarchy).add(pointer, projectId, moduleId, name, ref, kind, path) >>= commit
+      hierarchy <- IncludeApi(hierarchy).add(pointer, projectId, moduleId, kind, path) >>= commit
     } yield log.await()
   }
   
-  def update: Try[ExitStatus] = (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeArg -< IncludeNameArg -<
-      IncludeTypeArg -< PathArg -< ModuleRefArg).action {
-    for {
-      hierarchy <- getHierarchy
-      pointer   <- getPointer
-      projectId <- getProject >> (_.id)
-      moduleId  <- getModule >> (_.id)
-      ref       <- optDependency
-      id        <- get(IncludeArg)
-      name      <- opt(IncludeNameArg)
-      kind      <- opt(IncludeTypeArg)
-      path      <- opt(PathArg)
-      hierarchy <- IncludeApi(hierarchy).update(pointer, projectId, moduleId, id, name, ref, kind, path) >>= commit
-    } yield log.await()
+  def update: Try[ExitStatus] = {
+    (cli -< LayerArg -< ProjectArg -< ModuleArg -< IncludeArg -< IncludeTypeArg -< PathArg
+        -?< (ModuleRefArg, getIncludeType >> oneOf(ClassesDir, Jarfile))
+        -?< (SourceArg, getIncludeType >> oneOf(FileRef, TarFile, TgzFile))).action {
+      for {
+        hierarchy <- getHierarchy
+        pointer   <- getPointer
+        projectId <- getProject >> (_.id)
+        moduleId  <- getModule >> (_.id)
+        ref       <- optDependency
+        id        <- get(IncludeArg)
+        kind      <- opt(IncludeTypeArg).map(_ => getInclude)
+        path      <- opt(PathArg)
+        hierarchy <- IncludeApi(hierarchy).update(pointer, projectId, moduleId, id, ref, kind.toOption, path) >>= commit
+      } yield log.await()
+    }
   }
   
   def list: Try[ExitStatus] = {
@@ -92,25 +105,19 @@ case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
 }
 
 case class IncludeApi(hierarchy: Hierarchy) {
-  def remove(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, includeId: IncludeId)
+  def remove(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, id: IncludeId)
             (implicit log: Log)
             : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
-    include <- layer.projects.findBy(projectId) >>= (_.modules.findBy(moduleId)) >>= (_.includes.findBy(includeId))
+    include <- layer.projects.findBy(projectId) >>= (_.modules.findBy(moduleId)) >>= (_.includes.findBy(id))
   } yield Layer(_.projects(projectId).modules(moduleId).includes).modify(layer)(_ - include) }
 
-  def add(pointer: Pointer,
-          projectId: ProjectId,
-          moduleId: ModuleId,
-          name: IncludeId,
-          ref: ModuleRef,
-          kind: IncludeType,
-          path: Path)
+  def add(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, kind: IncludeType, path: Path)
          (implicit log: Log)
          : Try[Hierarchy] = hierarchy.on(pointer) { layer =>
     val lens = Layer(_.projects(projectId).modules(moduleId).includes)
-    val include = Include(name, ref, kind, path)
+    val include = Include(IncludeId(path), kind)
     
-    if(lens(layer).map(_.id).contains(name)) Failure(NotUnique(name))
+    if(lens(layer).map(_.id).contains(include.id)) Failure(NotUnique(include.id))
     else Success(lens.modify(layer)(_ + include))
   }
 
@@ -118,18 +125,16 @@ case class IncludeApi(hierarchy: Hierarchy) {
              projectId: ProjectId,
              moduleId: ModuleId,
              id: IncludeId,
-             name: Option[IncludeId],
              ref: Option[ModuleRef],
              kind: Option[IncludeType],
              path: Option[Path])
             (implicit log: Log)
             : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
     lens       <- ~Layer(_.projects(projectId).modules(moduleId).includes)
-    _          <- name.fold(~id)(lens(layer).unique(_))
+    _          <- path.map(IncludeId(_)).fold(~id)(lens(layer).unique(_))
     oldInclude <- lens(layer).findBy(id)
-    newInclude <- ~name.fold(oldInclude) { v => oldInclude.copy(id = v) }
-    newInclude <- ~ref.fold(newInclude) { v => newInclude.copy(ref = v) }
-    newInclude <- ~kind.fold(newInclude) { v => newInclude.copy(kind = v) }
-    newInclude <- ~path.fold(newInclude) { v => newInclude.copy(path = v) }
+    newInclude <- ~kind.fold(oldInclude) { v => oldInclude.copy(kind = v) }
+    newInclude <- ~path.map(IncludeId(_)).fold(newInclude) { v => newInclude.copy(id = v) }
   } yield Layer(_.projects(projectId).modules(moduleId).includes).modify(layer)(_ - oldInclude + newInclude) }
+
 }

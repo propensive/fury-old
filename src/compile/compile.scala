@@ -242,23 +242,19 @@ object Build {
     _         <- build.generateFiles(layout)
   } yield build
 
-  def apply(universe: Universe, dependency: Dependency, layout: Layout)
-           (implicit log: Log)
-           : Try[Build] = {
-    def directDependencies(target: Target): Set[Dependency] = target.module.dependencies ++ target.module.compiler()
-    def canAffectBuild(target: Target): Boolean = !target.module.kind.is[Lib]
+  def apply(universe: Universe, dependency: Dependency, layout: Layout)(implicit log: Log): Try[Build] = {
 
-    def graph(target: Target): Try[Target.Graph] = for {
-      requiredModules <- universe.dependencies(dependency.ref, layout)
-      requiredTargets <- requiredModules.map(_.ref).traverse(Target(_, universe, layout))
+    def makeGraph(target: Target): Try[Target.Graph] = for {
+      modules <- universe.dependencies(dependency.ref, layout)
+      targets <- modules.map(_.ref).traverse(Target(_, universe, layout))
     } yield {
-      val targetGraph = (requiredTargets + target).map { t => t.ref -> directDependencies(t) }
-      Target.Graph(targetGraph.toMap, requiredTargets.map { t => t.ref -> t }.toMap)
+      val targetGraph = (targets + target).map { t => t.ref -> t.directDependencies }.toMap
+      Target.Graph(targetGraph, targets.map { t => t.ref -> t }.toMap)
     }
 
     for {
       target      <- Target(dependency.ref, universe, layout)
-      graph       <- graph(target)
+      graph       <- makeGraph(target)
 
       targetIndex <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse { ref =>
                        Target(ref, universe, layout).map(ref -> _)
@@ -269,7 +265,7 @@ object Build {
       policy       = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     } yield {
       val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
-      val intermediateTargets = targets.filter(canAffectBuild)
+      val intermediateTargets = targets.filter(_.canAffectBuild)
       
       val subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(intermediateTargets.map(_.ref).to[Set] + dependency.ref).connections
       
@@ -324,7 +320,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
   } yield broadcast(Print(build.target.ref, params.getMessage))
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
-    val ref = extractModuleRef(params.getBuildTarget.getUri)
+    val ref = ModuleRef.fromUri(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     val build = for {
       idString <- Option(params.getOriginId)
@@ -403,15 +399,7 @@ ${'|'} ${highlightedLine}
   }
 
   private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef =
-    extractModuleRef(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
-
-  private[this] def extractModuleRef(uri: String) = {
-    val params = new java.net.URI(uri).getRawQuery.split("^").map(_.split("=", 2)).map {
-      param => param(0) -> param(1)
-    }.toMap
-
-    ModuleRef(params("id").split("_", 2).mkString("/"))
-  }
+    ModuleRef.fromUri(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val ref = getCompileRef(params.getData)
@@ -478,24 +466,38 @@ case class Build(target: Target,
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     synchronized { Bloop.generateFiles(this, layout) }
 
-  def copyInclude(ref: ModuleRef, include: Include, layout: Layout)(implicit log: Log): Try[Unit] =
+  def copyInclude(result: BuildResult, ref: ModuleRef, include: Include, layout: Layout, work: Path)(implicit log: Log): Try[Unit] =
     include.kind match {
-      case IncludeType.ClassesDir =>
-        include.path.mkdir().flatMap {
-          layout.classesDir(include.ref).copyTo(include.path in layout.workDir(ref)).waive
-        }.munit
-      case IncludeType.FileRef(glob) =>
-        glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
+      case ClassesDir(dependency) =>
+        val dest = include.id.path in work
+        ~log.info(msg"Copying classes from $dependency to $dest")
+        dest.mkdir().flatMap(layout.classesDir(dependency).copyTo(dest).waive).munit
+
+      case Jarfile(dependency) =>
+        val srcs = deepDependencies(dependency).map(layout.classesDir(_))
+        ~log.info(msg"Creating JAR file of $dependency at ${include.id.path in work}")
+        saveJars(dependency, srcs, include.id.path in work, layout, Some(Args.FatJarArg))
+      
+      case JsFile(dependency) =>
+        val srcs = deepDependencies(dependency).map(layout.classesDir(_))
+        ~log.info(msg"Saving JS file of $dependency at ${include.id.path in work}")
+        saveJars(dependency, srcs, include.id.path in work, layout, Some(Args.JsArg))
+
+      case FileRef(repoId, path) =>
+        /*glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
           val work = layout.workDir(include.ref)
           val relSrc = p.relativizeTo(work)
           val dest = relSrc in (include.path in layout.workDir(ref))
           log.note(msg"Copying $relSrc in ${include.ref} to ${dest.relativizeTo(layout.workDir(ref))} in $ref")
           dest.mkParents() >>= p.copyTo(dest).waive
-        }.map(_.unit)
-      case IncludeType.TarFile =>
-        ???
-      case IncludeType.Jarfile =>
-        ???
+        }.map(_.unit)*/
+        ~log.info(msg"Copying ${repoId.repo}${':'}$path to ${include.id.path}")
+      
+      case TarFile(workspace, path) =>
+        ~log.info(msg"Tarring $workspace${':'}$path to ${include.id.path}")
+      
+      case TgzFile(workspace, path) =>
+        ~log.info(msg"Tar-gzipping $workspace${':'}$path to ${include.id.path}")
     }
 
   def classpath(ref: ModuleRef, layout: Layout): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
@@ -588,25 +590,24 @@ case class Build(target: Target,
       _    <- Shell(layout.env).native(dest, cp, main.key)
     } yield ()
 
-  def saveJars(ref: ModuleRef, srcs: Set[Path], destination: Path, layout: Layout, out: Option[CliParam])
+  def saveJars(ref: ModuleRef, srcs: Set[Path], dest: Path, layout: Layout, out: Option[CliParam])
               (implicit log: Log)
               : Try[Unit] = {
     val bins = allDependencies.flatMap(_.binaries)
     val fatJar = out == Some(Args.FatJarArg)
     val js = out == Some(Args.JsArg)
+    val path = dest in layout.baseDir
 
-    def saveJar(staging: Path, module: Module): Try[Unit] = {
-      val dest = destination.extant()
-      val path = dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar"
+    def saveJar(staging: Path, module: Module): Try[Unit] = path.mkParents.map { _ =>
       val enc = System.getProperty("file.encoding")
       val manifest = JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
-      val jarInputs: Set[Path] = if(fatJar) bins else Set.empty
+      val jarInputs: Set[Path] = if(fatJar) bins else Set()
       log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
       for {
         resources        <- aggregatedResources(ref)
         _                <- resources.traverse(_.copyTo(snapshots, layout, staging))
         _                <- Shell(layout.env).jar(path, jarInputs, staging.children.map(staging / _).to[Set], manifest)
-        _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(dest / bin.name) } else Success(())
+        _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(path.parent / bin.name) } else Success(())
       } yield {
         if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
         else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
@@ -624,23 +625,20 @@ case class Build(target: Target,
       )
     }
 
-    def saveJs(staging: Path, module: Module): Try[Unit] = {
-      val jsName = str"${ref.projectId.key}-${ref.moduleId.key}.js"
-      val dest = destination.extant()
-      val path = dest / jsName
+    def saveJs(staging: Path, module: Module): Try[Unit] = path.mkParents.map { _ =>
       val enc  = System.getProperty("file.encoding")
       val launcherName = "main.js"
       val json = packageJson(if(module.kind.needsExec) Some(launcherName) else None)
       log.info(msg"Saving Javascript file ${path.relativizeTo(layout.baseDir)} using ${enc}")
       for {
         _ <- ScalaJs.link(module.kind.as[App].map(_.main.key), List(staging) ++ bins, path)
-        _ <- (dest / "package.json").writeSync(json.toString())
-        _ <- if(module.kind.needsExec) saveJsLauncher(launcherName, jsName) else ~()
+        _ <- (path.parent / "package.json").writeSync(json.toString())
+        _ <- if(module.kind.needsExec) saveJsLauncher(launcherName, path.filename) else ~()
       } yield ()
     }
 
     def saveJsLauncher(launcherName: String, mainFile: String): Try[Unit] = {
-      val launcherPath = destination / launcherName
+      val launcherPath = path.parent / launcherName
       val launcherScript = s"""#!/usr/bin/env node
                               |var launcher = require('./$mainFile');""".stripMargin
       for {
@@ -684,7 +682,8 @@ case class Build(target: Target,
     }
   }
 
-  def compileModule(target: Target,
+  def compileModule(result: BuildResult,
+                    target: Target,
                     layout: Layout,
                     pipelining: Boolean,
                     globalPolicy: Policy,
@@ -702,22 +701,28 @@ case class Build(target: Target,
       new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
     }
     
-    val bspToFury = (bspTargetIds zip furyTargetIds).toMap
+    val bspToFury = bspTargetIds.zip(furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
     BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
 
-      val result: Try[BuildResult] = for {
+      val workDir = if(target.module.includes.nonEmpty) {
+        val dest = target.workspace.getOrElse(layout.workspaceDir(WorkspaceId(target.module.id.key))).extant()
+        target.module.includes.traverse(copyInclude(result, target.ref, _, layout, dest))
+        Some(dest)
+      } else None
+
+      val newResult: Try[BuildResult] = for {
         res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
         opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
       } yield BuildResult(res, opts, None)
 
-      val responseOriginId = result.get.bspResult.getOriginId
+      val responseOriginId = newResult.get.bspResult.getOriginId
       if(responseOriginId != originId.key) {
         log.warn(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
       }
 
-      result.get.scalacOptions.getItems.asScala.foreach { case soi =>
+      newResult.get.scalacOptions.getItems.asScala.foreach { case soi =>
         val bti = soi.getTarget
         val classDir = soi.getClassDirectory
         val targetId = bspToFury(bti)
@@ -728,22 +733,21 @@ case class Build(target: Target,
         soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
       }
 
-      (result.get, conn.client)
-    }.flatMap {
+      (newResult.get, conn.client)
+    }.map {
       case (compileResult, client) if compileResult.success && target.module.kind.needsExec =>
         val timeout = target.module.kind.as[App].fold(0)(_.timeout)
         val classDirectories = compileResult.classDirectories
         client.broadcast(StartRun(target.ref))
-        target.module.includes.traverse(copyInclude(target.ref, _, layout)).map { _ =>
-          val future = Future(blocking(run(target, classDirectories, layout, globalPolicy, args, noSecurity,
-              target.javaVersion)))
-          val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
-          val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
-          client.broadcast(StopRun(target.ref))
-          compileResult.copy(exitCode = Some(exitCode))
-        }
+        
+        val future = Future(blocking(run(target, classDirectories.values.to[Set], layout, globalPolicy, args, noSecurity,
+            target.javaVersion)))
+        val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
+        val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
+        client.broadcast(StopRun(target.ref))
+        compileResult.copy(exitCode = Some(exitCode))
       case (otherResult, _) =>
-        Success(otherResult)
+        otherResult
     }
   }
 
@@ -772,7 +776,7 @@ case class Build(target: Target,
     val multiplexer = Lifecycle.currentSession.multiplexer
     multiplexer.start()
 
-    val future = dependencyFutures.map(BuildResult.merge).flatMap { required =>
+    val future: Future[BuildResult] = dependencyFutures.map(BuildResult.merge).flatMap { required =>
       if(!required.success) {
         multiplexer.fire(target.ref, SkipCompile(target.ref))
         multiplexer.close(target.ref)
@@ -781,11 +785,9 @@ case class Build(target: Target,
         val noCompilation = target.sourcePaths.isEmpty && !target.module.kind.needsExec
 
         if(noCompilation) {
-          deepDependencies(target.ref).foreach { ref =>
-            multiplexer.fire(ref, NoCompile(ref))
-          }
+          deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
           Future.successful(required)
-        } else compileModule(target, layout, pipelining, globalPolicy, args, noSecurity)
+        } else compileModule(required, target, layout, pipelining, globalPolicy, args, noSecurity)
       }
     }
 

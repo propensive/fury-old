@@ -197,7 +197,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
     if(oldConfFile.exists() && !newConfFile.exists()) oldConfFile.moveTo(newConfFile)
     newConfFile
   }
-  
+
   lazy val layerDb: Path = furyDir / "layers.db"
   lazy val confFileBackup: Path = baseDir / ".fury.conf.bak"
 
@@ -206,6 +206,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
   lazy val workDir: Path = (furyDir / "work").extant()
+  lazy val workspaceDir: Path = (furyDir / "workspaces").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val undoStack: Path = (furyDir / "history").extantParents()
@@ -213,6 +214,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   def bloopConfig(ref: ModuleRef): Path = bloopDir.extant() / str"${ref.urlSafe}.json"
   def outputDir(ref: ModuleRef): Path = (analysisDir / ref.urlSafe).extant()
   def workDir(ref: ModuleRef): Path = (workDir / ref.urlSafe).extant()
+  def workspaceDir(ws: WorkspaceId): Path = (workspaceDir / (ws, uniqueId).digest[Sha256].encoded[Hex]).extant()
   def benchmarksDir(ref: ModuleRef): Path = (benchmarksDir / ref.urlSafe).extant()
   def classesDir(ref: ModuleRef): Path = (classesDir / ref.urlSafe).extant()
   def resourcesDir(ref: ModuleRef): Path = (resourcesDir / ref.urlSafe).extant()

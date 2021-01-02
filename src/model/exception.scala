@@ -58,6 +58,7 @@ case class ImportOnlyFileOrRef() extends FuryException
 case class InitFailure() extends FuryException
 case class InstallFailed(software: String, path: Path) extends FuryException
 case class InvalidKind(expected: Kind.Id) extends FuryException
+case class InvalidIncludeType(expected: IncludeType.Id) extends FuryException
 case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class InvalidVersion() extends FuryException
