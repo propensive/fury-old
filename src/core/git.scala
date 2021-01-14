@@ -131,7 +131,9 @@ case class GitDir(env: Environment, dir: Path) {
     // FIXME: Something in here is not checkout out the working tree
     // Do a standard checkout, not a separated one
     _ <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]] else Success(())
-    _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync(sources.map(_.value + "/*\n").mkString)
+    _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync {
+           (sources.map(_.value+"\n") ++ sources.map(_.value + "/*\n")).mkString
+         }
     _ <- sh"$git remote add origin $from".exec[Try[String]]
     _ <- sh"$git fetch --all".exec[Try[String]]
     _ <- catchCommitNotInRepo(sh"$git checkout $commit".exec[Try[String]], commit, remote.fold(msg"$from") { r => msg"$r" })

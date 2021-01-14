@@ -41,7 +41,7 @@ case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     implicit val columnHints: ColumnArg.Hinter =
       ColumnArg.hint(table.headings.map(_.name.toLowerCase))
 
-    (cli -< RawArg -< ColumnArg -< WorkspaceArg -< LayerArg).action { for {
+    (cli -< RawArg -< ColumnArg -< OptWorkspaceArg -< LayerArg).action { for {
       rows  <- getLayer >> (_.workspaces)
       repo  <- opt(WorkspaceArg) >> (printTable(table, rows, _, "workspace"))
     } yield log.await() }
@@ -56,13 +56,14 @@ case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   } yield log.await() }
 
   def update: Try[ExitStatus] =
-    (cli -< LayerArg -< RepoArg -< WorkspaceNameArg).action { for {
-      workspace <- getWorkspace
+    (cli -< LayerArg -< WorkspaceArg -< WorkspaceNameArg -< PathArg).action { for {
+      workspace <- getSpecifiedWorkspace
       newId     <- opt(WorkspaceNameArg)
+      newPath   <- opt(OptPathArg)
       layout    <- getLayout
       hierarchy <- getHierarchy
       pointer   <- getPointer
-      _         <- WorkspaceApi(hierarchy).update(pointer, workspace.id, newId, layout) >>= commit
+      _         <- WorkspaceApi(hierarchy).update(pointer, workspace.id, newPath, newId, layout) >>= commit
     } yield log.await() }
 
   def remove: Try[ExitStatus] = (cli -< WorkspaceArg).action {
@@ -285,12 +286,17 @@ case class WorkspaceApi(hierarchy: Hierarchy) {
     hierarchy  <- hierarchy(pointer) = Layer(_.workspaces).modify(layer)(_ + Workspace(id, path))
   } yield hierarchy
 
-  def update(pointer: Pointer, id: WorkspaceId, name: Option[WorkspaceId], layout: Layout)
+  def update(pointer: Pointer,
+             id: WorkspaceId,
+             path: Option[Option[Path]],
+             name: Option[WorkspaceId],
+             layout: Layout)
             (implicit log: Log)
             : Try[Hierarchy] = for {
     layer     <- hierarchy(pointer)
     workspace <- layer.workspaces.findBy(id)
     workspace <- ~name.fold(workspace)(Workspace(_.id)(workspace) = _)
+    workspace <- ~path.fold(workspace)(Workspace(_.local)(workspace) = _)
     hierarchy <- hierarchy(pointer) = Layer(_.workspaces(id))(layer) = workspace
   } yield hierarchy
 }

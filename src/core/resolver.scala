@@ -28,7 +28,7 @@ object Resolver {
   implicit val project: Resolver[Project, ProjectId] = _ == _.id
   implicit val repo: Resolver[Repo, RepoId] = _ == _.id
   implicit val workspace: Resolver[Workspace, WorkspaceId] = _ == _.id
-  implicit val space: Resolver[SpaceId, SpaceId] = (a, b) => a == b
+  implicit val root: Resolver[RootId, RootId] = (a, b) => a == b
   implicit val imports: Resolver[Import, ImportId] = _ == _.id
   implicit val includes: Resolver[Include, IncludeId] = _ == _.id
   implicit val importByShortRef: Resolver[Import, ShortLayerRef] = _ == _.layerRef.short

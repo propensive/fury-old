@@ -393,9 +393,13 @@ abstract class CliApi {
   lazy val layerRepo: Try[Repo] = layerRepoOpt.flatMap(_.ascribe(MissingParam(RepoArg)))
   lazy val layerWorkspace: Try[Workspace] = layerWorkspaceOpt.flatMap(_.ascribe(MissingParam(WorkspaceArg)))
   lazy val cliRepo: Try[Repo] = (getLayer, get(RepoArg)) >>= (_.repos.findBy(_))
-  lazy val cliWorkspace: Try[Workspace] = (getLayer, get(WorkspaceArg)) >>= (_.workspaces.findBy(_))
+  
+  lazy val cliWorkspace: Try[Option[Workspace]] = (getLayer, get(OptWorkspaceArg)) >>=
+      { (l, w) => w.traverse(l.workspaces.findBy(_)) }
+  
   lazy val getRepo: Try[Repo] = cliRepo.orElse(layerRepo)
-  lazy val getWorkspace: Try[Workspace] = cliWorkspace.orElse(layerWorkspace)
+  lazy val getWorkspace: Try[Workspace] = cliWorkspace.flatMap(_.fold(layerWorkspace)(Success(_)))
+  lazy val getSpecifiedWorkspace: Try[Workspace] = (getLayer, get(WorkspaceArg)) >>= (_.workspaces.findBy(_))
   lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
   lazy val fetchRemote: Try[GitDir] = (get(RemoteArg), getLayout) >>= (_.fetch(_))
   lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
@@ -418,11 +422,11 @@ abstract class CliApi {
   
   lazy val getInclude: Try[IncludeType] = getIncludeType.flatMap {
     case ClassesDir => getDependency >> (ClassesDir(_))
-    case FileRef    => get(SourceArg).map { source => FileRef(source.repoIdentifier, source.path) }
+    case FileRef    => get(SourceArg).map { source => FileRef(source.rootId, source.path) }
     case Jarfile    => getDependency >> (Jarfile(_))
     case JsFile     => getDependency >> (JsFile(_))
-    case TarFile    => get(SourceArg).map { source => TarFile(source.repoIdentifier.workspace, source.path) }
-    case TgzFile    => get(SourceArg).map { source => TgzFile(source.repoIdentifier.workspace, source.path) }
+    case TarFile    => get(SourceArg).map { source => TarFile(source.rootId.workspace, source.path) }
+    case TgzFile    => get(SourceArg).map { source => TgzFile(source.rootId.workspace, source.path) }
   }
 
   lazy val getDependency: Try[ModuleRef] = (getProject >> (_.id), get(ModuleRefArg)) >>=
@@ -452,7 +456,7 @@ abstract class CliApi {
   lazy val newWorkspaceName: Try[WorkspaceId] = get(WorkspaceNameArg)
   lazy val repoNameFromPath: Try[RepoId] = get(PathArg) >> (_.name.toLowerCase) >> (RepoId(_))
   lazy val workspaceNameFromPath: Try[WorkspaceId] = get(PathArg) >> (_.name.toLowerCase) >> (WorkspaceId(_))
-  lazy val spaceNameFromPath: Try[SpaceId] = get(PathArg) >> (_.name.toLowerCase) >> (WorkspaceId(_): SpaceId)
+  lazy val spaceNameFromPath: Try[RootId] = get(PathArg) >> (_.name.toLowerCase) >> (WorkspaceId(_): RootId)
   lazy val allCommits: Try[List[Commit]] = getGitDir >>= (_.allCommits)
 
   lazy val universeRepos: Try[Set[RepoSetId]] = universe >> (_.repoSets.keySet)
@@ -463,9 +467,9 @@ abstract class CliApi {
   lazy val findUniqueRepoName: Try[RepoId] =
     (getLayer, newRepoName.orElse(repoNameFromPath)) >>= (_.repos.unique(_))
   
-  lazy val findUniqueSpaceName: Try[SpaceId] =
+  lazy val findUniqueSpaceName: Try[RootId] =
     (getLayer, newWorkspaceName.orElse(spaceNameFromPath)) >>=
-        (_.spaces.unique(_)(SpaceId.msgShow, Resolver.space))
+        (_.spaces.unique(_)(RootId.msgShow, Resolver.root))
   
   lazy val defaultBranchCommit: Try[Commit] = fetchRemote.flatMap(_.commit)
 
@@ -490,6 +494,7 @@ abstract class CliApi {
   implicit lazy val projectHints: ProjectArg.Hinter = ProjectArg.hint(layerProjectIds: _*)
   implicit lazy val moduleHints: ModuleArg.Hinter = ModuleArg.hint(projectModuleIds: _*)
   implicit lazy val repoHints: RepoArg.Hinter = RepoArg.hint(projectRepoIds: _*)
+  implicit lazy val optWorkspaceHints: OptWorkspaceArg.Hinter = OptWorkspaceArg.hint(workspaceIds.map(Some(_)): _*)
   implicit lazy val workspaceHints: WorkspaceArg.Hinter = WorkspaceArg.hint(workspaceIds: _*)
   implicit lazy val repoNameHints: RepoNameArg.Hinter = RepoNameArg.hint(layerRepoOpt.map(_.to[List].map(_.id)))
   

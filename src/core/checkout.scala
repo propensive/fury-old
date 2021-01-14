@@ -24,13 +24,16 @@ import jovian._
 
 import scala.util._
 
-case class Snapshots(snapshots: Map[SnapshotHash, Snapshot] = Map()) {
+case class Snapshots(snapshots: Map[Commit, Snapshot] = Map()) {
   def apply(repoId: RepoId): Try[Snapshot] =
     snapshots.find(_._2.repoId == repoId).map(_._2).ascribe(ItemNotFound(repoId))
   
-  def apply(hash: SnapshotHash): Try[Snapshot] =
-    snapshots.get(hash).ascribe(ItemNotFound(hash))
-  def ++(that: Snapshots): Snapshots = Snapshots(snapshots ++ that.snapshots)
+  def ++(that: Snapshots): Snapshots =
+    Snapshots(that.snapshots.foldLeft(snapshots) { case (all, (commit, snapshot)) =>
+      all.updated(commit, all.get(commit).fold(snapshot) { case old =>
+        old.copy(sources = old.sources ++ snapshot.sources)
+      })
+    })
 }
 
 case class Snapshot(repoId: RepoId,
@@ -40,7 +43,7 @@ case class Snapshot(repoId: RepoId,
                     branch: Branch,
                     sources: List[Path]) {
 
-  def hash: SnapshotHash = SnapshotHash(this.digest[Md5])
+  def hash: SnapshotHash = SnapshotHash((commit, local, sources).digest[Md5])
   def path: Path = Installation.srcsDir / hash.hash.encoded[Hex].take(16)
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = for {
@@ -71,7 +74,7 @@ case class Snapshot(repoId: RepoId,
         log.info(msg"Checking out $sourceDesc from repository $repoId")
         path.mkdir()
         gitDir.sparseCheckout(remote.path(layout), sources, branch = branch,
-            commit = commit, None).flatMap { _ => (path / ".git").delete() }.map(gitDir.waive).recoverWith {
+            commit = commit, None)/*.flatMap { _ => (path / ".git").delete() }*/.map(gitDir.waive).recoverWith {
           case e: ShellFailure if e.stderr.contains("Sparse checkout leaves no entry on working directory") =>
             Failure(NoSourcesError(repoId, commit, sourceDesc))
           case e: Exception =>

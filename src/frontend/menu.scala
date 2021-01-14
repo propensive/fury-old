@@ -80,22 +80,17 @@ object FuryMenu {
       Action('remove, msg"remove a dependency", DependencyCli(_).remove, shortcut = 'r'),
       Action('list, msg"list dependencies for the module", DependencyCli(_).list, shortcut = 'l')
     ),
-    Menu('env, msg"manage application environment variables", 'list, shortcut = 'e')(
-      Action('add, msg"add an environment variable", EnvCli(_).add, shortcut = 'a'),
-      Action('remove, msg"remove an environment variable", EnvCli(_).remove, shortcut = 'r'),
-      Action('list, msg"list environment variable", EnvCli(_).list, shortcut = 'l')
+    Menu('export, msg"manage exports to modules", 'add, shortcut = 'e')(
+      Action('add, msg"add an export to a module", IncludeCli(_).add, shortcut = 'a'),
+      Action('list, msg"list exports", IncludeCli(_).list, shortcut = 'l'),
+      Action('remove, msg"remove an export", IncludeCli(_).remove, shortcut = 'r'),
+      Action('update, msg"update an export", IncludeCli(_).update, shortcut = 'u')
     ),
     Menu('import, msg"manage layer imports", 'add, shortcut = 'i')(
       Action('add, msg"import an external layer", ImportCli(_).add, shortcut = 'a'),
       Action('list, msg"list imported layers", ImportCli(_).list, shortcut = 'l'),
       Action('pull, msg"update an import to a more recent version", ImportCli(_).pull, shortcut = 'p'),
       Action('remove, msg"remove an imported layer", ImportCli(_).remove, shortcut = 'r'),
-    ),
-    Menu('include, msg"manage includes to modules", 'add, shortcut = 'x')(
-      Action('add, msg"add an include to a module", IncludeCli(_).add, shortcut = 'a'),
-      Action('list, msg"list includes", IncludeCli(_).list, shortcut = 'l'),
-      Action('remove, msg"remove an include", IncludeCli(_).remove, shortcut = 'r'),
-      Action('update, msg"update an include", IncludeCli(_).update, shortcut = 'u')
     ),
     Action('help, msg"help on using Fury", help, needsLayer = false),
     Menu('module, msg"view and edit modules", 'list, shortcut = 'm')(
@@ -137,7 +132,7 @@ object FuryMenu {
     ),
     Menu('resource, msg"manage resources for the module", 'list)(
       Action('add, msg"add a resource directory to the module", ResourceCli(_).add, shortcut = 'a'),
-      Action('remove, msg"remove a resource directory from the module", ResourceCli(_).remove),
+      Action('remove, msg"remove a resource directory from the module", ResourceCli(_).remove, shortcut = 'r'),
       Action('list, msg"list resources for the module", ResourceCli(_).list, shortcut = 'l')
     ),
     Action('restart, msg"restart the Fury server", BuildCli(_).notImplemented, needsLayer = false),
@@ -154,13 +149,8 @@ object FuryMenu {
     Action('stop, msg"gracefully shut down the Fury server", Lifecycle.doShutdown(_), needsLayer = false),
     Menu('repo, msg"manage source repositories for the layer", 'list, shortcut = 'r')(
       Action('add, msg"add a source repository to the layer", RepoCli(_).add, shortcut = 'a'),
-      
-      Action('checkin, msg"check in the repository from the working directory", RepoCli(_).checkin,
-          shortcut = 'i'),
-      
-      Action('checkout, msg"check out a repository into the working directory", RepoCli(_).checkout,
-          shortcut = 'o'),
-      
+      Action('checkin, msg"check in the repository from the working directory", RepoCli(_).checkin),
+      Action('checkout, msg"check out a repository into the working directory", RepoCli(_).checkout),
       Action('update, msg"update a source repository", RepoCli(_).update, shortcut = 'u'),
       Action('remove, msg"remove a source repository from the layer", RepoCli(_).remove, shortcut = 'r'),
       Action('fork, msg"fork a managed repository locally", RepoCli(_).fork, shortcut = 'f'),
@@ -183,6 +173,11 @@ object FuryMenu {
         Action('list, msg"show all layer imports", UniverseCli(_).imports.list, shortcut = 'l'),
         Action('update, msg"update layer imports universally", UniverseCli(_).imports.update, shortcut = 'u'),
       )
+    ),
+    Menu('var, msg"manage application environment variables", 'list, shortcut = 'v')(
+      Action('add, msg"add an environment variable", EnvCli(_).add, shortcut = 'a'),
+      Action('remove, msg"remove an environment variable", EnvCli(_).remove, shortcut = 'r'),
+      Action('list, msg"list environment variable", EnvCli(_).list, shortcut = 'l')
     ),
     Menu('workspace, msg"view and edit workspaces", 'list, shortcut = 'w')(
       Action('list, msg"add a workspace", WorkspaceCli(_).list, shortcut = 'l'),

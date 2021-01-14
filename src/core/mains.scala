@@ -44,7 +44,7 @@ object Asm {
     dir.walkTree.filter(!_.directory).filter(_.name.endsWith(".class")).to[List].flatMap { file =>
       found = false
       file.bytes().foreach { bytes =>
-        new ClassReader(bytes).accept(visitor, ClassReader.SKIP_DEBUG | ClassReader.SKIP_CODE)
+        new ClassReader(bytes.to[Array]).accept(visitor, ClassReader.SKIP_DEBUG | ClassReader.SKIP_CODE)
       }
       
       if(found) List(ClassRef(file.relativizeTo(dir).value.dropRight(6).replaceAll("\\/", "."))) else Nil

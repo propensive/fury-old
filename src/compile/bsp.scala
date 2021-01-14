@@ -123,7 +123,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
                          Target(ref, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
       snapshots     <- graph.keys.map(universe.checkout(_, layout)).sequence
-    } yield Structure(modules.toMap, graph, snapshots.foldLeft(Snapshots(Map()))(_ ++ _), targets)
+    } yield Structure(modules.toMap, graph, snapshots.foldLeft(Snapshots())(_ ++ _), targets)
 
   private def getBuild(structure: Structure, bti: BuildTargetIdentifier): Try[Build] = {
     for {

@@ -37,15 +37,16 @@ object Target {
     module      <- project(ref.moduleId)
     binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
     checkouts   <- universe.checkout(ref, layout)
-    workspace   <- universe.workspace(ref, layout)
     javaVersion <- universe.javaVersion(ref, layout)
     sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-  } yield Target(ref, module, workspace, project, checkouts, sources, binaries, javaVersion)
+    includeSrcs <- module.includes.flatMap(Source.fromInclude(_)).to[List].traverse(_.dir(checkouts, layout))
+    workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
+  } yield Target(ref, module, workspace, project, checkouts, sources ++ includeSrcs, binaries, javaVersion)
 }
 
 case class Target(ref: ModuleRef,
                   module: Module,
-                  workspace: Option[Path],
+                  workspace: Path,
                   project: Project,
                   snapshots: Snapshots,
                   sourcePaths: List[Path],

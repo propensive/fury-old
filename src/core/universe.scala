@@ -89,16 +89,18 @@ case class Universe(hierarchy: Hierarchy,
     project <- apply(ref.projectId)
     module  <- project(ref.moduleId)
     layer   <- layer(ref.projectId)
-    inputs  =  (module.externalSources ++ module.externalResources).to[List]
-    repos   <- inputs.groupBy(_.repoId).to[List].traverse { case (k, v) => layer.repos.findBy(k).map(_ -> v.map(_.path)) }
+    inputs  =  (module.externalSources ++ module.externalResources ++ module.includeSources).to[List]
+    
+    repos   <- inputs.groupBy(_.rootId.repo).to[List].traverse { case (k, v) =>
+                 layer.repos.findBy(k).map(_ -> v.map(_.path))
+               }
   } yield repos.toMap
 
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     repoPaths   <- repoPaths(ref)
   } yield Snapshots(repoPaths.map { case (repo, paths) =>
-    val snapshot = Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
-    snapshot.hash -> snapshot
-  })
+    repo.commit -> Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
+  }.toMap)
 
   def workspace(ref: ModuleRef, layout: Layout): Try[Option[Path]] = for {
     project   <- apply(ref.projectId)

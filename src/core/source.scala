@@ -62,6 +62,18 @@ object Source {
       LocalSource(Path(dir), Glob.All)
   }
 
+  def fromInclude(include: Include): Set[Source] = include.kind match {
+    case Jarfile(dependency)      => Set()
+    case JsFile(dependency)       => Set()
+    case TarFile(workspace, path) => Set(WorkspaceSource(workspace, path))
+    case TgzFile(workspace, path) => Set(WorkspaceSource(workspace, path))
+    case ClassesDir(dependency)   => Set()
+    case FileRef(rootId, path)    => rootId match {
+      case id: RepoId                => Set(RepoSource(id, path, Glob.All))
+      case id: WorkspaceId           => Set(WorkspaceSource(id, path))
+    }
+  }
+
   def repoId(src: Source): Option[RepoId] = src.only { case RepoSource(repoId, _, _) => repoId }
 
   def rewriteLocal(source: Source, localId: Option[RepoId]): Source =
@@ -77,7 +89,7 @@ sealed abstract class Source extends Key(msg"source") {
   def hash(layer: Layer): Try[Digest]
   def path: Path
   def glob: Glob
-  def repoIdentifier: RepoId
+  def rootId: RootId
 
   def base(snapshots: Snapshots, layout: Layout): Try[Path]
   def dir(snapshots: Snapshots, layout: Layout): Try[Path] = base(snapshots, layout).map(path in _)
@@ -105,28 +117,28 @@ sealed abstract class Source extends Key(msg"source") {
 }
 
 case class RepoSource(repoId: RepoId, path: Path, glob: Glob) extends Source {
+  def rootId: RootId = repoId
   def key: String = str"${repoId}:${path.value}//$glob"
   def completion: String = str"${repoId}:${path.value}"
-  def repoIdentifier: RepoId = repoId
   def hash(layer: Layer): Try[Digest] = layer.repos.findBy(repoId).map((path, _).digest[Md5])
   def base(snapshots: Snapshots, layout: Layout): Try[Path] =
     snapshots(repoId).map { checkout => checkout.local.fold(checkout.path)(_.dir) }
 }
 
 case class LocalSource(path: Path, glob: Glob) extends Source {
+  def rootId: RootId = RepoId("local")
   def key: String = str"$path//$glob"
   def completion: String = path.value
   def hash(layer: Layer): Try[Digest] = Success((-1, path).digest[Md5])
-  def repoIdentifier: RepoId = RepoId("local")
   def base(snapshots: Snapshots, layout: Layout): Try[Path] = Success(layout.baseDir)
 }
 
 case class WorkspaceSource(workspaceId: WorkspaceId, path: Path) extends Source {
+  def rootId: RootId = workspaceId
   def key: String = str"${path.value}"
   def glob: Glob = Glob.All
   def completion: String = str"${workspaceId}:$path"
   def hash(layer: Layer): Try[Digest] = Success((-1, path).digest[Md5])
-  def repoIdentifier: RepoId = RepoId("local")
   def base(snapshots: Snapshots, layout: Layout): Try[Path] = Success(layout.baseDir)
 }
 

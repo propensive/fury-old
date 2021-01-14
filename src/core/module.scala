@@ -59,6 +59,8 @@ case class Module(id: ModuleId,
   def externalResources: Stream[RepoSource] =
     resources.to[Stream].collect { case src: RepoSource => src }
 
+  def includeSources: Set[Source] = includes.flatMap(Source.fromInclude(_))
+
   def policyEntries: Set[PermissionEntry] = {
     val prefixLength = Compare.uniquePrefixLength(policy.map(_.hash)).max(3)
     policy.map { p => PermissionEntry(p, PermissionHash(p.hash.take(prefixLength))) }

@@ -136,7 +136,7 @@ case class Tables() {
   )
 
   def sources(snapshots: Snapshots, layout: Layout): Tabulation[Source] = Tabulation(
-    Heading("Repo", _.repoIdentifier),
+    Heading("Repo", _.rootId.repo),
     Heading("Path", _.path),
     Heading("Sources", _.glob),
     Heading("Files", _.fileCount(snapshots, layout).getOrElse(0)),
@@ -145,7 +145,7 @@ case class Tables() {
   )
 
   val resources: Tabulation[Source] = Tabulation(
-    Heading("Repo", _.repoIdentifier),
+    Heading("Repo", _.rootId.repo),
     Heading("Base", _.path),
     Heading("Resources", _.glob)
   )
@@ -159,7 +159,7 @@ case class Tables() {
       case TarFile(workspace, path) => msg"$workspace${':'}$path"
       case TgzFile(workspace, path) => msg"$workspace${':'}$path"
       case ClassesDir(dependency)   => msg"$dependency"
-      case FileRef(spaceId, path)   => msg"${spaceId.repo}${':'}$path"
+      case FileRef(rootId, path)   => msg"${rootId.repo}${':'}$path"
     })
   )
 

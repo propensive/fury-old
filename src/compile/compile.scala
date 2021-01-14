@@ -329,7 +329,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     } yield build
 
     val repos = build match {
-      case Some(c) => c.snapshots.snapshots.map { case (hash, snapshot) => (snapshot.path.value, snapshot.repoId)}.toMap
+      case Some(c) => c.snapshots.snapshots.map { case (_, snapshot) => (snapshot.path.value, snapshot.repoId)}.toMap
       case None    => Map()
     }
 
@@ -368,7 +368,6 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
         case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
       } }
 
-      
       broadcast(DiagnosticMsg(
         ref,
         CompileIssue(
@@ -441,12 +440,10 @@ case class Build(target: Target,
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   lazy val deepDependencies: Map[ModuleRef, Set[ModuleRef]] = {
-    
     @tailrec
-    def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] = {
+    def flatten[T](aggregated: Set[T], children: T => Set[T], next: Set[T]): Set[T] =
       if(next.isEmpty) aggregated
       else flatten(aggregated + next.head, children, next - next.head ++ children(next.head))
-    }
     
     targetIndex.map { case (targetId, _) =>
       targetId -> flatten[ModuleRef](Set.empty, graph.dependencies(_).map(_.ref).to[Set], Set(targetId))
@@ -461,12 +458,14 @@ case class Build(target: Target,
   }
 
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
-    snapshots.snapshots.to[List].traverse { case (hash, snapshot) => snapshot.get(layout) }.map { _ => () }
+    snapshots.snapshots.to[List].traverse(_._2.get(layout)).munit
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     synchronized { Bloop.generateFiles(this, layout) }
 
-  def copyInclude(result: BuildResult, ref: ModuleRef, include: Include, layout: Layout, work: Path)(implicit log: Log): Try[Unit] =
+  def copyInclude(result: BuildResult, ref: ModuleRef, include: Include, layout: Layout, work: Path)
+                 (implicit log: Log)
+                 : Try[Unit] =
     include.kind match {
       case ClassesDir(dependency) =>
         val dest = include.id.path in work
@@ -484,14 +483,22 @@ case class Build(target: Target,
         saveJars(dependency, srcs, include.id.path in work, layout, Some(Args.JsArg))
 
       case FileRef(repoId, path) =>
-        /*glob(layout.workDir(include.ref), layout.workDir(include.ref).walkTree).traverse { p =>
-          val work = layout.workDir(include.ref)
-          val relSrc = p.relativizeTo(work)
-          val dest = relSrc in (include.path in layout.workDir(ref))
-          log.note(msg"Copying $relSrc in ${include.ref} to ${dest.relativizeTo(layout.workDir(ref))} in $ref")
-          dest.mkParents() >>= p.copyTo(dest).waive
-        }.map(_.unit)*/
-        ~log.info(msg"Copying ${repoId.repo}${':'}$path to ${include.id.path}")
+        val source = repoId match {
+          case id: RepoId      => snapshots(id).map(path in _.path)
+          case id: WorkspaceId => Success(path in layout.workspaceDir(id))
+        }
+
+        source.flatMap { src =>
+          val files = src.walkTree.filter(!_.directory).to[List]
+          val toCopy = if(files.size > 1) msg"${files.size} files in " else msg""
+
+          log.info(msg"Copying $toCopy${repoId.repo}${':'}$path to ${include.id.path}")
+
+          files.traverse { p =>
+            val newDest = p.relativizeTo(src) in (include.id.path in work)
+            newDest.mkParents() >>= p.copyTo(newDest).waive
+          }
+        }.munit
       
       case TarFile(workspace, path) =>
         ~log.info(msg"Tarring $workspace${':'}$path to ${include.id.path}")
@@ -707,9 +714,8 @@ case class Build(target: Target,
     BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
 
       val workDir = if(target.module.includes.nonEmpty) {
-        val dest = target.workspace.getOrElse(layout.workspaceDir(WorkspaceId(target.module.id.key))).extant()
-        target.module.includes.traverse(copyInclude(result, target.ref, _, layout, dest))
-        Some(dest)
+        target.module.includes.traverse(copyInclude(result, target.ref, _, layout, target.workspace))
+        Some(target.workspace)
       } else None
 
       val newResult: Try[BuildResult] = for {
@@ -719,7 +725,7 @@ case class Build(target: Target,
 
       val responseOriginId = newResult.get.bspResult.getOriginId
       if(responseOriginId != originId.key) {
-        log.warn(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
+        log.note(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
       }
 
       newResult.get.scalacOptions.getItems.asScala.foreach { case soi =>

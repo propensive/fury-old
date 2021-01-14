@@ -47,7 +47,7 @@ case class Layer(version: Int,
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
 
-  def spaces: SortedSet[SpaceId] = repos.map(_.id) ++ workspaces.map(_.id)
+  def spaces: SortedSet[RootId] = repos.map(_.id) ++ workspaces.map(_.id)
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>

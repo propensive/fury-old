@@ -103,7 +103,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def update: Try[ExitStatus] = {
-    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -< WorkspaceArg
+    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -< OptWorkspaceArg
       -?< (PluginArg, getKindName >> oneOf(Plugin))
       -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
       -?< (ReplArg, getKindName >> oneOf(Compiler))
@@ -135,10 +135,11 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   private[this] def updatedFromCli(base: Module): Try[Module] = for {
     kind      <- ~cliKind.getOrElse(base.kind)
     compiler  <- cliCompiler >> (_.getOrElse(base.compiler))
-    workspace <- opt(WorkspaceArg) >> (_.orElse(base.workspace))
+    workspace <- opt(OptWorkspaceArg)
   } yield {
     val hidden = has(HiddenArg)
-    base.copy(compiler = compiler, kind = kind, hidden = hidden, workspace = workspace)
+    val newBase = base.copy(compiler = compiler, kind = kind, hidden = hidden)
+    workspace.fold(newBase) { ws => newBase.copy(workspace = ws) }
   }
 
   private[this] lazy val cliKind: Try[Kind] = getKindName >>= (_ match {

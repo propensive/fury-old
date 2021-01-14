@@ -25,6 +25,11 @@ import jovian._
 object Args {
 
   implicit def extractor[T: Parser]: TExtractor[T] = _.headOption.flatMap(implicitly[Parser[T]].parse(_))
+  
+  implicit def optExtractor[T: Parser]: TExtractor[Option[T]] = _.headOption match {
+    case None      => Some(None)
+    case Some(str) => implicitly[Parser[T]].parse(str).map(Some(_))
+  }
 
   implicit private val stringList: TExtractor[List[String]] = x => Some(x.to[List])
 
@@ -66,6 +71,7 @@ object Args {
   val IncludeArg = CliParam[IncludeId]('i', 'include, "specify the include")
   val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
   val PathArg = CliParam[Path]('f', 'path, "specify the path")
+  val OptPathArg = CliParam[Option[Path]]('f', 'path, "specify the path")
   val PathStringArg = CliParam[String]('f', 'path, "specify the path")
   val DebugArg = CliParam[String]('D', 'debug, "specify a module to debug")
   val DescriptionArg = CliParam[String]('D', 'description, "specify a brief description of the project")
@@ -122,6 +128,7 @@ object Args {
   val QuietArg = CliParam[Unit]('q', 'quiet, "show less output")
   val RepoArg = CliParam[RepoId]('r', 'repo, "specify a repository")
   val WorkspaceArg = CliParam[WorkspaceId]('w', 'workspace, "specify a workspace")
+  val OptWorkspaceArg = CliParam[Option[WorkspaceId]]('w', 'workspace, "specify a workspace")
   val RecursiveArg = CliParam[Unit]('r', 'recursive, "perform the operation recursively")
   val RetryArg = CliParam[Unit]('R', 'retry, "reattempt to download a remote repository")
   val ReplArg = CliParam[ClassRef]('R', 'repl, "REPL class to use for console")

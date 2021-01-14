@@ -587,7 +587,7 @@ object ClassesDir extends IncludeType.Id("classes")
 case class ClassesDir(dependency: ModuleRef) extends IncludeType(str"$dependency${'@'}$ClassesDir")
 
 object FileRef extends IncludeType.Id("file")
-case class FileRef(spaceId: SpaceId, path: Path) extends IncludeType(str"${spaceId.key}:$path${'@'}$FileRef")
+case class FileRef(rootId: RootId, path: Path) extends IncludeType(str"${rootId.key}:$path${'@'}$FileRef")
 //case class FileRef(glob: Glob) extends IncludeType(str"file:${glob}")
 
 sealed abstract class IncludeType(val key: String) extends scala.Product with scala.Serializable {
@@ -623,9 +623,7 @@ object IncludeId {
 
 case class IncludeId(path: Path) extends Key("include") { def key = path.value }
 
-case class Include(id: IncludeId, kind: IncludeType) {
-
-}
+case class Include(id: IncludeId, kind: IncludeType)
 
 sealed trait Scope extends scala.Product with scala.Serializable
 case object GlobalScope extends Scope
@@ -986,7 +984,9 @@ object RepoId {
 
 object WorkspaceId {
   implicit val msgShow: MsgShow[WorkspaceId] = r => UserMsg(_.repo(r.key))
+  implicit val optMsgShow: MsgShow[Option[WorkspaceId]] = r => UserMsg(_.repo(r.map(_.key).getOrElse("")))
   implicit val stringShow: StringShow[WorkspaceId] = _.key
+  implicit val optStringShow: StringShow[Option[WorkspaceId]] = _.map(_.key).getOrElse("")
   implicit val parser: Parser[WorkspaceId] = unapply(_)
   implicit val keyName: KeyName[WorkspaceId] = () => msg"repo"
   implicit val diff: Diff[WorkspaceId] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
@@ -994,19 +994,19 @@ object WorkspaceId {
   def unapply(name: String): Option[WorkspaceId] = name.only { case r"[a-z](-?[a-z0-9]+)*" => WorkspaceId(name) }
 }
 
-object SpaceId {
-  implicit val ord: Ordering[SpaceId] = Ordering[String].on[SpaceId](_.key)
-  val msgShow: MsgShow[SpaceId] = r => UserMsg(_.repo(r.key))
-  val stringShow: StringShow[SpaceId] = _.key
+object RootId {
+  implicit val ord: Ordering[RootId] = Ordering[String].on[RootId](_.key)
+  val msgShow: MsgShow[RootId] = r => UserMsg(_.repo(r.key))
+  val stringShow: StringShow[RootId] = _.key
 }
 
-sealed abstract class SpaceId(kind: UserMsg) extends Key(kind) with Product with Serializable {
+sealed abstract class RootId(kind: UserMsg) extends Key(kind) with Product with Serializable {
   def key: String
   def repo: RepoId = RepoId(key)
   def workspace: WorkspaceId = WorkspaceId(key)
 }
-case class RepoId(key: String) extends SpaceId(msg"repo")
-case class WorkspaceId(key: String) extends SpaceId(msg"workspace")
+case class RepoId(key: String) extends RootId(msg"repo")
+case class WorkspaceId(key: String) extends RootId(msg"workspace")
 
 object Opt {
   implicit val stringShow: StringShow[Opt] = _.id.key
