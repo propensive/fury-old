@@ -34,7 +34,7 @@ case class CompilationFailure() extends FuryException
 //TODO Is this equivalent to ItemNotFound?
 case class ComponentNotDefined[K1 <: Key, K2 <: Key](component: K1, container: K2) extends FuryException
 case class CyclesInDependencies(cycle: Set[Dependency]) extends FuryException
-case class CommitNotInRepo(commit: Commit, origin: UserMsg) extends FuryException
+case class CommitNotInRepo(commit: Commit, origin: Message) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class PathNotGitDir() extends FuryException
 case class DnsResolutionFailure() extends FuryException
@@ -82,7 +82,7 @@ case class NoPublishedName(layerRef: ShortLayerRef) extends FuryException
 case class NoOtherLayer() extends FuryException
 case class NoPermissions(permissions: Set[Permission]) extends FuryException
 case class NoRepl(compiler: CompilerRef) extends FuryException
-case class NoSourcesError(repoId: RepoId, commit: Commit, sources: UserMsg) extends FuryException
+case class NoSourcesError(repoId: RepoId, commit: Commit, sources: Message) extends FuryException
 case class NotInitialized(dir: Path) extends FuryException
 case class OfflineException() extends FuryException
 case class PublishFailure() extends FuryException
@@ -108,10 +108,10 @@ object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
 
-case class ItemNotFound(item: UserMsg, kind: UserMsg) extends FuryException
+case class ItemNotFound(item: Message, kind: Message) extends FuryException
 
 object NotUnique {
   def apply[K <: Key: MsgShow](key: K): NotUnique = NotUnique(implicitly[MsgShow[K]].show(key), key.kind)
 }
 
-case class NotUnique(item: UserMsg, kind: UserMsg) extends FuryException
+case class NotUnique(item: Message, kind: Message) extends FuryException

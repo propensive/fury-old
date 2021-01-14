@@ -43,7 +43,7 @@ package object core extends GuillotineExtensions {
     implicitly[MsgShow[T]].show(_).string(theme)
 
   implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] = xs =>
-    UserMsg { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
+    Message { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
 
   type WithKey[K <: Key] = { val id: K }
 
@@ -54,8 +54,8 @@ package object core extends GuillotineExtensions {
     Ordering.String.on(_.id.key)
 
   implicit val msgShowBoolean: MsgShow[Boolean] = if(_) msg">" else msg""
-  implicit val msgShowJson: MsgShow[Json] = json => UserMsg { theme => json.toString }
-  implicit val msgShowPath: MsgShow[Path] = path => UserMsg(_.path(path.value))
+  implicit val msgShowJson: MsgShow[Json] = json => Message { theme => json.toString }
+  implicit val msgShowPath: MsgShow[Path] = path => Message(_.path(path.value))
 
   implicit val timestampJsonDeserializer: Json.Deserializer[Timestamp] =
     json => implicitly[Json.Deserializer[Long]].deserialize(json).map(Timestamp(_))

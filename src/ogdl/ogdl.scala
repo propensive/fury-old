@@ -78,7 +78,7 @@ final case class Ogdl(values: Vector[(String, Ogdl)]) extends Dynamic {
 object Ogdl {
 
   implicit val stringShow: StringShow[Ogdl] = _.toString
-  implicit val msgShow: MsgShow[Ogdl] = { ogdl => UserMsg { theme =>
+  implicit val msgShow: MsgShow[Ogdl] = { ogdl => Message { theme =>
     val content = ogdl.values.map {
       case (k, Ogdl(Vector())) =>
         if(k.contains(' ')) msg"${'"'}${theme.lineNo(k)}${'"'}" else msg"${theme.lineNo(k)}"

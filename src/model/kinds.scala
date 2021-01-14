@@ -24,7 +24,7 @@ object Kind {
     def unapply(string: String): Option[Id] = ids.find(_.name == string)
     implicit val parser: Parser[Id] = unapply(_)
     implicit val stringShow: StringShow[Id] = _.name
-    implicit val msgShow: MsgShow[Id] = v => UserMsg(_.param(stringShow.show(v)))
+    implicit val msgShow: MsgShow[Id] = v => Message(_.param(stringShow.show(v)))
   }
 
   sealed abstract class Id(val name: String)

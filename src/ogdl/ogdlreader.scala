@@ -26,7 +26,7 @@ import scala.language.higherKinds
 
 trait OgdlReader[T] { def read(ogdl: Ogdl): T }
 
-case class OgdlException(path: List[String], message: UserMsg) extends FuryException
+case class OgdlException(path: List[String], message: Message) extends FuryException
 
 object OgdlReader {
   type Typeclass[T] = OgdlReader[T]

@@ -79,7 +79,7 @@ object SummaryReporter extends Reporter("summary") {
       case _ => ()
     }
 
-    def commafied(refs: List[ModuleRef], acc: List[UserMsg] = Nil): List[UserMsg] = refs match {
+    def commafied(refs: List[ModuleRef], acc: List[Message] = Nil): List[Message] = refs match {
       case Nil => acc
       case x :: Nil => msg"$x" :: acc
       case x :: xs => msg"$x," :: commafied(xs, acc)
@@ -115,7 +115,7 @@ object InterleavingReporter extends Reporter("interleaving") {
 
       case DiagnosticMsg(ref, message) => interleaver.println(ref, message.msg, false)
 
-      case Print(ref, line)            => interleaver.println(ref, UserMsg(_.gray(escritoire.Ansi.strip(line))),
+      case Print(ref, line)            => interleaver.println(ref, Message(_.gray(escritoire.Ansi.strip(line))),
                                               false)
 
       case Tick                        => interleaver.tick()

@@ -84,7 +84,7 @@ object Os {
     case Unknown(description) => description
   }
 
-  implicit val userMsg: MsgShow[Os] = os => UserMsg { implicit theme =>
+  implicit val message: MsgShow[Os] = os => Message { implicit theme =>
     msg"${theme.path(stringShow.show(os))}".string(theme)
   }
 }

@@ -353,7 +353,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
       val linePrefix = codeLine.take(charNum)
       val (matching, remainder) = takeSame(codeLine.drop(linePrefix.length))
       
-      val highlightedLine = UserMsg { theme =>
+      val highlightedLine = Message { theme =>
         msg"$linePrefix${theme.failure(theme.underline(matching))}$remainder".string(theme).dropWhile(_ == ' ')
       }
 
@@ -361,7 +361,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
         case (k, v) => (v, Path(fileName.drop(k.length + 1)))
       }.getOrElse((RepoId("local"), Path(fileName.drop(layout.baseDir.value.length + 1))))
 
-      val severity = UserMsg { theme => diag.getSeverity.toString.toLowerCase match {
+      val severity = Message { theme => diag.getSeverity.toString.toLowerCase match {
         case "error"       => msg"${'['}${theme.failure("E")}${']'}".string(theme)
         case "warning"     => msg"${'['}${theme.ongoing("W")}${']'}".string(theme)
         case "information" => msg"${'['}${theme.info("I")}${']'}".string(theme)
@@ -373,7 +373,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
         CompileIssue(
           msg"""$severity ${ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum +
               1).toString}
-${'|'} ${UserMsg(
+${'|'} ${Message(
             theme =>
               diag.getMessage.split("\n").to[List].map(theme.gray(_)).join(msg"""
 ${'|'} """.string(theme)))}

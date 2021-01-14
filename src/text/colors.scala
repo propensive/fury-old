@@ -25,14 +25,14 @@ case class AnsiCode(private val code: String) {
 object Rgb { def apply(r: Int, g: Int, b: Int): AnsiCode = AnsiCode(s"38;2;$r;$g;${b}m") }
 
 object MsgShow {
-  implicit val string: MsgShow[String] = v => UserMsg(_ => v)
-  implicit val int: MsgShow[Int] = v => UserMsg(_.number(v.toString))
-  implicit val char: MsgShow[Char] = ch => UserMsg(_.gray(ch.toString))
-  implicit val stackTraceElement: MsgShow[StackTraceElement] = ste => UserMsg(_.gray(ste.toString))
-  implicit val bigDecimal: MsgShow[BigDecimal] = bd => UserMsg { _ => bd.toString }
+  implicit val string: MsgShow[String] = v => Message(_ => v)
+  implicit val int: MsgShow[Int] = v => Message(_.number(v.toString))
+  implicit val char: MsgShow[Char] = ch => Message(_.gray(ch.toString))
+  implicit val stackTraceElement: MsgShow[StackTraceElement] = ste => Message(_.gray(ste.toString))
+  implicit val bigDecimal: MsgShow[BigDecimal] = bd => Message { _ => bd.toString }
 }
 
-trait MsgShow[T] { def show(value: T): UserMsg }
+trait MsgShow[T] { def show(value: T): Message }
 
 object Ansi {
 

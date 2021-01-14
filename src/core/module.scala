@@ -22,7 +22,7 @@ import scala.util._
 import scala.collection.immutable._
 
 object Module {
-  implicit val msgShow: MsgShow[Module] = v => UserMsg(_.module(v.id.key))
+  implicit val msgShow: MsgShow[Module] = v => Message(_.module(v.id.key))
   implicit val stringShow: StringShow[Module] = _.id.key
   implicit val diff: Diff[Module] = Diff.gen[Module]
   implicit val keyName: KeyName[Module] = () => msg"module"

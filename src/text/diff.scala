@@ -109,7 +109,7 @@ object Difference {
   implicit val msgShow: MsgShow[Difference] = d => msg"${d.left} ${'<'}${'='}${'>'} ${d.right}"
 }
 
-case class Difference(entity: UserMsg, label: UserMsg, left: UserMsg, right: UserMsg)
+case class Difference(entity: Message, label: Message, left: Message, right: Message)
 
 object EntityName extends EntityName_1 {
   type Typeclass[T] = EntityName[T]
@@ -121,4 +121,4 @@ object EntityName extends EntityName_1 {
 }
 
 trait EntityName_1 { implicit def fallback[T]: EntityName[T] = EntityName[T]("") }
-case class EntityName[T](name: UserMsg)
+case class EntityName[T](name: Message)

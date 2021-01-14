@@ -70,7 +70,7 @@ case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean],
 
   private[this] val wipe = if(theme.name == Theme.NoColor.name) "" else theme.wipe()
 
-  def log(msg: UserMsg, time: Long, level: Int, pid: Pid): Unit = if(level >= minLevel) {
+  def log(msg: Message, time: Long, level: Int, pid: Pid): Unit = if(level >= minLevel) {
     val fTime = paddedTime(time)
     val fLevel = optionalLogLevel(level)
     val paddedSession: String = if(!showSession) "" else msg"$pid".string(theme)+" "
@@ -126,25 +126,25 @@ class Log(private[this] val output: LogStyle, val pid: Pid) {
 
   private[this] var writers: List[LogStyle] = List(output)
 
-  private[this] def log(msg: UserMsg, time: Long, level: Int, pid: Pid): Unit = 
+  private[this] def log(msg: Message, time: Long, level: Int, pid: Pid): Unit = 
     writers.foreach(_.log(msg, if(time == -1) System.currentTimeMillis else time, level, pid))
 
   def attach(writer: LogStyle): Unit = writers ::= writer
   def raw(str: String): Unit = writers.foreach(_.raw(str))
   def rawln(str: String): Unit = writers.foreach(_.rawln(str))
 
-  def note(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Note, pid)
-  def info(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Info, pid)
-  def warn(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Warn, pid)
-  def fail(msg: UserMsg, time: Long = -1): Unit = log(msg, time, Log.Fail, pid)
+  def note(msg: Message, time: Long = -1): Unit = log(msg, time, Log.Note, pid)
+  def info(msg: Message, time: Long = -1): Unit = log(msg, time, Log.Info, pid)
+  def warn(msg: Message, time: Long = -1): Unit = log(msg, time, Log.Warn, pid)
+  def fail(msg: Message, time: Long = -1): Unit = log(msg, time, Log.Fail, pid)
 
-  def infoWhen(pred: Boolean)(msg: UserMsg, time: Long = -1): Unit =
+  def infoWhen(pred: Boolean)(msg: Message, time: Long = -1): Unit =
     if(pred) info(msg, time) else note(msg, time)
 
-  def warnWhen(pred: Boolean)(msg: UserMsg, time: Long = -1): Unit =
+  def warnWhen(pred: Boolean)(msg: Message, time: Long = -1): Unit =
     if(pred) warn(msg, time) else note(msg, time)
 
-  def failWhen(pred: Boolean)(msg: UserMsg, time: Long = -1): Unit =
+  def failWhen(pred: Boolean)(msg: Message, time: Long = -1): Unit =
     if(pred) fail(msg, time) else note(msg, time)
 
   def stream(fn: String => Unit): PrintStream = {

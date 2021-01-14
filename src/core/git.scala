@@ -60,7 +60,7 @@ object GitDir {
 
 object DiffStat {
   implicit val stringShow: StringShow[DiffStat] = _.value
-  implicit val msgShow: MsgShow[DiffStat] = ds => UserMsg(_.italic(ds.value))
+  implicit val msgShow: MsgShow[DiffStat] = ds => Message(_.italic(ds.value))
 }
 
 case class DiffStat(value: String)
@@ -151,7 +151,7 @@ case class GitDir(env: Environment, dir: Path) {
     _ <- ~(dir / ".unfinished").delete()
   } yield ()
 
-  def catchCommitNotInRepo[T](value: Try[T], commit: Commit, origin: UserMsg): Try[T] = value.recoverWith {
+  def catchCommitNotInRepo[T](value: Try[T], commit: Commit, origin: Message): Try[T] = value.recoverWith {
     case ShellFailure(_, _, r".*reference is not a tree.*") => Failure(CommitNotInRepo(commit, origin))
   }
 

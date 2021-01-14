@@ -40,7 +40,7 @@ object Source {
   implicit val sourceDiff: Diff[Source] =
     (l, r) => if(l == r) Nil else List(Difference(msg"source", msg"", msg"$l", msg"$r"))
 
-  implicit val msgShow: MsgShow[Source] = v => UserMsg { theme =>
+  implicit val msgShow: MsgShow[Source] = v => Message { theme =>
     v match {
       case RepoSource(repoId, dir, glob) =>
         msg"$repoId${':'}$dir${'/'}${'/'}$glob".string(theme)

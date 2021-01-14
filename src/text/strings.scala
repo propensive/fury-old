@@ -31,7 +31,7 @@ object `package` {
   implicit def stringPart[T: StringShow](value: T): StringPart =
     StringPart(implicitly[StringShow[T]].show(value))
 
-  implicit def userMsg[T: MsgShow](value: T): UserMsg =
+  implicit def message[T: MsgShow](value: T): Message =
     implicitly[MsgShow[T]].show(value)
 
   implicit class StringExtensions(string: String) {
@@ -65,7 +65,7 @@ object Timestamp {
   def now(): Timestamp = Timestamp(System.currentTimeMillis)
   private val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
   
-  implicit val msgShow: MsgShow[Timestamp] = ts => UserMsg { theme =>
+  implicit val msgShow: MsgShow[Timestamp] = ts => Message { theme =>
     theme.time(dateFormat.format(ts.value))
   }
 }
@@ -74,7 +74,7 @@ case class TimeOffset(value: Long)
 
 object TimeOffset {
   
-  implicit val msgShow: MsgShow[TimeOffset] = ts => UserMsg { theme =>
+  implicit val msgShow: MsgShow[TimeOffset] = ts => Message { theme =>
     theme.time(describe(ts.value))
   }
 
@@ -101,11 +101,11 @@ object TimeOffset {
   }
 }
 
-trait KeyName[T] { def apply(): UserMsg }
+trait KeyName[T] { def apply(): Message }
 
 trait FuryException extends Exception
 
-case class Unspecified(kind: UserMsg) extends FuryException
+case class Unspecified(kind: Message) extends FuryException
 object Unspecified { def apply[T: KeyName](): Unspecified = Unspecified(implicitly[KeyName[T]].apply()) }
 
 object Parser {
@@ -128,7 +128,7 @@ object Rnd extends java.util.Random {
   }
 }
 
-object UserMsg { implicit val msgShow: MsgShow[UserMsg] = identity }
+object Message { implicit val msgShow: MsgShow[Message] = identity }
 
 object FuryVersion {
   lazy val versionInfo: (String, String) = try {
@@ -141,13 +141,13 @@ object FuryVersion {
   def built: String = versionInfo._2
 }
 
-case class UserMsg(string: Theme => String) {
+case class Message(string: Theme => String) {
 
-  def *(n: Int): UserMsg = UserMsg { theme =>
+  def *(n: Int): Message = Message { theme =>
     string(theme) * n
   }
 
-  def +(that: UserMsg): UserMsg = UserMsg { theme =>
+  def +(that: Message): Message = Message { theme =>
     string(theme) + that.string(theme)
   }
 
@@ -156,9 +156,9 @@ case class UserMsg(string: Theme => String) {
 
 case class StringContexts(context: StringContext) extends AnyVal {
 
-  def msg(parts: UserMsg*): UserMsg = {
-    val msgParts: Seq[UserMsg] = context.parts.map { p =>
-      UserMsg { theme =>
+  def msg(parts: Message*): Message = {
+    val msgParts: Seq[Message] = context.parts.map { p =>
+      Message { theme =>
         p
       }
     }

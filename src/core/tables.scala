@@ -212,7 +212,7 @@ case class Tables() {
     Heading("Published as", s => s._1.remote.fold(msg"${'-'}") { pub => msg"${pub}" })
   )
 
-  private def showPointers(pointers: Iterable[Pointer]): UserMsg = {
+  private def showPointers(pointers: Iterable[Pointer]): Message = {
     val fewPaths = pointers.take(4).map { k => msg"$k" }.reduce(_ + "\n" + _)
     if(pointers.size > 4) fewPaths+"\n"+msg"...and ${pointers.size - 4} more." else fewPaths
   }
@@ -269,14 +269,14 @@ case class Tables() {
 
   val repoSets: Tabulation[(RepoSetId, Set[RepoRef])] = Tabulation(
     Heading("Commit", _._1),
-    Heading("IDs", _._2.map(_.repoId).to[Set].map { id => id: UserMsg }.reduce { (l, r) => msg"$l, $r" }),
-    Heading("Layers", _._2.map(_.layer: UserMsg).reduce { (l, r) => l+"\n"+r })
+    Heading("IDs", _._2.map(_.repoId).to[Set].map { id => id: Message }.reduce { (l, r) => msg"$l, $r" }),
+    Heading("Layers", _._2.map(_.layer: Message).reduce { (l, r) => l+"\n"+r })
   )
   
   val layerRefs: Tabulation[LayerProvenance] = {
     implicit val pointerOrdering = Ordering.Iterable[ImportId].on[Pointer](_.parts)
-    def sortedList[T : MsgShow : Ordering](entries: Iterable[T]): UserMsg =
-      entries.to[List].sorted.map { v => v: UserMsg }.reduce { (l, r) => l+"\n"+r }
+    def sortedList[T : MsgShow : Ordering](entries: Iterable[T]): Message =
+      entries.to[List].sorted.map { v => v: Message }.reduce { (l, r) => l+"\n"+r }
 
     Tabulation(
       Heading("Import", _.ref),

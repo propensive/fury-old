@@ -22,7 +22,7 @@ import scala.util._
 
 sealed trait MenuStructure {
   def command: Symbol
-  def description: UserMsg
+  def description: Message
   def show: Boolean
   def shortcut: Char
   def needsLayer: Boolean
@@ -30,7 +30,7 @@ sealed trait MenuStructure {
 
 case class Action(
     command: Symbol,
-    description: UserMsg,
+    description: Message,
     action: Cli => Try[ExitStatus],
     show: Boolean = true,
     shortcut: Char = '\u0000',
@@ -39,7 +39,7 @@ case class Action(
 
 case class Menu(
     command: Symbol,
-    description: UserMsg,
+    description: Message,
     default: Symbol,
     show: Boolean = true,
     shortcut: Char = '\u0000',
@@ -87,12 +87,12 @@ case class Menu(
 
   def reference(implicit theme: Theme): Seq[String] = {
 
-    def highlight(str: String, char: Char): UserMsg = if(char == '\u0000') msg"$str" else {
+    def highlight(str: String, char: Char): Message = if(char == '\u0000') msg"$str" else {
       val idx = str.indexOf(str)
       val left = str.substring(0, idx)
       val right = str.substring(idx + 1)
 
-      UserMsg { theme => msg"$left${theme.underline(char.toString)}$right".string(theme) }
+      Message { theme => msg"$left${theme.underline(char.toString)}$right".string(theme) }
     }
 
     val shownItems = items.filter(_.show)

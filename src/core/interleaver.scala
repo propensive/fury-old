@@ -19,8 +19,8 @@ package fury.core
 import fury.text._, fury.model._
 
 object Interleaver {
-  case class MessageBuffer(first: Long, last: Long, messages: Vector[(Long, UserMsg)], terminated: Boolean) {
-    def record(msg: UserMsg): MessageBuffer = {
+  case class MessageBuffer(first: Long, last: Long, messages: Vector[(Long, Message)], terminated: Boolean) {
+    def record(msg: Message): MessageBuffer = {
       val now = System.currentTimeMillis
       copy(last = now, messages = messages :+ (now, msg))
     }
@@ -50,7 +50,7 @@ class Interleaver(lag: Long)(implicit log: Log) {
     case _ => false
   }
 
-  private[this] def record(ref: ModuleRef, msg: UserMsg): Unit =
+  private[this] def record(ref: ModuleRef, msg: Message): Unit =
     buffer = buffer.updated(ref, buffer(ref).record(msg))
 
   private[this] def flush(ref: ModuleRef): Unit = {
@@ -76,7 +76,7 @@ class Interleaver(lag: Long)(implicit log: Log) {
     if(buffer.isEmpty) None
     else Some(buffer.to[List].maxBy { case (ref, MessageBuffer(first, last, msgs, _)) => -first }._1)
 
-  def println(ref: ModuleRef, msg: UserMsg, noTime: Boolean = false): Unit =
+  def println(ref: ModuleRef, msg: Message, noTime: Boolean = false): Unit =
     if(isCurrent(ref)) log.info(msg)
     else {
       record(ref, msg)

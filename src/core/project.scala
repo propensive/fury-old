@@ -27,7 +27,7 @@ import scala.collection.immutable._
 case class ProjectConflict(ids: Map[ProjectRef, (Project, Set[Pointer])]) extends FuryException
 
 object Project {
-  implicit val msgShow: MsgShow[Project] = v => UserMsg(_.project(v.id.key))
+  implicit val msgShow: MsgShow[Project] = v => Message(_.project(v.id.key))
   implicit val stringShow: StringShow[Project] = _.id.key
   implicit val diff: Diff[Project] = Diff.gen[Project]
   implicit val keyName: KeyName[Project] = () => msg"project"

@@ -25,7 +25,7 @@ import jovian._
 import scala.util._
 
 object Remote {
-  implicit val msgShow: MsgShow[Remote] = r => UserMsg(_.url(r.simplified))
+  implicit val msgShow: MsgShow[Remote] = r => Message(_.url(r.simplified))
   implicit val stringShow: StringShow[Remote] = _.simplified
   implicit val parser: Parser[Remote] = str => Some(parse(str))
 

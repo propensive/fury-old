@@ -53,9 +53,9 @@ case class Stash(repoId: RepoId,
 
   private def checkout(layout: Layout)(implicit log: Log): Try[GitDir] =
     local.map(Success(_)).getOrElse {
-      val sourceDesc: UserMsg = sources match {
+      val sourceDesc: Message = sources match {
         case List() =>
-          UserMsg(_.path("*"))
+          Message(_.path("*"))
         case head :: Nil =>
           msg"$head"
         case head :: tail =>

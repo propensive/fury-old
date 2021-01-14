@@ -458,7 +458,7 @@ object FuryBuildServer {
   
   private class BspReporter(client: BuildClient) extends Reporter("bsp") {
     import MessageType._
-    private def info(message: UserMsg)(implicit theme: Theme) =
+    private def info(message: Message)(implicit theme: Theme) =
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
     override def report(graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
@@ -482,5 +482,5 @@ case class BspTarget(id: BuildTargetIdentifier) extends Key(msg"BuildTargetIdent
 }
 
 object BspTarget {
-  implicit val msgShow: MsgShow[BspTarget] = v => UserMsg(_.url(v.key))
+  implicit val msgShow: MsgShow[BspTarget] = v => Message(_.url(v.key))
 }

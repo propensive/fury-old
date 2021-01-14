@@ -62,7 +62,7 @@ object CliParam {
       def extractor: Param.Extractor[Type] = implicitly[Param.Extractor[T]]
     }
   
-  implicit val msgShow: MsgShow[CliParam] = (p: CliParam) => UserMsg { theme =>
+  implicit val msgShow: MsgShow[CliParam] = (p: CliParam) => Message { theme =>
     theme.param(str"--${p.longName.name}")+" "+theme.gray("(")+theme.param(str"-${p.shortName.toString}")+
         theme.gray(")") }
 }
@@ -134,7 +134,7 @@ object Cli {
 
 object Descriptor {
   implicit def noDescription[T]: Descriptor[T] = new Descriptor[T] {
-    def describe(value: T): UserMsg = msg""
+    def describe(value: T): Message = msg""
 
     override def wrap(show: StringShow[T], xs: Traversable[T]): String =
       str"(${xs.map(show.show).map(_.replaceAll(":", "\\\\:")).join(" ")})"
@@ -144,7 +144,7 @@ object Descriptor {
 /** a Descriptor is a typeclass for providing a human-readable description of something */
 trait Descriptor[T] {
 
-  def describe(value: T): UserMsg
+  def describe(value: T): Message
 
   def wrap(show: StringShow[T], xs: Traversable[T]): String = {
     val options = xs.map { elem =>
@@ -236,7 +236,7 @@ class Cli(val stdout: java.io.PrintWriter,
     } yield (cli, tryProject, tryModule)
   }
 
-  def forceLog(msg: UserMsg): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, pid)
+  def forceLog(msg: Message): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, pid)
 
   def action(blk: => Try[ExitStatus])(implicit log: Log): Try[ExitStatus] = call().flatMap { _ => blk }
 
@@ -277,7 +277,7 @@ class Cli(val stdout: java.io.PrintWriter,
   def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] =
     Success(args(param.param).toOption)
 
-  def abort(msg: UserMsg)(implicit log: Log): ExitStatus = {
+  def abort(msg: Message)(implicit log: Log): ExitStatus = {
     if(!completion){
       if(log.writersCount < 2) { log.attach(LogStyle(stdout, debug = false)) }
       log.fail(msg)
@@ -320,7 +320,7 @@ class Cli(val stdout: java.io.PrintWriter,
   def hint(arg: CliParam): Success[Cli { type Hinted <: cli.Hinted with arg.type }] =
     Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, pid)) 
 
-  private[this] def write(msg: UserMsg): Unit = {
+  private[this] def write(msg: Message): Unit = {
     stdout.println(msg.string(ManagedConfig().theme))
     stdout.flush()
   }

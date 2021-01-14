@@ -30,7 +30,7 @@ object ResolverTest extends Suite("Resolver Tests") {
   case class TestEntity(id: TestEntityId)
   case class TestEntityId(key: String) extends fury.model.Key(msg"foo")
 
-  implicit val msgShow: MsgShow[TestEntityId] = p => UserMsg(_ => p.key)
+  implicit val message: Message[TestEntityId] = p => Message(_ => p.key)
   implicit val resolver: Resolver[TestEntity, TestEntityId] = _ == _.id
 
   def run(test: Runner): Unit = {

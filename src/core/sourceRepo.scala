@@ -24,7 +24,7 @@ import jovian._
 import scala.util._
 
 object Workspace extends Lens.Partial[Workspace] {
-  implicit val msgShow: MsgShow[Workspace] = w => UserMsg(_.repo(w.id.key))
+  implicit val msgShow: MsgShow[Workspace] = w => Message(_.repo(w.id.key))
   implicit val stringShow: StringShow[Workspace] = _.id.key
   implicit def diff: Diff[Workspace] = Diff.gen[Workspace]
 }
@@ -32,7 +32,7 @@ object Workspace extends Lens.Partial[Workspace] {
 case class Workspace(id: WorkspaceId, local: Option[Path])
 
 object Repo extends Lens.Partial[Repo] {
-  implicit val msgShow: MsgShow[Repo] = r => UserMsg(_.repo(r.id.key))
+  implicit val msgShow: MsgShow[Repo] = r => Message(_.repo(r.id.key))
   implicit val stringShow: StringShow[Repo] = _.id.key
   implicit def diff: Diff[Repo] = Diff.gen[Repo]
 

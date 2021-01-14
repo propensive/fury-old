@@ -26,7 +26,7 @@ import scala.collection.immutable._
 import scala.util._
 
 object Binary {
-  implicit val msgShow: MsgShow[Binary] = v => UserMsg(_.binary(v.spec))
+  implicit val msgShow: MsgShow[Binary] = v => Message(_.binary(v.spec))
   implicit val stringShow: StringShow[Binary] = b => b.id.key
   implicit def diff: Diff[Binary] = Diff.gen[Binary]
 

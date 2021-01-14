@@ -29,9 +29,9 @@ object UiGraph {
   final private val West  = 1
   final private val chars = "   ┐ ─┌┬ ┘│┤└┴├┼".toCharArray
 
-  sealed trait Issue { def msg: UserMsg }
-  case class CompileIssue(msg: UserMsg, repo: RepoId, path: Path, line: LineNo, charNum: Int) extends Issue
-  case class BuildIssue(msg: UserMsg) extends Issue
+  sealed trait Issue { def msg: Message }
+  case class CompileIssue(msg: Message, repo: RepoId, path: Path, line: LineNo, charNum: Int) extends Issue
+  case class BuildIssue(msg: Message) extends Issue
 
   case class BuildInfo(state: BuildState, msgs: List[Issue]) {
     def failed(): BuildInfo = BuildInfo(Failed, msgs)
@@ -123,7 +123,7 @@ object UiGraph {
       buildLogs.foreach { case (ref, info) =>
         info match {
           case BuildInfo(Failed | Successful(_), out) if !out.isEmpty =>
-            log.info(UserMsg { theme =>
+            log.info(Message { theme =>
               List(msg"Output from $ref").map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
             out.foreach { msg => log.info(msg.msg) }
@@ -171,7 +171,7 @@ object UiGraph {
 
     val namedLines = array.zip(nodes).map {
       case (chs, (key, _)) =>
-        val text: UserMsg = msg"$key"
+        val text: Message = msg"$key"
 
         val errors = state.get(key) match {
           case Some(BuildInfo(Failed, msgs)) =>
@@ -206,8 +206,8 @@ object UiGraph {
 }
 
 object Diamond {
-  def draw(topLeft: UserMsg, topRight: UserMsg, left: UserMsg, right: UserMsg, bottom: UserMsg)
-          : List[UserMsg] = {
+  def draw(topLeft: Message, topRight: Message, left: Message, right: Message, bottom: Message)
+          : List[Message] = {
     val width = left.length.max(topLeft.length - 2)
     val padding = " "*width
 
