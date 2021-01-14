@@ -22,7 +22,7 @@ import euphemism._
 import jovian._
 
 import ch.epfl.scala.bsp4j.{CompileResult => BspCompileResult, _}
-import FuryBuildServer._
+//import FuryBuildServer._
 import gastronomy._
 import guillotine._
 import mercator._

@@ -47,53 +47,11 @@ object Build {
 
     hierarchy <- layer.hierarchy()
     universe  <- hierarchy.universe
-    build     <- Build(universe, goal, layout)
+    build     <- ~Build(goal, universe, layout)
+    _         <- build.init
     _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
     _         <- build.generateFiles()
   } yield build
-
-  def apply(universe: Universe, goal: ModuleRef, layout: Layout)(implicit log: Log): Try[Build] = {
-
-    def makeTarget(ref: ModuleRef)(implicit log: Log): Try[Target] = for {
-      project     <- universe(ref.projectId)
-      module      <- project(ref.moduleId)
-      binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
-      checkouts   <- universe.checkout(ref, layout)
-      javaVersion <- universe.javaVersion(ref, layout)
-      sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-      includeSrcs <- module.includes.flatMap(Source.fromInclude(_)).to[List].traverse(_.dir(checkouts, layout))
-      workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
-    } yield Target(ref, module, workspace, project, checkouts, sources ++ includeSrcs, binaries, javaVersion)
-
-    def makeGraph(target: Target): Try[Graph] = for {
-      modules <- universe.dependencies(goal, layout)
-      targets <- modules.map(_.ref).traverse(makeTarget(_))
-    } yield {
-      val targetGraph = (targets + target).map { t => t.ref -> t.directDependencies }.toMap
-      Graph(targetGraph, targets.map { t => t.ref -> t }.toMap)
-    }
-
-    for {
-      target      <- makeTarget(goal)
-      graph       <- makeGraph(target)
-
-      targetIndex <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse { ref =>
-                       makeTarget(ref).map(ref -> _)
-                     }
-      
-      targets      = targetIndex.unzip._2.to[Set]
-      snapshot    <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, layout))
-      policy       = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
-    } yield {
-      val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
-      val intermediateTargets = targets.filter(_.canAffectBuild)
-      
-      val subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(intermediateTargets.map(_.ref).to[Set] + goal).connections
-      
-      new Build(target.ref, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _),
-          moduleRefToTarget, targetIndex.toMap, policy.to[Set], universe, layout)
-    }
-  }
 
   def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
     def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false))
@@ -113,18 +71,30 @@ object Build {
   def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
 }
 
-case class Build(goal: ModuleRef,
-                 graph: Graph,
-                 subgraphs: Map[ModuleRef, Set[ModuleRef]],
-                 snapshot: Snapshot,
-                 targets: Map[ModuleRef, Target],
-                 targetIndex: Map[ModuleRef, Target],
-                 requiredPermissions: Set[Permission],
-                 universe: Universe,
-                 layout: Layout) {
+case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log) {
+  
+  case class Init(graph: Graph, subgraphs: Map[ModuleRef, Set[ModuleRef]], snapshot: Snapshot,
+      targets: Map[ModuleRef, Target], requiredPermissions: Set[Permission])
 
-  private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
-  lazy val allDependencies: Set[Target] = targets.values.to[Set]
+  lazy val init: Try[Init] = for {
+    target   <- makeTarget(goal)
+    graph    <- makeGraph(target)
+    deps      = graph.dependencies.keys.filter(_ != ModuleRef.JavaRef)
+    index    <- deps.traverse { ref => makeTarget(ref).map(ref -> _) }
+    snapshot <- deps.traverse(universe.checkout(_, layout))
+    targets   = index.unzip._2.to[Set]
+    policy    = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
+    map       = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
+    junctures = targets.filter(_.canAffectBuild)
+    subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(junctures.map(_.ref).to[Set] + goal).connections
+  } yield Init(graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _), map, policy.to[Set])
+
+  val graph: Graph = init.get.graph
+  private lazy val subgraphs: Map[ModuleRef, Set[ModuleRef]] = init.get.subgraphs
+  val snapshot: Snapshot = init.get.snapshot
+  val targets: Map[ModuleRef, Target] = init.get.targets
+  val requiredPermissions: Set[Permission] = init.get.requiredPermissions
+  val allDependencies: Set[Target] = targets.values.to[Set]
 
   lazy val deepDependencies: Map[ModuleRef, Set[ModuleRef]] = {
     @tailrec
@@ -132,12 +102,41 @@ case class Build(goal: ModuleRef,
       if(next.isEmpty) aggregated
       else flatten(aggregated + next.head, children, next - next.head ++ children(next.head))
     
-    targetIndex.map { case (targetId, _) =>
+    targets.map { case (targetId, _) =>
       targetId -> flatten[ModuleRef](Set.empty, graph.dependencies(_).map(_.ref).to[Set], Set(targetId))
     }
   }
 
+  private def makeTarget(ref: ModuleRef): Try[Target] = for {
+    project     <- universe(ref.projectId)
+    module      <- project(ref.moduleId)
+    binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
+    checkouts   <- universe.checkout(ref, layout)
+    javaVersion <- universe.javaVersion(ref, layout)
+    sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
+    includeSrcs <- module.includes.flatMap(Source.fromInclude(_)).to[List].traverse(_.dir(checkouts, layout))
+    workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
+  } yield Target(ref, module, workspace, project, checkouts, sources ++ includeSrcs, binaries, javaVersion)
+
+  case class Graph(deps: Map[ModuleRef, Set[Dependency]], targets: Map[ModuleRef, Target]) {
+    def links: Map[ModuleRef, Set[Dependency]] = dependencies.map { case (ref, dependencies) =>
+      (ref, dependencies.map { dRef => if(targets(dRef.ref).module.kind.is[Compiler]) dRef.hide else dRef })
+    }.toMap
+  
+    lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
+  }
+  
+  private def makeGraph(target: Target): Try[Graph] = for {
+    modules <- universe.dependencies(goal, layout)
+    targets <- modules.map(_.ref).traverse(makeTarget(_))
+  } yield {
+    val targetGraph = (targets + target).map { t => t.ref -> t.directDependencies }.toMap
+    Graph(targetGraph, targets.map { t => t.ref -> t }.toMap)
+  }
+
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
+  def checkoutAll(): Try[Unit] = snapshot.stashes.to[List].traverse(_._2.get(layout)).munit
+  def generateFiles(): Try[Iterable[Path]] = synchronized { Bloop.generateFiles(this) }
 
   def apply(compiler: CompilerRef): Try[Option[Target]] = compiler match {
     case Javac(_)         => Success(None)
@@ -150,61 +149,109 @@ case class Build(goal: ModuleRef,
     originId
   }
 
-  def checkoutAll()(implicit log: Log): Try[Unit] =
-    snapshot.stashes.to[List].traverse(_._2.get(layout)).munit
+  case class Target(ref: ModuleRef,
+                    module: Module,
+                    workDir: Path,
+                    project: Project,
+                    snapshot: Snapshot,
+                    sourcePaths: List[Path],
+                    binaries: List[Path],
+                    javaVersion: Int) {
 
-  def generateFiles()(implicit log: Log): Try[Iterable[Path]] =
-    synchronized { Bloop.generateFiles(this) }
+    lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
+    lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
 
-  def copyInclude(ref: ModuleRef, include: Include, work: Path)(implicit log: Log): Try[Unit] =
-    include.kind match {
-      case ClassesDir(dependency) =>
-        val dest = include.id.path in work
-        ~log.info(msg"Copying classes from $dependency to $dest")
-        dest.mkdir().flatMap(layout.classesDir(dependency).copyTo(dest).waive).munit
+    def canAffectBuild = module.kind.is[Lib] || module.includes.nonEmpty
+    def directDependencies = module.dependencies ++ module.compiler()
 
-      case Jarfile(dependency) =>
-        val srcs = deepDependencies(dependency).map(layout.classesDir(_))
-        ~log.info(msg"Creating JAR file of $dependency at ${include.id.path in work}")
-        saveJars(dependency, srcs, include.id.path in work, Some(Args.FatJarArg))
-      
-      case JsFile(dependency) =>
-        val srcs = deepDependencies(dependency).map(layout.classesDir(_))
-        ~log.info(msg"Saving JS file of $dependency at ${include.id.path in work}")
-        saveJars(dependency, srcs, include.id.path in work, Some(Args.JsArg))
+    def copyInclude(include: Include): Try[Unit] =
+      include.kind match {
+        case ClassesDir(dependency) =>
+          val dest = include.id.path in workDir
+          ~log.info(msg"Copying classes from $dependency to $dest")
+          dest.mkdir().flatMap(layout.classesDir(dependency).copyTo(dest).waive).munit
 
-      case FileRef(repoId, path) =>
-        val source = repoId match {
-          case id: RepoId      => snapshot(id).map(path in _.path)
-          case id: WorkspaceId => Success(path in layout.workspaceDir(id))
-        }
+        case Jarfile(dependency) =>
+          val srcs = deepDependencies(dependency).map(layout.classesDir(_))
+          ~log.info(msg"Creating JAR file of $dependency at ${include.id.path in workDir}")
+          saveJars(dependency, srcs, include.id.path in workDir, Some(Args.FatJarArg))
+        
+        case JsFile(dependency) =>
+          val srcs = deepDependencies(dependency).map(layout.classesDir(_))
+          ~log.info(msg"Saving JS file of $dependency at ${include.id.path in workDir}")
+          saveJars(dependency, srcs, include.id.path in workDir, Some(Args.JsArg))
 
-        source.flatMap { src =>
-          val files = src.walkTree.filter(!_.directory).to[List]
-          val toCopy = if(files.size > 1) msg"${files.size} files in " else msg""
-
-          log.info(msg"Copying $toCopy${repoId.repo}${':'}$path to ${include.id.path}")
-
-          files.traverse { p =>
-            val newDest = p.relativizeTo(src) in (include.id.path in work)
-            newDest.mkParents() >>= p.copyTo(newDest).waive
+        case FileRef(repoId, path) =>
+          val source = repoId match {
+            case id: RepoId      => snapshot(id).map(path in _.path)
+            case id: WorkspaceId => Success(path in layout.workspaceDir(id))
           }
-        }.munit
-      
-      case TarFile(workspace, path) =>
-        ~log.info(msg"Tarring $workspace${':'}$path to ${include.id.path}")
-      
-      case TgzFile(workspace, path) =>
-        ~log.info(msg"Tar-gzipping $workspace${':'}$path to ${include.id.path}")
+
+          source.flatMap { src =>
+            val files = src.walkTree.filter(!_.directory).to[List]
+            val toCopy = if(files.size > 1) msg"${files.size} files in " else msg""
+
+            log.info(msg"Copying $toCopy${repoId.repo}${':'}$path to ${include.id.path}")
+
+            files.traverse { p =>
+              val newDest = p.relativizeTo(src) in (include.id.path in workDir)
+              newDest.mkParents() >>= p.copyTo(newDest).waive
+            }
+          }.munit
+        
+        case TarFile(workspace, path) =>
+          ~log.info(msg"Tarring $workspace${':'}$path to ${include.id.path}")
+        
+        case TgzFile(workspace, path) =>
+          ~log.info(msg"Tar-gzipping $workspace${':'}$path to ${include.id.path}")
+      }
+  
+    lazy val aggregatedOptDefs: Try[Set[Provenance[OptDef]]] =
+      ref.javac.fold(Try(Set[Provenance[OptDef]]())) { ref => for {
+        optDefs <- module.dependencies.to[List].map(_.ref).traverse(targets(_).aggregatedOptDefs)
+      } yield optDefs.flatten.to[Set] ++ module.optDefs.map(Provenance(_, module.compiler,
+          Origin.Module(ref))) ++ module.compiler().flatMap { dependency =>
+          apply(dependency.ref).get.module.optDefs.map(Provenance(_, module.compiler, Origin.Compiler)) } }
+
+    lazy val aggregatedOpts: Try[Set[Provenance[Opt]]] =
+      ref.javac.fold(Try(Set[Provenance[Opt]]())) { cRef => for {
+        cTarget    <- apply(cRef)
+        compiler  <- ~cTarget.module.compiler
+        tmpParams <- ~cTarget.module.opts.filter(!_.persistent).map(Provenance(_, compiler, Origin.Local))
+        removals  <- ~tmpParams.filter(_.value.remove).map(_.value.id)
+        opts      <- persistentOpts(ref)
+      } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id) }
+
+    lazy val classpath: Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
+      requiredTargets(ref).flatMap { target =>
+        Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
+      } ++ targets(ref).binaries
     }
 
-  def classpath(ref: ModuleRef): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
-    requiredTargets(ref).flatMap { target =>
-      Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
-    } ++ targets(ref).binaries
+    def jmhRuntimeClasspath(classesDirs: Set[Path]): Set[Path] =
+      classesDirs ++ targets(ref).module.compiler().map(_.ref).map(layout.resourcesDir(_)) ++ classpath
+
+    lazy val runtimeClasspath: Set[Path] =
+      module.compiler().flatMap { c => Set(layout.resourcesDir(c.ref), layout.classesDir(c.ref)) } ++
+          classpath + layout.classesDir(ref) + layout.resourcesDir(ref)
+
+    def bootClasspath: Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
+      val requiredPlugins = requiredTargets(ref).filter(_.module.kind.is[Plugin]).flatMap { target =>
+        Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
+      }
+
+      val compilerClasspath = for {
+        compiler <- module.compiler()
+        cTarget   = targets(compiler.ref)
+        cp       <- cTarget.classpath
+      } yield cp
+      
+      compilerClasspath ++ requiredPlugins
+    }
+
   }
 
-  def persistentOpts(ref: ModuleRef)(implicit log: Log): Try[Set[Provenance[Opt]]] =
+  def persistentOpts(ref: ModuleRef): Try[Set[Provenance[Opt]]] =
     ref.javac.fold(Try(Set[Provenance[Opt]]())) { ref => for {
       target      <- apply(ref)
       compiler    <- apply(target.module.compiler)
@@ -221,23 +268,6 @@ case class Build(goal: ModuleRef,
     } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
         _.value.id) }
 
-  def aggregatedOpts(ref: ModuleRef)(implicit log: Log): Try[Set[Provenance[Opt]]] =
-    ref.javac.fold(Try(Set[Provenance[Opt]]())) { ref => for {
-      target    <- apply(ref)
-      compiler  <- ~target.module.compiler
-      tmpParams <- ~target.module.opts.filter(!_.persistent).map(Provenance(_, compiler, Origin.Local))
-      removals  <- ~tmpParams.filter(_.value.remove).map(_.value.id)
-      opts      <- persistentOpts(ref)
-    } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id) }
-
-  def aggregatedOptDefs(ref: ModuleRef): Try[Set[Provenance[OptDef]]] =
-    ref.javac.fold(Try(Set[Provenance[OptDef]]())) { ref => for {
-      target  <- apply(ref)
-      optDefs <- target.module.dependencies.to[List].map(_.ref).traverse(aggregatedOptDefs(_))
-    } yield optDefs.flatten.to[Set] ++ target.module.optDefs.map(Provenance(_, target.module.compiler,
-        Origin.Module(target.ref))) ++ target.module.compiler().flatMap { dependency =>
-        apply(dependency.ref).get.module.optDefs.map(Provenance(_, target.module.compiler, Origin.Compiler)) } }
-
   /*def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] =
     ref.javac.fold(Try(Set[Provenance[PluginDef]]())) { ref => for {
       target           <- apply(ref)
@@ -252,18 +282,8 @@ case class Build(goal: ModuleRef,
       inherited <- target.module.dependencies.to[List].map(_.ref).traverse(aggregatedResources(_))
     } yield inherited.flatten.to[Set] ++ target.module.resources }
   
-  def bootClasspath(ref: ModuleRef): Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
-    val requiredPlugins = requiredTargets(ref).filter(_.module.kind.is[Plugin]).flatMap { target =>
-      Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
-    }
-
-    val compilerClasspath = targets(ref).module.compiler().flatMap { dependency => classpath(dependency.ref) }
-    
-    compilerClasspath ++ requiredPlugins
-  }
-
   private def requiredTargets(ref: ModuleRef): Set[Target] =
-    ref.javac.fold(Set[Target]()) { ref => deepDependencies(ref).map(targetIndex.apply) }
+    ref.javac.fold(Set[Target]()) { ref => deepDependencies(ref).map(targets.apply) }
 
   def allSources: Set[Path] = targets.values.to[Set].flatMap(_.sourcePaths.to[Set])
 
@@ -281,16 +301,15 @@ case class Build(goal: ModuleRef,
     }
   }
 
-  def saveNative(ref: ModuleRef, dest: Path, main: ClassRef)(implicit log: Log): Try[Unit] =
+  def saveNative(ref: ModuleRef, dest: Path, main: ClassRef): Try[Unit] =
     for {
       dest <- Try(dest.extant())
-      cp   = runtimeClasspath(ref).to[List].map(_.value)
+      target <- ~targets(ref)
+      cp   = target.runtimeClasspath.to[List].map(_.value)
       _    <- Shell(layout.env).native(dest, cp, main.key)
     } yield ()
 
-  def saveJars(ref: ModuleRef, srcs: Set[Path], dest: Path, out: Option[CliParam])
-              (implicit log: Log)
-              : Try[Unit] = {
+  def saveJars(ref: ModuleRef, srcs: Set[Path], dest: Path, out: Option[CliParam]): Try[Unit] = {
     val bins = allDependencies.flatMap(_.binaries)
     val fatJar = out == Some(Args.FatJarArg)
     val js = out == Some(Args.JsArg)
@@ -359,14 +378,7 @@ case class Build(goal: ModuleRef,
     for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(staging))) yield staging
   }
 
-  def jmhRuntimeClasspath(ref: ModuleRef, classesDirs: Set[Path]): Set[Path] =
-    classesDirs ++ targets(ref).module.compiler().map(_.ref).map(layout.resourcesDir(_)) ++ classpath(ref)
-
-  def runtimeClasspath(ref: ModuleRef): Set[Path] =
-    targets(ref).module.compiler().flatMap { c => Set(layout.resourcesDir(c.ref), layout.classesDir(c.ref)) } ++
-        classpath(ref) + layout.classesDir(ref) + layout.resourcesDir(ref)
-
-  def cleanCache(moduleRef: ModuleRef)(implicit log: Log): Try[CleanCacheResult] = {
+  def cleanCache(moduleRef: ModuleRef): Try[CleanCacheResult] = {
     val target = targets(moduleRef)
     val furyTargetIds = deepDependencies(target.ref).toList
     val bspTargetIds = furyTargetIds.map { ref =>
@@ -385,7 +397,7 @@ case class Build(goal: ModuleRef,
                     pipelining: Boolean,
                     globalPolicy: Policy,
                     args: List[String],
-                    noSecurity: Boolean)(implicit log: Log)
+                    noSecurity: Boolean)
   : Future[BuildResult] = Future.fromTry {
     val originId = nextOriginId()
     val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
@@ -404,8 +416,8 @@ case class Build(goal: ModuleRef,
     BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
 
       val workDir = if(target.module.includes.nonEmpty) {
-        target.module.includes.traverse(copyInclude(target.ref, _, target.workspace))
-        Some(target.workspace)
+        target.module.includes.traverse(target.copyInclude(_))
+        Some(target.workDir)
       } else None
 
       val newResult: Try[BuildResult] = for {
@@ -458,7 +470,6 @@ case class Build(goal: ModuleRef,
               args: List[String],
               pipelining: Boolean,
               noSecurity: Boolean)
-             (implicit log: Log)
              : Map[ModuleRef, Future[BuildResult]] = {
     val target = targets(moduleRef)
 
@@ -490,9 +501,14 @@ case class Build(goal: ModuleRef,
     newFutures.updated(target.ref, future)
   }
 
-  private def run(target: Target, classDirectories: Set[Path], layout: Layout, globalPolicy: Policy,
-                  args: List[String], noSecurity: Boolean, javaVersion: Int)
-                 (implicit log: Log): Int = {
+  private def run(target: Target,
+                  classDirectories: Set[Path],
+                  layout: Layout,
+                  globalPolicy: Policy,
+                  args: List[String],
+                  noSecurity: Boolean,
+                  javaVersion: Int)
+                 : Int = {
     val multiplexer = Lifecycle.currentSession.multiplexer
     if (target.module.kind.is[Bench]) {
       classDirectories.foreach { classDirectory =>
@@ -500,14 +516,14 @@ case class Build(goal: ModuleRef,
         val javaSources = layout.benchmarksDir(target.ref).findChildren(_.endsWith(".java"))
 
         Shell(layout.env).javac(
-          classpath(target.ref).to[List].map(_.value),
+          target.classpath.to[List].map(_.value),
           classDirectory.value,
           javaSources.map(_.value).to[List], javaVersion)
       }
     }
     
     val exitCode = Shell(layout.env.copy(workDir = Some(layout.workDir(target.ref).value))).runJava(
-      jmhRuntimeClasspath(target.ref, classDirectories).to[List].map(_.value),
+      target.jmhRuntimeClasspath(classDirectories).to[List].map(_.value),
       if(target.module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
       else target.module.kind.as[App].fold(ClassRef(""))(_.main),
       securePolicy = target.module.kind.is[App],

@@ -33,24 +33,24 @@ object Bloop {
     new CollOps(build.targets.values.map { target =>
       for {
         path       <- build.layout.bloopConfig(target.ref).mkParents()
-        jsonString <- makeConfig(target, build)
+        jsonString <- makeConfig(build)(target)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(target: Target, build: Build)(implicit log: Log): Try[String] = {
+  private def makeConfig(build: Build)(target: build.Target)(implicit log: Log): Try[String] = {
 
     build.writePlugin(target.ref)
-    val classpath = build.classpath(target.ref)
+    val classpath = target.classpath
     
-    val optDefs = build.aggregatedOptDefs(target.ref).getOrElse(Set()).filter(_.compiler ==
+    val optDefs = target.aggregatedOptDefs.getOrElse(Set()).filter(_.compiler ==
         target.module.compiler).map(_.value)
     
     val opts: List[String] =
-      build.aggregatedOpts(target.ref).map(_.to[List].filter(_.compiler ==
+      target.aggregatedOpts.map(_.to[List].filter(_.compiler ==
           target.module.compiler).flatMap(_.value.transform(optDefs))).getOrElse(Nil)
     
-    val compilerClasspath = build(target.module.compiler).map { _ => build.bootClasspath(target.ref) }
+    val compilerClasspath = build(target.module.compiler).map { _ => target.bootClasspath }
     
     val compilerOpt: Option[Json] = build(target.module.compiler).toOption.flatMap { compiler =>
       val spec: Option[BloopSpec] = compiler.map(_.module.kind.as[Compiler].fold {

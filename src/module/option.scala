@@ -45,7 +45,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     module     <- optModule.asTry
     compiler   <- ~module.compiler
     build      <- Build.syncBuild(layer, module.ref(project), layout, true)
-    rows       <- build.aggregatedOpts(module.ref(project))
+    target     <- build(module.ref(project))
+    rows       <- target.aggregatedOpts
     showRows   <- ~rows.to[List].filter(_.compiler == compiler)
     _          <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     table      <- ~Tables().show(table, cli.cols, showRows, raw, col, opt, "param")
@@ -142,7 +143,8 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
                     project <- optProject
                     module  <- optModule
                     build   <- Build.syncBuild(layer, module.ref(project), layout, false).toOption
-                    optDefs <- build.aggregatedOptDefs(module.ref(project)).toOption
+                    target  <- build(module.ref(project)).toOption
+                    optDefs <- target.aggregatedOptDefs.toOption
                   } yield optDefs.map(_.value.id) }.getOrElse(Set())
     
     cli        <- cli.hint(OptArg, optDefs)

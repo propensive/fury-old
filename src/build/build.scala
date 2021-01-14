@@ -412,10 +412,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     globalPolicy <- ~Policy.read(log)
     javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
 
-    _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project)
-                        ).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
-                        Installation.completionsDir.value), Map(), globalPolicy, List(exec.key),
-                        true, layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
+    _            <- Try(Shell(cli.env).runJava(build.targets(module.ref(project)).classpath.to[List].map(_.value),
+                        ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
+                        Installation.completionsDir.value), Map(), globalPolicy, List(exec.key), true,
+                        layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
 
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   } yield log.await()
@@ -457,11 +457,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                     } else result
     compilerMod  <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
     repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
-    classpath    <- ~build.classpath(module.ref(project))
-    bootCp       <- ~build.bootClasspath(module.ref(project))
+    target       <- build(module.ref(project))
+    bootCp       <- ~target.bootClasspath
     javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
   } yield {
-    val cp = classpath.map(_.value).join(":")
+    val cp = target.classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
     cli.continuation(str"""${Jdk.javaExec(javaVersion)} -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
         str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
@@ -477,8 +477,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     singleColumn <- ~call(SingleColumnArg).isSuccess
     project      <- tryProject
     module       <- tryModule
-    build        <- Build.syncBuild(layer, module.ref(project), layout, false)
-    classpath    <- ~build.classpath(module.ref(project))
+    ref          <- ~module.ref(project)
+    build        <- Build.syncBuild(layer, ref, layout, false)
+    target       <- build(ref)
+    classpath    <- ~target.bootClasspath
   } yield {
     val separator = if(singleColumn) "\n" else ":"
     log.rawln(classpath.map(_.value).join(separator))
