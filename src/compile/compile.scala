@@ -261,7 +261,7 @@ object Build {
                      }
       
       targets      = targetIndex.unzip._2.to[Set]
-      snapshots   <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, layout))
+      snapshot    <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse(universe.checkout(_, layout))
       policy       = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     } yield {
       val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
@@ -269,7 +269,7 @@ object Build {
       
       val subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(intermediateTargets.map(_.ref).to[Set] + dependency.ref).connections
       
-      Build(target, graph, subgraphs, snapshots.foldLeft(Snapshots())(_ ++ _),
+      Build(target, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _),
           moduleRefToTarget, targetIndex.toMap, policy.to[Set], universe)
     }
   }
@@ -329,7 +329,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     } yield build
 
     val repos = build match {
-      case Some(c) => c.snapshots.snapshots.map { case (_, snapshot) => (snapshot.path.value, snapshot.repoId)}.toMap
+      case Some(c) => c.snapshot.stashes.map { case (_, stash) => (stash.path.value, stash.repoId) }.toMap
       case None    => Map()
     }
 
@@ -430,7 +430,7 @@ ${'|'} ${highlightedLine}
 case class Build(target: Target, 
                  graph: Target.Graph,
                  subgraphs: Map[ModuleRef, Set[ModuleRef]],
-                 snapshots: Snapshots,
+                 snapshot: Snapshot,
                  targets: Map[ModuleRef, Target],
                  targetIndex: Map[ModuleRef, Target],
                  requiredPermissions: Set[Permission],
@@ -458,7 +458,7 @@ case class Build(target: Target,
   }
 
   def checkoutAll(layout: Layout)(implicit log: Log): Try[Unit] =
-    snapshots.snapshots.to[List].traverse(_._2.get(layout)).munit
+    snapshot.stashes.to[List].traverse(_._2.get(layout)).munit
 
   def generateFiles(layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
     synchronized { Bloop.generateFiles(this, layout) }
@@ -484,7 +484,7 @@ case class Build(target: Target,
 
       case FileRef(repoId, path) =>
         val source = repoId match {
-          case id: RepoId      => snapshots(id).map(path in _.path)
+          case id: RepoId      => snapshot(id).map(path in _.path)
           case id: WorkspaceId => Success(path in layout.workspaceDir(id))
         }
 
@@ -612,7 +612,7 @@ case class Build(target: Target,
       log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
       for {
         resources        <- aggregatedResources(ref)
-        _                <- resources.traverse(_.copyTo(snapshots, layout, staging))
+        _                <- resources.traverse(_.copyTo(snapshot, layout, staging))
         _                <- Shell(layout.env).jar(path, jarInputs, staging.children.map(staging / _).to[Set], manifest)
         _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(path.parent / bin.name) } else Success(())
       } yield {

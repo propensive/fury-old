@@ -199,6 +199,8 @@ You can grant these permissions with,
         case BuildServerError(cause: Throwable) =>
           val stack = rootCause(cause).getStackTrace.mkString("\n  at ")
           cli.abort(msg"Problem with the build server: '${cause.toString}'.${"\n  at "}$stack")
+        case BuildDidNotSucceed() =>
+          cli.abort(msg"A successful build did not complete")
         case InvalidKind(expected: Kind.Id) =>
           cli.abort(msg"The module must be of type ${expected}.")
         case InvalidIncludeType(expected: IncludeType.Id) =>

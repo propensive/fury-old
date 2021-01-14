@@ -24,14 +24,14 @@ import jovian._
 
 import scala.util._
 
-case class Snapshots(snapshots: Map[Commit, Stash] = Map()) {
+case class Snapshot(stashes: Map[Commit, Stash] = Map()) {
   def apply(repoId: RepoId): Try[Stash] =
-    snapshots.find(_._2.repoId == repoId).map(_._2).ascribe(ItemNotFound(repoId))
+    stashes.find(_._2.repoId == repoId).map(_._2).ascribe(ItemNotFound(repoId))
   
-  def ++(that: Snapshots): Snapshots =
-    Snapshots(that.snapshots.foldLeft(snapshots) { case (all, (commit, snapshot)) =>
-      all.updated(commit, all.get(commit).fold(snapshot) { case old =>
-        old.copy(sources = old.sources ++ snapshot.sources)
+  def ++(that: Snapshot): Snapshot =
+    Snapshot(that.stashes.foldLeft(stashes) { case (all, (commit, stash)) =>
+      all.updated(commit, all.get(commit).fold(stash) { case old =>
+        old.copy(sources = old.sources ++ stash.sources)
       })
     })
 }

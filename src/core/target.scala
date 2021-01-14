@@ -48,7 +48,7 @@ case class Target(ref: ModuleRef,
                   module: Module,
                   workspace: Path,
                   project: Project,
-                  snapshots: Snapshots,
+                  snapshot: Snapshot,
                   sourcePaths: List[Path],
                   binaries: List[Path],
                   javaVersion: Int) {

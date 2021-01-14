@@ -344,17 +344,23 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 
       def continue(res: Try[Future[BuildResult]]) = !onceOnly
 
+      var lastResult: Try[Future[BuildResult]] = Failure(BuildDidNotSucceed())
+
       override def start(): Try[Future[BuildResult]] = try {
         watcher.start()
         super.start()
       } catch {
         case NonFatal(e)  => throw e
-        case x: Throwable => throw new Exception("Fatal exception inside watcher", x)
+        case e: InterruptedException =>
+          log.info(msg"Stopped watching for changes")
+          lastResult
       } finally watcher.stop()
 
       override def action() = {
         watcher.clear()
-        fn
+        val result = fn
+        lastResult = result
+        result
       }
     }
 

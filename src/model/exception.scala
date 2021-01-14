@@ -26,6 +26,7 @@ case class BranchNotFound(commit: Commit) extends FuryException
 case class BranchDoesNotExist(branch: Branch) extends FuryException
 case class BspException() extends FuryException
 case class BuildServerError(cause: Throwable) extends FuryException
+case class BuildDidNotSucceed() extends FuryException
 case class CannotUndo() extends FuryException
 case class CannotUpdateRepo(repo: RepoId) extends FuryException
 case class ConflictingFiles(files: List[Path]) extends FuryException

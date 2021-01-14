@@ -96,9 +96,9 @@ case class Universe(hierarchy: Hierarchy,
                }
   } yield repos.toMap
 
-  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
+  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshot] = for {
     repoPaths   <- repoPaths(ref)
-  } yield Snapshots(repoPaths.map { case (repo, paths) =>
+  } yield Snapshot(repoPaths.map { case (repo, paths) =>
     repo.commit -> Stash(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
   }.toMap)
 

@@ -34,8 +34,8 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     implicit val sourcesHint = existingSourcesHint
     (cli -< ProjectArg -< ModuleArg -< SourceArg -< ColumnArg -< RawArg).action {
       (getProject, getModule) >>= { case (project, module) =>
-        val snapshots = (universe, getLayout) >>= (_.checkout(module.ref(project), _))
-        val tabulation = (snapshots, getLayout) >> (Tables().sources(_, _))
+        val snapshot = (universe, getLayout) >>= (_.checkout(module.ref(project), _))
+        val tabulation = (snapshot, getLayout) >> (Tables().sources(_, _))
         (tabulation, conf, opt(ColumnArg), opt(SourceArg)) >> { case (table, c, col, source) =>
           log.info(c.focus(project.id, module.id))
           log.rawln(Tables().show(table, cli.cols, module.sources.to[List], raw, col, source, "repo"))
