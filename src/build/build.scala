@@ -237,6 +237,9 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
 }
 
 case class BuildCli(cli: Cli)(implicit log: Log) {
+  
+  private val allReporters = Reporter.all.map(_.name).mkString(", ")
+  val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
 
   def notImplemented: Try[ExitStatus] = Success(Abort)
 

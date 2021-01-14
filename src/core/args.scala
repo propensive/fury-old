@@ -137,8 +137,6 @@ object Args {
       "stop application if it is still running after this time (seconds)")
   
   val ExpiryArg = CliParam[Int]('T', 'ttl, "the TTL for the layer in days")
-  private val allReporters = Reporter.all.map(_.name).mkString(", ")
-  val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
   val ScopeArg = CliParam[ScopeId]('S', 'scope, "specify the permission scope (layer, directory, project)")
   val ServiceArg = CliParam[DomainName]('S', 'service, "specify the default remote layer service")
   val ScratchArg = CliParam[Unit]('s', 'scratch, "create the repo as a scratch space")
