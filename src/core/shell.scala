@@ -44,7 +44,6 @@ case class Shell(environment: Environment) {
               env: Map[String, String],
               properties: Map[String, String],
               policy: Policy,
-              layout: Layout,
               args: List[String],
               noSecurity: Boolean,
               workDir: Path,

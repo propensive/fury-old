@@ -268,7 +268,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 
     build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true)
 
-    result       <- build.cleanCache(moduleRef, layout)
+    result       <- build.cleanCache(moduleRef)
   } yield {
     Option(result.getMessage()).foreach(log.info(_))
     val success = result.getCleaned()
@@ -328,7 +328,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                               compileSuccess <- compileResult.asTry
                               _              <- (dir.map { dir => build.saveJars(module.ref(project),
                                                     compileSuccess.classDirectories.values.to[Set],
-                                                    dir in layout.pwd, layout, output)
+                                                    dir in layout.pwd, output)
                                                 }).getOrElse(Success(()))
                             } yield compileSuccess
                           }
@@ -405,16 +405,16 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     future       <- if(watch || waiting) Try(r.start()).flatten else r.action()
     exec         <- call(ExecNameArg)
     _            <- ~log.info(msg"Building native image for $exec")
-    _            <- build.saveNative(module.ref(project), Installation.optDir, layout, main)
+    _            <- build.saveNative(module.ref(project), Installation.optDir, main)
     bin          <- ~(Installation.optDir / main.key.toLowerCase)
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
     globalPolicy <- ~Policy.read(log)
     javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
 
-    _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project),
-                        layout).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
-                        Installation.completionsDir.value), Map(), globalPolicy, layout, List(exec.key),
+    _            <- Try(Shell(cli.env).runJava(build.classpath(module.ref(project)
+                        ).to[List].map(_.value), ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
+                        Installation.completionsDir.value), Map(), globalPolicy, List(exec.key),
                         true, layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
 
     _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
@@ -457,8 +457,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                     } else result
     compilerMod  <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
     repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
-    classpath    <- ~build.classpath(module.ref(project), layout)
-    bootCp       <- ~build.bootClasspath(module.ref(project), layout)
+    classpath    <- ~build.classpath(module.ref(project))
+    bootCp       <- ~build.bootClasspath(module.ref(project))
     javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
   } yield {
     val cp = classpath.map(_.value).join(":")
@@ -478,7 +478,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     build        <- Build.syncBuild(layer, module.ref(project), layout, false)
-    classpath    <- ~build.classpath(module.ref(project), layout)
+    classpath    <- ~build.classpath(module.ref(project))
   } yield {
     val separator = if(singleColumn) "\n" else ":"
     log.rawln(classpath.map(_.value).join(separator))
@@ -511,7 +511,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 theme: Theme,
                                 noSecurity: Boolean)
                                (implicit log: Log): Try[Future[BuildResult]] = {
-    for(_ <- build.checkoutAll(layout)) yield {
+    for(_ <- build.checkoutAll()) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
       val future = build.compile(moduleRef, Map(), layout,

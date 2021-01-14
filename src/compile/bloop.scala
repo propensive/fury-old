@@ -29,28 +29,28 @@ object Bloop {
     layout.bloopDir.ifExists().fold(Try(false))(_.findChildren(_.endsWith(".json")).map(_.delete()
         ).sequence.map(_.contains(true)))
 
-  def generateFiles(build: Build, layout: Layout)(implicit log: Log): Try[Iterable[Path]] =
+  def generateFiles(build: Build)(implicit log: Log): Try[Iterable[Path]] =
     new CollOps(build.targets.values.map { target =>
       for {
-        path       <- layout.bloopConfig(target.ref).mkParents()
-        jsonString <- makeConfig(target, build, layout)
+        path       <- build.layout.bloopConfig(target.ref).mkParents()
+        jsonString <- makeConfig(target, build)
         _          <- ~path.writeSync(jsonString)
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(target: Target, build: Build, layout: Layout)(implicit log: Log): Try[String] = {
+  private def makeConfig(target: Target, build: Build)(implicit log: Log): Try[String] = {
 
-    build.writePlugin(target.ref, layout)
-    val classpath = build.classpath(target.ref, layout)
+    build.writePlugin(target.ref)
+    val classpath = build.classpath(target.ref)
     
     val optDefs = build.aggregatedOptDefs(target.ref).getOrElse(Set()).filter(_.compiler ==
         target.module.compiler).map(_.value)
     
     val opts: List[String] =
-      build.aggregatedOpts(target.ref, layout).map(_.to[List].filter(_.compiler ==
+      build.aggregatedOpts(target.ref).map(_.to[List].filter(_.compiler ==
           target.module.compiler).flatMap(_.value.transform(optDefs))).getOrElse(Nil)
     
-    val compilerClasspath = build(target.module.compiler).map { _ => build.bootClasspath(target.ref, layout) }
+    val compilerClasspath = build(target.module.compiler).map { _ => build.bootClasspath(target.ref) }
     
     val compilerOpt: Option[Json] = build(target.module.compiler).toOption.flatMap { compiler =>
       val spec: Option[BloopSpec] = compiler.map(_.module.kind.as[Compiler].fold {
@@ -71,12 +71,12 @@ object Bloop {
       project = Json.of(
         scala = compilerOpt,
         name = target.ref.urlSafe,
-        directory = layout.workDir(target.ref).value,
+        directory = build.layout.workDir(target.ref).value,
         sources = target.sourcePaths.map(_.value),
         dependencies = build.graph.dependencies(target.ref).map(_.ref.urlSafe),
         classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
-        out = str"${layout.outputDir(target.ref).value}",
-        classesDir = str"${layout.classesDir(target.ref).value}",
+        out = str"${build.layout.outputDir(target.ref).value}",
+        classesDir = str"${build.layout.classesDir(target.ref).value}",
         java = Json.of(options = Nil),
         test = Json.of(frameworks = Nil, options = Json.of(excludes = Nil, arguments = Nil)),
         jvmPlatform = Json.of(

@@ -29,9 +29,8 @@ object Reporter {
 }
 
 abstract class Reporter(val name: String) {
-  def report(graph: Target.Graph,
-             theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+            (implicit log: Log)
             : Unit
 }
 
@@ -39,9 +38,8 @@ object GraphReporter extends Reporter("graph") {
 
   private def timeString(t: Long): String = if(t >= 10000) s"${t / 1000}s" else s"${t}ms"
 
-  def report(graph: Target.Graph,
-             theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+            (implicit log: Log)
             : Unit = {
     log.info(msg"Starting build")
     UiGraph.live(graph.links, multiplexer.stream(50, Some(Tick)))(log, theme)
@@ -50,23 +48,22 @@ object GraphReporter extends Reporter("graph") {
 }
 
 object LinearReporter extends Reporter("linear") {
-  def report(graph: Target.Graph,
-             theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+            (implicit log: Log)
             : Unit = {
     multiplexer.stream(50, Some(Tick)).foreach {
-      case StartCompile(ref)                           => log.info(msg"Starting compilation of module $ref")
-      case StopCompile(ref, true)                      => log.info(msg"Successfully compiled module $ref")
-      case StopCompile(ref, false)                     => log.info(msg"Compilation of module $ref failed")
-      case DiagnosticMsg(ref, message)                 => log.info(message.msg)
-      case Print(ref, line)                            => log.info(line)
-      case other                                       => ()
+      case StartCompile(ref)           => log.info(msg"Starting compilation of module $ref")
+      case StopCompile(ref, true)      => log.info(msg"Successfully compiled module $ref")
+      case StopCompile(ref, false)     => log.info(msg"Compilation of module $ref failed")
+      case DiagnosticMsg(ref, message) => log.info(message.msg)
+      case Print(ref, line)            => log.info(line)
+      case other                       => ()
     }
   }
 }
 
 object SummaryReporter extends Reporter("summary") {
-  def report(graph: Target.Graph,
+  def report(graph: Graph,
              theme: Theme,
              multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
             : Unit = {
@@ -94,9 +91,8 @@ object SummaryReporter extends Reporter("summary") {
 }
 
 object InterleavingReporter extends Reporter("interleaving") {
-  def report(graph: Target.Graph,
-             theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+            (implicit log: Log)
             : Unit = {
     val interleaver = new Interleaver(3000L)
     multiplexer.stream(50, Some(Tick)).foreach {
@@ -126,9 +122,8 @@ object InterleavingReporter extends Reporter("interleaving") {
 
 object QuietReporter extends Reporter("quiet") {
 
-  def report(graph: Target.Graph,
-             theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+            (implicit log: Log)
             : Unit =
     multiplexer.stream(50, None).foreach { event => () }
 }

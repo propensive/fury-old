@@ -45,7 +45,7 @@ case class OptionCli(cli: Cli)(implicit log: Log) {
     module     <- optModule.asTry
     compiler   <- ~module.compiler
     build      <- Build.syncBuild(layer, module.ref(project), layout, true)
-    rows       <- build.aggregatedOpts(module.ref(project), layout)
+    rows       <- build.aggregatedOpts(module.ref(project))
     showRows   <- ~rows.to[List].filter(_.compiler == compiler)
     _          <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
     table      <- ~Tables().show(table, cli.cols, showRows, raw, col, opt, "param")

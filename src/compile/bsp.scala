@@ -112,7 +112,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
 
       graph          <- layer.projects.flatMap(_.moduleRefs).map { ref => for {
                           ds   <- universe.dependencies(ref, layout)
-                          arts <- (ds.map(_.ref) + ref).traverse(Target(_, universe, layout))
+                          arts <- (ds.map(_.ref) + ref).traverse(Build.makeTarget(_, universe, layout))
                         } yield arts.map { a =>
                           (a.ref, (a.module.dependencies.to[List]) ++ a.module.compiler().map(_.hide))
                         } }.sequence.map(_.flatten.toMap)
@@ -120,7 +120,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
       allModuleRefs  = graph.keys
       modules       <- allModuleRefs.traverse { ref => universe(ref).map((ref, _)) }
       targets       <- graph.keys.map { ref =>
-                         Target(ref, universe, layout).map(ref -> _)
+                         Build.makeTarget(ref, universe, layout).map(ref -> _)
                        }.sequence.map(_.toMap)
       snapshot      <- graph.keys.map(universe.checkout(_, layout)).sequence
     } yield Structure(modules.toMap, graph, snapshot.foldLeft(Snapshot())(_ ++ _), targets)
@@ -461,17 +461,18 @@ object FuryBuildServer {
     private def info(message: Message)(implicit theme: Theme) =
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
-    override def report(graph: Target.Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
-                       (implicit log: Log): Unit = {
+    override def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+                       (implicit log: Log)
+                       : Unit = {
 
       implicit val t: Theme = theme
       multiplexer.stream(50, Some(Tick)).foreach {
-        case StartCompile(ref)                           => info(msg"Starting compilation of module $ref")
-        case StopCompile(ref, true)                      => info(msg"Successfully compiled module $ref")
-        case StopCompile(ref, false)                     => info(msg"Compilation of module $ref failed")
-        case DiagnosticMsg(ref, message)                 => info(message.msg)
-        case Print(ref, line)                            => info(str"$line")
-        case other                                       => ()
+        case StartCompile(ref)           => info(msg"Starting compilation of module $ref")
+        case StopCompile(ref, true)      => info(msg"Successfully compiled module $ref")
+        case StopCompile(ref, false)     => info(msg"Compilation of module $ref failed")
+        case DiagnosticMsg(ref, message) => info(message.msg)
+        case Print(ref, line)            => info(str"$line")
+        case other                       => ()
       }
     }
   }

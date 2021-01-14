@@ -23,16 +23,17 @@ import fury.model._, fury.io._, fury.text._
 
 import scala.util._
 
+case class Graph(deps: Map[ModuleRef, Set[Dependency]], targets: Map[ModuleRef, Target]) {
+  def links: Map[ModuleRef, Set[Dependency]] = dependencies.map { case (ref, dependencies) =>
+    (ref, dependencies.map { dRef => if(targets(dRef.ref).module.kind.is[Compiler]) dRef.hide else dRef })
+  }.toMap
+
+  lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
+}
+
 object Target {
-  case class Graph(deps: Map[ModuleRef, Set[Dependency]], targets: Map[ModuleRef, Target]) {
-    def links: Map[ModuleRef, Set[Dependency]] = dependencies.map { case (ref, dependencies) =>
-      (ref, dependencies.map { dRef => if(targets(dRef.ref).module.kind.is[Compiler]) dRef.hide else dRef })
-    }.toMap
 
-    lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
-  }
-
-  def apply(ref: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log): Try[Target] = for {
+  def make(ref: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log): Try[Target] = for {
     project     <- universe(ref.projectId)
     module      <- project(ref.moduleId)
     binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
