@@ -47,31 +47,12 @@ object Build {
 
     hierarchy <- layer.hierarchy()
     universe  <- hierarchy.universe
-    build     <- ProtoBuild(goal, universe, layout)()
+    build     <- Build(universe, goal, layout)
     _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
     _         <- build.generateFiles()
   } yield build
 
-  def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
-    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false))
-    buildCache(layout.furyDir) = buildCache.get(layout.furyDir).fold(fn)(_.transformWith(fn.waive))
-
-    buildCache(layout.furyDir)
-  }
-
-  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
-               (implicit log: Log)
-               : Try[Build] = {
-    val build = Build(layer, ref, layout, noSecurity)
-    buildCache(layout.furyDir) = Future.successful(build)
-    build
-  }
-
-  def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
-}
-
-case class ProtoBuild(goal: ModuleRef, universe: Universe, layout: Layout) {
-  def apply()(implicit log: Log): Try[Build] = {
+  def apply(universe: Universe, goal: ModuleRef, layout: Layout)(implicit log: Log): Try[Build] = {
 
     def makeTarget(ref: ModuleRef)(implicit log: Log): Try[Target] = for {
       project     <- universe(ref.projectId)
@@ -109,40 +90,38 @@ case class ProtoBuild(goal: ModuleRef, universe: Universe, layout: Layout) {
       
       val subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(intermediateTargets.map(_.ref).to[Set] + goal).connections
       
-      new Build(this, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _),
-          moduleRefToTarget, targetIndex.toMap, policy.to[Set])
+      new Build(target.ref, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _),
+          moduleRefToTarget, targetIndex.toMap, policy.to[Set], universe, layout)
     }
   }
 
+  def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
+    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false))
+    buildCache(layout.furyDir) = buildCache.get(layout.furyDir).fold(fn)(_.transformWith(fn.waive))
+
+    buildCache(layout.furyDir)
+  }
+
+  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
+               (implicit log: Log)
+               : Try[Build] = {
+    val build = Build(layer, ref, layout, noSecurity)
+    buildCache(layout.furyDir) = Future.successful(build)
+    build
+  }
+
+  def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
 }
 
-case class Target(ref: ModuleRef,
-                  module: Module,
-                  workspace: Path,
-                  project: Project,
-                  snapshot: Snapshot,
-                  sourcePaths: List[Path],
-                  binaries: List[Path],
-                  javaVersion: Int) {
-
-  lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
-  lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
-
-  def canAffectBuild = module.kind.is[Lib] || module.includes.nonEmpty
-  def directDependencies = module.dependencies ++ module.compiler()
-}
-
-class Build(proto: ProtoBuild,
-            val graph: Graph,
-            subgraphs: Map[ModuleRef, Set[ModuleRef]],
-            val snapshot: Snapshot,
-            val targets: Map[ModuleRef, Target],
-            targetIndex: Map[ModuleRef, Target],
-            val requiredPermissions: Set[Permission]) {
-
-  def layout: Layout = proto.layout
-  def universe: Universe = proto.universe
-  def goal: ModuleRef = proto.goal
+case class Build(goal: ModuleRef,
+                 graph: Graph,
+                 subgraphs: Map[ModuleRef, Set[ModuleRef]],
+                 snapshot: Snapshot,
+                 targets: Map[ModuleRef, Target],
+                 targetIndex: Map[ModuleRef, Target],
+                 requiredPermissions: Set[Permission],
+                 universe: Universe,
+                 layout: Layout) {
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]

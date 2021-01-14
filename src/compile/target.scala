@@ -30,3 +30,19 @@ case class Graph(deps: Map[ModuleRef, Set[Dependency]], targets: Map[ModuleRef, 
 
   lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
 }
+
+case class Target(ref: ModuleRef,
+                  module: Module,
+                  workspace: Path,
+                  project: Project,
+                  snapshot: Snapshot,
+                  sourcePaths: List[Path],
+                  binaries: List[Path],
+                  javaVersion: Int) {
+
+  lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
+  lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
+
+  def canAffectBuild = module.kind.is[Lib] || module.includes.nonEmpty
+  def directDependencies = module.dependencies ++ module.compiler()
+}
