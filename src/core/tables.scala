@@ -250,7 +250,7 @@ case class Tables() {
     Heading("Path", _.local)
   )
 
-  val snapshots: Tabulation[Snapshot] = Tabulation(
+  val snapshots: Tabulation[Stash] = Tabulation(
     Heading("ID", _.hash),
     Heading("Remote", _.remote),
     //Heading("Local", _.local),

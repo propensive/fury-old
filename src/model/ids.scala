@@ -908,11 +908,11 @@ case class Dependency(ref: ModuleRef) extends Key("dependency") {
   override def key: String = ref.key
 }
 
-object SnapshotHash {
-  implicit val msgShow: MsgShow[SnapshotHash] = sh => UserMsg(_.repo(sh.hash.encoded[Base64].take(4)))
+object StashId {
+  implicit val msgShow: MsgShow[StashId] = sh => UserMsg(_.repo(sh.hash.encoded[Base64].take(4)))
 }
 
-case class SnapshotHash(hash: Digest) extends Key(msg"snapshot") {
+case class StashId(hash: Digest) extends Key(msg"stash") {
   def key: String = hash.encoded[Base64]
 }
 

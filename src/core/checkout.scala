@@ -24,8 +24,8 @@ import jovian._
 
 import scala.util._
 
-case class Snapshots(snapshots: Map[Commit, Snapshot] = Map()) {
-  def apply(repoId: RepoId): Try[Snapshot] =
+case class Snapshots(snapshots: Map[Commit, Stash] = Map()) {
+  def apply(repoId: RepoId): Try[Stash] =
     snapshots.find(_._2.repoId == repoId).map(_._2).ascribe(ItemNotFound(repoId))
   
   def ++(that: Snapshots): Snapshots =
@@ -36,14 +36,14 @@ case class Snapshots(snapshots: Map[Commit, Snapshot] = Map()) {
     })
 }
 
-case class Snapshot(repoId: RepoId,
-                    remote: Remote,
-                    local: Option[GitDir],
-                    commit: Commit,
-                    branch: Branch,
-                    sources: List[Path]) {
+case class Stash(repoId: RepoId,
+                 remote: Remote,
+                 local: Option[GitDir],
+                 commit: Commit,
+                 branch: Branch,
+                 sources: List[Path]) {
 
-  def hash: SnapshotHash = SnapshotHash((commit, local, sources).digest[Md5])
+  def hash: StashId = StashId((commit, local, sources).digest[Md5])
   def path: Path = Installation.srcsDir / hash.hash.encoded[Hex].take(16)
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = for {

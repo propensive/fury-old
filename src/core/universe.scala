@@ -99,7 +99,7 @@ case class Universe(hierarchy: Hierarchy,
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshots] = for {
     repoPaths   <- repoPaths(ref)
   } yield Snapshots(repoPaths.map { case (repo, paths) =>
-    repo.commit -> Snapshot(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
+    repo.commit -> Stash(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
   }.toMap)
 
   def workspace(ref: ModuleRef, layout: Layout): Try[Option[Path]] = for {
