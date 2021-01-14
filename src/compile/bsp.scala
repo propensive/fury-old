@@ -42,6 +42,29 @@ import java.net.URI
 import language.higherKinds
 
 object Bsp {
+  val bspVersion = "2.0.0-M4"
+
+  def createConfig(layout: Layout): Try[Unit] =
+    layout.bspConfig.writeSync(bspConfigJson(whichFury(layout)).toString)
+  
+  private def whichFury(layout: Layout): Path = Path(System.getProperty("fury.home")) / "bin" / "fury"
+  
+  private def bspConfigJson(fury: Path): Json =
+    Json.of(
+      name = "Fury",
+      argv = List(
+          fury.javaPath.toAbsolutePath.toString,
+          "standalone",
+          "bsp"
+      ),
+      version = FuryVersion.current,
+      bspVersion = bspVersion,
+      languages = List("java", "scala")
+    )
+}
+
+/*
+object Bsp {
 
   val bspVersion = "2.0.0-M4"
 
@@ -485,3 +508,4 @@ case class BspTarget(id: BuildTargetIdentifier) extends Key(msg"BuildTargetIdent
 object BspTarget {
   implicit val msgShow: MsgShow[BspTarget] = v => Message(_.url(v.key))
 }
+*/

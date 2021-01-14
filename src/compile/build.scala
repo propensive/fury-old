@@ -39,46 +39,65 @@ object Build {
   private val buildCache: collection.mutable.Map[Path, Future[Try[Build]]] = TrieMap()
   private val requestOrigins: collection.mutable.Map[RequestOriginId, Build] = TrieMap()
 
-  def findBy(ref: ModuleRef): Iterable[Build] = requestOrigins.values.filter(_.target.ref == ref)
+  def findBy(ref: ModuleRef): Iterable[Build] = requestOrigins.values.filter(_.goal == ref)
 
-  def apply(layer: Layer, dependency: Dependency, layout: Layout, noSecurity: Boolean)
+  def apply(layer: Layer, goal: ModuleRef, layout: Layout, noSecurity: Boolean)
            (implicit log: Log)
            : Try[Build] = for {
 
     hierarchy <- layer.hierarchy()
     universe  <- hierarchy.universe
-    build     <- Build(universe, dependency, layout)
+    build     <- ProtoBuild(goal, universe, layout)()
     _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
     _         <- build.generateFiles()
   } yield build
 
-  def makeTarget(ref: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log): Try[Target] = for {
-    project     <- universe(ref.projectId)
-    module      <- project(ref.moduleId)
-    binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
-    checkouts   <- universe.checkout(ref, layout)
-    javaVersion <- universe.javaVersion(ref, layout)
-    sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-    includeSrcs <- module.includes.flatMap(Source.fromInclude(_)).to[List].traverse(_.dir(checkouts, layout))
-    workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
-  } yield Target(ref, module, workspace, project, checkouts, sources ++ includeSrcs, binaries, javaVersion)
+  def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
+    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false))
+    buildCache(layout.furyDir) = buildCache.get(layout.furyDir).fold(fn)(_.transformWith(fn.waive))
 
-  def apply(universe: Universe, dependency: Dependency, layout: Layout)(implicit log: Log): Try[Build] = {
+    buildCache(layout.furyDir)
+  }
+
+  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
+               (implicit log: Log)
+               : Try[Build] = {
+    val build = Build(layer, ref, layout, noSecurity)
+    buildCache(layout.furyDir) = Future.successful(build)
+    build
+  }
+
+  def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
+}
+
+case class ProtoBuild(goal: ModuleRef, universe: Universe, layout: Layout) {
+  def apply()(implicit log: Log): Try[Build] = {
+
+    def makeTarget(ref: ModuleRef)(implicit log: Log): Try[Target] = for {
+      project     <- universe(ref.projectId)
+      module      <- project(ref.moduleId)
+      binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
+      checkouts   <- universe.checkout(ref, layout)
+      javaVersion <- universe.javaVersion(ref, layout)
+      sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
+      includeSrcs <- module.includes.flatMap(Source.fromInclude(_)).to[List].traverse(_.dir(checkouts, layout))
+      workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
+    } yield Target(ref, module, workspace, project, checkouts, sources ++ includeSrcs, binaries, javaVersion)
 
     def makeGraph(target: Target): Try[Graph] = for {
-      modules <- universe.dependencies(dependency.ref, layout)
-      targets <- modules.map(_.ref).traverse(makeTarget(_, universe, layout))
+      modules <- universe.dependencies(goal, layout)
+      targets <- modules.map(_.ref).traverse(makeTarget(_))
     } yield {
       val targetGraph = (targets + target).map { t => t.ref -> t.directDependencies }.toMap
       Graph(targetGraph, targets.map { t => t.ref -> t }.toMap)
     }
 
     for {
-      target      <- makeTarget(dependency.ref, universe, layout)
+      target      <- makeTarget(goal)
       graph       <- makeGraph(target)
 
       targetIndex <- graph.dependencies.keys.filter(_ != ModuleRef.JavaRef).traverse { ref =>
-                       makeTarget(ref, universe, layout).map(ref -> _)
+                       makeTarget(ref).map(ref -> _)
                      }
       
       targets      = targetIndex.unzip._2.to[Set]
@@ -88,46 +107,42 @@ object Build {
       val moduleRefToTarget = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
       val intermediateTargets = targets.filter(_.canAffectBuild)
       
-      val subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(intermediateTargets.map(_.ref).to[Set] + dependency.ref).connections
+      val subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(intermediateTargets.map(_.ref).to[Set] + goal).connections
       
-      Build(target, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _),
-          moduleRefToTarget, targetIndex.toMap, policy.to[Set], universe, layout)
+      new Build(this, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _),
+          moduleRefToTarget, targetIndex.toMap, policy.to[Set])
     }
   }
 
-  def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
-    def fn: Future[Try[Build]] = Future(Build(layer, Dependency(ref), layout, false))
-    buildCache(layout.furyDir) = buildCache.get(layout.furyDir).fold(fn)(_.transformWith(fn.waive))
-
-    buildCache(layout.furyDir)
-  }
-
-  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
-               (implicit log: Log)
-               : Try[Build] = {
-    val build = Build(layer, Dependency(ref), layout, noSecurity)
-    buildCache(layout.furyDir) = Future.successful(build)
-    build
-  }
-
-  def nextOriginId(build: Build)(implicit log: Log): RequestOriginId = {
-    val originId = RequestOriginId.next(log.pid)
-    requestOrigins(originId) = build
-    originId
-  }
-
-  def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
 }
 
-case class Build(target: Target, 
-                 graph: Graph,
-                 subgraphs: Map[ModuleRef, Set[ModuleRef]],
-                 snapshot: Snapshot,
-                 targets: Map[ModuleRef, Target],
-                 targetIndex: Map[ModuleRef, Target],
-                 requiredPermissions: Set[Permission],
-                 universe: Universe,
-                 layout: Layout) {
+case class Target(ref: ModuleRef,
+                  module: Module,
+                  workspace: Path,
+                  project: Project,
+                  snapshot: Snapshot,
+                  sourcePaths: List[Path],
+                  binaries: List[Path],
+                  javaVersion: Int) {
+
+  lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
+  lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
+
+  def canAffectBuild = module.kind.is[Lib] || module.includes.nonEmpty
+  def directDependencies = module.dependencies ++ module.compiler()
+}
+
+class Build(proto: ProtoBuild,
+            val graph: Graph,
+            subgraphs: Map[ModuleRef, Set[ModuleRef]],
+            val snapshot: Snapshot,
+            val targets: Map[ModuleRef, Target],
+            targetIndex: Map[ModuleRef, Target],
+            val requiredPermissions: Set[Permission]) {
+
+  def layout: Layout = proto.layout
+  def universe: Universe = proto.universe
+  def goal: ModuleRef = proto.goal
 
   private[this] val hashes: HashMap[ModuleRef, Digest] = new HashMap()
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
@@ -148,6 +163,12 @@ case class Build(target: Target,
   def apply(compiler: CompilerRef): Try[Option[Target]] = compiler match {
     case Javac(_)         => Success(None)
     case BspCompiler(ref) => apply(ref).map(Some(_))
+  }
+
+  private def nextOriginId()(implicit log: Log): RequestOriginId = {
+    val originId = RequestOriginId.next(log.pid)
+    Build.requestOrigins(originId) = this
+    originId
   }
 
   def checkoutAll()(implicit log: Log): Try[Unit] =
@@ -238,13 +259,13 @@ case class Build(target: Target,
         Origin.Module(target.ref))) ++ target.module.compiler().flatMap { dependency =>
         apply(dependency.ref).get.module.optDefs.map(Provenance(_, target.module.compiler, Origin.Compiler)) } }
 
-  def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] =
+  /*def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] =
     ref.javac.fold(Try(Set[Provenance[PluginDef]]())) { ref => for {
       target           <- apply(ref)
       inheritedPlugins <- target.module.dependencies.to[List].map(_.ref).traverse(aggregatedPlugins(_))
     } yield inheritedPlugins.flatten.to[Set] ++ target.module.kind.as[Plugin].map { plugin =>
         Provenance(PluginDef(plugin.id, ref, plugin.main), target.module.compiler, Origin.Plugin)
-    } }
+    } }*/
   
   def aggregatedResources(ref: ModuleRef): Try[Set[Source]] =
     ref.javac.fold(Try(Set[Source]())) { ref => for {
@@ -387,7 +408,7 @@ case class Build(target: Target,
                     args: List[String],
                     noSecurity: Boolean)(implicit log: Log)
   : Future[BuildResult] = Future.fromTry {
-    val originId = Build.nextOriginId(this)
+    val originId = nextOriginId()
     val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
     val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
     params.setOriginId(originId.key)

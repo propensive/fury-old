@@ -37,7 +37,7 @@ object FuryMenu {
       Action('remove, msg"remove a command alias from the layer", AliasCli(_).remove),
       Action('list, msg"list command aliases", AliasCli(_).list)
     ),
-    Action('bsp, msg"start BSP server", Bsp.startServer, show = false),
+    //Action('bsp, msg"start BSP server", Bsp.startServer, show = false),
     Menu('binary, msg"manage binary dependencies for the module", 'list, shortcut = 'b')(
       Action('add, msg"add a binary dependency to the module", BinaryCli(_).add, shortcut = 'a'),
       Action('remove, msg"remove a binary dependency from the module", BinaryCli(_).remove, shortcut = 'r'),

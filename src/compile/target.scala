@@ -30,33 +30,3 @@ case class Graph(deps: Map[ModuleRef, Set[Dependency]], targets: Map[ModuleRef, 
 
   lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
 }
-
-object Target {
-
-  def make(ref: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log): Try[Target] = for {
-    project     <- universe(ref.projectId)
-    module      <- project(ref.moduleId)
-    binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
-    checkouts   <- universe.checkout(ref, layout)
-    javaVersion <- universe.javaVersion(ref, layout)
-    sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-    includeSrcs <- module.includes.flatMap(Source.fromInclude(_)).to[List].traverse(_.dir(checkouts, layout))
-    workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
-  } yield Target(ref, module, workspace, project, checkouts, sources ++ includeSrcs, binaries, javaVersion)
-}
-
-case class Target(ref: ModuleRef,
-                  module: Module,
-                  workspace: Path,
-                  project: Project,
-                  snapshot: Snapshot,
-                  sourcePaths: List[Path],
-                  binaries: List[Path],
-                  javaVersion: Int) {
-
-  lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
-  lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
-
-  def canAffectBuild = module.kind.is[Lib] || module.includes.nonEmpty
-  def directDependencies = module.dependencies ++ module.compiler()
-}

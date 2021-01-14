@@ -232,13 +232,13 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     idString <- Option(params.getOriginId)
     originId <- RequestOriginId.unapply(idString)
     build    <- Build.findOrigin(originId)
-  } yield broadcast(Print(build.target.ref, params.getMessage))
+  } yield broadcast(Print(build.goal, params.getMessage))
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = for {
     idString <- Option(params.getOriginId)
     originId <- RequestOriginId.unapply(idString)
     build    <- Build.findOrigin(originId)
-  } yield broadcast(Print(build.target.ref, params.getMessage))
+  } yield broadcast(Print(build.goal, params.getMessage))
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val ref = ModuleRef.fromUri(params.getBuildTarget.getUri)
