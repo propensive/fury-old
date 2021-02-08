@@ -42,9 +42,14 @@ of building a majority of Scala projects. Fury’s future plans are described in
 
 Pre-release versions of Fury (with no guarantees on features or reliability) may be installed by running,
 ```sh
-curl -Ls fury.build | sh
+curl -Ls get.fury.build | sh
 ```
-in a shell.
+in a shell, or alternatively,
+```sh
+curl -Ls get.fury.build > install
+./install system install
+```
+if you would prefer to inspect the script before running it.
 
 For more details, see the full [installation instructions](doc/install.md).
 
