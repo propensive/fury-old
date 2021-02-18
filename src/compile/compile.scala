@@ -52,7 +52,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   private var lock: Promise[Unit] = Promise.successful(())
   private var connections: Map[Path, Connection] = Map.empty
   private var usages: Map[Session, Connection] = Map.empty
-  private val bloopVersion = "1.4.5"
+  private val bloopVersion = "1.4.6"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
     val newLock: Promise[Unit] = Promise()

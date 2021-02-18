@@ -46,8 +46,18 @@ case class Layer(version: Int,
   def apply(id: ProjectId) = projects.findBy(id)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
-
+  def commit(repoId: RepoId): Try[Commit] = repos.findBy(repoId).map(_.commit)
   def spaces: SortedSet[RootId] = repos.map(_.id) ++ workspaces.map(_.id)
+
+  def repoPaths(snapshot: Snapshot, source: Source): Try[Stash] = source match {
+    case RepoSource(repoId, path, glob) => for {
+      repo  <- repos.findBy(repoId)
+      stash <- snapshot(repo.commit)
+    } yield stash
+    case _ =>
+      ???
+  }
+
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>
@@ -83,7 +93,7 @@ case class Layer(version: Int,
   def deepModuleRefs(universe: Universe): Try[Set[ModuleRef]] =
     for(projects <- universe.allProjects) yield projects.flatMap(_.moduleRefs).to[Set]
 
-  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[Dependency]] = { for {
+  def unresolvedModules(universe: Universe): Map[ModuleRef, Set[Input]] = { for {
     project    <- projects.to[List]
     module     <- project.modules
     dependency <- module.dependencies
@@ -116,6 +126,9 @@ case class Layer(version: Int,
       Layer.get(ref.layerRef, ref.remote) >>= (_.hierarchy(pointer / ref.id).map(ref.id -> _))
     }
   } yield Hierarchy(this, pointer, imps.toMap)
+
+  def universe(pointer: Pointer = Pointer.Empty)(implicit log: Log): Try[Universe] =
+    hierarchy(pointer).flatMap(_.universe)
 
   def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
     imports.to[List].traverse { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.map(_.toMap)
@@ -425,7 +438,7 @@ object Layer extends Lens.Partial[Layer] {
 
           migrateModules(step2) { module =>
             if(module.has("dependencies")) module.set(dependencies = Ogdl(module.dependencies.*.map { d =>
-              Dependency(ModuleRef(d))
+              Input(ModuleRef(d))
             }.to[SortedSet])) else module
           }
 

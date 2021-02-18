@@ -44,9 +44,7 @@ object Build {
   def apply(layer: Layer, goal: ModuleRef, layout: Layout, noSecurity: Boolean)
            (implicit log: Log)
            : Try[Build] = for {
-
-    hierarchy <- layer.hierarchy()
-    universe  <- hierarchy.universe
+    universe  <- layer.universe()
     build     <- ~Build(goal, universe, layout)
     _         <- build.init
     _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
@@ -71,10 +69,18 @@ object Build {
   def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
 }
 
-case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log) {
+case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log) { build =>
   
-  case class Init(graph: Graph, subgraphs: Map[ModuleRef, Set[ModuleRef]], snapshot: Snapshot,
+  case class Init(target: Target, graph: Graph, subgraphs: Map[ModuleRef, Set[ModuleRef]], snapshot: Snapshot,
       targets: Map[ModuleRef, Target], requiredPermissions: Set[Permission])
+
+  case class Graph(deps: Map[ModuleRef, Set[Input]], targets: Map[ModuleRef, Target]) {
+     def links: Map[ModuleRef, Set[Input]] = dependencies.map { case (ref, dependencies) =>
+      (ref, dependencies.map { dRef => if(targets(dRef.ref).module.kind.is[Compiler]) dRef.hide else dRef })
+    }.toMap
+  
+    lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
+  }
 
   lazy val init: Try[Init] = for {
     target   <- makeTarget(goal)
@@ -85,16 +91,17 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
     targets   = index.unzip._2.to[Set]
     policy    = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     map       = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
-    junctures = targets.filter(_.canAffectBuild)
+    junctures = targets.filter(_.juncture)
     subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(junctures.map(_.ref).to[Set] + goal).connections
-  } yield Init(graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _), map, policy.to[Set])
+  } yield Init(target, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _), map, policy.to[Set])
 
+  val target: Target = init.get.target
   val graph: Graph = init.get.graph
-  private lazy val subgraphs: Map[ModuleRef, Set[ModuleRef]] = init.get.subgraphs
   val snapshot: Snapshot = init.get.snapshot
   val targets: Map[ModuleRef, Target] = init.get.targets
   val requiredPermissions: Set[Permission] = init.get.requiredPermissions
-  val allDependencies: Set[Target] = targets.values.to[Set]
+  private lazy val subgraphs: Map[ModuleRef, Set[ModuleRef]] = init.get.subgraphs
+  private val allDependencies: Set[Target] = targets.values.to[Set]
 
   lazy val deepDependencies: Map[ModuleRef, Set[ModuleRef]] = {
     @tailrec
@@ -109,23 +116,33 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
 
   private def makeTarget(ref: ModuleRef): Try[Target] = for {
     project     <- universe(ref.projectId)
+    layer       <- universe.layer(project.id)
     module      <- project(ref.moduleId)
     binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
     checkouts   <- universe.checkout(ref, layout)
     javaVersion <- universe.javaVersion(ref, layout)
-    sources     <- module.sources.to[List].traverse(_.dir(checkouts, layout))
-    includeSrcs <- module.includes.flatMap(Source.fromInclude(_)).to[List].traverse(_.dir(checkouts, layout))
     workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
-  } yield Target(ref, module, workspace, project, checkouts, sources ++ includeSrcs, binaries, javaVersion)
+    _           <- ~log.info(msg"$ref workspace is at $workspace")
+  } yield Target(ref, module, workspace, project, layer, checkouts, binaries, javaVersion)
 
-  case class Graph(deps: Map[ModuleRef, Set[Dependency]], targets: Map[ModuleRef, Target]) {
-    def links: Map[ModuleRef, Set[Dependency]] = dependencies.map { case (ref, dependencies) =>
-      (ref, dependencies.map { dRef => if(targets(dRef.ref).module.kind.is[Compiler]) dRef.hide else dRef })
-    }.toMap
-  
-    lazy val dependencies = deps.updated(ModuleRef.JavaRef, Set())
+  private def repoPaths(ref: ModuleRef, source: Source): Try[List[Path]] = source match {
+    case RepoSource(repoId, path, glob) =>
+      for {
+        project <- universe(ref.projectId)
+        layer   <- universe.layer(project.id)
+        repo    <- layer.repos.findBy(repoId)
+        stash   <- snapshot(repo.commit)
+      } yield stash.absolutePaths
+    case WorkspaceSource(workspaceId, path) =>
+      for {
+        project   <- universe(ref.projectId)
+        layer     <- universe.layer(project.id)
+        workspace <- layer.workspaces.findBy(workspaceId)
+      } yield List(workspace.local.getOrElse(layout.workspaceDir(workspace.id)))
+    case LocalSource(path, glob) =>
+      Success(List(path in layout.baseDir))
   }
-  
+
   private def makeGraph(target: Target): Try[Graph] = for {
     modules <- universe.dependencies(goal, layout)
     targets <- modules.map(_.ref).traverse(makeTarget(_))
@@ -136,12 +153,14 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
   def checkoutAll(): Try[Unit] = snapshot.stashes.to[List].traverse(_._2.get(layout)).munit
-  def generateFiles(): Try[Iterable[Path]] = synchronized { Bloop.generateFiles(this) }
-
+  
   def apply(compiler: CompilerRef): Try[Option[Target]] = compiler match {
     case Javac(_)         => Success(None)
     case BspCompiler(ref) => apply(ref).map(Some(_))
   }
+
+  private def apply(input: Input): Try[Target] = apply(input.ref)
+  private def generateFiles(): Try[Iterable[Path]] = synchronized { Bloop.generateFiles(this) }
 
   private def nextOriginId()(implicit log: Log): RequestOriginId = {
     val originId = RequestOriginId.next(log.pid)
@@ -153,18 +172,20 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
                     module: Module,
                     workDir: Path,
                     project: Project,
+                    layer: Layer,
                     snapshot: Snapshot,
-                    sourcePaths: List[Path],
                     binaries: List[Path],
                     javaVersion: Int) {
 
     lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
     lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
 
-    def canAffectBuild = module.kind.is[Lib] || module.includes.nonEmpty
+    def juncture = module.kind.is[Lib] || module.includes.nonEmpty
     def directDependencies = module.dependencies ++ module.compiler()
 
-    def copyInclude(include: Include): Try[Unit] =
+    def sourcePaths: Try[List[Path]] = module.sources.to[List].traverse(repoPaths(ref, _)).map(_.flatten)
+
+    private def copyInclude(include: Include): Try[Unit] =
       include.kind match {
         case ClassesDir(dependency) =>
           val dest = include.id.path in workDir
@@ -174,16 +195,16 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
         case Jarfile(dependency) =>
           val srcs = deepDependencies(dependency).map(layout.classesDir(_))
           ~log.info(msg"Creating JAR file of $dependency at ${include.id.path in workDir}")
-          saveJars(dependency, srcs, include.id.path in workDir, Some(Args.FatJarArg))
+          saveJars(layer, srcs, include.id.path in workDir, Some(Args.FatJarArg))
         
         case JsFile(dependency) =>
           val srcs = deepDependencies(dependency).map(layout.classesDir(_))
           ~log.info(msg"Saving JS file of $dependency at ${include.id.path in workDir}")
-          saveJars(dependency, srcs, include.id.path in workDir, Some(Args.JsArg))
+          saveJars(layer, srcs, include.id.path in workDir, Some(Args.JsArg))
 
         case FileRef(repoId, path) =>
           val source = repoId match {
-            case id: RepoId      => snapshot(id).map(path in _.path)
+            case id: RepoId      => layer.commit(id).flatMap(snapshot(_)).map(path in _.path)
             case id: WorkspaceId => Success(path in layout.workspaceDir(id))
           }
 
@@ -207,36 +228,35 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
       }
   
     lazy val aggregatedOptDefs: Try[Set[Provenance[OptDef]]] =
-      ref.javac.fold(Try(Set[Provenance[OptDef]]())) { ref => for {
+      if(ref.isJavac) Try(Set[Provenance[OptDef]]()) else for {
         optDefs <- module.dependencies.to[List].map(_.ref).traverse(targets(_).aggregatedOptDefs)
       } yield optDefs.flatten.to[Set] ++ module.optDefs.map(Provenance(_, module.compiler,
           Origin.Module(ref))) ++ module.compiler().flatMap { dependency =>
-          apply(dependency.ref).get.module.optDefs.map(Provenance(_, module.compiler, Origin.Compiler)) } }
+          apply(dependency.ref).get.module.optDefs.map(Provenance(_, module.compiler, Origin.Compiler)) }
 
     lazy val aggregatedOpts: Try[Set[Provenance[Opt]]] =
-      ref.javac.fold(Try(Set[Provenance[Opt]]())) { cRef => for {
-        cTarget    <- apply(cRef)
-        compiler  <- ~cTarget.module.compiler
-        tmpParams <- ~cTarget.module.opts.filter(!_.persistent).map(Provenance(_, compiler, Origin.Local))
+      if(ref.isJavac) Try(Set[Provenance[Opt]]()) else for {
+        compiler  <- ~module.compiler
+        tmpParams <- ~module.opts.filter(!_.persistent).map(Provenance(_, compiler, Origin.Local))
         removals  <- ~tmpParams.filter(_.value.remove).map(_.value.id)
-        opts      <- persistentOpts(ref)
-      } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id) }
+        opts      <- persistentOpts
+      } yield (opts ++ tmpParams.filter(!_.value.remove)).filterNot(removals contains _.value.id)
 
-    lazy val classpath: Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
-      requiredTargets(ref).flatMap { target =>
+    lazy val classpath: Set[Path] = if(ref.isJavac) Set[Path]() else {
+      requiredTargets.flatMap { target =>
         Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
-      } ++ targets(ref).binaries
+      } ++ binaries
     }
 
-    def jmhRuntimeClasspath(classesDirs: Set[Path]): Set[Path] =
-      classesDirs ++ targets(ref).module.compiler().map(_.ref).map(layout.resourcesDir(_)) ++ classpath
+    private def jmhRuntimeClasspath(classesDirs: Set[Path]): Set[Path] =
+      classesDirs ++ module.compiler().map(_.ref).map(layout.resourcesDir(_)) ++ classpath
 
-    lazy val runtimeClasspath: Set[Path] =
+    private lazy val runtimeClasspath: Set[Path] =
       module.compiler().flatMap { c => Set(layout.resourcesDir(c.ref), layout.classesDir(c.ref)) } ++
           classpath + layout.classesDir(ref) + layout.resourcesDir(ref)
 
-    def bootClasspath: Set[Path] = ref.javac.fold(Set[Path]()) { ref =>
-      val requiredPlugins = requiredTargets(ref).filter(_.module.kind.is[Plugin]).flatMap { target =>
+    lazy val bootClasspath: Set[Path] = if(ref.isJavac) Set[Path]() else {
+      val requiredPlugins = requiredTargets.filter(_.module.kind.is[Plugin]).flatMap { target =>
         Set(layout.classesDir(target.ref), layout.resourcesDir(target.ref)) ++ target.binaries
       }
 
@@ -249,298 +269,271 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
       compilerClasspath ++ requiredPlugins
     }
 
-  }
-
-  def persistentOpts(ref: ModuleRef): Try[Set[Provenance[Opt]]] =
-    ref.javac.fold(Try(Set[Provenance[Opt]]())) { ref => for {
-      target      <- apply(ref)
-      compiler    <- apply(target.module.compiler)
-      compileOpts <- ~compiler.to[Set].flatMap(_.module.optDefs.filter(_.persistent).map(_.opt(target.module.compiler, Origin.Compiler)))
-      refParams   <- ~target.module.opts.filter(_.persistent).map(Provenance(_, target.module.compiler, Origin.Module(target.ref)))
-      removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
-      inherited   <- target.module.dependencies.to[List].map(_.ref).traverse(persistentOpts(_)).map(_.flatten)
-
-      pOpts       <- ~(if(target.module.kind.is[Plugin]) Set(
-                      Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(target.ref)}"), persistent = true,
-                          remove = false), target.module.compiler, Origin.Plugin)
-                    ) else Set())
-
-    } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
-        _.value.id) }
-
-  /*def aggregatedPlugins(ref: ModuleRef): Try[Set[Provenance[PluginDef]]] =
-    ref.javac.fold(Try(Set[Provenance[PluginDef]]())) { ref => for {
-      target           <- apply(ref)
-      inheritedPlugins <- target.module.dependencies.to[List].map(_.ref).traverse(aggregatedPlugins(_))
-    } yield inheritedPlugins.flatten.to[Set] ++ target.module.kind.as[Plugin].map { plugin =>
-        Provenance(PluginDef(plugin.id, ref, plugin.main), target.module.compiler, Origin.Plugin)
-    } }*/
+    private lazy val persistentOpts: Try[Set[Provenance[Opt]]] =
+      if(ref.isJavac) Try(Set[Provenance[Opt]]()) else for {
+        compiler    <- apply(module.compiler)
+        compileOpts <- ~compiler.to[Set].flatMap(_.module.optDefs.filter(_.persistent).map(_.opt(module.compiler, Origin.Compiler)))
+        refParams   <- ~module.opts.filter(_.persistent).map(Provenance(_, module.compiler, Origin.Module(ref)))
+        removals    <- ~refParams.filter(_.value.remove).map(_.value.id)
+        inherited   <- module.dependencies.to[List].map(_.ref).map(targets(_)).traverse(_.persistentOpts).map(_.flatten)
   
-  def aggregatedResources(ref: ModuleRef): Try[Set[Source]] =
-    ref.javac.fold(Try(Set[Source]())) { ref => for {
-      target    <- apply(ref)
-      inherited <- target.module.dependencies.to[List].map(_.ref).traverse(aggregatedResources(_))
-    } yield inherited.flatten.to[Set] ++ target.module.resources }
+        pOpts       <- ~(if(module.kind.is[Plugin]) Set(
+                        Provenance(Opt(OptId(str"Xplugin:${layout.classesDir(ref)}"), persistent = true,
+                            remove = false), module.compiler, Origin.Plugin)
+                      ) else Set())
   
-  private def requiredTargets(ref: ModuleRef): Set[Target] =
-    ref.javac.fold(Set[Target]()) { ref => deepDependencies(ref).map(targets.apply) }
+      } yield (pOpts ++ compileOpts ++ inherited ++ refParams.filter(!_.value.remove)).filterNot(removals contains
+          _.value.id)
 
-  def allSources: Set[Path] = targets.values.to[Set].flatMap(_.sourcePaths.to[Set])
+    private lazy val aggregatedResources: Try[Set[Source]] = if(ref.isJavac) Try(Set[Source]()) else for {
+      inherited <- module.dependencies.to[List].map(_.ref).map(targets(_)).traverse(_.aggregatedResources)
+    } yield inherited.flatten.to[Set] ++ module.resources
+    
+    private lazy val requiredTargets: Set[Target] =
+      if(ref.isJavac) Set[Target]() else deepDependencies(ref).map(targets(_))
 
-  def writePlugin(ref: ModuleRef): Unit = {
-    val target = targets(ref)
-    if(target.module.kind.is[Plugin]) {
-      val file = layout.classesDir(target.ref) / "scalac-plugin.xml"
+    def writePlugin(): Unit = {
+      if(module.kind.is[Plugin]) {
+        val file = layout.classesDir(ref) / "scalac-plugin.xml"
 
-      target.module.kind.as[Plugin].foreach { plugin =>
-        file.writeSync(str"""|<plugin>
-                             | <name>${plugin.id}</name>
-                             | <classname>${plugin.main}</classname>
-                             |</plugin>""".stripMargin)
-      }
-    }
-  }
-
-  def saveNative(ref: ModuleRef, dest: Path, main: ClassRef): Try[Unit] =
-    for {
-      dest <- Try(dest.extant())
-      target <- ~targets(ref)
-      cp   = target.runtimeClasspath.to[List].map(_.value)
-      _    <- Shell(layout.env).native(dest, cp, main.key)
-    } yield ()
-
-  def saveJars(ref: ModuleRef, srcs: Set[Path], dest: Path, out: Option[CliParam]): Try[Unit] = {
-    val bins = allDependencies.flatMap(_.binaries)
-    val fatJar = out == Some(Args.FatJarArg)
-    val js = out == Some(Args.JsArg)
-    val path = dest in layout.baseDir
-
-    def saveJar(staging: Path, module: Module): Try[Unit] = path.mkParents.map { _ =>
-      val enc = System.getProperty("file.encoding")
-      val manifest = JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
-      val jarInputs: Set[Path] = if(fatJar) bins else Set()
-      log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
-      for {
-        resources        <- aggregatedResources(ref)
-        _                <- resources.traverse(_.copyTo(snapshot, layout, staging))
-        _                <- Shell(layout.env).jar(path, jarInputs, staging.children.map(staging / _).to[Set], manifest)
-        _                <- if(!fatJar) bins.traverse { bin => bin.copyTo(path.parent / bin.name) } else Success(())
-      } yield {
-        if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
-        else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
-        ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
+        module.kind.as[Plugin].foreach { plugin =>
+          file.writeSync(str"""|<plugin>
+                               | <name>${plugin.id}</name>
+                               | <classname>${plugin.main}</classname>
+                               |</plugin>""".stripMargin)
+        }
       }
     }
 
-    def packageJson(bin: Option[String]): euphemism.Json = {
-      //TODO move this to fury.utils.ScalaJs
-      import euphemism._
-      Json.of(
-        name = s"${ref.projectId.key}-${ref.moduleId.key}",
-        version = "0.0.1",
-        bin = bin
-      )
-    }
+    def saveNative(dest: Path, main: ClassRef): Try[Unit] =
+      Shell(layout.env).native(dest.extant(), runtimeClasspath.to[List].map(_.value), main.key)
 
-    def saveJs(staging: Path, module: Module): Try[Unit] = path.mkParents.map { _ =>
-      val enc  = System.getProperty("file.encoding")
-      val launcherName = "main.js"
-      val json = packageJson(if(module.kind.needsExec) Some(launcherName) else None)
-      log.info(msg"Saving Javascript file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+    def saveJars(layer: Layer, srcs: Set[Path], dest: Path, out: Option[CliParam]): Try[Unit] = {
+      val bins = allDependencies.flatMap(_.binaries)
+      val fatJar = out == Some(Args.FatJarArg)
+      val js = out == Some(Args.JsArg)
+      val path = dest in layout.baseDir
+
+      def saveJar(staging: Path, module: Module): Try[Unit] = path.mkParents.map { _ =>
+        val enc = System.getProperty("file.encoding")
+        val manifest = JarManifest(bins.map(_.name), module.kind.as[App].map(_.main.key))
+        val jarInputs: Set[Path] = if(fatJar) bins else Set()
+        log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+        for {
+          resources <- aggregatedResources
+          //_         <- resources.traverse(_.copyTo(layer, snapshot, layout, staging))
+          _         <- Shell(layout.env).jar(path, jarInputs, staging.children.map(staging / _).to[Set], manifest)
+          _         <- if(!fatJar) bins.traverse { bin => bin.copyTo(path.parent / bin.name) } else Success(())
+        } yield {
+          if(fatJar) log.info(msg"Wrote ${path.size} to ${path.relativizeTo(layout.baseDir)}")
+          else log.info(msg"Wrote ${bins.size + 1} JAR files (total ${bins.foldLeft(ByteSize(0
+          ))(_ + _.size)}) to ${path.parent.relativizeTo(layout.baseDir)}")
+        }
+      }
+
+      def packageJson(bin: Option[String]): euphemism.Json = {
+        //TODO move this to fury.utils.ScalaJs
+        import euphemism._
+        Json.of(
+          name = s"${ref.projectId.key}-${ref.moduleId.key}",
+          version = "0.0.1",
+          bin = bin
+        )
+      }
+
+      def saveJs(staging: Path, module: Module): Try[Unit] = path.mkParents.map { _ =>
+        val enc  = System.getProperty("file.encoding")
+        val launcherName = "main.js"
+        val json = packageJson(if(module.kind.needsExec) Some(launcherName) else None)
+        log.info(msg"Saving Javascript file ${path.relativizeTo(layout.baseDir)} using ${enc}")
+        for {
+          _ <- ScalaJs.link(module.kind.as[App].map(_.main.key), List(staging) ++ bins, path)
+          _ <- (path.parent / "package.json").writeSync(json.toString())
+          _ <- if(module.kind.needsExec) saveJsLauncher(launcherName, path.filename) else ~()
+        } yield ()
+      }
+
+      def saveJsLauncher(launcherName: String, mainFile: String): Try[Unit] = {
+        val launcherPath = path.parent / launcherName
+        val launcherScript = s"""#!/usr/bin/env node
+                                |var launcher = require('./$mainFile');""".stripMargin
+        for {
+          _ <- launcherPath.writeSync(launcherScript)
+          _ <- launcherPath.setExecutable(true)
+        } yield ()
+      }
+
       for {
-        _ <- ScalaJs.link(module.kind.as[App].map(_.main.key), List(staging) ++ bins, path)
-        _ <- (path.parent / "package.json").writeSync(json.toString())
-        _ <- if(module.kind.needsExec) saveJsLauncher(launcherName, path.filename) else ~()
+        staging <- targets(ref).aggregateResults(srcs)
+        project <- universe(ref.projectId)
+        module  <- project(ref.moduleId)
+        _       <- if(!js) saveJar(staging, module) else saveJs(staging, module)
+        _       <- staging.delete()
       } yield ()
     }
 
-    def saveJsLauncher(launcherName: String, mainFile: String): Try[Unit] = {
-      val launcherPath = path.parent / launcherName
-      val launcherScript = s"""#!/usr/bin/env node
-                              |var launcher = require('./$mainFile');""".stripMargin
-      for {
-        _ <- launcherPath.writeSync(launcherScript)
-        _ <- launcherPath.setExecutable(true)
-      } yield ()
+    private def run(classDirectories: Set[Path],
+            policy: Policy,
+            args: List[String],
+            noSecurity: Boolean,
+            javaVersion: Int)
+           : Int = {
+      val multiplexer = Lifecycle.currentSession.multiplexer
+      if (target.module.kind.is[Bench]) {
+        classDirectories.foreach { classDirectory =>
+          Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))
+          val javaSources = layout.benchmarksDir(target.ref).findChildren(_.endsWith(".java"))
+
+          Shell(layout.env).javac(
+            target.classpath.to[List].map(_.value),
+            classDirectory.value,
+            javaSources.map(_.value).to[List], javaVersion)
+        }
+      }
+      
+      val exitCode = Shell(layout.env.copy(workDir = Some(layout.workDir(target.ref).value))).runJava(
+        target.jmhRuntimeClasspath(classDirectories).to[List].map(_.value),
+        if(target.module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
+        else target.module.kind.as[App].fold(ClassRef(""))(_.main),
+        securePolicy = target.module.kind.is[App],
+        env = target.environment,
+        properties = target.properties,
+        policy = policy.forContext(layout, target.ref.projectId),
+        args,
+        noSecurity,
+        layout.workDir(target.ref),
+        javaVersion
+      ) { ln => multiplexer.fire(target.ref, Print(target.ref, ln)) }.await()
+
+      deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
+
+      multiplexer.close(target.ref)
+      multiplexer.fire(target.ref, StopRun(target.ref))
+
+      exitCode
     }
+  
+    def cleanCache(): Try[CleanCacheResult] = {
+      val furyTargetIds = deepDependencies(ref).toList
+      val bspTargetIds = furyTargetIds.map { ref =>
+        new BuildTargetIdentifier(str"file://${layout.workDir(ref).value}?id=${ref.urlSafe}")
+      }
+      val params = new CleanCacheParams(bspTargetIds.asJava)
 
-    for {
-      staging <- aggregateResults(ref, srcs)
-      project <- universe(ref.projectId)
-      module  <- project(ref.moduleId)
-      _       <- if(!js) saveJar(staging, module) else saveJs(staging, module)
-      _       <- staging.delete()
-    } yield ()
-  }
-
-  private[this] def aggregateResults(ref: ModuleRef, compileResults: Set[Path]): Try[Path] = {
-    val staging = layout.workDir(ref) / "staging"
-    for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(staging))) yield staging
-  }
-
-  def cleanCache(moduleRef: ModuleRef): Try[CleanCacheResult] = {
-    val target = targets(moduleRef)
-    val furyTargetIds = deepDependencies(target.ref).toList
-    val bspTargetIds = furyTargetIds.map { ref =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(ref).value}?id=${ref.urlSafe}")
+      BloopServer.borrow(layout.baseDir, build, ref, layout) { conn =>
+        wrapServerErrors(conn.server.buildTargetCleanCache(params)).get
+      }
     }
-    val params = new CleanCacheParams(bspTargetIds.asJava)
-
-    BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
-      val result: Try[CleanCacheResult] = wrapServerErrors(conn.server.buildTargetCleanCache(params))
-      result.get
-    }
-  }
-
-  def compileModule(result: BuildResult,
-                    target: Target,
-                    pipelining: Boolean,
-                    globalPolicy: Policy,
-                    args: List[String],
-                    noSecurity: Boolean)
-  : Future[BuildResult] = Future.fromTry {
-    val originId = nextOriginId()
-    val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
-    val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
-    params.setOriginId(originId.key)
-    if(pipelining) params.setArguments(List("--pipeline").asJava)
-    val furyTargetIds = deepDependencies(target.ref).toList
-    
-    val bspTargetIds = furyTargetIds.map { ref =>
-      new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
-    }
-    
-    val bspToFury = bspTargetIds.zip(furyTargetIds).toMap
-    val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
-
-    BloopServer.borrow(layout.baseDir, this, target.ref, layout) { conn =>
-
-      val workDir = if(target.module.includes.nonEmpty) {
-        target.module.includes.traverse(target.copyInclude(_))
-        Some(target.workDir)
-      } else None
-
-      val newResult: Try[BuildResult] = for {
-        res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
-        opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
-      } yield BuildResult(res, opts, None)
-
-      val responseOriginId = newResult.get.bspResult.getOriginId
-      if(responseOriginId != originId.key) {
-        log.note(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
+  
+    def compile(futures: Map[ModuleRef, Future[BuildResult]] = Map(),
+                policy: Policy,
+                args: List[String],
+                pipelining: Boolean,
+                noSecurity: Boolean)
+              : Map[ModuleRef, Future[BuildResult]] = {
+      val newFutures = subgraphs(ref).foldLeft(futures) { (futures, dependencyRef) =>
+        if(futures.contains(dependencyRef)) futures
+        else targets(dependencyRef).compile(futures, policy, args, pipelining, noSecurity)
       }
 
-      newResult.get.scalacOptions.getItems.asScala.foreach { case soi =>
-        val bti = soi.getTarget
-        val classDir = soi.getClassDirectory
-        val targetId = bspToFury(bti)
-        val permanentClassesDir = layout.classesDir(targetId)
-        val temporaryClassesDir = Path(new URI(classDir))
-        temporaryClassesDir.copyTo(permanentClassesDir)
-        //TODO the method setClassDirectory modifies a mutable structure. Consider refactoring
-        soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
+      val dependencyFutures = Future.sequence(subgraphs(ref).map(newFutures))
+
+      val multiplexer = Lifecycle.currentSession.multiplexer
+      multiplexer.start()
+
+      val future: Future[BuildResult] = dependencyFutures.map(BuildResult.merge).flatMap { required =>
+        if(!required.success) {
+          multiplexer.fire(ref, SkipCompile(ref))
+          multiplexer.close(ref)
+          Future.successful(required)
+        } else {
+          // FIXME: Compile anyway, and include a dummy source file
+          val noCompilation = false // sourcePaths.isEmpty && !module.kind.needsExec
+
+          if(noCompilation) {
+            deepDependencies(ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
+            Future.successful(required)
+          } else compileModule(required, pipelining, policy, args, noSecurity)
+        }
       }
 
-      (newResult.get, conn.client)
-    }.map {
-      case (compileResult, client) if compileResult.success && target.module.kind.needsExec =>
-        val timeout = target.module.kind.as[App].fold(0)(_.timeout)
-        val classDirectories = compileResult.classDirectories
-        client.broadcast(StartRun(target.ref))
-        
-        val future = Future(blocking(run(target, classDirectories.values.to[Set], layout, globalPolicy, args, noSecurity,
-            target.javaVersion)))
-        val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
-        val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
-        client.broadcast(StopRun(target.ref))
-        compileResult.copy(exitCode = Some(exitCode))
-      case (otherResult, _) =>
-        otherResult
+      newFutures.updated(ref, future)
+    }
+  
+    private def aggregateResults(compileResults: Set[Path]): Try[Path] = {
+      val staging = layout.workDir(ref) / "staging"
+      for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(staging))) yield staging
+    }
+
+    private def compileModule(result: BuildResult,
+                      pipelining: Boolean,
+                      policy: Policy,
+                      args: List[String],
+                      noSecurity: Boolean)
+                     : Future[BuildResult] = Future.fromTry {
+      val originId = nextOriginId()
+      val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
+      val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+      params.setOriginId(originId.key)
+      if(pipelining) params.setArguments(List("--pipeline").asJava)
+      val furyTargetIds = deepDependencies(target.ref).toList
+      
+      val bspTargetIds = furyTargetIds.map { ref =>
+        new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
+      }
+      
+      val bspToFury = bspTargetIds.zip(furyTargetIds).toMap
+      val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
+
+      BloopServer.borrow(layout.baseDir, build, target.ref, layout) { conn =>
+
+        val workDir = if(target.module.includes.nonEmpty) {
+          target.module.includes.traverse(target.copyInclude(_))
+          Some(target.workDir)
+        } else None
+
+        val newResult: Try[BuildResult] = for {
+          res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
+          opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
+        } yield BuildResult(res, opts, None)
+
+        val responseOriginId = newResult.get.bspResult.getOriginId
+        if(responseOriginId != originId.key) {
+          log.note(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
+        }
+
+        newResult.get.scalacOptions.getItems.asScala.foreach { case soi =>
+          val bti = soi.getTarget
+          val classDir = soi.getClassDirectory
+          val targetId = bspToFury(bti)
+          val permanentClassesDir = layout.classesDir(targetId)
+          val temporaryClassesDir = Path(new URI(classDir))
+          temporaryClassesDir.copyTo(permanentClassesDir)
+          //TODO the method setClassDirectory modifies a mutable structure. Consider refactoring
+          soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
+        }
+
+        (newResult.get, conn.client)
+      }.map {
+        case (compileResult, client) if compileResult.success && target.module.kind.needsExec =>
+          val timeout = target.module.kind.as[App].fold(0)(_.timeout)
+          val classDirectories = compileResult.classDirectories
+          client.broadcast(StartRun(target.ref))
+          
+          val future = Future(blocking(target.run(classDirectories.values.to[Set], policy, args, noSecurity,
+              target.javaVersion)))
+          val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
+          val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
+          client.broadcast(StopRun(target.ref))
+          compileResult.copy(exitCode = Some(exitCode))
+        case (otherResult, _) =>
+          otherResult
+      }
     }
   }
+  
+  def allSources: Set[Path] = targets.values.to[Set].flatMap(_.sourcePaths.getOrElse(Nil))
 
   private[this] def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
     Try(f.get).recoverWith { case e: ExecutionException => Failure(BuildServerError(e.getCause)) }
-
-
-  def compile(moduleRef: ModuleRef,
-              futures: Map[ModuleRef, Future[BuildResult]] = Map(),
-              layout: Layout,
-              globalPolicy: Policy,
-              args: List[String],
-              pipelining: Boolean,
-              noSecurity: Boolean)
-             : Map[ModuleRef, Future[BuildResult]] = {
-    val target = targets(moduleRef)
-
-    val newFutures = subgraphs(target.ref).foldLeft(futures) { (futures, dependencyRef) =>
-      if(futures.contains(dependencyRef)) futures
-      else compile(dependencyRef, futures, layout, globalPolicy, args, pipelining, noSecurity)
-    }
-
-    val dependencyFutures = Future.sequence(subgraphs(target.ref).map(newFutures))
-
-    val multiplexer = Lifecycle.currentSession.multiplexer
-    multiplexer.start()
-
-    val future: Future[BuildResult] = dependencyFutures.map(BuildResult.merge).flatMap { required =>
-      if(!required.success) {
-        multiplexer.fire(target.ref, SkipCompile(target.ref))
-        multiplexer.close(target.ref)
-        Future.successful(required)
-      } else {
-        val noCompilation = target.sourcePaths.isEmpty && !target.module.kind.needsExec
-
-        if(noCompilation) {
-          deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
-          Future.successful(required)
-        } else compileModule(required, target, pipelining, globalPolicy, args, noSecurity)
-      }
-    }
-
-    newFutures.updated(target.ref, future)
-  }
-
-  private def run(target: Target,
-                  classDirectories: Set[Path],
-                  layout: Layout,
-                  globalPolicy: Policy,
-                  args: List[String],
-                  noSecurity: Boolean,
-                  javaVersion: Int)
-                 : Int = {
-    val multiplexer = Lifecycle.currentSession.multiplexer
-    if (target.module.kind.is[Bench]) {
-      classDirectories.foreach { classDirectory =>
-        Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))
-        val javaSources = layout.benchmarksDir(target.ref).findChildren(_.endsWith(".java"))
-
-        Shell(layout.env).javac(
-          target.classpath.to[List].map(_.value),
-          classDirectory.value,
-          javaSources.map(_.value).to[List], javaVersion)
-      }
-    }
-    
-    val exitCode = Shell(layout.env.copy(workDir = Some(layout.workDir(target.ref).value))).runJava(
-      target.jmhRuntimeClasspath(classDirectories).to[List].map(_.value),
-      if(target.module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
-      else target.module.kind.as[App].fold(ClassRef(""))(_.main),
-      securePolicy = target.module.kind.is[App],
-      env = target.environment,
-      properties = target.properties,
-      policy = globalPolicy.forContext(layout, target.ref.projectId),
-      args,
-      noSecurity,
-      layout.workDir(target.ref),
-      javaVersion
-    ) { ln => multiplexer.fire(target.ref, Print(target.ref, ln)) }.await()
-
-    deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
-
-    multiplexer.close(target.ref)
-    multiplexer.fire(target.ref, StopRun(target.ref))
-
-    exitCode
-  }
 }

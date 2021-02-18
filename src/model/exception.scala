@@ -19,6 +19,7 @@ package fury.model
 import fury.text._, fury.io._
 
 import jovian._
+import fury.text.Theme.NoColor
 
 case class AlreadyInitialized() extends FuryException
 case class AlreadyCheckedOut(repo: RepoId) extends FuryException
@@ -33,7 +34,7 @@ case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
 //TODO Is this equivalent to ItemNotFound?
 case class ComponentNotDefined[K1 <: Key, K2 <: Key](component: K1, container: K2) extends FuryException
-case class CyclesInDependencies(cycle: Set[Dependency]) extends FuryException
+case class CyclesInDependencies(cycle: Set[Input]) extends FuryException
 case class CommitNotInRepo(commit: Commit, origin: Message) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class PathNotGitDir() extends FuryException
@@ -98,7 +99,7 @@ case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException
 case class UnknownVersion(version: LayerVersion) extends FuryException
 case class UnknownModule(moduleRef: ModuleRef) extends FuryException
-case class UnresolvedModules(refs: Map[ModuleRef, Set[Dependency]]) extends FuryException
+case class UnresolvedModules(refs: Map[ModuleRef, Set[Input]]) extends FuryException
 case class UnknownOs(description: String) extends FuryException
 case class UnspecifiedBinary(matchingBinaries: List[String]) extends FuryException
 case class UnspecifiedMain(module: ModuleId) extends FuryException
@@ -108,7 +109,9 @@ object ItemNotFound {
   def apply[K <: Key: MsgShow](key: K): ItemNotFound = ItemNotFound(implicitly[MsgShow[K]].show(key), key.kind)
 }
 
-case class ItemNotFound(item: Message, kind: Message) extends FuryException
+case class ItemNotFound(item: Message, kind: Message) extends FuryException {
+  if(item.string(NoColor).contains("local")) System.out.println(new Exception().getStackTrace.mkString("\n"))
+}
 
 object NotUnique {
   def apply[K <: Key: MsgShow](key: K): NotUnique = NotUnique(implicitly[MsgShow[K]].show(key), key.kind)

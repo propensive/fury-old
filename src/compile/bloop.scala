@@ -38,55 +38,55 @@ object Bloop {
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(build: Build)(target: build.Target)(implicit log: Log): Try[String] = {
+  private def makeConfig(build: Build)(target: build.Target)(implicit log: Log): Try[String] =
+    target.sourcePaths.flatMap { sourcePaths =>
+      target.writePlugin()
+      val classpath = target.classpath
+      
+      val optDefs = target.aggregatedOptDefs.getOrElse(Set()).filter(_.compiler ==
+          target.module.compiler).map(_.value)
+      
+      val opts: List[String] =
+        target.aggregatedOpts.map(_.to[List].filter(_.compiler ==
+            target.module.compiler).flatMap(_.value.transform(optDefs))).getOrElse(Nil)
+      
+      val compilerClasspath = build(target.module.compiler).map { _ => target.bootClasspath }
+      
+      val compilerOpt: Option[Json] = build(target.module.compiler).toOption.flatMap { compiler =>
+        val spec: Option[BloopSpec] = compiler.map(_.module.kind.as[Compiler].fold {
+          BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")
+        } (_.spec))
 
-    build.writePlugin(target.ref)
-    val classpath = target.classpath
-    
-    val optDefs = target.aggregatedOptDefs.getOrElse(Set()).filter(_.compiler ==
-        target.module.compiler).map(_.value)
-    
-    val opts: List[String] =
-      target.aggregatedOpts.map(_.to[List].filter(_.compiler ==
-          target.module.compiler).flatMap(_.value.transform(optDefs))).getOrElse(Nil)
-    
-    val compilerClasspath = build(target.module.compiler).map { _ => target.bootClasspath }
-    
-    val compilerOpt: Option[Json] = build(target.module.compiler).toOption.flatMap { compiler =>
-      val spec: Option[BloopSpec] = compiler.map(_.module.kind.as[Compiler].fold {
-        BloopSpec("org.scala-lang", "scala-compiler", "2.12.8")
-      } (_.spec))
+        spec.map { spec => Json.of(
+          organization = spec.org,
+          name = spec.name,
+          version = spec.version,
+          options = opts,
+          jars = compilerClasspath.get.map(_.value)
+        ) }
+      }
 
-      spec.map { spec => Json.of(
-        organization = spec.org,
-        name = spec.name,
-        version = spec.version,
-        options = opts,
-        jars = compilerClasspath.get.map(_.value)
-      ) }
-    }
-
-    val result = Json.of(
-      version = "1.0.0",
-      project = Json.of(
-        scala = compilerOpt,
-        name = target.ref.urlSafe,
-        directory = build.layout.workDir(target.ref).value,
-        sources = target.sourcePaths.map(_.value),
-        dependencies = build.graph.dependencies(target.ref).map(_.ref.urlSafe),
-        classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
-        out = str"${build.layout.outputDir(target.ref).value}",
-        classesDir = str"${build.layout.classesDir(target.ref).value}",
-        java = Json.of(options = Nil),
-        test = Json.of(frameworks = Nil, options = Json.of(excludes = Nil, arguments = Nil)),
-        jvmPlatform = Json.of(
-          name = "jvm",
-          config = Json.of(home = "", options = Nil),
-          mainClass = Nil
-        ),
-        resolution = Json.of(modules = Nil)
+      val result = Json.of(
+        version = "1.0.0",
+        project = Json.of(
+          scala = compilerOpt,
+          name = target.ref.urlSafe,
+          directory = build.layout.workDir(target.ref).value,
+          sources = sourcePaths.map(_.value),
+          dependencies = build.graph.dependencies(target.ref).map(_.ref.urlSafe),
+          classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
+          out = str"${build.layout.outputDir(target.ref).value}",
+          classesDir = str"${build.layout.classesDir(target.ref).value}",
+          java = Json.of(options = Nil),
+          test = Json.of(frameworks = Nil, options = Json.of(excludes = Nil, arguments = Nil)),
+          jvmPlatform = Json.of(
+            name = "jvm",
+            config = Json.of(home = "", options = Nil),
+            mainClass = Nil
+          ),
+          resolution = Json.of(modules = Nil)
+        )
       )
-    )
-    Success(result.toString)
-  }
+      Success(result.toString)
+    }
 }

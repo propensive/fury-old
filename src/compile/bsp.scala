@@ -395,7 +395,7 @@ object FuryBuildServer {
   class Cancelator { var cancel: () => Unit = () => () }
 
   case class Structure(modules: Map[ModuleRef, Module],
-                       graph: Map[ModuleRef, List[Dependency]],
+                       graph: Map[ModuleRef, List[Input]],
                        snapshot: Snapshot,
                        targets: Map[ModuleRef, Target]) {
 

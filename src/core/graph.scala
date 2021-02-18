@@ -49,7 +49,7 @@ object UiGraph {
   case object Executing extends BuildState(1.0)
 
   private case class GraphState(changed: Boolean,
-                                graph: Map[ModuleRef, Set[Dependency]],
+                                graph: Map[ModuleRef, Set[Input]],
                                 stream: Iterator[CompileEvent],
                                 buildLogs: Map[ModuleRef, BuildInfo])
                                (implicit log: Log) {
@@ -133,16 +133,16 @@ object UiGraph {
     }
   }
 
-  def live(graph: Map[ModuleRef, Set[Dependency]], stream: Iterator[CompileEvent])
+  def live(graph: Map[ModuleRef, Set[Input]], stream: Iterator[CompileEvent])
           (implicit log: Log, theme: Theme)
           : Unit =
     live(GraphState(changed = true, graph, stream, Map()))
 
-  def draw(graph: Map[ModuleRef, Set[Dependency]], describe: Boolean, state: Map[ModuleRef, BuildInfo] = Map())
+  def draw(graph: Map[ModuleRef, Set[Input]], describe: Boolean, state: Map[ModuleRef, BuildInfo] = Map())
           (implicit theme: Theme)
           : Vector[String] = {
 
-    def sort(todo: Map[ModuleRef, Set[Dependency]], done: List[ModuleRef]): List[ModuleRef] =
+    def sort(todo: Map[ModuleRef, Set[Input]], done: List[ModuleRef]): List[ModuleRef] =
       if(todo.isEmpty) done else {
         val node = todo.find { case (k, v) => (v.map(_.ref) -- done).isEmpty }.get._1
         sort((todo - node).mapValues(_.filter(_.ref != node)), node :: done)

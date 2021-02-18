@@ -159,8 +159,8 @@ You can grant these permissions with,
           cli.abort(msg"Could not read OGDL from ${path}. Cause: ${e.toString}.")
         case PathNotGitDir() =>
           cli.abort(msg"The path is not a valid git directory")
-        case e: ItemNotFound =>
-          cli.abort(msg"The ${e.kind} ${e.item} was not found.")
+        case ItemNotFound(kind, item) =>
+          cli.abort(msg"The ${kind} ${item} was not found.")
         case CantResolveLayer(path) =>
           cli.abort(msg"Can't resolve layer $path")
         case RepoNotForked(repo) =>

@@ -138,11 +138,21 @@ case class Universe(hierarchy: Hierarchy,
     Universe(hierarchy, newProjects, newRepoSets, newImports)
   }
 
-  private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Dependency]] =
-    transitiveDependencies(forbidden = Set.empty, Dependency(ref), layout).map(_.filter(_.ref != ModuleRef.JavaRef))
+  def buildDependencies[T]
+                       (ref: ModuleRef, layout: Layout, targets: Map[ModuleRef, T] = Map())
+                       (build: ModuleRef => T)
+                       : Try[Map[ModuleRef, T]] =
+    dependencies(ref, layout).map(_.map(_.ref)).flatMap(_.filterNot(targets.contains(_)).foldLeft(Try(targets)) {
+      case (targetsTry, next) => targetsTry.flatMap { targets =>
+        buildDependencies[T](next, layout, targets.updated(ref, build(ref)))(build)
+      }
+    })
 
-  private[this] def transitiveDependencies(forbidden: Set[Dependency], dependency: Dependency, layout: Layout)
-                                          : Try[Set[Dependency]] = for {
+  private[fury] def dependencies(ref: ModuleRef, layout: Layout): Try[Set[Input]] =
+    transitiveDependencies(forbidden = Set.empty, Input(ref), layout).map(_.filter(_.ref != ModuleRef.JavaRef))
+
+  private[this] def transitiveDependencies(forbidden: Set[Input], dependency: Input, layout: Layout)
+                                          : Try[Set[Input]] = for {
     project      <- apply(dependency.ref.projectId)
     module       <- project(dependency.ref.moduleId)
     dependencies  =  module.dependencies ++ module.compilerDependencies

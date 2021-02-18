@@ -82,9 +82,9 @@ case class Tables() {
     case Origin.Compiler    => theme.italic(theme.param("compiler"))
   }
 
-  private def refinedModuleDep(universe: Universe, projectId: ProjectId): AnsiShow[SortedSet[Dependency]] =
+  private def refinedModuleDep(universe: Universe, projectId: ProjectId): AnsiShow[SortedSet[Input]] =
     _.map {
-      case dependency@Dependency(ref) =>
+      case dependency@Input(ref) =>
         val extra = (if(dependency.intransitive) msg"*" else msg"")
         val missing = if(universe(ref).isFailure) msg" ${theme.hazard("!")}" else msg""
         if(ref.projectId == projectId) msg"${theme.module(ref.moduleId.key)}$extra$missing"
@@ -130,18 +130,18 @@ case class Tables() {
     Heading("Arguments", _.args.mkString("'", "', '", "'"))
   )
 
-  val dependencies: Tabulation[Dependency] = Tabulation[Dependency](
+  val dependencies: Tabulation[Input] = Tabulation[Input](
     Heading("Dependency", identity),
     Heading("Intransitive", _.intransitive)
   )
 
-  def sources(snapshot: Snapshot, layout: Layout): Tabulation[Source] = Tabulation(
+  def sources(layer: Layer, snapshot: Snapshot, layout: Layout): Tabulation[Source] = Tabulation(
     Heading("Repo", _.rootId.repo),
     Heading("Path", _.path),
     Heading("Sources", _.glob),
-    Heading("Files", _.fileCount(snapshot, layout).getOrElse(0)),
-    Heading("Size", _.totalSize(snapshot, layout).getOrElse(ByteSize(0))),
-    Heading("Lines", _.linesOfCode(snapshot, layout).getOrElse(0))
+    //Heading("Files", _.fileCount(layer, snapshot, layout).getOrElse(0)),
+    //Heading("Size", _.totalSize(layer, snapshot, layout).getOrElse(ByteSize(0))),
+    //Heading("Lines", _.linesOfCode(layer, snapshot, layout).getOrElse(0))
   )
 
   val resources: Tabulation[Source] = Tabulation(
@@ -162,7 +162,6 @@ case class Tables() {
       case FileRef(rootId, path)   => msg"${rootId.repo}${':'}$path"
     })
   )
-
 
   val opts: Tabulation[Provenance[Opt]] = Tabulation(
     Heading("", o => if(o.value.remove) "-" else "+"),

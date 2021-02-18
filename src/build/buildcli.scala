@@ -265,18 +265,13 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     moduleRef    =  module.ref(project)
-
     build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true)
-
-    result       <- build.cleanCache(moduleRef)
+    result       <- build.target.cleanCache()
   } yield {
     Option(result.getMessage()).foreach(log.info(_))
     val success = result.getCleaned()
-    if(success){
-      log.note(msg"Cleaned compiler caches for $moduleRef and its dependencies")
-    } else {
-      log.warn(msg"Compiler caches for $moduleRef and its dependencies were not cleaned")
-    }
+    if(success) log.note(msg"Cleaned compiler caches for $moduleRef and its dependencies")
+    else log.warn(msg"Compiler caches for $moduleRef and its dependencies were not cleaned")
     log.await(success)
   }
 
@@ -326,7 +321,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                             for {
                               compileResult  <- completed
                               compileSuccess <- compileResult.asTry
-                              _              <- (dir.map { dir => build.saveJars(module.ref(project),
+                              _              <- (dir.map { dir => build.target.saveJars(layer,
                                                     compileSuccess.classDirectories.values.to[Set],
                                                     dir in layout.pwd, output)
                                                 }).getOrElse(Success(()))
@@ -405,7 +400,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     future       <- if(watch || waiting) Try(r.start()).flatten else r.action()
     exec         <- call(ExecNameArg)
     _            <- ~log.info(msg"Building native image for $exec")
-    _            <- build.saveNative(module.ref(project), Installation.optDir, main)
+    _            <- build.target.saveNative(Installation.optDir, main)
     bin          <- ~(Installation.optDir / main.key.toLowerCase)
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
@@ -516,7 +511,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     for(_ <- build.checkoutAll()) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
-      val future = build.compile(moduleRef, Map(), layout,
+      val future = build.target.compile(Map(),
         globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
         case compRes =>
           multiplexer.closeAll()
@@ -554,8 +549,7 @@ case class ShadeCli(cli: Cli)(implicit log: Log) {
     cli       <- cli.hint(ImportIdArg, layer.imports.map(_.id))
     imported  <- ~cli.peek(ImportIdArg).flatMap(layer.imports.findBy(_).toOption)
     iLayer    <- imported.fold(~layer) { i => Layer.dereference(layer, Pointer.Empty / i.id) }
-    hierarchy <- iLayer.hierarchy()
-    universe  <- hierarchy.universe
+    universe  <- iLayer.universe()
     cli       <- cli.hint(ProjectArg, universe.projects.keySet)
     call      <- cli.call()
     _         <- ~log.warn(msg"Shading is not yet implemented.")

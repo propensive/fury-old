@@ -106,7 +106,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     intransitive  = call(IntransitiveArg).isSuccess
     linkArg      <- call(LinkArg)
     ref          <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
-    layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Dependency(ref))
+    layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Input(ref))
     _            <- Layer.commit(layer, conf, layout)
     _            <- ~Build.asyncBuild(layer, ref, layout)
   } yield log.await()

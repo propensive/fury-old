@@ -25,9 +25,8 @@ import jovian._
 import scala.util._
 
 case class Snapshot(stashes: Map[Commit, Stash] = Map()) {
-  def apply(repoId: RepoId): Try[Stash] =
-    stashes.find(_._2.repoId == repoId).map(_._2).ascribe(ItemNotFound(repoId))
-  
+  def apply(commit: Commit): Try[Stash] = stashes.get(commit).ascribe(ItemNotFound(commit))
+
   def ++(that: Snapshot): Snapshot =
     Snapshot(that.stashes.foldLeft(stashes) { case (all, (commit, stash)) =>
       all.updated(commit, all.get(commit).fold(stash) { case old =>
@@ -45,6 +44,8 @@ case class Stash(repoId: RepoId,
 
   def hash: StashId = StashId((commit, local, sources).digest[Md5])
   def path: Path = Installation.srcsDir / hash.hash.encoded[Hex].take(16)
+
+  def absolutePaths: List[Path] = sources.map(_ in path)
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = for {
     repoDir    <- remote.get(layout)
