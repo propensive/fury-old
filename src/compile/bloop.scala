@@ -38,7 +38,8 @@ object Bloop {
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(build: Build)(target: build.Target)(implicit log: Log): Try[String] =
+  private def makeConfig(build: Build)(target: Target)(implicit log: Log): Try[String] = {
+    import build.TargetExtras
     target.sourcePaths.flatMap { sourcePaths =>
       target.writePlugin()
       val classpath = target.classpath
@@ -89,4 +90,5 @@ object Bloop {
       )
       Success(result.toString)
     }
+  }
 }

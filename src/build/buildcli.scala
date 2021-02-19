@@ -266,7 +266,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     moduleRef    =  module.ref(project)
     build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true)
-    result       <- build.target.cleanCache()
+    result       <- new build.TargetExtras(build.target).cleanCache()
   } yield {
     Option(result.getMessage()).foreach(log.info(_))
     val success = result.getCleaned()
@@ -321,7 +321,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                             for {
                               compileResult  <- completed
                               compileSuccess <- compileResult.asTry
-                              _              <- (dir.map { dir => build.target.saveJars(layer,
+                              _              <- (dir.map { dir => new build.TargetExtras(build.target).saveJars(layer,
                                                     compileSuccess.classDirectories.values.to[Set],
                                                     dir in layout.pwd, output)
                                                 }).getOrElse(Success(()))
@@ -400,14 +400,14 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     future       <- if(watch || waiting) Try(r.start()).flatten else r.action()
     exec         <- call(ExecNameArg)
     _            <- ~log.info(msg"Building native image for $exec")
-    _            <- build.target.saveNative(Installation.optDir, main)
+    _            <- new build.TargetExtras(build.target).saveNative(Installation.optDir, main)
     bin          <- ~(Installation.optDir / main.key.toLowerCase)
     newBin       <- ~(bin.rename { _ => exec.key })
     _            <- bin.moveTo(newBin)
     globalPolicy <- ~Policy.read(log)
     javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
 
-    _            <- Try(Shell(cli.env).runJava(build.targets(module.ref(project)).classpath.to[List].map(_.value),
+    _            <- Try(Shell(cli.env).runJava(new build.TargetExtras(build.targets(module.ref(project))).classpath.to[List].map(_.value),
                         ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
                         Installation.completionsDir.value), Map(), globalPolicy, List(exec.key), true,
                         layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
@@ -453,10 +453,10 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     compilerMod  <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
     repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
     target       <- build(module.ref(project))
-    bootCp       <- ~target.bootClasspath
+    bootCp       <- Success(new build.TargetExtras(target).bootClasspath)
     javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
   } yield {
-    val cp = target.classpath.map(_.value).join(":")
+    val cp = new build.TargetExtras(target).classpath.map(_.value).join(":")
     val bcp = bootCp.map(_.value).join(":")
     cli.continuation(str"""${Jdk.javaExec(javaVersion)} -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
         str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
@@ -475,7 +475,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     ref          <- ~module.ref(project)
     build        <- Build.syncBuild(layer, ref, layout, false)
     target       <- build(ref)
-    classpath    <- ~target.bootClasspath
+    classpath    <- Try(new build.TargetExtras(target).bootClasspath)
   } yield {
     val separator = if(singleColumn) "\n" else ":"
     log.rawln(classpath.map(_.value).join(separator))
@@ -511,7 +511,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     for(_ <- build.checkoutAll()) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
-      val future = build.target.compile(Map(),
+      val future = new build.TargetExtras(build.target).compile(Map(),
         globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
         case compRes =>
           multiplexer.closeAll()
