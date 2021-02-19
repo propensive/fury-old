@@ -72,7 +72,7 @@ object Bloop {
           scala = compilerOpt,
           name = target.ref.urlSafe,
           directory = build.layout.workDir(target.ref).value,
-          sources = sourcePaths.map(_.value),
+          sources = Installation.dummySourceDir.value :: sourcePaths.map(_.value),
           dependencies = build.graph.dependencies(target.ref).map(_.ref.urlSafe),
           classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
           out = str"${build.layout.outputDir(target.ref).value}",

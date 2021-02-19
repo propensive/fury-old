@@ -419,7 +419,19 @@ abstract class CliApi {
   lazy val getModuleRef: Try[ModuleRef] = (getModule, getProject) >> (_.ref(_))
   lazy val getSource: Try[Source] = cli.get(SourceArg)
   lazy val getIncludeType: Try[IncludeType.Id] = cli.get(IncludeTypeArg)
-  
+
+  lazy val getCheckedSource: Try[Source] = cli.get(SourceArg) match {
+    case Success(value) => value match {
+      case src@RepoSource(repoId, path, glob) =>
+        if(projectRepoIds.contains(repoId)) Success(src)
+        else if(workspaceIds.contains(repoId.workspace)) Success(WorkspaceSource(repoId.workspace, path))
+        else Failure(ItemNotFound(repoId))
+      case src =>
+        Success(src)
+    }
+    case failure => failure
+  }
+
   lazy val getInclude: Try[IncludeType] = getIncludeType.flatMap {
     case ClassesDir => getDependency >> (ClassesDir(_))
     case FileRef    => get(SourceArg).map { source => FileRef(source.rootId, source.path) }

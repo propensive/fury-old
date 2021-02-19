@@ -52,6 +52,8 @@ object Source {
   }
 
   def unapply(string: String): Option[Source] = string.only {
+    case r"ws:$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)" =>
+      WorkspaceSource(WorkspaceId(repo), Path(dir))
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)//$pattern@(.*)" =>
       RepoSource(RepoId(repo), Path(dir), Glob(pattern))
     case r"$repo@([a-z][a-z0-9\.\-]*[a-z0-9]):$dir@([^\*\{\}\[\]]*)" =>
@@ -130,9 +132,8 @@ case class LocalSource(path: Path, glob: Glob) extends Source {
 
 case class WorkspaceSource(workspaceId: WorkspaceId, path: Path) extends Source {
   def rootId: RootId = workspaceId
-  def key: String = str"${path.value}"
+  def key: String = str"ws:$workspaceId:${path.value}"
   def glob: Glob = Glob.All
   def completion: String = str"${workspaceId}:$path"
   def hash(layer: Layer): Try[Digest] = Success((-1, path).digest[Md5])
 }
-

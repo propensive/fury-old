@@ -145,6 +145,7 @@ object Installation {
   val usrDir: Path = (installDir / "usr").extant()
   val binDir: Path = (installDir / "bin").extant()
   val etcDir: Path = (installDir / "etc").extant()
+  val dummySourceDir: Path = etcDir / "dummy"
   val scriptDir: Path = (installDir / "script").extant()
   val ipfsInstallDir: Path = installDir / "ipfs"
   val ipfsBin: Path = ipfsInstallDir / "go-ipfs" / "ipfs"
@@ -188,16 +189,8 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val workingGit: Path = baseDir / ".git"
   lazy val bspDir: Path = (baseDir / ".bsp").extant()
   lazy val bspConfig: Path = bspDir / "fury.json"
-
   lazy val bloopDir: Path = (baseDir / ".bloop").extant()
-  
-  lazy val confFile: Path = {
-    val newConfFile = furyDir / "config"
-    val oldConfFile = baseDir / ".fury.conf"
-    if(oldConfFile.exists() && !newConfFile.exists()) oldConfFile.moveTo(newConfFile)
-    newConfFile
-  }
-
+  lazy val confFile: Path = furyDir / "config"
   lazy val layerDb: Path = furyDir / "layers.db"
   lazy val confFileBackup: Path = baseDir / ".fury.conf.bak"
 
@@ -214,7 +207,7 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   def bloopConfig(ref: ModuleRef): Path = bloopDir.extant() / str"${ref.urlSafe}.json"
   def outputDir(ref: ModuleRef): Path = (analysisDir / ref.urlSafe).extant()
   def workDir(ref: ModuleRef): Path = (workDir / ref.urlSafe).extant()
-  def workspaceDir(ws: WorkspaceId): Path = (workspaceDir / (ws, uniqueId).digest[Sha256].encoded[Hex]).extant()
+  def workspaceDir(ws: WorkspaceId): Path = (workspaceDir / (ws, uniqueId).digest[Sha256].encoded[Hex].take(12)).extant()
   def benchmarksDir(ref: ModuleRef): Path = (benchmarksDir / ref.urlSafe).extant()
   def classesDir(ref: ModuleRef): Path = (classesDir / ref.urlSafe).extant()
   def resourcesDir(ref: ModuleRef): Path = (resourcesDir / ref.urlSafe).extant()

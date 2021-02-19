@@ -70,7 +70,9 @@ object Build {
 }
 
 case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(implicit log: Log) { build =>
-  
+
+  private val targetsCache: HashMap[ModuleRef, Target] = HashMap()
+
   case class Init(target: Target, graph: Graph, subgraphs: Map[ModuleRef, Set[ModuleRef]], snapshot: Snapshot,
       targets: Map[ModuleRef, Target], requiredPermissions: Set[Permission])
 
@@ -92,7 +94,8 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
     policy    = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
     map       = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
     junctures = targets.filter(_.juncture)
-    subgraphs = Dag(graph.dependencies.mapValues(_.map(_.ref))).subgraph(junctures.map(_.ref).to[Set] + goal).connections
+    dag       = Dag(graph.dependencies.mapValues(_.map(_.ref)))
+    subgraphs = dag.subgraph(junctures.map(_.ref).to[Set] + goal).connections
   } yield Init(target, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _), map, policy.to[Set])
 
   val target: Target = init.get.target
@@ -114,31 +117,32 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
     }
   }
 
-  private def makeTarget(ref: ModuleRef): Try[Target] = for {
+  private def makeTarget(ref: ModuleRef): Try[Target] = targetsCache.get(ref).fold { for {
     project     <- universe(ref.projectId)
     layer       <- universe.layer(project.id)
     module      <- project(ref.moduleId)
     binaries    <- module.allBinaries.to[List].traverse(_.paths).map(_.flatten)
     checkouts   <- universe.checkout(ref, layout)
     javaVersion <- universe.javaVersion(ref, layout)
-    workspace   <- universe.workspace(ref, layout).map(_.fold(layout.workspaceDir(WorkspaceId(ref.key)))(_ in layout.baseDir))
-    _           <- ~log.info(msg"$ref workspace is at $workspace")
-  } yield Target(ref, module, workspace, project, layer, checkouts, binaries, javaVersion)
+    workspace   <- universe.workspace(ref, layout).map(_.getOrElse(layout.workspaceDir(WorkspaceId(ref.key))))
+    target       = Target(ref, module, workspace, project, layer, checkouts, binaries, javaVersion)
+    _            = targetsCache(ref) = target
+  } yield target }(Success(_))
 
   private def repoPaths(ref: ModuleRef, source: Source): Try[List[Path]] = source match {
-    case RepoSource(repoId, path, glob) =>
-      for {
-        project <- universe(ref.projectId)
-        layer   <- universe.layer(project.id)
-        repo    <- layer.repos.findBy(repoId)
-        stash   <- snapshot(repo.commit)
-      } yield stash.absolutePaths
-    case WorkspaceSource(workspaceId, path) =>
-      for {
-        project   <- universe(ref.projectId)
-        layer     <- universe.layer(project.id)
-        workspace <- layer.workspaces.findBy(workspaceId)
-      } yield List(workspace.local.getOrElse(layout.workspaceDir(workspace.id)))
+    case RepoSource(repoId, path, glob) => for {
+      project <- universe(ref.projectId)
+      layer   <- universe.layer(project.id)
+      repo    <- layer.repos.findBy(repoId)
+      stash   <- snapshot(repo.commit)
+    } yield stash.absolutePaths
+
+    case WorkspaceSource(workspaceId, path) => for {
+      project   <- universe(ref.projectId)
+      layer     <- universe.layer(project.id)
+      workspace <- layer.workspaces.findBy(workspaceId)
+    } yield List(workspace.local.getOrElse(layout.workspaceDir(workspace.id)))
+    
     case LocalSource(path, glob) =>
       Success(List(path in layout.baseDir))
   }
@@ -180,7 +184,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
     lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
     lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
 
-    def juncture = module.kind.is[Lib] || module.includes.nonEmpty
+    def juncture: Boolean = !module.kind.is[Lib] || module.includes.nonEmpty
     def directDependencies = module.dependencies ++ module.compiler()
 
     def sourcePaths: Try[List[Path]] = module.sources.to[List].traverse(repoPaths(ref, _)).map(_.flatten)
@@ -372,43 +376,39 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
       } yield ()
     }
 
-    private def run(classDirectories: Set[Path],
-            policy: Policy,
-            args: List[String],
-            noSecurity: Boolean,
-            javaVersion: Int)
+    private def run(classDirectories: Set[Path], policy: Policy, args: List[String], noSecurity: Boolean)
            : Int = {
       val multiplexer = Lifecycle.currentSession.multiplexer
-      if (target.module.kind.is[Bench]) {
+      if (module.kind.is[Bench]) {
         classDirectories.foreach { classDirectory =>
-          Jmh.instrument(classDirectory, layout.benchmarksDir(target.ref), layout.resourcesDir(target.ref))
-          val javaSources = layout.benchmarksDir(target.ref).findChildren(_.endsWith(".java"))
+          Jmh.instrument(classDirectory, layout.benchmarksDir(ref), layout.resourcesDir(ref))
+          val javaSources = layout.benchmarksDir(ref).findChildren(_.endsWith(".java"))
 
           Shell(layout.env).javac(
-            target.classpath.to[List].map(_.value),
+            classpath.to[List].map(_.value),
             classDirectory.value,
             javaSources.map(_.value).to[List], javaVersion)
         }
       }
       
-      val exitCode = Shell(layout.env.copy(workDir = Some(layout.workDir(target.ref).value))).runJava(
-        target.jmhRuntimeClasspath(classDirectories).to[List].map(_.value),
-        if(target.module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
-        else target.module.kind.as[App].fold(ClassRef(""))(_.main),
-        securePolicy = target.module.kind.is[App],
-        env = target.environment,
-        properties = target.properties,
-        policy = policy.forContext(layout, target.ref.projectId),
+      val exitCode = Shell(layout.env.copy(workDir = Some(workDir.value))).runJava(
+        jmhRuntimeClasspath(classDirectories).to[List].map(_.value),
+        if(module.kind.is[Bench]) ClassRef("org.openjdk.jmh.Main")
+        else module.kind.as[App].fold(ClassRef(""))(_.main),
+        securePolicy = module.kind.is[App],
+        env = environment,
+        properties = properties,
+        policy = policy.forContext(layout, ref.projectId),
         args,
         noSecurity,
-        layout.workDir(target.ref),
+        workDir,
         javaVersion
-      ) { ln => multiplexer.fire(target.ref, Print(target.ref, ln)) }.await()
+      ) { ln => multiplexer.fire(ref, Print(ref, ln)) }.await()
 
-      deepDependencies(target.ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
+      deepDependencies(ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
 
-      multiplexer.close(target.ref)
-      multiplexer.fire(target.ref, StopRun(target.ref))
+      multiplexer.close(ref)
+      multiplexer.fire(ref, StopRun(ref))
 
       exitCode
     }
@@ -446,15 +446,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
           multiplexer.fire(ref, SkipCompile(ref))
           multiplexer.close(ref)
           Future.successful(required)
-        } else {
-          // FIXME: Compile anyway, and include a dummy source file
-          val noCompilation = false // sourcePaths.isEmpty && !module.kind.needsExec
-
-          if(noCompilation) {
-            deepDependencies(ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
-            Future.successful(required)
-          } else compileModule(required, pipelining, policy, args, noSecurity)
-        }
+        } else compileModule(required, pipelining, policy, args, noSecurity)
       }
 
       newFutures.updated(ref, future)
@@ -472,11 +464,11 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
                       noSecurity: Boolean)
                      : Future[BuildResult] = Future.fromTry {
       val originId = nextOriginId()
-      val uri: String = str"file://${layout.workDir(target.ref)}?id=${target.ref.urlSafe}"
+      val uri: String = str"file://${layout.workDir(ref)}?id=${ref.urlSafe}"
       val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
       params.setOriginId(originId.key)
       if(pipelining) params.setArguments(List("--pipeline").asJava)
-      val furyTargetIds = deepDependencies(target.ref).toList
+      val furyTargetIds = deepDependencies(ref).toList
       
       val bspTargetIds = furyTargetIds.map { ref =>
         new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
@@ -485,12 +477,9 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
       val bspToFury = bspTargetIds.zip(furyTargetIds).toMap
       val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-      BloopServer.borrow(layout.baseDir, build, target.ref, layout) { conn =>
+      BloopServer.borrow(layout.baseDir, build, ref, layout) { conn =>
 
-        val workDir = if(target.module.includes.nonEmpty) {
-          target.module.includes.traverse(target.copyInclude(_))
-          Some(target.workDir)
-        } else None
+        if(module.includes.nonEmpty) module.includes.traverse(copyInclude(_))
 
         val newResult: Try[BuildResult] = for {
           res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
@@ -502,29 +491,33 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout)(i
           log.note(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
         }
 
-        newResult.get.scalacOptions.getItems.asScala.foreach { case soi =>
-          val bti = soi.getTarget
-          val classDir = soi.getClassDirectory
+        newResult.get.scalacOptions.getItems.asScala.foreach { options =>
+          val bti = options.getTarget
+          val classDir = options.getClassDirectory
           val targetId = bspToFury(bti)
           val permanentClassesDir = layout.classesDir(targetId)
           val temporaryClassesDir = Path(new URI(classDir))
           temporaryClassesDir.copyTo(permanentClassesDir)
           //TODO the method setClassDirectory modifies a mutable structure. Consider refactoring
-          soi.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
+          options.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
         }
 
         (newResult.get, conn.client)
       }.map {
-        case (compileResult, client) if compileResult.success && target.module.kind.needsExec =>
-          val timeout = target.module.kind.as[App].fold(0)(_.timeout)
+        case (compileResult, client) if compileResult.success && module.kind.needsExec =>
+          val timeout = module.kind.as[App].fold(0)(_.timeout)
           val classDirectories = compileResult.classDirectories
-          client.broadcast(StartRun(target.ref))
+          client.broadcast(StartRun(ref))
           
-          val future = Future(blocking(target.run(classDirectories.values.to[Set], policy, args, noSecurity,
-              target.javaVersion)))
-          val result = Try(Await.result(future, if(timeout == 0) Duration.Inf else Duration(timeout, SECONDS)))
+          val future = Future(blocking {
+            run(classDirectories.values.to[Set], policy, args, noSecurity)
+          })
+
+          val expiry = Duration(if(timeout == 0) 60 else timeout, SECONDS)
+          val result = Try(Await.result(future, expiry))
           val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
-          client.broadcast(StopRun(target.ref))
+          
+          client.broadcast(StopRun(ref))
           compileResult.copy(exitCode = Some(exitCode))
         case (otherResult, _) =>
           otherResult

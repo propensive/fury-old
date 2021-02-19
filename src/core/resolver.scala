@@ -58,6 +58,5 @@ class SortedSetExt[T](set: SortedSet[T]) {
 }
 
 class MapExt[K <: Key: MsgShow, V](m: Map[K, V]) {
-  def findBy(id: K): Try[V] =
-    m.get(id).ascribe(ItemNotFound(id))
+  def findBy(id: K): Try[V] = m.get(id).ascribe(ItemNotFound(id))
 }

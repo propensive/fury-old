@@ -47,7 +47,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   def remove: Try[ExitStatus] = {
     implicit val sourcesHint = existingSourcesHint
     (cli -< ProjectArg -< ModuleArg -< SourceArg).action {
-      val newSources = (getModuleRef, getSources, getSource) >>= { case (moduleRef, sources, source) =>
+      val newSources = (getModuleRef, getSources, getCheckedSource) >>= { case (moduleRef, sources, source) =>
         if(sources.contains(source)) Success(sources - source) else Failure(ComponentNotDefined(source, moduleRef))
       }
       val newLayer = (newSources, getLayer, sourcesLens) >> (Layer.set(_)(_, _))
@@ -62,7 +62,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   def add: Try[ExitStatus] = {
     implicit val sourcesHint = possibleSourcesHint
     (cli -< ProjectArg -< ModuleArg -< SourceArg).action {
-      val newSources = (getLayout, getLayer, getSources, getSource) >> { case (layout, layer, srcs, src) =>
+      val newSources = (getLayout, getLayer, getSources, getCheckedSource) >> { case (layout, layer, srcs, src) =>
         val findBySimplifiedName = (name: String) => layer.repos.find(_.remote.simplified == name)
         val localId = (Remote.local(layout).toOption >> (_.simplified) >>= findBySimplifiedName) >> (_.id)
         val newSource = Source.rewriteLocal(src, localId)
@@ -87,7 +87,9 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   private[this] lazy val possibleSourcesHint: SourceArg.Hinter = SourceArg.hint((getLayout, getLayer) >> { case (layout, layer) =>
     val extSrcs = layer.repos.map(possibleSourceDirectories(_, layout)).flatten
     val localSrcs = layout.pwd.relativeSubdirsContaining(isSourceFileName).map(LocalSource(_, Glob.All))
-    extSrcs ++ localSrcs
+    val wsSrcs = workspaceIds.map(WorkspaceSource(_, Path.apply("")))
+
+    extSrcs ++ localSrcs ++ wsSrcs
   })
 
   private[this] def isSourceFileName(name: String): Boolean = name.endsWith(".scala") || name.endsWith(".java")

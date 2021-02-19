@@ -108,7 +108,7 @@ object Uri {
 }
 
 case class Uri(scheme: String, path: Path, parameters: Query = Query()) extends Key(msg"URI") {
-  def key: String = str"${scheme}://${path}${parameters}"
+  def key: String = str"${scheme}://${path.value}${parameters}"
   def /(str: String): Uri = Uri(scheme, path / str, parameters)
   def query(params: (String, String)*): Uri = copy(parameters = Query(params: _*))
 }
@@ -578,16 +578,16 @@ object JsFile extends IncludeType.Id("js")
 case class JsFile(dependency: ModuleRef) extends IncludeType(str"${dependency}${'@'}$JsFile")
 
 object TarFile extends IncludeType.Id("tar")
-case class TarFile(workspace: WorkspaceId, path: Path) extends IncludeType(str"$workspace${':'}$path${'@'}$TarFile")
+case class TarFile(workspace: WorkspaceId, path: Path) extends IncludeType(str"$workspace${':'}${path.value}${'@'}$TarFile")
 
 object TgzFile extends IncludeType.Id("tgz")
-case class TgzFile(workspace: WorkspaceId, path: Path) extends IncludeType(str"$workspace${':'}$path${'@'}$TgzFile")
+case class TgzFile(workspace: WorkspaceId, path: Path) extends IncludeType(str"$workspace${':'}${path.value}${'@'}$TgzFile")
 
 object ClassesDir extends IncludeType.Id("classes")
 case class ClassesDir(dependency: ModuleRef) extends IncludeType(str"$dependency${'@'}$ClassesDir")
 
 object FileRef extends IncludeType.Id("file")
-case class FileRef(rootId: RootId, path: Path) extends IncludeType(str"${rootId.key}:$path${'@'}$FileRef")
+case class FileRef(rootId: RootId, path: Path) extends IncludeType(str"${rootId.key}:${path.value}${'@'}$FileRef")
 //case class FileRef(glob: Glob) extends IncludeType(str"file:${glob}")
 
 sealed abstract class IncludeType(val key: String) extends scala.Product with scala.Serializable {
@@ -607,7 +607,7 @@ sealed abstract class IncludeType(val key: String) extends scala.Product with sc
 object Include {
   implicit val ord: Ordering[Include] = Ordering[String].on(_.id.key)
   implicit val msgShow: MsgShow[Include] = e => msg"${e.kind}:${e.id.path.value}"
-  implicit val stringShow: StringShow[Include] = e => str"${e.kind}:${e.id.path}"
+  implicit val stringShow: StringShow[Include] = e => str"${e.kind}:${e.id.path.value}"
   implicit val diff: Diff[Include] = Diff.gen[Include]
   implicit val keyName: KeyName[Include] = () => msg"include"
 }
