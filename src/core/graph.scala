@@ -33,11 +33,11 @@ object UiGraph {
   case class CompileIssue(msg: Message, repo: RepoId, path: Path, line: LineNo, charNum: Int) extends Issue
   case class BuildIssue(msg: Message) extends Issue
 
-  case class BuildInfo(state: BuildState, msgs: List[Issue]) {
-    def failed(): BuildInfo = BuildInfo(Failed, msgs)
-    def progress(n: Double): BuildInfo = if(state == Failed) this else BuildInfo(Compiling(n), msgs)
-    def skipped: BuildInfo = if(state == Failed) this else BuildInfo(Skipped, msgs)
-    def successful: BuildInfo = if(state == Failed) this else BuildInfo(Successful(None), msgs)
+  case class BuildInfo(state: BuildState, issues: List[Issue], prints: List[String]) {
+    def failed(): BuildInfo = BuildInfo(Failed, issues, prints)
+    def progress(n: Double): BuildInfo = if(state == Failed) this else BuildInfo(Compiling(n), issues, prints)
+    def skipped: BuildInfo = if(state == Failed) this else BuildInfo(Skipped, issues, prints)
+    def successful: BuildInfo = if(state == Failed) this else BuildInfo(Successful(None), issues, prints)
   }
 
   sealed abstract class BuildState(val completion: Double)
@@ -55,7 +55,7 @@ object UiGraph {
                                (implicit log: Log) {
 
     def update(ref: ModuleRef, f: BuildInfo => BuildInfo): GraphState = {
-      val previousState = buildLogs.getOrElse(ref, BuildInfo(state = Compiling(0), msgs = Nil))
+      val previousState = buildLogs.getOrElse(ref, BuildInfo(state = Compiling(0), issues = Nil, prints = Nil))
       this.copy(buildLogs = buildLogs.updated(ref, f(previousState)), changed = true)
     }
   }
@@ -94,15 +94,15 @@ object UiGraph {
         case StartCompile(ref) =>
           graphState(ref) = _.progress(0)
         case DiagnosticMsg(ref, msg) =>
-          (graphState(ref) = Lens[BuildInfo](_.msgs).modify(_)(_ :+ msg)).copy(changed = false)
+          (graphState(ref) = Lens[BuildInfo](_.issues).modify(_)(msg :: _)).copy(changed = false)
         case NoCompile(ref) =>
-
-          graphState(ref) = buildLogs.getOrElse(ref, BuildInfo(state = Finished, msgs = List.empty)).waive
+          graphState(ref) = buildLogs.getOrElse(ref,
+              BuildInfo(state = Finished, issues = Nil, prints = Nil)).waive
         case StopCompile(ref, success) =>
-          graphState(ref) = BuildInfo(if(success) Successful(None) else Failed, buildLogs(ref).msgs).waive
+          graphState(ref) = BuildInfo(if(success) Successful(None) else Failed, buildLogs(ref).issues,
+              buildLogs(ref).prints).waive
         case Print(ref, line) =>
-          log.info(msg"$line")
-          graphState
+          (graphState(ref) = Lens[BuildInfo](_.prints).modify(_)(line :: _)).copy(changed = false)
         case StopRun(ref) =>
           graphState(ref) = _.successful
         case StartRun(ref) =>
@@ -114,19 +114,20 @@ object UiGraph {
     } else {
       log.raw(Ansi.showCursor())
       val output = buildLogs.collect {
-        case (_, BuildInfo(Failed, out)) => out.map(_.msg)
-        case (_, BuildInfo(Successful(_), out)) => out.map(_.msg)
+        case (_, BuildInfo(Failed, out, _)) => out.map(_.msg)
+        case (_, BuildInfo(Successful(_), out, _)) => out.map(_.msg)
       }.flatten
 
       log.raw(Ansi.down(graph.size + 2)())
       
       buildLogs.foreach { case (ref, info) =>
         info match {
-          case BuildInfo(Failed | Successful(_), out) if !out.isEmpty =>
+          case BuildInfo(Failed | Successful(_), issues, prints) if !issues.isEmpty || !prints.isEmpty =>
             log.info(Message { theme =>
               List(msg"Output from $ref").map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
-            out.foreach { msg => log.info(msg.msg) }
+            issues.reverse.foreach { issue => log.info(issue.msg) }
+            prints.reverse.foreach(log.info(_))
           case _ => ()
         }
       }
@@ -138,9 +139,12 @@ object UiGraph {
           : Unit =
     live(GraphState(changed = true, graph, stream, Map()))
 
-  def draw(graph: Map[ModuleRef, Set[Input]], describe: Boolean, state: Map[ModuleRef, BuildInfo] = Map())
+  def draw(graph: Map[ModuleRef, Set[Input]],
+           describe: Boolean,
+           state: Map[ModuleRef, BuildInfo] = Map())
           (implicit theme: Theme)
           : Vector[String] = {
+
 
     def sort(todo: Map[ModuleRef, Set[Input]], done: List[ModuleRef]): List[ModuleRef] =
       if(todo.isEmpty) done else {
@@ -149,10 +153,11 @@ object UiGraph {
       }
 
     val nodes: List[(ModuleRef, Int)] = sort(graph, Nil).reverse.zipWithIndex
-
-    val array: Array[Array[Char]] = Array.range(0, nodes.length).map { len => Array.fill[Char](len*2 + 2)(' ') }
-
     val indexes = nodes.toMap
+    val indent = nodes.length < 30
+
+    val array: Array[Array[Char]] =
+      Array.range(0, nodes.length).map { len => Array.fill[Char](if(indent) len*2 + 2 else 2)(' ') }
 
     def overwrite(x: Int, y: Int, ch: Char) =
       array(y)(x) =
@@ -161,8 +166,8 @@ object UiGraph {
 
     nodes.foreach {
       case (node, i) =>
-        array(i)(2*i + 1) = '»'
-        graph(node).filter(!_.hidden).foreach { dep =>
+        array(i)(if(indent) 2*i + 1 else 1) = '»'
+        if(indent) graph(node).filter(!_.hidden).foreach { dep =>
           overwrite(2*indexes(dep.ref) + 1, i, East | North)
           for (j <- (2*indexes(dep.ref) + 1) to (2*i - 1)) overwrite(j + 1, i, East | West)
           for (j <- (indexes(dep.ref) + 1) to (i - 1)) overwrite(2*indexes(dep.ref) + 1, j, North | South)
@@ -174,18 +179,18 @@ object UiGraph {
         val text: Message = msg"$key"
 
         val errors = state.get(key) match {
-          case Some(BuildInfo(Failed, msgs)) =>
-            val count = str"${msgs.size}"
+          case Some(BuildInfo(Failed, issues, prints)) =>
+            val count = str"${issues.size}"
             theme.failure(str"${"■"*((9 - count.length)/2)} ${count} ${"■"*((8 - count.length)/2)}")
-          case Some(BuildInfo(Successful(_), msgs)) =>
+          case Some(BuildInfo(Successful(_), issues, prints)) =>
             theme.success("■"*10)
-          case Some(BuildInfo(Compiling(progress), msgs)) =>
+          case Some(BuildInfo(Compiling(progress), issues, prints)) =>
             val p = (progress*10).toInt
             theme.ongoing("■"*p + " "*(10 - p))
-          case Some(BuildInfo(Executing, msgs)) =>
+          case Some(BuildInfo(Executing, issues, prints)) =>
             val p = ((System.currentTimeMillis/50)%10).toInt
             theme.active((" "*p)+"■"+(" "*(9 - p)))
-          case Some(BuildInfo(Finished, msgs)) =>
+          case Some(BuildInfo(Finished, issues, prints)) =>
             theme.gray("■"*10)
           case _ => theme.bold(theme.failure("          "))
         }
@@ -195,10 +200,10 @@ object UiGraph {
         (msg"${chs.filter(_ != '.').mkString} $name ", errorsAnsi, text.length + 3)
     }
 
-    val maxStrippedLength = namedLines.zipWithIndex.map { case ((_, _, len), idx) => len + idx*2 }.max + 4
+    val maxStrippedLength = namedLines.zipWithIndex.map { case ((_, _, len), idx) => len + (if(indent) idx*2 else 0) }.max + 4
 
     namedLines.zipWithIndex.map { case ((n, s, len), idx) =>
-      val paddingLength = maxStrippedLength - len - idx*2
+      val paddingLength = if(indent) maxStrippedLength - len - idx*2 else maxStrippedLength - len
       n.string(theme) + (" "*(paddingLength%4)) + theme.gray(
           (if(idx%2 != 0 || describe) "    " else "  . ")*(paddingLength/4)) + s.string(theme)
     }.to[Vector]

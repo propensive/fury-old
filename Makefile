@@ -61,6 +61,12 @@ tmp/script/_fury: etc/completion/zsh/_fury
 	 cp "$<" "$@" && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
+tmp/dummy/source.scala: etc/dummy/source.scala
+	@printf "$(MK) Copying dummy source file..." && \
+	 mkdir -p tmp/dummy && \
+	 cp "$<" "$@" && \
+	 printf "done\n" || (printf "failed\n" && exit 1)
+
 tmp/bin/procname.c: etc/procname.c
 	@printf "$(MK) Copying Procname C wrapper..." && \
 	 mkdir -p tmp/bin && \
@@ -96,7 +102,7 @@ icons: doc/logo/render_1000px.png
 	 convert doc/logo/render_1000px.png -resize 128x128 etc/icons/hicolor/128x128/apps/fury-icon.png && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
-dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury tmp/etc tmp/etc
+dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury tmp/dummy/source.scala tmp/etc tmp/etc
 	@printf "$(MK) Creating bundle file..." && \
 	 mkdir -p dist && \
 	 tar czf "$@" -C tmp .version lib bin etc script && \
