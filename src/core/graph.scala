@@ -20,6 +20,7 @@ import fury.text._, fury.io._, fury.model._
 
 import annotation.tailrec
 import optometry.Lens
+import kaleidoscope._
 import jovian._
 
 object UiGraph {
@@ -102,7 +103,13 @@ object UiGraph {
           graphState(ref) = BuildInfo(if(success) Successful(None) else Failed, buildLogs(ref).issues,
               buildLogs(ref).prints).waive
         case Print(ref, line) =>
-          (graphState(ref) = Lens[BuildInfo](_.prints).modify(_)(line :: _)).copy(changed = false)
+          line match {
+            case r"Deduplicating compilation of .*" =>
+              log.note(line)
+              graphState
+            case line =>
+              (graphState(ref) = Lens[BuildInfo](_.prints).modify(_)(line :: _)).copy(changed = false)
+          }
         case StopRun(ref) =>
           graphState(ref) = _.successful
         case StartRun(ref) =>

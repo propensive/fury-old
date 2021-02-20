@@ -125,5 +125,5 @@ object QuietReporter extends Reporter("quiet") {
   def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
             (implicit log: Log)
             : Unit =
-    multiplexer.stream(50, None).foreach { event => () }
+    multiplexer.stream(100, None).foreach { event => () }
 }

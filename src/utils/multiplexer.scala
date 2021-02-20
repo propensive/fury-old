@@ -36,9 +36,8 @@ final class Multiplexer[K, V](keys: Set[K]) {
         case (current, last) =>
           current.take(current.length - last.length).reverse
       }
-      if(finished && changes.isEmpty) {
-        tick.to[Iterator]
-      } else {
+      if(finished && changes.isEmpty) tick.to[Iterator]
+      else {
         val time = System.currentTimeMillis - t0
         if(time < interval) Thread.sleep(interval - time)
         changes.to[Iterator] ++ (if(show) tick.to[Iterator] else Iterator()) ++ stream(snapshot)
