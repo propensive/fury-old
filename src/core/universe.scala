@@ -35,6 +35,15 @@ case class Universe(hierarchy: Hierarchy,
                     repoSets: Map[RepoSetId, Set[RepoRef]],
                     imports: Map[ShortLayerRef, LayerProvenance]) {
   def ids: Set[ProjectId] = projects.keySet
+  def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
+  def apply(id: ProjectId): Try[Project] = layer(id).flatMap(_.projects.findBy(id))
+  def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
+  def apply(id: ShortLayerRef): Try[LayerProvenance] = imports.get(id).ascribe(ItemNotFound(id))
+  def apply(ref: ModuleRef): Try[Module] = apply(ref.projectId) >>= (_(ref.moduleId))
+  def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
+  def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
+  def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
+  def deepModuleRefs: Try[Set[ModuleRef]] = allProjects.map(_.flatMap(_.moduleRefs).to[Set])
 
   val javaVersions: HashMap[ModuleRef, Try[Int]] = HashMap()
 
@@ -59,22 +68,12 @@ case class Universe(hierarchy: Hierarchy,
       } >>= (conflicts => Failure(ProjectConflict(conflicts.toMap)))
   }
 
-  def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
-  
-  def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
-  
   def layer(id: ProjectRef): Try[Layer] = (projects(id.id) match {
     case Unique(someId, origins) if someId.id == id.id => ~origins.head
     case Unique(otherId, _) => Failure(new IllegalStateException(str"Expected $id but found $otherId"))
     case _: Ambiguous[ProjectRef, Pointer] => pointers(id) >> (_.head)
   }).flatMap(hierarchy(_))
   
-  def apply(id: ProjectRef): Try[Project] = layer(id).flatMap(_.projects.findBy(id.id))
-  def apply(id: ProjectId): Try[Project] = layer(id).flatMap(_.projects.findBy(id))
-  def apply(id: RepoSetId): Try[Set[RepoRef]] = repoSets.get(id).ascribe(ItemNotFound(id))
-  def apply(id: ShortLayerRef): Try[LayerProvenance] = imports.get(id).ascribe(ItemNotFound(id))
-  def apply(ref: ModuleRef): Try[Module] = apply(ref.projectId) >>= (_(ref.moduleId))
-  def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
 
   def deepDependencySearch(ref: ModuleRef): Set[ModuleRef] = { for {
     dependencies <- apply(ref) >> (_.dependencies.map(_.ref).to[Set])
@@ -99,7 +98,8 @@ case class Universe(hierarchy: Hierarchy,
   def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshot] = for {
     repoPaths   <- repoPaths(ref)
   } yield Snapshot(repoPaths.map { case (repo, paths) =>
-    repo.commit -> Stash(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
+    val stash = Stash(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
+    stash.hash -> stash
   }.toMap)
 
   def workspace(ref: ModuleRef, layout: Layout): Try[Option[Path]] = for {

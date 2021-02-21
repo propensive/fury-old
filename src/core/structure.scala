@@ -28,23 +28,21 @@ sealed trait MenuStructure {
   def needsLayer: Boolean
 }
 
-case class Action(
-    command: Symbol,
-    description: Message,
-    action: Cli => Try[ExitStatus],
-    show: Boolean = true,
-    shortcut: Char = '\u0000',
-    needsLayer: Boolean = true)
+case class Action(command: Symbol,
+                  description: Message,
+                  action: Cli => Try[ExitStatus],
+                  show: Boolean = true,
+                  shortcut: Char = '\u0000',
+                  needsLayer: Boolean = true)
     extends MenuStructure
 
-case class Menu(
-    command: Symbol,
-    description: Message,
-    default: Symbol,
-    show: Boolean = true,
-    shortcut: Char = '\u0000',
-    needsLayer: Boolean = true
-  )(val items: MenuStructure*)
+case class Menu(command: Symbol,
+                description: Message,
+                default: Symbol,
+                show: Boolean = true,
+                shortcut: Char = '\u0000',
+                needsLayer: Boolean = true)
+               (val items: MenuStructure*)
     extends MenuStructure {
 
   def apply(cli: Cli, ctx: Cli, reentrant: Boolean = false): Try[ExitStatus] = {
@@ -53,22 +51,22 @@ case class Menu(
       Success(Done)
     } else {
       if(FuryVersion.current != Installation.installVersion && !reentrant) {
-        cli.forceLog(msg"The running Fury server version (${FuryVersion.current}) differs from the shell"+
-            msg"script version (${Installation.installVersion}) calling it.")
+        cli.forceLog(msg"The version of the active Fury server (${FuryVersion.current}) differs from the "+
+            msg"version of the shell script version (${Installation.installVersion}) calling it.")
         cli.forceLog(msg"This is probably because a newer version of Fury has been installed while the old "+
             msg"version is still running.")
+        cli.forceLog(msg"While the versions may be compatible, is advised to stop the Fury server using "+
+            msg"${ExecName("fury stop")}.")
       }
 
       cli.args.prefix.headOption match {
         case None =>
           if (cli.completion) cli.completeCommand(this, hasLayer)
-          else {
-            apply(cli.prefix(default.name), ctx)
-          }
+          else apply(cli.prefix(default.name), ctx)
 
         case Some(next) =>
           val cmd = items.find(_.command.name == next.value).orElse {
-            if (next.value.length <= 2 && !cli.command.exists(_ < 4)) items.find(_.shortcut == next.value(0))
+            if(next.value.length <= 2 && !cli.command.exists(_ < 4)) items.find(_.shortcut == next.value(0))
             else None
           }
 
@@ -86,7 +84,6 @@ case class Menu(
   }
 
   def reference(implicit theme: Theme): Seq[String] = {
-
     def highlight(str: String, char: Char): Message = if(char == '\u0000') msg"$str" else {
       val idx = str.indexOf(str)
       val left = str.substring(0, idx)
@@ -96,7 +93,7 @@ case class Menu(
     }
 
     val shownItems = items.filter(_.show)
-    val width      = 12
+    val width = 12
     shownItems.sortBy { case _: Action => 0; case _ => 1 }.flatMap {
       case item: Action =>
         List(msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(

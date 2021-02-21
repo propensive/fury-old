@@ -24,8 +24,8 @@ import jovian._
 
 import scala.util._
 
-case class Snapshot(stashes: Map[Commit, Stash] = Map()) {
-  def apply(commit: Commit): Try[Stash] = stashes.get(commit).ascribe(ItemNotFound(commit))
+case class Snapshot(stashes: Map[StashId, Stash] = Map()) {
+  def apply(commit: StashId): Try[Stash] = stashes.get(commit).ascribe(ItemNotFound(commit))
 
   def ++(that: Snapshot): Snapshot =
     Snapshot(that.stashes.foldLeft(stashes) { case (all, (commit, stash)) =>
@@ -33,6 +33,11 @@ case class Snapshot(stashes: Map[Commit, Stash] = Map()) {
         old.copy(sources = old.sources ++ stash.sources)
       })
     })
+}
+
+object Stash {
+  implicit val msgShow: MsgShow[Stash] = s =>
+    msg"${s.repoId} ${'('}${s.local.fold(msg"${s.remote}${'@'}${s.commit}${'/'}${s.branch}")(_.dir.msg)}${')'}"
 }
 
 case class Stash(repoId: RepoId,
@@ -45,7 +50,7 @@ case class Stash(repoId: RepoId,
   def hash: StashId = StashId((commit, local, sources).digest[Md5])
   def path: Path = Installation.srcsDir / hash.hash.encoded[Hex].take(16)
 
-  def absolutePaths: List[Path] = sources.map(_ in path)
+  def absolutePath(relativePath: Path): Path = relativePath in path
 
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = for {
     repoDir    <- remote.get(layout)
@@ -60,8 +65,7 @@ case class Stash(repoId: RepoId,
         case head :: Nil =>
           msg"$head"
         case head :: tail =>
-          val init = tail.foldLeft(msg"${'{'}$head") { case (str, next) => msg"$str${','} $next" }
-          msg"$init${'}'}"
+          msg"${tail.foldLeft(msg"${'{'}$head") { case (str, next) => msg"$str${','} $next" }}${'}'}"
       }
 
       if(path.exists && (path / ".unfinished").exists) {

@@ -112,7 +112,7 @@ case class Tables() {
       Heading("Dependencies", (m: Module) =>
         m.dependencies, width = FlexibleWidth)(refinedModuleDep(universe, projectId)
       ),
-      Heading("Sources", _.sources),
+      Heading("Sources", _.sources.msg),
       Heading("Workspace", _.workspace match {
         case None     => msg"${'-'}"
         case Some(ws) => msg"$ws"
@@ -127,7 +127,7 @@ case class Tables() {
     Heading("Alias", _.id),
     Heading("Description", _.description),
     Heading("Module", _.module),
-    Heading("Arguments", _.args.mkString("'", "', '", "'"))
+    Heading("Arguments", _.args.msg)
   )
 
   val dependencies: Tabulation[Input] = Tabulation[Input](
@@ -279,7 +279,7 @@ case class Tables() {
 
     Tabulation(
       Heading("Import", _.ref),
-      Heading("IDs", _.ids),
+      Heading("IDs", _.ids.msg),
       Heading("Remotes", _.published),
       Heading("Imported by", provenance => sortedList(provenance.imports.keySet))
     )

@@ -68,7 +68,7 @@ object Args {
   val LinkArg = CliParam[String]('d', 'dependency, "specify a dependency to another module")
   val SourceArg = CliParam[Source]('s', 'source, "specify a source directory")
   val IncludeTypeArg = CliParam[IncludeType.Id]('t', 'type, "specify the type of include")
-  val IncludeArg = CliParam[IncludeId]('i', 'include, "specify the include")
+  val IncludeArg = CliParam[IncludeId]('e', 'export, "specify the export")
   val ResourceArg = CliParam[Source]('s', 'resource, "specify a resource file or directory")
   val PathArg = CliParam[Path]('f', 'path, "specify the path")
   val OptPathArg = CliParam[Option[Path]]('f', 'path, "specify the path")

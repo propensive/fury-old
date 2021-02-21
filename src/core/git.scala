@@ -96,12 +96,12 @@ case class GitDir(env: Environment, dir: Path) {
   def init(): Try[Unit] = sh"$git init".exec[Try[String]].munit
 
   def cloneBare(remote: Remote): Try[Unit] =
-    GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }.flatMap { out =>
+    catchErrors(GitDir.sshOrHttps(remote) { r => sh"git clone --mirror $r $dir" }).flatMap { out =>
       (dir / ".unfinished").delete().munit
     }
 
   def clone(remote: Remote, branch: Branch, commit: Commit): Try[Unit] = for {
-    _ <- GitDir.sshOrHttps(remote) { r => sh"git clone $r --branch=$branch $dir" }
+    _ <- catchErrors(GitDir.sshOrHttps(remote) { r => sh"git clone $r --branch=$branch $dir" })
     _ <- sh"$git reset $commit".exec[Try[String]]
   } yield ()
 
@@ -128,14 +128,12 @@ case class GitDir(env: Environment, dir: Path) {
   def sparseCheckout(from: Path, sources: List[Path], branch: Branch, commit: Commit, remote: Option[Remote])
                     : Try[Unit] = for {
     _ <- sh"$git init".exec[Try[String]]
-    // FIXME: Something in here is not checkout out the working tree
-    // Do a standard checkout, not a separated one
     _ <- if(!sources.isEmpty) sh"$git config core.sparseCheckout true".exec[Try[String]] else Success(())
     _ <- ~(dir / ".git" / "info" / "sparse-checkout").writeSync {
            (sources.map(_.value+"\n") ++ sources.map(_.value + "/*\n")).mkString
          }
-    _ <- sh"$git remote add origin $from".exec[Try[String]]
-    _ <- sh"$git fetch --all".exec[Try[String]]
+    _ <- catchErrors(sh"$git remote add origin $from".exec[Try[String]])
+    _ <- catchErrors(sh"$git fetch --all".exec[Try[String]])
     _ <- catchCommitNotInRepo(sh"$git checkout $commit".exec[Try[String]], commit, remote.fold(msg"$from") { r => msg"$r" })
 
     _ <- ~remote.foreach { remote => for {
@@ -143,7 +141,7 @@ case class GitDir(env: Environment, dir: Path) {
            fullRef = remote.https.getOrElse(remote.ref)
            _ <- sh"$git remote add origin ${fullRef}".exec[Try[String]]
            _ <- sh"$git checkout -b ${branch.id}".exec[Try[String]]
-           _ <- sh"$git fetch".exec[Try[String]]
+           _ <- catchErrors(sh"$git fetch".exec[Try[String]])
            _ <- sh"$git branch -u origin/$branch".exec[Try[String]]
          } yield () }
 
@@ -153,6 +151,11 @@ case class GitDir(env: Environment, dir: Path) {
 
   def catchCommitNotInRepo[T](value: Try[T], commit: Commit, origin: Message): Try[T] = value.recoverWith {
     case ShellFailure(_, _, r".*reference is not a tree.*") => Failure(CommitNotInRepo(commit, origin))
+  }
+
+  def catchErrors[T](value: Try[T]): Try[T] = value.recoverWith {
+    case ShellFailure(_, _, r".*unable to access.*") => Failure(DnsResolutionFailure())
+    case ShellFailure(_, _, r".*Could not read from remote repository.*") => Failure(CloneFailure())
   }
 
   def lsTree(commit: Commit): Try[List[Path]] = for {
@@ -182,8 +185,8 @@ case class GitDir(env: Environment, dir: Path) {
 
   def commit(message: String): Try[Unit] = sh"$git commit -m $message".exec[Try[String]].munit
 
-  def fetch(branch: Branch): Try[Unit] = sh"$git fetch origin $branch".exec[Try[String]].munit
-  def fetch(): Try[Unit] = sh"$git fetch --all".exec[Try[String]].munit
+  def fetch(branch: Branch): Try[Unit] = catchErrors(sh"$git fetch origin $branch".exec[Try[String]]).munit
+  def fetch(): Try[Unit] = catchErrors(sh"$git fetch --all".exec[Try[String]]).munit
   def branch: Try[Branch] = sh"$git rev-parse --abbrev-ref HEAD".exec[Try[String]].map(Branch(_))
   def cat(path: Path): Try[String] = sh"$git show HEAD:$path".exec[Try[String]]
   def cat(commit: Commit, path: Path): Try[String] = sh"$git show $commit:$path".exec[Try[String]]

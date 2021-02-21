@@ -30,6 +30,7 @@ case class BuildServerError(cause: Throwable) extends FuryException
 case class BuildDidNotSucceed() extends FuryException
 case class CannotUndo() extends FuryException
 case class CannotUpdateRepo(repo: RepoId) extends FuryException
+case class CloneFailure() extends FuryException
 case class ConflictingFiles(files: List[Path]) extends FuryException
 case class CompilationFailure() extends FuryException
 //TODO Is this equivalent to ItemNotFound?
@@ -94,6 +95,8 @@ case class UntrackedFiles(files: List[Path]) extends FuryException
 case class RepoNotForked(repo: RepoId) extends FuryException
 case class RepoNotFound(base: Path) extends FuryException
 case class RootLayerNotSelected(path: Pointer) extends FuryException
+case class UndownloadableBinary(binaryId: BinaryId) extends FuryException
+case class UnresolvableBinary(binaryId: BinaryId) extends FuryException
 case class UnknownBinaryRepository(repoId: BinRepoId) extends FuryException
 case class UnknownCommand(command: String) extends FuryException
 case class UnknownCompiler() extends FuryException

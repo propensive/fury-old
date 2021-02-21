@@ -27,12 +27,11 @@ import language.implicitConversions
 object `package` {
   implicit def joinable(values: Traversable[String]): Joinable   = Joinable(values)
   implicit def stringContexts(sc: StringContext): StringContexts = StringContexts(sc)
+  implicit def message[T: MsgShow](value: T): Message = implicitly[MsgShow[T]].show(value)
+  implicit class ToMessage[T](value: T) { def msg(implicit msgShow: MsgShow[T]): Message = message(value) }
 
   implicit def stringPart[T: StringShow](value: T): StringPart =
     StringPart(implicitly[StringShow[T]].show(value))
-
-  implicit def message[T: MsgShow](value: T): Message =
-    implicitly[MsgShow[T]].show(value)
 
   implicit class StringExtensions(string: String) {
     def urlEncode: String = java.net.URLEncoder.encode(string, "UTF-8")
@@ -45,9 +44,7 @@ object `package` {
     def unit: Unit = ()
   }
   
-  implicit class Munit[T](value: Try[T]) {
-    def munit: Try[Unit] = value.map(_ => ())
-  }
+  implicit class Munit[T](value: Try[T]) { def munit: Try[Unit] = value.map(_ => ()) }
   
   implicit class OptionExtensions[T](value: Option[T]) {
     def ascribe(e: Exception): Try[T] = value.map(Success(_)).getOrElse(Failure(e))
@@ -57,9 +54,7 @@ object `package` {
   val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
 }
 
-case class Timestamp(value: Long) {
-  def -(that: Timestamp): TimeOffset = TimeOffset(value - that.value)
-}
+case class Timestamp(value: Long) { def -(that: Timestamp): TimeOffset = TimeOffset(value - that.value) }
 
 object Timestamp {
   def now(): Timestamp = Timestamp(System.currentTimeMillis)

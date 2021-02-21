@@ -207,8 +207,14 @@ You can grant these permissions with,
           cli.abort(msg"The include must be of type ${expected}.")
         case e: UnknownCompiler =>
           cli.abort(msg"This compiler is not known.")
-        case UnknownBinaryRepository(repoId: BinRepoId) =>
+        case UnknownBinaryRepository(repoId) =>
           cli.abort(msg"The binary repository $repoId could not be resolved.")
+        case UndownloadableBinary(binary) =>
+          cli.abort(msg"The binary $binary could not be downloaded.")
+        case CloneFailure() =>
+          cli.abort(msg"The remote repository could not be cloned.")
+        case UnresolvableBinary(binary) =>
+          cli.abort(msg"The binary $binary could not be resolved.")
         case NoSourcesError(repoId, commit, sources) =>
           cli.abort(msg"The repository $repoId did not contain the sources $sources at commit $commit.")
         case e: ShellFailure =>

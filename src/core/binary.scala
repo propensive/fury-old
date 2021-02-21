@@ -33,7 +33,8 @@ object Binary {
   def apply(id: Option[BinaryId], service: BinRepoId, binSpec: BinSpec): Try[Binary] =
     binSpec.string.only {
       case r"$group@([\w\-\.]*)\:$artifact@([\w\-\.]*)\:$version@([\w\-\.]*)" =>
-        Binary(id.getOrElse(BinaryId(artifact)), service, group, artifact, version)
+        val suggested = artifact.inits.collect { case BinaryId(name) => name }.to[List].headOption
+        Binary(id.orElse(suggested).getOrElse(BinaryId("unknown")), service, group, artifact, version)
     }.ascribe(InvalidValue(binSpec.string))
 
   private val compilerVersionCache: HashMap[Binary, Try[String]] = HashMap()

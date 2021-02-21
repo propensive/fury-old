@@ -33,8 +33,7 @@ final class Multiplexer[K, V](keys: Set[K]) {
       val snapshot = state.to[List]
       // FIXME: This could be written more efficiently with a builder
       val changes = snapshot.zip(lastSnapshot).flatMap {
-        case (current, last) =>
-          current.take(current.length - last.length).reverse
+        case (current, last) => current.take(current.length - last.length).reverse
       }
       if(finished && changes.isEmpty) tick.to[Iterator]
       else {

@@ -24,6 +24,7 @@ import jovian._
 import coursier.{Module => CModule, Dependency => CDependency, _}
 
 import scala.util._
+import coursier.error._
 
 object Coursier {
   
@@ -47,6 +48,8 @@ object Coursier {
         }.recoverWith {
           case ex: java.net.UnknownHostException => Failure(DnsResolutionFailure())
           case ex: java.net.SocketException      => Failure(OfflineException())
+          case ex: FetchError                    => Failure(UndownloadableBinary(binary.id))
+          case ex: ResolutionError               => Failure(UnresolvableBinary(binary.id))
         }
     }
   }

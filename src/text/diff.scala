@@ -69,10 +69,10 @@ object Diff extends Diff_1 {
       }
     }) ++
       (leftOnly.map { e =>
-        Difference(implicitly[EntityName[T]].name, msg"$e", msg"", msg"${Ansi.red("missing")}")
+        Difference(implicitly[EntityName[T]].name, e.msg, msg"", msg"${Ansi.red("missing")}")
       }) ++
       (rightOnly.map { e =>
-        Difference(implicitly[EntityName[T]].name, msg"$e", msg"${Ansi.red("missing")}", msg"")
+        Difference(implicitly[EntityName[T]].name, e.msg, msg"${Ansi.red("missing")}", msg"")
       })
 
   }

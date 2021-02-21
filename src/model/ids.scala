@@ -794,7 +794,7 @@ object BinaryId {
   implicit val keyName: KeyName[BinaryId] = () => msg"binary"
   
   def unapply(name: String): Option[BinaryId] =
-    name.only { case r"[a-z]([_\-\.]?[a-z0-9]+)*" => BinaryId(name) }
+    name.only { case r"[a-z](-?[a-z0-9]+)*" => BinaryId(name) }
 }
 
 case class BinaryId(key: String) extends Key("binary")
@@ -904,17 +904,14 @@ case class Input(ref: ModuleRef) extends Key("dependency") {
   def intransitive = ref.intransitive
   def hidden = ref.hidden
   def hide = copy(ref = ref.copy(hidden = true))
-
   override def key: String = ref.key
 }
 
 object StashId {
-  implicit val msgShow: MsgShow[StashId] = sh => Message(_.repo(sh.hash.encoded[Base64].take(4)))
+  implicit val msgShow: MsgShow[StashId] = sh => Message(_.repo(sh.hash.encoded[Base64].take(5)))
 }
 
-case class StashId(hash: Digest) extends Key(msg"stash") {
-  def key: String = hash.encoded[Base64]
-}
+case class StashId(hash: Digest) extends Key(msg"stash") { def key: String = hash.encoded[Base64] }
 
 case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean = false) extends Key(msg"ref") {
   def key: String = id
@@ -922,11 +919,8 @@ case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean 
   def moduleId: ModuleId = ModuleId(id.split("/")(1))
   def urlSafe: String = str"${projectId}_${moduleId}"
   def isJavac: Boolean = this == ModuleRef.JavaRef
-
-  override def equals(that: Any): Boolean =
-    that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
-
   def hide = copy(hidden = true)
+  override def equals(that: Any): Boolean = that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
   override def hashCode: Int = projectId.hashCode + moduleId.hashCode
   override def toString: String = str"$projectId/$moduleId"
 }
@@ -1123,7 +1117,7 @@ object OptId {
   implicit val parser: Parser[OptId] = unapply(_)
   
   def unapply(value: String): Option[OptId] =
-    value.only { case r"[\w/\-\.\:]+" => OptId(value) }
+    value.only { case r"[\w/\-\.\,\:]+" => OptId(value) }
 }
 
 case class OptId(key: String) extends Key(msg"option")

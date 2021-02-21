@@ -49,14 +49,14 @@ case class Layer(version: Int,
   def commit(repoId: RepoId): Try[Commit] = repos.findBy(repoId).map(_.commit)
   def spaces: SortedSet[RootId] = repos.map(_.id) ++ workspaces.map(_.id)
 
-  def repoPaths(snapshot: Snapshot, source: Source): Try[Stash] = source match {
+  /*def repoPaths(snapshot: Snapshot, source: Source): Try[Stash] = source match {
     case RepoSource(repoId, path, glob) => for {
       repo  <- repos.findBy(repoId)
       stash <- snapshot(repo.commit)
     } yield stash
     case _ =>
       ???
-  }
+  }*/
 
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
@@ -89,9 +89,6 @@ case class Layer(version: Int,
     module            <- project.modules
     LocalSource(_, _) <- module.sources
   } yield module.ref(project)
-
-  def deepModuleRefs(universe: Universe): Try[Set[ModuleRef]] =
-    for(projects <- universe.allProjects) yield projects.flatMap(_.moduleRefs).to[Set]
 
   def unresolvedModules(universe: Universe): Map[ModuleRef, Set[Input]] = { for {
     project    <- projects.to[List]

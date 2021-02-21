@@ -30,6 +30,12 @@ object MsgShow {
   implicit val char: MsgShow[Char] = ch => Message(_.gray(ch.toString))
   implicit val stackTraceElement: MsgShow[StackTraceElement] = ste => Message(_.gray(ste.toString))
   implicit val bigDecimal: MsgShow[BigDecimal] = bd => Message { _ => bd.toString }
+  
+  implicit def traversableMsgShow[Coll[X] <: Traversable[X], T: MsgShow]: MsgShow[Coll[T]] = { seq =>
+    if(seq.isEmpty) msg"${'{'}${'}'}"
+    else if(seq.size == 1) msg"${seq.head}"
+    else msg"${'{'}${seq.map(_.msg).reduce(_ + msg"${','} " + _)}${'}'}"
+  }
 }
 
 trait MsgShow[T] { def show(value: T): Message }

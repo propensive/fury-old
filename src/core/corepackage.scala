@@ -42,8 +42,8 @@ package object core extends GuillotineExtensions {
   implicit def ansiShow[T: MsgShow](implicit theme: Theme): AnsiShow[T] =
     implicitly[MsgShow[T]].show(_).string(theme)
 
-  implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] = xs =>
-    Message { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
+  //implicit def msgShowTraversable[T: MsgShow]: MsgShow[SortedSet[T]] = xs =>
+  //  Message { theme => xs.map(implicitly[MsgShow[T]].show(_).string(theme)).join("\n") }
 
   type WithKey[K <: Key] = { val id: K }
 

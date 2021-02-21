@@ -323,7 +323,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                               compileSuccess <- compileResult.asTry
                               _              <- (dir.map { dir => new build.TargetExtras(build.target).saveJars(layer,
                                                     compileSuccess.classDirectories.values.to[Set],
-                                                    dir in layout.pwd, output)
+                                                    dir, output)
                                                 }).getOrElse(Success(()))
                             } yield compileSuccess
                           }
@@ -491,10 +491,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     build        <- Build.syncBuild(layer, module.ref(project), layout, false)
-    
-    _            <- ~UiGraph.draw(build.graph.links, true,
-                        Map())(ManagedConfig().theme).foreach(log.info(_))
-
+    _            <- ~log.info(build.describe(layout))
+    _            <- ~UiGraph.draw(build.graph.links, true, Map())(ManagedConfig().theme).foreach(log.info(_))
   } yield log.await()
 
   private[this] def compileOnce(build: Build,

@@ -133,8 +133,8 @@ object UiGraph {
             log.info(Message { theme =>
               List(msg"Output from $ref").map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
-            issues.reverse.foreach { issue => log.info(issue.msg) }
-            prints.reverse.foreach(log.info(_))
+            issues.foreach { issue => log.info(issue.msg) }
+            prints.foreach(log.info(_))
           case _ => ()
         }
       }
@@ -146,12 +146,9 @@ object UiGraph {
           : Unit =
     live(GraphState(changed = true, graph, stream, Map()))
 
-  def draw(graph: Map[ModuleRef, Set[Input]],
-           describe: Boolean,
-           state: Map[ModuleRef, BuildInfo] = Map())
+  def draw(graph: Map[ModuleRef, Set[Input]], describe: Boolean, state: Map[ModuleRef, BuildInfo] = Map())
           (implicit theme: Theme)
           : Vector[String] = {
-
 
     def sort(todo: Map[ModuleRef, Set[Input]], done: List[ModuleRef]): List[ModuleRef] =
       if(todo.isEmpty) done else {

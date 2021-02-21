@@ -52,7 +52,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   private var lock: Promise[Unit] = Promise.successful(())
   private var connections: Map[Path, Connection] = Map.empty
   private var usages: Map[Session, Connection] = Map.empty
-  private val bloopVersion = "1.4.6"
+  private val bloopVersion = "1.4.7"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
     val newLock: Promise[Unit] = Promise()
@@ -249,10 +249,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
       build    <- Build.findOrigin(originId)
     } yield build
 
-    val repos = build match {
-      case Some(c) => c.snapshot.stashes.map { case (_, stash) => (stash.path.value, stash.repoId) }.toMap
-      case None    => Map()
-    }
+    val repos = build.map(_.target.snapshot.stashes.map { case (_, stash) =>
+        (stash.path.value, stash.repoId) }.toMap).getOrElse(Map())
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)

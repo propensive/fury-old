@@ -105,7 +105,7 @@ icons: doc/logo/render_1000px.png
 dist/fury.tar.gz: tmp/.version tmp/lib/fury.jar tmp/bin/fury tmp/bin/ng.c tmp/bin/ng.py tmp/bin/procname.c tmp/script/_fury tmp/dummy/source.scala tmp/etc tmp/etc
 	@printf "$(MK) Creating bundle file..." && \
 	 mkdir -p dist && \
-	 tar czf "$@" -C tmp .version lib bin etc script && \
+	 tar czf "$@" -C tmp .version lib bin etc script dummy && \
 	 printf "done\n" || (printf "failed\n" && exit 1)
 
 tmp/.bundle.ipfs: dist/fury.tar.gz
@@ -181,7 +181,10 @@ publish: .version pinata .pinata/apiKey .pinata/secretApiKey tmp/.launcher.ipfs
 	 printf "$(MK) $(shell tput -Tansi bold)Fury launcher $(VERSION) published to $(shell cat tmp/.launcher.ipfs)$(shell tput -Tansi sgr0)\n" && \
 	 printf "$(MK) $(shell tput -Tansi bold)Test this with: curl -Ls https://gateway.ipfs.io/ipfs/$(shell cat tmp/.launcher.ipfs) | sh $(shell tput -Tansi sgr0)\n"
 
+size:
+	cloc src
+
 test:
 	tmp/fury test --disable-security-manager --output linear
 
-.PHONY: run publish pinata clean uninstall icons tmp/.version test
+.PHONY: run publish pinata clean uninstall icons tmp/.version test size

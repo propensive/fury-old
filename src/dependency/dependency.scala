@@ -86,7 +86,7 @@ case class DependencyCli(cli: Cli)(implicit log: Log) {
     hierarchy    <- layer.hierarchy()
     universe     <- hierarchy.universe
     
-    allRefs       = for(project <- tryProject; module <- tryModule; otherRefs <- layer.deepModuleRefs(universe))
+    allRefs       = for(project <- tryProject; module <- tryModule; otherRefs <- universe.deepModuleRefs)
                     yield {
                       val fromOtherProjects = for {
                         otherRef <- otherRefs
