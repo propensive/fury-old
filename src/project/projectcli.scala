@@ -50,7 +50,7 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
   def add: Try[ExitStatus] = (cli -< ProjectNameArg -< LicenseArg -< DefaultCompilerArg).action { for {
     optLicense  <- opt(LicenseArg).map(_.getOrElse(License.unknown))
     optCompiler <- opt(DefaultCompilerArg)
-    project     <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, optLicense, "", optCompiler))
+    project     <- get(ProjectNameArg) >> (Project(_, TreeSet(), None, optLicense, ""))
     _           <- getLayer >>= (_.projects.unique(project.id))
     layer       <- getLayer >>
                        (Layer(_.projects).modify(_)(_ + project)) >>
@@ -74,7 +74,6 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     layer          <- Layer.retrieve(conf)
     cli            <- cli.hint(ProjectArg, layer.projects)
     cli            <- cli.hint(DescriptionArg)
-    cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: layer.compilerRefs(layout))
     cli            <- cli.hint(ForceArg)
     projectId      <- ~cli.peek(ProjectArg).orElse(layer.main)
     cli            <- cli.hint(LicenseArg, License.standardLicenses)
@@ -87,8 +86,6 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     layer          <- ~licenseArg.fold(layer)(Layer(_.projects(project.id).license)(layer) = _)
     descriptionArg <- ~call(DescriptionArg).toOption
     layer          <- ~descriptionArg.fold(layer)(Layer(_.projects(project.id).description)(layer) = _)
-    compilerArg    <- ~call(DefaultCompilerArg).toOption
-    layer          <- ~compilerArg.map(Some(_)).fold(layer)(Layer(_.projects(project.id).compiler)(layer) = _)
     nameArg        <- ~call(ProjectNameArg).toOption
     newId          <- ~nameArg.flatMap(layer.projects.unique(_).toOption)
     layer          <- ~newId.fold(layer)(Layer(_.projects(project.id).id)(layer) = _)

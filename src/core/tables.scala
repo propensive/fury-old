@@ -231,8 +231,7 @@ case class Tables() {
     Heading("Project", _.id),
     Heading("Modules", p => p.modules.size),
     Heading("Description", _.description),
-    Heading("License", _.license),
-    Heading("Compiler", _.compiler)
+    Heading("License", _.license)
   )
 
   def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(

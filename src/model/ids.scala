@@ -54,6 +54,19 @@ object RepoSetId {
 
 case class RepoSetId(key: String) extends Key(msg"commit")
 
+object Package {
+  implicit val msgShow: MsgShow[Package] = r => Message(_.layer(r.key))
+  implicit val stringShow: StringShow[Package] = _.key
+  implicit val diff: Diff[Package] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[Package] = unapply(_)
+  implicit val ord: Ordering[Package] = Ordering.by(_.key)
+  implicit val index: Index[Package] = FieldIndex("id")
+  
+  def unapply(name: String): Some[Package] = Some(Package(name))
+}
+
+case class Package(key: String) extends Key(msg"package")
+
 object ProjectId {
   implicit val msgShow: MsgShow[ProjectId] = p => Message(_.project(p.key))
   implicit val stringShow: StringShow[ProjectId] = _.key

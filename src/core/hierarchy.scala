@@ -64,6 +64,7 @@ case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierar
     }
 
   lazy val layerRef: Try[LayerRef] = Layer.store(layer)(Log())
+  
   def focus(pointer: Pointer): Try[Focus] = layerRef >> (Focus(_, pointer, None))
   
   def focus(pointer: Pointer, projectId: ProjectId): Try[Focus] =

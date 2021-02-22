@@ -41,23 +41,14 @@ case class Layer(version: Int,
                  imports: SortedSet[Import] = TreeSet(),
                  main: Option[ProjectId] = None,
                  mainRepo: Option[RepoId] = None,
-                 previous: Option[LayerRef] = None) { layer =>
+                 previous: Option[LayerRef] = None,
+                 compiler: Option[CompilerRef] = None) { layer =>
 
   def apply(id: ProjectId) = projects.findBy(id)
   def moduleRefs: SortedSet[ModuleRef] = projects.flatMap(_.moduleRefs)
   def mainProject: Try[Option[Project]] = main.map(projects.findBy(_)).to[List].sequence.map(_.headOption)
   def commit(repoId: RepoId): Try[Commit] = repos.findBy(repoId).map(_.commit)
   def spaces: SortedSet[RootId] = repos.map(_.id) ++ workspaces.map(_.id)
-
-  /*def repoPaths(snapshot: Snapshot, source: Source): Try[Stash] = source match {
-    case RepoSource(repoId, path, glob) => for {
-      repo  <- repos.findBy(repoId)
-      stash <- snapshot(repo.commit)
-    } yield stash
-    case _ =>
-      ???
-  }*/
-
 
   def checkoutSources(repoId: RepoId): Layer = copy(projects = projects.map { project =>
     project.copy(modules = project.modules.map { module =>

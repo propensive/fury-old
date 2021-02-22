@@ -207,7 +207,10 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   def bloopConfig(ref: ModuleRef): Path = bloopDir.extant() / str"${ref.urlSafe}.json"
   def outputDir(ref: ModuleRef): Path = (analysisDir / ref.urlSafe).extant()
   def workDir(ref: ModuleRef): Path = (workDir / ref.urlSafe).extant()
-  def workspaceDir(ws: WorkspaceId): Path = (workspaceDir / (ws, uniqueId).digest[Sha256].encoded[Hex].take(12)).extant()
+  
+  def workspaceDir(projectId: ProjectId, ws: WorkspaceId): Path =
+    (workspaceDir / (projectId, ws, uniqueId).digest[Sha256].encoded[Hex].take(12)).extant()
+  
   def benchmarksDir(ref: ModuleRef): Path = (benchmarksDir / ref.urlSafe).extant()
   def classesDir(ref: ModuleRef): Path = (classesDir / ref.urlSafe).extant()
   def resourcesDir(ref: ModuleRef): Path = (resourcesDir / ref.urlSafe).extant()

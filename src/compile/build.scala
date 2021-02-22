@@ -53,7 +53,7 @@ object Build {
         checkouts   <- universe.checkout(ref, layout)
         stashes     <- ~checkouts.stashes.map { case (k, v) => (v.repoId, k) }.toMap
         javaVersion <- universe.javaVersion(ref, layout)
-        workspace   <- universe.workspace(ref, layout).map(_.getOrElse(layout.workspaceDir(WorkspaceId(ref.key))))
+        workspace   <- universe.workspace(ref, layout).map(_.getOrElse(layout.workspaceDir(project.id, WorkspaceId(ref.key))))
         target       = Target(ref, module, workspace, project, layer, checkouts, stashes, binaries, javaVersion)
         _            = targetsCache(ref) = target
       } yield target }(Success(_))
@@ -67,7 +67,6 @@ object Build {
         deps       = graph.dependencies.keys.filter(_ != ModuleRef.JavaRef)
         index     <- deps.traverse { ref => makeTarget(ref).map(ref -> _) }
         snapshot  <- deps.traverse(universe.checkout(_, layout))
-        //targets    = index.unzip._2.to[Set]
         policy     = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
         map        = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
         junctures  = targets.filter(_.juncture)
@@ -184,7 +183,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
         project   <- universe(ref.projectId)
         layer     <- universe.layer(project.id)
         workspace <- layer.workspaces.findBy(workspaceId)
-      } yield List(path in workspace.local.getOrElse(layout.workspaceDir(workspace.id)))
+      } yield List(path in workspace.local.getOrElse(layout.workspaceDir(project.id, workspace.id)))
       
       case LocalSource(path, glob) =>
         Success(List(path in layout.baseDir))
@@ -221,7 +220,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
         case FileRef(repoId, path) =>
           val source = repoId match {
             case id: RepoId      => snapshot(stashIds(id)).map(path in _.path)
-            case id: WorkspaceId => Success(path in layout.workspaceDir(id))
+            case id: WorkspaceId => Success(path in layout.workspaceDir(project.id, id))
           }
 
           source.flatMap { src =>

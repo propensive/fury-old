@@ -52,34 +52,25 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def add: Try[ExitStatus] = {
-    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -< WorkspaceArg
+    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< WorkspaceArg
       -?< (PluginArg, getKindName >> oneOf(Plugin))
       -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
       -?< (ReplArg, getKindName >> oneOf(Compiler))
       -?< (TimeoutArg, getKindName >> oneOf(App))
       -?< (SpecArg, getKindName >> oneOf(Compiler))
-      ).action {
+    ).action {
       val newModule = getModuleName >> (x => Module(id = x)) >>= updatedFromCli
       val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
-      val newLayer = for {
-        layer <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
-        layer <- (newModule >> (_.id) >> (Option(_)), ~layer, mainModuleLens) >> (Layer.set(_)(_, _))
-        module <- newModule
-        project <- getProject
-        setDefaultCompiler <- (getProject, opt(CompilerArg)) >> (_.compiler.isEmpty && _.isDefined)
-        lens <- defaultCompilerLens
-      } yield {
-        val newLayer = if(setDefaultCompiler) {
-          log.info(msg"Setting default compiler for ${project.id} to ${module.compiler}")
-          Layer.set(Option(module.compiler))(layer, lens)
-        }
-        else layer
-        log.info(msg"Set current module to ${module.id}")
-        newLayer
-      }
+      
       for {
-        _ <- newLayer >>= commit
-        _ <- (newLayer, (newModule, getProject) >> (_.ref(_)), getLayout) >> Build.asyncBuild
+        layer   <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
+        layer   <- (newModule >> (_.id) >> (Option(_)), ~layer, mainModuleLens) >> (Layer.set(_)(_, _))
+        module  <- newModule
+        project <- getProject
+        lens    <- defaultCompilerLens
+        _       <- ~log.info(msg"Set current module to ${module.id}")
+        _       <- commit(layer)
+        _       <- (Try(layer), (newModule, getProject) >> (_.ref(_)), getLayout) >> Build.asyncBuild
       } yield log.await()
     }
   }
@@ -190,6 +181,6 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   private[this] def mainModuleLens: Try[Lens[Layer, Option[ModuleId], Option[ModuleId]]] = getProject >>
     { case p => Lens[Layer](_.projects(p.id).main)}
 
-  private[this] def defaultCompilerLens: Try[Lens[Layer, Option[CompilerRef], Option[CompilerRef]]] = getProject >>
-    { case p => Lens[Layer](_.projects(p.id).compiler) }
+  private[this] def defaultCompilerLens: Try[Lens[Layer, Option[CompilerRef], Option[CompilerRef]]] =
+    getProject >> { case p => Lens[Layer](_.compiler) }
 }

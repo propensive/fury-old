@@ -106,8 +106,9 @@ case class Universe(hierarchy: Hierarchy,
     project   <- apply(ref.projectId)
     module    <- project(ref.moduleId)
     layer     <- layer(ref.projectId)
+    layerRef  <- Layer.store(layer)(Log())
     workspace <- module.workspace.traverse(layer.workspaces.findBy(_))
-  } yield workspace.map { ws => ws.local.getOrElse(layout.workspaceDir(ws.id)) }
+  } yield workspace.map { ws => ws.local.getOrElse(layout.workspaceDir(project.id, ws.id)) }
 
   def javaVersion(ref: ModuleRef, layout: Layout): Try[Int] =
     javaVersions.getOrElseUpdate(ref, for {

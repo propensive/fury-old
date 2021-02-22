@@ -98,7 +98,7 @@ You can grant these permissions with,
           cli.abort(e.getMessage)
         case BadParams(arg1, arg2) =>
           cli.abort(msg"""The ${arg1} parameter cannot be used at the same time as ${arg2}.""")
-        case BadParamValue(param, value) =>
+        case BadParamValue(value, param) =>
           cli.abort(msg"""The value '$value' is not valid for the parameter $param""")
         case MissingParamChoice(param@_*) =>
           val paramsTxt = param.map { p => msg"$p" }.reduce(_+msg"${','} "+_)

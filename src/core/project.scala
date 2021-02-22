@@ -40,8 +40,7 @@ case class Project(id: ProjectId,
                    modules: SortedSet[Module] = TreeSet(),
                    main: Option[ModuleId] = None,
                    license: LicenseId = License.unknown,
-                   description: String = "",
-                   compiler: Option[CompilerRef] = None) {
+                   description: String = "") {
 
   def projectRef(repos: SortedSet[Repo]): ProjectRef = {
     val modulesInput = modules.to[List].map(digesterInput(repos, _))
