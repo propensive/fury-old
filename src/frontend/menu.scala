@@ -50,7 +50,7 @@ object FuryMenu {
       // FIXME: This should be retained only temporarily
       Action('save, msg"save a module", BuildCli(_).compile(None)),
       Action('describe, msg"describe the build for a module", BuildCli(_).describe),
-      Action('install, msg"install an application locally", BuildCli(_).install)
+      //Action('install, msg"install an application locally", BuildCli(_).install)
     ),
     Menu('catalog, msg"actions on the remote catalog of layers", 'compiler, shortcut = 'c')(
       

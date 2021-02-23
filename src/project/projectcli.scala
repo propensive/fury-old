@@ -69,30 +69,27 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
   // FIXME: Todo
   def update: Try[ExitStatus] = for {
-    layout         <- cli.layout
-    conf           <- Layer.readFuryConf(layout)
-    layer          <- Layer.retrieve(conf)
-    cli            <- cli.hint(ProjectArg, layer.projects)
-    cli            <- cli.hint(DescriptionArg)
-    cli            <- cli.hint(ForceArg)
-    projectId      <- ~cli.peek(ProjectArg).orElse(layer.main)
-    cli            <- cli.hint(LicenseArg, License.standardLicenses)
-    cli            <- cli.hint(ProjectNameArg, ProjectId(layout.baseDir.name) :: projectId.to[List])
-    call           <- cli.call()
-    projectId      <- projectId.asTry
-    project        <- layer.projects.findBy(projectId)
-    force          <- ~call(ForceArg).isSuccess
-    licenseArg     <- ~call(LicenseArg).toOption
-    layer          <- ~licenseArg.fold(layer)(Layer(_.projects(project.id).license)(layer) = _)
-    descriptionArg <- ~call(DescriptionArg).toOption
-    layer          <- ~descriptionArg.fold(layer)(Layer(_.projects(project.id).description)(layer) = _)
-    nameArg        <- ~call(ProjectNameArg).toOption
-    newId          <- ~nameArg.flatMap(layer.projects.unique(_).toOption)
-    layer          <- ~newId.fold(layer)(Layer(_.projects(project.id).id)(layer) = _)
-    
-    layer          <- if(newId.isEmpty || layer.main != Some(project.id)) ~layer
-                      else ~(Layer(_.main)(layer) = newId)
-
-    _              <- Layer.commit(layer, conf, layout)
+    layout    <- cli.layout
+    conf      <- Layer.readFuryConf(layout)
+    layer     <- Layer.retrieve(conf)
+    cli       <- cli.hint(ProjectArg, layer.projects)
+    cli       <- cli.hint(DescriptionArg)
+    cli       <- cli.hint(ForceArg)
+    projectId <- ~cli.peek(ProjectArg).orElse(layer.main)
+    cli       <- cli.hint(LicenseArg, License.standardLicenses)
+    cli       <- cli.hint(ProjectNameArg, ProjectId(layout.baseDir.name) :: projectId.to[List])
+    call      <- cli.call()
+    projectId <- projectId.asTry
+    project   <- layer.projects.findBy(projectId)
+    force     <- ~call(ForceArg).isSuccess
+    license   <- ~call(LicenseArg).toOption
+    layer     <- ~license.fold(layer)(Layer(_.projects(project.id).license)(layer) = _)
+    desc      <- ~call(DescriptionArg).toOption
+    layer     <- ~desc.fold(layer)(Layer(_.projects(project.id).description)(layer) = _)
+    nameArg   <- ~call(ProjectNameArg).toOption
+    newId     <- ~nameArg.flatMap(layer.projects.unique(_).toOption)
+    layer     <- ~newId.fold(layer)(Layer(_.projects(project.id).id)(layer) = _)
+    layer     <- if(newId.isEmpty || layer.main != Some(project.id)) ~layer else ~(Layer(_.main)(layer) = newId)
+    _         <- Layer.commit(layer, conf, layout)
   } yield log.await()
 }

@@ -25,8 +25,8 @@ import jovian._
 
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
-import scala.concurrent.Promise
-import scala.util.Try
+import scala.concurrent._
+import scala.util._
 
 object Lifecycle {
   
@@ -40,9 +40,26 @@ object Lifecycle {
   
   val bloopServer = Promise[Shutdown with ResourceHolder]
 
-  case class Session(cli: Cli, thread: Thread) {
+  case class Session(cli: Cli, private val thread: Thread) {
+
+    var abort = 0
+
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
+    private val cancel: Promise[Unit] = Promise()
+
+    def cancellation: Future[Unit] = cancel.future
+
+    def interrupt(): Boolean = {
+      abort += 2
+      cli.forceLog("Press Ctrl+C again to stop this operation")
+      if(abort == 2) {
+        cancel.complete(Success(()))
+        thread.interrupt()
+        true
+      } else false
+    }
+
     private[this] var sessionMultiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(Set.empty)
     
     def multiplexer = synchronized(sessionMultiplexer)
@@ -60,18 +77,13 @@ object Lifecycle {
   }
 
   def busyCount: Int = busy().getOrElse(0)
-
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
-
-  def currentSession(implicit log: Log): Session = {
-    sessions.find(_.pid == log.pid).get
-  }
+  def currentSession(implicit log: Log): Session = sessions.find(_.pid == log.pid).get
 
   def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int = {
     running.find(_.pid == cli.pid) match {
       case Some(session) =>
-        session.thread.interrupt()
-        close(session)
+        if(session.interrupt()) close(session)
         0
       case None if terminating.get && !whitelisted =>
         println("New tasks cannot be started while Fury is shutting down.")

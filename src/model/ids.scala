@@ -138,7 +138,7 @@ object Pointer {
 }
 
 case class Pointer(path: String) {
-
+  
   private[this] lazy val rawParts: List[String] = path.split("/").to[List]
 
   def parts: List[ImportId] = rawParts match {
@@ -1155,4 +1155,5 @@ object DomainName {
   def unapply(value: String): Option[DomainName] = value.only {
     case r"([a-z0-9][a-z0-9\-]*\.)*[a-z]+" => DomainName(value) }
 }
+
 case class DomainName(value: String)

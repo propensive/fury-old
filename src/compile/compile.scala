@@ -176,7 +176,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, build: Build, ref: ModuleRef, layout: Layout)
+  def borrow[T](dir: Path, build: Build, ref: ModuleRef, layout: Layout, cancellation: Option[Future[Unit]])
                (fn: Connection => T)
                (implicit log: Log)
                : Try[T] = {
@@ -196,6 +196,13 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       newConnection
     }
 
+    cancellation.foreach(_.andThen { case _ =>
+      BloopServer.synchronized {
+        conn.server.buildShutdown()
+        connections -= dir
+      }
+    })
+
     Try {
       acquire(Lifecycle.currentSession, conn)
       conn.synchronized(fn(conn))
@@ -207,12 +214,11 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   override def shutdown(): Unit = {
     BloopServer.synchronized {
       connections.foreach { case(dir, conn) =>
-        conn.synchronized(try {
-          conn.server.buildShutdown().get()
-          conn.server.onBuildExit()
+        conn.synchronized { try {
+          conn.server.buildShutdown().thenAccept { _ => conn.server.onBuildExit() }.get()
         } catch {
           case NonFatal(e) => println(s"Error while closing the connection for $dir. Cause: ${e.getMessage}")
-        })
+        } }
       }
       connections = Map.empty
     }

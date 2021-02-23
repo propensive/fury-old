@@ -41,7 +41,8 @@ object Build {
 
   def findBy(ref: ModuleRef): Iterable[Build] = requestOrigins.values.filter(_.goal == ref)
 
-  def apply(layer: Layer, goal: ModuleRef, layout: Layout, noSecurity: Boolean)(implicit log: Log): Try[Build] =
+  def apply(layer: Layer, goal: ModuleRef, layout: Layout, noSecurity: Boolean, cancellation: Option[Future[Unit]])
+           (implicit log: Log): Try[Build] =
     layer.universe().flatMap { universe =>
       val targetsCache: HashMap[ModuleRef, Target] = HashMap()
     
@@ -73,23 +74,23 @@ object Build {
         dag        = Dag(graph.dependencies.mapValues(_.map(_.ref)))
         subgraphs  = dag.subgraph(junctures.map(_.ref).to[Set] + goal).connections
         init       = Init(target, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _), policy.to[Set])
-        build     <- ~Build(goal, universe, layout, targetsCache.toMap, init)
+        build     <- ~Build(goal, universe, layout, targetsCache.toMap, init, cancellation)
         _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
         _         <- build.generateFiles()
       } yield build
     }
 
   def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
-    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false))
+    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false, None))
     buildCache(layout.furyDir) = buildCache.get(layout.furyDir).fold(fn)(_.transformWith(fn.waive))
 
     buildCache(layout.furyDir)
   }
 
-  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean)
+  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean, cancellation: Future[Unit])
                (implicit log: Log)
                : Try[Build] = {
-    val build = Build(layer, ref, layout, noSecurity)
+    val build = Build(layer, ref, layout, noSecurity, Some(cancellation))
     buildCache(layout.furyDir) = Future.successful(build)
     build
   }
@@ -127,7 +128,7 @@ case class Graph(dependencies: Map[ModuleRef, Set[Input]], targets: Map[ModuleRe
 
 }
 
-case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, targets: Map[ModuleRef, Target], init: Init)
+case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, targets: Map[ModuleRef, Target], init: Init, cancellation: Option[Future[Unit]])
                          (implicit log: Log) { build =>
   val target: Target = init.target
   val graph: Graph = init.graph
@@ -431,7 +432,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
       }
       val params = new CleanCacheParams(bspTargetIds.asJava)
 
-      BloopServer.borrow(layout.baseDir, build, ref, layout) { conn =>
+      BloopServer.borrow(layout.baseDir, build, ref, layout, cancellation) { conn =>
         wrapServerErrors(conn.server.buildTargetCleanCache(params)).get
       }
     }
@@ -488,7 +489,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
       val bspToFury = bspTargetIds.zip(furyTargetIds).toMap
       val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-      BloopServer.borrow(layout.baseDir, build, ref, layout) { conn =>
+      BloopServer.borrow(layout.baseDir, build, ref, layout, cancellation) { conn =>
 
         if(module.includes.nonEmpty) module.includes.traverse(copyInclude(_))
 

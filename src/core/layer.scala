@@ -25,7 +25,7 @@ import optometry._
 import jovian._
 
 import scala.util._
-import scala.collection.immutable._
+import scala.collection.immutable._, scala.collection.mutable
 import guillotine._
 
 import scala.collection.mutable.HashMap
@@ -154,10 +154,23 @@ case class Layer(version: Int,
   } yield Repo(RepoId("~"), repo, branch, commit, Some(layout.baseDir))
 }
 
+object LruMap {
+  import collection.JavaConversions._
+  def apply[A, B](maxEntries: Int): collection.mutable.Map[A, B] =
+    new java.util.LinkedHashMap[A, B](16, 0.75F, true) {
+      override def removeEldestEntry(eldest: java.util.Map.Entry[A,B]): Boolean = size > maxEntries
+    }
+}
+
 object Layer extends Lens.Partial[Layer] {
-  private val cache: HashMap[IpfsRef, Layer] = HashMap()
+  private val cache: mutable.Map[Layer, IpfsRef] = LruMap[Layer, IpfsRef](1000)
+  private val invCache: mutable.Map[IpfsRef, Layer] = LruMap[IpfsRef, Layer](1000)
   private val dbCache: HashMap[Path, Long] = HashMap()
-  private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(cache.get(ref))
+  private def lookup(ref: IpfsRef): Option[Layer] = cache.synchronized(invCache.get(ref))
+  private def cacheAdd(ref: IpfsRef, layer: Layer): Unit = {
+    cache(layer) = ref
+    invCache(ref) = layer
+  }
   implicit val stringShow: StringShow[Layer] = store(_)(Log()).toOption.fold("???")(_.key)
 
   val CurrentVersion: Int = 11
@@ -200,7 +213,7 @@ object Layer extends Lens.Partial[Layer] {
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Ogdl.read[Layer](data, migrate(_))
-      _     <- ~cache.synchronized { cache(layerRef.ipfsRef) = layer }
+      _     <- ~cache.synchronized { cacheAdd(layerRef.ipfsRef, layer) }
     } yield layer }
 
   def storeRaw(data: Array[Byte])(implicit log: Log): Try[IpfsRef] = for {
@@ -211,14 +224,16 @@ object Layer extends Lens.Partial[Layer] {
     ipfsRef
   }
 
-  def store(layer: Layer)(implicit log: Log): Try[LayerRef] = for {
-    ipfs    <- Ipfs.daemon(false)
-    ipfsRef <- ipfs.add(Ogdl.serialize(Ogdl(layer)))
-  } yield {
-    cache.synchronized { cache(ipfsRef) = layer }
-    log.note(msg"Layer added to IPFS at $ipfsRef")
-    LayerRef(ipfsRef.key)
-  }
+  def store(layer: Layer)(implicit log: Log): Try[LayerRef] =
+    if(cache.contains(layer)) Success(LayerRef(cache(layer).key))
+    else for {
+      ipfs    <- Ipfs.daemon(false)
+      ipfsRef <- ipfs.add(Ogdl.serialize(Ogdl(layer)))
+    } yield {
+      cache.synchronized { cacheAdd(ipfsRef, layer) }
+      log.note(msg"Layer added to IPFS at $ipfsRef")
+      LayerRef(ipfsRef.key)
+    }
 
   def commit(layer: Layer, conf: FuryConf, layout: Layout, force: Boolean = false)
             (implicit log: Log)
@@ -231,6 +246,8 @@ object Layer extends Lens.Partial[Layer] {
     ref      <- if(!Layer.diff(previous, layer).isEmpty || force) store(layer).flatMap { baseRef =>
                   saveFuryConf(conf.copy(layerRef = baseRef), layout).map(_.layerRef)
                 } else Success(baseRef)
+
+    _        <- ~Monitor.trigger(layout)
     } yield ref
 
   private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =

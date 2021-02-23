@@ -221,7 +221,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     permHashes   <- call(PermissionArg).map(_.map(PermissionHash(_)))
     project      <- tryProject
     module       <- tryModule
-    build        <- Build(layer, module.ref(project), layout, false)
+    build        <- Build(layer, module.ref(project), layout, false, None)
     permissions  <- permHashes.traverse(_.resolve(build.requiredPermissions))
     force        =  call(ForceArg).isSuccess
                          
@@ -267,7 +267,7 @@ case class PermissionCli(cli: Cli)(implicit log: Log) {
     project       <- tryProject
     module        <- tryModule
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
-    build         <- Build(layer, module.ref(project), layout, false)
+    build         <- Build(layer, module.ref(project), layout, false, None)
     permissions   <- permHashes.traverse(_.resolve(build.requiredPermissions))
     policy        =  Policy.read(log)
     newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)

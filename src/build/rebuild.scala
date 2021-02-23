@@ -22,8 +22,8 @@ import jovian._
 
 import java.util.concurrent.atomic.AtomicBoolean
 
-import _root_.io.methvin.better.files.RecursiveFileMonitor
-import better.files.File
+//import _root_.io.methvin.better.files.RecursiveFileMonitor
+//import better.files.File
 import fury.utils.Threads
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -51,7 +51,7 @@ object Inotify {
   }
 }
 
-trait Repeater[Res]{
+/*trait Repeater[Res]{
   def repeatCondition(): Boolean
   def action(): Res
 
@@ -111,3 +111,4 @@ class SourceWatcher(sources: Set[Path]){
   }
 
 }
+*/

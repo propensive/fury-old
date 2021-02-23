@@ -237,7 +237,6 @@ case class AliasCli(cli: Cli)(implicit log: Log) {
 }
 
 case class BuildCli(cli: Cli)(implicit log: Log) {
-  
   private val allReporters = Reporter.all.map(_.name).mkString(", ")
   val ReporterArg = CliParam[Reporter]('o', 'output, s"format for build output ($allReporters)")
 
@@ -265,7 +264,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     moduleRef    =  module.ref(project)
-    build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true)
+    build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true, Lifecycle.currentSession.cancellation)
     result       <- new build.TargetExtras(build.target).cleanCache()
   } yield {
     Option(result.getMessage()).foreach(log.info(_))
@@ -275,13 +274,32 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     log.await(success)
   }
 
+  def makeBuild(layout: Layout,
+                ref: ModuleRef,
+                noSecurity: Boolean,
+                policy: Policy,
+                args: List[String],
+                pipelining: Boolean,
+                reporter: Reporter,
+                theme: Theme,
+                cancellation: Future[Unit])
+               (build: Option[Build])
+               : Try[Build] = for {
+    newBuild <- build.fold { for {
+                  conf  <- Layer.readFuryConf(layout)
+                  layer <- Layer.retrieve(conf)
+                  build <- Build.syncBuild(layer, ref, layout, noSecurity, cancellation)
+                } yield build } (Success(_))
+    _        <- compileOnce(newBuild, ref, layout, policy, args, pipelining, reporter, theme, noSecurity)
+  } yield newBuild
+
   def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
-    layout         <- cli.layout
-    conf           <- Layer.readFuryConf(layout)
-    layer          <- Layer.retrieve(conf)
     cli            <- cli.hint(WaitArg)
     cli            <- cli.hint(NoSecurityArg)
     cli            <- cli.hint(WatchArg)
+    layout         <- cli.layout
+    conf           <- Layer.readFuryConf(layout)
+    layer          <- Layer.retrieve(conf)
     cli            <- cli.hint(ProjectArg, layer.projects)
     autocProjectId <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId)).orElse(layer.main)
     cli            <- cli.hint(PipeliningArg, List("on", "off"))
@@ -308,32 +326,41 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _              <- Inotify.check(watch || waiting)
     noSecurity      = call(NoSecurityArg).isSuccess
     _              <- call.atMostOne(WatchArg, WaitArg)
-    build          <- Build.syncBuild(layer, module.ref(project), layout, noSecurity)
+    session        <- ~Lifecycle.currentSession
+    doCompile       = makeBuild(layout, module.ref(project), noSecurity, globalPolicy,
+                          if(call.suffix.isEmpty) args else call.suffix,
+                          pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme,
+                          session.cancellation)(_)
+    initBuild      <- doCompile(None)
+    listener       <- ~Monitor.listen[Build](layout, initBuild.allSources)(doCompile(_))
+    _               = session.cancellation.andThen { case _ => listener.stop() }
+    future         <- ~Await.result(listener.future, Duration.Inf)
+  } yield log.await()
 
-    r               = repeater(build.allSources, waiting) {
-                        for {
-                          task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
-                                      if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
-                                      ManagedConfig().pipelining), reporter, ManagedConfig().theme,
-                                      noSecurity)
-                        } yield {
-                          task.transform { completed =>
-                            for {
-                              compileResult  <- completed
-                              compileSuccess <- compileResult.asTry
-                              _              <- (dir.map { dir => new build.TargetExtras(build.target).saveJars(layer,
-                                                    compileSuccess.classDirectories.values.to[Set],
-                                                    dir, output)
-                                                }).getOrElse(Success(()))
-                            } yield compileSuccess
-                          }
-                        }
-                      }
+    // r               = repeater(build.allSources, waiting) {
+    //                     for {
+    //                       task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
+    //                                   if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
+    //                                   ManagedConfig().pipelining), reporter, ManagedConfig().theme,
+    //                                   noSecurity)
+    //                     } yield {
+    //                       task.transform { completed =>
+    //                         for {
+    //                           compileResult  <- completed
+    //                           compileSuccess <- compileResult.asTry
+    //                           _              <- (dir.map { dir => new build.TargetExtras(build.target).saveJars(layer,
+    //                                                 compileSuccess.classDirectories.values.to[Set],
+    //                                                 dir, output)
+    //                                             }).getOrElse(Success(()))
+    //                         } yield compileSuccess
+    //                       }
+    //                     }
+    //                   }
 
-    future         <- if(watch || waiting) Try(r.start()).flatten else r.action()
-  } yield log.await(Await.result(future, duration.Duration.Inf).success)
+    //future         <- if(watch || waiting) Try(r.start()).flatten else r.action()
+  //} yield log.await(Await.result(future, duration.Duration.Inf).success)
 
-  private def repeater(sources: Set[Path], onceOnly: Boolean)
+  /*private def repeater(sources: Set[Path], onceOnly: Boolean)
                       (fn: => Try[Future[BuildResult]])
                       : Repeater[Try[Future[BuildResult]]] =
     new Repeater[Try[Future[BuildResult]]] {
@@ -360,60 +387,60 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
         lastResult = result
         result
       }
-    }
+    }*/
 
-  def install: Try[ExitStatus] = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli          <- cli.hint(ExecNameArg)
-    cli          <- cli.hint(ReporterArg, Reporter.all)
-    cli          <- cli.hint(NoSecurityArg)
-    cli          <- cli.hint(WatchArg)
-    cli          <- cli.hint(WaitArg)
-    call         <- cli.call()
-    project      <- tryProject
-    globalPolicy <- ~Policy.read(log)
-    module       <- tryModule
-    reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
-    watch         = call(WatchArg).isSuccess
-    waiting       = call(WaitArg).isSuccess
-    noSecurity   <- ~call(NoSecurityArg).isSuccess
-    build        <- Build.syncBuild(layer, module.ref(project), layout, false)
-    _            <- module.kind.as[App].ascribe(InvalidKind(App))
-    main         <- module.kind.as[App].map(_.main).ascribe(UnspecifiedMain(module.id))
+  // def install: Try[ExitStatus] = for {
+  //   layout       <- cli.layout
+  //   conf         <- Layer.readFuryConf(layout)
+  //   layer        <- Layer.retrieve(conf)
+  //   (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+  //   cli          <- cli.hint(ExecNameArg)
+  //   cli          <- cli.hint(ReporterArg, Reporter.all)
+  //   cli          <- cli.hint(NoSecurityArg)
+  //   cli          <- cli.hint(WatchArg)
+  //   cli          <- cli.hint(WaitArg)
+  //   call         <- cli.call()
+  //   project      <- tryProject
+  //   globalPolicy <- ~Policy.read(log)
+  //   module       <- tryModule
+  //   reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
+  //   watch         = call(WatchArg).isSuccess
+  //   waiting       = call(WaitArg).isSuccess
+  //   noSecurity   <- ~call(NoSecurityArg).isSuccess
+  //   build        <- Build.syncBuild(layer, module.ref(project), layout, false)
+  //   _            <- module.kind.as[App].ascribe(InvalidKind(App))
+  //   main         <- module.kind.as[App].map(_.main).ascribe(UnspecifiedMain(module.id))
 
-    r             = repeater(build.allSources, waiting) { for {
-                      task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
-                                  if(call.suffix.isEmpty) Nil else call.suffix, false, reporter,
-                                  ManagedConfig().theme, noSecurity)
-                    } yield {
-                      task.transform { completed =>
-                        for {
-                          compileResult  <- completed
-                          compileSuccess <- compileResult.asTry
-                        } yield compileSuccess
-                      }
-                    } }
+  //   r             = repeater(build.allSources, waiting) { for {
+  //                     task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
+  //                                 if(call.suffix.isEmpty) Nil else call.suffix, false, reporter,
+  //                                 ManagedConfig().theme, noSecurity)
+  //                   } yield {
+  //                     task.transform { completed =>
+  //                       for {
+  //                         compileResult  <- completed
+  //                         compileSuccess <- compileResult.asTry
+  //                       } yield compileSuccess
+  //                     }
+  //                   } }
 
-    future       <- if(watch || waiting) Try(r.start()).flatten else r.action()
-    exec         <- call(ExecNameArg)
-    _            <- ~log.info(msg"Building native image for $exec")
-    _            <- new build.TargetExtras(build.target).saveNative(Installation.optDir, main)
-    bin          <- ~(Installation.optDir / main.key.toLowerCase)
-    newBin       <- ~(bin.rename { _ => exec.key })
-    _            <- bin.moveTo(newBin)
-    globalPolicy <- ~Policy.read(log)
-    javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
+  //   future       <- if(watch || waiting) Try(r.start()).flatten else r.action()
+  //   exec         <- call(ExecNameArg)
+  //   _            <- ~log.info(msg"Building native image for $exec")
+  //   _            <- new build.TargetExtras(build.target).saveNative(Installation.optDir, main)
+  //   bin          <- ~(Installation.optDir / main.key.toLowerCase)
+  //   newBin       <- ~(bin.rename { _ => exec.key })
+  //   _            <- bin.moveTo(newBin)
+  //   globalPolicy <- ~Policy.read(log)
+  //   javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
 
-    _            <- Try(Shell(cli.env).runJava(new build.TargetExtras(build.targets(module.ref(project))).classpath.to[List].map(_.value),
-                        ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
-                        Installation.completionsDir.value), Map(), globalPolicy, List(exec.key), true,
-                        layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
+  //   _            <- Try(Shell(cli.env).runJava(new build.TargetExtras(build.targets(module.ref(project))).classpath.to[List].map(_.value),
+  //                       ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
+  //                       Installation.completionsDir.value), Map(), globalPolicy, List(exec.key), true,
+  //                       layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
 
-    _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
-  } yield log.await()
+  //   _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
+  // } yield log.await()
 
   def console: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -432,11 +459,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     
-    build        <- Build.syncBuild(layer, module.ref(project), layout, noSecurity)
+    build        <- Build.syncBuild(layer, module.ref(project), layout, noSecurity, Lifecycle.currentSession.cancellation)
     
     result       <- for {
                       globalPolicy <- ~Policy.read(log)
-                      task <- compileOnce(build, layer, module.ref(project), layout,
+                      task <- compileOnce(build, module.ref(project), layout,
                                   globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
                                   ManagedConfig().theme, noSecurity)
                     } yield { task.transform { completed => for {
@@ -473,7 +500,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     project      <- tryProject
     module       <- tryModule
     ref          <- ~module.ref(project)
-    build        <- Build.syncBuild(layer, ref, layout, false)
+    build        <- Build.syncBuild(layer, ref, layout, false, Lifecycle.currentSession.cancellation)
     target       <- build(ref)
     classpath    <- Try(new build.TargetExtras(target).bootClasspath)
   } yield {
@@ -490,13 +517,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     call         <- cli.call()
     project      <- tryProject
     module       <- tryModule
-    build        <- Build.syncBuild(layer, module.ref(project), layout, false)
+    build        <- Build.syncBuild(layer, module.ref(project), layout, false, Lifecycle.currentSession.cancellation)
     _            <- ~log.info(build.describe(layout))
     _            <- ~UiGraph.draw(build.graph.links, true, Map())(ManagedConfig().theme).foreach(log.info(_))
   } yield log.await()
 
   private[this] def compileOnce(build: Build,
-                                layer: Layer,
                                 moduleRef: ModuleRef,
                                 layout: Layout,
                                 globalPolicy: Policy,

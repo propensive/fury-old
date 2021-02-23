@@ -25,6 +25,7 @@ import jovian._
 import scala.util._
 
 object Remote {
+
   implicit val msgShow: MsgShow[Remote] = r => Message(_.url(r.simplified))
   implicit val stringShow: StringShow[Remote] = _.simplified
   implicit val parser: Parser[Remote] = str => Some(parse(str))
@@ -81,7 +82,6 @@ case class Remote(ref: String) {
   def get(layout: Layout)(implicit log: Log): Try[GitDir] = {
     val destination = path(layout)
     if(destination.exists && !(destination / ".unfinished").exists) {
-      log.note(msg"Remote $this already exists at ${path(layout)}")
       Success(GitDir(destination)(layout.env))
     } else fetch(layout)
   }
