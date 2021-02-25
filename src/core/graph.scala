@@ -34,11 +34,11 @@ object UiGraph {
   case class CompileIssue(msg: Message, repo: RepoId, path: Path, line: LineNo, charNum: Int) extends Issue
   case class BuildIssue(msg: Message) extends Issue
 
-  case class BuildInfo(state: BuildState, issues: List[Issue], prints: List[String]) {
-    def failed(): BuildInfo = BuildInfo(Failed, issues, prints)
-    def progress(n: Double): BuildInfo = if(state == Failed) this else BuildInfo(Compiling(n), issues, prints)
-    def skipped: BuildInfo = if(state == Failed) this else BuildInfo(Skipped, issues, prints)
-    def successful: BuildInfo = if(state == Failed) this else BuildInfo(Successful(None), issues, prints)
+  case class BuildInfo(state: BuildState, issues: List[Issue], prints: List[String], missing: Set[MissingPackage]) {
+    def failed(): BuildInfo = BuildInfo(Failed, issues, prints, missing)
+    def progress(n: Double): BuildInfo = if(state == Failed) this else BuildInfo(Compiling(n), issues, prints, missing)
+    def skipped: BuildInfo = if(state == Failed) this else BuildInfo(Skipped, issues, prints, missing)
+    def successful: BuildInfo = if(state == Failed) this else BuildInfo(Successful(None), issues, prints, missing)
   }
 
   sealed abstract class BuildState(val completion: Double)
@@ -56,13 +56,13 @@ object UiGraph {
                                (implicit log: Log) {
 
     def update(ref: ModuleRef, f: BuildInfo => BuildInfo): GraphState = {
-      val previousState = buildLogs.getOrElse(ref, BuildInfo(state = Compiling(0), issues = Nil, prints = Nil))
+      val previousState = buildLogs.getOrElse(ref, BuildInfo(state = Compiling(0), issues = Nil, prints = Nil, missing = Set()))
       this.copy(buildLogs = buildLogs.updated(ref, f(previousState)), changed = true)
     }
   }
 
   @tailrec
-  private def live(graphState: GraphState)(implicit log: Log, theme: Theme): Unit = {
+  private def live(graphState: GraphState, rebuild: Set[MissingPackage] => Unit)(implicit log: Log, theme: Theme): Unit = {
     import graphState._
 
     log.raw(Ansi.hideCursor())
@@ -96,12 +96,16 @@ object UiGraph {
           graphState(ref) = _.progress(0)
         case DiagnosticMsg(ref, msg) =>
           (graphState(ref) = Lens[BuildInfo](_.issues).modify(_)(msg :: _)).copy(changed = false)
+        case p@MissingPackage(ref, pkg) =>
+          log.info(msg"The package $pkg was missing in the module $ref")
+          rebuild(Set(p))
+          (graphState(ref) = Lens[BuildInfo](_.missing).modify(_)(_ + p)).copy(changed = false)
         case NoCompile(ref) =>
           graphState(ref) = buildLogs.getOrElse(ref,
-              BuildInfo(state = Finished, issues = Nil, prints = Nil)).waive
+              BuildInfo(state = Finished, issues = Nil, prints = Nil, missing = Set())).waive
         case StopCompile(ref, success) =>
           graphState(ref) = BuildInfo(if(success) Successful(None) else Failed, buildLogs(ref).issues,
-              buildLogs(ref).prints).waive
+              buildLogs(ref).prints, buildLogs(ref).missing).waive
         case Print(ref, line) =>
           line match {
             case r"Deduplicating compilation of .*" =>
@@ -117,19 +121,19 @@ object UiGraph {
         case SkipCompile(ref) =>
           (graphState(ref) = _.skipped).copy(changed = true)
       }
-      live(newState)
+      live(newState, rebuild)
     } else {
       log.raw(Ansi.showCursor())
       val output = buildLogs.collect {
-        case (_, BuildInfo(Failed, out, _)) => out.map(_.msg)
-        case (_, BuildInfo(Successful(_), out, _)) => out.map(_.msg)
+        case (_, BuildInfo(Failed, out, _, _)) => out.map(_.msg)
+        case (_, BuildInfo(Successful(_), out, _, _)) => out.map(_.msg)
       }.flatten
 
       log.raw(Ansi.down(graph.size + 2)())
       
       buildLogs.foreach { case (ref, info) =>
         info match {
-          case BuildInfo(Failed | Successful(_), issues, prints) if !issues.isEmpty || !prints.isEmpty =>
+          case BuildInfo(Failed | Successful(_), issues, prints, missing) if !issues.isEmpty || !prints.isEmpty =>
             log.info(Message { theme =>
               List(msg"Output from $ref").map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
@@ -141,10 +145,10 @@ object UiGraph {
     }
   }
 
-  def live(graph: Map[ModuleRef, Set[Input]], stream: Iterator[CompileEvent])
+  def live(graph: Map[ModuleRef, Set[Input]], stream: Iterator[CompileEvent], rebuild: Set[MissingPackage] => Unit)
           (implicit log: Log, theme: Theme)
           : Unit =
-    live(GraphState(changed = true, graph, stream, Map()))
+    live(GraphState(changed = true, graph, stream, Map()), rebuild)
 
   def draw(graph: Map[ModuleRef, Set[Input]], describe: Boolean, state: Map[ModuleRef, BuildInfo] = Map())
           (implicit theme: Theme)
@@ -183,18 +187,18 @@ object UiGraph {
         val text: Message = msg"$key"
 
         val errors = state.get(key) match {
-          case Some(BuildInfo(Failed, issues, prints)) =>
+          case Some(BuildInfo(Failed, issues, prints, missing)) =>
             val count = str"${issues.size}"
             theme.failure(str"${"■"*((9 - count.length)/2)} ${count} ${"■"*((8 - count.length)/2)}")
-          case Some(BuildInfo(Successful(_), issues, prints)) =>
+          case Some(BuildInfo(Successful(_), issues, prints, missing)) =>
             theme.success("■"*10)
-          case Some(BuildInfo(Compiling(progress), issues, prints)) =>
+          case Some(BuildInfo(Compiling(progress), issues, prints, missing)) =>
             val p = (progress*10).toInt
             theme.ongoing("■"*p + " "*(10 - p))
-          case Some(BuildInfo(Executing, issues, prints)) =>
+          case Some(BuildInfo(Executing, issues, prints, missing)) =>
             val p = ((System.currentTimeMillis/50)%10).toInt
             theme.active((" "*p)+"■"+(" "*(9 - p)))
-          case Some(BuildInfo(Finished, issues, prints)) =>
+          case Some(BuildInfo(Finished, issues, prints, missing)) =>
             theme.gray("■"*10)
           case _ => theme.bold(theme.failure("          "))
         }

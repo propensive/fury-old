@@ -130,6 +130,7 @@ object FuryMenu {
       Action('remove, msg"remove a -D property", PropertyCli(_).remove),
       Action('list, msg"list -D properties", PropertyCli(_).list)
     ),
+    Action('quickstart, msg"quickly bootstrap a new project", BuildCli(_).quickstart, shortcut = 'q', needsLayer = false),
     Menu('resource, msg"manage resources for the module", 'list)(
       Action('add, msg"add a resource directory to the module", ResourceCli(_).add, shortcut = 'a'),
       Action('remove, msg"remove a resource directory from the module", ResourceCli(_).remove, shortcut = 'r'),

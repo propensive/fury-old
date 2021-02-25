@@ -120,6 +120,7 @@ case class Tables() {
       Heading("Binaries", m => m.allBinaries.size),
       Heading("Compiler", _.compiler),
       Heading("Options", m => m.opts.size),
+      Heading("Packages", m => m.packages),
       Heading("Type", _.kind)
     )
 

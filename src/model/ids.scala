@@ -60,12 +60,12 @@ object Package {
   implicit val diff: Diff[Package] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
   implicit val parser: Parser[Package] = unapply(_)
   implicit val ord: Ordering[Package] = Ordering.by(_.key)
-  implicit val index: Index[Package] = FieldIndex("id")
+  implicit val index: Index[Package] = FieldIndex("key")
   
   def unapply(name: String): Some[Package] = Some(Package(name))
 }
 
-case class Package(key: String) extends Key(msg"package")
+case class Package(key: String, verified: Boolean = true) extends Key(msg"package")
 
 object ProjectId {
   implicit val msgShow: MsgShow[ProjectId] = p => Message(_.project(p.key))

@@ -47,22 +47,20 @@ case class Menu(command: Symbol,
 
   def apply(cli: Cli, ctx: Cli, reentrant: Boolean = false): Try[ExitStatus] = {
     val hasLayer: Boolean = cli.layout.map(_.confFile.exists).getOrElse(false)
-    if(cli.args.args == Seq("interrupt")) {
-      Success(Done)
-    } else {
+    if(cli.args.args == Seq("interrupt")) Success(Done)
+    else {
       if(FuryVersion.current != Installation.installVersion && !reentrant) {
         cli.forceLog(msg"The version of the active Fury server (${FuryVersion.current}) differs from the "+
             msg"version of the shell script version (${Installation.installVersion}) calling it.")
         cli.forceLog(msg"This is probably because a newer version of Fury has been installed while the old "+
             msg"version is still running.")
-        cli.forceLog(msg"While the versions may be compatible, is advised to stop the Fury server using "+
+        cli.forceLog(msg"While the versions may be compatible, it is advised to stop the Fury server using "+
             msg"${ExecName("fury stop")}.")
       }
 
-      cli.args.prefix.headOption match {
+      cli.args.parsed.prefix.headOption match {
         case None =>
-          if (cli.completion) cli.completeCommand(this, hasLayer)
-          else apply(cli.prefix(default.name), ctx)
+          if (cli.completion) cli.completeCommand(this, hasLayer) else apply(cli.prefix(default.name), ctx)
 
         case Some(next) =>
           val cmd = items.find(_.command.name == next.value).orElse {
@@ -72,7 +70,7 @@ case class Menu(command: Symbol,
 
           cmd match {
             case None =>
-              if (cli.completion) cli.completeCommand(this, hasLayer)
+              if(cli.completion) cli.completeCommand(this, hasLayer)
               else Failure(UnknownCommand(next.value))
             case Some(item@Menu(_, _, _, _, _, _)) =>
               item(cli.tail, cli, true)

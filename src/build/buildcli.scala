@@ -21,6 +21,7 @@ import fury.text._, fury.core._, fury.model._, fury.io._, fury.utils._
 import exoskeleton._
 import euphemism._
 import mercator._
+import optometry._
 import antiphony._
 import guillotine._
 import jovian._
@@ -274,24 +275,42 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     log.await(success)
   }
 
-  def makeBuild(layout: Layout,
-                ref: ModuleRef,
-                noSecurity: Boolean,
-                policy: Policy,
-                args: List[String],
-                pipelining: Boolean,
-                reporter: Reporter,
-                theme: Theme,
-                cancellation: Future[Unit])
-               (build: Option[Build])
-               : Try[Build] = for {
-    newBuild <- build.fold { for {
-                  conf  <- Layer.readFuryConf(layout)
-                  layer <- Layer.retrieve(conf)
-                  build <- Build.syncBuild(layer, ref, layout, noSecurity, cancellation)
-                } yield build } (Success(_))
-    _        <- compileOnce(newBuild, ref, layout, policy, args, pipelining, reporter, theme, noSecurity)
-  } yield newBuild
+  case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: Policy, args: List[String],
+      pipelining: Boolean, reporter: Reporter, theme: Theme) {
+
+    private lazy val listener = Monitor.listen(layout, Set(layout.baseDir))(buildStream.enqueue(doCompile))
+    private lazy val buildStream = new BuildStream[Build](doCompile(None))
+
+    def rebuild(missing: Set[MissingPackage]): Unit = buildStream.addTask {
+      missing.foreach { case MissingPackage(ref, pkg) =>
+        for {
+          conf     <- Layer.readFuryConf(layout)
+          layer    <- Layer.retrieve(conf)
+          universe <- layer.universe()
+          project  <- layer.projects.findBy(ref.projectId)
+          module   <- project.modules.findBy(ref.moduleId)
+          found    <- universe.packageMatch(pkg)
+          _        <- ~log.info(msg"Adding dependency on $found to $ref")
+          layer    <- Try(Lens[Layer](_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Input(found)))
+          _        <- Layer.commit(layer, conf, layout)
+        } yield ()
+      }
+    }
+
+    def doCompile(build: Option[Build]): Try[Build] = for {
+      newBuild <- for {
+                    conf  <- Layer.readFuryConf(layout)
+                    layer <- Layer.retrieve(conf)
+                    build <- Build.syncBuild(layer, ref, layout, noSecurity, Lifecycle.currentSession.cancellation)
+                  } yield build
+      _        <- compileOnce(newBuild, ref, layout, policy, args, pipelining, reporter, theme, noSecurity, rebuild)
+    } yield newBuild
+
+    def await(): Unit = {
+      listener
+      buildStream
+    }
+  }
 
   def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
     cli            <- cli.hint(WaitArg)
@@ -327,14 +346,12 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     noSecurity      = call(NoSecurityArg).isSuccess
     _              <- call.atMostOne(WatchArg, WaitArg)
     session        <- ~Lifecycle.currentSession
-    doCompile       = makeBuild(layout, module.ref(project), noSecurity, globalPolicy,
+    builder         = Builder(layout, module.ref(project), noSecurity, globalPolicy,
                           if(call.suffix.isEmpty) args else call.suffix,
-                          pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme,
-                          session.cancellation)(_)
-    initBuild      <- doCompile(None)
-    listener       <- ~Monitor.listen[Build](layout, initBuild.allSources)(doCompile(_))
-    _               = session.cancellation.andThen { case _ => listener.stop() }
-    future         <- ~Await.result(listener.future, Duration.Inf)
+                          pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme).await()
+    // FIXME: All sources might need to change if build changes
+    //_               = session.cancellation.andThen { case _ => listener.stop() }
+    future         <- Try(Await.result(Promise().future, Duration.Inf))
   } yield log.await()
 
     // r               = repeater(build.allSources, waiting) {
@@ -345,7 +362,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     //                                   noSecurity)
     //                     } yield {
     //                       task.transform { completed =>
-    //                         for {
     //                           compileResult  <- completed
     //                           compileSuccess <- compileResult.asTry
     //                           _              <- (dir.map { dir => new build.TargetExtras(build.target).saveJars(layer,
@@ -465,7 +481,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                       globalPolicy <- ~Policy.read(log)
                       task <- compileOnce(build, module.ref(project), layout,
                                   globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
-                                  ManagedConfig().theme, noSecurity)
+                                  ManagedConfig().theme, noSecurity, _ => ())
                     } yield { task.transform { completed => for {
                       compileResult  <- completed
                       compileSuccess <- compileResult.asTry
@@ -509,6 +525,28 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     log.await()
   }
 
+  def quickstart: Try[ExitStatus] = for {
+    layout <- cli.newLayout
+    cli    <- ~cli.assign(LinkArg)
+    cli    <- cli.hint(GithubActionsArg)
+    cli    <- cli.hint(GitArg)
+    cli    <- cli.hint(EditorArg)
+    call   <- cli.call()
+    ref    <- call(LinkArg)
+    ref    <- ~ModuleRef.unapply(ref)
+    edit   <- ~call(EditorArg).isSuccess
+    ci     <- ~call(GithubActionsArg).isSuccess
+    git    <- ~call(GitArg).isSuccess
+    _      <- Layer.init(layout, git, ci, false, ref)
+    _      =  Bsp.createConfig(layout)
+
+    _      <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
+                implicit val env: Environment = cli.env
+                sh"${path} ${layout.baseDir}".exec[Try[String]]
+              }
+              else Success(())
+  } yield log.await()
+
   def describe: Try[ExitStatus] = for {
     layout       <- cli.layout
     conf         <- Layer.readFuryConf(layout)
@@ -530,7 +568,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                                 pipelining: Boolean,
                                 reporter: Reporter,
                                 theme: Theme,
-                                noSecurity: Boolean)
+                                noSecurity: Boolean,
+                                rebuild: Set[MissingPackage] => Unit)
                                (implicit log: Log): Try[Future[BuildResult]] = {
     for(_ <- build.checkoutAll()) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
@@ -541,7 +580,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
           multiplexer.closeAll()
           compRes
       }
-      reporter.report(build.graph, theme, multiplexer)
+      reporter.report(build.graph, theme, multiplexer, rebuild)
 
       future
     }
@@ -778,7 +817,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     edit   <- ~call(EditorArg).isSuccess
     ci     <- ~call(GithubActionsArg).isSuccess
     git    <- ~call(GitArg).isSuccess
-    _      <- Layer.init(layout, git, ci, bare)
+    _      <- Layer.init(layout, git, ci, bare, None)
     _      =  Bsp.createConfig(layout)
 
     _      <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>

@@ -52,7 +52,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   private var lock: Promise[Unit] = Promise.successful(())
   private var connections: Map[Path, Connection] = Map.empty
   private var usages: Map[Session, Connection] = Map.empty
-  private val bloopVersion = "1.4.7"
+  private val bloopVersion = "1.4.8"
 
   def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
     val newLock: Promise[Unit] = Promise()
@@ -293,23 +293,29 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
         case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
       } }
 
-      broadcast(DiagnosticMsg(
-        ref,
-        CompileIssue(
-          msg"""$severity ${ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum +
-              1).toString}
-${'|'} ${Message(
-            theme =>
-              diag.getMessage.split("\n").to[List].map(theme.gray(_)).join(msg"""
-${'|'} """.string(theme)))}
-${'|'} ${highlightedLine}
-""",
-          repo,
-          filePath,
-          lineNo,
-          charNum
-        )
-      ))
+      // FIXME: This may be less than 100% reliable
+      val missingMatch = codeLine.only {
+        case r".*import +$pkg@([a-z_\.\-]*)\.[^a-z\.\-]*.*" if diag.getMessage.contains("Not found:") || diag.getMessage.contains("is not a member of") => Package(pkg)
+      }
+      
+      missingMatch.map { pkg => broadcast(MissingPackage(ref, pkg)) }.getOrElse {
+        broadcast(DiagnosticMsg(
+          ref,
+          CompileIssue(
+            msg"""$severity ${ref}${'>'}${repo}${':'}${filePath}${':'}${lineNo}${':'}${(charNum + 1).toString}
+  ${'|'} ${Message(
+              theme =>
+                diag.getMessage.split("\n").to[List].map(theme.gray(_)).join(msg"""
+  ${'|'} """.string(theme)))}
+  ${'|'} ${highlightedLine}
+  """,
+            repo,
+            filePath,
+            lineNo,
+            charNum
+          )
+        ))
+      }
     }
   }
 

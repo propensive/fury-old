@@ -163,6 +163,9 @@ class Cli(val stdout: java.io.PrintWriter,
 
   type Hinted <: CliParam
 
+  def assign(params: CliParam*) = Cli(stdout, args.assign(params.map(_.longName.name): _*).flatten, command, optCompletions,
+      env, pid)
+
   class Call private[Cli] () {
     def apply(param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] =
       args.get(param.param).toOption.ascribe(MissingParam(param))
@@ -260,14 +263,13 @@ class Cli(val stdout: java.io.PrintWriter,
 
   lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), pwd, env) }
   
-  def next: Option[String] = args.prefix.headOption.map(_.value)
+  def next: Option[String] = args.parsed.prefix.headOption.map(_.value)
   def completion: Boolean = command.isDefined
   
   def prefix(str: String): Cli { type Hinted <: cli.Hinted } =
     Cli(stdout, ParamMap((str :: args.args.to[List]): _*), command, optCompletions, env, pid)
   
   def tail: Cli { type Hinted <: cli.Hinted } = {
-    
     val newArgs = if(args.headOption.map(_.length) == Some(2)) ParamMap(args.args.head.tail +:
         args.args.tail: _*) else args.tail
     
@@ -336,7 +338,7 @@ class Cli(val stdout: java.io.PrintWriter,
       stdout.flush()
       Failure(EarlyCompletions())
     }.getOrElse {
-      args.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }
+      args.parsed.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }
     }
 }
 
@@ -543,6 +545,7 @@ abstract class CliApi {
   implicit lazy val resourceHints: ResourceArg.Hinter = ResourceArg.hint()
   implicit lazy val licenseHints: LicenseArg.Hinter = LicenseArg.hint(License.standardLicenses.map(_.id))
   implicit lazy val pointerHints: LayerArg.Hinter = LayerArg.hint(Nil) // FIXME
+  implicit lazy val packageHints: PackageArg.Hinter = PackageArg.hint(Nil)
   implicit lazy val commitHints: CommitArg.Hinter = CommitArg.hint(allCommits)
   implicit lazy val repoSetHints: RepoSetArg.Hinter = RepoSetArg.hint(universeRepos)
   implicit lazy val layerRefHints: LayerRefArg.Hinter = LayerRefArg.hint(universeLayers)

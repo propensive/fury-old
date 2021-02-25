@@ -79,6 +79,7 @@ object Args {
   val EditorArg = CliParam[Unit]('e', 'edit, "open the layer in your editor")
   val EnvArg = CliParam[EnvVar]('e', 'env, "specify the environment variable in the form KEY=value")
   val ForceArg = CliParam[Unit]('F', 'force, "force this operation")
+  val PackageArg = CliParam[Package]('P', 'package, "specify the packages for this module")
   val PersistentArg = CliParam[Unit]('P', 'persistent, "this option change should apply to all dependants")
   val PublicArg = CliParam[Unit]('P', 'public, "this layer should be published publicly")
   val BreakingArg = CliParam[Unit]('B', 'breaking, "this build contains breaking changes")

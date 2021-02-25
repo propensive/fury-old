@@ -22,7 +22,7 @@ import scala.annotation._
 case class ParamUsage(map: ParamMap, used: Set[String]) {
   def -(key: String): ParamUsage = copy(used = used + key)
   def --(keys: Set[String]): ParamUsage = copy(used = used ++ keys)
-  def unexpected = map.groups.filterNot { p =>
+  def unexpected = map.parsed.groups.filterNot { p =>
     used contains p.key()
   }
 }
@@ -31,20 +31,38 @@ case class Arg(value: String)
 
 object :~ {
   def unapply(paramMap: ParamMap): Option[(Arg, ParamMap)] =
-    paramMap.prefix.headOption.map { h =>
+    paramMap.parsed.prefix.headOption.map { h =>
       (h, paramMap.tail)
     }
 }
 
 case class ParamMap(args: String*) {
 
+  case class ParsedParams(prefix: Vector[Arg], groups: Set[Parameter], suffix: Vector[Arg]) {
+    def flatten: ParamMap = ParamMap(prefix.map(_.value) ++
+        (groups.to[Vector].flatMap { case Parameter(key, value) => ("--"+key()) +: value.map(_()) }) ++
+        suffix.map(_.value): _*)
+  }
+  
   def ++(pm2: ParamMap) = ParamMap(pm2.args ++ args: _*)
   def +(arg: String) = ParamMap(args :+ arg: _*)
   def tail: ParamMap = ParamMap(args.tail: _*)
   def headOption: Option[String] = args.headOption
 
-  case class Part(no: Int, start: Int, end: Int) {
+
+  trait Part {
+    def apply(): String
+    def index: Option[Int]
+  }
+
+  case class VirtualPart(key: String) extends Part {
+    def apply(): String = key
+    def index = None
+  }
+
+  case class PositionalPart(no: Int, start: Int, end: Int) extends Part {
     def apply() = args(no).substring(start, end)
+    def index = Some(no)
     private[exoskeleton] def throwIfBad(): Part = {
       if(no < 0 || no >= args.length)
         throw new IllegalStateException(s"Expected a $no-th argument, but it doesn't exist.")
@@ -61,28 +79,38 @@ case class ParamMap(args: String*) {
     }
   }
 
-  val (prefix, groups, suffix) = parseArgs()
+  val parsed = parseArgs()
+  def suffix = parsed.suffix
 
+  //val ParsedParams(prefix, groups, suffix) = parseArgs()
+
+  def assign(assignments: String*): ParsedParams = {
+    val assigned = ("cmd" +: assignments).map(VirtualPart(_)).zip(parsed.prefix).zipWithIndex.map { case ((k, v), i) =>
+      Parameter(k, Vector(PositionalPart(i, 0, args(i).length)))
+    }
+    ParsedParams(parsed.prefix.drop(assignments.length), parsed.groups ++ assigned, parsed.suffix)
+  }
+  
   @tailrec
-  private def parseArgs(prefix: Vector[Arg] = Vector(), gs: List[Parameter] = Nil, n: Int = 0, off: Int = 0): (Vector[Arg], Set[Parameter], Vector[Arg]) = {
-    if (n == args.length) (prefix.reverse, gs.to[Set], Vector())
+  private def parseArgs(prefix: Vector[Arg] = Vector(), gs: List[Parameter] = Nil, n: Int = 0, off: Int = 0): ParsedParams = {
+    if (n == args.length) ParsedParams(prefix.reverse, gs.to[Set], Vector())
     else if(args(n) == "--") {
-      (prefix.reverse, gs.to[Set], args.drop(n + 1).map(Arg(_)).to[Vector])
+      ParsedParams(prefix.reverse, gs.to[Set], args.drop(n + 1).map(Arg(_)).to[Vector])
     } else if (args(n) startsWith "--") {
       val idx = args(n).indexOf('=')
-      if (idx < off) parseArgs(prefix, Parameter(Part(n, 2, args(n).length).throwIfBad()) :: gs, n + 1)
-      else parseArgs(prefix, Parameter(Part(n, 2, idx).throwIfBad()) :: gs, n, idx + 1)
+      if (idx < off) parseArgs(prefix, Parameter(PositionalPart(n, 2, args(n).length).throwIfBad()) :: gs, n + 1)
+      else parseArgs(prefix, Parameter(PositionalPart(n, 2, idx).throwIfBad()) :: gs, n, idx + 1)
     } else if (args(n) startsWith "-") {
       if (off == 0) parseArgs(prefix, gs, n, 1)
-      else if (args(n).length == off + 1) parseArgs(prefix, Parameter(Part(n, off, off + 1).throwIfBad()) :: gs, n + 1)
-      else parseArgs(prefix, Parameter(Part(n, off, off + 1).throwIfBad()) :: gs, n, off + 1)
+      else if (args(n).length == off + 1) parseArgs(prefix, Parameter(PositionalPart(n, off, off + 1).throwIfBad()) :: gs, n + 1)
+      else parseArgs(prefix, Parameter(PositionalPart(n, off, off + 1).throwIfBad()) :: gs, n, off + 1)
     } else {
       if (gs.isEmpty) parseArgs(Arg(args(n)) +: prefix, gs, n + 1)
-      else parseArgs(prefix, gs.head.copy(values = gs.head.values :+ Part(n, 0, args(n).length).throwIfBad()) :: gs.tail, n + 1)
+      else parseArgs(prefix, gs.head.copy(values = gs.head.values :+ PositionalPart(n, 0, args(n).length).throwIfBad()) :: gs.tail, n + 1)
     }
   }
 
-  def find(key: String): Option[Parameter] = groups.find(_.key() == key)
+  def find(key: String): Option[Parameter] = parsed.groups.find(_.key() == key)
 
   def apply(names: Vector[String]): Option[Parameter] = names match {
     case Vector() => None
@@ -90,7 +118,7 @@ case class ParamMap(args: String*) {
   }
 
   def get[T](param: SimpleParam[T]): Try[T] =
-    groups.find(param.keys contains _.key()) match {
+    parsed.groups.find(param.keys contains _.key()) match {
       case Some(p) => param.extractor.extract(p.values.map(_())) match {
         case Some(p) => Success(p)
         case None => Failure(InvalidArgValue(param.toString, p.values.map(_()).mkString(" ")))
@@ -99,7 +127,7 @@ case class ParamMap(args: String*) {
     }
 
   def apply[T: Default](param: SimpleParam[T]): Try[T] = {
-    groups.find(param.keys contains _.key()) match {
+    parsed.groups.find(param.keys contains _.key()) match {
       case Some(p) => param.extractor.extract(p.values.map(_())) match {
         case Some(p) => Success(p)
         case None => Failure(InvalidArgValue(param.toString, p.values.map(_()).mkString(" ")))
@@ -110,7 +138,7 @@ case class ParamMap(args: String*) {
   
   def isEmpty = args.isEmpty
 
-  override def toString = groups.mkString
+  override def toString = parsed.groups.mkString
 }
 
 sealed class ParamException(msg: String) extends Exception(msg)
@@ -351,7 +379,7 @@ case class SimpleParam[T: Param.Extractor](keys: Vector[String]) extends Params 
       if (v != res) throw InvalidArgValue(keys.head, "invalid")
     }
 
-    val newSs = Suggestions(parameter.values.find(tabArg == _.no).map { p =>
+    val newSs = Suggestions(parameter.values.find(Some(tabArg) == _.index).map { p =>
       suggestions(p()).map(toSuggestion)
     })
 

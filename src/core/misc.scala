@@ -42,6 +42,7 @@ case class Print(ref: ModuleRef, line: String) extends ModuleCompileEvent
 case class StartRun(ref: ModuleRef) extends ModuleCompileEvent
 case class StopRun(ref: ModuleRef) extends ModuleCompileEvent
 case class DiagnosticMsg(ref: ModuleRef, issue: Issue) extends ModuleCompileEvent
+case class MissingPackage(ref: ModuleRef, pkg: Package) extends ModuleCompileEvent
 
 case class BuildResult(bspResult: CompileResult, scalacOptions: ScalacOptionsResult, exitCode: Option[Int]) {
 

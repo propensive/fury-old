@@ -246,8 +246,6 @@ object Layer extends Lens.Partial[Layer] {
     ref      <- if(!Layer.diff(previous, layer).isEmpty || force) store(layer).flatMap { baseRef =>
                   saveFuryConf(conf.copy(layerRef = baseRef), layout).map(_.layerRef)
                 } else Success(baseRef)
-
-    _        <- ~Monitor.trigger(layout)
     } yield ref
 
   private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =
@@ -351,7 +349,8 @@ object Layer extends Lens.Partial[Layer] {
   def diff(left: Layer, right: Layer): List[Difference] =
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
-  def init(layout: Layout, git: Boolean, ci: Boolean, bare: Boolean)(implicit log: Log): Try[Unit] =
+  def init(layout: Layout, git: Boolean, ci: Boolean, bare: Boolean, newRef: Option[ModuleRef])
+          (implicit log: Log): Try[Unit] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
@@ -370,6 +369,16 @@ object Layer extends Lens.Partial[Layer] {
                          ref         <- ~Import(importName, newLayerRef, pub)
                          layer       <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = importName))
                        } yield layer } else ~layer
+      layer         <- newRef.fold(~layer) { ref => for {
+                         layer <- Try(Lens[Layer](_.projects)(layer) = SortedSet(Project(ref.projectId, main = Some(ref.moduleId))))
+                         layer <- Try(Lens[Layer](_.main)(layer) = Some(ref.projectId))
+                         layer <- Try(Lens[Layer](_.projects(ref.projectId).modules)(layer) = SortedSet(Module(ref.moduleId, compiler = BspCompiler(ModuleRef("scala3/compiler")))))
+                         path   = (layout.baseDir / "src" / ref.moduleId.key)
+                         _     <- ~log.info(msg"Created project and module, $ref")
+                         _     <- ~log.info(msg"Start editing source files in ${path"src" / ref.moduleId.key}")
+                         _     <- path.mkdir()
+                         layer <- Try(Lens[Layer](_.projects(ref.projectId).modules(ref.moduleId).sources)(layer) = SortedSet(LocalSource(path"src" / ref.moduleId.key, Glob.All)))
+                       } yield layer }
 
       ref           <- store(layer)
       conf          <- saveFuryConf(FuryConf(ref), layout)
@@ -401,8 +410,9 @@ object Layer extends Lens.Partial[Layer] {
          |""".stripMargin
 
   def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] = for {
-    confStr  <- ~Ogdl.serialize(Ogdl(conf))
-    _        <- layout.confFile.writeSync(confComments+confStr+vimModeline)
+    confStr <- ~Ogdl.serialize(Ogdl(conf))
+    _       <- layout.confFile.writeSync(confComments+confStr+vimModeline)
+    _       <- ~Monitor.trigger(layout)
   } yield conf
 
   private def migrateModules(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =

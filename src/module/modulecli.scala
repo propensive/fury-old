@@ -52,14 +52,14 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def add: Try[ExitStatus] = {
-    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< HiddenArg -< WorkspaceArg
+    (cli -< ProjectArg -< KindArg -< ModuleNameArg -< PackageArg -< HiddenArg -< WorkspaceArg
       -?< (PluginArg, getKindName >> oneOf(Plugin))
       -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
       -?< (ReplArg, getKindName >> oneOf(Compiler))
       -?< (TimeoutArg, getKindName >> oneOf(App))
       -?< (SpecArg, getKindName >> oneOf(Compiler))
     ).action {
-      val newModule = getModuleName >> (x => Module(id = x)) >>= updatedFromCli
+      val newModule = getModuleName >> (x => Module(id = x, packages = get(PackageArg).toOption.to[SortedSet])) >>= updatedFromCli
       val newModules = (getProject >> (_.modules), newModule) >> (_ + _)
       
       for {
@@ -94,7 +94,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   }
 
   def update: Try[ExitStatus] = {
-    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< CompilerArg -< OptWorkspaceArg
+    (cli -< ProjectArg -< ModuleArg -< KindArg -< ModuleNameArg -< HiddenArg -< PackageArg -< CompilerArg -< OptWorkspaceArg
       -?< (PluginArg, getKindName >> oneOf(Plugin))
       -?< (MainArg, getKindName >> oneOf(App, Plugin, Bench))
       -?< (ReplArg, getKindName >> oneOf(Compiler))
@@ -102,13 +102,17 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       -?< (SpecArg, getKindName >> oneOf(Compiler))
       ).action {
       val newModule = getModule >>= renamedFromCli >>= updatedFromCli
-      val newModules = (getProject >> (_.modules), getModule, newModule) >> (_ - _ + _)
+      val newModule2 = get(PackageArg).toOption.fold(newModule) {
+        case Package("", _) => newModule.map { m => m.copy(packages = SortedSet()) }
+        case pkg => newModule.map { m => m.copy(packages = m.packages + pkg) }
+      }
+      val newModules = (getProject >> (_.modules), getModule, newModule2) >> (_ - _ + _)
       
       val newLayer = for {
         layer       <- (newModules, getLayer, modulesLens) >> (Layer.set(_)(_, _))
         updateMain  <- (getProject >> (_.main), getModule >> (_.id)) >> (_.contains(_))
         lens        <- mainModuleLens
-        newModuleId <- newModule >> (_.id)
+        newModuleId <- newModule2 >> (_.id)
       } yield {
         if(updateMain) Layer.set(Option(newModuleId))(layer, lens)
         else layer

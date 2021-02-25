@@ -29,7 +29,7 @@ object Reporter {
 }
 
 abstract class Reporter(val name: String) {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
             (implicit log: Log)
             : Unit
 }
@@ -38,17 +38,17 @@ object GraphReporter extends Reporter("graph") {
 
   private def timeString(t: Long): String = if(t >= 10000) s"${t / 1000}s" else s"${t}ms"
 
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
             (implicit log: Log)
             : Unit = {
     log.info(msg"Starting build")
-    UiGraph.live(graph.links, multiplexer.stream(50, Some(Tick)))(log, theme)
+    UiGraph.live(graph.links, multiplexer.stream(50, Some(Tick)), rebuild)(log, theme)
     log.info(msg"Build completed")
   }
 }
 
 object LinearReporter extends Reporter("linear") {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
             (implicit log: Log)
             : Unit = {
     multiplexer.stream(50, Some(Tick)).foreach {
@@ -65,7 +65,7 @@ object LinearReporter extends Reporter("linear") {
 object SummaryReporter extends Reporter("summary") {
   def report(graph: Graph,
              theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent])(implicit log: Log)
+             multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)(implicit log: Log)
             : Unit = {
     val prints = collection.mutable.ArrayBuffer[String]()
     val moduleRefs = collection.mutable.Set[ModuleRef]()
@@ -91,7 +91,7 @@ object SummaryReporter extends Reporter("summary") {
 }
 
 object InterleavingReporter extends Reporter("interleaving") {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
             (implicit log: Log)
             : Unit = {
     val interleaver = new Interleaver(3000L)
@@ -122,7 +122,7 @@ object InterleavingReporter extends Reporter("interleaving") {
 
 object QuietReporter extends Reporter("quiet") {
 
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
             (implicit log: Log)
             : Unit =
     multiplexer.stream(100, None).foreach { event => () }
