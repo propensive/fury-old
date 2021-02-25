@@ -27,6 +27,9 @@ final class Multiplexer[K, V](keys: Set[K]) {
 
   def start(): Unit = show = true
 
+  private var terminationMessage: List[V] = Nil
+  def message(msg: V): Unit = terminationMessage = List(msg)
+
   def stream(interval: Int, tick: Option[V] = None): Iterator[V] = {
     def stream(lastSnapshot: List[List[V]]): Iterator[V] = {
       val t0       = System.currentTimeMillis
@@ -35,12 +38,17 @@ final class Multiplexer[K, V](keys: Set[K]) {
       val changes = snapshot.zip(lastSnapshot).flatMap {
         case (current, last) => current.take(current.length - last.length).reverse
       }
-      if(finished && changes.isEmpty) tick.to[Iterator]
+      
+      val result = if(finished && changes.isEmpty) tick.to[Iterator] ++ terminationMessage.to[Iterator]
       else {
         val time = System.currentTimeMillis - t0
         if(time < interval) Thread.sleep(interval - time)
-        changes.to[Iterator] ++ (if(show) tick.to[Iterator] else Iterator()) ++ stream(snapshot)
+        changes.to[Iterator] ++ (if(show) tick.to[Iterator] else Iterator()) ++ stream(snapshot) ++ terminationMessage.to[Iterator]
       }
+      
+      terminationMessage = Nil
+
+      result
     }
     stream(state.to[List])
   }

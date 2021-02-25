@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, UiGraph.Issue, fury.io._, fury.ogdl._
+import fury.model._, UiGraph.Issue, fury.io._, fury.ogdl._, fury.text._
 import fury.text.FuryException
 
 import jovian._
@@ -32,6 +32,7 @@ case class Entity(project: Project, imports: Set[Pointer])
 
 sealed trait CompileEvent
 case object Tick extends CompileEvent
+case class Warning(msg: Message) extends CompileEvent
 sealed trait ModuleCompileEvent extends CompileEvent { val ref: ModuleRef }
 case class StartCompile(ref: ModuleRef) extends ModuleCompileEvent
 case class Progress(ref: ModuleRef, progress: Double) extends ModuleCompileEvent
@@ -42,7 +43,7 @@ case class Print(ref: ModuleRef, line: String) extends ModuleCompileEvent
 case class StartRun(ref: ModuleRef) extends ModuleCompileEvent
 case class StopRun(ref: ModuleRef) extends ModuleCompileEvent
 case class DiagnosticMsg(ref: ModuleRef, issue: Issue) extends ModuleCompileEvent
-case class MissingPackage(ref: ModuleRef, pkg: Package) extends ModuleCompileEvent
+case class MissingPkg(ref: ModuleRef, pkg: Pkg) extends ModuleCompileEvent
 
 case class BuildResult(bspResult: CompileResult, scalacOptions: ScalacOptionsResult, exitCode: Option[Int]) {
 

@@ -34,7 +34,7 @@ object UiGraph {
   case class CompileIssue(msg: Message, repo: RepoId, path: Path, line: LineNo, charNum: Int) extends Issue
   case class BuildIssue(msg: Message) extends Issue
 
-  case class BuildInfo(state: BuildState, issues: List[Issue], prints: List[String], missing: Set[MissingPackage]) {
+  case class BuildInfo(state: BuildState, issues: List[Issue], prints: List[String], missing: Set[MissingPkg]) {
     def failed(): BuildInfo = BuildInfo(Failed, issues, prints, missing)
     def progress(n: Double): BuildInfo = if(state == Failed) this else BuildInfo(Compiling(n), issues, prints, missing)
     def skipped: BuildInfo = if(state == Failed) this else BuildInfo(Skipped, issues, prints, missing)
@@ -62,7 +62,7 @@ object UiGraph {
   }
 
   @tailrec
-  private def live(graphState: GraphState, rebuild: Set[MissingPackage] => Unit)(implicit log: Log, theme: Theme): Unit = {
+  private def live(graphState: GraphState, rebuild: Set[MissingPkg] => Unit)(implicit log: Log, theme: Theme): Unit = {
     import graphState._
 
     log.raw(Ansi.hideCursor())
@@ -96,7 +96,7 @@ object UiGraph {
           graphState(ref) = _.progress(0)
         case DiagnosticMsg(ref, msg) =>
           (graphState(ref) = Lens[BuildInfo](_.issues).modify(_)(msg :: _)).copy(changed = false)
-        case p@MissingPackage(ref, pkg) =>
+        case p@MissingPkg(ref, pkg) =>
           log.info(msg"The package $pkg was missing in the module $ref")
           rebuild(Set(p))
           (graphState(ref) = Lens[BuildInfo](_.missing).modify(_)(_ + p)).copy(changed = false)
@@ -114,6 +114,9 @@ object UiGraph {
             case line =>
               (graphState(ref) = Lens[BuildInfo](_.prints).modify(_)(line :: _)).copy(changed = false)
           }
+        case Warning(msg) =>
+          log.warn(msg)
+          graphState
         case StopRun(ref) =>
           graphState(ref) = _.successful
         case StartRun(ref) =>
@@ -145,7 +148,7 @@ object UiGraph {
     }
   }
 
-  def live(graph: Map[ModuleRef, Set[Input]], stream: Iterator[CompileEvent], rebuild: Set[MissingPackage] => Unit)
+  def live(graph: Map[ModuleRef, Set[Input]], stream: Iterator[CompileEvent], rebuild: Set[MissingPkg] => Unit)
           (implicit log: Log, theme: Theme)
           : Unit =
     live(GraphState(changed = true, graph, stream, Map()), rebuild)

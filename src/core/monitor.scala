@@ -23,21 +23,30 @@ import jovian._
 import _root_.io.methvin.watcher._
 
 import scala.collection.mutable
-import scala.collection.mutable.HashMap
 import scala.concurrent._
 import scala.util._
 
 import java.util.concurrent.Executors
 
-class BuildStream[T](initial: => Try[T])(implicit exec: ExecutionContext) { buildStream =>
+class BuildStream[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Boolean)(implicit exec: ExecutionContext) { buildStream =>
   private var last: Option[T] = None
+  private var continue: Boolean = true
+  private val promise: Promise[Unit] = Promise()
+  
   def mkFuture[S](fn: => S): Future[S] = {
     val future = Future(fn)
     future.andThen { case _ => update(state) }
     future
   }
 
-  def update(newState: => State): Unit = buildStream.synchronized { state = newState.proceed() }
+  def complete(): Unit = promise.complete(Success(()))
+  def abort(): Unit = continue = false
+  def completion: Future[Unit] = promise.future
+
+  def update(newState: => State): Unit =
+    if(continue) buildStream.synchronized { state = newState.proceed() }
+    else complete()
+
   var state = State(mkFuture(initial), None, Vector())
   
   case class State(current: Future[Try[T]], enqueued: Option[Option[T] => Try[T]], tasks: Vector[() => Unit]) {
@@ -45,9 +54,17 @@ class BuildStream[T](initial: => Try[T])(implicit exec: ExecutionContext) { buil
     def enqueue(fn: Option[T] => Try[T]): State = copy(enqueued = Some(fn))
     
     def proceed(): State = current.value.fold(this) { value =>
-      value.flatten.foreach { v => last = Some(v) }
-      if(tasks.isEmpty) copy(enqueued.fold(current) { t => mkFuture(t(last)) }, enqueued = None)
-      else copy(current.andThen { case _ => mkFuture(tasks.foreach(_())) }, tasks = Vector())
+      if(stopOnSuccess) {
+        complete()
+        this
+      } else {
+        value.flatten.foreach { v =>
+          onSuccess(v)
+          last = Some(v)
+        }
+        if(tasks.isEmpty) copy(enqueued.fold(current) { t => mkFuture(t(last)) }, enqueued = None)
+        else copy(current.andThen { case _ => mkFuture(tasks.foreach(_())) }, tasks = Vector())
+      }
     }
   }
 
@@ -56,42 +73,56 @@ class BuildStream[T](initial: => Try[T])(implicit exec: ExecutionContext) { buil
 }
 
 object Monitor {
-
-  def listen(layout: Layout, paths: Set[Path])(action: => Unit): Listener = {
-    val listener = new Listener(layout.baseDir, paths, action)
-    paths.foreach(register(_, listener))
+  def listen(layout: Layout)(action: => Unit): Listener = {
+    val listener = new Listener(layout.baseDir, action)
+    rootListeners(layout.baseDir) += listener
     listeners(layout.baseDir) = listeners.get(layout.baseDir).fold(Set[Listener](listener))(_ + listener)
     listener
   }
   
+  private val suspensions: mutable.HashSet[Path] = mutable.HashSet()
   private val tolerance: Long = 200L
   private val executor = Executors.newCachedThreadPool(Threads.factory("watcher", daemon = true))
   private implicit val execContext: ExecutionContext = ExecutionContext.fromExecutor(executor, throw _)
 
-  private val watchers: HashMap[Path, DirectoryWatcher] = HashMap()
-  private val listeners: mutable.Map[Path, Set[Listener]] = HashMap().withDefaultValue(Set())
+  private val watchers: mutable.HashMap[Path, DirectoryWatcher] = mutable.HashMap()
+  private val listeners: mutable.Map[Path, Set[Listener]] = mutable.HashMap().withDefaultValue(Set())
+  private val rootListeners: mutable.Map[Path, Set[Listener]] = mutable.HashMap().withDefaultValue(Set())
 
-  class Listener(baseDir: Path, initPaths: Set[Path], onChange: => Unit) {
-    var lastHit: Long = 0L
-    private var paths: Set[Path] = initPaths
+  def suspend[T](path: Path)(task: => T): T = if(!suspensions.contains(path)) {
+    Monitor.synchronized(suspensions += path)
+    val result = task
+    Monitor.synchronized(suspensions -= path)
+    result
+  } else task
 
-    def interesting(path: Path): Boolean = path.value.endsWith(".scala") && !path.value.startsWith(".")
+  class Listener(baseDir: Path, onChange: => Unit) {
+    private var lastHit: Long = 0L
+    private var paths: Set[Path] = Set()
 
-    def onEvent(): Unit = onChange
+    def interesting(path: Path, timestamp: Long): Boolean =
+      timestamp > lastHit && path.value.endsWith(".scala") && !path.value.startsWith(".") &&
+          !suspensions.exists(path.value startsWith _.value)
+
+    def onEvent(t: Long): Unit = {
+      lastHit = t
+      onChange
+    }
     
-    def stop(): Unit = synchronized {
+    def stop(): Unit = Monitor.synchronized {
       paths.foreach(unregister(_, this))
+      rootListeners -= baseDir
       unregister(baseDir, this)
     }
 
-    def updatePaths(newPaths: Set[Path]): Unit = synchronized {
+    def updatePaths(newPaths: Set[Path]): Unit = Monitor.synchronized {
       (newPaths -- paths).foreach(register(_, this))
       (paths -- newPaths).foreach(unregister(_, this))
       paths = newPaths
     }
   }
 
-  private def unregister(path: Path, listener: Listener): Unit = synchronized {
+  private def unregister(path: Path, listener: Listener): Unit = Monitor.synchronized {
     Log().info(msg"Unregistering listener at $path")
     if(listeners(path).size <= 1) {
       listeners -= path
@@ -101,25 +132,27 @@ object Monitor {
   }
  
   private def register(path: Path, listener: Listener): Unit = {
-    Log().info(msg"Registering listener at $path")
-    val watcher = DirectoryWatcher.builder().path(path.javaPath).listener { event =>
+    lazy val watcher = DirectoryWatcher.builder().path(path.javaPath).listener { event =>
       val now = System.currentTimeMillis
       listeners(path).foreach { case l =>
-        val path = Path(event.path)
-        if(now - tolerance > l.lastHit && l.interesting(path)) {
-          l.onEvent()
-          Log().info(msg"${event.eventType.toString} event triggered on ${Path(event.path)} for ${listeners(path).size} listeners")
+        val eventPath = Path(event.path)
+        if(l.interesting(eventPath, now - tolerance)) {
+          Log().info(msg"File $eventPath has been modified")
+          l.onEvent(now)
+          Log().info(msg"${event.eventType.toString} event triggered on ${path} for ${listeners(path).size} listeners")
         }
       }
     }.fileHashing(false).build()
 
     synchronized {
-      watchers(path) = watcher
-      listeners(path) = listeners.get(path).fold(Set[Listener](listener))(_ + listener)
-      watcher.watchAsync(executor)
+      listeners(path) ++= Set(listener)
+      if(!watchers.contains(path)) {
+        Log().info(msg"Registering listener at $path")
+        watchers(path) = watcher
+        watcher.watchAsync(executor)
+      }
     }
   }
 
-  def trigger(layout: Layout): Unit = listeners(layout.baseDir).foreach(_.onEvent())
-
+  def trigger(layout: Layout): Unit = rootListeners(layout.baseDir).foreach(_.onEvent(System.currentTimeMillis))
 }

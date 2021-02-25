@@ -22,14 +22,14 @@ import jovian._
 
 object Reporter {
   implicit val parser: Parser[Reporter] = unapply(_)
-  val all: List[Reporter] = List(GraphReporter, InterleavingReporter, LinearReporter, SummaryReporter, QuietReporter)
+  val all: List[Reporter] = List(GraphReporter, LinearReporter, SummaryReporter, QuietReporter)
   final private val reporters: Map[String, Reporter] = all.map { r => r.name -> r }.toMap
   def unapply(string: String): Option[Reporter] = reporters.get(string)
   implicit val stringShow: StringShow[Reporter] = _.name
 }
 
 abstract class Reporter(val name: String) {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit
 }
@@ -38,7 +38,7 @@ object GraphReporter extends Reporter("graph") {
 
   private def timeString(t: Long): String = if(t >= 10000) s"${t / 1000}s" else s"${t}ms"
 
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit = {
     log.info(msg"Starting build")
@@ -48,7 +48,7 @@ object GraphReporter extends Reporter("graph") {
 }
 
 object LinearReporter extends Reporter("linear") {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit = {
     multiplexer.stream(50, Some(Tick)).foreach {
@@ -57,6 +57,7 @@ object LinearReporter extends Reporter("linear") {
       case StopCompile(ref, false)     => log.info(msg"Compilation of module $ref failed")
       case DiagnosticMsg(ref, message) => log.info(message.msg)
       case Print(ref, line)            => log.info(line)
+      case Warning(msg)                => log.warn(msg)
       case other                       => ()
     }
   }
@@ -65,7 +66,7 @@ object LinearReporter extends Reporter("linear") {
 object SummaryReporter extends Reporter("summary") {
   def report(graph: Graph,
              theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)(implicit log: Log)
+             multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)(implicit log: Log)
             : Unit = {
     val prints = collection.mutable.ArrayBuffer[String]()
     val moduleRefs = collection.mutable.Set[ModuleRef]()
@@ -73,6 +74,7 @@ object SummaryReporter extends Reporter("summary") {
       case StopCompile(ref, true) => moduleRefs += ref
       case DiagnosticMsg(ref, message) => log.note(message.msg)
       case Print(_, line)         => prints += line
+      case Warning(msg)           => log.warn(msg)
       case _ => ()
     }
 
@@ -90,39 +92,9 @@ object SummaryReporter extends Reporter("summary") {
 
 }
 
-object InterleavingReporter extends Reporter("interleaving") {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
-            (implicit log: Log)
-            : Unit = {
-    val interleaver = new Interleaver(3000L)
-    multiplexer.stream(50, Some(Tick)).foreach {
-
-      case StartCompile(ref)           => interleaver.println(ref, msg"Starting compilation of module $ref",
-                                              false)
-
-      case StopCompile(ref, true)      => interleaver.println(ref, msg"Successfully compiled module $ref",
-                                              false)
-
-      case StopRun(ref)                => interleaver.terminate(ref)
-      case StartRun(ref)               => ()
-
-      case StopCompile(ref, false)     => interleaver.println(ref, msg"Compilation of module $ref failed",
-                                              false)
-
-      case DiagnosticMsg(ref, message) => interleaver.println(ref, message.msg, false)
-
-      case Print(ref, line)            => interleaver.println(ref, Message(_.gray(escritoire.Ansi.strip(line))),
-                                              false)
-
-      case Tick                        => interleaver.tick()
-      case other                       => ()
-    }
-  }
-}
-
 object QuietReporter extends Reporter("quiet") {
 
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPackage] => Unit)
+  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit =
     multiplexer.stream(100, None).foreach { event => () }

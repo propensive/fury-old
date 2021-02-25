@@ -19,6 +19,7 @@ package fury.core
 import fury.core.UiGraph.CompileIssue, fury.core.Lifecycle.Session, fury.io._, fury.model._, fury.text._,
     fury.utils._
 
+
 import gastronomy._
 import kaleidoscope._
 import mercator._
@@ -230,6 +231,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
   def broadcast(event: CompileEvent): Unit = event match {
     case e: ModuleCompileEvent =>
       BloopServer.subscribers(this).map(_.multiplexer).filter(_.contains(e.ref)).foreach(_.fire(e.ref, event))
+    case Warning(_) => ()
     case Tick =>
       BloopServer.subscribers(this).map(_.multiplexer).foreach(_.updateAll(Tick))
   }
@@ -295,10 +297,10 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
 
       // FIXME: This may be less than 100% reliable
       val missingMatch = codeLine.only {
-        case r".*import +$pkg@([a-z_\.\-]*)\.[^a-z\.\-]*.*" if diag.getMessage.contains("Not found:") || diag.getMessage.contains("is not a member of") => Package(pkg)
+        case r".*import +$pkg@([a-z_\.\-]*)\.[^a-z\.\-]*.*" if diag.getMessage.contains("ot found:") || diag.getMessage.contains("is not a member of") => Pkg(pkg)
       }
       
-      missingMatch.map { pkg => broadcast(MissingPackage(ref, pkg)) }.getOrElse {
+      missingMatch.map { pkg => broadcast(MissingPkg(ref, pkg)) }.getOrElse {
         broadcast(DiagnosticMsg(
           ref,
           CompileIssue(

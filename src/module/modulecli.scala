@@ -103,7 +103,7 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       ).action {
       val newModule = getModule >>= renamedFromCli >>= updatedFromCli
       val newModule2 = get(PackageArg).toOption.fold(newModule) {
-        case Package("", _) => newModule.map { m => m.copy(packages = SortedSet()) }
+        case Pkg("", _) => newModule.map { m => m.copy(packages = SortedSet()) }
         case pkg => newModule.map { m => m.copy(packages = m.packages + pkg) }
       }
       val newModules = (getProject >> (_.modules), getModule, newModule2) >> (_ - _ + _)

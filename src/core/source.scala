@@ -87,6 +87,7 @@ object Source {
 
 sealed abstract class Source extends Key(msg"source") {
   def key: String
+  def editable: Boolean
   def completion: String
   def hash(layer: Layer): Try[Digest]
   def path: Path
@@ -117,6 +118,7 @@ sealed abstract class Source extends Key(msg"source") {
 }
 
 case class RepoSource(repoId: RepoId, path: Path, glob: Glob) extends Source {
+  def editable = false
   def rootId: RootId = repoId
   def key: String = str"${repoId}:${path.value}//$glob"
   def completion: String = str"${repoId}:${path.value}"
@@ -124,6 +126,7 @@ case class RepoSource(repoId: RepoId, path: Path, glob: Glob) extends Source {
 }
 
 case class LocalSource(path: Path, glob: Glob) extends Source {
+  def editable = true
   def rootId: RootId = RepoId("local")
   def key: String = str"$path//$glob"
   def completion: String = path.value
@@ -131,6 +134,7 @@ case class LocalSource(path: Path, glob: Glob) extends Source {
 }
 
 case class WorkspaceSource(workspaceId: WorkspaceId, path: Path) extends Source {
+  def editable = true
   def rootId: RootId = workspaceId
   def key: String = str"ws:$workspaceId:${path.value}"
   def glob: Glob = Glob.All

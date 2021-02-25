@@ -39,7 +39,7 @@ case class CyclesInDependencies(cycle: Set[Input]) extends FuryException
 case class CommitNotInRepo(commit: Commit, origin: Message) extends FuryException
 case class DnsLookupFailure(domain: String) extends FuryException
 case class PathNotGitDir() extends FuryException
-case class UnknownPackage(pkg: Package) extends FuryException
+case class UnknownPkg(pkg: Pkg) extends FuryException
 case class DnsResolutionFailure() extends FuryException
 case class DownloadFailure(detail: String) extends FuryException
 case class EnvPathNotSet() extends FuryException

@@ -14,9 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury
+package fury.core
 
-import fury.core._, fury.text._, fury.model._, fury.io._
+import fury.text._, fury.model._, fury.io._
 
 import jovian._
 
@@ -29,9 +29,9 @@ import scala.util._
 
 object Inotify {
   private var done: Boolean = false
-  def check(watching: Boolean)(implicit log: Log): Try[Unit] = {
+  def check()(implicit log: Log): Try[Unit] = {
     val maxQueuedWatchers = path"/proc/sys/fs/inotify/max_user_watches"
-    val count = if(watching && !done && maxQueuedWatchers.exists()) { for {
+    val count = if(!done && maxQueuedWatchers.exists()) { for {
       lines <- maxQueuedWatchers.lines()
       count <- Try(lines.next().toInt)
     } yield count } else Success(Int.MaxValue)

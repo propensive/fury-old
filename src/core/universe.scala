@@ -110,14 +110,14 @@ case class Universe(hierarchy: Hierarchy,
     workspace <- module.workspace.traverse(layer.workspaces.findBy(_))
   } yield workspace.map { ws => ws.local.getOrElse(layout.workspaceDir(project.id, ws.id)) }
 
-  def packageMap: Try[Map[Package, ModuleRef]] = for {
+  def packageMap: Try[Map[Pkg, ModuleRef]] = for {
     projects <- allProjects
     packages  = projects.flatMap { p => p.modules.flatMap { m => m.packages.map(_ -> m.ref(p)) } }
   } yield packages.toMap
 
-  def packageMatch(query: Package): Try[ModuleRef] = for {
+  def packageMatch(query: Pkg): Try[ModuleRef] = for {
     map   <- packageMap
-    found <- map.filter { case (pkg, ref) => query.key startsWith pkg.key }.to[List].sortBy(_._2.key.length).headOption.map(_._2).ascribe(UnknownPackage(query))
+    found <- map.filter { case (pkg, ref) => query.key startsWith pkg.key }.to[List].sortBy(_._2.key.length).headOption.map(_._2).ascribe(UnknownPkg(query))
   } yield found
 
   def javaVersion(ref: ModuleRef, layout: Layout): Try[Int] =

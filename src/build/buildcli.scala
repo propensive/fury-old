@@ -275,43 +275,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     log.await(success)
   }
 
-  case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: Policy, args: List[String],
-      pipelining: Boolean, reporter: Reporter, theme: Theme) {
-
-    private lazy val listener = Monitor.listen(layout, Set(layout.baseDir))(buildStream.enqueue(doCompile))
-    private lazy val buildStream = new BuildStream[Build](doCompile(None))
-
-    def rebuild(missing: Set[MissingPackage]): Unit = buildStream.addTask {
-      missing.foreach { case MissingPackage(ref, pkg) =>
-        for {
-          conf     <- Layer.readFuryConf(layout)
-          layer    <- Layer.retrieve(conf)
-          universe <- layer.universe()
-          project  <- layer.projects.findBy(ref.projectId)
-          module   <- project.modules.findBy(ref.moduleId)
-          found    <- universe.packageMatch(pkg)
-          _        <- ~log.info(msg"Adding dependency on $found to $ref")
-          layer    <- Try(Lens[Layer](_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Input(found)))
-          _        <- Layer.commit(layer, conf, layout)
-        } yield ()
-      }
-    }
-
-    def doCompile(build: Option[Build]): Try[Build] = for {
-      newBuild <- for {
-                    conf  <- Layer.readFuryConf(layout)
-                    layer <- Layer.retrieve(conf)
-                    build <- Build.syncBuild(layer, ref, layout, noSecurity, Lifecycle.currentSession.cancellation)
-                  } yield build
-      _        <- compileOnce(newBuild, ref, layout, policy, args, pipelining, reporter, theme, noSecurity, rebuild)
-    } yield newBuild
-
-    def await(): Unit = {
-      listener
-      buildStream
-    }
-  }
-
   def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
     cli            <- cli.hint(WaitArg)
     cli            <- cli.hint(NoSecurityArg)
@@ -342,16 +305,16 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     watch           = call(WatchArg).isSuccess
     waiting         = call(WaitArg).isSuccess
-    _              <- Inotify.check(watch || waiting)
+    session        <- ~Lifecycle.currentSession
+    _              <- ~session.checkInotify
     noSecurity      = call(NoSecurityArg).isSuccess
     _              <- call.atMostOne(WatchArg, WaitArg)
-    session        <- ~Lifecycle.currentSession
     builder         = Builder(layout, module.ref(project), noSecurity, globalPolicy,
                           if(call.suffix.isEmpty) args else call.suffix,
-                          pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme).await()
-    // FIXME: All sources might need to change if build changes
-    //_               = session.cancellation.andThen { case _ => listener.stop() }
-    future         <- Try(Await.result(Promise().future, Duration.Inf))
+                          pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme,
+                          watch || waiting, waiting || !watch)
+    _               = session.cancellation.andThen { case _ => builder.abort() }
+    _               = builder.await()
   } yield log.await()
 
     // r               = repeater(build.allSources, waiting) {
@@ -458,52 +421,52 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   //   _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
   // } yield log.await()
 
-  def console: Try[ExitStatus] = for {
-    layout       <- cli.layout
-    conf         <- Layer.readFuryConf(layout)
-    layer        <- Layer.retrieve(conf)
-    (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-    cli          <- cli.hint(PipeliningArg, List("on", "off"))
-    cli          <- cli.hint(NoSecurityArg)
-    cli          <- cli.hint(IgnoreErrorsArg)
-    cli          <- cli.hint(ReporterArg, Reporter.all)
-    call         <- cli.call()
-    force        <- ~call(IgnoreErrorsArg).isSuccess
-    pipelining   <- ~call(PipeliningArg).toOption
-    reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
-    noSecurity   <- ~call(NoSecurityArg).isSuccess
-    project      <- tryProject
-    module       <- tryModule
+  // def console: Try[ExitStatus] = for {
+  //   layout       <- cli.layout
+  //   conf         <- Layer.readFuryConf(layout)
+  //   layer        <- Layer.retrieve(conf)
+  //   (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
+  //   cli          <- cli.hint(PipeliningArg, List("on", "off"))
+  //   cli          <- cli.hint(NoSecurityArg)
+  //   cli          <- cli.hint(IgnoreErrorsArg)
+  //   cli          <- cli.hint(ReporterArg, Reporter.all)
+  //   call         <- cli.call()
+  //   force        <- ~call(IgnoreErrorsArg).isSuccess
+  //   pipelining   <- ~call(PipeliningArg).toOption
+  //   reporter     <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
+  //   noSecurity   <- ~call(NoSecurityArg).isSuccess
+  //   project      <- tryProject
+  //   module       <- tryModule
     
-    build        <- Build.syncBuild(layer, module.ref(project), layout, noSecurity, Lifecycle.currentSession.cancellation)
+  //   build        <- Build.syncBuild(layer, module.ref(project), layout, noSecurity, Lifecycle.currentSession.cancellation)
     
-    result       <- for {
-                      globalPolicy <- ~Policy.read(log)
-                      task <- compileOnce(build, module.ref(project), layout,
-                                  globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
-                                  ManagedConfig().theme, noSecurity, _ => ())
-                    } yield { task.transform { completed => for {
-                      compileResult  <- completed
-                      compileSuccess <- compileResult.asTry
-                    } yield compileSuccess } }
+  //   result       <- for {
+  //                     globalPolicy <- ~Policy.read(log)
+  //                     task <- compileOnce(build, module.ref(project), layout,
+  //                                 globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
+  //                                 ManagedConfig().theme, noSecurity, _ => ())
+  //                   } yield { task.transform { completed => for {
+  //                     compileResult  <- completed
+  //                     compileSuccess <- compileResult.asTry
+  //                   } yield compileSuccess } }
 
-    result       <- Try(Try(Await.result(result, Duration.Inf)))
-    _            <- if(force) {
-                      if(result.isFailure) log.warn(msg"Errors occurred during compilation; launching console "+
-                          msg"with an incomplete classpath")
-                      Success(())
-                    } else result
-    compilerMod  <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
-    repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
-    target       <- build(module.ref(project))
-    bootCp       <- Success(new build.TargetExtras(target).bootClasspath)
-    javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
-  } yield {
-    val cp = new build.TargetExtras(target).classpath.map(_.value).join(":")
-    val bcp = bootCp.map(_.value).join(":")
-    cli.continuation(str"""${Jdk.javaExec(javaVersion)} -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
-        str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
-  }
+  //   result       <- Try(Try(Await.result(result, Duration.Inf)))
+  //   _            <- if(force) {
+  //                     if(result.isFailure) log.warn(msg"Errors occurred during compilation; launching console "+
+  //                         msg"with an incomplete classpath")
+  //                     Success(())
+  //                   } else result
+  //   compilerMod  <- module.compiler.as[BspCompiler].map(_.ref).map(build.universe(_)).ascribe(NoRepl(module.compiler))
+  //   repl         <- compilerMod.map(_.kind.as[Compiler].get.repl)
+  //   target       <- build(module.ref(project))
+  //   bootCp       <- Success(new build.TargetExtras(target).bootClasspath)
+  //   javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
+  // } yield {
+  //   val cp = new build.TargetExtras(target).classpath.map(_.value).join(":")
+  //   val bcp = bootCp.map(_.value).join(":")
+  //   cli.continuation(str"""${Jdk.javaExec(javaVersion)} -Xmx256M -Xms32M -Xbootclasspath/a:$bcp -classpath $cp """+
+  //       str"""-Dscala.boot.class.path=$cp -Dscala.home=/opt/scala-2.12.8 -Dscala.usejavacp=true $repl""")
+  // }
 
   def classpath: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -559,32 +522,6 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     _            <- ~log.info(build.describe(layout))
     _            <- ~UiGraph.draw(build.graph.links, true, Map())(ManagedConfig().theme).foreach(log.info(_))
   } yield log.await()
-
-  private[this] def compileOnce(build: Build,
-                                moduleRef: ModuleRef,
-                                layout: Layout,
-                                globalPolicy: Policy,
-                                compileArgs: List[String],
-                                pipelining: Boolean,
-                                reporter: Reporter,
-                                theme: Theme,
-                                noSecurity: Boolean,
-                                rebuild: Set[MissingPackage] => Unit)
-                               (implicit log: Log): Try[Future[BuildResult]] = {
-    for(_ <- build.checkoutAll()) yield {
-      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
-      Lifecycle.currentSession.multiplexer = multiplexer
-      val future = new build.TargetExtras(build.target).compile(Map(),
-        globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
-        case compRes =>
-          multiplexer.closeAll()
-          compRes
-      }
-      reporter.report(build.graph, theme, multiplexer, rebuild)
-
-      future
-    }
-  }
 }
 
 case class ShadeCli(cli: Cli)(implicit log: Log) {
@@ -1041,4 +978,70 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
     _      <- ~log.rawln(Tables().show[LayerStatus, Boolean](table, cli.cols, rows, raw, col, None, "layer"))
   } yield log.await()
 
+}
+
+case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: Policy, args: List[String],
+    pipelining: Boolean, reporter: Reporter, theme: Theme, continue: Boolean, stopOnSuccess: Boolean)
+                  (implicit log: Log) {
+
+  private lazy val listener: Monitor.Listener = Monitor.listen(layout)(buildStream.enqueue(doCompile))
+  private lazy val buildStream: BuildStream[Build] = new BuildStream[Build](doCompile(None), { b =>
+    listener.updatePaths(b.editableSources)
+  }, stopOnSuccess)
+
+  def rebuild(missing: Set[MissingPkg]): Unit = buildStream.addTask {
+    missing.foreach { case MissingPkg(ref, pkg) =>
+      for {
+        conf     <- Layer.readFuryConf(layout)
+        layer    <- Layer.retrieve(conf)
+        universe <- layer.universe()
+        project  <- layer.projects.findBy(ref.projectId)
+        module   <- project.modules.findBy(ref.moduleId)
+        found    <- universe.packageMatch(pkg)
+        _        <- ~log.info(msg"Adding dependency on $found to $ref")
+        layer    <- Try(Lens[Layer](_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Input(found)))
+        _        <- Layer.commit(layer, conf, layout)
+      } yield ()
+    }
+  }
+
+  def doCompile(build: Option[Build]): Try[Build] = for {
+    conf  <- Layer.readFuryConf(layout)
+    layer <- Layer.retrieve(conf)
+    build <- Build.syncBuild(layer, ref, layout, noSecurity, Lifecycle.currentSession.cancellation)
+    _     <- compileOnce(build, ref, layout, policy, args, pipelining, reporter, theme, noSecurity, rebuild)
+  } yield build
+
+  private[this] def compileOnce(build: Build,
+                                moduleRef: ModuleRef,
+                                layout: Layout,
+                                globalPolicy: Policy,
+                                compileArgs: List[String],
+                                pipelining: Boolean,
+                                reporter: Reporter,
+                                theme: Theme,
+                                noSecurity: Boolean,
+                                rebuild: Set[MissingPkg] => Unit)
+                               (implicit log: Log): Try[Future[BuildResult]] = {
+    for(_ <- build.checkoutAll()) yield {
+      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
+      Lifecycle.currentSession.multiplexer = multiplexer
+      val future = new build.TargetExtras(build.target).compile(Map(),
+        globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
+        case compRes =>
+          multiplexer.closeAll()
+          compRes
+      }
+      reporter.report(build.graph, theme, multiplexer, rebuild)
+
+      future
+    }
+  }
+
+  def abort(): Unit = {
+    listener.stop()
+    buildStream.abort()
+  } 
+
+  def await(): Unit = Await.result(buildStream.completion, Duration.Inf)
 }

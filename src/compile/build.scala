@@ -175,6 +175,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
     def juncture: Boolean = !module.kind.is[Lib] || module.includes.nonEmpty
     def directDependencies = module.dependencies ++ module.compiler()
     def sourcePaths: Try[Set[Path]] = module.sources.to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
+    def editableSourcePaths: Try[Set[Path]] = module.sources.filter(_.editable).to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
 
     private def repoPaths(ref: ModuleRef, source: Source): Try[List[Path]] = source match {
       case RepoSource(repoId, path, _) =>
@@ -197,8 +198,8 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
       if(module.sources.isEmpty) Nil
       else List(msg"       Sources: ${module.sources} from ${target.snapshot.stashes.map(_._2)}"),
       if(module.binaries.isEmpty) Nil else List(msg"      Binaries: ${module.binaries}"),
-      if(stashIds.isEmpty) Nil else List(msg"       Stashes: ${stashIds.map { case (k, v) => msg"$k${'@'}$v"}}"),
-      List(msg"Work directory: ${target.workDir.relativizeTo(layout.baseDir)}")
+      //if(stashIds.isEmpty) Nil else List(msg"       Stashes: ${stashIds.map { case (k, v) => msg"$k${'@'}$v"}}"),
+      if(module.kind.is[App]) List(msg"Work directory: ${target.workDir.relativizeTo(layout.baseDir)}") else Nil
     ).flatten.reduce(_ + "\n" + _)
 
     private def copyInclude(include: Include): Try[Unit] =
@@ -537,7 +538,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
     }
   }
   
-  def allSources: Set[Path] = targets.values.to[Set].flatMap(_.sourcePaths.getOrElse(Nil))
+  def editableSources: Set[Path] = targets.values.to[Set].flatMap(_.editableSourcePaths.getOrElse(Nil))
 
   private[this] def wrapServerErrors[T](f: => CompletableFuture[T]): Try[T] =
     Try(f.get).recoverWith { case e: ExecutionException => Failure(BuildServerError(e.getCause)) }

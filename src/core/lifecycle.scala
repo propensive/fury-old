@@ -18,17 +18,17 @@ package fury.core
 
 import java.util.concurrent.atomic.AtomicBoolean
 
-import fury.model.ModuleRef
-import fury.utils.Multiplexer
+import fury.model._, fury.utils._, fury.text._
 
 import jovian._
 
 import scala.annotation.tailrec
 import scala.collection.mutable.HashSet
-import scala.concurrent._
+import scala.concurrent._, duration._
 import scala.util._
 
 object Lifecycle {
+  implicit val ec = ExecutionContext.global
   
   trait Shutdown { def shutdown(): Unit }
 
@@ -41,8 +41,8 @@ object Lifecycle {
   val bloopServer = Promise[Shutdown with ResourceHolder]
 
   case class Session(cli: Cli, private val thread: Thread) {
-
-    var abort = 0
+    private var abort = 0
+    lazy val checkInotify: Unit = Inotify.check()(Log())
 
     val pid = cli.pid
     val started: Long = System.currentTimeMillis
@@ -51,13 +51,19 @@ object Lifecycle {
     def cancellation: Future[Unit] = cancel.future
 
     def interrupt(): Boolean = {
-      abort += 2
-      cli.forceLog("Press Ctrl+C again to stop this operation")
-      if(abort == 2) {
+      abort += 1
+      if(abort == 1) {
+        Log().info(msg"Session $pid interrupted with Ctrl+C")
+        sessionMultiplexer.message(Warning(msg"Compilation interrupted. Press Ctrl+C again to stop this operation"))
+        Await.result(cancellation, Duration.Inf)
+        false
+      } else {
+        Log().info(msg"Session $pid terminated with a second Ctrl+C")
+        sessionMultiplexer.message(Warning(msg"Build terminated."))
         cancel.complete(Success(()))
-        thread.interrupt()
+        cancel.future.andThen { case _ => thread.interrupt() }
         true
-      } else false
+      }
     }
 
     private[this] var sessionMultiplexer:  Multiplexer[ModuleRef, CompileEvent] = new Multiplexer(Set.empty)
