@@ -72,8 +72,10 @@ case class Menu(command: Symbol,
             case None =>
               if(cli.completion) cli.completeCommand(this, hasLayer)
               else Failure(UnknownCommand(next.value))
+            
             case Some(item@Menu(_, _, _, _, _, _)) =>
               item(cli.tail, cli, true)
+            
             case Some(item@Action(_, _, _, _, _, _)) =>
               item.action(cli)
           }
@@ -92,7 +94,10 @@ case class Menu(command: Symbol,
 
     val shownItems = items.filter(_.show)
     val width = 12
-    shownItems.sortBy { case _: Action => 0; case _ => 1 }.flatMap {
+    shownItems.sortBy {
+      case _: Action => 0
+      case _ => 1
+    }.flatMap {
       case item: Action =>
         List(msg"  ${highlight(item.command.name.padTo(width, ' '), item.shortcut)} ${item.description}".string(
             theme))

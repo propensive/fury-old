@@ -42,6 +42,7 @@ case class Universe(hierarchy: Hierarchy,
   def apply(ref: ModuleRef): Try[Module] = apply(ref.projectId) >>= (_(ref.moduleId))
   def clean(ref: ModuleRef, layout: Layout): Unit = layout.classesDir.delete().unit
   def allProjects: Try[Set[Project]] = projects.keySet.traverse(apply(_))
+  def resolvedProjects: Try[Set[Project]] = projects.keySet.map(apply(_)).filter(_.isSuccess).sequence
   def layer(id: ProjectId): Try[Layer] = pointers(id).flatMap { is => hierarchy(is.head) }
   def deepModuleRefs: Try[Set[ModuleRef]] = allProjects.map(_.flatMap(_.moduleRefs).to[Set])
 
@@ -111,12 +112,15 @@ case class Universe(hierarchy: Hierarchy,
   } yield workspace.map { ws => ws.local.getOrElse(layout.workspaceDir(project.id, ws.id)) }
 
   def packageMap: Try[Map[Pkg, ModuleRef]] = for {
-    projects <- allProjects
+    _        <- ~Log().info(msg"Getting projects")
+    projects <- resolvedProjects
+    _        <- ~Log().info(msg"Got projects: $projects")
     packages  = projects.flatMap { p => p.modules.flatMap { m => m.packages.map(_ -> m.ref(p)) } }
   } yield packages.toMap
 
   def packageMatch(query: Pkg): Try[ModuleRef] = for {
     map   <- packageMap
+    _     <- ~Log().info(msg"Looking for '$query' in ${packageMap.toString}")
     found <- map.filter { case (pkg, ref) => query.key startsWith pkg.key }.to[List].sortBy(_._2.key.length).headOption.map(_._2).ascribe(UnknownPkg(query))
   } yield found
 

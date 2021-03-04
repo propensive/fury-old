@@ -30,9 +30,9 @@ object UiGraph {
   final private val West  = 1
   final private val chars = "   ┐ ─┌┬ ┘│┤└┴├┼".toCharArray
 
-  sealed trait Issue { def msg: Message }
-  case class CompileIssue(msg: Message, repo: RepoId, path: Path, line: LineNo, charNum: Int) extends Issue
-  case class BuildIssue(msg: Message) extends Issue
+  sealed trait Issue { def msg: Message; def warning: Boolean }
+  case class CompileIssue(msg: Message, repo: RepoId, path: Path, line: LineNo, charNum: Int, warning: Boolean) extends Issue
+  case class BuildIssue(msg: Message) extends Issue { def warning = false }
 
   case class BuildInfo(state: BuildState, issues: List[Issue], prints: List[String], missing: Set[MissingPkg]) {
     def failed(): BuildInfo = BuildInfo(Failed, issues, prints, missing)
@@ -140,7 +140,8 @@ object UiGraph {
             log.info(Message { theme =>
               List(msg"Output from $ref").map { msg => theme.underline(theme.bold(msg.string(theme))) }.mkString
             })
-            issues.foreach { issue => log.info(issue.msg) }
+            // FIXME: don't filter warnings
+            issues.filter(!_.warning).foreach { issue => log.info(issue.msg) }
             prints.foreach(log.info(_))
           case _ => ()
         }
@@ -192,7 +193,8 @@ object UiGraph {
         val errors = state.get(key) match {
           case Some(BuildInfo(Failed, issues, prints, missing)) =>
             val count = str"${issues.size}"
-            theme.failure(str"${"■"*((9 - count.length)/2)} ${count} ${"■"*((8 - count.length)/2)}")
+            if(issues.size == 0) theme.binary(str"${"■"*10}")
+            else theme.failure(str"${"■"*((9 - count.length)/2)} ${count} ${"■"*((8 - count.length)/2)}")
           case Some(BuildInfo(Successful(_), issues, prints, missing)) =>
             theme.success("■"*10)
           case Some(BuildInfo(Compiling(progress), issues, prints, missing)) =>

@@ -30,23 +30,30 @@ import scala.concurrent._, duration._
 
 import scala.util._
 
+import java.io._
+
 object FuryServer {
 
   def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
+    log.info(msg"Script: ${cli.args.args(0)}")
+    Recovery.recover(cli) {
+      if(cli.args.args.length > 0 && cli.args.args(0).endsWith(".scala")) BuildCli(cli).script()
+      else {
+        val layer: Try[Layer] = for {
+          layout <- cli.layout
+          conf   <- Layer.readFuryConf(layout)
+          layer  <- Layer.retrieve(conf)
+        } yield layer
 
-    val layer = for {
-      layout <- cli.layout
-      conf   <- Layer.readFuryConf(layout)
-      layer  <- Layer.retrieve(conf)
-    } yield layer
+        val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
+          def action(cli: Cli) = BuildCli(cli).compile(Some(alias.module), alias.args)
 
-    val actions = layer.toOption.to[List].flatMap(_.aliases).map { alias =>
-        def action(cli: Cli) = BuildCli(cli).compile(Some(alias.module), alias.args)
+          Action(Symbol(alias.id.key), alias.description, (cli: Cli) => action(cli))
+        }
 
-        Action(Symbol(alias.id.key), msg"${alias.description}", (cli: Cli) => action(cli))
+        FuryMenu.menu(actions)(log)(cli, cli)
       }
-
-    Recovery.recover(cli)(FuryMenu.menu(actions)(log)(cli, cli))
+    }
   }
 
   def main(args: Array[String]): Unit = {
@@ -65,9 +72,9 @@ object FuryServer {
         ctx.getWorkingDirectory))
   )
 
-  def run(in: java.io.InputStream,
-          out: java.io.PrintStream,
-          err: java.io.PrintStream,
+  def run(in: InputStream,
+          out: PrintStream,
+          err: PrintStream,
           args: Seq[String],
           exit: Int => Unit,
           env: Environment)
@@ -76,8 +83,7 @@ object FuryServer {
       val pid = Pid(args.head.toInt)
       implicit val log: Log = Log.log(pid)
       
-      val cli = Cli(new java.io.PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil,
-          env, pid)
+      val cli = Cli(new PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, pid)
       
       Lifecycle.trackThread(cli, args.lift(1).exists(Set("about", "help")(_))) {
         val exitStatus = invoke(cli).code
@@ -86,5 +92,4 @@ object FuryServer {
         exitStatus
       }
     }
-
 }

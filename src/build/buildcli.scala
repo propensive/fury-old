@@ -24,6 +24,7 @@ import mercator._
 import optometry._
 import antiphony._
 import guillotine._
+import gastronomy._
 import jovian._
 
 import Args._
@@ -35,6 +36,13 @@ import java.text.DecimalFormat
 
 import language.higherKinds
 import scala.util.control.NonFatal
+import scala.collection.mutable.HashMap
+
+object ScriptCache {
+  private val scripts: HashMap[String, Class[_]] = HashMap()
+  def apply(checksum: String): Option[Class[_]] = synchronized(scripts.get(checksum))
+  def add(checksum: String, cls: Class[_]) = synchronized(scripts(checksum) = cls)
+}
 
 case class ConfigCli(cli: Cli)(implicit log: Log) {
   def set: Try[ExitStatus] = for {
@@ -266,7 +274,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     moduleRef    =  module.ref(project)
     build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true, Lifecycle.currentSession.cancellation)
-    result       <- new build.TargetExtras(build.target).cleanCache()
+    result       <- build.target.cleanCache()
   } yield {
     Option(result.getMessage()).foreach(log.info(_))
     val success = result.getCleaned()
@@ -302,7 +310,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     pipelining     <- ~call(PipeliningArg).toOption
     output         <- call.atMostOne(FatJarArg, JsArg).map(_.map { v => if(v.isLeft) FatJarArg else JsArg })
     globalPolicy   <- ~Policy.read(log)
-    reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
+    reporter       <- ~call(ReporterArg).toOption.getOrElse(LinearReporter)
     watch           = call(WatchArg).isSuccess
     waiting         = call(WaitArg).isSuccess
     session        <- ~Lifecycle.currentSession
@@ -319,7 +327,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
 
     // r               = repeater(build.allSources, waiting) {
     //                     for {
-    //                       task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
+    //                       task <- compileAsync(build, layer, module.ref(project), layout, globalPolicy,
     //                                   if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
     //                                   ManagedConfig().pipelining), reporter, ManagedConfig().theme,
     //                                   noSecurity)
@@ -391,7 +399,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   //   main         <- module.kind.as[App].map(_.main).ascribe(UnspecifiedMain(module.id))
 
   //   r             = repeater(build.allSources, waiting) { for {
-  //                     task <- compileOnce(build, layer, module.ref(project), layout, globalPolicy,
+  //                     task <- compileAsync(build, layer, module.ref(project), layout, globalPolicy,
   //                                 if(call.suffix.isEmpty) Nil else call.suffix, false, reporter,
   //                                 ManagedConfig().theme, noSecurity)
   //                   } yield {
@@ -442,7 +450,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     
   //   result       <- for {
   //                     globalPolicy <- ~Policy.read(log)
-  //                     task <- compileOnce(build, module.ref(project), layout,
+  //                     task <- compileAsync(build, module.ref(project), layout,
   //                                 globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
   //                                 ManagedConfig().theme, noSecurity, _ => ())
   //                   } yield { task.transform { completed => for {
@@ -480,13 +488,41 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     module       <- tryModule
     ref          <- ~module.ref(project)
     build        <- Build.syncBuild(layer, ref, layout, false, Lifecycle.currentSession.cancellation)
-    target       <- build(ref)
-    classpath    <- Try(new build.TargetExtras(target).bootClasspath)
+    classpath    <- Try(build.target.bootClasspath)
   } yield {
     val separator = if(singleColumn) "\n" else ":"
     log.rawln(classpath.map(_.value).join(separator))
     log.await()
   }
+
+  def script(): Try[ExitStatus] = for {
+    layout  <- cli.layout
+    script  <- Path.unapply(cli.args.args.head).ascribe(MissingArg("script"))
+    file     = script.in(layout.pwd)
+    bytes   <- file.bytes()
+    checksum = bytes.digest[Md5].encoded[Hex]
+    dir      = Installation.scriptsDir / checksum
+    layout  <- ~layout.copy(baseDir = dir)
+    ref      = ModuleRef("script/run")
+    call    <- cli.call()
+    cls     <- ScriptCache(checksum).map(Try(_)).getOrElse { for {
+                 _       <- ~dir.extant()
+                 layer   <- Layer.init(layout, false, false, false, Some(ref))
+                 _        = Bsp.createConfig(layout)
+                 srcFile  = layout.baseDir / "src" / "run" / script.name
+                 _       <- srcFile.writeSync(new String(bytes.to[Array], "UTF-8").split("\n").dropWhile(_.startsWith("#")).mkString("\n"))
+                 policy  <- ~Policy.read(log)
+                 builder  = Builder(layout, ref, true, policy, cli.args.args.drop(1).to[List], false, GraphReporter, ManagedConfig().theme, false, true)
+                 _        = Lifecycle.currentSession.cancellation.andThen { case _ => builder.abort() }
+                 build    = builder.await()
+                 classes  = Asm.executableClasses(layout.classesDir(ref)).filterNot(_.key.endsWith("$"))
+                 loader   = build.target.urlClassloader
+                 cls      = loader.loadClass(classes.head.key)
+                 _        = ScriptCache.add(checksum, cls)
+               } yield cls }
+    method   = cls.getMethod("main", classOf[Array[String]])
+    _        = method.invoke(null, cli.args.args.drop(1).to[Array])
+  } yield log.await()
 
   def quickstart: Try[ExitStatus] = for {
     layout <- cli.newLayout
@@ -982,14 +1018,17 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
 case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: Policy, args: List[String],
     pipelining: Boolean, reporter: Reporter, theme: Theme, continue: Boolean, stopOnSuccess: Boolean)
-                  (implicit log: Log) {
+                  (implicit log: Log) { builder =>
 
-  private lazy val listener: Monitor.Listener = Monitor.listen(layout)(buildStream.enqueue(doCompile))
+  private var lastBuild: Option[Build] = None
+
+  private val listener: Monitor.Listener = Monitor.listen(layout)(buildStream.enqueue(doCompile))
+  
   private lazy val buildStream: BuildStream[Build] = new BuildStream[Build](doCompile(None), { b =>
     listener.updatePaths(b.editableSources)
   }, stopOnSuccess)
 
-  def rebuild(missing: Set[MissingPkg]): Unit = buildStream.addTask {
+  private def rebuild(missing: Set[MissingPkg]): Unit = buildStream.addTask {
     missing.foreach { case MissingPkg(ref, pkg) =>
       for {
         conf     <- Layer.readFuryConf(layout)
@@ -1005,14 +1044,15 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
     }
   }
 
-  def doCompile(build: Option[Build]): Try[Build] = for {
+  private def doCompile(build: Option[Build]): Try[Build] = for {
     conf  <- Layer.readFuryConf(layout)
     layer <- Layer.retrieve(conf)
     build <- Build.syncBuild(layer, ref, layout, noSecurity, Lifecycle.currentSession.cancellation)
-    _     <- compileOnce(build, ref, layout, policy, args, pipelining, reporter, theme, noSecurity, rebuild)
+    _      = builder.synchronized(lastBuild = Some(build))
+    _     <- compileAsync(build, ref, layout, policy, args, pipelining, reporter, theme, noSecurity, rebuild)
   } yield build
 
-  private[this] def compileOnce(build: Build,
+  private[this] def compileAsync(build: Build,
                                 moduleRef: ModuleRef,
                                 layout: Layout,
                                 globalPolicy: Policy,
@@ -1026,7 +1066,7 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
     for(_ <- build.checkoutAll()) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer
-      val future = new build.TargetExtras(build.target).compile(Map(),
+      val future = build.target.compile(Map(),
         globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
         case compRes =>
           multiplexer.closeAll()
@@ -1043,5 +1083,8 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
     buildStream.abort()
   } 
 
-  def await(): Unit = Await.result(buildStream.completion, Duration.Inf)
+  def await(): Build = {
+    buildStream.await()
+    builder.synchronized { lastBuild.get }
+  }
 }

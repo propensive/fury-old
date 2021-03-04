@@ -209,7 +209,7 @@ object Layer extends Lens.Partial[Layer] {
       pub   <- ~id.fold(msg"Fetching layer $layerRef") { pl =>
                  msg"Fetching layer ${Pointer(pl.url.path)}${'@'}${pl.version} ${'('}$layerRef${')'}"
                }
-      _ = log.info(pub)
+      _ = log.note(pub)
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Ogdl.read[Layer](data, migrate(_))
@@ -350,12 +350,12 @@ object Layer extends Lens.Partial[Layer] {
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
   def init(layout: Layout, git: Boolean, ci: Boolean, bare: Boolean, newRef: Option[ModuleRef])
-          (implicit log: Log): Try[Unit] =
+          (implicit log: Log): Try[Layer] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
       _        <- ~log.info(msg"The layer ${conf.layerRef} is already initialized in ${layout.baseDir}")
-    } yield () } else { for {
+    } yield layer } else { for {
       _             <- layout.confFile.mkParents()
       layer          = Layer(CurrentVersion)
       defaultImport <- ~ManagedConfig().defaultImport
@@ -391,7 +391,7 @@ object Layer extends Lens.Partial[Layer] {
 
       _             <- if(!bare) ~log.info(msg"Initialized an empty layer with import ${defaultImport}")
                        else ~log.info(msg"Initialized a bare layer")
-    } yield () }
+    } yield layer }
 
   private final val confComments: String =
     str"""# This is a Fury configuration file. It contains significant

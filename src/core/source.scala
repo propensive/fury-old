@@ -134,7 +134,7 @@ case class LocalSource(path: Path, glob: Glob) extends Source {
 }
 
 case class WorkspaceSource(workspaceId: WorkspaceId, path: Path) extends Source {
-  def editable = true
+  def editable = false
   def rootId: RootId = workspaceId
   def key: String = str"ws:$workspaceId:${path.value}"
   def glob: Glob = Glob.All

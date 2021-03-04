@@ -23,7 +23,7 @@ import jovian._
 import _root_.io.methvin.watcher._
 
 import scala.collection.mutable
-import scala.concurrent._
+import scala.concurrent._, duration._
 import scala.util._
 
 import java.util.concurrent.Executors
@@ -39,9 +39,10 @@ class BuildStream[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Bo
     future
   }
 
-  def complete(): Unit = promise.complete(Success(()))
+  // FIXME
+  def complete(): Unit = try promise.complete(Success(())) catch { case _: Exception => () }
   def abort(): Unit = continue = false
-  def completion: Future[Unit] = promise.future
+  def await(): Unit = Await.result(promise.future, Duration.Inf)
 
   def update(newState: => State): Unit =
     if(continue) buildStream.synchronized { state = newState.proceed() }
@@ -50,11 +51,15 @@ class BuildStream[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Bo
   var state = State(mkFuture(initial), None, Vector())
   
   case class State(current: Future[Try[T]], enqueued: Option[Option[T] => Try[T]], tasks: Vector[() => Unit]) {
-    def addTask(fn: => Unit): State = copy(tasks = tasks :+ { () => fn })
+    def addTask(fn: => Unit): State = {
+      Log().info("Adding task")
+      copy(tasks = tasks :+ { () => Log().info("Actually running task"); fn })
+    }
     def enqueue(fn: Option[T] => Try[T]): State = copy(enqueued = Some(fn))
     
     def proceed(): State = current.value.fold(this) { value =>
-      if(stopOnSuccess) {
+      Log().info(msg"Tasks: ${tasks.toString}")
+      if(stopOnSuccess && tasks.isEmpty) {
         complete()
         this
       } else {
@@ -63,7 +68,7 @@ class BuildStream[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Bo
           last = Some(v)
         }
         if(tasks.isEmpty) copy(enqueued.fold(current) { t => mkFuture(t(last)) }, enqueued = None)
-        else copy(current.andThen { case _ => mkFuture(tasks.foreach(_())) }, tasks = Vector())
+        else copy(current.andThen { case _ => Log().info(msg"Running tasks"); mkFuture(tasks.foreach(_())) }, tasks = Vector())
       }
     }
   }

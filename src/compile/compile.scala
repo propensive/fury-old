@@ -123,6 +123,9 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
             log.note(msg"BSP server is listening for incoming connections")
           case r"Waiting.*" =>
             None
+          case r"bad option '-Ysemanticdb' was ignored" =>
+            log.note(msg"Tried to use -Ysemanticdb")
+            None
           case r"Starting thread.*" =>
             None
           case r"Deduplicating compilation of .*" =>
@@ -288,16 +291,16 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
         case (k, v) => (v, Path(fileName.drop(k.length + 1)))
       }.getOrElse((RepoId("local"), Path(fileName.drop(layout.baseDir.value.length + 1))))
 
-      val severity = Message { theme => diag.getSeverity.toString.toLowerCase match {
-        case "error"       => msg"${'['}${theme.failure("E")}${']'}".string(theme)
-        case "warning"     => msg"${'['}${theme.ongoing("W")}${']'}".string(theme)
-        case "information" => msg"${'['}${theme.info("I")}${']'}".string(theme)
-        case _             => msg"${'['}${theme.info("H")}${']'}".string(theme)
-      } }
+      val (isWarning, severity) = diag.getSeverity.toString.toLowerCase match {
+        case "error"       => (false, Message { theme => msg"${'['}${theme.failure("E")}${']'}".string(theme) })
+        case "warning"     => (true,  Message { theme => msg"${'['}${theme.ongoing("W")}${']'}".string(theme) })
+        case "information" => (false, Message { theme => msg"${'['}${theme.info("I")}${']'}".string(theme) })
+        case _             => (false, Message { theme => msg"${'['}${theme.info("H")}${']'}".string(theme) })
+      }
 
       // FIXME: This may be less than 100% reliable
       val missingMatch = codeLine.only {
-        case r".*import +$pkg@([a-z_\.\-]*)\.[^a-z\.\-]*.*" if diag.getMessage.contains("ot found:") || diag.getMessage.contains("is not a member of") => Pkg(pkg)
+        case r".*..port +$pkg@([a-z_\.\-]*)\.[^a-z\.\-]*.*" if diag.getMessage.contains("ot found:") || diag.getMessage.contains("is not a member of") => Pkg(pkg)
       }
       
       missingMatch.map { pkg => broadcast(MissingPkg(ref, pkg)) }.getOrElse {
@@ -314,7 +317,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
             repo,
             filePath,
             lineNo,
-            charNum
+            charNum,
+            isWarning
           )
         ))
       }

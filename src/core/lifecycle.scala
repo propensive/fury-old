@@ -74,6 +74,7 @@ object Lifecycle {
 
   private[this] val terminating: AtomicBoolean = new AtomicBoolean(false)
   private[this] val running: HashSet[Session] = new HashSet()
+  
   private[this] def busy(): Option[Int] =
     running.synchronized(if(running.size > 1) Some(running.size - 1) else None)
 
@@ -86,7 +87,7 @@ object Lifecycle {
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
   def currentSession(implicit log: Log): Session = sessions.find(_.pid == log.pid).get
 
-  def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int = {
+  def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int =
     running.find(_.pid == cli.pid) match {
       case Some(session) =>
         if(session.interrupt()) close(session)
@@ -94,13 +95,11 @@ object Lifecycle {
       case None if terminating.get && !whitelisted =>
         println("New tasks cannot be started while Fury is shutting down.")
         2
-      case _ =>
+      case None =>
         val session = Session(cli, Thread.currentThread)
         running.synchronized(running += session)
-        try action
-        finally { close(session) }
+        try action finally close(session)
     }
-  }
 
   def halt(): Unit = System.exit(busyCount)
 
@@ -110,18 +109,14 @@ object Lifecycle {
   def shutdown(previous: Int = -1): Try[ExitStatus] = {
     terminating.set(true)
     busy() match {
-      case None => {
+      case None =>
         bloopServer.future.value.map(_.get.shutdown())
         util.Success(Done)
-      }
+
       case Some(count) =>
-        if(previous > count) {
-          val plural = if(count > 1) "s" else ""
-          println(s"Waiting for $count active task$plural to complete...")
-        }
+        if(previous > count) println(s"Waiting for $count task${if(count > 1) "s" else ""} to complete...")
         Thread.sleep(10)
         shutdown(count)
     }
   }
-  
 }

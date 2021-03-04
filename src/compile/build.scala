@@ -33,6 +33,7 @@ import scala.annotation.tailrec
 
 import java.net.URI
 import java.util.concurrent.{CompletableFuture, ExecutionException, TimeoutException}
+import java.net.URLClassLoader
 
 object Build {
 
@@ -130,7 +131,7 @@ case class Graph(dependencies: Map[ModuleRef, Set[Input]], targets: Map[ModuleRe
 
 case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, targets: Map[ModuleRef, Target], init: Init, cancellation: Option[Future[Unit]])
                          (implicit log: Log) { build =>
-  val target: Target = init.target
+  val target: TargetExtras = new TargetExtras(init.target)
   val graph: Graph = init.graph
   val requiredPermissions: Set[Permission] = init.requiredPermissions
   private lazy val subgraphs: Map[ModuleRef, Set[ModuleRef]] = init.subgraphs
@@ -173,6 +174,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
     lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
 
     def juncture: Boolean = !module.kind.is[Lib] || module.includes.nonEmpty
+    def snapshot = target.snapshot
     def directDependencies = module.dependencies ++ module.compiler()
     def sourcePaths: Try[Set[Path]] = module.sources.to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
     def editableSourcePaths: Try[Set[Path]] = module.sources.filter(_.editable).to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
@@ -265,10 +267,14 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
       } ++ binaries
     }
 
+    lazy val urlClassloader: URLClassLoader = new URLClassLoader(runtimeClasspath.to[Array].map { path =>
+      new java.net.URL(if(path.directory) str"file://${path.value}/" else str"file://${path.value}")
+    })
+
     private def jmhRuntimeClasspath(classesDirs: Set[Path]): Set[Path] =
       classesDirs ++ module.compiler().map(_.ref).map(layout.resourcesDir(_)) ++ classpath
 
-    private lazy val runtimeClasspath: Set[Path] =
+    lazy val runtimeClasspath: Set[Path] =
       module.compiler().flatMap { c => Set(layout.resourcesDir(c.ref), layout.classesDir(c.ref)) } ++
           classpath + layout.classesDir(target.ref) + layout.resourcesDir(ref)
 
