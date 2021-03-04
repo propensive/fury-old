@@ -35,7 +35,6 @@ import java.io._
 object FuryServer {
 
   def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
-    log.info(msg"Script: ${cli.args.args(0)}")
     Recovery.recover(cli) {
       if(cli.args.args.length > 0 && cli.args.args(0).endsWith(".scala")) BuildCli(cli).script()
       else {

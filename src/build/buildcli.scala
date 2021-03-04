@@ -39,9 +39,9 @@ import scala.util.control.NonFatal
 import scala.collection.mutable.HashMap
 
 object ScriptCache {
-  private val scripts: HashMap[String, Class[_]] = HashMap()
-  def apply(checksum: String): Option[Class[_]] = synchronized(scripts.get(checksum))
-  def add(checksum: String, cls: Class[_]) = synchronized(scripts(checksum) = cls)
+  private val scripts: HashMap[String, Application] = HashMap()
+  def apply(checksum: String): Option[Application] = synchronized(scripts.get(checksum))
+  def add(checksum: String, app: Application) = synchronized(scripts.update(checksum, app))
 }
 
 case class ConfigCli(cli: Cli)(implicit log: Log) {
@@ -504,8 +504,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     dir      = Installation.scriptsDir / checksum
     layout  <- ~layout.copy(baseDir = dir)
     ref      = ModuleRef("script/run")
-    call    <- cli.call()
-    cls     <- ScriptCache(checksum).map(Try(_)).getOrElse { for {
+    app     <- ScriptCache(checksum).map(Try(_)).getOrElse { for {
                  _       <- ~dir.extant()
                  layer   <- Layer.init(layout, false, false, false, Some(ref))
                  _        = Bsp.createConfig(layout)
@@ -516,12 +515,11 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                  _        = Lifecycle.currentSession.cancellation.andThen { case _ => builder.abort() }
                  build    = builder.await()
                  classes  = Asm.executableClasses(layout.classesDir(ref)).filterNot(_.key.endsWith("$"))
-                 loader   = build.target.urlClassloader
-                 cls      = loader.loadClass(classes.head.key)
-                 _        = ScriptCache.add(checksum, cls)
-               } yield cls }
-    method   = cls.getMethod("main", classOf[Array[String]])
-    _        = method.invoke(null, cli.args.args.drop(1).to[Array])
+                 app      = build.target.application(classes.head)
+                 _        = ScriptCache.add(checksum, app)
+               } yield app }
+    call    <- cli.call()
+    _        = app(cli.args.args.drop(1): _*)
   } yield log.await()
 
   def quickstart: Try[ExitStatus] = for {
@@ -1053,16 +1051,16 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
   } yield build
 
   private[this] def compileAsync(build: Build,
-                                moduleRef: ModuleRef,
-                                layout: Layout,
-                                globalPolicy: Policy,
-                                compileArgs: List[String],
-                                pipelining: Boolean,
-                                reporter: Reporter,
-                                theme: Theme,
-                                noSecurity: Boolean,
-                                rebuild: Set[MissingPkg] => Unit)
-                               (implicit log: Log): Try[Future[BuildResult]] = {
+                                 moduleRef: ModuleRef,
+                                 layout: Layout,
+                                 globalPolicy: Policy,
+                                 compileArgs: List[String],
+                                 pipelining: Boolean,
+                                 reporter: Reporter,
+                                 theme: Theme,
+                                 noSecurity: Boolean,
+                                 rebuild: Set[MissingPkg] => Unit)
+                                (implicit log: Log): Try[Future[BuildResult]] = {
     for(_ <- build.checkoutAll()) yield {
       val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
       Lifecycle.currentSession.multiplexer = multiplexer

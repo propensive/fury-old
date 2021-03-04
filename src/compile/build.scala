@@ -35,6 +35,11 @@ import java.net.URI
 import java.util.concurrent.{CompletableFuture, ExecutionException, TimeoutException}
 import java.net.URLClassLoader
 
+case class Application(classloader: URLClassLoader, classRef: ClassRef) {
+  private lazy val mainMethod = classloader.loadClass(classRef.key).getMethod("main", classOf[Array[String]])
+  def apply(args: String*): Unit = mainMethod.invoke(null, args.to[Array])
+}
+
 object Build {
 
   private val buildCache: collection.mutable.Map[Path, Future[Try[Build]]] = TrieMap()
@@ -270,6 +275,8 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
     lazy val urlClassloader: URLClassLoader = new URLClassLoader(runtimeClasspath.to[Array].map { path =>
       new java.net.URL(if(path.directory) str"file://${path.value}/" else str"file://${path.value}")
     })
+
+    def application(classRef: ClassRef): Application = Application(urlClassloader, classRef)
 
     private def jmhRuntimeClasspath(classesDirs: Set[Path]): Set[Path] =
       classesDirs ++ module.compiler().map(_.ref).map(layout.resourcesDir(_)) ++ classpath
