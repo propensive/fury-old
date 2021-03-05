@@ -21,9 +21,8 @@ case class LogMessage(str: String) extends Event
 case class TaskProgress(task: String, progress: Int) extends Event
 
 case class Task(name: String, progress: Int)
-case class Activity(tasks: Set[Task])
 
-case class State(stream: Stream[Event] = Stream(), activities: Set[Activity] = Set())
+case class State(stream: Stream[Event] = Stream(), activities: Set[Activity[_]] = Set())
 
 object Bus {
   private var state: State = State()

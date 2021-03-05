@@ -14,9 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.core
+package fury.utils
 
-import fury.io._, fury.model._
+import fury.io._
 
 import mercator._
 import jovian._
@@ -26,9 +26,7 @@ import org.objectweb.asm._
 import scala.util._
 
 object Asm {
-
-  def executableClasses(dir: Path): Set[ClassRef] = Try {
-    
+  def executableClasses(dir: Path): Set[String] = Try {
     var found: Boolean = false
     
     val visitor = new ClassVisitor(Opcodes.ASM5) {
@@ -47,7 +45,7 @@ object Asm {
         new ClassReader(bytes.to[Array]).accept(visitor, ClassReader.SKIP_DEBUG | ClassReader.SKIP_CODE)
       }
       
-      if(found) List(ClassRef(file.relativizeTo(dir).value.dropRight(6).replaceAll("\\/", "."))) else Nil
+      if(found) List(file.relativizeTo(dir).value.dropRight(6).replaceAll("\\/", ".")) else Nil
     }.to[Set]
   }.getOrElse(Set())
 }

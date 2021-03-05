@@ -514,8 +514,8 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
                  builder  = Builder(layout, ref, true, policy, cli.args.args.drop(1).to[List], false, GraphReporter, ManagedConfig().theme, false, true)
                  _        = Lifecycle.currentSession.cancellation.andThen { case _ => builder.abort() }
                  build    = builder.await()
-                 classes  = Asm.executableClasses(layout.classesDir(ref)).filterNot(_.key.endsWith("$"))
-                 app      = build.target.application(classes.head)
+                 classes  = Asm.executableClasses(layout.classesDir(ref)).filterNot(_.endsWith("$"))
+                 app      = build.target.application(ClassRef(classes.head))
                  _        = ScriptCache.add(checksum, app)
                } yield app }
     call    <- cli.call()

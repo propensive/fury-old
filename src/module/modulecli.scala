@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.text._,  fury.core._, fury.model._
+import fury.text._, fury.core._, fury.model._, fury.utils._
 
 import mercator._
 import optometry._
@@ -170,11 +170,11 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
   )
 
   private[this] implicit lazy val mainClassHint: MainArg.Hinter = MainArg.hint(
-    (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_))
+    (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_).map(ClassRef(_)))
   )
 
   private[this] implicit lazy val replHint: ReplArg.Hinter = ReplArg.hint(
-    (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_))
+    (getLayout, getModuleRef) >> (_.classesDir(_)) >> (Asm.executableClasses(_).map(ClassRef(_)))
   )
 
   private[this] implicit lazy val timeoutHint: TimeoutArg.Hinter = TimeoutArg.hint(0)

@@ -28,55 +28,6 @@ import scala.util._
 
 import java.util.concurrent.Executors
 
-class Activity[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Boolean)(implicit exec: ExecutionContext) { activity =>
-  private var last: Option[T] = None
-  private var continue: Boolean = true
-  private val promise: Promise[Unit] = Promise()
-  
-  def mkFuture[S](fn: => S): Future[S] = {
-    val future = Future(fn)
-    future.andThen { case _ => update(state) }
-    future
-  }
-
-  // FIXME
-  def complete(): Unit = try promise.complete(Success(())) catch { case _: Exception => () }
-  def abort(): Unit = continue = false
-  def await(): Unit = Await.result(promise.future, Duration.Inf)
-
-  def update(newState: => State): Unit =
-    if(continue) activity.synchronized { state = newState.proceed() }
-    else complete()
-
-  var state = State(mkFuture(initial), None, Vector())
-  
-  case class State(current: Future[Try[T]], enqueued: Option[Option[T] => Try[T]], tasks: Vector[() => Unit]) {
-    def addTask(fn: => Unit): State = {
-      Log().info("Adding task")
-      copy(tasks = tasks :+ { () => Log().info("Actually running task"); fn })
-    }
-    def enqueue(fn: Option[T] => Try[T]): State = copy(enqueued = Some(fn))
-    
-    def proceed(): State = current.value.fold(this) { value =>
-      Log().info(msg"Tasks: ${tasks.toString}")
-      if(stopOnSuccess && tasks.isEmpty) {
-        complete()
-        this
-      } else {
-        value.flatten.foreach { v =>
-          onSuccess(v)
-          last = Some(v)
-        }
-        if(tasks.isEmpty) copy(enqueued.fold(current) { t => mkFuture(t(last)) }, enqueued = None)
-        else copy(current.andThen { case _ => Log().info(msg"Running tasks"); mkFuture(tasks.foreach(_())) }, tasks = Vector())
-      }
-    }
-  }
-
-  def addTask(fn: => Unit): Unit = update(state.addTask(fn))
-  def enqueue(fn: Option[T] => Try[T]): Unit = update(state.enqueue(fn))
-}
-
 object Monitor {
   def listen(layout: Layout)(action: => Unit): Listener = {
     val listener = new Listener(layout.baseDir, action)
