@@ -14,10 +14,26 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.core
+package fury.utils
 
-import fury.text._
+import fury._, io._
 
-object Prompt {
-  def rewrite(string: String): String = string.replaceAll("\u001b\\[[0-9;]*[a-z]", "%{$0%}")
+import guillotine._
+import scala.util.Try
+import scala.collection.JavaConverters._
+
+import java.util.Hashtable
+import javax.naming.directory._
+
+object Dns {
+  def lookup(domain: String)(implicit log: Log): Try[List[String]] = {
+    val env = new Hashtable[String, String]()
+    env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory")
+    val dirContext = new InitialDirContext(env)
+    
+    for {
+      atts <- Try(dirContext.getAttributes(domain, Array("TXT")))
+      txts <- Try(Option(atts.get("TXT")).get)
+    } yield txts.getAll.asScala.to[List].map(_.toString)
+  }
 }

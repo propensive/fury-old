@@ -14,9 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.core
+package fury.utils
 
-import fury.io._, fury.model._, fury.text._, fury.utils._
+import fury._, io._, text._
 
 import jovian._
 

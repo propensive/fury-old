@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.text._, fury.model._, fury.io._
+import fury.text._, fury.io._
 
 import jovian._
 
@@ -38,7 +38,7 @@ object Inotify {
 
     Try(if(count.getOrElse(Int.MaxValue) < 8192) {
       done = true
-      log.warn(msg"Your system's ${ExecName("inotify")} settings may cause filewatching to fail.")
+      log.warn(msg"Your system's inotify settings may cause filewatching to fail.")
       log.warn(msg"Please append,")
       log.warn(msg"    fs.inotify.max_user_watches=524288")
       log.warn(msg"to your ${path"/etc/sysctl.conf"} file, and run,")
