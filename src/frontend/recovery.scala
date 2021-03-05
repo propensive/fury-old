@@ -190,6 +190,8 @@ You can grant these permissions with,
           cli.abort(msg"The commit $commit does not exist in the repository $origin.")
         case Unspecified(kind) =>
           cli.abort(msg"The $kind has not been specified.")
+        case UnspecifiedProject() =>
+          cli.abort(msg"The project has not been specified.")
         case UnknownModule(moduleRef: ModuleRef) =>
           cli.abort(msg"The module reference $moduleRef could not be resolved.")
         case UnspecifiedMain(moduleId: ModuleId) =>

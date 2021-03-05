@@ -128,7 +128,7 @@ object Install {
   }
 
   private def cCompile(src: Path, dest: Path, env: Environment, args: String*): Try[Unit] = for {
-    cc  <- Installation.findExecutable(ExecName("cc"), env)
+    cc  <- ExecName("cc").findOnPath(env)
     out <- sh"${cc.value} ${src.value} $args -o ${dest.value}".exec[Try[String]]
   } yield ()
 

@@ -14,9 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.model
+package fury.io
 
-import fury._, io._, text._, ogdl._
+import fury._, text._
 
 import gastronomy._
 import jovian._
@@ -41,7 +41,7 @@ object Layout {
       isRegularFile(path.resolve(".fury/config")) || isRegularFile(path.resolve(".fury.conf"))
     }.map(Path(_))
     
-    optParent.ascribe(Unspecified[ProjectId])
+    optParent.ascribe(UnspecifiedProject())
   }
 }
 
@@ -131,14 +131,6 @@ object Installation {
     }
   }
 
-  def findExecutable(name: ExecName, env: Environment): Try[Path] = for {
-    paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
-    
-    execPath <- paths.find(_.childPaths.exists { f => !f.directory && f.isExecutable && f.name == name.key
-                    }).ascribe(NotOnPath(name))
-
-  } yield execPath / name.key
-
   val installDir: Path = Path(System.getProperty("fury.home"))
   val installVersion: String = installDir.name
 
@@ -183,7 +175,7 @@ object Installation {
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
-  private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
+  val uniqueId: String = java.util.UUID.randomUUID().toString
   
   lazy val furyDir: Path = (baseDir / ".fury").extant()
   lazy val workingGit: Path = baseDir / ".git"
@@ -204,14 +196,14 @@ case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val undoStack: Path = (furyDir / "history").extantParents()
 
-  def bloopConfig(ref: ModuleRef): Path = bloopDir.extant() / str"${ref.urlSafe}.json"
-  def outputDir(ref: ModuleRef): Path = (analysisDir / ref.urlSafe).extant()
-  def workDir(ref: ModuleRef): Path = (workDir / ref.urlSafe).extant()
+  //def bloopConfig(ref: ModuleRef): Path = bloopDir.extant() / str"${ref.urlSafe}.json"
+  //def outputDir(ref: ModuleRef): Path = (analysisDir / ref.urlSafe).extant()
+  //def workDir(ref: ModuleRef): Path = (workDir / ref.urlSafe).extant()
   
-  def workspaceDir(projectId: ProjectId, ws: WorkspaceId): Path =
-    (workspaceDir / (projectId, ws, uniqueId).digest[Sha256].encoded[Hex].take(12)).extant()
+  //def workspaceDir(projectId: ProjectId, ws: WorkspaceId): Path =
+  //  (workspaceDir / (projectId, ws, uniqueId).digest[Sha256].encoded[Hex].take(12)).extant()
   
-  def benchmarksDir(ref: ModuleRef): Path = (benchmarksDir / ref.urlSafe).extant()
-  def classesDir(ref: ModuleRef): Path = (classesDir / ref.urlSafe).extant()
-  def resourcesDir(ref: ModuleRef): Path = (resourcesDir / ref.urlSafe).extant()
+  //def benchmarksDir(ref: ModuleRef): Path = (benchmarksDir / ref.urlSafe).extant()
+  //def classesDir(ref: ModuleRef): Path = (classesDir / ref.urlSafe).extant()
+  //def resourcesDir(ref: ModuleRef): Path = (resourcesDir / ref.urlSafe).extant()
 }

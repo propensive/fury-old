@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.text._, fury.model._
+import fury.text._, fury.model._, fury.io._
 
 import scala.util._
 

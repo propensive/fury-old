@@ -203,7 +203,7 @@ object Software {
 
 abstract class Software(val name: ExecName) {
   def description: String
-  def path(env: Environment): Option[Path] = Installation.findExecutable(name, env).toOption
+  def path(env: Environment): Option[Path] = name.findOnPath(env).toOption
   def base: Path = Installation.usrDir / name.key
   def version(env: Environment): Option[String]
   def website: Uri

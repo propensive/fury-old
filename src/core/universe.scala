@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.io._, fury.model._, fury.text._
+import fury.io._, fury.model._, fury.text._, fury.utils._
 
 import mercator._
 import jovian._

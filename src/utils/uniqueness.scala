@@ -14,7 +14,7 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.core
+package fury.utils
 
 sealed trait Uniqueness[Ref, Origin] {
   def +(other: Uniqueness[Ref, Origin]): Uniqueness[Ref, Origin]

@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._
+import fury._, io._, model._
 
 import guillotine._
 import scala.util.Try

@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, fury.text._
+import fury._, model._, text._, io._
 
 import mercator._
 

@@ -100,6 +100,8 @@ trait KeyName[T] { def apply(): Message }
 
 trait FuryException extends Exception
 
+case class UnspecifiedProject() extends FuryException
+
 case class Unspecified(kind: Message) extends FuryException
 object Unspecified { def apply[T: KeyName](): Unspecified = Unspecified(implicitly[KeyName[T]].apply()) }
 

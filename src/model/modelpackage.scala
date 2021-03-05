@@ -19,6 +19,7 @@ package fury
 import fury.text._, fury.io._
 
 import scala.util._
+import jovian._
 
 import gastronomy._
 
@@ -26,4 +27,17 @@ package object model {
   
   implicit val fileSystemSafeBase64Url: ByteEncoder[Base64Url] =
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
+  
+  implicit class LayoutExtras(val layout: Layout) extends AnyVal {
+    def bloopConfig(ref: ModuleRef): Path = layout.bloopDir.extant() / str"${ref.urlSafe}.json"
+    def outputDir(ref: ModuleRef): Path = (layout.analysisDir / ref.urlSafe).extant()
+    def workDir(ref: ModuleRef): Path = (layout.workDir / ref.urlSafe).extant()
+    
+    def workspaceDir(projectId: ProjectId, ws: WorkspaceId): Path =
+      (layout.workspaceDir / (projectId, ws, layout.uniqueId).digest[Sha256].encoded[Hex].take(12)).extant()
+    
+    def benchmarksDir(ref: ModuleRef): Path = (layout.benchmarksDir / ref.urlSafe).extant()
+    def classesDir(ref: ModuleRef): Path = (layout.classesDir / ref.urlSafe).extant()
+    def resourcesDir(ref: ModuleRef): Path = (layout.resourcesDir / ref.urlSafe).extant()
+  }
 }

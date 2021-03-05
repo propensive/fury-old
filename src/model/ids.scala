@@ -20,6 +20,7 @@ import fury.text._, fury.io._, fury.ogdl._
 
 import kaleidoscope._
 import gastronomy._
+import guillotine._
 import jovian._
 
 import scala.util._
@@ -970,7 +971,15 @@ object ExecName {
   def unapply(name: String): Some[ExecName] = Some(ExecName(name))
 }
 
-case class ExecName(key: String) extends Key(msg"executable")
+case class ExecName(key: String) extends Key(msg"executable") {
+  def findOnPath(env: Environment): Try[Path] = for {
+    paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
+    
+    execPath <- paths.find(_.childPaths.exists { f => !f.directory && f.isExecutable && f.name == key
+                    }).ascribe(NotOnPath(this))
+
+  } yield execPath / key
+}
   
 case class PluginDef(id: PluginId, ref: ModuleRef, main: ClassRef)
 
