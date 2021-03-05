@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury.text._, fury.io._, fury.ogdl._
+import fury.text._, fury.io._
 
 import kaleidoscope._
 import gastronomy._
@@ -381,14 +381,6 @@ object BuildId {
 case class BuildId(key: String) {
 
 }
-
-object Pid {
-  implicit val stringShow: StringShow[Pid] = pid => Integer.toHexString(pid.pid).padTo(5, '0')
-
-  implicit val msgShow: MsgShow[Pid] =
-    pid => Message { theme => msg"${theme.active(stringShow.show(pid))}".string(theme) }
-}
-case class Pid(pid: Int)
 
 case class RequestOriginId private(pid: Pid, counter: Int) {
   val key = str"fury-${pid.pid}-${counter}"

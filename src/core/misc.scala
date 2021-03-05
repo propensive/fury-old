@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, UiGraph.Issue, fury.io._, fury.ogdl._, fury.text._
+import fury.model._, UiGraph.Issue, fury.io._, fury.text._
 import fury.text.FuryException
 
 import jovian._

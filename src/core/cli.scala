@@ -35,11 +35,6 @@ case class MissingParamChoice(param: CliParam*) extends FuryException
 case class MissingParam(param: CliParam) extends FuryException
 case class BadParamValue(param: CliParam, value: String) extends FuryException
 
-sealed class ExitStatus(val code: Int)
-case object Done  extends ExitStatus(0)
-case object Abort extends ExitStatus(1)
-case object Continuation extends ExitStatus(91)
-
 object NoCommand { def unapply(cli: Cli): Boolean = cli.args.isEmpty }
 
 abstract class Cmd(val cmd: String, val description: String) {

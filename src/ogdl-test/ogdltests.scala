@@ -16,7 +16,7 @@
 */
 package fury.test
 
-import fury.ogdl._
+import fury.io._
 import probably._
 
 object OgdlTests extends Suite("OGDL Tests") {

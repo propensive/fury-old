@@ -174,6 +174,20 @@ object Installation {
   }
 }
 
+object Pid {
+  implicit val stringShow: StringShow[Pid] = pid => Integer.toHexString(pid.pid).padTo(5, '0')
+
+  implicit val msgShow: MsgShow[Pid] =
+    pid => Message { theme => msg"${theme.active(stringShow.show(pid))}".string(theme) }
+}
+
+case class Pid(pid: Int)
+
+sealed class ExitStatus(val code: Int)
+case object Done  extends ExitStatus(0)
+case object Abort extends ExitStatus(1)
+case object Continuation extends ExitStatus(91)
+
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   val uniqueId: String = java.util.UUID.randomUUID().toString
   

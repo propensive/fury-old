@@ -14,9 +14,9 @@
     See the License for the specific language governing permissions and limitations under the License.
 
 */
-package fury.core
+package fury.io
 
-import fury.text._, fury.io._, fury.model._
+import fury.text._
 
 import jovian._
 
@@ -30,13 +30,15 @@ import java.time._
 
 import language.higherKinds
 
+case class BasicConfig(theme: Theme = Theme.Basic, timestamps: Boolean = false, trace: Boolean = false)
+
 object LogStyle {
   final val dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd.HH:mm:ss.SSS ")
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
   def apply(printWriter: => java.io.PrintWriter, debug: Boolean): LogStyle = {
-    val config = ManagedConfig()
+    val config = Ogdl.read[BasicConfig](Installation.userConfig, identity(_)).toOption.getOrElse(BasicConfig())
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info
     

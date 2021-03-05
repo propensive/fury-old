@@ -18,7 +18,7 @@ package fury.core
 
 import java.util.concurrent.atomic.AtomicBoolean
 
-import fury.model._, fury.utils._, fury.text._
+import fury.model._, fury.utils._, fury.text._, fury.io._
 
 import jovian._
 

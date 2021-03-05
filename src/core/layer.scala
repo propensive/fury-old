@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.model._, fury.io._, fury.text._, fury.ogdl._, fury.utils._
+import fury.model._, fury.io._, fury.text._, fury.utils._
 
 import mercator._
 import gastronomy._
