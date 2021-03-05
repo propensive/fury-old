@@ -1020,13 +1020,13 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
 
   private var lastBuild: Option[Build] = None
 
-  private val listener: Monitor.Listener = Monitor.listen(layout)(buildStream.enqueue(doCompile))
+  private val listener: Monitor.Listener = Monitor.listen(layout)(activity.enqueue(doCompile))
   
-  private lazy val buildStream: BuildStream[Build] = new BuildStream[Build](doCompile(None), { b =>
+  private lazy val activity: Activity[Build] = new Activity[Build](doCompile(None), { b =>
     listener.updatePaths(b.editableSources)
   }, stopOnSuccess)
 
-  private def rebuild(missing: Set[MissingPkg]): Unit = buildStream.addTask {
+  private def rebuild(missing: Set[MissingPkg]): Unit = activity.addTask {
     missing.foreach { case MissingPkg(ref, pkg) =>
       for {
         conf     <- Layer.readFuryConf(layout)
@@ -1078,11 +1078,11 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
 
   def abort(): Unit = {
     listener.stop()
-    buildStream.abort()
+    activity.abort()
   } 
 
   def await(): Build = {
-    buildStream.await()
+    activity.await()
     builder.synchronized { lastBuild.get }
   }
 }

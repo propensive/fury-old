@@ -28,7 +28,7 @@ import scala.util._
 
 import java.util.concurrent.Executors
 
-class BuildStream[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Boolean)(implicit exec: ExecutionContext) { buildStream =>
+class Activity[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Boolean)(implicit exec: ExecutionContext) { activity =>
   private var last: Option[T] = None
   private var continue: Boolean = true
   private val promise: Promise[Unit] = Promise()
@@ -45,7 +45,7 @@ class BuildStream[T](initial: => Try[T], onSuccess: T => Unit, stopOnSuccess: Bo
   def await(): Unit = Await.result(promise.future, Duration.Inf)
 
   def update(newState: => State): Unit =
-    if(continue) buildStream.synchronized { state = newState.proceed() }
+    if(continue) activity.synchronized { state = newState.proceed() }
     else complete()
 
   var state = State(mkFuture(initial), None, Vector())
