@@ -534,6 +534,8 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
           val timeout = module.kind.as[App].fold(0)(_.timeout)
           val classDirectories = compileResult.classDirectories
           client.broadcast(StartRun(ref))
+          val job = Job(ref.msg, Thread.currentThread)
+          Bus.put(StartJob(job))
           
           val future = Future(blocking {
             run(classDirectories.values.to[Set], policy, args, noSecurity)

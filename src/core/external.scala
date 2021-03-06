@@ -201,7 +201,7 @@ object Software {
       JdkSoftware(12), JdkSoftware(13), JdkSoftware(14)*/)
 }
 
-abstract class Software(val name: ExecName) {
+abstract class Software(val name: Executable) {
   def description: String
   def path(env: Environment): Option[Path] = name.findOnPath(env).toOption
   def base: Path = Installation.usrDir / name.key
@@ -209,7 +209,7 @@ abstract class Software(val name: ExecName) {
   def website: Uri
 }
 
-abstract class Installable(name: ExecName) extends Software(name) {
+abstract class Installable(name: Executable) extends Software(name) {
   def activePath(env: Environment): Path = path(env).getOrElse(managedPath)
   def installVersion: String
   def managedPath: Path
@@ -236,7 +236,7 @@ abstract class Installable(name: ExecName) extends Software(name) {
 
 }
 
-object IpfsSoftware extends Installable(ExecName("ipfs")) {
+object IpfsSoftware extends Installable(Executable("ipfs")) {
   def installVersion = "0.6.0"
   def description: String = "InterPlanetary File System"
   def website = Https(path"ipfs.io")
@@ -259,7 +259,7 @@ object IpfsSoftware extends Installable(ExecName("ipfs")) {
     sh"${activePath(env).value} --version".exec[Try[String]].map(_.split("\n").head.split(" ").last).toOption
 }
 
-object JavaSoftware extends Installable(ExecName("java")) {
+object JavaSoftware extends Installable(Executable("java")) {
   def installVersion = "8u242b08"
   def description = "Java™ SE Runtime Environment"
   def website = Https(path"openjdk.java.net")
@@ -290,7 +290,7 @@ object Jdk {
   def javacExec(version: Int)(implicit log: Log): Path = binDir(version) / "javac"
 }
 
-case class JdkSoftware(version: Int) extends Installable(ExecName("java")) {
+case class JdkSoftware(version: Int) extends Installable(Executable("java")) {
   def installVersion = version.toString
   def description = "Java™ SE Runtime Environment"
   def website = Https(path"openjdk.java.net")
@@ -323,7 +323,7 @@ case class JdkSoftware(version: Int) extends Installable(ExecName("java")) {
   } yield ()
 }
 
-object VsCodeSoftware extends Installable(ExecName("code")) {
+object VsCodeSoftware extends Installable(Executable("code")) {
   def installVersion = "1.48.0"
   def description = "Visual Studio Code"
   def website = Https(path"code.visualstudio.com")
@@ -356,7 +356,7 @@ object VsCodeSoftware extends Installable(ExecName("code")) {
   } yield ()
 }
 
-object GitSoftware extends Software(ExecName("git")) {
+object GitSoftware extends Software(Executable("git")) {
   def website = Https(path"git-scm.com")
   def description = "Git"
 
@@ -365,7 +365,7 @@ object GitSoftware extends Software(ExecName("git")) {
   }
 }
 
-object CcSoftware extends Software(ExecName("cc")) {
+object CcSoftware extends Software(Executable("cc")) {
   def website = Https(path"gcc.gnu.org")
   def description = "C Compiler"
 
@@ -374,7 +374,7 @@ object CcSoftware extends Software(ExecName("cc")) {
   }
 }
 
-object GraalVmSoftware extends Installable(ExecName("native-image")) {
+object GraalVmSoftware extends Installable(Executable("native-image")) {
   def website = Https(path"www.graalvm.org")
   def description = "GraalVM Native Image"
   def installVersion = "20.0.0"
@@ -398,7 +398,7 @@ object GraalVmSoftware extends Installable(ExecName("native-image")) {
       "native-image"
 }
 
-object FurySoftware extends Software(ExecName("fury")) {
+object FurySoftware extends Software(Executable("fury")) {
   def website = Https(path"propensive.com" / "fury")
   def description = "Fury"
   def version(env: Environment): Option[String] = Some(FuryVersion.current)

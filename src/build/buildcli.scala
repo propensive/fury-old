@@ -381,7 +381,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   //   conf         <- Layer.readFuryConf(layout)
   //   layer        <- Layer.retrieve(conf)
   //   (cli, tryProject, tryModule) <- cli.askProjectAndModule(layer)
-  //   cli          <- cli.hint(ExecNameArg)
+  //   cli          <- cli.hint(ExecutableArg)
   //   cli          <- cli.hint(ReporterArg, Reporter.all)
   //   cli          <- cli.hint(NoSecurityArg)
   //   cli          <- cli.hint(WatchArg)
@@ -412,7 +412,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
   //                   } }
 
   //   future       <- if(watch || waiting) Try(r.start()).flatten else r.action()
-  //   exec         <- call(ExecNameArg)
+  //   exec         <- call(ExecutableArg)
   //   _            <- ~log.info(msg"Building native image for $exec")
   //   _            <- new build.TargetExtras(build.target).saveNative(Installation.optDir, main)
   //   bin          <- ~(Installation.optDir / main.key.toLowerCase)
@@ -961,7 +961,7 @@ case class LayerCli(cli: Cli)(implicit log: Log) {
 
     _      <- gitDir.add(layout.layerDb, force = true)
     _      <- gitDir.add(layout.confFile, force = true)
-    _      <- ~log.info(msg"Don't forget to run ${ExecName("git commit")} to commit the layer to the repo.")
+    _      <- ~log.info(msg"Don't forget to run ${Executable("git commit")} to commit the layer to the repo.")
   } yield log.await()
 
   def undo: Try[ExitStatus] = for {

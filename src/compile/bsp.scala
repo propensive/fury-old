@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury._, text._, model._, ogdl._, utils._, io._
+import fury._, text._, model._, utils._, io._
 
 import euphemism._
 import jovian._

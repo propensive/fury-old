@@ -18,13 +18,10 @@ package fury.utils
 
 import scala.annotation.tailrec
 
-case class Dag[T](connections: Map[T, Set[T]]) {
+case class Dag[T](connections: Map[T, Set[T]] = Map[T, Set[T]]()) {
 
-  def remove(element: T): Dag[T] = {
-    val pointingTo = connections(element)
-    val noFromEdge = connections - element
-    Dag(noFromEdge.mapValues { map => if(map(element)) map ++ pointingTo - element else map })
-  }
+  def remove(elem: T): Dag[T] =
+    Dag((connections - elem).mapValues { map => if(map(elem)) map ++ connections(elem) - elem else map })
 
   def subgraph(verticesToLeave: Set[T]): Dag[T] =
     (connections.keySet &~ verticesToLeave).foldRight(this) { (element, graph) => graph.remove(element) }

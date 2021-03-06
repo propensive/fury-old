@@ -55,7 +55,7 @@ case class Menu(command: Symbol,
         cli.forceLog(msg"This is probably because a newer version of Fury has been installed while the old "+
             msg"version is still running.")
         cli.forceLog(msg"While the versions may be compatible, it is advised to stop the Fury server using "+
-            msg"${ExecName("fury stop")}.")
+            msg"${Executable("fury stop")}.")
       }
 
       cli.args.parsed.prefix.headOption match {

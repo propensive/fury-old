@@ -33,18 +33,18 @@ object Install {
   
   def apply(env: Environment, force: Boolean)(implicit log: Log): Try[Unit] = for {
     _ <- doCCompilation(env).recover { case e =>
-           log.warn(msg"Could not find a C compiler (${ExecName("cc")}) on the PATH")
-           log.warn(msg"Fury will work, but its process name will be ${ExecName("java")} instead of "+
-               msg"${ExecName("fury")} and will use the slower Python Nailgun client, instead of a native "+
-               msg"client. To fix this, install a C compiler and run ${ExecName("fury system install")} "+
+           log.warn(msg"Could not find a C compiler (${Executable("cc")}) on the PATH")
+           log.warn(msg"Fury will work, but its process name will be ${Executable("java")} instead of "+
+               msg"${Executable("fury")} and will use the slower Python Nailgun client, instead of a native "+
+               msg"client. To fix this, install a C compiler and run ${Executable("fury system install")} "+
                msg"again at any time.")
          }
     _ <- replaceActiveDir()
-    _ <- rcInstall(env, force, Xdg.home / ".zshrc", ExecName("zsh"), zshCompletions)
-    _ <- rcInstall(env, force, Xdg.home / ".bashrc", ExecName("bash"), Nil)
+    _ <- rcInstall(env, force, Xdg.home / ".zshrc", Executable("zsh"), zshCompletions)
+    _ <- rcInstall(env, force, Xdg.home / ".bashrc", Executable("bash"), Nil)
     _ <- desktopInstall(env)
     _ <- fishInstall(env)
-    _ <- ~log.info(msg"Installation is complete. Open a new shell to ensure that ${ExecName("fury")} is on your path, or run"+"\n\n"+msg"${ExecName(setPathLine(List(Installation.rootBinDir, Installation.optDir)).head.dropRight(furyTag.length + 1))}")
+    _ <- ~log.info(msg"Installation is complete. Open a new shell to ensure that ${Executable("fury")} is on your path, or run"+"\n\n"+msg"${Executable(setPathLine(List(Installation.rootBinDir, Installation.optDir)).head.dropRight(furyTag.length + 1))}")
     _ <- ~log.info("")
     _ <- ~log.info(msg"Thank you for trying Fury!")
   } yield ()
@@ -68,11 +68,11 @@ object Install {
                             env, "-Wall", "-Werror", "-fPIC", "-shared")
 
     _ <- cCompile(Installation.binDir / "ng.c", Installation.binDir / "ng", env)
-    _ <- ~log.info(msg"Compiled the native Nailgun client and ${ExecName("fury")} process name wrapper")
+    _ <- ~log.info(msg"Compiled the native Nailgun client and ${Executable("fury")} process name wrapper")
   } yield ()
 
   private def fishInstall(env: Environment)(implicit log: Log): Try[Unit] =
-    Try(log.warn(msg"Installation for ${ExecName("fish")} is not yet supported"))
+    Try(log.warn(msg"Installation for ${Executable("fish")} is not yet supported"))
 
   private def iconDirs: List[Path] =
     List(16, 48, 128).map { s => path"icons/hicolor" / str"${s}x${s}" / "apps" / "fury-icon.png" }
@@ -113,7 +113,7 @@ object Install {
     str"autoload -U compinit && compinit $furyTag"
   )
 
-  private def rcInstall(env: Environment, force: Boolean, file: Path, shell: ExecName, extra: List[String])
+  private def rcInstall(env: Environment, force: Boolean, file: Path, shell: Executable, extra: List[String])
                        (implicit log: Log)
                        : Try[Unit] = { for {
     lines <- Try(scala.io.Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag))).recover {
@@ -122,16 +122,16 @@ object Install {
     _     <- file.writeSync((lines.to[List] ++ setPathLine(List(Installation.rootBinDir,
                  Installation.optDir)) ++ extra).join("", "\n", "\n"))
     
-    _     <- Try(log.info(msg"Updated ${file} to include ${ExecName("fury")} on the PATH"))
+    _     <- Try(log.info(msg"Updated ${file} to include ${Executable("fury")} on the PATH"))
   } yield () }.recover { case e =>
-    log.warn(msg"Could not find the file ${file} to install ${ExecName("fury")} on the PATH")
+    log.warn(msg"Could not find the file ${file} to install ${Executable("fury")} on the PATH")
   }
 
   private def cCompile(src: Path, dest: Path, env: Environment, args: String*): Try[Unit] = for {
-    cc  <- ExecName("cc").findOnPath(env)
+    cc  <- Executable("cc").findOnPath(env)
     out <- sh"${cc.value} ${src.value} $args -o ${dest.value}".exec[Try[String]]
   } yield ()
 
-  private def getShell(env: Environment): Option[ExecName] =
-    env.variables.get("SHELL").map(_.split("/").last).map(ExecName(_))
+  private def getShell(env: Environment): Option[Executable] =
+    env.variables.get("SHELL").map(_.split("/").last).map(Executable(_))
 }

@@ -954,16 +954,16 @@ object PluginId {
 
 case class PluginId(key: String) extends Key(msg"plugin")
   
-object ExecName {
-  implicit val msgShow: MsgShow[ExecName] = r => Message(_.module(r.key))
-  implicit val stringShow: StringShow[ExecName] = _.key
-  implicit val diff: Diff[ExecName] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
-  implicit val parser: Parser[ExecName] = unapply(_)
+object Executable {
+  implicit val msgShow: MsgShow[Executable] = r => Message(_.module(r.key))
+  implicit val stringShow: StringShow[Executable] = _.key
+  implicit val diff: Diff[Executable] = (l, r) => Diff.stringDiff.diff(l.key, r.key)
+  implicit val parser: Parser[Executable] = unapply(_)
   
-  def unapply(name: String): Some[ExecName] = Some(ExecName(name))
+  def unapply(name: String): Some[Executable] = Some(Executable(name))
 }
 
-case class ExecName(key: String) extends Key(msg"executable") {
+case class Executable(key: String) extends Key(msg"executable") {
   def findOnPath(env: Environment): Try[Path] = for {
     paths    <- env.variables.get("PATH").map(_.split(":").to[List].map(Path(_))).ascribe(EnvPathNotSet())
     

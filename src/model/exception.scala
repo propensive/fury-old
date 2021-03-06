@@ -67,7 +67,7 @@ case class InvalidLayer(value: String) extends FuryException
 case class InvalidValue(value: String) extends FuryException
 case class InvalidVersion() extends FuryException
 case class IpfsTimeout() extends FuryException
-case class NotOnPath(name: ExecName) extends FuryException
+case class NotOnPath(name: Executable) extends FuryException
 case class NotAuthenticated() extends FuryException
 case class LauncherFailure(msg: String) extends FuryException
 case class LayersFailure(layer: Pointer) extends FuryException

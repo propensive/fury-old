@@ -109,7 +109,7 @@ object Args {
   val RemoteLayerArg = CliParam[RemoteLayerId]('n', 'name, "specify a name at which to publish the layer")
   val RepoNameArg = CliParam[RepoId]('n', 'name, "specify a name for the repository")
   val WorkspaceNameArg = CliParam[WorkspaceId]('n', 'name, "specify a name for the workspace")
-  val ExecNameArg = CliParam[ExecName]('n', 'name, "specify a name for the executable")
+  val ExecutableArg = CliParam[Executable]('n', 'name, "specify a name for the executable")
   val ImportNameArg = CliParam[ImportId]('n', 'name, "specify a name for the import")
   val RawArg = CliParam[Unit]('R', 'raw, "display raw output")
   val LayerVersionArg = CliParam[LayerVersion]('v', 'version, "a specific version of the layer")

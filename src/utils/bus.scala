@@ -16,23 +16,96 @@
 */
 package fury.utils
 
+import fury.text._
+
+import scala.concurrent._, duration._
+import scala.util._
+import scala.collection.mutable.HashSet
+
+
 sealed trait Event
-case class LogMessage(str: String) extends Event
-case class TaskProgress(task: String, progress: Int) extends Event
+case class LogMessage(str: Message) extends Event
+case object Tick extends Event
+case class Task(name: Message)
+case class Job(name: Message, thread: Thread)
 
-case class Task(name: String, progress: Int)
+case class StartJob(job: Job) extends Event
+case class StartTask(job: Job, task: Task) extends Event
+case class AbortTask(job: Job, task: Task) extends Event
+case class FinishTask(job: Job, task: Task) extends Event
+case class TaskProgress(job: Job, task: Task, progress: Int) extends Event
+case class FinishJob(job: Job) extends Event
 
-case class State(stream: Stream[Event] = Stream(), activities: Set[Activity[_]] = Set())
+case class State(jobs: Map[Job, Dag[Task]] = Map(), progress: Map[Task, Int] = Map().withDefault { _ => 0 }) {
+  def +(job: Job) = copy(jobs.updated(job, Dag()))
+  def -(job: Job) = copy(jobs - job)
+  def apply(job: Job): Dag[Task] = jobs(job)
+  def update(job: Job, dag: Dag[Task]): State = copy(jobs.updated(job, dag))
+  def setProgress(task: Task, complete: Int): State = copy(progress = progress.updated(task, complete))
+}
+
+trait Interest[T] { def predicate(value: T): Event => Boolean }
+
+case class Update(state: State, event: Event)
 
 object Bus {
-  private var state: State = State()
+
+  
+
+  def chunkStream[T](stream: Stream[T], t0: Long = System.currentTimeMillis, chunk: List[T] = Nil)
+                    (implicit ec: ExecutionContext): Stream[List[T]] = {
+    val remaining: Long = 1000L - (System.currentTimeMillis - t0)
+    try chunkStream(stream.tail, t0, Await.result(Future(blocking(stream)), remaining.milliseconds).head :: chunk)
+    catch { case _: TimeoutException => chunk.reverse #:: chunkStream(stream.tail, System.currentTimeMillis) }
+  }
+
   def apply(): State = Bus.synchronized(state)
   def put(event: Event): Unit = Bus.synchronized { receive(event) }
 
-  private def receive(event: Event): Unit = state = update(state, event)
+  def listen[T: Interest, S](value: T, interval: Duration = 100.milliseconds)(block: Stream[Update] => S): S = {
+    val listener = Listener(implicitly[Interest[T]].predicate(value))
+    register(listener)
+    try block(listener.stream(interval)) finally unregister(listener)
+  }
+
+  private val listeners: HashSet[Listener] = HashSet()
+  private def register(listener: Listener): Unit = Bus.synchronized(listeners += listener)
+  private def unregister(listener: Listener): Unit = Bus.synchronized(listeners -= listener)
+  
+  private case class Listener(predicate: Event => Boolean) {
+    private[this] var promise = Promise[Update]()
+    
+    private[Bus] def stream(interval: Duration): Stream[Update] =
+      (try Await.result(promise.future, interval)
+      catch { case _: TimeoutException => Update(state, Tick) }) #:: stream(interval)
+    
+    private[Bus] def put(event: Event): Unit = if(predicate(event)) Bus.synchronized {
+      promise.complete(Success(Update(state, event)))
+      promise = Promise()
+    }
+  }
+
+  private var state: State = State()
+
+  private def receive(event: Event): Unit = {
+    state = update(state, event)
+    listeners.foreach { listener => listener.put(event) }
+  }
 
   private def update(state: State, event: Event): State = event match {
-    case LogMessage(str: String)      => state
-    case TaskProgress(task, progress) => state
+    case StartJob(job) =>
+      state + job
+    case FinishJob(job) =>
+      state - job
+    case StartTask(job, task) =>
+      state
+    case AbortTask(job, task) =>
+      state
+    case FinishTask(job, task) => 
+      state
+    case TaskProgress(job, task, progress) =>
+      state.setProgress(task, progress)
+    case LogMessage(str) => state
+    case Tick => state
   }
 }
