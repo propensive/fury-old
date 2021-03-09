@@ -117,7 +117,7 @@ case class Tables() {
         case None     => msg"${'-'}"
         case Some(ws) => msg"$ws"
       }),
-      Heading("Binaries", m => m.allBinaries.size),
+      Heading("Binaries", m => m.allBinaries.map(_.id)),
       Heading("Compiler", _.compiler),
       Heading("Options", m => m.opts.size),
       Heading("Packages", m => m.packages),

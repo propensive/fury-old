@@ -310,7 +310,7 @@ case class BuildCli(cli: Cli)(implicit log: Log) {
     pipelining     <- ~call(PipeliningArg).toOption
     output         <- call.atMostOne(FatJarArg, JsArg).map(_.map { v => if(v.isLeft) FatJarArg else JsArg })
     globalPolicy   <- ~Policy.read(log)
-    reporter       <- ~call(ReporterArg).toOption.getOrElse(LinearReporter)
+    reporter       <- ~call(ReporterArg).toOption.getOrElse(GraphReporter)
     watch           = call(WatchArg).isSuccess
     waiting         = call(WaitArg).isSuccess
     session        <- ~Lifecycle.currentSession

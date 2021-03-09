@@ -28,7 +28,7 @@ import jovian._
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import bloop.launcher.LauncherMain
 import bloop.launcher.LauncherStatus._
-import ch.epfl.scala.bsp4j.{CompileResult => _, _}
+import ch.epfl.scala.bsp4j.{CompileResult => _, TaskId => _, _}
 import com.google.gson.{Gson, JsonElement}
 
 import scala.collection.JavaConverters._
@@ -55,15 +55,6 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   private var usages: Map[Session, Connection] = Map.empty
   private val bloopVersion = "1.4.8"
 
-  def singleTasking[T](work: Promise[Unit] => T): Future[T] = {
-    val newLock: Promise[Unit] = Promise()
-    BloopServer.synchronized {
-      val future = lock.future.map { case _ => work(newLock) }
-      lock = newLock
-      future
-    }
-  }
-
   def subscribers(bspClient: FuryBuildClient): List[Session] = usages.synchronized {
     usages.collect { case (session, conn) if conn.client == bspClient => session }.to[List]
   }
@@ -71,35 +62,19 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
   override def acquire(session: Session, connection: Connection): Unit =
     usages.synchronized { usages += session -> connection }
 
-  override def release(session: Session): Unit =
-    usages.synchronized { usages -= session }
+  override def release(session: Session): Unit = usages.synchronized { usages -= session }
 
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
-  private def connect(dir: Path,
-                      build: Build,
-                      ref: ModuleRef,
-                      layout: Layout,
-                      trace: Option[Path] = None)
-                     (implicit log: Log): Future[Connection] =
-    singleTasking { promise =>
+  private def connect(dir: Path, build: Build, ref: ModuleRef, layout: Layout, trace: Option[Path] = None)
+                     (implicit log: Log): Connection = BloopServer.synchronized {
 
-      val traceOut = trace.map { path => new FileOutputStream(path.javaFile, true) }
-      val serverIoPipe = Pipe.open()
-      val serverIn = Channels.newInputStream(serverIoPipe.source())
-      
-      val clientOut = {
-        val out: OutputStream = Channels.newOutputStream(serverIoPipe.sink())
-        traceOut.fold(out)(new TeeOutputStream(out, _))
-      }
-      
+      val serverIoPipe: Pipe = Pipe.open()
+      val serverIn: InputStream = Channels.newInputStream(serverIoPipe.source())
+      val clientOut: OutputStream = Channels.newOutputStream(serverIoPipe.sink())
       val clientIoPipe: Pipe = Pipe.open()
       val clientIn: InputStream = Channels.newInputStream(clientIoPipe.source())
-      
-      val serverOut = {
-        val out: OutputStream = Channels.newOutputStream(clientIoPipe.sink())
-        traceOut.fold(out)(new TeeOutputStream(out, _))
-      }
+      val serverOut: OutputStream = Channels.newOutputStream(clientIoPipe.sink())
 
       val logging: PrintStream = log.stream { str =>
         (if(str.indexOf("[D]") == 9) str.drop(17) else str) match {
@@ -109,42 +84,34 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
             log.note(msg"Opening a BSP server connection")
           case r"Waiting for a connection at" =>
             log.info(msg"Waiting for a socket connection")
-          case r"Loading project from .*" =>
-            None
-          case r"Loading previous analysis for .*" =>
-            None
-          case r".*detected in file:.*" =>
-            None
-          case r"  => .*" =>
+          case r"Loading project from .*" |
+              r"Loading previous analysis for .*" |
+              r".*detected in file:.*" |
+              r"  => .*" |
+              r"Waiting.*" |
+              r"Starting thread.*" |
+              r"Command: .*" |
+              r"Deduplicating compilation of .*" |
+              "\n" =>
             None
           case r"Creating a scala instance from Bloop" =>
             log.info("Instantiating a new instance of the Scala compiler")
           case r"The server is listening for incoming connections.*" =>
             log.note(msg"BSP server is listening for incoming connections")
-          case r"Waiting.*" =>
-            None
           case r"bad option '-Ysemanticdb' was ignored" =>
             log.note(msg"Tried to use -Ysemanticdb")
             None
-          case r"Starting thread.*" =>
-            None
-          case r"Deduplicating compilation of .*" =>
-            None
           case r"No server running at .*" =>
             log.info("Could not detect a BSP server running locally")
-          case r"Command: .*" =>
-            None
           case r"A bloop installation has been detected.*" =>
             log.info("Detected an existing Bloop installation")
-          case "\n" =>
-            None
           case other =>
             log.note(msg"${'['}bsp${']'} ${other}")
         }
       }
 
       val launcher: LauncherMain = new LauncherMain(serverIn, serverOut, logging,
-          StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, promise)
+          StandardCharsets.UTF_8, bloop.bloopgun.core.Shell.default, None, None, Promise())
       
       val thread = Threads.launcher.newThread { () =>
         launcher.runLauncher(
@@ -181,9 +148,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
     }
 
   def borrow[T](dir: Path, build: Build, ref: ModuleRef, layout: Layout, cancellation: Option[Future[Unit]])
-               (fn: Connection => T)
-               (implicit log: Log)
-               : Try[T] = {
+               (block: Connection => T)(implicit log: Log): Try[T] = {
 
     val conn = BloopServer.synchronized(connections.get(dir)).getOrElse {
       log.note(msg"Opening a new BSP connection at $dir")
@@ -193,8 +158,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
         Some(path)
       } else None
 
-      val newConnection =
-        Await.result(connect(dir, build, ref, layout, trace = tracePath), Duration.Inf)
+      val newConnection = connect(dir, build, ref, layout, trace = tracePath)
       
       connections += dir -> newConnection
       newConnection
@@ -209,7 +173,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
     Try {
       acquire(Lifecycle.currentSession, conn)
-      conn.synchronized(fn(conn))
+      conn.synchronized(block(conn))
     }
   }
   
@@ -243,17 +207,24 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     idString <- Option(params.getOriginId)
     originId <- RequestOriginId.unapply(idString)
     build    <- Build.findOrigin(originId)
-  } yield broadcast(Print(build.goal, params.getMessage))
+  } yield {
+    Bus.put(LogMessage(params.getMessage))
+    broadcast(Print(build.goal, params.getMessage))
+  }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = for {
     idString <- Option(params.getOriginId)
     originId <- RequestOriginId.unapply(idString)
     build    <- Build.findOrigin(originId)
-  } yield broadcast(Print(build.goal, params.getMessage))
+  } yield {
+    Bus.put(LogMessage(params.getMessage))
+    broadcast(Print(build.goal, params.getMessage))
+  }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val ref = ModuleRef.fromUri(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
+    
     val build = for {
       idString <- Option(params.getOriginId)
       originId <- RequestOriginId.unapply(idString)
@@ -334,11 +305,21 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     gson.fromJson[A](json, classTag[A].runtimeClass)
   }
 
-  private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef =
-    ModuleRef.fromUri(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
+  private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef = {
+    Log().info(msg"Got compile ref: ${convertDataTo[CompileTask](taskNotificationData).getTarget.getUri}")
+    val r = ModuleRef.fromUri(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
+    r
+  }
+
+  def getTaskId(taskNotificationData: AnyRef): TaskId = {
+    val uri = new java.net.URI(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
+    val paramMap = uri.getRawQuery.split("&", 2).map(_.split("=", 2)).map { case Array(k, v) => k -> v }.toMap
+    TaskId(paramMap("id"))
+  }
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
-    val ref = getCompileRef(params.getData)
+    val ref = getCompileRef(params.getData) 
+    //Bus.put(TaskProgress())
     broadcast(Progress(ref, params.getProgress.toDouble / params.getTotal))
   }
 

@@ -546,6 +546,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
           val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
           
           client.broadcast(StopRun(ref))
+          Bus.put(FinishJob(job))
           compileResult.copy(exitCode = Some(exitCode))
         case (otherResult, _) =>
           otherResult
