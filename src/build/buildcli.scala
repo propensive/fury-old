@@ -1036,7 +1036,8 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
         module   <- project.modules.findBy(ref.moduleId)
         found    <- universe.packageMatch(pkg)
         _        <- ~log.info(msg"Adding dependency on $found to $ref")
-        layer    <- Try(Lens[Layer](_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Input(found)))
+        layer    <- Try(Lens[Layer](_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ +
+                        Input(found)))
         _        <- Layer.commit(layer, conf, layout)
       } yield ()
     }
@@ -1062,15 +1063,16 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
                                  rebuild: Set[MissingPkg] => Unit)
                                 (implicit log: Log): Try[Future[BuildResult]] = {
     for(_ <- build.checkoutAll()) yield {
-      val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
-      Lifecycle.currentSession.multiplexer = multiplexer
-      val future = build.target.compile(Map(),
-        globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
+      val promise = Promise[Unit]()
+      //val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
+      //Lifecycle.currentSession.multiplexer = multiplexer
+      val future = build.target.compile(Map(), globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
         case compRes =>
-          multiplexer.closeAll()
+          //multiplexer.closeAll()
+          promise.complete(Success(()))
           compRes
       }
-      reporter.report(build.graph, theme, multiplexer, rebuild)
+      reporter.report(build.graph, theme, promise, rebuild)
 
       future
     }

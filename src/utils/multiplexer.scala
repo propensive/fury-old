@@ -16,6 +16,8 @@
 */
 package fury.utils
 
+import scala.concurrent._, duration._
+
 /** a streaming multiplexer optimized for concurrent writes */
 final class Multiplexer[K, V](keys: Set[K]) {
   private[this] var show: Boolean = false
@@ -23,12 +25,16 @@ final class Multiplexer[K, V](keys: Set[K]) {
   private[this] val refs: Map[K, Int]      = keys.zipWithIndex.toMap
   private[this] val closed: Array[Boolean] = Array.fill(keys.size)(false)
 
+  val promise: Promise[Unit] = Promise()
+
   private def finished: Boolean = closed.forall(identity)
 
   def start(): Unit = show = true
 
   private var terminationMessage: List[V] = Nil
   def message(msg: V): Unit = terminationMessage = List(msg)
+
+  lazy val await2: Unit = Await.result(promise.future, Duration.Inf)
 
   def stream(interval: Int, tick: Option[V] = None): Iterator[V] = {
     def stream(lastSnapshot: List[List[V]]): Iterator[V] = {
@@ -56,16 +62,16 @@ final class Multiplexer[K, V](keys: Set[K]) {
   def contains(key: K): Boolean = keys.contains(key)
 
   /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def fire(key: K, value: V): Unit = state(refs(key)) = value :: state(refs(key))
+    * guarantee safe concurrent access. */
+  def fire(key: K, value: V): Unit = ()//state(refs(key)) = value :: state(refs(key))
 
   /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def updateAll(value: V): Unit = keys.foreach(k => fire(k, value))
+    * guarantee safe concurrent access. */
+  def updateAll(value: V): Unit = ()//keys.foreach(k => fire(k, value))
 
   /** This method should only ever be called from one thread for any given reference, to
-    *  guarantee safe concurrent access. */
-  def close(key: K): Unit = closed(refs(key)) = true
+    * guarantee safe concurrent access. */
+  def close(key: K): Unit = ()//closed(refs(key)) = true
 
   def closeAll(): Unit = keys.foreach { k =>
     closed(refs(k)) = true

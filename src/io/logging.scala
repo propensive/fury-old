@@ -37,17 +37,17 @@ object LogStyle {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   final val dp3: java.text.DecimalFormat = new java.text.DecimalFormat("0.000 ")
   
-  def apply(printWriter: => java.io.PrintWriter, debug: Boolean): LogStyle = {
+  def apply(debug: Boolean): LogStyle = {
     val config = Ogdl.read[BasicConfig](Installation.userConfig, identity(_)).toOption.getOrElse(BasicConfig())
     val timestamps = if(config.timestamps) Some(false) else None
     val logLevel = if(debug) Log.Note else Log.Info
     
-    LogStyle(() => printWriter, timestamps, false, false, true, config.theme, logLevel, true)
+    LogStyle(timestamps, false, false, true, config.theme, logLevel, true)
   }
 }
 
-case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean], logLevel: Boolean,
-    showSession: Boolean, raw: Boolean, theme: Theme, minLevel: Int, autoflush: Boolean) {
+case class LogStyle(timestamps: Option[Boolean], logLevel: Boolean, showSession: Boolean, raw: Boolean,
+                    theme: Theme, minLevel: Int, autoflush: Boolean) {
 
   private[this] val startTime: Long = System.currentTimeMillis
 
@@ -76,20 +76,22 @@ case class LogStyle(printWriter: () => PrintWriter, timestamps: Option[Boolean],
     val fLevel = optionalLogLevel(level)
     val paddedSession: String = if(!showSession) "" else msg"$pid".string(theme)+" "
     val bold: String = if(level >= Log.Warn) theme.bold() else ""
-    
-    printWriter().append(msg.string(theme).split("\n").map { line =>
+
+    Bus.put(LogMessage(msg))
+
+    /*printWriter().append(msg.string(theme).split("\n").map { line =>
       s"$wipe$fTime$fLevel$paddedSession$bold$line${theme.reset()}"
-    }.mkString("", "\n", "\n"))
+    }.mkString("", "\n", "\n"))*/
     
-    printWriter().flush()
+    //printWriter().flush()
   }
   
-  def flush(force: Boolean = false): Unit = if(autoflush || force) printWriter().flush()
-  def raw(string: String): Unit = if(raw) printWriter().append(string)
+  def flush(force: Boolean = false): Unit = ()//if(autoflush || force) printWriter().flush()
+  def raw(string: String): Unit = Bus.put(LogMessage(string))//if(raw) printWriter().append(string)
   
   def rawln(string: String): Unit = if(raw) {
-    printWriter().append(string)
-    printWriter().append('\n')
+    Bus.put(LogMessage(string))
+    Bus.put(LogMessage("\n"))
   }
 }
 
@@ -110,13 +112,13 @@ object Log {
     var printWriter: PrintWriter = create(initDate)
     def update(date: LocalDate): Unit = printWriter = create(date)
 
-    def get(): PrintWriter = {
+    /*def get(): PrintWriter = {
       val date = LocalDate.now()
       if(cached != date.getDayOfMonth) update(date)
       printWriter
-    }
+    }*/
     
-    LogStyle(get, Some(true), true, true, false, Theme.Full, Note, autoflush = false)
+    LogStyle(Some(true), true, true, false, Theme.Full, Note, autoflush = false)
   }
 
   def apply(): Log = base

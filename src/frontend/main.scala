@@ -16,11 +16,12 @@
 */
 package fury
 
-import fury.core._, fury.text._, fury.model._, fury.io._
+import fury._, core._, text._, model._, io._, utils._
 
 import com.facebook.nailgun.NGContext
 import exoskeleton._
 import guillotine._
+import jovian._
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashSet
 
@@ -31,8 +32,49 @@ import scala.concurrent._, duration._
 import scala.util._
 
 import java.io._
+import java.util.Date
+import java.text._
 
 object FuryServer {
+
+  private final val dateFormat: DateFormat = new SimpleDateFormat("yyyy-MM-dd")
+  private def logFile() = Installation.logsDir.extant() / str"${dateFormat.format(new Date()).toString}.log"
+  
+  private def printWriter(): PrintWriter =
+    new PrintWriter(new BufferedWriter(new FileWriter(logFile().javaFile, true)))
+
+  val logThread = new Thread {
+    override def run(): Unit = Bus.listen(500) { stream =>
+      
+      @tailrec
+      def writeLogs(lastWriter: PrintWriter, stream: Stream[Tick], lastDay: Int = new Date().getDay): Unit =
+        if(!stream.isEmpty) {
+          val day = new Date().getDay
+          // When the day changes or the file gets deleted, create a new printWriter
+          val writer = if(day != lastDay || !logFile().exists) printWriter() else lastWriter
+          val tick = stream.head
+          tick.events.foreach {
+            case LogMessage(msg) =>
+              writer.write(msg.string(Theme.Full))
+              writer.write('\n')
+            case TaskProgress(_, _) => ()
+            case other =>
+              writer.write(other.toString)
+              writer.write('\n')
+          }
+          
+          writer.write(msg"state: ${tick.state.toString}".string(Theme.Full))
+          writer.write("\n")
+          writer.flush()
+
+          writeLogs(writer, stream.tail, day)
+        }
+        writeLogs(printWriter(), stream)
+      }
+  }
+
+  logThread.setDaemon(true)
+  logThread.start()
 
   def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
     Recovery.recover(cli) {

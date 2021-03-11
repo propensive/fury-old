@@ -63,7 +63,7 @@ object FuryMenu {
       Action('all, msg"clean all", CleanCli(_).cleanAll, needsLayer = false),
       Action('compiler, msg"clean the caches managed by the compiler", BuildCli(_).clean),
       
-      Action('targets, msg"clean the compile targets definition files", CleanCli(_).cleanBloop, needsLayer =
+      Action('build, msg"clean the compile targets definition files", CleanCli(_).cleanBloop, needsLayer =
           false),
       
       Action('classes, msg"clean compiled classes", CleanCli(_).cleanClasses, needsLayer = false),

@@ -535,7 +535,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
           val classDirectories = compileResult.classDirectories
           client.broadcast(StartRun(ref))
           val job = Job(ref.msg, Thread.currentThread)
-          Bus.put(StartJob(job))
+          //Bus.put(StartJob(job))
           
           val future = Future(blocking {
             run(classDirectories.values.to[Set], policy, args, noSecurity)

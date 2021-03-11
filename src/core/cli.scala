@@ -16,7 +16,7 @@
 */
 package fury.core
 
-import fury.text._, fury.io._, fury.model._
+import fury._, text._, io._, model._
 
 import exoskeleton._
 import guillotine._
@@ -201,7 +201,7 @@ class Cli(val stdout: java.io.PrintWriter,
   
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
-  private lazy val logStyle: LogStyle = LogStyle(stdout, debug = false)
+  private lazy val logStyle: LogStyle = LogStyle(debug = false)
 
   def call()(implicit log: Log): Try[Call] = {
     if(completion) {
@@ -276,7 +276,7 @@ class Cli(val stdout: java.io.PrintWriter,
 
   def abort(msg: Message)(implicit log: Log): ExitStatus = {
     if(!completion){
-      if(log.writersCount < 2) { log.attach(LogStyle(stdout, debug = false)) }
+      if(log.writersCount < 2) { log.attach(LogStyle(debug = false)) }
       log.fail(msg)
     }
     Abort

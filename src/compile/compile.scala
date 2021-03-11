@@ -305,11 +305,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     gson.fromJson[A](json, classTag[A].runtimeClass)
   }
 
-  private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef = {
-    Log().info(msg"Got compile ref: ${convertDataTo[CompileTask](taskNotificationData).getTarget.getUri}")
-    val r = ModuleRef.fromUri(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
-    r
-  }
+  private[this] def getCompileRef(taskNotificationData: AnyRef): ModuleRef =
+    ModuleRef.fromUri(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
 
   def getTaskId(taskNotificationData: AnyRef): TaskId = {
     val uri = new java.net.URI(convertDataTo[CompileTask](taskNotificationData).getTarget.getUri)
@@ -319,7 +316,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
 
   override def onBuildTaskProgress(params: TaskProgressParams): Unit = {
     val ref = getCompileRef(params.getData) 
-    //Bus.put(TaskProgress())
+    Bus.put(TaskProgress(TaskId(ref.toString), params.getProgress.toDouble / params.getTotal))
     broadcast(Progress(ref, params.getProgress.toDouble / params.getTotal))
   }
 
@@ -327,10 +324,8 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
     val ref = getCompileRef(params.getData)
     broadcast(StartCompile(ref))
     
-    for {
-      build         <- Build.findBy(ref)
-      dependencyRef <- build.deepDependencies(ref)
-    } yield broadcast(NoCompile(dependencyRef))  
+    for(build <- Build.findBy(ref); dependencyRef <- build.deepDependencies(ref))
+    yield broadcast(NoCompile(dependencyRef))  
   }
 
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {

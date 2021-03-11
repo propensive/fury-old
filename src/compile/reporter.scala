@@ -20,6 +20,8 @@ import fury.text._, fury.model._, fury.utils._, fury.io._
 
 import jovian._
 
+import scala.concurrent._, duration._
+
 object Reporter {
   implicit val parser: Parser[Reporter] = unapply(_)
   val all: List[Reporter] = List(GraphReporter, LinearReporter, SummaryReporter, QuietReporter)
@@ -29,7 +31,7 @@ object Reporter {
 }
 
 abstract class Reporter(val name: String) {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit
 }
@@ -38,45 +40,48 @@ object GraphReporter extends Reporter("graph") {
 
   private def timeString(t: Long): String = if(t >= 10000) s"${t / 1000}s" else s"${t}ms"
 
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit = {
     log.info(msg"Starting build")
-    UiGraph.live(graph.links, multiplexer.stream(50, Some(Tick)), rebuild)(log, theme)
+    Await.result(promise.future, Duration.Inf)
+    //UiGraph.live(graph.links, multiplexer.stream(50, Some(Tick)), rebuild)(log, theme)
     log.info(msg"Build completed")
   }
 }
 
 object LinearReporter extends Reporter("linear") {
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit = {
-    multiplexer.stream(50, Some(Tick)).foreach {
-      case StartCompile(ref)           => log.info(msg"Starting compilation of module $ref")
-      case StopCompile(ref, true)      => log.info(msg"Successfully compiled module $ref")
-      case StopCompile(ref, false)     => log.info(msg"Compilation of module $ref failed")
-      case DiagnosticMsg(ref, message) => log.info(message.msg)
-      case Print(ref, line)            => log.info(line)
-      case Warning(msg)                => log.warn(msg)
-      case other                       => ()
-    }
+    Await.result(promise.future, Duration.Inf)
+      //().foreach {
+      // case StartCompile(ref)           => log.info(msg"Starting compilation of module $ref")
+      // case StopCompile(ref, true)      => log.info(msg"Successfully compiled module $ref")
+      // case StopCompile(ref, false)     => log.info(msg"Compilation of module $ref failed")
+      // case DiagnosticMsg(ref, message) => log.info(message.msg)
+      // case Print(ref, line)            => log.info(line)
+      // case Warning(msg)                => log.warn(msg)
+      //  case other                       => log.info(other.toString)
+      //}
   }
 }
 
 object SummaryReporter extends Reporter("summary") {
   def report(graph: Graph,
              theme: Theme,
-             multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)(implicit log: Log)
+             promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)(implicit log: Log)
             : Unit = {
     val prints = collection.mutable.ArrayBuffer[String]()
     val moduleRefs = collection.mutable.Set[ModuleRef]()
-    multiplexer.stream(50, Some(Tick)).foreach {
-      case StopCompile(ref, true) => moduleRefs += ref
-      case DiagnosticMsg(ref, message) => log.note(message.msg)
-      case Print(_, line)         => prints += line
-      case Warning(msg)           => log.warn(msg)
-      case _ => ()
-    }
+    Await.result(promise.future, Duration.Inf)
+    // multiplexer.stream(50, Some(Tick)).foreach {
+    //   case StopCompile(ref, true) => moduleRefs += ref
+    //   case DiagnosticMsg(ref, message) => log.note(message.msg)
+    //   case Print(_, line)         => prints += line
+    //   case Warning(msg)           => log.warn(msg)
+    //   case _ => ()
+    // }
 
     def commafied(refs: List[ModuleRef], acc: List[Message] = Nil): List[Message] = refs match {
       case Nil => acc
@@ -94,8 +99,9 @@ object SummaryReporter extends Reporter("summary") {
 
 object QuietReporter extends Reporter("quiet") {
 
-  def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent], rebuild: Set[MissingPkg] => Unit)
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
             (implicit log: Log)
             : Unit =
-    multiplexer.stream(100, None).foreach { event => () }
+    Await.result(promise.future, Duration.Inf)
+    //multiplexer.stream(100, None).foreach { event => () }
 }
