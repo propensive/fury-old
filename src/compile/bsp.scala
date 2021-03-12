@@ -86,7 +86,7 @@ object Bsp {
       languages = List("java", "scala")
     )
 
-  def startServer(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+  def startServer(cli: Cli): Try[ExitStatus] =
     for {
       layout  <- cli.layout
       invoc   <- cli.call()
@@ -97,8 +97,7 @@ object Bsp {
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout)
-         (implicit log: Log): JFuture[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout): JFuture[Void] = {
 
     val cancel = new Cancelator()
     val server = new FuryBuildServer(layout, cancel)
@@ -120,7 +119,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator)(implicit log: Log)
+class FuryBuildServer(layout: Layout, cancel: Cancelator)
     extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
@@ -485,7 +484,6 @@ object FuryBuildServer {
       client.onBuildLogMessage(new LogMessageParams(INFORMATION, message.string(theme)))
     
     override def report(graph: Graph, theme: Theme, multiplexer: Multiplexer[ModuleRef, CompileEvent])
-                       (implicit log: Log)
                        : Unit = {
 
       implicit val t: Theme = theme

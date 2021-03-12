@@ -96,7 +96,7 @@ case class Universe(hierarchy: Hierarchy,
                }
   } yield repos.toMap
 
-  def checkout(ref: ModuleRef, layout: Layout)(implicit log: Log): Try[Snapshot] = for {
+  def checkout(ref: ModuleRef, layout: Layout): Try[Snapshot] = for {
     repoPaths   <- repoPaths(ref)
   } yield Snapshot(repoPaths.map { case (repo, paths) =>
     val stash = Stash(repo.id, repo.remote, repo.localDir(layout), repo.commit, repo.branch, paths)
@@ -107,7 +107,7 @@ case class Universe(hierarchy: Hierarchy,
     project   <- apply(ref.projectId)
     module    <- project(ref.moduleId)
     layer     <- layer(ref.projectId)
-    layerRef  <- Layer.store(layer)(Log())
+    layerRef  <- Layer.store(layer)
     workspace <- module.workspace.traverse(layer.workspaces.findBy(_))
   } yield workspace.map { ws => ws.local.getOrElse(layout.workspaceDir(project.id, ws.id)) }
 

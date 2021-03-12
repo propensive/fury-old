@@ -54,7 +54,7 @@ object Coursier {
     }
   }
   
-  def fetch(binary: Binary)(implicit log: Log): Try[List[Path]] = synchronized {
+  def fetch(binary: Binary): Try[List[Path]] = synchronized {
     val dir = Installation.binsDir / binary.group / binary.artifact / binary.version
     if(dir.exists) Success(dir.children.map(dir / _))
     else {

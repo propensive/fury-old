@@ -27,7 +27,7 @@ import scala.util._
 object MavenCentral {
   case class Doc(g: String, a: String, v: String, id: String)
 
-  def search(binSpec: PartialBinSpec)(implicit log: Log): Try[Set[String]] = {
+  def search(binSpec: PartialBinSpec): Try[Set[String]] = {
     
     val query = binSpec match {
       case PartialBinSpec(g, None | Some(""), None) => str"""g:%22$g%22"""

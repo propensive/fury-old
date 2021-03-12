@@ -26,7 +26,7 @@ import scala.util._
 
 import scala.collection.immutable.{SortedSet, TreeSet}
 
-case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class ProjectCli(cli: Cli) extends CliApi {
   import Args._
 
   lazy val getTable: Try[Tabulation[Project]] = getLayer >> (_.main) >> (Tables().projects(_))
@@ -43,9 +43,9 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     rows    <- getLayer >> (_.projects)
     project <- ~cliProject.toOption
     table   <- getTable >> (Tables().show(_, cli.cols, rows, has(RawArg), col, project >> (_.id), "project"))
-    _       <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
-    _       <- ~log.rawln(table)
-  } yield log.await() }
+    _       <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(_) }
+    _       <- ~log.raw(table+"\n")
+  } yield cli.job.await() }
 
   def add: Try[ExitStatus] = (cli -< ProjectNameArg -< LicenseArg -< DefaultCompilerArg).action { for {
     optLicense  <- opt(LicenseArg).map(_.getOrElse(License.unknown))
@@ -58,14 +58,14 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
     _           <- commit(layer)
     _           <- ~log.info(msg"Set current project to ${project.id}")
-  } yield log.await() }
+  } yield cli.job.await() }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ForceArg).action { for {
     project <- cliProject
     layer   <- getLayer >> (Layer(_.projects).modify(_)(_.evict(project.id)))
     layer   <- ~Layer(_.main).modify(layer) { v => if(v == Some(project.id)) None else v }
     _       <- commit(layer)
-  } yield log.await() }
+  } yield cli.job.await() }
 
   // FIXME: Todo
   def update: Try[ExitStatus] = for {
@@ -91,5 +91,5 @@ case class ProjectCli(cli: Cli)(implicit val log: Log) extends CliApi {
     layer     <- ~newId.fold(layer)(Layer(_.projects(project.id).id)(layer) = _)
     layer     <- if(newId.isEmpty || layer.main != Some(project.id)) ~layer else ~(Layer(_.main)(layer) = newId)
     _         <- Layer.commit(layer, conf, layout)
-  } yield log.await()
+  } yield cli.job.await()
 }

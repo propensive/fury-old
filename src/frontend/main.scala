@@ -76,7 +76,7 @@ object FuryServer {
   logThread.setDaemon(true)
   logThread.start()
 
-  def invoke(cli: Cli)(implicit log: Log): ExitStatus = {
+  def invoke(cli: Cli): ExitStatus = {
     Recovery.recover(cli) {
       if(cli.args.args.length > 0 && cli.args.args(0).endsWith(".scala")) BuildCli(cli).script()
       else {
@@ -92,7 +92,7 @@ object FuryServer {
           Action(Symbol(alias.id.key), alias.description, (cli: Cli) => action(cli))
         }
 
-        FuryMenu.menu(actions)(log)(cli, cli)
+        FuryMenu.menu(actions)(cli, cli)
       }
     }
   }
@@ -122,9 +122,8 @@ object FuryServer {
          : Unit =
     exit {
       val pid = Pid(args.head.toInt)
-      implicit val log: Log = Log.log(pid)
-      
-      val cli = Cli(new PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, pid)
+      val job = Job(msg"${args.join(" ")}", pid)
+      val cli = Cli(new PrintWriter(out), ParamMap(args.tail: _*), command = None, optCompletions = Nil, env, job)
       
       Lifecycle.trackThread(cli, args.lift(1).exists(Set("about", "help")(_))) {
         val exitStatus = invoke(cli).code

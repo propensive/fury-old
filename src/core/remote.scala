@@ -59,36 +59,31 @@ object Remote {
 
 case class Remote(ref: String) {
   def path(layout: Layout): Path = {
-    val localSource = for {
-      base <- layout.env.workDir
-      foo <- local(Path(base))
-    } yield foo
+    val localSource = for(base <- layout.env.workDir; foo <- local(Path(base))) yield foo
     val dirName = (localSource -> ref).digest[Md5].encoded
     Installation.reposDir / dirName
   }
 
   def equivalentTo(remote: Remote): Boolean = remote.simplified == simplified
-
   def gitDir(layout: Layout): GitDir = GitDir(path(layout))(layout.env)
 
-  def pull(oldCommit: Commit, layout: Layout)(implicit log: Log): Try[Commit] =
-    for {
-      _         <- fetch(layout)
-      newCommit <- GitDir(path(layout))(layout.env).commit
-      _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
-                        else msg"Repository $this has not changed")
-    } yield newCommit
+  def pull(oldCommit: Commit, layout: Layout): Try[Commit] = for {
+    _         <- fetch(layout)
+    newCommit <- GitDir(path(layout))(layout.env).commit
+    _         <- ~log.info(if(oldCommit != newCommit) msg"Repository $this updated to new commit $newCommit"
+                      else msg"Repository $this has not changed")
+  } yield newCommit
 
-  def get(layout: Layout)(implicit log: Log): Try[GitDir] = {
+  def get(layout: Layout): Try[GitDir] = {
     val destination = path(layout)
     if(destination.exists && !(destination / ".unfinished").exists) {
       Success(GitDir(destination)(layout.env))
     } else fetch(layout)
   }
 
-  def fetch(layout: Layout)(implicit log: Log): Try[GitDir] = {
+  def fetch(layout: Layout): Try[GitDir] = {
     val destination = path(layout)
-    log.note(msg"Fetching $this to $destination")
+    log.fine(msg"Fetching $this to $destination")
     val unfinished = destination / ".unfinished"
     
     if(destination.exists) {

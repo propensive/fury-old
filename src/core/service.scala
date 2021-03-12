@@ -26,42 +26,41 @@ import scala.util._
 import scala.collection.mutable.HashMap
 
 object Service {
-  def catalog(service: DomainName)(implicit log: Log): Try[List[String]] = {
+  def catalog(service: DomainName): Try[List[String]] = {
     val url: Uri = Https(service) / "catalog"
     
     for {
-      _         <- ~log.note(msg"Sending GET request to $url")
+      _         <- ~log.fine(msg"Sending GET request to $url")
       bytes     <- Http.get(url.key, Set()).to[Try]
       catalog   <- Json.parse(new String(bytes, "UTF-8")).to[Try]
-      _         <- ~log.note(msg"Response: $catalog")
+      _         <- ~log.fine(msg"Response: $catalog")
       artifacts <- catalog.entries.as[List[String]].to[Try]
     } yield artifacts
   }
 
-  def list(uri: FuryUri)(implicit log: Log): Try[List[Artifact]] = {
+  def list(uri: FuryUri): Try[List[Artifact]] = {
     val url = Https(uri.domain) / "list" / uri.path
     
     for {
-      _       <- ~log.note(msg"Sending GET request to $url")
+      _       <- ~log.fine(msg"Sending GET request to $url")
       bytes   <- Http.get(url.key, Set()).to[Try]
       json    <- Json.parse(new String(bytes, "UTF-8")).to[Try]
-      _       <- ~log.note(msg"Response: $json")
+      _       <- ~log.fine(msg"Response: $json")
       catalog <- handleError[Catalog](json)
     } yield catalog.entries
   }
 
-  def latest(uri: FuryUri)(implicit log: Log): Try[Artifact] = for {
+  def latest(uri: FuryUri): Try[Artifact] = for {
     artifacts <- list(uri)
     latest    <- Try(artifacts.maxBy(_.version)).toOption.ascribe(UnknownLayer(uri.path, uri.domain))
   } yield latest
 
-  def fetch(uri: FuryUri, version: LayerVersion)(implicit log: Log): Try[Artifact] = for {
+  def fetch(uri: FuryUri, version: LayerVersion): Try[Artifact] = for {
     artifacts <- list(uri)
     artifact  <- artifacts.find(_.version == version.major).ascribe(InvalidVersion())
   } yield artifact
 
   def share(service: DomainName, ref: IpfsRef, token: OauthToken, dependencies: Set[IpfsRef], ttl: Int)
-           (implicit log: Log)
            : Try[Unit] = {
     
     val url = Https(service) / "share"
@@ -72,29 +71,29 @@ object Service {
     val request = Json(Request((ref :: dependencies.to[List]).map(_.key), token.value, ttl))
 
     for {
-      _    <- ~log.note(msg"Sending POST request to $url")
-      _    <- ~log.note(msg"Request: $request")
+      _    <- ~log.fine(msg"Sending POST request to $url")
+      _    <- ~log.fine(msg"Request: $request")
       out  <- Http.post(url.key, request, headers = Set()).to[Try].recoverWith { case e => Failure(HttpInternalServerError(url)) }
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
-      _    <- ~log.note(msg"Response $json")
+      _    <- ~log.fine(msg"Response $json")
       res  <- handleError[Response](json)
     } yield ()
   }
 
-  def published(service: DomainName, token: OauthToken)(implicit log: Log): Try[List[LayerStatus]] = {
+  def published(service: DomainName, token: OauthToken): Try[List[LayerStatus]] = {
     val url = Https(service) / "published"
 
     case class Request(token: String)
 
     val request = Json(Request(token.value))
     for {
-      _    <- ~log.note(msg"Sending POST request to $url")
-      _    <- ~log.note(msg"Request: $request")
+      _    <- ~log.fine(msg"Sending POST request to $url")
+      _    <- ~log.fine(msg"Request: $request")
       out  <- Http.post(url.key, request, headers = Set()).to[Try].recoverWith { case e => Failure(HttpInternalServerError(url)) }
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
-      _    <- ~log.note(msg"Response: $json")
+      _    <- ~log.fine(msg"Response: $json")
       res  <- handleError[List[LayerStatus]](json)
     } yield res
       
@@ -111,7 +110,6 @@ object Service {
           token: OauthToken,
           force: Boolean,
           oldOrganization: String)
-         (implicit log: Log)
          : Try[PublishedLayer] = {
 
     val url = Https(service) / "tag"
@@ -125,12 +123,12 @@ object Service {
         Some(ttl), description, force, oldOrganization))
     
     for {
-      _    <- ~log.note(msg"Sending POST request to $url")
-      _    <- ~log.note(msg"Request: $request")
+      _    <- ~log.fine(msg"Sending POST request to $url")
+      _    <- ~log.fine(msg"Request: $request")
       out  <- Http.post(url.key, request, headers = Set()).to[Try].recoverWith { case e => Failure(HttpInternalServerError(url)) }
       str  <- Success(new String(out, "UTF-8"))
       json <- Json.parse(str).to[Try]
-      _    <- ~log.note(msg"Response: $json")
+      _    <- ~log.fine(msg"Response: $json")
       res  <- handleError[Response](json)
     } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref), Some(res.expiry.value))
   }
@@ -147,7 +145,7 @@ object Service {
   object Cache { def apply(): Cache = new Cache(new HashMap()) }
 
   class Cache(private val map: HashMap[(FuryUri, Option[LayerVersion]), Artifact]) {
-    def apply(uri: FuryUri, version: Option[LayerVersion])(implicit log: Log): Try[Artifact] =
+    def apply(uri: FuryUri, version: Option[LayerVersion]): Try[Artifact] =
       map.get((uri, version)) match {
         case None =>
           version match {

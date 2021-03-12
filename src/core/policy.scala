@@ -25,14 +25,14 @@ import scala.util._
 
 object Policy {
   val CurrentVersion = 1
-  def read(implicit log: Log): Policy =
+  def read(): Policy =
     Ogdl.read[Policy](Installation.policyFile,
         migrate(_)).toOption.getOrElse(Policy(CurrentVersion))
 
-  def save(policy: Policy)(implicit log: Log): Try[Unit] =
+  def save(policy: Policy): Try[Unit] =
     Installation.policyFile.extantParents().writeSync(Ogdl.serialize(Ogdl(policy)))
 
-  private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
+  private def migrate(ogdl: Ogdl): Ogdl = {
     val version = Try(ogdl.version().toInt).getOrElse(0)
     if(version < Policy.CurrentVersion) {
       migrate((version match {

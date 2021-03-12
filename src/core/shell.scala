@@ -49,7 +49,6 @@ case class Shell(environment: Environment) {
               workDir: Path,
               javaVersion: Int)
              (output: String => Unit)
-             (implicit log: Log)
              : Running = {
 
     implicit val defaultEnvironment: Environment =
@@ -73,8 +72,7 @@ case class Shell(environment: Environment) {
     cmd.async(output(_), output(_))
   }
 
-  def javac(classpath: List[String], dest: String, sources: List[String], javaVersion: Int)
-           (implicit log: Log) =
+  def javac(classpath: List[String], dest: String, sources: List[String], javaVersion: Int) =
     sh"${Jdk.javacExec(javaVersion)} -cp ${classpath.mkString(":")} -d $dest $sources".exec[Try[String]]
 
   def tryXdgOpen(url: Uri): Try[Unit] = {

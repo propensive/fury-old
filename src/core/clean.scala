@@ -16,11 +16,11 @@
 */
 package fury.core
 
-import fury._, model._, io._
+import fury._, model._, io._, text._
 
 import scala.util._
 
-case class CleanCli(cli: Cli)(implicit log: Log) {
+case class CleanCli(cli: Cli) {
   def cleanAll: Try[ExitStatus] = for {
     _ <- cleanBloop
     _ <- cleanClasses

@@ -26,7 +26,7 @@ import java.util.Hashtable
 import javax.naming.directory._
 
 object Dns {
-  def lookup(domain: String)(implicit log: Log): Try[List[String]] = {
+  def lookup(domain: String): Try[List[String]] = {
     val env = new Hashtable[String, String]()
     env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory")
     val dirContext = new InitialDirContext(env)

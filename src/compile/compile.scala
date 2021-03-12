@@ -66,8 +66,8 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
   case class Connection(server: FuryBspServer, client: FuryBuildClient, thread: Thread)
   
-  private def connect(dir: Path, build: Build, ref: ModuleRef, layout: Layout, trace: Option[Path] = None)
-                     (implicit log: Log): Connection = BloopServer.synchronized {
+  private def connect(dir: Path, build: Build, ref: ModuleRef, trace: Option[Path] = None): Connection =
+    BloopServer.synchronized {
 
       val serverIoPipe: Pipe = Pipe.open()
       val serverIn: InputStream = Channels.newInputStream(serverIoPipe.source())
@@ -76,12 +76,12 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       val clientIn: InputStream = Channels.newInputStream(clientIoPipe.source())
       val serverOut: OutputStream = Channels.newOutputStream(clientIoPipe.sink())
 
-      val logging: PrintStream = log.stream { str =>
+      val logging: PrintStream = Log.stream { str =>
         (if(str.indexOf("[D]") == 9) str.drop(17) else str) match {
           case r"Starting the bsp launcher.*" =>
-            log.note(msg"Starting the BSP launcher...")
+            log.fine(msg"Starting the BSP launcher...")
           case r"Opening a bsp server connection with.*" =>
-            log.note(msg"Opening a BSP server connection")
+            log.fine(msg"Opening a BSP server connection")
           case r"Waiting for a connection at" =>
             log.info(msg"Waiting for a socket connection")
           case r"Loading project from .*" |
@@ -97,16 +97,16 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
           case r"Creating a scala instance from Bloop" =>
             log.info("Instantiating a new instance of the Scala compiler")
           case r"The server is listening for incoming connections.*" =>
-            log.note(msg"BSP server is listening for incoming connections")
+            log.fine(msg"BSP server is listening for incoming connections")
           case r"bad option '-Ysemanticdb' was ignored" =>
-            log.note(msg"Tried to use -Ysemanticdb")
+            log.fine(msg"Tried to use -Ysemanticdb")
             None
           case r"No server running at .*" =>
             log.info("Could not detect a BSP server running locally")
           case r"A bloop installation has been detected.*" =>
             log.info("Detected an existing Bloop installation")
           case other =>
-            log.note(msg"${'['}bsp${']'} ${other}")
+            log.fine(msg"${'['}bsp${']'} ${other}")
         }
       }
 
@@ -123,7 +123,7 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
 
       thread.start()
       
-      val client = new FuryBuildClient(layout)
+      val client = new FuryBuildClient(build.layout)
         
       val bspServer = new Launcher.Builder[FuryBspServer]()
         .setRemoteInterface(classOf[FuryBspServer])
@@ -147,32 +147,31 @@ object BloopServer extends Lifecycle.Shutdown with Lifecycle.ResourceHolder {
       Connection(proxy, client, thread)
     }
 
-  def borrow[T](dir: Path, build: Build, ref: ModuleRef, layout: Layout, cancellation: Option[Future[Unit]])
-               (block: Connection => T)(implicit log: Log): Try[T] = {
-
+  def borrow[T](build: Build, ref: ModuleRef, job: Job)(block: Connection => T): Try[T] = {
+    val dir = build.layout.baseDir
     val conn = BloopServer.synchronized(connections.get(dir)).getOrElse {
-      log.note(msg"Opening a new BSP connection at $dir")
+      log.fine(msg"Opening a new BSP connection at $dir")
       val tracePath: Option[Path] = if(ManagedConfig().trace) {
-        val path = layout.logsDir / s"${java.time.LocalDateTime.now().toString}.log"
-        log.note(str"BSP trace log is at $path")
+        val path = build.layout.logsDir / s"${java.time.LocalDateTime.now().toString}.log"
+        log.fine(str"BSP trace log is at $path")
         Some(path)
       } else None
 
-      val newConnection = connect(dir, build, ref, layout, trace = tracePath)
+      val newConnection = connect(dir, build, ref, trace = tracePath)
       
       connections += dir -> newConnection
       newConnection
     }
 
-    cancellation.foreach(_.andThen { case _ =>
+    job.completion.future.andThen { case _ =>
       BloopServer.synchronized {
         conn.server.buildShutdown()
         connections -= dir
       }
-    })
+    }
 
     Try {
-      acquire(Lifecycle.currentSession, conn)
+      //acquire(Lifecycle.currentSession, conn)
       conn.synchronized(block(conn))
     }
   }
@@ -205,30 +204,24 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
 
   override def onBuildShowMessage(params: ShowMessageParams): Unit = for {
     idString <- Option(params.getOriginId)
-    originId <- RequestOriginId.unapply(idString)
-    build    <- Build.findOrigin(originId)
   } yield {
     Bus.put(LogMessage(params.getMessage))
-    broadcast(Print(build.goal, params.getMessage))
+    //broadcast(Print(build.goal, params.getMessage))
   }
 
   override def onBuildLogMessage(params: LogMessageParams): Unit = for {
     idString <- Option(params.getOriginId)
-    originId <- RequestOriginId.unapply(idString)
-    build    <- Build.findOrigin(originId)
   } yield {
     Bus.put(LogMessage(params.getMessage))
-    broadcast(Print(build.goal, params.getMessage))
+    //broadcast(Print(build.goal, params.getMessage))
   }
 
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val ref = ModuleRef.fromUri(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
     
-    val build = for {
+    /*val build = for {
       idString <- Option(params.getOriginId)
-      originId <- RequestOriginId.unapply(idString)
-      build    <- Build.findOrigin(originId)
     } yield build
 
     val repos = build.map(_.target.snapshot.stashes.map { case (_, stash) =>
@@ -293,7 +286,7 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
           )
         ))
       }
-    }
+    }*/
   }
 
   override def onBuildTargetDidChange(params: DidChangeBuildTarget): Unit = ()
@@ -323,19 +316,19 @@ class FuryBuildClient(layout: Layout) extends BuildClient {
   override def onBuildTaskStart(params: TaskStartParams): Unit = {
     val ref = getCompileRef(params.getData)
     broadcast(StartCompile(ref))
-    
-    for(build <- Build.findBy(ref); dependencyRef <- build.deepDependencies(ref))
-    yield broadcast(NoCompile(dependencyRef))  
+    Bus.put(TaskProgress(TaskId(ref.toString), 0.0))
+    //for(build <- Build.findBy(ref); dependencyRef <- build.deepDependencies(ref))
+    //yield broadcast(NoCompile(dependencyRef))  
   }
 
   override def onBuildTaskFinish(params: TaskFinishParams): Unit = params.getDataKind match {
     case TaskDataKind.COMPILE_REPORT =>
       val ref = getCompileRef(params.getData)
       val success = params.getStatus == StatusCode.OK
-      broadcast(StopCompile(ref, success))
+      /*broadcast(StopCompile(ref, success))
       Build.findBy(ref).foreach { build =>
         val signal = if(success && build.targets(ref).module.kind.needsExec) StartRun(ref) else StopRun(ref)
         broadcast(signal)
-      }
+      }*/
   }
 }

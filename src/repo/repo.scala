@@ -33,7 +33,7 @@ import scala.collection.immutable.SortedSet
 
 import scala.util._
 
-case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class WorkspaceCli(cli: Cli) extends CliApi {
 
   def list: Try[ExitStatus] = {
     val table: Tabulation[Workspace] = Tables().workspaces
@@ -44,7 +44,7 @@ case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     (cli -< RawArg -< ColumnArg -< OptWorkspaceArg -< LayerArg).action { for {
       rows  <- getLayer >> (_.workspaces)
       repo  <- opt(WorkspaceArg) >> (printTable(table, rows, _, "workspace"))
-    } yield log.await() }
+    } yield cli.job.await() }
   }
   
   def add: Try[ExitStatus] = (cli -< PathArg -< WorkspaceNameArg -< LayerArg).action { for {
@@ -53,7 +53,7 @@ case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     pointer <- getPointer
     id      <- findUniqueSpaceName
     _       <- getHierarchy >>= (WorkspaceApi(_).add(pointer, id.workspace, path, layout)) >>= commit
-  } yield log.await() }
+  } yield cli.job.await() }
 
   def update: Try[ExitStatus] =
     (cli -< LayerArg -< WorkspaceArg -< WorkspaceNameArg -< PathArg).action { for {
@@ -64,7 +64,7 @@ case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
       hierarchy <- getHierarchy
       pointer   <- getPointer
       _         <- WorkspaceApi(hierarchy).update(pointer, workspace.id, newPath, newId, layout) >>= commit
-    } yield log.await() }
+    } yield cli.job.await() }
 
   def remove: Try[ExitStatus] = (cli -< WorkspaceArg).action {
     ((getHierarchy, getPointer, getWorkspace >> (_.id)) >>= (WorkspaceApi(_).remove(_, _)) >>= commit) >> finish
@@ -72,10 +72,10 @@ case class WorkspaceCli(cli: Cli)(implicit val log: Log) extends CliApi {
   
 }
 
-case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class RepoCli(cli: Cli) extends CliApi {
 
   def list: Try[ExitStatus] = {
-    val getTable: Try[Tabulation[Repo]] = getLayout.map(Tables().repos(_)(log))
+    val getTable: Try[Tabulation[Repo]] = getLayout.map(Tables().repos(_))
     
     implicit val columnHints: ColumnArg.Hinter =
       ColumnArg.hint(getTable.map(_.headings.map(_.name.toLowerCase)))
@@ -83,7 +83,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     (cli -< RawArg -< ColumnArg -< RepoArg -< LayerArg).action { for {
       rows  <- getLayer >> (_.repos)
       repo  <- (getTable, opt(RepoArg)) >> (printTable(_, rows, _, "repo"))
-    } yield log.await() }
+    } yield cli.job.await() }
   }
   
   def doAuth: Try[OauthToken] = for {
@@ -107,7 +107,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
       layer  <- getLayer >> (Layer(_.repos).modify(_)(_ + repo))
       layer  <- ~layer.copy(mainRepo = None).checkinSources(repo.id)
       _      <- commit(layer)
-    } yield log.await()
+    } yield cli.job.await()
   }
 
   def checkout: Try[ExitStatus] = (cli -< RepoArg -< GrabArg -< LayerArg).action { for {
@@ -139,7 +139,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     gitDir   <- ~GitDir(layout.baseDir)(cli.env)
     layer    <- ~layer.copy(mainRepo = Some(get(RepoArg).getOrElse(RepoId(layout))))
     _        <- commit(layer)
-  } yield log.await() }
+  } yield cli.job.await() }
   
   def unfork: Try[ExitStatus] = (cli -< RepoArg -< LayerArg).action {
     for {
@@ -148,7 +148,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
       newRepo   <- getLayout >>= (repo.unfork(_))
       layer     <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
       _         <- commit(layer)
-    } yield log.await()
+    } yield cli.job.await()
   }
 
   def fork: Try[ExitStatus] = (cli -< LayerArg -< PathArg -< ProjectArg -< RepoArg).action { for {
@@ -171,7 +171,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     newRepo <- ~repo.copy(local = Some(gitDir.dir))
     layer   <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
     _       <- commit(layer)
-  } yield log.await() }
+  } yield cli.job.await() }
 
   def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg -< LayerArg).action { for {
     layout  <- getLayout
@@ -185,7 +185,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
     pointer <- getPointer
     remote  <- opt(RemoteArg)
     _       <- getHierarchy >>= (RepoApi(_).add(pointer, id, remote, refSpec, path, layout)) >>= commit
-  } yield log.await() }
+  } yield cli.job.await() }
 
   def update: Try[ExitStatus] =
     (cli -< CommitArg -< LayerArg -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
@@ -200,7 +200,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
       hierarchy <- getHierarchy
       pointer   <- getPointer
       _         <- RepoApi(hierarchy).update(pointer, repo.id, newId, remote, refSpec, layout) >>= commit
-    } yield log.await() }
+    } yield cli.job.await() }
 
   def pull: Try[ExitStatus] =
     (cli -< LayerArg -< RepoArg -< AllArg).action {
@@ -215,7 +215,7 @@ case class RepoCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
 case class RepoApi(hierarchy: Hierarchy) {
 
-  def remove(pointer: Pointer, id: RepoId)(implicit log: Log): Try[Hierarchy] = hierarchy.on(pointer) { layer =>
+  def remove(pointer: Pointer, id: RepoId): Try[Hierarchy] = hierarchy.on(pointer) { layer =>
     layer.repos.findBy(id).map { r => Layer(_.repos).modify(layer)(_ - r) }
   }
 
@@ -224,9 +224,7 @@ case class RepoApi(hierarchy: Hierarchy) {
           remote: Option[Remote],
           refSpec: Option[RefSpec],
           path: Option[Path],
-          layout: Layout)
-         (implicit log: Log)
-         : Try[Hierarchy] = for {
+          layout: Layout): Try[Hierarchy] = for {
     layer      <- hierarchy(pointer)
     pathRemote <- path.map(GitDir(_)(layout.env).remote).sequence
     remote     <- remote.orElse(pathRemote).ascribe(NoRemoteInferred())
@@ -237,7 +235,7 @@ case class RepoApi(hierarchy: Hierarchy) {
     hierarchy  <- hierarchy(pointer) = Layer(_.repos).modify(layer)(_ + Repo(id, remote, branch, commit, path))
   } yield hierarchy
 
-  def pull(pointer: Pointer, repo: Option[RepoId], layout: Layout)(implicit log: Log): Try[Layer] = for {
+  def pull(pointer: Pointer, repo: Option[RepoId], layout: Layout): Try[Layer] = for {
     layer    <- hierarchy(pointer)
     repos    <- repo.fold(~layer.repos.to[List])(layer.repos.findBy(_).map(List(_)))
     
@@ -259,7 +257,6 @@ case class RepoApi(hierarchy: Hierarchy) {
              remote: Option[Remote],
              refSpec: Option[RefSpec],
              layout: Layout)
-            (implicit log: Log)
             : Try[Hierarchy] = for {
     layer     <- hierarchy(pointer)
     repo      <- layer.repos.findBy(id)
@@ -275,13 +272,11 @@ case class RepoApi(hierarchy: Hierarchy) {
 
 case class WorkspaceApi(hierarchy: Hierarchy) {
 
-  def remove(pointer: Pointer, id: WorkspaceId)(implicit log: Log): Try[Hierarchy] = hierarchy.on(pointer) { layer =>
+  def remove(pointer: Pointer, id: WorkspaceId): Try[Hierarchy] = hierarchy.on(pointer) { layer =>
     layer.workspaces.findBy(id).map { r => Layer(_.workspaces).modify(layer)(_ - r) }
   }
 
-  def add(pointer: Pointer, id: WorkspaceId, path: Option[Path], layout: Layout)
-         (implicit log: Log)
-         : Try[Hierarchy] = for {
+  def add(pointer: Pointer, id: WorkspaceId, path: Option[Path], layout: Layout): Try[Hierarchy] = for {
     layer      <- hierarchy(pointer)
     hierarchy  <- hierarchy(pointer) = Layer(_.workspaces).modify(layer)(_ + Workspace(id, path))
   } yield hierarchy
@@ -290,9 +285,7 @@ case class WorkspaceApi(hierarchy: Hierarchy) {
              id: WorkspaceId,
              path: Option[Option[Path]],
              name: Option[WorkspaceId],
-             layout: Layout)
-            (implicit log: Log)
-            : Try[Hierarchy] = for {
+             layout: Layout): Try[Hierarchy] = for {
     layer     <- hierarchy(pointer)
     workspace <- layer.workspaces.findBy(id)
     workspace <- ~name.fold(workspace)(Workspace(_.id)(workspace) = _)

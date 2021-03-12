@@ -16,7 +16,7 @@
 */
 package fury
 
-import fury.io._, fury.core._, fury.model._
+import fury._, io._, core._, model._, text._
 
 import jovian._
 
@@ -24,7 +24,7 @@ import Args._
 
 import scala.util._
 
-case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class IncludeCli(cli: Cli) extends CliApi {
 
   implicit lazy val possibleFileHints: SourceArg.Hinter = SourceArg.hint((getLayout, getLayer) >> {
     case (layout, layer) =>
@@ -49,7 +49,7 @@ case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
       kind      <- getInclude
       path      <- get(PathArg)
       hierarchy <- IncludeApi(hierarchy).add(pointer, projectId, moduleId, kind, path) >>= commit
-    } yield log.await()
+    } yield cli.job.await()
   }
   
   def update: Try[ExitStatus] = {
@@ -66,7 +66,7 @@ case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
         kind      <- opt(IncludeTypeArg).map(_ => getInclude)
         path      <- opt(PathArg)
         hierarchy <- IncludeApi(hierarchy).update(pointer, projectId, moduleId, id, ref, kind.toOption, path) >>= commit
-      } yield log.await()
+      } yield cli.job.await()
     }
   }
   
@@ -83,8 +83,8 @@ case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
         include   <- opt(IncludeArg)
         col       <- opt(ColumnArg)
         _         <- ~log.info(focus)
-        _         <- ~log.rawln(Tables().show(tabulation, cli.cols, module.includes, raw, col, include, "include"))
-      } yield finish(())
+        _         <- ~log.raw(Tables().show(tabulation, cli.cols, module.includes, raw, col, include, "include")+"\n")
+      } yield cli.job.await()
     }
   }
 
@@ -99,20 +99,18 @@ case class IncludeCli(cli: Cli)(implicit val log: Log) extends CliApi {
         hierarchy <- getHierarchy
         include   <- get(IncludeArg)
         hierarchy <- IncludeApi(hierarchy).remove(pointer, project.id, module.id, include) >>= commit
-      } yield log.await()
+      } yield cli.job.await()
     }
   }
 }
 
 case class IncludeApi(hierarchy: Hierarchy) {
   def remove(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, id: IncludeId)
-            (implicit log: Log)
             : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
     include <- layer.projects.findBy(projectId) >>= (_.modules.findBy(moduleId)) >>= (_.includes.findBy(id))
   } yield Layer(_.projects(projectId).modules(moduleId).includes).modify(layer)(_ - include) }
 
   def add(pointer: Pointer, projectId: ProjectId, moduleId: ModuleId, kind: IncludeType, path: Path)
-         (implicit log: Log)
          : Try[Hierarchy] = hierarchy.on(pointer) { layer =>
     val lens = Layer(_.projects(projectId).modules(moduleId).includes)
     val include = Include(IncludeId(path), kind)
@@ -128,7 +126,6 @@ case class IncludeApi(hierarchy: Hierarchy) {
              ref: Option[ModuleRef],
              kind: Option[IncludeType],
              path: Option[Path])
-            (implicit log: Log)
             : Try[Hierarchy] = hierarchy.on(pointer) { layer => for {
     lens       <- ~Layer(_.projects(projectId).modules(moduleId).includes)
     _          <- path.map(IncludeId(_)).fold(~id)(lens(layer).unique(_))

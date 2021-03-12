@@ -65,7 +65,7 @@ object Ipfs {
       ref  <- add(file, wrap = false, onlyHash = true)
     } yield ref
 
-    def get(ref: IpfsRef)(implicit log: Log): Try[String] = {
+    def get(ref: IpfsRef): Try[String] = {
       val config = ManagedConfig()
       
       val getFromIpfs: Try[String] =
@@ -130,11 +130,8 @@ object Ipfs {
       _    =  TarGz.untar(in, path)
     } yield path.childPaths.head
 
-    private[this] def getFileFromGateway(ref: IpfsRef, gateway: DomainName)
-                                        (implicit log: Log)
-                                        : Try[String] = {
-
-      log.note(msg"Accessing $gateway to retrieve ${ref}")
+    private[this] def getFileFromGateway(ref: IpfsRef, gateway: DomainName): Try[String] = {
+      log.fine(msg"Accessing $gateway to retrieve ${ref}")
       val params = List("arg" -> ref.key, "archive" -> "true")
       for {
         data   <- Http.get((Https(gateway) / "api" / "v0" / s"get").query(params: _*).key, Set.empty).to[Try]
@@ -147,8 +144,8 @@ object Ipfs {
   case class IpfsId(id: String, publicKey: String, addresses: List[String], agentVersion: String,
       protocolVersion: String)
 
-  def daemon(quiet: Boolean)(implicit log: Log): Try[IpfsApi] = {
-    log.note("Checking for IPFS daemon")
+  def daemon(quiet: Boolean): Try[IpfsApi] = {
+    log.fine("Checking for IPFS daemon")
 
     def getHandle(): Try[IPFS] = Try(new IPFS("localhost", 5001).timeout(10000))
 
@@ -161,28 +158,28 @@ object Ipfs {
       Future(blocking { sh"${ipfs.value} daemon".async(
         stdout = {
           case r".*Daemon is ready.*" =>
-            log.infoWhen(!quiet)(msg"IPFS daemon has started")
+            if(!quiet) log.info(msg"IPFS daemon has started")
             ready.success(())
           case r".*Initializing daemon.*" =>
-            log.infoWhen(!quiet)(msg"Initializing IPFS daemon")
+            if(!quiet) log.info(msg"Initializing IPFS daemon")
           case other =>
-            log.note(str"[ipfs] $other")
+            log.fine(str"[ipfs] $other")
         },
         stderr = {
           case r".*ipfs daemon is running.*" =>
-            log.note("IPFS daemon is already running")
+            log.fine("IPFS daemon is already running")
           case other =>
-            log.note(str"[ipfs] $other")
+            log.fine(str"[ipfs] $other")
         }
       ).await() })
-      log.infoWhen(!quiet)(msg"Waiting for the IPFS daemon to start...")
+      if(!quiet) log.info(msg"Waiting for the IPFS daemon to start...")
       ready.future
     }
 
     getHandle().recoverWith {
       //TODO think of a better way to match the exact exception
       case e: RuntimeException if e.getMessage.contains("Couldn't connect to IPFS daemon") =>
-        log.infoWhen(!quiet)(msg"Couldn't connect to IPFS daemon")
+        if(!quiet) log.info(msg"Couldn't connect to IPFS daemon")
         for {
           _    <- IpfsSoftware.installedPath(environments.enclosing, quiet)
           ipfs =  IpfsSoftware.activePath(environments.enclosing)
@@ -215,22 +212,20 @@ abstract class Installable(name: Executable) extends Software(name) {
   def managedPath: Path
   def tarGz: Try[Uri]
   
-  def install(env: Environment, quiet: Boolean)(implicit log: Log): Try[Unit] = {
+  def install(env: Environment, quiet: Boolean): Try[Unit] = {
     Installation.system.foreach { sys =>
-      log.infoWhen(!quiet)(msg"Attempting to install ${name} for $sys to ${base}")
+      if(!quiet) log.info(msg"Attempting to install ${name} for $sys to ${base}")
     }
     for {
       bin <- tarGz
-      _   <- ~log.infoWhen(!quiet)(msg"Downloading $bin...")
+      _   <- ~(if(!quiet) log.info(msg"Downloading $bin..."))
       in  <- Http.request(bin.key, Map[String, String](), "GET", Set()).to[Try]
       _   <- TarGz.extract(new ByteArrayInputStream(in), base)
       _   <- managedPath.setExecutable(true)
-    } yield {
-      log.infoWhen(!quiet)(msg"Installed ${name} to ${managedPath}")
-    }
+    } yield (if(!quiet) log.info(msg"Installed ${name} to ${managedPath}"))
   }
 
-  def installedPath(env: Environment, quiet: Boolean)(implicit log: Log): Try[Path] =
+  def installedPath(env: Environment, quiet: Boolean): Try[Path] =
     if(!activePath(env).exists()) install(env, quiet).map { _ => activePath(env) }
     else Success(activePath(env))
 
@@ -279,22 +274,22 @@ object JavaSoftware extends Installable(Executable("java")) {
 }
 
 object Jdk {
-  def binDir(version: Int, install: Boolean = true)(implicit log: Log): Path = {
+  def binDir(version: Int, install: Boolean = true): Path = {
     val dir = Installation.data / "jdk" / str"$version" / "bin"
     if(!dir.exists && install) JdkSoftware(version).install(implicitly[Environment], true).map(dir.waive)
     
     dir
   }
   
-  def javaExec(version: Int)(implicit log: Log): Path = binDir(version) / "java"
-  def javacExec(version: Int)(implicit log: Log): Path = binDir(version) / "javac"
+  def javaExec(version: Int): Path = binDir(version) / "java"
+  def javacExec(version: Int): Path = binDir(version) / "javac"
 }
 
 case class JdkSoftware(version: Int) extends Installable(Executable("java")) {
   def installVersion = version.toString
   def description = "Java™ SE Runtime Environment"
   def website = Https(path"openjdk.java.net")
-  def managedPath: Path = Jdk.binDir(version, false)(Log()).parent.extant()
+  def managedPath: Path = Jdk.binDir(version, false).parent.extant()
   def version(env: Environment): Option[String] = Some(version.toString)
   override def base: Path = (Installation.data / "jdk" / str"$version").extant()
   
@@ -313,7 +308,7 @@ case class JdkSoftware(version: Int) extends Installable(Executable("java")) {
     }
   }
 
-  override def install(env: Environment, quiet: Boolean)(implicit log: Log): Try[Unit] = for {
+  override def install(env: Environment, quiet: Boolean): Try[Unit] = for {
     _      <- super.install(env, quiet)
     
     binDir <- managedPath.descendants.find { f => f.directory && f.name == "bin"
@@ -350,7 +345,7 @@ object VsCodeSoftware extends Installable(Executable("code")) {
     }
   }
 
-  override def install(env: Environment, quiet: Boolean)(implicit log: Log): Try[Unit] = for {
+  override def install(env: Environment, quiet: Boolean): Try[Unit] = for {
     _ <- super.install(env, quiet)
     _ <- sh"${managedPath.value} --install-extension scalameta.metals".exec[Try[String]]: Try[String]
   } yield ()

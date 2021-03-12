@@ -31,7 +31,7 @@ import java.util.{List => _, Map => _, _}
 
 object Install {
   
-  def apply(env: Environment, force: Boolean)(implicit log: Log): Try[Unit] = for {
+  def apply(env: Environment, force: Boolean): Try[Unit] = for {
     _ <- doCCompilation(env).recover { case e =>
            log.warn(msg"Could not find a C compiler (${Executable("cc")}) on the PATH")
            log.warn(msg"Fury will work, but its process name will be ${Executable("java")} instead of "+
@@ -49,7 +49,7 @@ object Install {
     _ <- ~log.info(msg"Thank you for trying Fury!")
   } yield ()
 
-  private def replaceActiveDir()(implicit log: Log): Try[Unit] = {
+  private def replaceActiveDir(): Try[Unit] = {
     val removed = Installation.activeDir.linkTarget() match {
       case Some(realPath) =>
         log.info(msg"Removing the active installation symlink to $realPath")
@@ -63,7 +63,7 @@ object Install {
     }
   }
 
-  private def doCCompilation(env: Environment)(implicit log: Log): Try[Unit] = for {
+  private def doCCompilation(env: Environment): Try[Unit] = for {
     _ <- cCompile(Installation.binDir / "procname.c", Installation.binDir / "libprocname.so",
                             env, "-Wall", "-Werror", "-fPIC", "-shared")
 
@@ -71,13 +71,13 @@ object Install {
     _ <- ~log.info(msg"Compiled the native Nailgun client and ${Executable("fury")} process name wrapper")
   } yield ()
 
-  private def fishInstall(env: Environment)(implicit log: Log): Try[Unit] =
+  private def fishInstall(env: Environment): Try[Unit] =
     Try(log.warn(msg"Installation for ${Executable("fish")} is not yet supported"))
 
   private def iconDirs: List[Path] =
     List(16, 48, 128).map { s => path"icons/hicolor" / str"${s}x${s}" / "apps" / "fury-icon.png" }
 
-  private def desktopInstall(env: Environment)(implicit log: Log): Try[Unit] = for {
+  private def desktopInstall(env: Environment): Try[Unit] = for {
     _        <- ~log.info(msg"Installing handler for fury:// URLs")
     file     <- ~(Xdg.dataHome / "applications" / "fury.desktop")
     _        <- ~file.writeSync(desktopEntry)
@@ -114,7 +114,6 @@ object Install {
   )
 
   private def rcInstall(env: Environment, force: Boolean, file: Path, shell: Executable, extra: List[String])
-                       (implicit log: Log)
                        : Try[Unit] = { for {
     lines <- Try(scala.io.Source.fromFile(file.javaFile).getLines.filterNot(_.endsWith(furyTag))).recover {
                case e if(force || shell == getShell(env)) => List("")

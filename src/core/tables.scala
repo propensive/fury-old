@@ -235,7 +235,7 @@ case class Tables() {
     Heading("License", _.license)
   )
 
-  def repos(layout: Layout)(implicit log: Log): Tabulation[Repo] = Tabulation(
+  def repos(layout: Layout): Tabulation[Repo] = Tabulation(
     Heading("Repo", _.id),
     Heading("Remote", _.remote),
     Heading("Branch/Tag", _.branch),

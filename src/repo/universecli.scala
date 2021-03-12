@@ -23,7 +23,7 @@ import mercator._
 
 import scala.util._
 
-case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class UniverseCli(cli: Cli) extends CliApi {
   import Args._
 
   object repos {
@@ -35,9 +35,9 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       rows      <- universe >> (_.repoSets.to[List])
       repoSetId <- opt(RepoSetArg)
       table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, repoSetId >> (_.key), "commit")
-      _         <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
-      _         <- ~log.rawln(table)
-    } yield log.await() }
+      _         <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(msg) }
+      _         <- ~log.raw(table+"\n")
+    } yield cli.job.await() }
 
     def update: Try[ExitStatus] = (cli -< RepoSetArg -< CommitArg -< TagArg -< BranchArg).action {
       for {
@@ -53,7 +53,7 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
         someLayer <- hierarchy(repos.head.layer)
         someRepo  <- someLayer.repos.findBy(repos.head.repoId)
         _         <- (getHierarchy, getLayout) >>= (UniverseApi(_).repos.update(repoSetId, refSpec, _)) >>= commit
-      } yield log.await()
+      } yield cli.job.await()
     }
   }
 
@@ -71,14 +71,14 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
                    }
 
       table     <- ~Tables().show(table, cli.cols, rows.toMap.to[List], has(RawArg), col, projectId >> (_.key), "project")
-      _         <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
-      _         <- ~log.rawln(table)
-    } yield log.await() }
+      _         <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(msg) }
+      _         <- ~log.raw(table+"\n")
+    } yield cli.job.await() }
 
     def proliferate: Try[ExitStatus] = (cli -< ProjectRefArg).action { for {
       projectRef <- get(ProjectRefArg)
       hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(projectRef)) >>= commit
-    } yield log.await() }
+    } yield cli.job.await() }
 
     def diff: Try[ExitStatus] = (cli -< ProjectRefArg -< AgainstProjectArg -< RawArg).action { for {
       universe <- universe
@@ -87,8 +87,8 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
       diff     <- getHierarchy >>= (UniverseApi(_).projects.diff(left, right))
       table    <- ~Tables().differences(str"$left", str"$right")
       table    <- ~Tables().show[Difference, Difference](table, cli.cols, diff, has(RawArg), None, None, "difference")
-      _        <- ~log.rawln(table)
-    } yield log.await() }
+      _        <- ~log.raw(table+"\n")
+    } yield cli.job.await() }
   }
 
   object imports {
@@ -102,9 +102,9 @@ case class UniverseCli(cli: Cli)(implicit val log: Log) extends CliApi {
         Tables().show(table, cli.cols, rows, has(RawArg), col, layerRef >> (_.key), "layer")
       }
       for {
-        _ <- conf >> (_.focus()) >> (log.infoWhen(!has(RawArg))(_))
-        _ <- output >> log.rawln
-      } yield log.await()
+        _ <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(msg) }
+        _ <- output >> { msg => log.raw(msg+"\n") }
+      } yield cli.job.await()
     }
 
     def update: Try[ExitStatus] = (cli -< LayerRefArg -< ImportArg -< LayerVersionArg).action {
@@ -121,7 +121,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
   private[this] def findUsages(ref: ShortLayerRef): Try[LayerProvenance] = universe >> (_.imports) >>= (_.findBy(ref))
 
   object repos {
-    def update(repoSetId: RepoSetId, refSpec: RefSpec, layout: Layout)(implicit log: Log): Try[Hierarchy] =
+    def update(repoSetId: RepoSetId, refSpec: RefSpec, layout: Layout): Try[Hierarchy] =
       for {
         repoSets  <- universe >> (_.repoSets)
         repos     <- repoSets.findBy(repoSetId)
@@ -137,7 +137,7 @@ case class UniverseApi(hierarchy: Hierarchy) {
   }
 
   object projects {
-    def proliferate(projectRef: ProjectRef)(implicit log: Log): Try[Hierarchy] = for {
+    def proliferate(projectRef: ProjectRef): Try[Hierarchy] = for {
       universe  <- universe
       project   <- universe(projectRef)
       pointers  =  universe.projects(projectRef.id).allOrigins
@@ -146,12 +146,12 @@ case class UniverseApi(hierarchy: Hierarchy) {
                    }
     } yield hierarchy
 
-    def diff(left: ProjectRef, right: ProjectRef)(implicit log: Log): Try[Seq[Difference]] =
+    def diff(left: ProjectRef, right: ProjectRef): Try[Seq[Difference]] =
       (universe >>= (_(left)), universe >>= (_(right))) >> (Project.diff.diff)
   }
 
   object imports {
-    def update(oldImport: ShortLayerRef, input: Option[LayerName], version: Option[LayerVersion])(implicit log: Log): Try[Hierarchy] = for {
+    def update(oldImport: ShortLayerRef, input: Option[LayerName], version: Option[LayerVersion]): Try[Hierarchy] = for {
       provenance  <- findUsages(oldImport)
       newImport   <- input.ascribe(NoPublishedName(oldImport)).orElse(getRemoteName(oldImport, provenance))
       newLayerRef <- Layer.resolve(newImport, version)

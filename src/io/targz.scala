@@ -61,7 +61,7 @@ object TarGz {
     out.close()
   }
 
-  def extract(file: Path, destination: Path)(implicit log: Log): Try[Unit] =
+  def extract(file: Path, destination: Path): Try[Unit] =
     extract(new FileInputStream(file.javaFile), destination)
   
   def extract(in: InputStream, destination: Path): Try[Unit] = Try {

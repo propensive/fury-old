@@ -31,14 +31,14 @@ case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierar
     Try(children.foldLeft(Universe(this))(merge) ++ layer.localUniverse(this, path))
   }
 
-  def on(pointer: Pointer)(updateLayer: Layer => Try[Layer])(implicit log: Log): Try[Hierarchy] =
+  def on(pointer: Pointer)(updateLayer: Layer => Try[Layer]): Try[Hierarchy] =
     apply(pointer) >>= updateLayer >>= (this(pointer) = _)
 
   def apply(pointer: Pointer): Try[Layer] =
     if(pointer.isEmpty) ~layer
     else children.get(pointer.head).ascribe(CantResolveLayer(pointer)).flatMap(_(pointer.tail))
 
-  def update(pointer: Pointer, newLayer: Layer)(implicit log: Log): Try[Hierarchy] =
+  def update(pointer: Pointer, newLayer: Layer): Try[Hierarchy] =
     if(pointer.isEmpty) Success(copy(layer = newLayer))
     else children.get(pointer.head).ascribe(CantResolveLayer(pointer)).flatMap { hierarchy =>
       hierarchy.update(pointer.tail, newLayer).flatMap { h => h.layerRef.map { ref =>
@@ -49,21 +49,21 @@ case class Hierarchy(layer: Layer, path: Pointer, children: Map[ImportId, Hierar
       } }
     }
 
-  def updateAll[T](xs: Traversable[(Pointer, T)])(fn: (Layer, T) => Layer)(implicit log: Log): Try[Hierarchy] =
+  def updateAll[T](xs: Traversable[(Pointer, T)])(fn: (Layer, T) => Layer): Try[Hierarchy] =
     xs.foldLeft(Try(this)) { case (getHierarchy, (path, value)) => for {
       hierarchy <- getHierarchy
       layer     <- hierarchy(path) >> (fn(_, value))
       hierarchy <- hierarchy(path) = layer
     } yield hierarchy }
 
-  def save(pointer: Pointer, layout: Layout)(implicit log: Log): Try[LayerRef] =
+  def save(pointer: Pointer, layout: Layout): Try[LayerRef] =
     children.values.to[List].traverse(_.save(pointer, layout)).flatMap { _ =>
       layerRef.flatMap { ref =>
         if(path.isEmpty) Layer.saveFuryConf(FuryConf(ref, pointer), layout).map(ref.waive) else Success(ref)
       }
     }
 
-  lazy val layerRef: Try[LayerRef] = Layer.store(layer)(Log())
+  lazy val layerRef: Try[LayerRef] = Layer.store(layer)
   
   def focus(pointer: Pointer): Try[Focus] = layerRef >> (Focus(_, pointer, None))
   

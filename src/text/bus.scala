@@ -16,57 +16,150 @@
 */
 package fury.text
 
+import mercator._
+
 import scala.concurrent._, duration._
 import scala.util._
-import scala.collection.mutable.HashSet
+import scala.collection.mutable.{HashSet, HashMap}
 
 import scala.annotation._
 
-sealed trait Event
+import java.util.concurrent.Executors
+
+sealed class ExitStatus(val code: Int)
+case object Done  extends ExitStatus(0)
+case object Abort extends ExitStatus(1)
+case object Continuation extends ExitStatus(91)
+
+object Pid {
+  implicit val stringShow: StringShow[Pid] = pid => Integer.toHexString(pid.pid).padTo(5, '0')
+
+  implicit val msgShow: MsgShow[Pid] =
+    pid => Message { theme => msg"${theme.active(stringShow.show(pid))}".string(theme) }
+}
+
+case class Pid(pid: Int)
+
+sealed trait Event {
+  def apply(state: State): State
+  def relevant(job: Option[Job], state: State): Boolean
+}
+
+abstract class InternalEvent(action: State => State) extends Event {
+  def apply(state: State): State = action(state)
+  def relevant(listenerJob: Option[Job], state: State): Boolean = listenerJob.isEmpty
+}
+
+sealed abstract class JobEvent(job: Job, action: State => State) extends Event {
+  def apply(state: State): State = action(state)
+  def relevant(listenerJob: Option[Job], state: State): Boolean = listenerJob == Some(job)
+}
+
+sealed abstract class TaskEvent(task: TaskId, action: State => State) extends Event {
+  def apply(state: State): State = action(state)
+  
+  def relevant(listenerJob: Option[Job], state: State): Boolean = true
+    //listenerJob.fold(false)(state.tasks(task).job == _)
+}
 
 object TaskId { def apply(): TaskId = TaskId(java.util.UUID.randomUUID().toString) }
 
 case class TaskId(key: String)
-case class Task[T](id: TaskId, name: Message, action: () => T)
-case class Job(name: Message, thread: Thread)
 
-case class StartTask(task: TaskId) extends Event
-case class FinishTask(task: TaskId) extends Event
-case class TaskProgress(task: TaskId, progress: Double) extends Event
-case class RestartJob(job: Job) extends Event
-case class FinishJob(job: Job) extends Event
-case class LogMessage(msg: Message) extends Event
-case object Shutdown extends Event
+sealed trait Status { def withIssue(issue: Issue): Status = Failed(Vector(issue)) }
+case class Working(complete: Double) extends Status
+case object Started extends Status
+case object Succeeded extends Status
+case object NotStarted extends Status
 
-case class State(jobs: Map[Job, Dag[TaskId]] = Map(), progress: Map[TaskId, Double] = Map().withDefault { _ => 0 }) {
-  def +(job: Job) = copy(jobs.updated(job, Dag()))
-  def -(job: Job) = copy(jobs - job)
-  def apply(job: Job): Dag[TaskId] = jobs(job)
-  def update(job: Job, dag: Dag[TaskId]): State = copy(jobs.updated(job, dag))
-  def setProgress(task: TaskId, complete: Double): State = copy(progress = progress.updated(task, complete))
+case class Failed(issues: Vector[Issue]) extends Status {
+  override def withIssue(issue: Issue): Status = Failed(issues :+ issue)
 }
 
-trait Interest[T] { def predicate(value: T): Event => Boolean }
+case class Issue(msg: Message)
+
+object Task {
+  private val tasks: HashMap[TaskId, Task[_]] = HashMap()
+  private implicit val ec: ExecutionContext = Bus.execCtx
+  
+  def schedule[T](name: Message, prerequisites: Set[TaskId] = Set())(action: => T): Task[T] = {
+    val task = Task[T](TaskId(java.util.UUID.randomUUID().toString), name, prerequisites, { () => action })
+    synchronized { tasks(task.id) = task }
+    task
+  }
+
+  def apply(id: TaskId): Option[Task[_]] = synchronized(tasks.get(id))
+}
+
+case class Task[T](id: TaskId, name: Message, prerequisites: Set[TaskId], action: () => T) {
+  import Bus.execCtx
+  lazy val future: Future[T] = Future.sequence(prerequisites.map(Task.tasks(_).future)).map { _ => action() }
+  def await(): T = Await.result(future, Duration.Inf)
+}
+
+object Job {
+  def apply(pid: Pid, name: Message, dag: Dag[TaskId], goal: TaskId): Unit = {
+    val promise: Promise[Unit] = Promise()
+    //Job(name, pid, promise)
+  }
+}
+
+case class Job(name: Message, pid: Pid) {
+  val completion: Promise[ExitStatus] = Promise()
+  def complete(exit: ExitStatus): Unit = completion.complete(Success(exit))
+  def await(): ExitStatus = Await.result(completion.future, Duration.Inf)
+}
+
+case class StartTask(task: TaskId) extends TaskEvent(task, _.startTask(task))
+case class StopTask(task: TaskId) extends TaskEvent(task, _.completeTask(task))
+case class StartJob(job: Job, dag: Dag[TaskId]) extends JobEvent(job, _.startJob(job, dag))
+case class StopJob(job: Job) extends JobEvent(job, _.stopJob(job))
+
+case class TaskProgress(task: TaskId, progress: Double) extends TaskEvent(task, _.setProgress(task, progress))
+case class TaskIssue(task: TaskId, issue: Issue) extends TaskEvent(task, _.taskIssue(task, issue))
+case class LogMessage(msg: Message) extends InternalEvent(identity)
+case class RawMessage(msg: String) extends InternalEvent(identity)
+case class JobMessage(job: Job, msg: Message) extends JobEvent(job, identity)
+
+case class State(jobs: Map[Job, Dag[TaskId]] = Map(),
+                 statuses: Map[TaskId, Status] = Map().withDefault { _ => NotStarted },
+                 tasks: Map[TaskId, Task[_]] = Map()) {
+  def apply(job: Job): Dag[TaskId] = jobs(job)
+  def update(job: Job, dag: Dag[TaskId]): State = copy(jobs.updated(job, dag))
+  
+  private def setStatus(task: TaskId, status: Status): State =
+    copy(statuses = statuses.updated(task, status))
+  
+  private def updateStatus(task: TaskId, modify: Status => Status): State =
+    copy(statuses = statuses.updated(task, modify(statuses(task))))
+  
+  def startTask(task: TaskId): State = setStatus(task, Started)
+  def startJob(job: Job, dag: Dag[TaskId]): State = copy(jobs = jobs.updated(job, dag))
+  def stopJob(job: Job): State = copy(jobs = jobs - job)
+  def completeTask(task: TaskId): State = setStatus(task, Succeeded)
+  def setProgress(task: TaskId, progress: Double): State = setStatus(task, Working(progress))
+  def taskIssue(task: TaskId, issue: Issue): State = updateStatus(task, _.withIssue(issue))
+}
 
 case class Tick(state: Option[State], events: List[Event])
 
 object Bus {
+  implicit val execCtx: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(64))
   def apply(): State = Bus.synchronized(state)
   def put(event: Event): Unit = Bus.synchronized { receive(event) }
 
-  def listen[T: Interest, S](value: T, interval: Int = 100)(block: Stream[Tick] => S): S = {
-    val listener = new Listener(interval, implicitly[Interest[T]].predicate(value))
+  def listen[S](job: Job, interval: Int = 100)(block: Stream[Tick] => S): S = {
+    val listener = new Listener(interval, Some(job))
     register(listener)
     try block(listener.tickStream) finally unregister(listener)
   }
 
   def listen[S](interval: Int)(block: Stream[Tick] => S): S = {
-    val listener = new Listener(interval, { _ => true })
+    val listener = new Listener(interval, None)
     register(listener)
     try block(listener.tickStream) finally unregister(listener)
   }
   
-  private implicit lazy val execCtx: ExecutionContext = ExecutionContext.global
   private val listeners: HashSet[Listener] = HashSet()
   private def register(listener: Listener): Unit = Bus.synchronized(listeners += listener)
   private def unregister(listener: Listener): Unit = Bus.synchronized(listeners -= listener)
@@ -76,14 +169,14 @@ object Bus {
                      : Stream[List[T]] = {
     val window: Long = interval - (System.currentTimeMillis - t0)
     if(stream.isEmpty) Stream(chunk.reverse)
-    else try chunked(stream.tail, interval, t0, Await.result(Future(blocking(stream)), window.milliseconds).head :: chunk)
+    else try chunked(stream.tail, interval, t0, Await.result(Future(stream)(execCtx), window.milliseconds).head :: chunk)
     catch { case _: TimeoutException => chunk.reverse #:: chunked(stream, interval, System.currentTimeMillis) }
   }
 
-  private class Listener(interval: Int, predicate: Event => Boolean) { listener =>
+  private class Listener(interval: Int, job: Option[Job]) { listener =>
     def tickStream: Stream[Tick] = chunked(stream, interval).map { es => Tick(es.lastOption.map(_._2), es.map(_._1)) }
 
-    def put(event: Event, state: State): Unit = if(predicate(event)) {
+    def put(event: Event, state: State): Unit = if(event.relevant(job, state)) {
       promise.complete(Success((event, state)))
       promise = Promise()
     }
@@ -93,17 +186,17 @@ object Bus {
   }
 
   private def receive(event: Event): Unit = synchronized {
-    state = update(state, event)
+    state = event(state)
     listeners.foreach { listener => listener.put(event, state) }
   }
+}
 
-  private def update(state: State, event: Event): State = event match {
-    case FinishJob(job)               => state - job
-    case StartTask(task)              => state.setProgress(task, 0)
-    case FinishTask(task)             => state.setProgress(task, 100)
-    case Shutdown                     => state
-    case TaskProgress(task, progress) => state.setProgress(task, progress)
-    case LogMessage(str)              => state
-    case RestartJob(job)              => state
-  }
+object log {
+  def fine(message: Message): Unit = Bus.put(LogMessage(message))
+  def info(message: Message): Unit = Bus.put(LogMessage(message))
+  def warn(message: Message): Unit = Bus.put(LogMessage(message))
+  def fail(message: Message): Unit = Bus.put(LogMessage(message))
+  def flush(): Unit = () // FIXME
+
+  def raw(message: String): Unit = Bus.put(RawMessage(message))
 }

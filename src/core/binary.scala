@@ -44,5 +44,5 @@ object Binary {
 
 case class Binary(id: BinaryId, binRepo: BinRepoId, group: String, artifact: String, version: String) {
   def spec = str"$group:$artifact:$version"
-  def paths(implicit log: Log): Try[List[Path]] = Coursier.fetch(this)
+  def paths: Try[List[Path]] = Coursier.fetch(this)
 }

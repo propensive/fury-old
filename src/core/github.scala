@@ -26,10 +26,10 @@ import mercator._
 import scala.util._
 
 object GitHub {
-  def repos(prefix: Option[String])(implicit log: Log): Try[List[String]] = prefix match {
+  def repos(prefix: Option[String]): Try[List[String]] = prefix match {
     case Some(r"gh:$user@([a-z0-9]*)") =>
       val results = for {
-        _     <- ~log.note(s"Looking for completions for $user...")
+        _     <- ~log.fine(s"Looking for completions for $user...")
         token <- ManagedConfig().token.ascribe(NotAuthenticated())
         
         out   <- ~Http.get((Https(DomainName("api.github.com")) / "search" / "users").query("q" ->
@@ -37,12 +37,12 @@ object GitHub {
                     Set(HttpHeader("Authorization", str"token ${token}"))).to[Try]
         
         out   <- out
-        _     <- ~log.note(new String(out, "UTF-8"))
+        _     <- ~log.fine(new String(out, "UTF-8"))
         json  <- Json.parse(new String(out, "UTF-8")).to[Try]
         repos <- json.items.as[List[Json]].to[Try]
         names <- Try(repos.flatMap(_.login.as[String].to[Option].toList).map(_.toLowerCase).filter(
                      _.startsWith(user)).map { name => str"gh:$name/" })
-        _     <- ~log.note(names.toString)
+        _     <- ~log.fine(names.toString)
       } yield names
       
       results.flatMap {
@@ -51,15 +51,15 @@ object GitHub {
       }
     case Some(r"gh:$user@([a-z][a-z0-9]*)\/$repo@([a-z]*)") =>
       for {
-        _     <- ~log.note(s"Looking for completions for $user...")
+        _     <- ~log.fine(s"Looking for completions for $user...")
         token <- ManagedConfig().token.ascribe(NotAuthenticated())
         
         out   <- ~Http.get((Https(DomainName("api.github.com")) / "users" / user / "repos").key,
                     Set(HttpHeader("Authorization", str"token ${token}"))).to[Try]
         
-        _     <- ~log.note(out.toString)
+        _     <- ~log.fine(out.toString)
         out   <- out
-        _     <- ~log.note(new String(out, "UTF-8"))
+        _     <- ~log.fine(new String(out, "UTF-8"))
         json  <- Json.parse(new String(out, "UTF-8")).to[Try]
         repos <- json.as[List[Json]].to[Try]
         names <- Try(repos.flatMap(_.name.as[String].to[Option].toList).filter(_.startsWith(repo)).map {

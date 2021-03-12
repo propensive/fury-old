@@ -101,6 +101,19 @@ object Log {
   val Warn = 3
   val Fail = 4
 
+  def stream(fn: String => Unit): PrintStream = {
+    val pipe = Pipe.open()
+    val in = Channels.newInputStream(pipe.source())
+    val out = Channels.newOutputStream(pipe.sink())
+
+    new PrintStream(new BufferedOutputStream(out) {
+      override def write(array: Array[Byte], off: Int, len: Int): Unit =
+        new String(array, off, len).split("\n").foreach(fn)
+
+      override def write(char: Int): Unit = ()
+    })
+  }
+
   private val logFiles: HashMap[Path, LogStyle] = HashMap()
   private lazy val base: Log = new Log(global, Pid(0))
   
@@ -112,12 +125,6 @@ object Log {
     var printWriter: PrintWriter = create(initDate)
     def update(date: LocalDate): Unit = printWriter = create(date)
 
-    /*def get(): PrintWriter = {
-      val date = LocalDate.now()
-      if(cached != date.getDayOfMonth) update(date)
-      printWriter
-    }*/
-    
     LogStyle(Some(true), true, true, false, Theme.Full, Note, autoflush = false)
   }
 
@@ -149,19 +156,6 @@ class Log(private[this] val output: LogStyle, val pid: Pid) {
 
   def failWhen(pred: Boolean)(msg: Message, time: Long = -1): Unit =
     if(pred) fail(msg, time) else note(msg, time)
-
-  def stream(fn: String => Unit): PrintStream = {
-    val pipe = Pipe.open()
-    val in = Channels.newInputStream(pipe.source())
-    val out = Channels.newOutputStream(pipe.sink())
-
-    new PrintStream(new BufferedOutputStream(out) {
-      override def write(array: Array[Byte], off: Int, len: Int): Unit =
-        new String(array, off, len).split("\n").foreach(fn)
-
-      override def write(char: Int): Unit = ()
-    })
-  }
 
   def writersCount: Int = writers.size
 

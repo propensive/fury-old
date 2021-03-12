@@ -52,12 +52,12 @@ case class Stash(repoId: RepoId,
 
   def absolutePath(relativePath: Path): Path = relativePath in path
 
-  def get(layout: Layout)(implicit log: Log): Try[GitDir] = for {
+  def get(layout: Layout): Try[GitDir] = for {
     repoDir    <- remote.get(layout)
     workingDir <- checkout(layout)
   } yield workingDir
 
-  private def checkout(layout: Layout)(implicit log: Log): Try[GitDir] =
+  private def checkout(layout: Layout): Try[GitDir] =
     local.map(Success(_)).getOrElse {
       val sourceDesc: Message = sources match {
         case List() =>

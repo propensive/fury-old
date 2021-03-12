@@ -22,7 +22,7 @@ import scala.util._
 
 import Args._
 
-case class BinaryCli(cli: Cli)(implicit log: Log) {
+case class BinaryCli(cli: Cli) {
   def list: Try[ExitStatus] = for {
     layout     <- cli.layout
     conf       <- Layer.readFuryConf(layout)
@@ -45,9 +45,9 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     module     <- optModule.asTry
     rows       <- ~module.allBinaries.to[List]
     table      <- ~Tables().show(table, cli.cols, rows, raw, col, binaryId, "binary")
-    _          <- ~log.infoWhen(!raw)(conf.focus(project.id, module.id))
-    _          <- ~log.rawln(table)
-  } yield log.await()
+    _          <- ~(if(!raw) log.info(conf.focus(project.id, module.id)))
+    _          <- ~log.raw(table+"\n")
+  } yield cli.job.await()
 
   def update: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -69,8 +69,8 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     binary     <- module.binaries.findBy(binaryArg)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - binary)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
-  } yield log.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
+  } yield cli.job.await()
 
   def remove: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -90,8 +90,8 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     deletion   <- module.binaries.findBy(binaryArg)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - deletion)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
-  } yield log.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
+  } yield cli.job.await()
 
   def add: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -116,6 +116,6 @@ case class BinaryCli(cli: Cli)(implicit log: Log) {
     _          <- module.binaries.unique(binary.id)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout)
-  } yield log.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
+  } yield cli.job.await()
 }

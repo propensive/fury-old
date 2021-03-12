@@ -26,7 +26,7 @@ import scala.util._
 
 import Args._
 
-case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
+case class ModuleCli(cli: Cli) extends CliApi{
   
   private def resolveToCompiler(ref: CompilerRef): Try[CompilerRef] = ref match {
     case javac: Javac => ~javac
@@ -44,9 +44,9 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       val output = (getTable, getProject >> (_.modules), opt(ColumnArg), opt(ModuleArg)) >>
         (Tables().show(_, cli.cols, _, raw, _, _, "module"))
       (conf, getProject, output) >> { case (c, p, o) =>
-        log.infoWhen(!raw)(c.focus(p.id))
-        log.rawln(o)
-        log.await()
+        if(!raw) log.info(c.focus(p.id))
+        log.raw(o+"\n")
+        cli.job.await()
       }
     }
   }
@@ -70,8 +70,8 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
         lens    <- defaultCompilerLens
         _       <- ~log.info(msg"Set current module to ${module.id}")
         _       <- commit(layer)
-        _       <- (Try(layer), (newModule, getProject) >> (_.ref(_)), getLayout) >> Build.asyncBuild
-      } yield log.await()
+        _       <- (Try(layer), (newModule, getProject) >> (_.ref(_)), getLayout, getJob) >> Build.asyncBuild
+      } yield cli.job.await()
     }
   }
 
@@ -88,8 +88,8 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       }
       for {
         _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
-      } yield log.await()
+        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
+      } yield cli.job.await()
     }
   }
 
@@ -119,8 +119,8 @@ case class ModuleCli(cli: Cli)(implicit val log: Log) extends CliApi{
       }
       for {
         _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
-      } yield log.await()
+        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
+      } yield cli.job.await()
     }
   }
 

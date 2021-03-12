@@ -89,16 +89,14 @@ case class Layer(version: Int,
   } yield missing }.groupBy(_._1).mapValues(_.map(_._2).to[Set])
 
   def verifyConf(local: Boolean, conf: FuryConf, pointer: Pointer, quiet: Boolean, force: Boolean)
-                (implicit log: Log)
                 : Try[Unit] = for {
     _ <- if(force || conf.path == Pointer.Root) Success(()) else Failure(RootLayerNotSelected(conf.path))
     _ <- verify(force, local, pointer, quiet)
   } yield ()
 
   def verify(ignore: Boolean, local: Boolean, ref: Pointer, quiet: Boolean = false)
-            (implicit log: Log)
             : Try[Unit] = if(ignore) Success(()) else for {
-    _         <- ~log.infoWhen(!quiet)(msg"Checking that the layer is valid")
+    _         <- ~(if(!quiet) log.info(msg"Checking that the layer is valid"))
     localSrcs <- ~localSources
     _         <- if(localSrcs.isEmpty || local) Success(()) else Failure(LayerContainsLocalSources(localSrcs))
     universe  <- hierarchy(ref).flatMap(_.universe)
@@ -106,29 +104,29 @@ case class Layer(version: Int,
     _         <- if(missing.isEmpty) Success(()) else Failure(UnresolvedModules(missing))
   } yield ()
 
-  def compilerRefs(layout: Layout)(implicit log: Log): List[ModuleRef] =
+  def compilerRefs(layout: Layout): List[ModuleRef] =
     allProjects(layout).toOption.to[List].flatMap(_.flatMap(_.compilerRefs))
 
-  def hierarchy(pointer: Pointer = Pointer.Empty)(implicit log: Log): Try[Hierarchy] = for {
+  def hierarchy(pointer: Pointer = Pointer.Empty): Try[Hierarchy] = for {
     imps <- imports.to[Set].to[List].traverse { ref =>
       Layer.get(ref.layerRef, ref.remote) >>= (_.hierarchy(pointer / ref.id).map(ref.id -> _))
     }
   } yield Hierarchy(this, pointer, imps.toMap)
 
-  def universe(pointer: Pointer = Pointer.Empty)(implicit log: Log): Try[Universe] =
+  def universe(pointer: Pointer = Pointer.Empty): Try[Universe] =
     hierarchy(pointer).flatMap(_.universe)
 
-  def resolvedImports(implicit log: Log): Try[Map[ImportId, Layer]] =
+  def resolvedImports: Try[Map[ImportId, Layer]] =
     imports.to[List].traverse { sr => Layer.get(sr.layerRef, sr.remote).map(sr.id -> _) }.map(_.toMap)
 
-  def importedLayers(implicit log: Log): Try[List[Layer]] = resolvedImports.map(_.values.to[List])
+  def importedLayers: Try[List[Layer]] = resolvedImports.map(_.values.to[List])
   
-  def importTree(implicit log: Log): Try[List[Pointer]] = for {
+  def importTree: Try[List[Pointer]] = for {
     imports <- resolvedImports
     imports <- imports.to[List].traverse { case (id, layer) => layer.importTree.map(_.map(_.prefix(id))) }.map(_.flatten)
   } yield Pointer.Root :: imports.to[List]
 
-  def allProjects(layout: Layout)(implicit log: Log): Try[List[Project]] = {
+  def allProjects(layout: Layout): Try[List[Project]] = {
     @tailrec
     def flatten[T](treeNodes: List[T])(aggregated: List[T], getChildren: T => Try[List[T]]): Try[List[T]] = {
       treeNodes match {
@@ -171,21 +169,21 @@ object Layer extends Lens.Partial[Layer] {
     cache(layer) = ref
     invCache(ref) = layer
   }
-  implicit val stringShow: StringShow[Layer] = store(_)(Log()).toOption.fold("???")(_.key)
+  implicit val stringShow: StringShow[Layer] = store(_).toOption.fold("???")(_.key)
 
   val CurrentVersion: Int = 11
 
   def set[T](newValue: T)(layer: Layer, lens: Lens[Layer, T, T]): Layer = lens(layer) = newValue
 
-  def retrieve(conf: FuryConf)(implicit log: Log): Try[Layer] = for {
+  def retrieve(conf: FuryConf): Try[Layer] = for {
     base  <- get(conf.layerRef, conf.published)
     layer <- dereference(base, conf.path)
   } yield layer
 
-  def readDb(layout: Layout)(implicit log: Log): Try[Unit] = {
+  def readDb(layout: Layout): Try[Unit] = {
     if(layout.layerDb.exists && Some(layout.layerDb.lastModified) != dbCache.get(layout.layerDb)) for {
       inputs <- TarGz.untargz(layout.layerDb.inputStream())
-      _      =  log.note(msg"The layer storage at ${layout.layerDb} contains ${inputs.size} entries")
+      _      =  log.fine(msg"The layer storage at ${layout.layerDb} contains ${inputs.size} entries")
       _      <- inputs.traverse { bytes => for {
                   _     <- storeRaw(bytes)
                   layer <- Ogdl.read[Layer](bytes, migrate(_))
@@ -196,7 +194,7 @@ object Layer extends Lens.Partial[Layer] {
     else Success(())
   }
 
-  def dereference(layer: Layer, path: Pointer)(implicit log: Log): Try[Layer] =
+  def dereference(layer: Layer, path: Pointer): Try[Layer] =
     if(path.isEmpty) Success(layer)
     else for {
       layerImport <- layer.imports.findBy(path.head)
@@ -204,39 +202,38 @@ object Layer extends Lens.Partial[Layer] {
       layer       <- dereference(layer, path.tail)
     } yield layer
 
-  def get(layerRef: LayerRef, id: Option[PublishedLayer])(implicit log: Log): Try[Layer] =
+  def get(layerRef: LayerRef, id: Option[PublishedLayer]): Try[Layer] =
     lookup(layerRef.ipfsRef).map(Success(_)).getOrElse { for {
       pub   <- ~id.fold(msg"Fetching layer $layerRef") { pl =>
                  msg"Fetching layer ${Pointer(pl.url.path)}${'@'}${pl.version} ${'('}$layerRef${')'}"
                }
-      _ = log.note(pub)
+      _ = log.fine(pub)
       ipfs  <- Ipfs.daemon(false)
       data  <- ipfs.get(layerRef.ipfsRef)
       layer <- Ogdl.read[Layer](data, migrate(_))
       _     <- ~cache.synchronized { cacheAdd(layerRef.ipfsRef, layer) }
     } yield layer }
 
-  def storeRaw(data: Array[Byte])(implicit log: Log): Try[IpfsRef] = for {
+  def storeRaw(data: Array[Byte]): Try[IpfsRef] = for {
     ipfs    <- Ipfs.daemon(false)
     ipfsRef <- ipfs.add(data)
   } yield {
-    log.note(msg"Raw layer added to IPFS at $ipfsRef")
+    log.fine(msg"Raw layer added to IPFS at $ipfsRef")
     ipfsRef
   }
 
-  def store(layer: Layer)(implicit log: Log): Try[LayerRef] =
+  def store(layer: Layer): Try[LayerRef] =
     if(cache.contains(layer)) Success(LayerRef(cache(layer).key))
     else for {
       ipfs    <- Ipfs.daemon(false)
       ipfsRef <- ipfs.add(Ogdl.serialize(Ogdl(layer)))
     } yield {
       cache.synchronized { cacheAdd(ipfsRef, layer) }
-      log.note(msg"Layer added to IPFS at $ipfsRef")
+      log.fine(msg"Layer added to IPFS at $ipfsRef")
       LayerRef(ipfsRef.key)
     }
 
   def commit(layer: Layer, conf: FuryConf, layout: Layout, force: Boolean = false)
-            (implicit log: Log)
             : Try[LayerRef] = for {
     baseRef  <- commitNested(conf, layer)
     base     <- get(baseRef, conf.published)
@@ -248,7 +245,7 @@ object Layer extends Lens.Partial[Layer] {
                 } else Success(baseRef)
     } yield ref
 
-  private def commitNested(conf: FuryConf, layer: Layer)(implicit log: Log): Try[LayerRef] =
+  private def commitNested(conf: FuryConf, layer: Layer): Try[LayerRef] =
     if(conf.path.isEmpty) store(layer) else for {
       ref     <- store(layer)
       parent  <- retrieve(conf.parent)
@@ -256,13 +253,13 @@ object Layer extends Lens.Partial[Layer] {
       baseRef <- commitNested(conf.parent, pLayer)
     } yield baseRef
 
-  def hashes(layer: Layer)(implicit log: Log): Try[Set[LayerRef]] = for {
+  def hashes(layer: Layer): Try[Set[LayerRef]] = for {
     layerRef  <- store(layer)
     layers    <- layer.imports.to[List].traverse { ref => Layer.get(ref.layerRef, ref.remote) }
     hashes    <- layers.traverse(hashes(_))
   } yield hashes.foldLeft(Set[LayerRef]())(_ ++ _) + layerRef
 
-  def writeDb(layer: Layer, layout: Layout)(implicit log: Log): Try[Unit] = for {
+  def writeDb(layer: Layer, layout: Layout): Try[Unit] = for {
     hashes  <- hashes(layer)
     entries <- hashes.to[List].traverse { ref => for {
                  layer <- lookup(ref.ipfsRef).ascribe(LayerNotFound(Path(ref.ipfsRef.key)))
@@ -272,13 +269,13 @@ object Layer extends Lens.Partial[Layer] {
     _       <- TarGz.store(entries, layout.layerDb)
   } yield ()
 
-  def share(service: DomainName, layer: Layer, token: OauthToken, ttl: Int)(implicit log: Log): Try[LayerRef] = for {
+  def share(service: DomainName, layer: Layer, token: OauthToken, ttl: Int): Try[LayerRef] = for {
     ref    <- store(layer)
     hashes <- Layer.hashes(layer)
     _      <- Service.share(service, ref.ipfsRef, token, (hashes - ref).map(_.ipfsRef), ttl)
   } yield ref
 
-  def published(layerName: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[Option[PublishedLayer]] = layerName match {
+  def published(layerName: LayerName, version: Option[LayerVersion] = None): Try[Option[PublishedLayer]] = layerName match {
     case uri@FuryUri(domain, path) =>
       val artifact = version match {
         case Some(v) => Service.fetch(uri, v)
@@ -288,7 +285,7 @@ object Layer extends Lens.Partial[Layer] {
     case _ => Success(None)
   }
 
-  def resolve(layerInput: LayerName, version: Option[LayerVersion] = None)(implicit log: Log): Try[LayerRef] = layerInput match {
+  def resolve(layerInput: LayerName, version: Option[LayerVersion] = None): Try[LayerRef] = layerInput match {
     case FileInput(path)           => ???
     case uri@FuryUri(domain, path) =>
       val artifact = version match {
@@ -299,17 +296,17 @@ object Layer extends Lens.Partial[Layer] {
     case IpfsRef(key)          => Success(LayerRef(key))
   }
 
-  def pathCompletions()(implicit log: Log): Try[List[String]] =
+  def pathCompletions(): Try[List[String]] =
     Service.catalog(ManagedConfig().service)
 
-  def versionCompletions(layerName: LayerName)(implicit log: Log): Try[List[Int]] = layerName match {
+  def versionCompletions(layerName: LayerName): Try[List[Int]] = layerName match {
     case FuryUri(domain, path) =>
       Service.list(FuryUri(ManagedConfig().service, path)).map(_.map(_.version))
     case _ =>
       Success(Nil)
   }
 
-  def readFuryConf(layout: Layout)(implicit log: Log): Try[FuryConf] =
+  def readFuryConf(layout: Layout): Try[FuryConf] =
     layout.confFile.lines().flatMap { lines =>
       if(lines.contains("=======")) Failure(MergeConflicts())
       else for {
@@ -318,7 +315,7 @@ object Layer extends Lens.Partial[Layer] {
       } yield conf
     }.flatten
   
-  def showMergeConflicts(layout: Layout)(implicit log: Log) = for {
+  def showMergeConflicts(layout: Layout) = for {
     gitDir        <- ~GitDir(layout)
     (left, right) <- gitDir.mergeConflicts
     common        <- gitDir.mergeBase(left, right)
@@ -339,18 +336,17 @@ object Layer extends Lens.Partial[Layer] {
     _             <- ~log.info(msg"Changes since Git commit $left ($leftMsg):")
     leftTable     <- ~Tables().differences("Base", str"${leftConf.layerRef}")
     leftTable     <- ~Tables().show[Difference, Difference](leftTable, 100, leftDiff, false)
-    _             <- ~log.rawln(leftTable)
+    _             <- ~log.raw(leftTable+"\n")
     _             <- ~log.info(msg"Changes since Git commit $right ($rightMsg):")
     rightTable    <- ~Tables().differences("Base", str"${rightConf.layerRef}")
     rightTable    <- ~Tables().show[Difference, Difference](rightTable, 100, rightDiff, false)
-    _             <- ~log.rawln(rightTable)
+    _             <- ~log.raw(rightTable+"\n")
   } yield ()
 
   def diff(left: Layer, right: Layer): List[Difference] =
     Diff.gen[Layer].diff(left.copy(previous = None), right.copy(previous = None)).to[List]
   
-  def init(layout: Layout, git: Boolean, ci: Boolean, bare: Boolean, newRef: Option[ModuleRef])
-          (implicit log: Log): Try[Layer] =
+  def init(layout: Layout, git: Boolean, ci: Boolean, bare: Boolean, newRef: Option[ModuleRef]): Try[Layer] =
     if(layout.confFile.exists) { for {
       conf     <- readFuryConf(layout)
       layer    <- Layer.get(conf.layerRef, conf.published)
@@ -409,7 +405,7 @@ object Layer extends Lens.Partial[Layer] {
     str"""# vim: set noai ts=12 sw=12:
          |""".stripMargin
 
-  def saveFuryConf(conf: FuryConf, layout: Layout)(implicit log: Log): Try[FuryConf] = for {
+  def saveFuryConf(conf: FuryConf, layout: Layout): Try[FuryConf] = for {
     confStr <- ~Ogdl.serialize(Ogdl(conf))
     _       <- layout.confFile.writeSync(confComments+confStr+vimModeline)
     _       <- ~Monitor.trigger(layout)
@@ -426,18 +422,18 @@ object Layer extends Lens.Partial[Layer] {
   private def migrateProjects(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =
     if(root.has("projects")) root.set(projects = root.projects.map(fn(_))) else root
 
-  private def migrate(ogdl: Ogdl)(implicit log: Log): Ogdl = {
+  private def migrate(ogdl: Ogdl): Ogdl = {
     val version = Try(ogdl.version().toInt).getOrElse(1)
     if(version < CurrentVersion) {
-      log.note(msg"Migrating layer file from version $version to ${version + 1}")
+      log.fine(msg"Migrating layer file from version $version to ${version + 1}")
       migrate((version match {
         case 10 =>
           val step1 = migrateModules(ogdl) { module =>
-            log.note(msg"Old module = $module")
+            log.fine(msg"Old module = $module")
             val newValue = Ogdl[CompilerRef] {
               if(!module.has("compiler")) Javac(8) else BspCompiler(ModuleRef(module.compiler.id()))
             }
-            log.note(msg"Updated compiler reference for module ${module} to $newValue")
+            log.fine(msg"Updated compiler reference for module ${module} to $newValue")
             module.set(compiler = newValue)
           }
 
@@ -447,7 +443,7 @@ object Layer extends Lens.Partial[Layer] {
               else None
             })
 
-            log.note(msg"Updated project compiler reference for project ${project} to ${newProject}")
+            log.fine(msg"Updated project compiler reference for project ${project} to ${newProject}")
             newProject
           }
 
@@ -462,11 +458,11 @@ object Layer extends Lens.Partial[Layer] {
             if(!module.has("kind")) module else module.kind() match {
               case "Compiler" =>
                 val c = module.kind.Compiler
-                log.note(msg"Updated compiler type for module ${module}")
+                log.fine(msg"Updated compiler type for module ${module}")
                 module.set(kind = Ogdl[Kind](Compiler(BloopSpec(c.spec.org(), c.spec.name(), c.spec.version()))))
 
               case "App" =>
-                log.note(msg"Updated app type for module ${module}")
+                log.fine(msg"Updated app type for module ${module}")
                 module.set(kind = Ogdl[Kind](App(ClassRef(module.kind.App()), 0)))
               
               case other =>
@@ -482,7 +478,7 @@ object Layer extends Lens.Partial[Layer] {
             lazy val spec = Try(BloopSpec(module.bloopSpec.Some.org(), module.bloopSpec.Some.name(),
                 module.bloopSpec.Some.version()))
             
-            log.note(msg"Updated module type for module ${module}")
+            log.fine(msg"Updated module type for module ${module}")
             if(!module.has("kind")) module else module.set(kind = (module.kind() match {
               case "Application" => Ogdl[Kind](App(main.get, 0))
               case "Plugin"      => Ogdl[Kind](Plugin(plugin.get, main.get))
@@ -494,13 +490,13 @@ object Layer extends Lens.Partial[Layer] {
           
         case 7 =>
           migrateRepos(ogdl) { repo =>
-            log.note(msg"Renamed repo to remote in repo ${repo}")
+            log.fine(msg"Renamed repo to remote in repo ${repo}")
             repo.set(remote = repo.repo)
           }
           
         case 6 =>
           migrateRepos(ogdl) { repo =>
-            log.note(msg"Renamed branch to track for repo ${repo}")
+            log.fine(msg"Renamed branch to track for repo ${repo}")
             repo.set(branch = repo.track, remote = repo.repo)
           }
           

@@ -52,8 +52,7 @@ object UiGraph {
   private case class GraphState(changed: Boolean,
                                 graph: Map[ModuleRef, Set[Input]],
                                 stream: Iterator[CompileEvent],
-                                buildLogs: Map[ModuleRef, BuildInfo])
-                               (implicit log: Log) {
+                                buildLogs: Map[ModuleRef, BuildInfo]) {
 
     def update(ref: ModuleRef, f: BuildInfo => BuildInfo): GraphState = {
       val previousState = buildLogs.getOrElse(ref, BuildInfo(state = Compiling(0), issues = Nil, prints = Nil, missing = Set()))
@@ -62,7 +61,7 @@ object UiGraph {
   }
 
   @tailrec
-  private def live(graphState: GraphState, rebuild: Set[MissingPkg] => Unit)(implicit log: Log, theme: Theme): Unit = {
+  private def live(graphState: GraphState, rebuild: Set[MissingPkg] => Unit)(implicit theme: Theme): Unit = {
     import graphState._
 
     log.raw(Ansi.hideCursor())
@@ -109,7 +108,7 @@ object UiGraph {
         case Print(ref, line) =>
           line match {
             case r"Deduplicating compilation of .*" =>
-              log.note(line)
+              log.fine(line)
               graphState
             case line =>
               (graphState(ref) = Lens[BuildInfo](_.prints).modify(_)(line :: _)).copy(changed = false)
@@ -150,7 +149,7 @@ object UiGraph {
   }
 
   def live(graph: Map[ModuleRef, Set[Input]], stream: Iterator[CompileEvent], rebuild: Set[MissingPkg] => Unit)
-          (implicit log: Log, theme: Theme)
+          (implicit theme: Theme)
           : Unit =
     live(GraphState(changed = true, graph, stream, Map()), rebuild)
 

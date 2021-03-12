@@ -42,9 +42,9 @@ object Lifecycle {
 
   case class Session(cli: Cli, private val thread: Thread) {
     private var abort = 0
-    lazy val checkInotify: Unit = Inotify.check()(Log())
+    lazy val checkInotify: Unit = Inotify.check()
 
-    val pid = cli.pid
+    val pid = cli.job.pid
     val started: Long = System.currentTimeMillis
     private val cancel: Promise[Unit] = Promise()
 
@@ -85,10 +85,9 @@ object Lifecycle {
 
   def busyCount: Int = busy().getOrElse(0)
   def sessions: List[Session] = running.synchronized(running.to[List]).sortBy(_.started)
-  def currentSession(implicit log: Log): Session = sessions.find(_.pid == log.pid).get
 
   def trackThread(cli: Cli, whitelisted: Boolean)(action: => Int): Int =
-    running.find(_.pid == cli.pid) match {
+    running.find(_.pid == cli.job.pid) match {
       case Some(session) =>
         if(session.interrupt()) close(session)
         0
@@ -103,7 +102,7 @@ object Lifecycle {
 
   def halt(): Unit = System.exit(busyCount)
 
-  def doShutdown(cli: Cli)(implicit log: Log): Try[ExitStatus] = cli.call().flatMap { call => shutdown() }
+  def doShutdown(cli: Cli): Try[ExitStatus] = cli.call().flatMap { call => shutdown() }
 
   @tailrec
   def shutdown(previous: Int = -1): Try[ExitStatus] = {

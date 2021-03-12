@@ -22,7 +22,7 @@ import jovian._
 import mercator._
 import gastronomy._
 
-import ch.epfl.scala.bsp4j.{CompileResult => _, _}
+import ch.epfl.scala.bsp4j.{CompileResult => _, TaskId => _, _}
 
 import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 import scala.util._
@@ -43,12 +43,8 @@ case class Application(classloader: URLClassLoader, classRef: ClassRef) {
 object Build {
 
   private val buildCache: collection.mutable.Map[Path, Future[Try[Build]]] = TrieMap()
-  private val requestOrigins: collection.mutable.Map[RequestOriginId, Build] = TrieMap()
 
-  def findBy(ref: ModuleRef): Iterable[Build] = requestOrigins.values.filter(_.goal == ref)
-
-  def apply(layer: Layer, goal: ModuleRef, layout: Layout, noSecurity: Boolean, cancellation: Option[Future[Unit]])
-           (implicit log: Log): Try[Build] =
+  def apply(layer: Layer, goal: ModuleRef, layout: Layout, noSecurity: Boolean, job: Job): Try[Build] =
     layer.universe().flatMap { universe =>
       val targetsCache: HashMap[ModuleRef, Target] = HashMap()
     
@@ -66,42 +62,33 @@ object Build {
       } yield target }(Success(_))
       
       for {
-        target    <- makeTarget(goal)
         modules   <- universe.dependencies(goal, layout)
+        target    <- makeTarget(goal)
         targets   <- modules.map(_.ref).traverse(makeTarget(_))
         graphDeps  = (targets + target).map { t => t.ref -> t.directDependencies }.toMap
         graph      = Graph(graphDeps, targets.map { t => t.ref -> t }.toMap)
         deps       = graph.dependencies.keys.filter(_ != ModuleRef.JavaRef)
-        index     <- deps.traverse { ref => makeTarget(ref).map(ref -> _) }
         snapshot  <- deps.traverse(universe.checkout(_, layout))
-        policy     = (if(target.module.kind.needsExec) targets else targets - target).flatMap(_.module.policy)
-        map        = (targets ++ target.module.compiler().map { d => graph.targets(d.ref) }).map { t => t.ref -> t }.toMap
-        junctures  = targets.filter(_.juncture)
         dag        = Dag(graph.dependencies.mapValues(_.map(_.ref)))
-        subgraphs  = dag.subgraph(junctures.map(_.ref).to[Set] + goal).connections
-        init       = Init(target, graph, subgraphs, snapshot.foldLeft(Snapshot())(_ ++ _), policy.to[Set])
-        build     <- ~Build(goal, universe, layout, targetsCache.toMap, init, cancellation)
-        _         <- Policy.read(log).checkAll(build.requiredPermissions, noSecurity)
+        build     <- ~Build(goal, graph, dag, target, snapshot.foldLeft(Snapshot())(_ ++ _), universe, layout, targetsCache.toMap, job)
+        _         <- Policy.read().checkAll(build.policy, noSecurity)
         _         <- build.generateFiles()
       } yield build
     }
 
-  def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout)(implicit log: Log): Future[Try[Build]] = {
-    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false, None))
+  def asyncBuild(layer: Layer, ref: ModuleRef, layout: Layout, job: Job): Future[Try[Build]] = {
+    def fn: Future[Try[Build]] = Future(Build(layer, ref, layout, false, job))
     buildCache(layout.furyDir) = buildCache.get(layout.furyDir).fold(fn)(_.transformWith(fn.waive))
 
     buildCache(layout.furyDir)
   }
 
-  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean, cancellation: Future[Unit])
-               (implicit log: Log)
+  def syncBuild(layer: Layer, ref: ModuleRef, layout: Layout, noSecurity: Boolean, job: Job)
                : Try[Build] = {
-    val build = Build(layer, ref, layout, noSecurity, Some(cancellation))
+    val build = Build(layer, ref, layout, noSecurity, job)
     buildCache(layout.furyDir) = Future.successful(build)
     build
   }
-
-  def findOrigin(originId: RequestOriginId): Option[Build] = requestOrigins.get(originId)
 }
 case class Target(ref: ModuleRef,
                   module: Module,
@@ -115,9 +102,6 @@ case class Target(ref: ModuleRef,
   def juncture: Boolean = !module.kind.is[Lib] || module.includes.nonEmpty
   def directDependencies = module.dependencies ++ module.compiler()
 }
-
-case class Init(target: Target, graph: Graph, subgraphs: Map[ModuleRef, Set[ModuleRef]], snapshot: Snapshot,
-    requiredPermissions: Set[Permission])
 
 case class Graph(dependencies: Map[ModuleRef, Set[Input]], targets: Map[ModuleRef, Target]) {
   def links: Map[ModuleRef, Set[Input]] = dependencies.map { case (ref, dependencies) =>
@@ -134,13 +118,20 @@ case class Graph(dependencies: Map[ModuleRef, Set[Input]], targets: Map[ModuleRe
 
 }
 
-case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, targets: Map[ModuleRef, Target], init: Init, cancellation: Option[Future[Unit]])
-                         (implicit log: Log) { build =>
-  val target: TargetExtras = new TargetExtras(init.target)
-  val graph: Graph = init.graph
-  val requiredPermissions: Set[Permission] = init.requiredPermissions
-  private lazy val subgraphs: Map[ModuleRef, Set[ModuleRef]] = init.subgraphs
+case class Build private (goal: ModuleRef, graph: Graph, dag: Dag[ModuleRef], targetDef: Target,
+                          snapshot: Snapshot, universe: Universe, layout: Layout,
+                          targets: Map[ModuleRef, Target], job: Job) { build =>
+
   private val allDependencies: Set[Target] = targets.values.to[Set]
+  lazy val junctures = targets.values.filter(_.juncture)
+
+  val target: TargetExtras = new TargetExtras(targetDef)
+
+  lazy val policy: Set[Permission] =
+    (if(targetDef.module.kind.needsExec) targets else targets - goal).flatMap(_._2.module.policy).to[Set]
+
+  lazy val subgraphs: Map[ModuleRef, Set[ModuleRef]] =
+    dag.subgraph(junctures.map(_.ref).to[Set] + goal).connections
 
   lazy val deepDependencies: Map[ModuleRef, Set[ModuleRef]] = {
     @tailrec
@@ -152,11 +143,19 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
       targetId -> flatten[ModuleRef](Set.empty, graph.dependencies(_).map(_.ref).to[Set], Set(targetId))
     }
   }
+      
+  lazy val furyTargetIds = deepDependencies(goal).toList
+  
+  lazy val bspTargetIds = furyTargetIds.map { ref =>
+    new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
+  }
+  
+  lazy val bspToFury: Map[BuildTargetIdentifier, ModuleRef] = bspTargetIds.zip(furyTargetIds).toMap
 
   def describe(layout: Layout): Message = graph.partialOrder.map(targets(_).describe(layout)).reduce(_ + "\n\n" + _)
 
   def apply(ref: ModuleRef): Try[Target] = targets.get(ref).ascribe(ItemNotFound(ref.moduleId))
-  def checkoutAll(): Try[Unit] = init.snapshot.stashes.to[List].traverse(_._2.get(layout)).munit
+  def checkoutAll(): Try[Unit] = snapshot.stashes.to[List].traverse(_._2.get(layout)).munit
   
   def apply(compiler: CompilerRef): Try[Option[Target]] = compiler match {
     case Javac(_)         => Success(None)
@@ -166,23 +165,49 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
   private def apply(input: Input): Try[Target] = apply(input.ref)
   private def generateFiles(): Try[Iterable[Path]] = synchronized { Bloop.generateFiles(this) }
 
-  private def nextOriginId()(implicit log: Log): RequestOriginId = {
-    val originId = RequestOriginId.next(log.pid)
-    Build.requestOrigins(originId) = this
-    originId
-  }
-
   implicit class TargetExtras(target: Target) {
     import target._
 
     lazy val environment: Map[String, String] = module.environment.map { e => e.id -> e.value }.toMap
     lazy val properties: Map[String, String] = module.properties.map { p => p.id -> p.value }.toMap
+    lazy val juncture: Boolean = !module.kind.is[Lib] || module.includes.nonEmpty
+    lazy val snapshot = target.snapshot
+    lazy val directDependencies = module.dependencies ++ module.compiler()
+    lazy val sourcePaths: Try[Set[Path]] = module.sources.to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
+    lazy val editableSourcePaths: Try[Set[Path]] = module.sources.filter(_.editable).to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
+    lazy val uri: String = str"file://${layout.workDir(ref)}?id=${ref.urlSafe}"
 
-    def juncture: Boolean = !module.kind.is[Lib] || module.includes.nonEmpty
-    def snapshot = target.snapshot
-    def directDependencies = module.dependencies ++ module.compiler()
-    def sourcePaths: Try[Set[Path]] = module.sources.to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
-    def editableSourcePaths: Try[Set[Path]] = module.sources.filter(_.editable).to[Set].traverse(repoPaths(target.ref, _)).map(_.flatten)
+    def task(): Task[Try[BuildResult]] = {
+      val inputs: Set[TaskId] = graph.dependencies(ref).map { input => targets(input.ref).task().id }
+      if(juncture) Task.schedule(msg"Compile $ref", inputs) {
+        Bus.put(LogMessage(msg"Starting subgroup for ${ref}"))
+        
+        BloopServer.borrow(build, ref, job) { conn =>
+          val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
+          val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
+          if(module.includes.nonEmpty) module.includes.traverse(copyInclude(_))
+
+          val newResult: Try[BuildResult] = for {
+            res  <- wrapServerErrors(conn.server.buildTargetCompile(params))
+            opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
+          } yield BuildResult(res, opts, None)
+
+          newResult.get.scalacOptions.getItems.asScala.foreach { options =>
+            val permanentClasses = layout.classesDir(bspToFury(options.getTarget))
+            val temporaryClasses = Path(new URI(options.getClassDirectory))
+            temporaryClasses.copyTo(permanentClasses)
+            options.setClassDirectory(permanentClasses.javaFile.toURI.toString)
+          }
+
+          Bus.put(LogMessage(msg"Finished subgroup for ${ref}"))
+          newResult.get
+        }
+      }
+      else Task.schedule(msg"Compile $ref", inputs) {
+        Bus.put(LogMessage(msg"Virtual task"))
+        null
+      }
+    }
 
     private def repoPaths(ref: ModuleRef, source: Source): Try[List[Path]] = source match {
       case RepoSource(repoId, path, _) =>
@@ -403,7 +428,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
 
     private def run(classDirectories: Set[Path], policy: Policy, args: List[String], noSecurity: Boolean)
            : Int = {
-      val multiplexer = Lifecycle.currentSession.multiplexer
+      //val multiplexer = Lifecycle.currentSession.multiplexer
       if (module.kind.is[Bench]) {
         classDirectories.foreach { classDirectory =>
           Jmh.instrument(classDirectory, layout.benchmarksDir(ref), layout.resourcesDir(ref))
@@ -428,12 +453,12 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
         noSecurity,
         workDir,
         javaVersion
-      ) { ln => multiplexer.fire(ref, Print(ref, ln)) }.await()
+      ) { ln => ()/*multiplexer.fire(ref, Print(ref, ln))*/ }.await()
 
-      deepDependencies(ref).foreach { ref => multiplexer.fire(ref, NoCompile(ref)) }
+      deepDependencies(ref).foreach { ref => /*multiplexer.fire(ref, NoCompile(ref))*/() }
 
-      multiplexer.close(ref)
-      multiplexer.fire(ref, StopRun(ref))
+      //multiplexer.close(ref)
+      //multiplexer.fire(ref, StopRun(ref))
       if(workDir.children.isEmpty) workDir.delete()
 
       exitCode
@@ -446,7 +471,7 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
       }
       val params = new CleanCacheParams(bspTargetIds.asJava)
 
-      BloopServer.borrow(layout.baseDir, build, ref, layout, cancellation) { conn =>
+      BloopServer.borrow(build, ref, job) { conn =>
         wrapServerErrors(conn.server.buildTargetCleanCache(params)).get
       }
     }
@@ -464,13 +489,13 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
 
       val dependencyFutures = Future.sequence(subgraphs(ref).map(newFutures))
 
-      val multiplexer = Lifecycle.currentSession.multiplexer
-      multiplexer.start()
+      //val multiplexer = Lifecycle.currentSession.multiplexer
+      //multiplexer.start()
 
       val future: Future[BuildResult] = dependencyFutures.map(BuildResult.merge).flatMap { required =>
         if(!required.success) {
-          multiplexer.fire(ref, SkipCompile(ref))
-          multiplexer.close(ref)
+          //multiplexer.fire(ref, SkipCompile(ref))
+          //multiplexer.close(ref)
           Future.successful(required)
         } else compileModule(required, pipelining, policy, args, noSecurity)
       }
@@ -480,30 +505,28 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
   
     private def aggregateResults(compileResults: Set[Path]): Try[Path] = {
       val staging = layout.workDir(ref) / "staging"
-      for(_ <- compileResults.filter(_.exists()).traverse(_.copyTo(staging))) yield staging
+      compileResults.filter(_.exists()).traverse(_.copyTo(staging)).map { _ => staging }
     }
 
     private def compileModule(result: BuildResult,
-                      pipelining: Boolean,
-                      policy: Policy,
-                      args: List[String],
-                      noSecurity: Boolean)
-                     : Future[BuildResult] = Future.fromTry {
-      val originId = nextOriginId()
-      val uri: String = str"file://${layout.workDir(ref)}?id=${ref.urlSafe}"
+                              pipelining: Boolean,
+                              policy: Policy,
+                              args: List[String],
+                              noSecurity: Boolean)
+                             : Future[BuildResult] = {
       val params = new CompileParams(List(new BuildTargetIdentifier(uri)).asJava)
-      params.setOriginId(originId.key)
+      val task = target.task()
       if(pipelining) params.setArguments(List("--pipeline").asJava)
-      val furyTargetIds = deepDependencies(ref).toList
+      //val furyTargetIds = deepDependencies(ref).to[List]
       
-      val bspTargetIds = furyTargetIds.map { ref =>
-        new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
-      }
+      //val bspTargetIds = furyTargetIds.map { ref =>
+      //  new BuildTargetIdentifier(str"file://${layout.workDir(ref)}?id=${ref.urlSafe}")
+      //}
       
-      val bspToFury = bspTargetIds.zip(furyTargetIds).toMap
-      val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
+      //val bspToFury: Map[BuildTargetIdentifier, Int] = bspTargetIds.zip(furyTargetIds).toMap
+      //val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
 
-      BloopServer.borrow(layout.baseDir, build, ref, layout, cancellation) { conn =>
+      /*BloopServer.borrow(layout.baseDir, build, ref, layout, cancellation) { conn =>
 
         if(module.includes.nonEmpty) module.includes.traverse(copyInclude(_))
 
@@ -512,29 +535,21 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
           opts <- wrapServerErrors(conn.server.buildTargetScalacOptions(scalacOptionsParams))
         } yield BuildResult(res, opts, None)
 
-        val responseOriginId = newResult.get.bspResult.getOriginId
-        if(responseOriginId != originId.key) {
-          log.note(msg"buildTarget/compile: Expected ${originId.key}, but got $responseOriginId")
-        }
-
         newResult.get.scalacOptions.getItems.asScala.foreach { options =>
-          val bti = options.getTarget
-          val classDir = options.getClassDirectory
-          val targetId = bspToFury(bti)
-          val permanentClassesDir = layout.classesDir(targetId)
-          val temporaryClassesDir = Path(new URI(classDir))
-          temporaryClassesDir.copyTo(permanentClassesDir)
-          //TODO the method setClassDirectory modifies a mutable structure. Consider refactoring
-          options.setClassDirectory(permanentClassesDir.javaFile.toURI.toString)
+          val permanentClasses = layout.classesDir(bspToFury(options.getTarget))
+          val temporaryClasses = Path(new URI(options.getClassDirectory))
+          temporaryClasses.copyTo(permanentClasses)
+          options.setClassDirectory(permanentClasses.javaFile.toURI.toString)
         }
 
-        (newResult.get, conn.client)
-      }.map {
-        case (compileResult, client) if compileResult.success && module.kind.needsExec =>
+        newResult.get
+      }*/
+      
+      task.future.map {
+        case Success(compileResult) if compileResult.success && module.kind.needsExec =>
           val timeout = module.kind.as[App].fold(0)(_.timeout)
           val classDirectories = compileResult.classDirectories
-          client.broadcast(StartRun(ref))
-          val job = Job(ref.msg, Thread.currentThread)
+          //client.broadcast(StartRun(ref))
           //Bus.put(StartJob(job))
           
           val future = Future(blocking {
@@ -545,11 +560,10 @@ case class Build private (goal: ModuleRef, universe: Universe, layout: Layout, t
           val result = Try(Await.result(future, expiry))
           val exitCode = result.recover { case _: TimeoutException => 124 }.getOrElse(1)
           
-          client.broadcast(StopRun(ref))
-          Bus.put(FinishJob(job))
+          //client.broadcast(StopRun(ref))
           compileResult.copy(exitCode = Some(exitCode))
-        case (otherResult, _) =>
-          otherResult
+        case otherResult =>
+          null
       }
     }
   }

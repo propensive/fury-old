@@ -22,7 +22,7 @@ import scala.util._
 
 object FuryMenu {
 
-  def menu(aliases: List[Action])(implicit log: Log): Menu = Menu('main, "main menu", 'build)(List(
+  def menu(aliases: List[Action]): Menu = Menu('main, "main menu", 'build)(List(
     Action(Symbol("version"), msg"show the current version number", AboutCli(_).version, show = false),
     Menu('about, msg"inspect resource usage, current tasks etc.", 'resources, needsLayer = false)(
       
@@ -197,7 +197,7 @@ object FuryMenu {
     )
   ) ::: aliases: _*)
 
-  def help(cli: Cli)(implicit log: Log): Try[ExitStatus] =
+  def help(cli: Cli): Try[ExitStatus] =
     for {
       call  <- cli.call()
       _     <- ~log.raw(s"""|Usage: fury <command> [<subcommands>] [<args>]
@@ -207,5 +207,5 @@ object FuryMenu {
                            |
                            |More help is available on the Fury website: https://fury.build/
                            |""".stripMargin)
-    } yield log.await()
+    } yield cli.job.await()
 }

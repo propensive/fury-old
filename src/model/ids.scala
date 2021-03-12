@@ -357,47 +357,6 @@ object TargetId {
   }
 }
 
-object BuildId {
-  private val active: HashSet[BuildId] = HashSet()
-  
-  def assign[T](path: Path)(block: BuildId => T): T = {
-    val buildId: BuildId = active.synchronized {
-      val possibleIds = Stream.from(0).map((path, _).digest[Sha256].encoded[Hex].take(12)).map(BuildId(_))
-      val buildId: BuildId = possibleIds.find(!active(_)).get
-      active += buildId
-      
-      buildId
-    }
-
-    try block(buildId) catch {
-      case e: Throwable =>
-        synchronized { active -= buildId }
-
-        throw e
-    }
-  }
-}
-
-case class BuildId(key: String) {
-
-}
-
-case class RequestOriginId private(pid: Pid, counter: Int) {
-  val key = str"fury-${pid.pid}-${counter}"
-}
-
-object RequestOriginId {
-  private val originIdCounter = new java.util.concurrent.atomic.AtomicInteger(1)
-
-  def next(pid: Pid): RequestOriginId = RequestOriginId(pid, originIdCounter.getAndIncrement)
-
-  def unapply(originId: String): Option[RequestOriginId] = {
-    originId.only {
-      case r"fury-$pid@([0-9]+)-$counter@([0-9]+)" => RequestOriginId(Pid(pid.toInt), counter.toInt)
-    }
-  }
-}
-
 case class BinRepoId(id: String)
 
 object BinRepoId {

@@ -27,7 +27,7 @@ import Args._
 import scala.util._
 import scala.collection.immutable._
 
-case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class SourceCli(cli: Cli) extends CliApi {
 
   def list: Try[ExitStatus] = {
     implicit val columns: ColumnArg.Hinter = ColumnArg.hint("repo", "path", "sources", "files", "size", "lines")
@@ -38,7 +38,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
         val tabulation = (getLayer, snapshot, getLayout) >> (Tables().sources(_, _, _))
         (tabulation, conf, opt(ColumnArg), opt(SourceArg)) >> { case (table, c, col, source) =>
           log.info(c.focus(project.id, module.id))
-          log.rawln(Tables().show(table, cli.cols, module.sources.to[List], raw, col, source, "repo"))
+          log.raw(Tables().show(table, cli.cols, module.sources.to[List], raw, col, source, "repo")+"\n")
         } >> finish
       }
     }
@@ -54,8 +54,8 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
       for {
         _ <- newLayer >>= commit
         _ <- (getLayout, getModuleRef) >>= (_.classesDir(_).delete)
-        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
-      } yield log.await()
+        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
+      } yield cli.job.await()
     }
   }
 
@@ -71,8 +71,8 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
       val newLayer = (newSources, getLayer, sourcesLens) >> (Layer.set(_)(_, _))
       for {
         _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout) >> Build.asyncBuild
-      } yield log.await()
+        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
+      } yield cli.job.await()
     }
   }
 
@@ -98,7 +98,7 @@ case class SourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
     repo.sourceCandidates(layout)(isSourceFileName).getOrElse(Set.empty)
 }
 
-case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
+case class ResourceCli(cli: Cli) extends CliApi {
 
   lazy val table = Tables().resources
   implicit val columnHints: ColumnArg.Hinter = ColumnArg.hint(~table.headings.map(_.name.toLowerCase))
@@ -117,7 +117,7 @@ case class ResourceCli(cli: Cli)(implicit val log: Log) extends CliApi {
 
       
       resources >> (Tables().show(table, cli.cols, _, raw, column, get(ResourceArg).toOption, "resource")) >>
-          (log.rawln(_)) >> finish
+          { msg => log.raw(msg+"\n") } >> finish
     }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ModuleArg -< ResourceArg).action {

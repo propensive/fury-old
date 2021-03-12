@@ -97,7 +97,7 @@ sealed abstract class Source extends Key(msg"source") {
   //def files(layer: Layer, snapshot: Snapshot, layout: Layout): Try[Stream[Path]] =
   //  dir(layer, snapshot, layout).map { dir => glob(dir, dir.walkTree) }
   
-  /*def copyTo(layer: Layer, snapshot: Snapshot, layout: Layout, destination: Path)(implicit log: Log): Try[Unit] = for {
+  /*def copyTo(layer: Layer, snapshot: Snapshot, layout: Layout, destination: Path): Try[Unit] = for {
     baseDir  <- dir(layer, snapshot, layout)
     allFiles <- files(layer, snapshot, layout)
     _        <- allFiles.to[List].map { f =>

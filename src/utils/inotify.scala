@@ -29,7 +29,7 @@ import scala.util._
 
 object Inotify {
   private var done: Boolean = false
-  def check()(implicit log: Log): Try[Unit] = {
+  def check(): Try[Unit] = {
     val maxQueuedWatchers = path"/proc/sys/fs/inotify/max_user_watches"
     val count = if(!done && maxQueuedWatchers.exists()) { for {
       lines <- maxQueuedWatchers.lines()

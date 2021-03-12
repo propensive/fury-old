@@ -31,18 +31,14 @@ object Reporter {
 }
 
 abstract class Reporter(val name: String) {
-  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
-            (implicit log: Log)
-            : Unit
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit): Unit
 }
 
 object GraphReporter extends Reporter("graph") {
 
   private def timeString(t: Long): String = if(t >= 10000) s"${t / 1000}s" else s"${t}ms"
 
-  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
-            (implicit log: Log)
-            : Unit = {
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit): Unit = {
     log.info(msg"Starting build")
     Await.result(promise.future, Duration.Inf)
     //UiGraph.live(graph.links, multiplexer.stream(50, Some(Tick)), rebuild)(log, theme)
@@ -51,9 +47,7 @@ object GraphReporter extends Reporter("graph") {
 }
 
 object LinearReporter extends Reporter("linear") {
-  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
-            (implicit log: Log)
-            : Unit = {
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit): Unit = {
     Await.result(promise.future, Duration.Inf)
       //().foreach {
       // case StartCompile(ref)           => log.info(msg"Starting compilation of module $ref")
@@ -70,14 +64,14 @@ object LinearReporter extends Reporter("linear") {
 object SummaryReporter extends Reporter("summary") {
   def report(graph: Graph,
              theme: Theme,
-             promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)(implicit log: Log)
+             promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
             : Unit = {
     val prints = collection.mutable.ArrayBuffer[String]()
     val moduleRefs = collection.mutable.Set[ModuleRef]()
     Await.result(promise.future, Duration.Inf)
     // multiplexer.stream(50, Some(Tick)).foreach {
     //   case StopCompile(ref, true) => moduleRefs += ref
-    //   case DiagnosticMsg(ref, message) => log.note(message.msg)
+    //   case DiagnosticMsg(ref, message) => log.fine(message.msg)
     //   case Print(_, line)         => prints += line
     //   case Warning(msg)           => log.warn(msg)
     //   case _ => ()
@@ -99,9 +93,7 @@ object SummaryReporter extends Reporter("summary") {
 
 object QuietReporter extends Reporter("quiet") {
 
-  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit)
-            (implicit log: Log)
-            : Unit =
+  def report(graph: Graph, theme: Theme, promise: Promise[Unit], rebuild: Set[MissingPkg] => Unit): Unit =
     Await.result(promise.future, Duration.Inf)
     //multiplexer.stream(100, None).foreach { event => () }
 }
