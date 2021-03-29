@@ -66,7 +66,7 @@ object Ipfs {
     } yield ref
 
     def get(ref: IpfsRef): Try[String] = {
-      val config = ManagedConfig()
+      val config = Config()
       
       val getFromIpfs: Try[String] =
         if(!attemptToUseIpfs) Failure(IpfsTimeout())

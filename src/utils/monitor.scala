@@ -28,7 +28,7 @@ import scala.util._
 
 import java.util.concurrent.Executors
 
-object Monitor {
+/*object Monitor {
   def listen(layout: Layout)(action: => Unit): Listener = {
     val listener = new Listener(layout.baseDir, action)
     rootListeners(layout.baseDir) += listener
@@ -111,4 +111,4 @@ object Monitor {
   }
 
   def trigger(layout: Layout): Unit = rootListeners(layout.baseDir).foreach(_.onEvent(System.currentTimeMillis))
-}
+}*/

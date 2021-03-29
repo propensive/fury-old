@@ -49,7 +49,7 @@ case class IncludeCli(cli: Cli) extends CliApi {
       kind      <- getInclude
       path      <- get(PathArg)
       hierarchy <- IncludeApi(hierarchy).add(pointer, projectId, moduleId, kind, path) >>= commit
-    } yield cli.job.await()
+    } yield cli.endSession()
   }
   
   def update: Try[ExitStatus] = {
@@ -66,7 +66,7 @@ case class IncludeCli(cli: Cli) extends CliApi {
         kind      <- opt(IncludeTypeArg).map(_ => getInclude)
         path      <- opt(PathArg)
         hierarchy <- IncludeApi(hierarchy).update(pointer, projectId, moduleId, id, ref, kind.toOption, path) >>= commit
-      } yield cli.job.await()
+      } yield cli.endSession()
     }
   }
   
@@ -84,7 +84,7 @@ case class IncludeCli(cli: Cli) extends CliApi {
         col       <- opt(ColumnArg)
         _         <- ~log.info(focus)
         _         <- ~log.raw(Tables().show(tabulation, cli.cols, module.includes, raw, col, include, "include")+"\n")
-      } yield cli.job.await()
+      } yield cli.endSession()
     }
   }
 
@@ -99,7 +99,7 @@ case class IncludeCli(cli: Cli) extends CliApi {
         hierarchy <- getHierarchy
         include   <- get(IncludeArg)
         hierarchy <- IncludeApi(hierarchy).remove(pointer, project.id, module.id, include) >>= commit
-      } yield cli.job.await()
+      } yield cli.endSession()
     }
   }
 }

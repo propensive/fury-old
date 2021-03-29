@@ -46,7 +46,7 @@ case class ModuleCli(cli: Cli) extends CliApi{
       (conf, getProject, output) >> { case (c, p, o) =>
         if(!raw) log.info(c.focus(p.id))
         log.raw(o+"\n")
-        cli.job.await()
+        cli.endSession()
       }
     }
   }
@@ -70,8 +70,8 @@ case class ModuleCli(cli: Cli) extends CliApi{
         lens    <- defaultCompilerLens
         _       <- ~log.info(msg"Set current module to ${module.id}")
         _       <- commit(layer)
-        _       <- (Try(layer), (newModule, getProject) >> (_.ref(_)), getLayout, getJob) >> Build.asyncBuild
-      } yield cli.job.await()
+        _       <- (Try(layer), (newModule, getProject) >> (_.ref(_)), getLayout, ~cli.session) >> Build.asyncBuild
+      } yield cli.endSession()
     }
   }
 
@@ -88,8 +88,8 @@ case class ModuleCli(cli: Cli) extends CliApi{
       }
       for {
         _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
-      } yield cli.job.await()
+        _ <- (newLayer, getModuleRef, getLayout, ~cli.session) >> Build.asyncBuild
+      } yield cli.endSession()
     }
   }
 
@@ -119,8 +119,8 @@ case class ModuleCli(cli: Cli) extends CliApi{
       }
       for {
         _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
-      } yield cli.job.await()
+        _ <- (newLayer, getModuleRef, getLayout, ~cli.session) >> Build.asyncBuild
+      } yield cli.endSession()
     }
   }
 

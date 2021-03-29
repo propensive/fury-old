@@ -20,15 +20,31 @@ import gastronomy._
 
 import scala.util._
 
-import java.text.DecimalFormat
+import java.text._
+import java.math._
 
 import language.implicitConversions
+
+object FormattedNumber {
+  implicit val msgShow: MsgShow[FormattedNumber] = fn => Message(_.number(fn.formatted))
+}
+case class FormattedNumber(value: Double, rounding: Either[Int, Int]) {
+  lazy val formatted: String = rounding match {
+    case Left(n)  => new BigDecimal(value).setScale(n, RoundingMode.HALF_UP).toString
+    case Right(n) => new BigDecimal(value, new MathContext(n, RoundingMode.HALF_UP)).toString
+  }
+}
 
 object `package` {
   implicit def joinable(values: Traversable[String]): Joinable   = Joinable(values)
   implicit def stringContexts(sc: StringContext): StringContexts = StringContexts(sc)
   implicit def message[T: MsgShow](value: T): Message = implicitly[MsgShow[T]].show(value)
   implicit class ToMessage[T](value: T) { def msg(implicit msgShow: MsgShow[T]): Message = message(value) }
+
+  implicit class DoubleExtras(value: Double) {
+    def dp(i: Int): FormattedNumber = FormattedNumber(value, Left(i))
+    def sf(i: Int): FormattedNumber = FormattedNumber(value, Right(i))
+  }
 
   implicit def stringPart[T: StringShow](value: T): StringPart =
     StringPart(implicitly[StringShow[T]].show(value))
@@ -58,6 +74,11 @@ case class Timestamp(value: Long) { def -(that: Timestamp): TimeOffset = TimeOff
 
 object Timestamp {
   def now(): Timestamp = Timestamp(System.currentTimeMillis)
+  def apply(): Timestamp = now()
+  
+  // FIXME: Move precise time to another class
+  def precise(): Timestamp = Timestamp(System.nanoTime)
+
   private val dateFormat = new java.text.SimpleDateFormat("HH:mm:ss d MMMM yyyy")
   
   implicit val msgShow: MsgShow[Timestamp] = ts => Message { theme =>

@@ -47,7 +47,7 @@ case class BinaryCli(cli: Cli) {
     table      <- ~Tables().show(table, cli.cols, rows, raw, col, binaryId, "binary")
     _          <- ~(if(!raw) log.info(conf.focus(project.id, module.id)))
     _          <- ~log.raw(table+"\n")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def update: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -69,8 +69,8 @@ case class BinaryCli(cli: Cli) {
     binary     <- module.binaries.findBy(binaryArg)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - binary)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
-  } yield cli.job.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.session)
+  } yield cli.endSession()
 
   def remove: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -90,8 +90,8 @@ case class BinaryCli(cli: Cli) {
     deletion   <- module.binaries.findBy(binaryArg)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ - deletion)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
-  } yield cli.job.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.session)
+  } yield cli.endSession()
 
   def add: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -116,6 +116,6 @@ case class BinaryCli(cli: Cli) {
     _          <- module.binaries.unique(binary.id)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).binaries).modify(layer)(_ + binary)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
-  } yield cli.job.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.session)
+  } yield cli.endSession()
 }

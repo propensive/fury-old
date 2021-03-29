@@ -44,7 +44,7 @@ case class WorkspaceCli(cli: Cli) extends CliApi {
     (cli -< RawArg -< ColumnArg -< OptWorkspaceArg -< LayerArg).action { for {
       rows  <- getLayer >> (_.workspaces)
       repo  <- opt(WorkspaceArg) >> (printTable(table, rows, _, "workspace"))
-    } yield cli.job.await() }
+    } yield cli.endSession() }
   }
   
   def add: Try[ExitStatus] = (cli -< PathArg -< WorkspaceNameArg -< LayerArg).action { for {
@@ -53,7 +53,7 @@ case class WorkspaceCli(cli: Cli) extends CliApi {
     pointer <- getPointer
     id      <- findUniqueSpaceName
     _       <- getHierarchy >>= (WorkspaceApi(_).add(pointer, id.workspace, path, layout)) >>= commit
-  } yield cli.job.await() }
+  } yield cli.endSession() }
 
   def update: Try[ExitStatus] =
     (cli -< LayerArg -< WorkspaceArg -< WorkspaceNameArg -< PathArg).action { for {
@@ -64,7 +64,7 @@ case class WorkspaceCli(cli: Cli) extends CliApi {
       hierarchy <- getHierarchy
       pointer   <- getPointer
       _         <- WorkspaceApi(hierarchy).update(pointer, workspace.id, newPath, newId, layout) >>= commit
-    } yield cli.job.await() }
+    } yield cli.endSession() }
 
   def remove: Try[ExitStatus] = (cli -< WorkspaceArg).action {
     ((getHierarchy, getPointer, getWorkspace >> (_.id)) >>= (WorkspaceApi(_).remove(_, _)) >>= commit) >> finish
@@ -83,18 +83,18 @@ case class RepoCli(cli: Cli) extends CliApi {
     (cli -< RawArg -< ColumnArg -< RepoArg -< LayerArg).action { for {
       rows  <- getLayer >> (_.repos)
       repo  <- (getTable, opt(RepoArg)) >> (printTable(_, rows, _, "repo"))
-    } yield cli.job.await() }
+    } yield cli.endSession() }
   }
   
   def doAuth: Try[OauthToken] = for {
     // These futures should be managed in the session
     // This was duplicated from build.scala
     code     <- ~Rnd.token(18)
-    uri      <- ~(Https(ManagedConfig().service) / "await").query("code" -> code)
+    uri      <- ~(Https(Config().service) / "await").query("code" -> code)
     future   <- ~Future(blocking(Http.get(uri.key, Set()).to[Try]))
-    uri      <- ~(Https(ManagedConfig().service) / "auth").query("code" -> code)
+    uri      <- ~(Https(Config().service) / "auth").query("code" -> code)
     _        <- ~log.info(msg"Please visit $uri to authenticate using GitHub.")
-    _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
+    _        <- ~Future(blocking(Shell(cli.session.env).tryXdgOpen(uri)))
     response <- Await.result(future, Duration.Inf)
     json     <- Json.parse(new String(response, "UTF-8")).to[Try]
     token    <- json.token.as[String].to[Try]
@@ -107,7 +107,7 @@ case class RepoCli(cli: Cli) extends CliApi {
       layer  <- getLayer >> (Layer(_.repos).modify(_)(_ + repo))
       layer  <- ~layer.copy(mainRepo = None).checkinSources(repo.id)
       _      <- commit(layer)
-    } yield cli.job.await()
+    } yield cli.endSession()
   }
 
   def checkout: Try[ExitStatus] = (cli -< RepoArg -< GrabArg -< LayerArg).action { for {
@@ -121,7 +121,7 @@ case class RepoCli(cli: Cli) extends CliApi {
                              else Success(())
  
                    repo   <- layer.repos.findBy(repoId)
-                   gitDir <- ~GitDir((layout.baseDir / ".tmp").uniquify)(cli.env)
+                   gitDir <- ~GitDir((layout.baseDir / ".tmp").uniquify)(cli.session.env)
                    _      <- gitDir.clone(repo.remote, branch = repo.branch, commit = repo.commit)
  
                    _      <- (gitDir.dir.childPaths.flatMap { f =>
@@ -136,10 +136,10 @@ case class RepoCli(cli: Cli) extends CliApi {
                    layer  <- ~layer.checkoutSources(repoId)
                    layer  <- ~(Layer(_.repos).modify(layer)(_ - repo))
                  } yield layer
-    gitDir   <- ~GitDir(layout.baseDir)(cli.env)
+    gitDir   <- ~GitDir(layout.baseDir)(cli.session.env)
     layer    <- ~layer.copy(mainRepo = Some(get(RepoArg).getOrElse(RepoId(layout))))
     _        <- commit(layer)
-  } yield cli.job.await() }
+  } yield cli.endSession() }
   
   def unfork: Try[ExitStatus] = (cli -< RepoArg -< LayerArg).action {
     for {
@@ -148,7 +148,7 @@ case class RepoCli(cli: Cli) extends CliApi {
       newRepo   <- getLayout >>= (repo.unfork(_))
       layer     <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
       _         <- commit(layer)
-    } yield cli.job.await()
+    } yield cli.endSession()
   }
 
   def fork: Try[ExitStatus] = (cli -< LayerArg -< PathArg -< ProjectArg -< RepoArg).action { for {
@@ -171,7 +171,7 @@ case class RepoCli(cli: Cli) extends CliApi {
     newRepo <- ~repo.copy(local = Some(gitDir.dir))
     layer   <- getLayer >> (Layer(_.repos).modify(_)(_ - repo + newRepo))
     _       <- commit(layer)
-  } yield cli.job.await() }
+  } yield cli.endSession() }
 
   def add: Try[ExitStatus] = (cli -< RemoteArg -< PathArg -< RepoNameArg -< BranchArg -< TagArg -< LayerArg).action { for {
     layout  <- getLayout
@@ -185,7 +185,7 @@ case class RepoCli(cli: Cli) extends CliApi {
     pointer <- getPointer
     remote  <- opt(RemoteArg)
     _       <- getHierarchy >>= (RepoApi(_).add(pointer, id, remote, refSpec, path, layout)) >>= commit
-  } yield cli.job.await() }
+  } yield cli.endSession() }
 
   def update: Try[ExitStatus] =
     (cli -< CommitArg -< LayerArg -< RemoteArg -< RepoArg -< RepoNameArg -< BranchArg -< TagArg).action { for {
@@ -200,7 +200,7 @@ case class RepoCli(cli: Cli) extends CliApi {
       hierarchy <- getHierarchy
       pointer   <- getPointer
       _         <- RepoApi(hierarchy).update(pointer, repo.id, newId, remote, refSpec, layout) >>= commit
-    } yield cli.job.await() }
+    } yield cli.endSession() }
 
   def pull: Try[ExitStatus] =
     (cli -< LayerArg -< RepoArg -< AllArg).action {

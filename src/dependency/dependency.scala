@@ -47,7 +47,7 @@ case class DependencyCli(cli: Cli) {
     val rows = module.dependencies.to[List].sorted
     if(!raw) log.info(conf.focus(project.id, module.id))
     log.raw(Tables().show(table, cli.cols, rows, raw, col, dep, "dependency")+"\n")
-    cli.job.await()
+    cli.endSession()
   }
 
   def remove: Try[ExitStatus] = for {
@@ -73,8 +73,8 @@ case class DependencyCli(cli: Cli) {
     force        <- ~call(ForceArg).isSuccess
     layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ - dependency)
     _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Build.asyncBuild(layer, moduleRef, layout, cli.job)
-  } yield cli.job.await()
+    _            <- ~Build.asyncBuild(layer, moduleRef, layout, cli.session)
+  } yield cli.endSession()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -108,8 +108,8 @@ case class DependencyCli(cli: Cli) {
     ref          <- ModuleRef.parse(project.id, linkArg, intransitive).ascribe(InvalidValue(linkArg))
     layer        <- ~Layer(_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ + Input(ref))
     _            <- Layer.commit(layer, conf, layout)
-    _            <- ~Build.asyncBuild(layer, ref, layout, cli.job)
-  } yield cli.job.await()
+    _            <- ~Build.asyncBuild(layer, ref, layout, cli.session)
+  } yield cli.endSession()
 }
 
 case class EnvCli(cli: Cli) {
@@ -134,7 +134,7 @@ case class EnvCli(cli: Cli) {
     val rows = module.environment.to[List].sorted
     if(!raw) log.info(conf.focus(project.id, module.id))
     log.raw(Tables().show(table, cli.cols, rows, raw, col, env, "id")+"\n")
-    cli.job.await()
+    cli.endSession()
   }
 
   def remove: Try[ExitStatus] = for {
@@ -153,7 +153,7 @@ case class EnvCli(cli: Cli) {
     force        <- ~call(ForceArg).isSuccess
     layer        <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ - envArg)
     _            <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -172,7 +172,7 @@ case class EnvCli(cli: Cli) {
     envArg       <- call(EnvArg)
     layer        <- ~Layer(_.projects(project.id).modules(module.id).environment).modify(layer)(_ + envArg)
     _            <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 }
 
 case class PermissionCli(cli: Cli) {
@@ -205,7 +205,7 @@ case class PermissionCli(cli: Cli) {
     _            <- Policy.save(newPolicy)
   } yield {
     log.info(msg"${PermissionHash(permission.hash)}")
-    cli.job.await()
+    cli.endSession()
   }
 
   def obviate: Try[ExitStatus] = for {
@@ -221,7 +221,7 @@ case class PermissionCli(cli: Cli) {
     permHashes   <- call(PermissionArg).map(_.map(PermissionHash(_)))
     project      <- tryProject
     module       <- tryModule
-    build        <- Build(layer, module.ref(project), layout, false, cli.job)
+    build        <- Build.syncBuild(layer, module.ref(project), layout, false, cli.session)
     permissions  <- permHashes.traverse(_.resolve(build.policy))
     force        =  call(ForceArg).isSuccess
                          
@@ -229,7 +229,7 @@ case class PermissionCli(cli: Cli) {
                         permissions.to[Set]))
 
     _            <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
   
   def list: Try[ExitStatus] = for {
     layout        <- cli.layout
@@ -250,7 +250,7 @@ case class PermissionCli(cli: Cli) {
     val rows = module.policyEntries.to[List].sortBy(_.hash.key)
     if(!raw) log.info(conf.focus(project.id, module.id))
     log.raw(Tables().show[PermissionEntry, PermissionEntry](table, cli.cols, rows, raw, col, None, "hash")+"\n")
-    cli.job.await()
+    cli.endSession()
   }
 
   def grant: Try[ExitStatus] = for {
@@ -267,12 +267,12 @@ case class PermissionCli(cli: Cli) {
     project       <- tryProject
     module        <- tryModule
     permHashes    <- call(PermissionArg).map(_.map(PermissionHash(_)))
-    build         <- Build(layer, module.ref(project), layout, false, cli.job)
+    build         <- Build.syncBuild(layer, module.ref(project), layout, false, cli.session)
     permissions   <- permHashes.traverse(_.resolve(build.policy))
     policy        =  Policy.read()
     newPolicy     =  policy.grant(Scope(scopeId, layout, project.id), permissions)
     _             <- Policy.save(newPolicy)
-  } yield cli.job.await()
+  } yield cli.endSession()
 }
 
 case class PropertyCli(cli: Cli) {
@@ -297,7 +297,7 @@ case class PropertyCli(cli: Cli) {
     val rows = module.properties.to[List].sorted
     if(!raw) log.info(conf.focus(project.id, module.id))
     log.raw(Tables().show(table, cli.cols, rows, raw, col, prop, "property")+"\n")
-    cli.job.await()
+    cli.endSession()
   }
 
   def remove: Try[ExitStatus] = for {
@@ -316,7 +316,7 @@ case class PropertyCli(cli: Cli) {
     force        <- ~call(ForceArg).isSuccess
     layer        <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ - propArg)
     _            <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def add: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -334,5 +334,5 @@ case class PropertyCli(cli: Cli) {
     propArg      <- call(PropArg)
     layer        <- ~Layer(_.projects(project.id).modules(module.id).properties).modify(layer)(_ + propArg)
     _            <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 }

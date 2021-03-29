@@ -30,18 +30,6 @@ import scala.reflect.ClassTag
 
 import language.higherKinds
 
-object ManagedConfig {
-  private var config: Config =
-    Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
-
-  def write(newConfig: Config): Try[Unit] = synchronized {
-    config = newConfig
-    Ogdl.write(config, Installation.userConfig)
-  }
-
-  def apply(): Config = config
-}
-
 abstract class Key(val kind: Message) { def key: String }
 
 case class RepoRef(repoId: RepoId, layer: Pointer)
@@ -334,16 +322,31 @@ case class LayerProvenance(ref: ShortLayerRef, imports: Map[Pointer, Import]) {
   def published: Set[PublishedLayer] = imports.values.flatMap(_.remote).to[Set]
 }
 
-case class Config(showContext: Boolean = true,
-                  theme: Theme = Theme.Basic,
-                  undoBuffer: Int = 5,
-                  timestamps: Boolean = false,
-                  pipelining: Boolean = false,
-                  trace: Boolean = false,
-                  skipIpfs: Boolean = false,
-                  service: DomainName = DomainName("vent.dev"),
-                  defaultImport: LayerName = FuryUri(DomainName("vent.dev"), "propensive/ecosystem"),
-                  token: Option[OauthToken] = None)
+object Config {
+  private var config: Config =
+    synchronized { Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config.default) }
+
+  def write(newConfig: Config): Try[Unit] = synchronized {
+    config = newConfig
+    Ogdl.write(config, Installation.userConfig)
+  }
+
+  def apply(): Config = config
+  
+  def default: Config = Config(true, Theme.Basic, 5, false, false, false, false, DomainName("vent.dev"),
+      FuryUri(DomainName("vent.dev"), "propensive/ecosystem"), None)
+}
+
+case class Config (showContext: Boolean = true,
+                   theme: Theme = Theme.Basic,
+                   undoBuffer: Int = 5,
+                   timestamps: Boolean = false,
+                   pipelining: Boolean = false,
+                   trace: Boolean = false,
+                   skipIpfs: Boolean = false,
+                   service: DomainName = DomainName("vent.dev"),
+                   defaultImport: LayerName = FuryUri(DomainName("vent.dev"), "propensive/ecosystem"),
+                   token: Option[OauthToken] = None)
 
 object TargetId {
 
@@ -496,6 +499,7 @@ object JavaProperty {
     case Array(key)        => JavaProperty(key, "")
   }
 }
+
 case class JavaProperty(id: String, value: String) extends Key("java-property") {
   override def key: String = id
 }
@@ -676,7 +680,7 @@ object LayerName {
   implicit val parser: Parser[LayerName] = parse(_).toOption
 
   def parse(path: String): Try[LayerName] = {
-    val service = ManagedConfig().service
+    val service = Config().service
     path match {
       case r"fury:\/\/$ref@(Qm[A-Za-z0-9]{44})\/?" =>
         Success(IpfsRef(ref))
@@ -885,8 +889,10 @@ case class ModuleRef(id: String, intransitive: Boolean = false, hidden: Boolean 
   def urlSafe: String = str"${projectId}_${moduleId}"
   def isJavac: Boolean = this == ModuleRef.JavaRef
   def hide = copy(hidden = true)
+  def uri(layout: Layout): String = str"file://${layout.workDir(this).value}?id=$urlSafe"
+
   override def equals(that: Any): Boolean = that.only { case that: ModuleRef => id == that.id }.getOrElse(false)
-  override def hashCode: Int = projectId.hashCode + moduleId.hashCode
+  override def hashCode: Int = id.hashCode
   override def toString: String = str"$projectId/$moduleId"
 }
 
@@ -1001,41 +1007,58 @@ object License {
   implicit val stringShow: StringShow[License] = _.id.key
   val unknown = LicenseId("unknown")
 
-  val standardLicenses = List(
-      License(LicenseId("afl-3.0"), "Academic Free License v3.0"),
-      License(LicenseId("apache-2.0"), "Apache license 2.0"),
-      License(LicenseId("artistic-2.0"), "Artistic license 2.0"),
-      License(LicenseId("bsd-2-clause"), "BSD 2-clause \"Simplified\" license"),
-      License(LicenseId("bsd-3-clause"), "BSD 3-clause \"New\" or \"Revised\" license"),
-      License(LicenseId("bsl-1.0"), "Boost Software License 1.0"),
-      License(LicenseId("bsd-3-clause-clear"), "BSD 3-clause Clear license"),
-      License(LicenseId("cc"), "Creative Commons license family"),
-      License(LicenseId("cc0-1.0"), "Creative Commons Zero v1.0 Universal"),
-      License(LicenseId("cc-by-4.0"), "Creative Commons Attribution 4.0"),
-      License(LicenseId("cc-by-sa-4.0"), "Creative Commons Attribution Share Alike 4.0"),
-      License(LicenseId("wtfpl"), "Do What The F*ck You Want To Public License"),
-      License(LicenseId("ecl-2.0"), "Educational Community License v2.0"),
-      License(LicenseId("epl-1.0"), "Eclipse Public License 1.0"),
-      License(LicenseId("epl-1.1"), "European Union Public License 1.1"),
-      License(LicenseId("agpl-3.0"), "GNU Affero General Public License v3.0"),
-      License(LicenseId("gpl"), "GNU General Public License family"),
-      License(LicenseId("gpl-2.0"), "GNU General Public License v2.0"),
-      License(LicenseId("gpl-3.0"), "GNU General Public License v3.0"),
-      License(LicenseId("lgpl"), "GNU Lesser General Public License family"),
-      License(LicenseId("lgpl-2.1"), "GNU Lesser General Public License v2.1"),
-      License(LicenseId("lgpl-3.0"), "GNU Lesser General Public License v3.0"),
-      License(LicenseId("isc"), "ISC"),
-      License(LicenseId("lppl-1.3c"), "LaTeX Project Public License v1.3c"),
-      License(LicenseId("ms-pl"), "Microsoft Public License"),
-      License(LicenseId("mit"), "MIT"),
-      License(LicenseId("mpl-2.0"), "Mozilla Public License 2.0"),
-      License(LicenseId("osl-3.0"), "Open Software License 3.0"),
-      License(LicenseId("postgresql"), "PostgreSQL License"),
-      License(LicenseId("ofl-1.1"), "SIL Open Font License 1.1"),
-      License(LicenseId("ncsa"), "University of Illinois/NCSA Open Source License"),
-      License(LicenseId("unlicense"), "The Unlicense"),
-      License(LicenseId("zlib"), "zLib License")
-  )
+  // Permissive licenses
+  val pd = License(LicenseId("pd"), "Public Domain")
+  val apache2 = License(LicenseId("apache-2.0"), "Apache license 2.0")
+  val mit = License(LicenseId("mit"), "MIT")
+  val bsd2c = License(LicenseId("bsd-2-clause"), "BSD 2-clause \"Simplified\" license")
+  val bsd3c = License(LicenseId("bsd-3-clause"), "BSD 3-clause \"New\" or \"Revised\" license")
+  val bsd3cc = License(LicenseId("bsd-3-clause-clear"), "BSD 3-clause Clear license")
+  val permissive = Set(pd, apache2, mit, bsd2c, bsd3c, bsd3cc)
+
+  // Weakly-protective licenses
+  val lgpl = License(LicenseId("lgpl"), "GNU Lesser General Public License family")
+  val lgpl21 = License(LicenseId("lgpl-2.1"), "GNU Lesser General Public License v2.1")
+  val lgpl3 = License(LicenseId("lgpl-3.0"), "GNU Lesser General Public License v3.0")
+  val mpl = License(LicenseId("mpl-2.0"), "Mozilla Public License 2.0")
+  val weaklyProtective = Set(lgpl, lgpl21, lgpl3, mpl)
+
+  // Strongly-protective licenses
+  val gpl = License(LicenseId("gpl"), "GNU General Public License family")
+  val gpl2 = License(LicenseId("gpl-2.0"), "GNU General Public License v2.0")
+  val gpl3 = License(LicenseId("gpl-3.0"), "GNU General Public License v3.0")
+  val stronglyProtective = Set(gpl, gpl2, gpl3)
+
+  // Network-protective license
+  val agpl3 = License(LicenseId("agpl-3.0"), "GNU Affero General Public License v3.0")
+  val networkProtective = Set(agpl3)
+  
+  val afl3 = License(LicenseId("afl-3.0"), "Academic Free License v3.0")
+  val artistic2 = License(LicenseId("artistic-2.0"), "Artistic license 2.0")
+  val bsl1 = License(LicenseId("bsl-1.0"), "Boost Software License 1.0")
+  val cc = License(LicenseId("cc"), "Creative Commons license family")
+  val cc01 = License(LicenseId("cc0-1.0"), "Creative Commons Zero v1.0 Universal")
+  val ccBy4 = License(LicenseId("cc-by-4.0"), "Creative Commons Attribution 4.0")
+  val ccBySa4 = License(LicenseId("cc-by-sa-4.0"), "Creative Commons Attribution Share Alike 4.0")
+  val wtfpl = License(LicenseId("wtfpl"), "Do What The F*ck You Want To Public License")
+  val ecl2 = License(LicenseId("ecl-2.0"), "Educational Community License v2.0")
+  val epl = License(LicenseId("epl-1.0"), "Eclipse Public License 1.0")
+  val epl11 = License(LicenseId("epl-1.1"), "European Union Public License 1.1")
+  val isc = License(LicenseId("isc"), "ISC")
+  val lppl = License(LicenseId("lppl-1.3c"), "LaTeX Project Public License v1.3c")
+  val msPl = License(LicenseId("ms-pl"), "Microsoft Public License")
+  val osl = License(LicenseId("osl-3.0"), "Open Software License 3.0")
+  val postgre = License(LicenseId("postgresql"), "PostgreSQL License")
+  val ofl11 = License(LicenseId("ofl-1.1"), "SIL Open Font License 1.1")
+  val ncsa = License(LicenseId("ncsa"), "University of Illinois/NCSA Open Source License")
+  val unlicense = License(LicenseId("unlicense"), "The Unlicense")
+  val zlib = License(LicenseId("zlib"), "zLib License")
+  
+  val other = Set(afl3, artistic2, bsl1, cc, cc01, ccBy4, ccBySa4, wtfpl, ecl2, epl, epl11, isc, lppl, msPl,
+     osl, postgre, ofl11, ncsa, unlicense, zlib)
+  
+  val standardLicenses = permissive ++ weaklyProtective ++ stronglyProtective ++ networkProtective ++ other
+  
 }
 
 object LicenseId {
@@ -1049,7 +1072,7 @@ object LicenseId {
 
 case class LicenseId(key: String) extends Key(msg"license")
 
-case class License(id: LicenseId, name: String)
+case class License(id: LicenseId, name: String, compatibility: Set[LicenseId] = Set())
 
 sealed trait RefSpec extends Product with Serializable
 

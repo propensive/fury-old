@@ -40,7 +40,7 @@ object NoCommand { def unapply(cli: Cli): Boolean = cli.args.isEmpty }
 abstract class Cmd(val cmd: String, val description: String) {
 
   def unapply(cli: Cli): Option[Cli] = cli.args.headOption.flatMap { head =>
-    if(head == cmd) Some(Cli(cli.stdout, cli.args.tail, cli.command, cli.optCompletions, cli.env, cli.job))
+    if(head == cmd) Some(Cli(cli.args.tail, cli.command, cli.optCompletions, cli.session))
     else None
   }
 
@@ -77,22 +77,18 @@ abstract class CliParam(val shortName: Char, val longName: Symbol, val descripti
 
 object Cli {
 
-  def apply[H <: CliParam](stdout: java.io.PrintWriter,
-                           args: ParamMap,
+  def apply[H <: CliParam](args: ParamMap,
                            command: Option[Int],
                            optCompletions: List[Cli.OptCompletion],
-                           env: Environment,
-                           job: Job) =
-    new Cli(stdout, args, command, optCompletions, env, job) { type Hinted <: H }
+                           session: Session) =
+    new Cli(args, command, optCompletions, session) { type Hinted <: H }
 
   def asCompletion[H <: CliParam](menu: => Menu)(cli: Cli) = {
     val newCli = Cli[H](
-      cli.stdout,
       ParamMap(cli.args.suffix.map(_.value).tail: _*),
       cli.args(Args.ParamNoArg).toOption,
       cli.optCompletions,
-      cli.env,
-      cli.job
+      cli.session
     )
 
     menu(newCli, newCli)
@@ -143,17 +139,17 @@ trait Descriptor[T] {
   }
 }
 
-class Cli(val stdout: java.io.PrintWriter,
-          val args: ParamMap,
+class Cli(val args: ParamMap,
           val command: Option[Int],
           val optCompletions: List[Cli.OptCompletion],
-          val env: Environment,
-          val job: Job) { cli =>
+          val session: Session) { cli =>
 
   type Hinted <: CliParam
 
+  def endSession(): ExitStatus = Done
+  
   def assign(params: CliParam*) =
-    Cli(stdout, args.assign(params.map(_.longName.name): _*).flatten, command, optCompletions, env, job)
+    Cli(args.assign(params.map(_.longName.name): _*).flatten, command, optCompletions, session)
 
   class Call private[Cli] () {
     def apply(param: CliParam)(implicit ev: Hinted <:< param.type): Try[param.Type] =
@@ -193,14 +189,13 @@ class Cli(val stdout: java.io.PrintWriter,
     else Failure(MissingParamChoice(param1, param2))
   }
   
-  def cols: Int = Terminal.columns(env).getOrElse(100)
+  def cols: Int = Terminal.columns(session.env).getOrElse(100)
 
-  private lazy val logStyle: LogStyle = LogStyle(debug = false)
+  private lazy val logStyle: Logger = Logger(debug = false)
 
   def call(): Try[Call] = {
     if(completion) {
-      stdout.println(optCompletions.flatMap(_.output).mkString("\n"))
-      stdout.flush()
+      log.info(optCompletions.flatMap(_.output).mkString("\n"))
       Failure(EarlyCompletions())
     } else {
       //log.attach(logStyle)
@@ -228,7 +223,7 @@ class Cli(val stdout: java.io.PrintWriter,
     } yield (cli, tryProject, tryModule)
   }
 
-  def forceLog(msg: Message): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, job.pid)
+  //def forceLog(msg: Message): Unit = logStyle.log(msg, System.currentTimeMillis, Log.Warn, job.session.pid)
 
   def action(blk: => Try[ExitStatus]): Try[ExitStatus] = call().flatMap { _ => blk }
 
@@ -246,23 +241,23 @@ class Cli(val stdout: java.io.PrintWriter,
     if(default.isDefined) result.recover { case _: exoskeleton.MissingArg => default.get } else result
   }
 
-  def pwd: Try[Path] = env.workDir.ascribe(FileNotFound(path"/")).map(Path(_))
+  def pwd: Try[Path] = session.env.workDir.ascribe(FileNotFound(path"/")).map(Path(_))
 
-  lazy val newLayout: Try[Layout] = pwd.map { pwd => Layout(Path(env.variables("HOME")), pwd, env, pwd) }
+  lazy val newLayout: Try[Layout] = pwd.map { pwd => Layout(Path(session.env.variables("HOME")), pwd, session.env, pwd) }
 
-  lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), pwd, env) }
+  lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(session.env.variables("HOME")), pwd, session.env) }
   
   def next: Option[String] = args.parsed.prefix.headOption.map(_.value)
   def completion: Boolean = command.isDefined
   
   def prefix(str: String): Cli { type Hinted <: cli.Hinted } =
-    Cli(stdout, ParamMap((str :: args.args.to[List]): _*), command, optCompletions, env, job)
+    Cli(ParamMap((str :: args.args.to[List]): _*), command, optCompletions, session)
   
   def tail: Cli { type Hinted <: cli.Hinted } = {
     val newArgs = if(args.headOption.map(_.length) == Some(2)) ParamMap(args.args.head.tail +:
         args.args.tail: _*) else args.tail
     
-    Cli(stdout, newArgs, command, optCompletions, env, job)
+    Cli(newArgs, command, optCompletions, session)
   }
   
   def opt[T](param: CliParam)(implicit ext: Default[param.Type]): Try[Option[param.Type]] =
@@ -274,51 +269,52 @@ class Cli(val stdout: java.io.PrintWriter,
   }
   /*def abort(msg: Message): ExitStatus = {
     if(!completion){
-      if(log.writersCount < 2) { log.attach(LogStyle(debug = false)) }
+      if(log.writersCount < 2) { log.attach(Logger(debug = false)) }
       log.fail(msg)
     }
     Abort
   }*/
 
-  def continuation(script: String): ExitStatus = {
-    val scriptFile = Installation.scriptsDir.extant() / str"exec_${job.pid.pid}"
-    val pw = new java.io.PrintWriter(scriptFile.javaFile)
-    pw.write(script)
-    pw.write("\n")
-    pw.close()
-    Log().info(msg"Including temporary script file to ${scriptFile}")
-    Continuation
-  }
+  // def continuation(script: String): ExitStatus = {
+  //   val session = Bus().session(job)
+  //   val scriptFile = Installation.scriptsDir.extant() / str"exec_${session.fold(0)(_.pid.pid)}"
+  //   val pw = new java.io.PrintWriter(scriptFile.javaFile)
+  //   pw.write(script)
+  //   pw.write("\n")
+  //   pw.close()
+  //   //Log().info(msg"Including temporary script file to ${scriptFile}")
+  //   Continuation
+  // }
 
   def hint[T: StringShow: Descriptor]
           (arg: CliParam, hints: Traversable[T])
           : Try[Cli { type Hinted <: cli.Hinted with arg.type }] = {
     val newHints = Cli.OptCompletion(arg, implicitly[Descriptor[T]].wrap(implicitly[StringShow[T]], hints))
 
-    Success(Cli(stdout, args, command, newHints :: optCompletions, env, job)) 
+    Success(Cli(args, command, newHints :: optCompletions, session)) 
   }
 
   def -<(arg: CliParam)
         (implicit hinter: arg.Hinter, stringShow: StringShow[arg.Type], descriptor: Descriptor[arg.Type])
         : Cli { type Hinted <: cli.Hinted with arg.type } = {
     val newHints = Cli.OptCompletion(arg, descriptor.wrap(stringShow, hinter.hints))
-    Cli(stdout, args, command, newHints :: optCompletions, env, job)
+    Cli(args, command, newHints :: optCompletions, session)
   }
 
   def -?<(arg: CliParam, condition: Try[Boolean])
         (implicit hinter: arg.Hinter, stringShow: StringShow[arg.Type], descriptor: Descriptor[arg.Type])
   : Cli { type Hinted <: cli.Hinted with arg.type } = condition match {
     case Success(true) => -<(arg)
-    case _ => Cli(stdout, args, command, optCompletions, env, job)
+    case _ => Cli(args, command, optCompletions, session)
   }
 
   def hint(arg: CliParam): Success[Cli { type Hinted <: cli.Hinted with arg.type }] =
-    Success(Cli(stdout, args, command, Cli.OptCompletion(arg, "()"):: optCompletions, env, job)) 
+    Success(Cli(args, command, Cli.OptCompletion(arg, "()"):: optCompletions, session)) 
 
-  private[this] def write(msg: Message): Unit = {
-    stdout.println(msg.string(ManagedConfig().theme))
-    stdout.flush()
-  }
+  // private[this] def write(msg: Message): Unit = {
+  //   stdout.println(msg.string(Config().theme))
+  //   stdout.flush()
+  // }
 
   def completeCommand(cmd: MenuStructure, hasLayer: Boolean): Try[Nothing] =
     command.map { no =>
@@ -327,8 +323,7 @@ class Cli(val stdout: java.io.PrintWriter,
         case act: Action => Nil
         case menu: Menu  => menu.items.filter(_.show).filter(!_.needsLayer || hasLayer).to[List]
       }))
-      stdout.println(optCompletions.flatMap(_.output).mkString("\n"))
-      stdout.flush()
+      log.info(optCompletions.flatMap(_.output).mkString("\n"))
       Failure(EarlyCompletions())
     }.getOrElse {
       args.parsed.prefix.headOption.fold(Failure(UnknownCommand(""))) { arg => Failure(UnknownCommand(arg.value)) }
@@ -356,11 +351,12 @@ abstract class CliApi {
     case Failure(MissingParam(param)) => Success(None)
     case other                        => other.map(Some(_))
   }
+  
+  def finish(value: Any): ExitStatus = cli.endSession()
 
   def has(arg: CliParam): Boolean = cli.get(arg).toOption.isDefined
   
   lazy val getLayout: Try[Layout] = cli.layout
-  lazy val getJob: Try[Job] = Try(cli.job)
   lazy val conf: Try[FuryConf] = getLayout >>= Layer.readFuryConf
   lazy val getLayer: Try[Layer] = (getHierarchy, getPointer) >>= (_(_))
   lazy val getPointer: Try[Pointer] = (opt(LayerArg), confPointer) >> (_.getOrElse(_))
@@ -375,8 +371,6 @@ abstract class CliApi {
   lazy val layerWorkspaceIdOpt: Try[Option[WorkspaceId]] = Success(None)
   lazy val getHierarchy: Try[Hierarchy] = getBaseLayer >>= (_.hierarchy())
   lazy val universe: Try[Universe] = getHierarchy >>= (_.universe)
-
-  def finish(value: Any): ExitStatus = cli.job.await()
 
   def layerRepoOpt(layer: Layer, repoIdOpt: Option[RepoId]): Try[Option[Repo]] =
     repoIdOpt.traverse(layer.repos.findBy(_))
@@ -399,7 +393,7 @@ abstract class CliApi {
   lazy val getSpecifiedWorkspace: Try[Workspace] = (getLayer, get(WorkspaceArg)) >>= (_.workspaces.findBy(_))
   lazy val getGitDir: Try[GitDir] = (getRepo, getLayout) >>= (_.remote.fetch(_))
   lazy val fetchRemote: Try[GitDir] = (get(RemoteArg), getLayout) >>= (_.fetch(_))
-  lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.env, _))
+  lazy val remoteGitDir: Try[RemoteGitDir] = getRepo >> (_.remote) >> (RemoteGitDir(cli.session.env, _))
   lazy val requiredModule: Try[Module] = (getProject, get(ModuleArg)) >>= (_.modules.findBy(_))
   
   lazy val cliModule: Try[Option[Module]] = (opt(ModuleArg), getProject) >>= {
@@ -494,7 +488,7 @@ abstract class CliApi {
 
   def commit(layer: Layer): Try[LayerRef] = (conf, getLayout) >>= (Layer.commit(layer, _, _))
   def commit(hierarchy: Hierarchy): Try[LayerRef] = (confPointer, getLayout) >>= (hierarchy.save(_, _))
-  def cols: Int = Terminal.columns(cli.env).getOrElse(100)
+  def cols: Int = Terminal.columns(cli.session.env).getOrElse(100)
 
   implicit lazy val rawHints: RawArg.Hinter = RawArg.hint()
   implicit lazy val forceHints: ForceArg.Hinter = ForceArg.hint()

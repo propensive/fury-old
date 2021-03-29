@@ -130,7 +130,7 @@ object Service {
       json <- Json.parse(str).to[Try]
       _    <- ~log.fine(msg"Response: $json")
       res  <- handleError[Response](json)
-    } yield PublishedLayer(FuryUri(ManagedConfig().service, res.path), res.version, LayerRef(res.ref), Some(res.expiry.value))
+    } yield PublishedLayer(FuryUri(Config().service, res.path), res.version, LayerRef(res.ref), Some(res.expiry.value))
   }
   
   import Json._

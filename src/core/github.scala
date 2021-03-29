@@ -30,7 +30,7 @@ object GitHub {
     case Some(r"gh:$user@([a-z0-9]*)") =>
       val results = for {
         _     <- ~log.fine(s"Looking for completions for $user...")
-        token <- ManagedConfig().token.ascribe(NotAuthenticated())
+        token <- Config().token.ascribe(NotAuthenticated())
         
         out   <- ~Http.get((Https(DomainName("api.github.com")) / "search" / "users").query("q" ->
                     (if(user.isEmpty) "language:scala" else user)).key,
@@ -52,7 +52,7 @@ object GitHub {
     case Some(r"gh:$user@([a-z][a-z0-9]*)\/$repo@([a-z]*)") =>
       for {
         _     <- ~log.fine(s"Looking for completions for $user...")
-        token <- ManagedConfig().token.ascribe(NotAuthenticated())
+        token <- Config().token.ascribe(NotAuthenticated())
         
         out   <- ~Http.get((Https(DomainName("api.github.com")) / "users" / user / "repos").key,
                     Set(HttpHeader("Authorization", str"token ${token}"))).to[Try]

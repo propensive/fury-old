@@ -28,7 +28,7 @@ import guillotine.Environment
 
 case class Tables() {
 
-  implicit val theme: Theme = ManagedConfig().theme
+  implicit val theme: Theme = Config().theme
 
   def show[T, S: MsgShow](table: Tabulation[T],
                           cols: Int,

@@ -37,7 +37,7 @@ case class UniverseCli(cli: Cli) extends CliApi {
       table     <- ~Tables().show(table, cli.cols, rows, has(RawArg), col, repoSetId >> (_.key), "commit")
       _         <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(msg) }
       _         <- ~log.raw(table+"\n")
-    } yield cli.job.await() }
+    } yield cli.endSession() }
 
     def update: Try[ExitStatus] = (cli -< RepoSetArg -< CommitArg -< TagArg -< BranchArg).action {
       for {
@@ -53,7 +53,7 @@ case class UniverseCli(cli: Cli) extends CliApi {
         someLayer <- hierarchy(repos.head.layer)
         someRepo  <- someLayer.repos.findBy(repos.head.repoId)
         _         <- (getHierarchy, getLayout) >>= (UniverseApi(_).repos.update(repoSetId, refSpec, _)) >>= commit
-      } yield cli.job.await()
+      } yield cli.endSession()
     }
   }
 
@@ -73,12 +73,12 @@ case class UniverseCli(cli: Cli) extends CliApi {
       table     <- ~Tables().show(table, cli.cols, rows.toMap.to[List], has(RawArg), col, projectId >> (_.key), "project")
       _         <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(msg) }
       _         <- ~log.raw(table+"\n")
-    } yield cli.job.await() }
+    } yield cli.endSession() }
 
     def proliferate: Try[ExitStatus] = (cli -< ProjectRefArg).action { for {
       projectRef <- get(ProjectRefArg)
       hierarchy  <- getHierarchy >>= (UniverseApi(_).projects.proliferate(projectRef)) >>= commit
-    } yield cli.job.await() }
+    } yield cli.endSession() }
 
     def diff: Try[ExitStatus] = (cli -< ProjectRefArg -< AgainstProjectArg -< RawArg).action { for {
       universe <- universe
@@ -88,7 +88,7 @@ case class UniverseCli(cli: Cli) extends CliApi {
       table    <- ~Tables().differences(str"$left", str"$right")
       table    <- ~Tables().show[Difference, Difference](table, cli.cols, diff, has(RawArg), None, None, "difference")
       _        <- ~log.raw(table+"\n")
-    } yield cli.job.await() }
+    } yield cli.endSession() }
   }
 
   object imports {
@@ -104,7 +104,7 @@ case class UniverseCli(cli: Cli) extends CliApi {
       for {
         _ <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(msg) }
         _ <- output >> { msg => log.raw(msg+"\n") }
-      } yield cli.job.await()
+      } yield cli.endSession()
     }
 
     def update: Try[ExitStatus] = (cli -< LayerRefArg -< ImportArg -< LayerVersionArg).action {

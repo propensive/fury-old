@@ -29,7 +29,10 @@ package object model {
     ByteEncoder.base64.encode(_).replace('/', '_').takeWhile(_ != '=')
   
   implicit class LayoutExtras(val layout: Layout) extends AnyVal {
-    def bloopConfig(ref: ModuleRef): Path = layout.bloopDir.extant() / str"${ref.urlSafe}.json"
+    
+    def bloopConfig(ref: ModuleRef): Path = layout.bloopDir.extant() / ref.projectId.key /
+        str"${ref.moduleId.key}.json"
+    
     def outputDir(ref: ModuleRef): Path = (layout.analysisDir / ref.urlSafe).extant()
     def workDir(ref: ModuleRef): Path = (layout.workDir / ref.urlSafe).extant()
     

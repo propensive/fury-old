@@ -30,5 +30,4 @@ package object io {
   implicit val diffGlob: Diff[Glob] = (l, r) => Diff.stringDiff.diff(str"$l", str"$r")
   implicit val msgShowByteSize: MsgShow[ByteSize] = fs => Message(_.number(str"${Strings.magnitude(fs.bytes, "B")}"))
   implicit val stringShowByteSize: StringShow[ByteSize] = fs => str"${Strings.magnitude(fs.bytes, "B")}"
-  implicit val msgShowPath: MsgShow[Path] = path => Message(_.path(path.value))
 }

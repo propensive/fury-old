@@ -29,8 +29,9 @@ object FuryMenu {
       Action('resources, msg"display information about available CPUs and memory usage", AboutCli(_).resources,
           needsLayer = false),
       
-      Action('tasks, msg"list the tasks that are being executed", AboutCli(_).tasks, needsLayer = false),
-      Action('connections, msg"list open BSP connections", AboutCli(_).connections, needsLayer = false)
+      //Action('tasks, msg"list the tasks that are being executed", AboutCli(_).tasks, needsLayer = false),
+      Action('connections, msg"list open BSP connections", AboutCli(_).connections, needsLayer = false),
+      Action('state, msg"display the state of Fury", BuildCli(_).state)
     ),
     Menu('alias, msg"view and edit command aliases", 'list)(
       Action('add, msg"add a command alias to the layer", AliasCli(_).add),
@@ -147,7 +148,7 @@ object FuryMenu {
       Action('list, msg"list shaded projects", ShadeCli(_).list),
       Action('remove, msg"remove a project shading", ShadeCli(_).remove)
     ),
-    Action('stop, msg"gracefully shut down the Fury server", Lifecycle.doShutdown(_), needsLayer = false),
+    //Action('stop, msg"gracefully shut down the Fury server", Lifecycle.doShutdown(_), needsLayer = false),
     Menu('repo, msg"manage source repositories for the layer", 'list, shortcut = 'r')(
       Action('add, msg"add a source repository to the layer", RepoCli(_).add, shortcut = 'a'),
       Action('checkin, msg"check in the repository from the working directory", RepoCli(_).checkin),
@@ -203,9 +204,9 @@ object FuryMenu {
       _     <- ~log.raw(s"""|Usage: fury <command> [<subcommands>] [<args>]
                            |
                            |Command and subcommand reference:
-                           |${menu(Nil).reference(ManagedConfig().theme).join("\n")}
+                           |${menu(Nil).reference(Config().theme).join("\n")}
                            |
                            |More help is available on the Fury website: https://fury.build/
                            |""".stripMargin)
-    } yield cli.job.await()
+    } yield cli.endSession()
 }

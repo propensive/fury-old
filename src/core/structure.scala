@@ -49,14 +49,14 @@ case class Menu(command: Symbol,
     val hasLayer: Boolean = cli.layout.map(_.confFile.exists).getOrElse(false)
     if(cli.args.args == Seq("interrupt")) Success(Done)
     else {
-      if(FuryVersion.current != Installation.installVersion && !reentrant) {
-        cli.forceLog(msg"The version of the active Fury server (${FuryVersion.current}) differs from the "+
-            msg"version of the shell script version (${Installation.installVersion}) calling it.")
-        cli.forceLog(msg"This is probably because a newer version of Fury has been installed while the old "+
-            msg"version is still running.")
-        cli.forceLog(msg"While the versions may be compatible, it is advised to stop the Fury server using "+
-            msg"${Executable("fury stop")}.")
-      }
+      // if(FuryVersion.current != Installation.installVersion && !reentrant) {
+      //   cli.forceLog(msg"The version of the active Fury server (${FuryVersion.current}) differs from the "+
+      //       msg"version of the shell script version (${Installation.installVersion}) calling it.")
+      //   cli.forceLog(msg"This is probably because a newer version of Fury has been installed while the old "+
+      //       msg"version is still running.")
+      //   cli.forceLog(msg"While the versions may be compatible, it is advised to stop the Fury server using "+
+      //       msg"${Executable("fury stop")}.")
+      // }
 
       cli.args.parsed.prefix.headOption match {
         case None =>

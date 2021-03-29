@@ -265,8 +265,7 @@ You can grant these permissions with,
             s"\n$e\n${rootCause(e).getStackTrace.to[List].map(_.toString).join("    at ", "\n    at ", "")}"
           val result = for {
             layout <- cli.layout
-            _      <- ~Log().fail(errorString)
-            _      <- ~Log().await()
+            _      <- ~log.fail(errorString)
           } yield
             cli.abort(msg"An unexpected error occurred:$errorString")
 

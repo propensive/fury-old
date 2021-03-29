@@ -44,14 +44,14 @@ case class OptionCli(cli: Cli) {
     project    <- optProject.asTry
     module     <- optModule.asTry
     compiler   <- ~module.compiler
-    build      <- Build.syncBuild(layer, module.ref(project), layout, true, cli.job)
+    build      <- Build.syncBuild(layer, module.ref(project), layout, true, cli.session)
     target     <- build(module.ref(project))
-    rows       <- new build.TargetExtras(target).aggregatedOpts
+    rows       <- build.goalTarget.aggregatedOpts
     showRows   <- ~rows.to[List].filter(_.compiler == compiler)
     _          <- ~(if(!raw) log.info(conf.focus(project.id, module.id)))
     table      <- ~Tables().show(table, cli.cols, showRows, raw, col, opt, "param")
     _          <- ~log.raw(table+"\n")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def remove: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -79,8 +79,8 @@ case class OptionCli(cli: Cli) {
                       Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ - deletion) }
 
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
-  } yield cli.job.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.session)
+  } yield cli.endSession()
 
   def define: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -106,7 +106,7 @@ case class OptionCli(cli: Cli) {
     optDef     <- ~OptDef(option, desc, transform, persist)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).optDefs).modify(layer)(_ + optDef)
     _          <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def undefine: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -126,7 +126,7 @@ case class OptionCli(cli: Cli) {
     optDef     <- module.optDefs.findBy(option)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).optDefs).modify(layer)(_ - optDef)
     _          <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def add: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -142,9 +142,9 @@ case class OptionCli(cli: Cli) {
     optDefs    <- ~ { for {
                     project <- optProject
                     module  <- optModule
-                    build   <- Build.syncBuild(layer, module.ref(project), layout, false, cli.job).toOption
+                    build   <- Build.syncBuild(layer, module.ref(project), layout, false, cli.session).toOption
                     target  <- build(module.ref(project)).toOption
-                    optDefs <- new build.TargetExtras(target).aggregatedOptDefs.toOption
+                    optDefs <- build.goalTarget.aggregatedOptDefs.toOption
                   } yield optDefs.map(_.value.id) }.getOrElse(Set())
     
     cli        <- cli.hint(OptArg, optDefs)
@@ -157,6 +157,6 @@ case class OptionCli(cli: Cli) {
     param      <- ~Opt(paramArg, persist, remove = false)
     layer      <- ~Layer(_.projects(project.id).modules(module.id).opts).modify(layer)(_ + param)
     _          <- Layer.commit(layer, conf, layout)
-    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.job)
-  } yield cli.job.await()
+    _          <- ~Build.asyncBuild(layer, module.ref(project), layout, cli.session)
+  } yield cli.endSession()
 }

@@ -112,15 +112,15 @@ case class Universe(hierarchy: Hierarchy,
   } yield workspace.map { ws => ws.local.getOrElse(layout.workspaceDir(project.id, ws.id)) }
 
   def packageMap: Try[Map[Pkg, ModuleRef]] = for {
-    _        <- ~Log().info(msg"Getting projects")
+    //_        <- ~Log().info(msg"Getting projects")
     projects <- resolvedProjects
-    _        <- ~Log().info(msg"Got projects: $projects")
+    //_        <- ~Log().info(msg"Got projects: $projects")
     packages  = projects.flatMap { p => p.modules.flatMap { m => m.packages.map(_ -> m.ref(p)) } }
   } yield packages.toMap
 
   def packageMatch(query: Pkg): Try[ModuleRef] = for {
     map   <- packageMap
-    _     <- ~Log().info(msg"Looking for '$query' in ${packageMap.toString}")
+    //_     <- ~Log().info(msg"Looking for '$query' in ${packageMap.toString}")
     found <- map.filter { case (pkg, ref) => query.key startsWith pkg.key }.to[List].sortBy(_._2.key.length).headOption.map(_._2).ascribe(UnknownPkg(query))
   } yield found
 

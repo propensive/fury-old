@@ -54,8 +54,8 @@ case class SourceCli(cli: Cli) extends CliApi {
       for {
         _ <- newLayer >>= commit
         _ <- (getLayout, getModuleRef) >>= (_.classesDir(_).delete)
-        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
-      } yield cli.job.await()
+        _ <- (newLayer, getModuleRef, getLayout, ~cli.session) >> Build.asyncBuild
+      } yield cli.endSession()
     }
   }
 
@@ -71,8 +71,8 @@ case class SourceCli(cli: Cli) extends CliApi {
       val newLayer = (newSources, getLayer, sourcesLens) >> (Layer.set(_)(_, _))
       for {
         _ <- newLayer >>= commit
-        _ <- (newLayer, getModuleRef, getLayout, getJob) >> Build.asyncBuild
-      } yield cli.job.await()
+        _ <- (newLayer, getModuleRef, getLayout, ~cli.session) >> Build.asyncBuild
+      } yield cli.endSession()
     }
   }
 

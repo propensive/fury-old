@@ -45,7 +45,7 @@ case class ProjectCli(cli: Cli) extends CliApi {
     table   <- getTable >> (Tables().show(_, cli.cols, rows, has(RawArg), col, project >> (_.id), "project"))
     _       <- conf >> (_.focus()) >> { msg => if(!has(RawArg)) log.info(_) }
     _       <- ~log.raw(table+"\n")
-  } yield cli.job.await() }
+  } yield cli.endSession() }
 
   def add: Try[ExitStatus] = (cli -< ProjectNameArg -< LicenseArg -< DefaultCompilerArg).action { for {
     optLicense  <- opt(LicenseArg).map(_.getOrElse(License.unknown))
@@ -58,14 +58,14 @@ case class ProjectCli(cli: Cli) extends CliApi {
 
     _           <- commit(layer)
     _           <- ~log.info(msg"Set current project to ${project.id}")
-  } yield cli.job.await() }
+  } yield cli.endSession() }
 
   def remove: Try[ExitStatus] = (cli -< ProjectArg -< ForceArg).action { for {
     project <- cliProject
     layer   <- getLayer >> (Layer(_.projects).modify(_)(_.evict(project.id)))
     layer   <- ~Layer(_.main).modify(layer) { v => if(v == Some(project.id)) None else v }
     _       <- commit(layer)
-  } yield cli.job.await() }
+  } yield cli.endSession() }
 
   // FIXME: Todo
   def update: Try[ExitStatus] = for {
@@ -91,5 +91,5 @@ case class ProjectCli(cli: Cli) extends CliApi {
     layer     <- ~newId.fold(layer)(Layer(_.projects(project.id).id)(layer) = _)
     layer     <- if(newId.isEmpty || layer.main != Some(project.id)) ~layer else ~(Layer(_.main)(layer) = newId)
     _         <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 }

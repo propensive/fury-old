@@ -16,6 +16,9 @@
 */
 package fury.text
 
+import jovian._
+import acyclicity._
+
 case class AnsiCode(private val code: String) {
   def apply(): String             = if(code == "") "" else s"\u001b[$code"
   def apply(str: String): String  = if(code == "") str else s"${apply()}$str${Ansi.reset()}"
@@ -30,6 +33,13 @@ object MsgShow {
   implicit val char: MsgShow[Char] = ch => Message(_.gray(ch.toString))
   implicit val stackTraceElement: MsgShow[StackTraceElement] = ste => Message(_.gray(ste.toString))
   implicit val bigDecimal: MsgShow[BigDecimal] = bd => Message { _ => bd.toString }
+  implicit val msgShowPath: MsgShow[Path] = path => Message(_.path(path.value))
+  
+  implicit def dag[T: MsgShow]: MsgShow[Dag[T]] =
+    dag => if(dag.edgeMap.isEmpty) msg"" else {
+      val xs = dag.edgeMap.map { case (k, vs) => msg"$k --> $vs" }
+      xs.tail.foldLeft(xs.head) { case (a, b) => a+"\n"+b }
+    }
   
   implicit def traversableMsgShow[Coll[X] <: Traversable[X], T: MsgShow]: MsgShow[Coll[T]] = { seq =>
     if(seq.isEmpty) msg"${'{'}${'}'}"

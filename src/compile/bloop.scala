@@ -38,8 +38,7 @@ object Bloop {
       } yield List(path)
     }).sequence.map(_.flatten)
 
-  private def makeConfig(build: Build)(target: Target): Try[String] = {
-    import build.TargetExtras
+  private def makeConfig(build: Build)(target: build.Target): Try[String] = {
     target.sourcePaths.flatMap { sourcePaths =>
       target.writePlugin()
       val classpath = target.classpath
@@ -74,7 +73,7 @@ object Bloop {
           name = target.ref.urlSafe,
           directory = build.layout.workDir(target.ref).value,
           sources = sourcePaths.map(_.value) + Installation.dummySourceDir.value,
-          dependencies = build.graph.dependencies(target.ref).map(_.ref.urlSafe),
+          dependencies = build.dag(target.ref).map(_.urlSafe),
           classpath = (classpath ++ compilerClasspath.getOrElse(Set.empty)).map(_.value),
           out = str"${build.layout.outputDir(target.ref).value}",
           classesDir = str"${build.layout.classesDir(target.ref).value}",

@@ -297,11 +297,11 @@ object Layer extends Lens.Partial[Layer] {
   }
 
   def pathCompletions(): Try[List[String]] =
-    Service.catalog(ManagedConfig().service)
+    Service.catalog(Config().service)
 
   def versionCompletions(layerName: LayerName): Try[List[Int]] = layerName match {
     case FuryUri(domain, path) =>
-      Service.list(FuryUri(ManagedConfig().service, path)).map(_.map(_.version))
+      Service.list(FuryUri(Config().service, path)).map(_.map(_.version))
     case _ =>
       Success(Nil)
   }
@@ -354,11 +354,11 @@ object Layer extends Lens.Partial[Layer] {
     } yield layer } else { for {
       _             <- layout.confFile.mkParents()
       layer          = Layer(CurrentVersion)
-      defaultImport <- ~ManagedConfig().defaultImport
+      defaultImport <- ~Config().defaultImport
 
       layer         <- if(!bare) { for {
                          importName  <- ~defaultImport.suggestedName.getOrElse(ImportId("ecosystem"))
-                         newLayerRef <- Layer.resolve(ManagedConfig().defaultImport, None)
+                         newLayerRef <- Layer.resolve(Config().defaultImport, None)
                          pub         <- Layer.published(defaultImport)
                          newLayer    <- Layer.get(newLayerRef, pub)
                          _           <- newLayer.verify(false, false, Pointer.Root)
@@ -408,7 +408,7 @@ object Layer extends Lens.Partial[Layer] {
   def saveFuryConf(conf: FuryConf, layout: Layout): Try[FuryConf] = for {
     confStr <- ~Ogdl.serialize(Ogdl(conf))
     _       <- layout.confFile.writeSync(confComments+confStr+vimModeline)
-    _       <- ~Monitor.trigger(layout)
+    //_       <- ~Monitor.trigger(layout)
   } yield conf
 
   private def migrateModules(root: Ogdl)(fn: Ogdl => Ogdl): Ogdl =

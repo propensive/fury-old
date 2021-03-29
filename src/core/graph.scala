@@ -85,7 +85,6 @@ object UiGraph {
               if(!current.isEmpty) str"Fury: Building ${(completion*100).toInt}% ($current)" else str"Fury"
             } }
 
-            log.flush()
           }
           graphState.copy(changed = false)
 

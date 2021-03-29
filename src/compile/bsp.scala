@@ -302,7 +302,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator)
         
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(BuildResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
-        reporter.report(compilation.graph, ManagedConfig().theme, multiplexer)
+        reporter.report(compilation.graph, Config().theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
         synchronousResult
       }

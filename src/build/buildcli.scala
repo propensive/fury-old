@@ -52,7 +52,7 @@ case class ConfigCli(cli: Cli) {
     cli      <- cli.hint(TraceArg, List("on", "off"))
     cli      <- cli.hint(NoIpfsArg, List("on", "off"))
     cli      <- cli.hint(ServiceArg, List("vent.dev"))
-    cli      <- cli.hint(DefaultImportArg, Service.catalog(cli.peek(ServiceArg).getOrElse(ManagedConfig().service)).getOrElse(Nil))
+    cli      <- cli.hint(DefaultImportArg, Service.catalog(cli.peek(ServiceArg).getOrElse(Config().service)).getOrElse(Nil))
     call     <- cli.call()
     newTheme <- ~call(ThemeArg).toOption
     timestamps <- ~call(TimestampsArg).toOption
@@ -60,39 +60,39 @@ case class ConfigCli(cli: Cli) {
     trace    <- ~call(TraceArg).toOption
     service  <- ~call(ServiceArg).toOption
     noIpfs   <- ~call(NoIpfsArg).toOption
-    config   <- ~ManagedConfig()
+    config   <- ~Config()
     config   <- ~newTheme.map { th => config.copy(theme = th) }.getOrElse(config)
     config   <- ~service.map { s => config.copy(service = s) }.getOrElse(config)
     config   <- ~timestamps.map { ts => config.copy(timestamps = ts) }.getOrElse(config)
     config   <- ~pipelining.map { p => config.copy(pipelining = p) }.getOrElse(config)
     config   <- ~trace.map { t => config.copy(trace = t) }.getOrElse(config)
     config   <- ~noIpfs.map { x => config.copy(skipIpfs = x) }.getOrElse(config)
-    _        <- ManagedConfig.write(config)
-  } yield cli.job.await()
+    _        <- Config.write(config)
+  } yield cli.endSession()
 
   def install: Try[ExitStatus] = for {
     cli   <- cli.hint(ForceArg)
     call  <- cli.call()
     force <- ~call(ForceArg).isSuccess
-    _     <- Install(cli.env, force)
-  } yield cli.job.await()
+    _     <- Install(cli.session.env, force)
+  } yield cli.endSession()
 
   def auth: Try[ExitStatus] = for {
     call     <- cli.call()
     token    <- doAuth
-    config   <- ~ManagedConfig().copy(token = Some(token))
-    _        <- ~ManagedConfig.write(config)
+    config   <- ~Config().copy(token = Some(token))
+    _        <- ~Config.write(config)
     _        <- ~log.info("You are now authenticated")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def doAuth: Try[OauthToken] = for {
     code     <- ~Rnd.token(18)
     // These futures should be managed in the session
-    uri      <- ~(Https(ManagedConfig().service) / "await").query("code" -> code)
+    uri      <- ~(Https(Config().service) / "await").query("code" -> code)
     future   <- ~Future(blocking(Http.get(uri.key, Set()).to[Try]))
-    uri      <- ~(Https(ManagedConfig().service) / "auth").query("code" -> code)
+    uri      <- ~(Https(Config().service) / "auth").query("code" -> code)
     _        <- ~log.info(msg"Please visit $uri to authenticate using GitHub.")
-    _        <- ~Future(blocking(Shell(cli.env).tryXdgOpen(uri)))
+    _        <- ~Future(blocking(Shell(cli.session.env).tryXdgOpen(uri)))
     response <- Await.result(future, Duration.Inf)
     json     <- Json.parse(new String(response, "UTF-8")).to[Try]
     token    <- json.token.as[String].to[Try]
@@ -103,7 +103,7 @@ case class ConfigCli(cli: Cli) {
     conf   <- Layer.readFuryConf(layout)
     layer  <- Layer.retrieve(conf)
     cli    <- cli.hint(RawArg)
-    table  <- ~Tables().software(cli.env)
+    table  <- ~Tables().software(cli.session.env)
     cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call   <- cli.call()
     col    <- ~cli.peek(ColumnArg)
@@ -112,7 +112,7 @@ case class ConfigCli(cli: Cli) {
     table  <- ~Tables().show[Software, Boolean](table, cli.cols, rows, raw, col)
     _      <- ~(if(!raw) log.info(conf.focus()))
     _      <- ~log.raw(table+"\n")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
 }
 
@@ -121,7 +121,7 @@ case class AboutCli(cli: Cli) {
   def version: Try[ExitStatus] = for {
     call <- cli.call()
     _    <- ~log.raw(str"fury version ${FuryVersion.current}")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   private def resourcesString: String = {
     val runtime = Runtime.getRuntime
@@ -144,9 +144,9 @@ case class AboutCli(cli: Cli) {
   private val formatter: java.text.DecimalFormat = new java.text.DecimalFormat("0.00")
   private def since(start: Long): String = str"${formatter.format((System.currentTimeMillis - start)/1000.0)}s"
 
-  private def tasksString: String = Lifecycle.sessions.map { session =>
-    str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
-  }.join("\n")
+  // private def tasksString: String = Lifecycle.sessions.map { session =>
+  //   str"[${session.pid}] started ${since(session.started)} ago: ${session.cli.args.args.mkString(" ")}"
+  // }.join("\n")
 
   private def connectionsString: String = BloopServer.workDirectories.map { dir => str"$dir" }.join("\n")
 
@@ -173,17 +173,17 @@ case class AboutCli(cli: Cli) {
 
   def resources: Try[ExitStatus] = cli.call().map { _ =>
     log.raw(withTemplate(resourcesString))
-    cli.job.await()
+    cli.endSession()
   }
 
-  def tasks: Try[ExitStatus] = cli.call().map{ _ =>
-    log.raw(withTemplate(tasksString))
-    cli.job.await()
-  }
+  // def tasks: Try[ExitStatus] = cli.call().map{ _ =>
+  //   log.raw(withTemplate(tasksString))
+  //   cli.endSession()
+  // }
 
   def connections: Try[ExitStatus] = cli.call().map{ _ =>
     log.raw(withTemplate(connectionsString))
-    cli.job.await()
+    cli.endSession()
   }
 
 }
@@ -205,7 +205,7 @@ case class AliasCli(cli: Cli) {
     table  <- ~Tables().show(table, cli.cols, rows, raw, col, alias, "alias")
     _      <- ~(if(!raw) log.info(conf.focus()))
     _      <- ~log.raw(table+"\n")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def remove: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -217,7 +217,7 @@ case class AliasCli(cli: Cli) {
     aliasToDel <- ~layer.aliases.find(_.id == aliasArg)
     layer      <- ~Layer(_.aliases).modify(layer)(_ -- aliasToDel)
     _          <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def add: Try[ExitStatus] = for {
     layout           <- cli.layout
@@ -242,7 +242,7 @@ case class AliasCli(cli: Cli) {
     alias            <- ~Alias(aliasArg, description, moduleRef, call.suffix)
     layer            <- ~Layer(_.aliases).modify(layer)(_ + alias)
     _                <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 }
 
 case class BuildCli(cli: Cli) {
@@ -260,9 +260,9 @@ case class BuildCli(cli: Cli) {
     module  <- ~project.flatMap(_.main)
 
     _       <- ~log.raw(Prompt.rewrite(conf.focus(project.fold(ProjectId("?"))(_.id), module.getOrElse(
-                   ModuleId("?"))).string(ManagedConfig().theme)))
+                   ModuleId("?"))).string(Config().theme)))
 
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def clean: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -273,8 +273,8 @@ case class BuildCli(cli: Cli) {
     project      <- tryProject
     module       <- tryModule
     moduleRef    =  module.ref(project)
-    build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true, cli.job)
-    result       <- build.target.cleanCache()
+    build        <- Build.syncBuild(layer, moduleRef, layout, noSecurity = true, cli.session)
+    result       <- ~build.goalTarget.cleanCache()
   } yield {
     Option(result.getMessage()).foreach(log.info(_))
     val success = result.getCleaned()
@@ -282,11 +282,17 @@ case class BuildCli(cli: Cli) {
     if(success) log.fine(msg"Cleaned compiler caches for $moduleRef and its dependencies")
     else log.warn(msg"Compiler caches for $moduleRef and its dependencies were not cleaned")
     
-    cli.job.await()
+    cli.endSession()
   }
+
+  def state: Try[ExitStatus] = for {
+    call <- cli.call()
+    _    <- ~log.info(Bus())
+  } yield cli.endSession()
 
   def compile(moduleRef: Option[ModuleRef], args: List[String] = Nil): Try[ExitStatus] = for {
     cli            <- cli.hint(WaitArg)
+    _              <- ~log.info("Run compile(moduleRef, args)")
     cli            <- cli.hint(NoSecurityArg)
     cli            <- cli.hint(WatchArg)
     layout         <- cli.layout
@@ -302,11 +308,13 @@ case class BuildCli(cli: Cli) {
     cli            <- cli.hint(JsArg)
     cli            <- cli.hint(ReporterArg, Reporter.all)
     call           <- cli.call()
+    _              <- ~log.info(msg"Starting side-effecting operations")
     dir            <- ~call(PathArg).toOption
     optProjectId   <- ~cli.peek(ProjectArg).orElse(moduleRef.map(_.projectId).orElse(layer.main))
     projectId      <- optProjectId.asTry
     optProject     <- ~layer.projects.findBy(projectId).toOption
     project        <- optProject.ascribe(ItemNotFound(projectId))
+    _              <- ~log.info(msg"Found project")
     moduleId       <- moduleRef.map(~_.moduleId).getOrElse(cli.preview(ModuleArg)(project.main))
     module         <- project.modules.findBy(moduleId)
     pipelining     <- ~call(PipeliningArg).toOption
@@ -319,19 +327,25 @@ case class BuildCli(cli: Cli) {
     //_              <- ~session.checkInotify
     noSecurity      = call(NoSecurityArg).isSuccess
     _              <- call.atMostOne(WatchArg, WaitArg)
-    builder         = Builder(layout, module.ref(project), noSecurity, globalPolicy,
-                          if(call.suffix.isEmpty) args else call.suffix,
-                          pipelining.getOrElse(ManagedConfig().pipelining), reporter, ManagedConfig().theme,
-                          watch || waiting, waiting || !watch, cli.job)
-    _               = cli.job.completion.future.andThen { case _ => builder.abort() }
-    _               = builder.await()
-  } yield cli.job.await()
+    _              <- ~log.info(msg"Starting to create build")
+    build          <- Build.syncBuild(layer, module.ref(project), layout, false, cli.session)
+    _              <- ~log.info(msg"Created build")
+    _              <- build.compile(cli.session)
+    //_              <- ~build.goalTarget.compile(Map(), globalPolicy, args, pipelining = false, noSecurity)
+    
+    // builder         = Builder(layout, module.ref(project), noSecurity, globalPolicy,
+    //                       if(call.suffix.isEmpty) args else call.suffix,
+    //                       pipelining.getOrElse(Config().pipelining), reporter, Config().theme,
+    //                       watch || waiting, waiting || !watch, cli.session)
+    // _               = cli.job.future.andThen { case _ => builder.abort() }
+    //_               = builder.await()
+  } yield cli.endSession()
 
     // r               = repeater(build.allSources, waiting) {
     //                     for {
     //                       task <- compileAsync(build, layer, module.ref(project), layout, globalPolicy,
     //                                   if(call.suffix.isEmpty) args else call.suffix, pipelining.getOrElse(
-    //                                   ManagedConfig().pipelining), reporter, ManagedConfig().theme,
+    //                                   Config().pipelining), reporter, Config().theme,
     //                                   noSecurity)
     //                     } yield {
     //                       task.transform { completed =>
@@ -347,7 +361,7 @@ case class BuildCli(cli: Cli) {
     //                   }
 
     //future         <- if(watch || waiting) Try(r.start()).flatten else r.action()
-  //} yield cli.job.await(Await.result(future, duration.Duration.Inf).success)
+  //} yield cli.endSession(Await.result(future, duration.Duration.Inf).success)
 
   /*private def repeater(sources: Set[Path], onceOnly: Boolean)
                       (fn: => Try[Future[BuildResult]])
@@ -403,7 +417,7 @@ case class BuildCli(cli: Cli) {
   //   r             = repeater(build.allSources, waiting) { for {
   //                     task <- compileAsync(build, layer, module.ref(project), layout, globalPolicy,
   //                                 if(call.suffix.isEmpty) Nil else call.suffix, false, reporter,
-  //                                 ManagedConfig().theme, noSecurity)
+  //                                 Config().theme, noSecurity)
   //                   } yield {
   //                     task.transform { completed =>
   //                       for {
@@ -423,13 +437,13 @@ case class BuildCli(cli: Cli) {
   //   globalPolicy <- ~Policy.read(log)
   //   javaVersion  <- build.universe.javaVersion(module.ref(project), layout)
 
-  //   _            <- Try(Shell(cli.env).runJava(new build.TargetExtras(build.targets(module.ref(project))).classpath.to[List].map(_.value),
+  //   _            <- Try(Shell(cli.session.env).runJava(new build.TargetExtras(build.targets(module.ref(project))).classpath.to[List].map(_.value),
   //                       ClassRef("exoskeleton.Generate"), false, Map("FPATH" ->
   //                       Installation.completionsDir.value), Map(), globalPolicy, List(exec.key), true,
   //                       layout.workDir(module.ref(project)), javaVersion)(log.info(_)).await())
 
   //   _            <- ~log.info(msg"Installed $exec executable to ${Installation.optDir}")
-  // } yield cli.job.await()
+  // } yield cli.endSession()
 
   // def console: Try[ExitStatus] = for {
   //   layout       <- cli.layout
@@ -453,8 +467,8 @@ case class BuildCli(cli: Cli) {
   //   result       <- for {
   //                     globalPolicy <- ~Policy.read(log)
   //                     task <- compileAsync(build, module.ref(project), layout,
-  //                                 globalPolicy, Nil, pipelining.getOrElse(ManagedConfig().pipelining), reporter,
-  //                                 ManagedConfig().theme, noSecurity, _ => ())
+  //                                 globalPolicy, Nil, pipelining.getOrElse(Config().pipelining), reporter,
+  //                                 Config().theme, noSecurity, _ => ())
   //                   } yield { task.transform { completed => for {
   //                     compileResult  <- completed
   //                     compileSuccess <- compileResult.asTry
@@ -489,40 +503,40 @@ case class BuildCli(cli: Cli) {
     project      <- tryProject
     module       <- tryModule
     ref          <- ~module.ref(project)
-    build        <- Build.syncBuild(layer, ref, layout, false, cli.job)
-    classpath    <- Try(build.target.bootClasspath)
+    build        <- Build.syncBuild(layer, ref, layout, false, cli.session)
+    classpath    <- Try(build.goalTarget.bootClasspath)
   } yield {
     val separator = if(singleColumn) "\n" else ":"
     log.raw(classpath.map(_.value).join(separator)+"\n")
-    cli.job.await()
+    cli.endSession()
   }
 
-  def script(): Try[ExitStatus] = for {
-    layout  <- cli.layout
-    script  <- Path.unapply(cli.args.args.head).ascribe(MissingArg("script"))
-    file     = script.in(layout.pwd)
-    bytes   <- file.bytes()
-    checksum = bytes.digest[Md5].encoded[Hex]
-    dir      = Installation.scriptsDir / checksum
-    layout  <- ~layout.copy(baseDir = dir)
-    ref      = ModuleRef("script/run")
-    app     <- ScriptCache(checksum).map(Try(_)).getOrElse { for {
-                 _       <- ~dir.extant()
-                 layer   <- Layer.init(layout, false, false, false, Some(ref))
-                 _        = Bsp.createConfig(layout)
-                 srcFile  = layout.baseDir / "src" / "run" / script.name
-                 _       <- srcFile.writeSync(new String(bytes.to[Array], "UTF-8").split("\n").dropWhile(_.startsWith("#")).mkString("\n"))
-                 policy  <- ~Policy.read()
-                 builder  = Builder(layout, ref, true, policy, cli.args.args.drop(1).to[List], false, GraphReporter, ManagedConfig().theme, false, true, cli.job)
-                 _        = cli.job.completion.future.andThen { case _ => builder.abort() }
-                 build    = builder.await()
-                 classes  = Asm.executableClasses(layout.classesDir(ref)).filterNot(_.endsWith("$"))
-                 app      = build.target.application(ClassRef(classes.head))
-                 _        = ScriptCache.add(checksum, app)
-               } yield app }
-    call    <- cli.call()
-    _        = app(cli.args.args.drop(1): _*)
-  } yield cli.job.await()
+  // def script(): Try[ExitStatus] = for {
+  //   layout  <- cli.layout
+  //   script  <- Path.unapply(cli.args.args.head).ascribe(MissingArg("script"))
+  //   file     = script.in(layout.pwd)
+  //   bytes   <- file.bytes()
+  //   checksum = bytes.digest[Md5].encoded[Hex]
+  //   dir      = Installation.scriptsDir / checksum
+  //   layout  <- ~layout.copy(baseDir = dir)
+  //   ref      = ModuleRef("script/run")
+  //   app     <- ScriptCache(checksum).map(Try(_)).getOrElse { for {
+  //                _       <- ~dir.extant()
+  //                layer   <- Layer.init(layout, false, false, false, Some(ref))
+  //                _        = Bsp.createConfig(layout)
+  //                srcFile  = layout.baseDir / "src" / "run" / script.name
+  //                _       <- srcFile.writeSync(new String(bytes.to[Array], "UTF-8").split("\n").dropWhile(_.startsWith("#")).mkString("\n"))
+  //                policy  <- ~Policy.read()
+  //                builder  = Builder(layout, ref, true, policy, cli.args.args.drop(1).to[List], false, GraphReporter, Config().theme, false, true, cli.job)
+  //                //_        = cli.job.future.andThen { case _ => builder.abort() }
+  //                //build    = builder.await()
+  //                //classes  = Asm.executableClasses(layout.classesDir(ref)).filterNot(_.endsWith("$"))
+  //                //app      = build.goalTarget.application(ClassRef(classes.head))
+  //                //_        = ScriptCache.add(checksum, app)
+  //              } yield app }
+  //   call    <- cli.call()
+  //   _        = app(cli.args.args.drop(1): _*)
+  // } yield cli.endSession()
 
   def quickstart: Try[ExitStatus] = for {
     layout <- cli.newLayout
@@ -539,12 +553,12 @@ case class BuildCli(cli: Cli) {
     _      <- Layer.init(layout, git, ci, false, ref)
     _      =  Bsp.createConfig(layout)
 
-    _      <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
-                implicit val env: Environment = cli.env
+    _      <- if(edit) VsCodeSoftware.installedPath(cli.session.env, false).flatMap { path =>
+                implicit val env: Environment = cli.session.env
                 sh"${path} ${layout.baseDir}".exec[Try[String]]
               }
               else Success(())
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def describe: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -554,10 +568,10 @@ case class BuildCli(cli: Cli) {
     call         <- cli.call()
     project      <- tryProject
     module       <- tryModule
-    build        <- Build.syncBuild(layer, module.ref(project), layout, false, cli.job)
-    _            <- ~log.info(build.describe(layout))
-    _            <- ~UiGraph.draw(build.graph.links, true, Map())(ManagedConfig().theme).foreach(log.info(_))
-  } yield cli.job.await()
+    build        <- Build.syncBuild(layer, module.ref(project), layout, false, cli.session)
+    _            <- ~log.info(build.describe)
+    //_            <- ~UiGraph.draw(build.graph.links, true, Map())(Config().theme).foreach(log.info(_))
+  } yield cli.endSession()
 }
 
 case class ShadeCli(cli: Cli) {
@@ -576,7 +590,7 @@ case class ShadeCli(cli: Cli) {
     table     <- ~Tables().show[(ImportId, ProjectId), ImportId](table, cli.cols, rows, raw, col, None, "shade")
     _         <- ~(if(!raw) log.info(conf.focus()))
     _         <- ~log.raw(table+"\n")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def add: Try[ExitStatus] = for {
     layout    <- cli.layout
@@ -597,7 +611,7 @@ case class ShadeCli(cli: Cli) {
     shade     <- ~Shade(project.id, false)
     layer     <- ~Layer(_.imports(imported.id).shades).modify(layer)(_ + shade)
     _         <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
   
   def remove: Try[ExitStatus] = for {
     layout     <- cli.layout
@@ -616,7 +630,7 @@ case class ShadeCli(cli: Cli) {
     imported   <- layer.imports.findBy(importId)
     layer      <- ~Layer(_.imports(imported.id).shades).modify(layer)(_.filter(_.id != projectId))
     _          <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 }
 
 case class ImportCli(cli: Cli) {
@@ -636,7 +650,7 @@ case class ImportCli(cli: Cli) {
     table     <- ~Tables().show(table, cli.cols, rows, raw, col, importId, "import")
     _         <- ~(if(!raw) log.info(conf.focus()))
     _         <- ~log.raw(table+"\n")
-  } yield cli.job.await()
+  } yield cli.endSession()
   
   def add: Try[ExitStatus] = for {
     layout      <- cli.layout
@@ -661,7 +675,7 @@ case class ImportCli(cli: Cli) {
     ref         <- ~Import(nameArg, newLayerRef, pub)
     layer       <- ~Layer(_.imports).modify(layer)(_ + ref.copy(id = nameArg))
     _           <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def remove: Try[ExitStatus] = for {
     layout    <- cli.layout
@@ -672,7 +686,7 @@ case class ImportCli(cli: Cli) {
     importArg <- call(ImportIdArg)
     layer     <- ~Layer(_.imports).modify(layer)(_.evict(importArg))
     _         <- Layer.commit(layer, conf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
   
   def pull: Try[ExitStatus] = for {
     layout    <- cli.layout
@@ -700,7 +714,7 @@ case class ImportCli(cli: Cli) {
     layer     <- ~Await.result(future, Duration.Inf)
     conf      <- updateCurrent(layer, conf, version, cache)
     _         <- Layer.commit(layer, conf, layout, force = true)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   private def updateCurrent(layer: Layer, conf: FuryConf, version: Option[LayerVersion], cache: Service.Cache)
                            : Try[FuryConf] =
@@ -793,12 +807,12 @@ case class LayerCli(cli: Cli) {
     _      <- Layer.init(layout, git, ci, bare, None)
     _      =  Bsp.createConfig(layout)
 
-    _      <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
-                implicit val env: Environment = cli.env
+    _      <- if(edit) VsCodeSoftware.installedPath(cli.session.env, false).flatMap { path =>
+                implicit val env: Environment = cli.session.env
                 sh"${path} ${layout.baseDir}".exec[Try[String]]
               }
               else Success(())
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def select: Try[ExitStatus] = for {
     layout       <- cli.layout
@@ -817,7 +831,7 @@ case class LayerCli(cli: Cli) {
     _            <- verifyLayers(newPath, absTree)
     newConf      <- ~focus.copy(path = newPath)
     _            <- Layer.saveFuryConf(newConf, layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
 
   def verifyLayers(path: Pointer, list: List[Pointer]): Try[Unit] =
@@ -857,12 +871,12 @@ case class LayerCli(cli: Cli) {
     _          <- Bsp.createConfig(layout)
     _          <- ~log.info(msg"Cloning complete")
     
-    _          <- if(edit) VsCodeSoftware.installedPath(cli.env, false).flatMap { path =>
-                    implicit val env: Environment = cli.env
+    _          <- if(edit) VsCodeSoftware.installedPath(cli.session.env, false).flatMap { path =>
+                    implicit val env: Environment = cli.session.env
                     sh"$path $dir".exec[Try[String]]
                   }
                   else Success(())
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def publish: Try[ExitStatus] = for {
     layout        <- cli.layout
@@ -874,7 +888,7 @@ case class LayerCli(cli: Cli) {
     cli           <- cli.hint(ExpiryArg)
     cli           <- cli.hint(ForceArg)
     call          <- cli.call()
-    token         <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
+    token         <- Config().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
     layer         <- Layer.retrieve(conf)
     base          <- Layer.get(conf.layerRef, None)
     
@@ -892,10 +906,10 @@ case class LayerCli(cli: Cli) {
     description   <- ~call(DescriptionArg).toOption
     ttl           <- Try(call(ExpiryArg).toOption.getOrElse(if(public) 30 else 7))
     _             <- layer.verifyConf(false, conf, Pointer.Root, quiet = false, force)
-    _             <- ~log.info(msg"Publishing layer to service ${ManagedConfig().service}")
-    ref           <- Layer.share(ManagedConfig().service, layer, token, ttl)
+    _             <- ~log.info(msg"Publishing layer to service ${Config().service}")
+    ref           <- Layer.share(Config().service, layer, token, ttl)
     
-    pub           <- Service.tag(ManagedConfig().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
+    pub           <- Service.tag(Config().service, ref.ipfsRef, remoteLayerId.group, remoteLayerId.name,
                          public, conf.published.fold(0)(_.version.major), description, ttl, token, force,
                          conf.published.fold("")(_.url.path.split("/").head))
 
@@ -921,7 +935,7 @@ case class LayerCli(cli: Cli) {
                          _      <- Layer.saveFuryConf(conf.copy(path = path), layout)
                        } yield ()
                      }
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def share: Try[ExitStatus] = for {
     layout <- cli.layout
@@ -940,12 +954,12 @@ case class LayerCli(cli: Cli) {
 
     ref    <- if(!public) Layer.store(layer)
               else for {
-                token  <- ManagedConfig().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
-                ref    <- Layer.share(ManagedConfig().service, layer, token, ttl)
+                token  <- Config().token.ascribe(NotAuthenticated()).orElse(ConfigCli(cli).doAuth)
+                ref    <- Layer.share(Config().service, layer, token, ttl)
               } yield ref
 
     _      <- if(raw) ~log.raw(str"${ref.ipfsRef.uri}"+"\n") else ~log.info(msg"Shared at ${ref.ipfsRef.uri}")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def commit: Try[ExitStatus] = for {
     layout <- cli.layout
@@ -964,7 +978,7 @@ case class LayerCli(cli: Cli) {
     _      <- gitDir.add(layout.layerDb, force = true)
     _      <- gitDir.add(layout.confFile, force = true)
     _      <- ~log.info(msg"Don't forget to run ${Executable("git commit")} to commit the layer to the repo.")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def undo: Try[ExitStatus] = for {
     call     <- cli.call()
@@ -976,7 +990,7 @@ case class LayerCli(cli: Cli) {
     layerRef <- Layer.store(layer)
     _        <- ~log.info(msg"Reverted to layer $layerRef")
     _        <- Layer.saveFuryConf(conf.copy(layerRef = layerRef), layout)
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def diff: Try[ExitStatus] = for {
     layout <- cli.layout
@@ -998,21 +1012,21 @@ case class LayerCli(cli: Cli) {
     rows   <- ~Diff.gen[Layer].diff(layer, other)
     table  <- ~Tables().show[Difference, Difference](table, cli.cols, rows, raw, col)
     _      <- if(!rows.isEmpty) ~log.raw(table+"\n") else ~log.info("No changes")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
   def remote: Try[ExitStatus] = for {
     cli    <- cli.hint(RawArg)
     cli    <- cli.hint(ServiceArg)
-    svc    <- ~cli.peek(ServiceArg).getOrElse(ManagedConfig().service)
-    table  <- ~Tables().layerStatuses(ManagedConfig().service)
+    svc    <- ~cli.peek(ServiceArg).getOrElse(Config().service)
+    table  <- ~Tables().layerStatuses(Config().service)
     cli    <- cli.hint(ColumnArg, table.headings.map(_.name.toLowerCase))
     call   <- cli.call()
     raw    <- ~call(RawArg).isSuccess
     col    <- ~cli.peek(ColumnArg)
-    token  <- ManagedConfig().token.ascribe(NotAuthenticated())
-    rows   <- Service.published(ManagedConfig().service, token)
+    token  <- Config().token.ascribe(NotAuthenticated())
+    rows   <- Service.published(Config().service, token)
     _      <- ~log.raw(Tables().show[LayerStatus, Boolean](table, cli.cols, rows, raw, col, None, "layer")+"\n")
-  } yield cli.job.await()
+  } yield cli.endSession()
 
 }
 
@@ -1022,69 +1036,70 @@ case class Builder(layout: Layout, ref: ModuleRef, noSecurity: Boolean, policy: 
 
   private var lastBuild: Option[Build] = None
 
-  private val listener: Monitor.Listener = Monitor.listen(layout)(activity.enqueue(doCompile(_, job)))
+  //private val listener: Monitor.Listener = Monitor.listen(layout)(activity.enqueue(doCompile(_, job)))
   
-  private lazy val activity: Activity[Build] = new Activity[Build](doCompile(None, job), { b =>
-    listener.updatePaths(b.editableSources)
-  }, stopOnSuccess)
+  // private lazy val activity: Activity[Build] = new Activity[Build](doCompile(None, job), { b =>
+  //   //listener.updatePaths(b.editableSources)
+  //   Bus.put(WatchPaths(b.editableSources))
+  // }, stopOnSuccess)
 
-  private def rebuild(missing: Set[MissingPkg]): Unit = activity.addTask {
-    missing.foreach { case MissingPkg(ref, pkg) =>
-      for {
-        conf     <- Layer.readFuryConf(layout)
-        layer    <- Layer.retrieve(conf)
-        universe <- layer.universe()
-        project  <- layer.projects.findBy(ref.projectId)
-        module   <- project.modules.findBy(ref.moduleId)
-        found    <- universe.packageMatch(pkg)
-        _        <- ~log.info(msg"Adding dependency on $found to $ref")
-        layer    <- Try(Lens[Layer](_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ +
-                        Input(found)))
-        _        <- Layer.commit(layer, conf, layout)
-      } yield ()
-    }
-  }
+  // private def rebuild(missing: Set[MissingPkg]): Unit = activity.addTask {
+  //   missing.foreach { case MissingPkg(ref, pkg) =>
+  //     for {
+  //       conf     <- Layer.readFuryConf(layout)
+  //       layer    <- Layer.retrieve(conf)
+  //       universe <- layer.universe()
+  //       project  <- layer.projects.findBy(ref.projectId)
+  //       module   <- project.modules.findBy(ref.moduleId)
+  //       found    <- universe.packageMatch(pkg)
+  //       _        <- ~log.info(msg"Adding dependency on $found to $ref")
+  //       layer    <- Try(Lens[Layer](_.projects(project.id).modules(module.id).dependencies).modify(layer)(_ +
+  //                       Input(found)))
+  //       _        <- Layer.commit(layer, conf, layout)
+  //     } yield ()
+  //   }
+  // }
 
-  private def doCompile(build: Option[Build], job: Job): Try[Build] = for {
-    conf  <- Layer.readFuryConf(layout)
-    layer <- Layer.retrieve(conf)
-    build <- Build.syncBuild(layer, ref, layout, noSecurity, job)
-    _      = builder.synchronized(lastBuild = Some(build))
-    _     <- compileAsync(build, ref, policy, args, pipelining, reporter, theme, noSecurity, rebuild)
-  } yield build
+  // private def doCompile(build: Option[Build], job: Job): Try[Build] = for {
+  //   conf  <- Layer.readFuryConf(layout)
+  //   layer <- Layer.retrieve(conf)
+  //   build <- Build.syncBuild(layer, ref, layout, noSecurity, job)
+  //   _      = builder.synchronized(lastBuild = Some(build))
+  //   _     <- compileAsync(build, ref, policy, args, pipelining, reporter, theme, noSecurity, rebuild)
+  // } yield build
 
-  private[this] def compileAsync(build: Build,
-                                 moduleRef: ModuleRef,
-                                 globalPolicy: Policy,
-                                 compileArgs: List[String],
-                                 pipelining: Boolean,
-                                 reporter: Reporter,
-                                 theme: Theme,
-                                 noSecurity: Boolean,
-                                 rebuild: Set[MissingPkg] => Unit): Try[Future[BuildResult]] = {
-    for(_ <- build.checkoutAll()) yield {
-      val promise = Promise[Unit]()
-      //val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
-      //Lifecycle.currentSession.multiplexer = multiplexer
-      val future = build.target.compile(Map(), globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
-        case compRes =>
-          //multiplexer.closeAll()
-          promise.complete(Success(()))
-          compRes
-      }
-      reporter.report(build.graph, theme, promise, rebuild)
+  // private[this] def compileAsync(build: Build,
+  //                                moduleRef: ModuleRef,
+  //                                globalPolicy: Policy,
+  //                                compileArgs: List[String],
+  //                                pipelining: Boolean,
+  //                                reporter: Reporter,
+  //                                theme: Theme,
+  //                                noSecurity: Boolean,
+  //                                rebuild: Set[MissingPkg] => Unit): Try[Future[BuildResult]] = {
+  //   for(_ <- build.checkoutAll()) yield {
+  //     val promise = Promise[Unit]()
+  //     //val multiplexer = new Multiplexer[ModuleRef, CompileEvent](build.targets.map(_._1).to[Set])
+  //     //Lifecycle.currentSession.multiplexer = multiplexer
+  //     val future = build.goalTarget.compile(Map(), globalPolicy, compileArgs, pipelining, noSecurity).apply(moduleRef).andThen {
+  //       case compRes =>
+  //         //multiplexer.closeAll()
+  //         promise.complete(Success(()))
+  //         compRes
+  //     }
+  //     reporter.report(build.graph, theme, promise, rebuild)
 
-      future
-    }
-  }
+  //     future
+  //   }
+  // }
 
-  def abort(): Unit = {
-    listener.stop()
-    activity.abort()
-  } 
+  // def abort(): Unit = {
+  //   //listener.stop()
+  //   activity.abort()
+  // } 
 
-  def await(): Build = {
-    activity.await()
-    builder.synchronized { lastBuild.get }
-  }
+  // def await(): Build = {
+  //   activity.await()
+  //   builder.synchronized { lastBuild.get }
+  // }
 }
