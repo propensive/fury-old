@@ -61,7 +61,7 @@ installJava() {
   
   case "${os}" in
     "linux")   mv "${jdkDir}/tmp"/*/* "${jdkDir}/" ;;
-    "windows") mv "${kdkDir}/tmp"/*/* "${jdkDir}/" ;;
+    "windows") mv "${jdkDir}/tmp"/*/* "${jdkDir}/" ;;
     "mac")     mv "${jdkDir}/tmp"/*/Contents/Home/* "${jdkDir}/" ;;
   esac
 
