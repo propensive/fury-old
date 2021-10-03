@@ -6,9 +6,9 @@
 # Copyright 2018-20 Jon Pretty, Propensive OÜ.
 #
 
-version="0.35.0"
-ipfsHash="QmUCg7n8yJgUJQqYKwGvsQZZnkW8JQ9A7zt6YYXLJf9Lbz"
-md5Hash="2007bc13dc5395d494d6d89b2bffdbe9"
+version="0.36.0"
+ipfsHash="QmZ3QE7heWgoeJEZdMVpHcNtGxawfkwzjmPii9KXWfHLRB"
+md5Hash="dde0211909f942a9bc885f892cf07247"
 jdkVersion="11"
 xdgUsrHome="${XDG_DATA_HOME:-"$HOME/.local/share"}"
 xdgSysHome="${XDG_DATA_HOME:-/usr/share}"
@@ -61,7 +61,7 @@ installJava() {
   
   case "${os}" in
     "linux")   mv "${jdkDir}/tmp"/*/* "${jdkDir}/" ;;
-    "windows") mv "${jdkDir}/tmp"/*/* "${jdkDir}/" ;;
+    "windows") mv "${kdkDir}/tmp"/*/* "${jdkDir}/" ;;
     "mac")     mv "${jdkDir}/tmp"/*/Contents/Home/* "${jdkDir}/" ;;
   esac
 
