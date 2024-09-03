@@ -44,7 +44,7 @@ jobs:
       fail-fast: false
     steps:
     - uses: actions/checkout@v2.0.0
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         name: build-dist-${{ runner.os }}
         path: dist
@@ -80,7 +80,7 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v2.0.0
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: build-dist-${{ runner.os }}
           path: dist
